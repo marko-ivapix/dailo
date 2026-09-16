@@ -75,3 +75,44 @@ Result: both exited 0. Chromium required the permitted unsandboxed browser launc
 ## Concerns
 
 None. Migration is intentionally exposed as a storage primitive; startup orchestration is assigned to the later migration/safety work.
+
+---
+
+## Fix round 1 — complete browser bootstrap dependency chain
+
+### RED evidence
+
+Before the bootstrap change, `tests/ui-v1-1-smoke.py` and `tests/ui-v1-3-migration.py` loaded only `core.js` and `app.js`. Runtime assertions for `TodoStorage`, `TodoAttachments`, and `TodoBackup` were added before adding the omitted scripts.
+
+The first focused execution was blocked at Chromium launch by the sandbox (`TargetClosedError`, SIGABRT) before a page could run the new assertion. This was an environment failure rather than a passing pre-change contract. The same browser command succeeds when Chromium is allowed to launch outside the sandbox.
+
+### GREEN evidence
+
+All four Playwright bootstraps now load the production chain after JSZip:
+
+```text
+core → storage → attachments → backup → app
+```
+
+Each explicitly enables the existing in-memory IndexedDB adapter before script injection so the original V1.1 and V1.3 migration test purposes remain isolated from persisted browser state.
+
+Commands:
+
+```text
+PYTHONPATH=tests/browser_test_support .venv/bin/python tests/ui-v1-1-smoke.py
+PYTHONPATH=tests/browser_test_support .venv/bin/python tests/ui-v1-3-migration.py
+PYTHONPATH=tests/browser_test_support .venv/bin/python tests/ui-v1-2-lifecycle.py
+PYTHONPATH=tests/browser_test_support .venv/bin/python tests/ui-v1-2-smoke.py
+```
+
+Result: all four browser suites exited 0 with the permitted browser launch.
+
+```text
+node --test tests/storage-v1-3.test.js tests/core.test.js tests/core-v1-3.test.js
+```
+
+Result: 36 passes, 0 failures.
+
+### Real IndexedDB test note
+
+No additional real-IndexedDB schema test was added in this narrow bootstrap repair. Node reports `indexedDB` unavailable, while the Playwright suites deliberately select the memory adapter for deterministic isolation. A real-browser IndexedDB test would require a new persistent-browser fixture and expands beyond the review finding; the shared storage's memory contract and the existing browser regressions remain covered.

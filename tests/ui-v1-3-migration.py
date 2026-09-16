@@ -5,6 +5,10 @@ from playwright.sync_api import sync_playwright
 
 ROOT = Path(__file__).resolve().parents[1]
 CORE = (ROOT / 'js' / 'core.js').read_text()
+JSZIP = (ROOT / 'vendor' / 'jszip.min.js').read_text()
+STORAGE = (ROOT / 'js' / 'storage.js').read_text()
+ATTACHMENTS = (ROOT / 'js' / 'attachments.js').read_text()
+BACKUP = (ROOT / 'js' / 'backup.js').read_text()
 APP = (ROOT / 'js' / 'app.js').read_text()
 SHELL = '''<!doctype html><html><body>
 <div id="app" class="app-shell" aria-live="polite">
@@ -34,6 +38,7 @@ def boot(page, seed):
     page.set_content(SHELL)
     page.evaluate("location.hash = '#today'")
     page.evaluate('''(seed) => {
+      window.__TODO_TEST_MEMORY_DB__ = true;
       const data = new Map();
       if (seed) data.set('todoAppData', JSON.stringify(seed));
       Object.defineProperty(window, 'localStorage', { value: {
@@ -42,7 +47,11 @@ def boot(page, seed):
         removeItem: key => data.delete(key), clear: () => data.clear(),
       }, configurable: true });
     }''', seed)
+    page.add_script_tag(content=JSZIP)
     page.add_script_tag(content=CORE)
+    page.add_script_tag(content=STORAGE)
+    page.add_script_tag(content=ATTACHMENTS)
+    page.add_script_tag(content=BACKUP)
     page.add_script_tag(content=APP)
     page.wait_for_selector('.page-title')
 
@@ -53,6 +62,7 @@ def main():
         page = browser.new_page(viewport={'width': 1440, 'height': 1000})
 
         boot(page, v2_state('Loaded V2 task'))
+        assert page.evaluate('Boolean(window.TodoStorage && window.TodoAttachments && window.TodoBackup)')
         loaded = page.evaluate('''() => ({
           state: TodoApp.state,
           persisted: JSON.parse(localStorage.getItem('todoAppData')),
