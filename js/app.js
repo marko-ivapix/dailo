@@ -446,8 +446,30 @@
   }
 
   const knowledgeCollection = type => type === 'note' ? 'notes' : 'resources';
-  const knowledgeLabel = type => type === 'note' ? 'Note' : 'Resource';
-  const knowledgeIcon = type => type === 'note' ? 'ph-note' : 'ph-link';
+
+  function domainContext() {
+    return {
+      // Live accessors preserve source/modal checks across asynchronous attachment work.
+      get state() { return state; },
+      get modalState() { return modalState; },
+      get undoHold() { return undoHold; },
+      setModalState(value) { modalState = value; },
+      $, $$, esc, knowledgeCollection, getArea, attachmentOwner,
+      pageHeader, modalFrame, renderMain, renderModal, currentRoute,
+      knowledgeAttachmentCache, readOwnerAttachments, renderAttachmentRow,
+      renderAttachmentsSection, loadOwnerAttachments, addAttachments,
+      closePopover, flushTextSave, goalFocusTarget, closeModal,
+      nowIso, uid, copyTemplate, saveState, navigate, setToastMessage, requestDeleteEntity
+    };
+  }
+
+  function callDomainHook(hook, ...args) {
+    for (const adapter of window.TodoDomainModules?.getAdapters() || []) {
+      if (typeof adapter[hook] !== 'function') continue;
+      const result = adapter[hook](...args, domainContext());
+      if (result !== undefined && result !== false) return result;
+    }
+  }
 
   function currentRoute() {
     const hash = location.hash.replace(/^#/, '') || 'today';
@@ -594,30 +616,30 @@
     const route = currentRoute();
     const main = $('#main');
     const warning = storageError ? `<div class="global-warning" role="alert"><i class="ph ph-warning-circle"></i> Changes couldn't be saved locally. Refreshing may cause data loss.</div>` : '';
-    let content = '';
-    if (route.type === 'templates') content = renderTemplates();
-    else if (route.type === 'saved-views') content = renderSavedViews();
-    else if (route.type === 'saved-view') content = renderSavedView(route.id);
-    else if (route.type === 'projects') content = renderProjects();
-    else if (route.type === 'today') content = renderToday();
-    else if (route.type === 'inbox') content = renderInbox();
-    else if (route.type === 'upcoming') content = renderUpcoming();
-    else if (route.type === 'calendar') content = renderCalendar();
-    else if (route.type === 'anytime') content = renderAnytime();
-    else if (route.type === 'tags') content = renderTags();
-    else if (route.type === 'areas') content = renderAreas();
-    else if (route.type === 'area') content = renderArea(route.id);
-    else if (route.type === 'notes' || route.type === 'resources') content = renderKnowledgeList(route.type === 'notes' ? 'note' : 'resource');
-    else if (route.type === 'note' || route.type === 'resource') content = renderKnowledgeDetail(route.type, route.id);
-    else if (route.type === 'goals') content = renderGoals();
-    else if (route.type === 'goal') content = renderGoal(route.id);
-    else if (route.type === 'habits') content = renderHabits();
-    else if (route.type === 'habit') content = renderHabit(route.id);
-    else if (route.type === 'archived') content = renderArchivedProjects();
-    else if (route.type === 'project') content = renderProject(route.id);
-    else if (route.type === 'completed') content = renderCompleted();
-    else if (route.type === 'settings') content = renderSettings();
-    else content = renderToday();
+    let content = callDomainHook('renderRoute', route);
+    if (content === undefined) {
+      if (route.type === 'templates') content = renderTemplates();
+      else if (route.type === 'saved-views') content = renderSavedViews();
+      else if (route.type === 'saved-view') content = renderSavedView(route.id);
+      else if (route.type === 'projects') content = renderProjects();
+      else if (route.type === 'today') content = renderToday();
+      else if (route.type === 'inbox') content = renderInbox();
+      else if (route.type === 'upcoming') content = renderUpcoming();
+      else if (route.type === 'calendar') content = renderCalendar();
+      else if (route.type === 'anytime') content = renderAnytime();
+      else if (route.type === 'tags') content = renderTags();
+      else if (route.type === 'areas') content = renderAreas();
+      else if (route.type === 'area') content = renderArea(route.id);
+      else if (route.type === 'goals') content = renderGoals();
+      else if (route.type === 'goal') content = renderGoal(route.id);
+      else if (route.type === 'habits') content = renderHabits();
+      else if (route.type === 'habit') content = renderHabit(route.id);
+      else if (route.type === 'archived') content = renderArchivedProjects();
+      else if (route.type === 'project') content = renderProject(route.id);
+      else if (route.type === 'completed') content = renderCompleted();
+      else if (route.type === 'settings') content = renderSettings();
+      else content = renderToday();
+    }
     main.innerHTML = `${warning}<div class="content ${route.type === 'calendar' ? 'calendar-content' : ''}">${content}</div>`;
     if (createdGoalFocusId && route.type === 'goal' && route.id === createdGoalFocusId) {
       createdGoalFocusId = null;
@@ -867,49 +889,8 @@
     html += `<section class="section area-detail-section"><div class="section-header"><h2 class="section-label">Standalone Tasks</h2><span class="section-count">${tasks.filter(task => !task.isCompleted).length}</span></div>${tasks.length ? `<div class="task-list">${tasks.map(task => taskRow(task, `area:${area.id}`)).join('')}</div>` : '<p class="area-empty-copy">No standalone tasks in this Area.</p>'}<button class="inline-add" type="button" data-action="area-new-task" data-area-id="${esc(area.id)}"><i class="ph ph-plus"></i> New task</button></section>`;
     html += `<section class="section area-detail-section"><div class="section-header"><h2 class="section-label">Goals</h2><span class="section-count">${goals.length}</span></div>${goals.length ? `<div class="area-object-list">${goals.map(goal => `<button class="area-object" type="button" data-route="goal/${esc(goal.id)}"><i class="ph ph-target"></i>${esc(goal.title || 'Untitled goal')}</button>`).join('')}</div>` : '<p class="area-empty-copy">No goals in this Area.</p>'}<button class="inline-add" type="button" data-action="area-new-goal" data-area-id="${esc(area.id)}"><i class="ph ph-plus"></i> New goal</button></section>`;
     html += `<section class="section area-detail-section"><div class="section-header"><h2 class="section-label">Habits</h2><span class="section-count">${habits.length}</span></div>${habits.length ? `<div class="area-object-list">${habits.map(habit => `<button class="area-object" type="button" data-route="habit/${esc(habit.id)}"><i class="ph ph-repeat"></i>${esc(habit.name || habit.title || 'Untitled habit')}</button>`).join('')}</div>` : '<p class="area-empty-copy">No habits in this Area.</p>'}<button class="inline-add" type="button" data-action="area-new-habit" data-area-id="${esc(area.id)}"><i class="ph ph-plus"></i> New habit</button></section>`;
-    for (const type of ['note', 'resource']) {
-      const items = state[knowledgeCollection(type)].filter(item => item.areaId === areaId);
-      html += `<section class="section area-detail-section"><div class="section-header"><h2 class="section-label">${knowledgeCollection(type) === 'notes' ? 'Notes' : 'Resources'}</h2><span class="section-count">${items.length}</span></div>${items.length ? items.map(item => renderKnowledgeRow(type, item)).join('') : `<p class="area-empty-copy">No ${knowledgeCollection(type)} in this Area.</p>`}<button class="inline-add" type="button" data-action="new-knowledge" data-owner-type="${type}" data-area-id="${esc(areaId)}"><i class="ph ph-plus"></i> New ${type}</button></section>`;
-    }
+    html += callDomainHook('renderRoute', { type: 'area-knowledge', id: areaId }) || '';
     return html;
-  }
-
-  function renderKnowledgeRow(type, item) {
-    return `<article class="goal-row"><button class="goal-open" type="button" data-route="${type}/${esc(item.id)}"><strong><i class="ph ${knowledgeIcon(type)}"></i> ${esc(item.title)}</strong><small>${esc(getArea(item.areaId)?.name || 'No area')} · ${item.linkUrls.length} links · ${item.attachmentIds.length} files</small></button><button class="btn-icon" type="button" data-action="edit-knowledge" data-owner-type="${type}" data-owner-id="${esc(item.id)}" aria-label="Edit ${type}"><i class="ph ph-pencil-simple"></i></button></article>`;
-  }
-
-  function renderKnowledgeList(type) {
-    const items = [...state[knowledgeCollection(type)]].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-    return pageHeader(type === 'note' ? 'Notes' : 'Resources', `${items.length} ${knowledgeCollection(type)}`, { add: false, actionHtml: `<button class="btn btn-primary" type="button" data-action="new-knowledge" data-owner-type="${type}"><i class="ph ph-plus"></i> New ${type}</button>` }) + `<section class="section">${items.length ? items.map(item => renderKnowledgeRow(type, item)).join('') : `<p class="area-empty-copy">No ${knowledgeCollection(type)} yet.</p>`}</section>`;
-  }
-
-  function knowledgeLinks(urls) {
-    return urls.map(url => {
-      let safe = false;
-      try { safe = ['http:', 'https:', 'mailto:'].includes(new URL(url).protocol); } catch (_) {}
-      return safe ? `<a class="area-object knowledge-link" href="${esc(url)}" target="_blank" rel="noopener noreferrer"><i class="ph ph-arrow-square-out"></i><span>${esc(url)}</span></a>` : `<span class="area-object knowledge-link"><i class="ph ph-link"></i><span>${esc(url)}</span></span>`;
-    }).join('');
-  }
-
-  function renderKnowledgeDetail(type, id) {
-    const owner = attachmentOwner({ ownerType: type, ownerId: id });
-    if (!owner) return renderKnowledgeList(type);
-    const item = owner.item, key = type + ':' + id, signature = JSON.stringify(item.attachmentIds);
-    let cached = knowledgeAttachmentCache.get(key);
-    if (!cached || cached.item !== item || cached.signature !== signature) {
-      cached = { item, signature, records: [], message: item.attachmentIds.length ? 'Loading attachments…' : '' };
-      knowledgeAttachmentCache.set(key, cached);
-      readOwnerAttachments(owner).then(records => { cached.records = records; cached.message = ''; }).catch(error => { console.error(error); cached.message = 'Attachments are unavailable in this browser.'; }).finally(() => {
-        if (knowledgeAttachmentCache.get(key) === cached && state && currentRoute().type === type && currentRoute().id === id) renderMain();
-      });
-    }
-    let html = pageHeader(item.title, `${knowledgeLabel(type)} · ${getArea(item.areaId)?.name || 'No area'}`, { add: false, actionHtml: `<button class="btn btn-secondary" type="button" data-action="edit-knowledge" data-owner-type="${type}" data-owner-id="${esc(id)}"><i class="ph ph-pencil-simple"></i> Edit</button>` });
-    html += `<section class="section"><div class="knowledge-body">${esc(type === 'note' ? item.body : item.description) || '<span class="area-empty-copy">No text yet.</span>'}</div></section><section class="section"><div class="section-header"><h2 class="section-label">Links</h2><span class="section-count">${item.linkUrls.length}</span></div><div class="area-object-list">${knowledgeLinks(item.linkUrls) || '<p class="area-empty-copy">No links.</p>'}</div></section>`;
-    if (type === 'resource') for (const [field, label, collection, route] of [['relatedTaskIds', 'Tasks', 'tasks', null], ['relatedProjectIds', 'Projects', 'projects', 'project'], ['relatedGoalIds', 'Goals', 'goals', 'goal'], ['relatedHabitIds', 'Habits', 'habits', 'habit']]) {
-      const related = state[collection].filter(candidate => item[field].includes(candidate.id));
-      html += `<section class="section"><div class="section-header"><h2 class="section-label">Related ${label}</h2><span class="section-count">${related.length}</span></div><div class="area-object-list">${related.map(candidate => `<button class="area-object" type="button" ${route ? `data-route="${route}/${esc(candidate.id)}"` : `data-action="open-task" data-task-id="${esc(candidate.id)}"`}>${esc(candidate.title || candidate.name)}</button>`).join('') || '<p class="area-empty-copy">No relations.</p>'}</div></section>`;
-    }
-    return html + `<section class="section"><div class="section-header"><h2 class="section-label">Attachments</h2><span class="section-count">${item.attachmentIds.length}</span></div>${cached.message ? `<p class="attachment-message" role="status">${esc(cached.message)}</p>` : ''}<div class="attachment-list">${cached.records.map(record => renderAttachmentRow(record, { ownerType: type, ownerId: id })).join('')}</div></section><button class="danger-link" type="button" data-action="delete-knowledge" data-owner-type="${type}" data-owner-id="${esc(id)}"><i class="ph ph-trash"></i> Delete ${type}</button>`;
   }
 
   function goalProgressLabel(goal) {
@@ -1415,64 +1396,6 @@
     renderModal();
   }
 
-  function openKnowledgeModal(type, id = null, areaId = null) {
-    if (!['note', 'resource'].includes(type)) return;
-    const owner = id && attachmentOwner({ ownerType: type, ownerId: id });
-    if (id && !owner) return;
-    closePopover(); flushTextSave();
-    const item = owner?.item;
-    modalState = { type: 'knowledge', ownerType: type, ownerId: id, source: item || null, returnFocus: goalFocusTarget(), error: '', attachmentRecords: [], attachmentMessage: '', pendingFiles: [],
-      draft: { title: item?.title || '', text: (type === 'note' ? item?.body : item?.description) || '', areaId: item?.areaId || areaId || null, linkUrls: [...(item?.linkUrls || [])], linkDraft: '',
-        relatedTaskIds: [...(item?.relatedTaskIds || [])], relatedProjectIds: [...(item?.relatedProjectIds || [])], relatedGoalIds: [...(item?.relatedGoalIds || [])], relatedHabitIds: [...(item?.relatedHabitIds || [])] } };
-    renderModal(); requestAnimationFrame(() => $('#knowledge-title')?.focus());
-    if (id) loadOwnerAttachments({ ownerType: type, ownerId: id });
-  }
-
-  function readKnowledgeDraft() {
-    if (modalState?.type !== 'knowledge') return;
-    const d = modalState.draft;
-    d.title = $('#knowledge-title')?.value ?? d.title;
-    d.text = $('#knowledge-text')?.value ?? d.text;
-    d.areaId = $('#knowledge-area')?.value || null;
-    d.linkDraft = $('#knowledge-link')?.value ?? d.linkDraft;
-    if (modalState.ownerType === 'resource') for (const field of ['relatedTaskIds', 'relatedProjectIds', 'relatedGoalIds', 'relatedHabitIds'])
-      d[field] = $$(`[data-knowledge-relation="${field}"]:checked`).map(input => input.value);
-  }
-
-  function addKnowledgeLink() {
-    readKnowledgeDraft();
-    const d = modalState.draft, value = d.linkDraft.trim();
-    if (!value || d.linkUrls.includes(value)) { modalState.error = value ? 'This link has already been added.' : 'Enter a link before adding it.'; renderModal(); requestAnimationFrame(() => $('#knowledge-link')?.focus()); return false; }
-    d.linkUrls.push(value); d.linkDraft = ''; modalState.error = '';
-    renderModal(); requestAnimationFrame(() => $('#knowledge-link')?.focus()); return true;
-  }
-
-  async function saveKnowledge() {
-    if (!state || undoHold || modalState?.type !== 'knowledge' || modalState.busy) return;
-    readKnowledgeDraft();
-    const dialog = modalState, type = dialog.ownerType, d = dialog.draft;
-    if (!d.title.trim()) { dialog.error = `${knowledgeLabel(type)} needs a title.`; renderModal(); return; }
-    if (d.linkDraft.trim() && !addKnowledgeLink()) return;
-    if (d.areaId && !getArea(d.areaId)) { dialog.error = 'The selected Area no longer exists.'; renderModal(); return; }
-    if (dialog.ownerId && attachmentOwner({ ownerType: type, ownerId: dialog.ownerId })?.item !== dialog.source) { dialog.error = 'The item changed. Reopen it before saving.'; renderModal(); return; }
-    const ts = nowIso(), item = dialog.source || { id: uid(type), createdAt: ts, attachmentIds: [] }, previous = copyTemplate(item);
-    Object.assign(item, { title: d.title.trim(), areaId: d.areaId, linkUrls: [...d.linkUrls], updatedAt: ts, [type === 'note' ? 'body' : 'description']: d.text });
-    if (type === 'resource') for (const [field, collection] of [['relatedTaskIds', 'tasks'], ['relatedProjectIds', 'projects'], ['relatedGoalIds', 'goals'], ['relatedHabitIds', 'habits']]) {
-      if (d[field].some(id => !state[collection].some(candidate => candidate.id === id))) { Object.assign(item, previous); dialog.error = 'A related item changed. Reopen this Resource before saving.'; renderModal(); return; }
-      item[field] = [...d[field]];
-    }
-    if (!dialog.source) state[knowledgeCollection(type)].push(item);
-    if (!saveState()) {
-      if (dialog.source) Object.assign(item, previous); else state[knowledgeCollection(type)].splice(state[knowledgeCollection(type)].indexOf(item), 1);
-      dialog.error = 'Changes could not be saved locally. Try again.'; renderModal(); return;
-    }
-    dialog.busy = true;
-    dialog.ownerId = item.id; dialog.source = item;
-    const fileMessage = dialog.pendingFiles.length ? await addAttachments({ ownerType: type, ownerId: item.id }, dialog.pendingFiles) : '';
-    if (modalState === dialog) { closeModal(); navigate(type + '/' + item.id); }
-    if (fileMessage) setToastMessage(fileMessage);
-  }
-
   function openGoalRemindersModal(goalId) {
     const previous = modalState?.type === 'goal' ? modalState : null;
     if (previous) readGoalDraft();
@@ -1513,14 +1436,15 @@
   function renderModal() {
     const root = $('#modal-root');
     if (!modalState) { root.innerHTML = ''; return; }
-    if (modalState.type === 'quick') root.innerHTML = renderQuickModal();
+    const domainContent = callDomainHook('renderRoute', { type: 'modal', modalType: modalState.type });
+    if (domainContent !== undefined) root.innerHTML = domainContent;
+    else if (modalState.type === 'quick') root.innerHTML = renderQuickModal();
     else if (modalState.type === 'task') root.innerHTML = renderTaskModal();
     else if (modalState.type === 'search') root.innerHTML = renderSearchModal();
     else if (modalState.type === 'project') root.innerHTML = renderProjectModal();
     else if (modalState.type === 'tag') root.innerHTML = renderTagModal();
     else if (modalState.type === 'area') root.innerHTML = renderAreaModal();
     else if (modalState.type === 'area-linked') root.innerHTML = renderAreaLinkedModal();
-    else if (modalState.type === 'knowledge') root.innerHTML = renderKnowledgeModal();
     else if (modalState.type === 'goal') root.innerHTML = renderGoalModal();
     else if (modalState.type === 'goal-source') root.innerHTML = renderGoalSourceModal();
     else if (modalState.type === 'habit') root.innerHTML = renderHabitModal();
@@ -1948,7 +1872,7 @@
   }
 
   function receiveAttachmentFiles(dataset, files) {
-    if (modalState?.type === 'knowledge') readKnowledgeDraft();
+    if (modalState?.type === 'knowledge') callDomainHook('handleAction', 'read-knowledge-draft', null);
     if (modalState?.type === 'knowledge' && !dataset.ownerId) {
       const { valid, tooLarge, countRejected } = selectAttachmentFiles(files, modalState.pendingFiles.length);
       modalState.pendingFiles.push(...valid);
@@ -2033,12 +1957,6 @@
   function renderAreaLinkedModal() {
     const label = modalState.kind === 'goal' ? 'Goal' : 'Habit';
     return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">New ${label}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="Close"><i class="ph ph-x"></i></button></div><label class="field-label" for="area-linked-name">Name</label><input id="area-linked-name" class="input ${modalState.error ? 'is-error' : ''}" type="text" maxlength="100" value="${esc(modalState.draft.name)}" placeholder="${label} name" />${modalState.error ? `<div class="validation">${esc(modalState.error)}</div>` : ''}<div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">Cancel</button><button class="btn btn-primary" type="button" data-action="save-area-linked">Create ${label.toLowerCase()}</button></div></div></div>`, 'quick');
-  }
-
-  function renderKnowledgeModal() {
-    const type = modalState.ownerType, d = modalState.draft;
-    const relations = type === 'resource' ? [['relatedTaskIds', 'Tasks', 'tasks'], ['relatedProjectIds', 'Projects', 'projects'], ['relatedGoalIds', 'Goals', 'goals'], ['relatedHabitIds', 'Habits', 'habits']].map(([field, label, collection]) => `<details><summary class="field-label">Related ${label} · ${d[field].length}</summary><div class="form-stack">${state[collection].map(item => `<label><input type="checkbox" data-knowledge-relation="${field}" value="${esc(item.id)}" ${d[field].includes(item.id) ? 'checked' : ''}> ${esc(item.title || item.name)}</label>`).join('') || '<p class="area-empty-copy">No items.</p>'}</div></details>`).join('') : '';
-    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">${modalState.ownerId ? 'Edit' : 'New'} ${type}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="Close"><i class="ph ph-x"></i></button></div><div class="form-stack"><label class="field-label">Title<input id="knowledge-title" class="input" maxlength="120" value="${esc(d.title)}"></label><label class="field-label">Area<select id="knowledge-area" class="input"><option value="">No area</option>${state.areas.filter(area => area.status === 'active' || area.id === d.areaId).map(area => `<option value="${esc(area.id)}" ${area.id === d.areaId ? 'selected' : ''}>${esc(area.name)}</option>`).join('')}</select></label><label class="field-label">${type === 'note' ? 'Body' : 'Description'}<textarea id="knowledge-text" class="input" rows="6">${esc(d.text)}</textarea></label><div class="field-label">Links</div>${d.linkUrls.map((url, index) => `<div class="attachment-row"><span class="attachment-main knowledge-link">${esc(url)}</span><button class="btn-icon" type="button" data-action="remove-knowledge-link" data-link-index="${index}" aria-label="Remove link"><i class="ph ph-x"></i></button></div>`).join('')}<label class="field-label" for="knowledge-link">Add link</label><input id="knowledge-link" class="input" type="text" value="${esc(d.linkDraft)}" placeholder="https://…"><button class="btn btn-secondary" type="button" data-action="add-knowledge-link">Add link</button>${relations}${renderAttachmentsSection({ ownerType: type, ownerId: modalState.ownerId })}${!modalState.ownerId && modalState.pendingFiles.length ? `<p class="area-empty-copy">${modalState.pendingFiles.map(file => esc(file.name)).join(' · ')} · files are added when you save.</p>` : ''}${modalState.error ? `<p class="validation" role="alert">${esc(modalState.error)}</p>` : ''}</div><div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">Cancel</button><button class="btn btn-primary" type="button" data-action="save-knowledge" ${modalState.busy ? 'disabled' : ''}>${modalState.ownerId ? 'Save changes' : 'Create ' + type}</button></div></div></div>`, 'quick');
   }
 
   function renderGoalModal() {
@@ -3973,6 +3891,7 @@
       return;
     }
     const action = el.dataset.action;
+    if (callDomainHook('handleAction', action, event) !== undefined) return;
     if(action==='recurrence-scope'){applyRecurrenceScope(el.dataset.scope);return;}
     if(action==='from-template')openTemplatePicker();
     else if(action==='new-saved-view')openSavedViewModal();
@@ -4071,12 +3990,6 @@
     else if (action === 'area-new-project') openProjectModal(null, { areaId: el.dataset.areaId });
     else if (action === 'area-new-goal') openGoalModal(null, { areaId: el.dataset.areaId });
     else if (action === 'area-new-habit') openAreaLinkedModal('habit', el.dataset.areaId);
-    else if (action === 'new-knowledge') openKnowledgeModal(el.dataset.ownerType, null, el.dataset.areaId);
-    else if (action === 'edit-knowledge') openKnowledgeModal(el.dataset.ownerType, el.dataset.ownerId);
-    else if (action === 'save-knowledge') saveKnowledge();
-    else if (action === 'add-knowledge-link') addKnowledgeLink();
-    else if (action === 'remove-knowledge-link') { readKnowledgeDraft(); modalState.draft.linkUrls.splice(Number(el.dataset.linkIndex), 1); modalState.error = ''; renderModal(); }
-    else if (action === 'delete-knowledge') requestDeleteEntity(el.dataset.ownerType, el.dataset.ownerId);
     else if (action === 'select-area-color') { modalState.draft.color = el.dataset.color; renderModal(); }
     else if (action === 'select-area-icon') { modalState.draft.icon = el.dataset.icon; renderModal(); }
     else if (action === 'save-area') saveAreaModal();
@@ -4217,7 +4130,7 @@
 
   function handleInput(event) {
     if (globalOperation) return;
-    if (modalState?.type === 'knowledge' && event.target.id.startsWith('knowledge-')) readKnowledgeDraft();
+    if (callDomainHook('handleInput', event) !== undefined) return;
     if (goalPropertyEditor && event.target.id === 'goal-detail-' + goalPropertyEditor.field) goalPropertyEditor.value = event.target.value;
     if (habitPropertyEditor && event.target.id === 'habit-detail-' + habitPropertyEditor.field) habitPropertyEditor.value = event.target.value;
     if (['goal', 'goal-source'].includes(modalState?.type) && event.target.id.startsWith('goal-')) readGoalDraft();
@@ -4241,7 +4154,7 @@
 
   function handleChange(event) {
     if (globalOperation) return;
-    if (modalState?.type === 'knowledge' && (event.target.id.startsWith('knowledge-') || event.target.dataset.knowledgeRelation)) readKnowledgeDraft();
+    if (callDomainHook('handleInput', event) !== undefined) return;
     if (goalPropertyEditor && event.target.id === 'goal-detail-' + goalPropertyEditor.field) goalPropertyEditor.value = event.target.value;
     if (habitPropertyEditor && event.target.id === 'habit-detail-' + habitPropertyEditor.field) habitPropertyEditor.value = event.target.value;
     if (['goal','goal-source'].includes(modalState?.type) && ['goal-progress-mode','goal-progress-type'].includes(event.target.id)) {
@@ -4344,7 +4257,7 @@
     if (modalState?.type === 'quick' && target?.id === 'quick-title' && event.key === 'Enter') {
       event.preventDefault(); createTask(event.shiftKey); return;
     }
-    if (modalState?.type === 'knowledge' && target?.id === 'knowledge-link' && event.key === 'Enter') { event.preventDefault(); addKnowledgeLink(); return; }
+    if (callDomainHook('handleInput', event) !== undefined) return;
 
     if (modalState?.type === 'quick' && target?.id === 'quick-subtask' && event.key === 'Enter') {
       event.preventDefault(); syncQuickDraftFromDom(); const title = target.value.trim(); if (!title) { target.blur(); return; }
