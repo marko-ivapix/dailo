@@ -3370,7 +3370,7 @@
     swipe.distance = horizontal;
     swipe.swiping = true;
     const progress = Math.min(1, horizontal / 96);
-    swipe.row.style.background = `linear-gradient(90deg, rgba(48, 203, 173, ${0.14 + progress * 0.22}) ${progress * 100}%, transparent ${progress * 100}%)`;
+    swipe.row.style.background = `rgba(48, 203, 173, ${0.14 + progress * 0.22})`;
     swipe.row.style.borderColor = `rgba(48, 203, 173, ${0.3 + progress * 0.5})`;
   }
 
