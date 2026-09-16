@@ -393,6 +393,12 @@
     }
   }
 
+  function reportStorageFailure(error) {
+    console.error(error);
+    storageError = true;
+    render();
+  }
+
   function saveState() {
     if (!state || globalOperation) return false;
     try {
@@ -400,11 +406,9 @@
       delete persisted.habitLogCache;
       delete persisted.habitMetrics;
       localStorage.setItem(STORAGE_KEY, JSON.stringify(persisted));
-      storageError = false;
       return true;
     } catch (error) {
-      console.error(error);
-      storageError = true;
+      reportStorageFailure(error);
       return false;
     }
   }
@@ -2469,8 +2473,8 @@
   }
 
   function putGoalHistory(goalId, type, data = {}) {
-    if (!TodoStorage?.goalHistory) return;
-    TodoStorage.goalHistory.put({ id: uid('goal-history'), goalId, type, data, createdAt: nowIso() }).catch(console.error);
+    if (!TodoStorage?.goalHistory) return Promise.resolve();
+    return TodoStorage.goalHistory.put({ id: uid('goal-history'), goalId, type, data, createdAt: nowIso() }).catch(reportStorageFailure);
   }
 
   function openGoalHistory(goalId, trigger) {
@@ -2544,8 +2548,7 @@
     setUndo(`Goal ${status === 'completed' ? 'completed' : status === 'paused' ? 'paused' : 'restored'}`, () => {
       const current = getGoal(goalId); if (!current) return;
       Object.assign(current, previous, { updatedAt: nowIso() });
-      const history = TodoStorage.goalHistory.put({ id: uid('goal-history'), goalId, type: 'statusChanged', data: { from: status, to: previous.status }, createdAt: nowIso() });
-      saveState(); render(); return history;
+      saveState(); render(); return putGoalHistory(goalId, 'statusChanged', { from: status, to: previous.status });
     });
   }
 
@@ -2585,8 +2588,14 @@
     let status = requestedStatus; let value = requestedValue;
     if (habit.trackingType === 'numeric') { const numeric = Core.numericHabitState(habit, requestedValue); status = numeric.status; value = numeric.value; }
     const record = { id: `${habitId}:${date}`, habitId, date, status: ['done', 'skipped', 'missed'].includes(status) ? status : 'done', value: value ?? null, createdAt: existing?.createdAt || nowIso(), updatedAt: nowIso() };
-    await TodoStorage.habitLogs.put(record);
-    await refreshHabitMetrics(); habit.updatedAt = nowIso(); saveState(); evaluateGoalProgressChanges(before); await evaluateHabitBoundaries(); render(); return true;
+    try {
+      await TodoStorage.habitLogs.put(record);
+      await refreshHabitMetrics();
+    } catch (error) {
+      reportStorageFailure(error);
+      return null;
+    }
+    habit.updatedAt = nowIso(); saveState(); evaluateGoalProgressChanges(before); await evaluateHabitBoundaries(); render(); return true;
   }
 
   async function evaluateHabitBoundaries() {

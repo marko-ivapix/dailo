@@ -88,6 +88,7 @@
       const date = $('#habit-panel-history-date')?.value; const value = habit.trackingType === 'numeric' ? Number($('#habit-panel-history-value')?.value || 0) : null; const status = habit.trackingType === 'numeric' ? 'done' : $('#habit-panel-history-status')?.value || 'missed';
       if (!date || date > Core.dateOnly()) { editor.error = 'Choose an eligible past date.'; renderModal(); return; }
       const target = editor.returnFocus; const saved = await setHabitLog(habit.id, date, status, value);
+      if (saved === null) return;
       if (!saved) { editor.error = 'That date is not scheduled for this Habit.'; renderModal(); return; }
       if (ctx.modalState === editor) { closeModal(); restoreGoalFocus(target); } return;
     }
