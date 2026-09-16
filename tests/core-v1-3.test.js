@@ -321,3 +321,15 @@ test('streak carries across unscheduled, skipped, and pending current units unti
   const weeklyLogs = [{ id: '1', habitId: weekly.id, date: '2026-09-07', status: 'done', value: null }, { id: '2', habitId: weekly.id, date: '2026-09-08', status: 'done', value: null }];
   assert.equal(Core.deriveHabitMetrics(weekly, weeklyLogs, '2026-09-15', 'monday').currentStreak, 1);
 });
+
+test('completed pause-boundary logs remain counted through pause/archive/resume history', () => {
+  const logs = ['2026-09-01', '2026-09-02', '2026-09-03'].map((date, index) => ({ id: String(index), habitId: 'boundary', date, status: 'done', value: null }));
+  const paused = { id: 'boundary', status: 'paused', pauseStartedAt: '2026-09-03', trackingType: 'checkbox', frequencyType: 'daily', startDate: '2026-09-01' };
+  const pausedMetrics = Core.deriveHabitMetrics(paused, logs, '2026-09-03', 'monday');
+  assert.deepEqual([pausedMetrics.totalCheckins, pausedMetrics.currentStreak, pausedMetrics.longestStreak], [3, 3, 3]);
+  const archived = { ...paused, status: 'archived' };
+  const archivedMetrics = Core.deriveHabitMetrics(archived, logs, '2026-09-05', 'monday');
+  assert.deepEqual([archivedMetrics.totalCheckins, archivedMetrics.currentStreak, archivedMetrics.longestStreak], [3, 3, 3]);
+  const resumed = { ...archived, status: 'active', pauseStartedAt: null, pauseIntervals: [{ startDate: '2026-09-03', endDate: '2026-09-04' }] };
+  assert.equal(Core.habitStatusForDate(resumed, logs, '2026-09-03', '2026-09-05').status, 'done');
+});

@@ -86,6 +86,8 @@ def main():
             page.click('[data-habit-tab="archived"]')
             page.click('[data-action="habit-menu"]')
             page.click('[data-pop-action="restore-habit"]')
+            page.click('[data-route="habits"]')
+            page.click('[data-habit-tab="active"]')
             page.click('[data-action="habit-menu"]')
             page.click('[data-pop-action="delete-habit"]')
             assert page.locator('.modal-title').inner_text().startswith('Delete')
@@ -99,6 +101,7 @@ def main():
             page.fill('#habit-name', 'Water')
             page.select_option('#habit-tracking', 'numeric')
             page.fill('#habit-target-value', '2')
+            page.click('[data-action="toggle-habit-more"]')
             page.fill('#habit-quick-values', '0.5,1')
             page.click('[data-action="save-habit"]')
             numeric_id = page.evaluate("TodoApp.state.habits.find(h => h.name === 'Water').id")
@@ -148,7 +151,8 @@ def main():
             # Fixed wall clock makes month length, weekly target and reminder
             # assertions repeatable: October has all 31 heatmap days.
             assert page.evaluate('TodoCore.dateOnly()') == '2026-10-31'
-            page.click(f'[data-route="habit/{numeric_id}"]')
+            page.evaluate(f"location.hash = '#habit/{numeric_id}'")
+            page.wait_for_selector('.habit-detail-card')
             assert page.locator('.habit-heatmap .heatmap-day').count() == 31
 
             # A numeric X/week habit labels the weekly count (5 / 4), not its
@@ -160,10 +164,12 @@ def main():
             page.select_option('#habit-frequency', 'timesPerWeek')
             page.fill('#habit-target-value', '2')
             page.fill('#habit-times-per-week', '4')
+            page.click('[data-action="toggle-habit-more"]')
+            page.fill('#habit-start-date', '2026-10-27')
             page.click('[data-action="save-habit"]')
             protein_id = page.evaluate("TodoApp.state.habits.find(h => h.name === 'Protein').id")
-            for offset in range(5):
-                page.evaluate("async ([id, n]) => await TodoApp.setHabitLog(id, TodoCore.addDays(TodoCore.dateOnly(), -n), 'done', 2)", [protein_id, offset])
+            writes = [page.evaluate("async ([id, n]) => await TodoApp.setHabitLog(id, TodoCore.addDays(TodoCore.dateOnly(), -n), 'done', 2)", [protein_id, offset]) for offset in range(5)]
+            assert writes == [True] * 5, writes
             page.wait_for_timeout(20)
             assert '5 / 4 this week' in page.locator('.habit-detail-card').inner_text()
 
@@ -180,18 +186,31 @@ def main():
             assert persisted['reminders'][0]['time'] == '18:00' and persisted['reminders'][0]['enabled'] is True
             assert goal_id in persisted['goalIds']
 
+            # More only renders enabled times, but an unrelated edit must keep
+            # disabled records byte-for-byte identifiable.
+            page.evaluate("id => { const habit = TodoApp.state.habits.find(h => h.id === id); habit.reminders.push({ id: 'disabled-reminder', time: '19:00', enabled: false }); TodoApp.render(); }", protein_id)
+            page.click('[data-action="edit-habit"]')
+            page.click('[data-action="toggle-habit-more"]')
+            page.fill('#habit-name', 'Protein with disabled reminder')
+            page.click('[data-action="save-habit"]')
+            assert page.evaluate("id => TodoApp.state.habits.find(h => h.id === id).reminders.find(r => r.id === 'disabled-reminder')", protein_id) == {'id': 'disabled-reminder', 'time': '19:00', 'enabled': False}
+
             # Historical corrections remain available after pause/archive and
             # the exact date editor can create an older, previously missing log.
             page.click('[data-action="habit-menu"]')
             page.click('[data-pop-action="pause-habit"]')
-            old_date = '2026-10-26'
+            assert page.evaluate("id => TodoApp.state.habits.find(h => h.id === id).pauseStartedAt", protein_id) == '2026-10-31'
+            page.evaluate("window.__TODO_TEST_SET_NOW__('2026-11-01T10:00:00')")
+            old_date = '2026-10-31'
             assert page.evaluate("async ([id, date]) => await TodoApp.setHabitLog(id, date, 'done', 2)", [protein_id, old_date]) is True
             page.click('[data-action="habit-menu"]')
             page.click('[data-pop-action="archive-habit"]')
+            assert page.evaluate("id => TodoApp.state.habits.find(h => h.id === id).pauseStartedAt", protein_id) == '2026-10-31'
             assert page.evaluate("async ([id, date]) => await TodoApp.setHabitLog(id, date, 'done', 2)", [protein_id, old_date]) is True
 
             # Original reminder fires once; a snooze creates a distinct pending
             # delivery after the original moment has already been recorded.
+            page.evaluate("window.__TODO_TEST_SET_NOW__('2026-10-31T20:00:00')")
             page.evaluate('''async () => {
               TodoApp.state.habits.push({ id: 'snooze-check', name: 'Snooze check', status: 'active', trackingType: 'checkbox', frequencyType: 'daily', startDate: '2026-10-01', weekdays: [], timesPerWeek: 1, everyNDays: 1, targetValue: 1, reminders: [{ id: 'r1', time: '20:00', enabled: true }], reminderFiredMoments: [], pauseIntervals: [] });
               await TodoApp.refreshHabitMetrics(); TodoApp.render(); TodoApp.checkReminders();
@@ -232,6 +251,42 @@ def main():
             assert page.locator('.modal-title').inner_text() == 'Habit period finished'
             page.click('[data-action="continue-habit"]')
             assert page.evaluate("TodoApp.state.habits.find(h => h.id === 'one-period-check').continuation") == 'automatic'
+
+            # Startup evaluates missed closed periods too. Pause is a normal
+            # modal action, closes the decision, and changes lifecycle state.
+            ask_seed = seed_state()
+            ask_seed['habits'] = [{ 'id': 'missed-ask', 'name': 'Missed ask', 'status': 'active', 'trackingType': 'checkbox', 'frequencyType': 'daily', 'startDate': '2026-10-30', 'continuation': 'askEachPeriod', 'endType': 'never', 'reminders': [], 'pauseIntervals': [] }]
+            startup = browser.new_page(viewport={'width': 1440, 'height': 1000})
+            boot(startup, seed=ask_seed)
+            startup.wait_for_selector('.modal-title')
+            assert startup.locator('.modal-title').inner_text() == 'Continue habit?'
+            startup.click('[data-action="pause-habit"]')
+            assert startup.evaluate("TodoApp.state.habits.find(h => h.id === 'missed-ask').status") == 'paused'
+            assert startup.locator('.modal-title').count() == 0
+            startup.close()
+
+            one_seed = seed_state()
+            one_seed['habits'] = [{ 'id': 'missed-one', 'name': 'Missed one', 'status': 'active', 'trackingType': 'checkbox', 'frequencyType': 'daily', 'startDate': '2026-10-30', 'continuation': 'onePeriod', 'endType': 'never', 'reminders': [], 'pauseIntervals': [] }]
+            startup = browser.new_page(viewport={'width': 1440, 'height': 1000})
+            boot(startup, seed=one_seed)
+            startup.wait_for_selector('.modal-title')
+            assert startup.locator('.modal-title').inner_text() == 'Habit period finished'
+            startup.close()
+
+            # The same routine used by the open-app date timer clears a
+            # completed weekly target before next-week render/reminders.
+            page.evaluate('''async () => {
+              TodoApp.state.habits.push({ id: 'weekly-reset', name: 'Weekly reset', status: 'active', trackingType: 'checkbox', frequencyType: 'timesPerWeek', timesPerWeek: 4, startDate: '2026-10-27', reminders: [{ id: 'weekly-reminder', time: '20:00', enabled: true }], reminderFiredMoments: [], pauseIntervals: [] });
+              for (const date of ['2026-10-27', '2026-10-28', '2026-10-29', '2026-10-30']) await TodoStorage.habitLogs.put({ id: `weekly-reset:${date}`, habitId: 'weekly-reset', date, status: 'done', value: null });
+              await TodoApp.refreshHabitMetrics(); TodoApp.checkReminders();
+            }''')
+            assert page.evaluate("TodoApp.state.habitMetrics['weekly-reset'].currentPeriodCount") == 4
+            assert page.evaluate("TodoApp.state.habits.find(h => h.id === 'weekly-reset').reminderFiredMoments") == []
+            page.evaluate("window.__TODO_TEST_SET_NOW__('2026-11-02T20:00:00')")
+            page.evaluate('TodoApp.refreshHabitDateBoundary()')
+            page.wait_for_timeout(40)
+            assert page.evaluate("TodoApp.state.habitMetrics['weekly-reset'].currentPeriodCount") == 0
+            assert page.evaluate("TodoApp.state.habitMetrics['weekly-reset'].currentPeriodTarget") == 4
         finally:
             browser.close()
 

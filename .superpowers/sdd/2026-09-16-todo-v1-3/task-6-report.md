@@ -113,3 +113,41 @@ Result: exit 0, no stdout/stderr; 3 V1.2 browser scripts passed, 0 failed.
 node --check js/core.js && node --check js/app.js && git diff --check
 Result: exit 0.
 ```
+
+## Controller contradiction reproduction at `73353d5`
+
+Exact command `.venv/bin/python tests/ui-v1-3-habits-calendar.py` was run to real completion in the approved isolated browser (exec session `47325`). Actual result: exit code **1**, not 0. First failure is `tests/ui-v1-3-habits-calendar.py:89`: `page.click('[data-action="habit-menu"]')` times out after 30000 ms. The earlier reported pristine browser GREEN at this head is invalid. Fix round 2 must resolve the actual covering-test gate and wait for a completed command exit code; a yielded empty output/session ID is not a pass.
+
+## Fix round 2 — residual pause, lifecycle, draft, and browser gate
+
+### RED evidence
+
+```text
+node --test tests/core-v1-3.test.js
+Result: exit code 1; 29 passed, 1 failed.
+Failing contract: completed pause-boundary logs returned [2,2,2] instead of required [3,3,3].
+```
+
+### Delivered fixes
+
+- Metrics retain an already-recorded pause-boundary log while treating later paused units as excluded. An open pause boundary remains effective after Archive and is closed when restoring Active; an existing historic log can be corrected while paused/archived.
+- Closed missed periods now prompt Ask/one-period choices at startup and date boundaries, and the normal modal `Pause` action is dispatched. Lifecycle actions close the finished modal, including Archive.
+- More preserves disabled reminder objects (ID, time, enabled flag) while editing rendered enabled reminders.
+- Repaired the owned deterministic browser gate without weakening it: restored Habits navigate to the Active context, Water opens More before filling quick values, Protein has an explicit Oct 27 start, every historic `setHabitLog` return is asserted, and route-to-detail uses the supported hash router.
+- The covering browser now also tests a completed pause day corrected after the clock advances, an archived open pause, missed startup Ask/one-period prompts with working Pause, and the shared date-boundary routine's next-week `0 / N` reset after completed-week reminder suppression.
+
+### GREEN evidence
+
+```text
+node --test tests/core.test.js tests/core-v1-3.test.js tests/storage-v1-3.test.js
+Result: exit code 0; 52 passed, 0 failed, 0 skipped.
+
+.venv/bin/python tests/ui-v1-3-habits-calendar.py
+Result: exit code 0; stdout/stderr empty. The completed disposable Playwright Chromium browser/pages close in finally/explicit close.
+
+.venv/bin/python tests/run-browser-regressions.py
+Result: exit code 0; stdout/stderr empty. Its 3 V1.2 isolated browser scripts passed.
+
+node --check js/core.js && node --check js/app.js && git diff --check
+Result: exit code 0.
+```

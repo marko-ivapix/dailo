@@ -355,7 +355,7 @@
 
   function habitPausedOn(habit, date) {
     return (habit?.pauseIntervals || []).some(interval => interval?.startDate && date >= interval.startDate && (!interval.endDate || date <= interval.endDate))
-      || Boolean(habit?.status === 'paused' && habit?.pauseStartedAt && date >= habit.pauseStartedAt);
+      || Boolean(habit?.pauseStartedAt && date >= habit.pauseStartedAt);
   }
 
   function habitScheduledOn(habit, date, options = {}) {
@@ -393,11 +393,14 @@
     return { status: date < today ? 'missed' : 'pending', value: null, percent: 0 };
   }
 
-  function habitScheduleDates(habit, today, weekStartsOn) {
+  function habitScheduleDates(habit, today, weekStartsOn, logs = []) {
     const start = habit?.startDate && parseDateOnly(habit.startDate) ? habit.startDate : today;
+    const recordedDates = new Set((logs || []).filter(log => log?.date >= start && log.date <= today).map(log => log.date));
     const dates = [];
     for (let date = start; date <= today; date = addDays(date, 1)) {
-      if (habitScheduledOn(habit, date, { historical: true })) dates.push(date);
+      // A pre-existing log is historical evidence even if a pause boundary was
+      // recorded on the same day. It must not disappear from metrics/history.
+      if (habitScheduledOn(habit, date, { historical: true }) || recordedDates.has(date)) dates.push(date);
     }
     if (habit?.frequencyType === 'timesPerWeek') {
       const keys = [...new Set(dates.map(date => habitPeriodKey(habit, date, weekStartsOn)))];
@@ -409,7 +412,7 @@
   function deriveHabitMetrics(habit, logs, today = dateOnly(), weekStartsOn = 'monday') {
     const relevantLogs = (logs || []).filter(log => log && (!habit?.id || log.habitId === habit.id) && log.date <= today);
     const logByDate = new Map(relevantLogs.map(log => [log.date, log]));
-    const periods = habitScheduleDates(habit, today, weekStartsOn);
+    const periods = habitScheduleDates(habit, today, weekStartsOn, relevantLogs);
     const currentKey = habitPeriodKey(habit, today, weekStartsOn);
     const target = habit?.frequencyType === 'timesPerWeek' ? Math.max(1, Math.floor(Number(habit.timesPerWeek) || 1)) : 1;
     let totalCheckins = 0; let successfulPeriods = 0; let longestStreak = 0; let running = 0;

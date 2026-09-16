@@ -1924,7 +1924,9 @@
     else if (typeof d.quickValues === 'string') d.quickValues = d.quickValues.split(',').map(value => Number(value.trim())).filter(value => Number.isFinite(value) && value > 0);
     if (reminders) {
       const oldByTime = new Map((d.reminders || []).map(item => [item.time, item]));
-      d.reminders = String(reminders.value || '').split(',').map(value => Core.normalizeTime(value.trim())).filter(Boolean).map(time => ({ ...(oldByTime.get(time) || {}), id: oldByTime.get(time)?.id || uid('habit-reminder'), time, enabled: oldByTime.get(time)?.enabled !== false }));
+      const disabled = (d.reminders || []).filter(item => item?.enabled === false);
+      const enabled = String(reminders.value || '').split(',').map(value => Core.normalizeTime(value.trim())).filter(Boolean).map(time => ({ ...(oldByTime.get(time) || {}), id: oldByTime.get(time)?.id || uid('habit-reminder'), time, enabled: oldByTime.get(time)?.enabled !== false }));
+      d.reminders = [...disabled, ...enabled.filter(item => !disabled.some(disabledItem => disabledItem.id === item.id))];
     }
     if (goalControls.length) d.goalIds = goalControls.filter(input => input.checked).map(input => input.dataset.habitGoal);
     return d;
@@ -1958,11 +1960,11 @@
 
   async function setHabitLog(habitId, date, requestedStatus = 'done', requestedValue = null) {
     const habit = getHabit(habitId); const today = Core.dateOnly();
+    const existing = (state.habitLogCache?.[habitId] || []).find(log => log.date === date);
     // Historical corrections remain valid after a pause/archive. Only today's
     // live check-in is controlled by the current lifecycle state.
-    if (!habit || !date || date > today || (date === today && habit.status !== 'active') || !Core.habitScheduledOn(habit, date, { historical: true })) return false;
+    if (!habit || !date || date > today || (date === today && habit.status !== 'active') || !(Core.habitScheduledOn(habit, date, { historical: true }) || existing)) return false;
     const before = captureGoalProgress();
-    const existing = (state.habitLogCache?.[habitId] || []).find(log => log.date === date);
     let status = requestedStatus; let value = requestedValue;
     if (habit.trackingType === 'numeric') { const numeric = Core.numericHabitState(habit, requestedValue); status = numeric.status; value = numeric.value; }
     const record = { id: `${habitId}:${date}`, habitId, date, status: ['done', 'skipped', 'missed'].includes(status) ? status : 'done', value: value ?? null, createdAt: existing?.createdAt || nowIso(), updatedAt: nowIso() };
@@ -1979,22 +1981,29 @@
       const ended = (habit.endType === 'date' && habit.endDate && today > habit.endDate)
         || (habit.endType === 'successfulPeriods' && metrics.successfulPeriods >= Number(habit.successfulPeriodsTarget || Infinity));
       const prior = metrics.periods?.filter(period => !period.isCurrent).at(-1);
-      const continued = prior?.successful && habit.lastContinuationPeriod !== prior.key;
-      const boundary = ended ? 'end' : habit.continuation === 'onePeriod' && prior?.successful ? 'onePeriod' : habit.continuation === 'askEachPeriod' && continued ? 'ask' : null;
+      const continued = prior && habit.lastContinuationPeriod !== prior.key;
+      const boundary = ended ? 'end' : habit.continuation === 'onePeriod' && prior ? 'onePeriod' : habit.continuation === 'askEachPeriod' && continued ? 'ask' : null;
       if (boundary) { modalState = { type: 'habit-finished', habitId: habit.id, boundary }; renderModal(); return; }
     }
+  }
+
+  async function refreshHabitDateBoundary() {
+    await refreshHabitMetrics();
+    await evaluateHabitBoundaries();
+    render();
+    checkReminders();
   }
 
   function updateHabitStatus(habitId, status) {
     const habit = getHabit(habitId); if (!habit || habit.status === status) return;
     const snapshot = JSON.parse(JSON.stringify(habit)); const today = Core.dateOnly();
     if (status === 'paused' && habit.status === 'active') habit.pauseStartedAt = today;
-    if (status === 'active' && habit.status === 'paused') {
+    if (status === 'active' && habit.pauseStartedAt) {
       const startDate = habit.pauseStartedAt || today; const endDate = Core.addDays(today, -1);
       if (startDate <= endDate) habit.pauseIntervals = [...(habit.pauseIntervals || []), { startDate, endDate }];
       habit.pauseStartedAt = null;
     }
-    habit.status = status; habit.updatedAt = nowIso(); saveState(); closePopover(); refreshHabitMetrics().then(render);
+    habit.status = status; habit.updatedAt = nowIso(); saveState(); closePopover(); if (modalState?.type === 'habit-finished') closeModal(); refreshHabitMetrics().then(render);
     setUndo(`Habit ${status === 'paused' ? 'paused' : status === 'archived' ? 'archived' : 'restored'}`, () => { const current = getHabit(habitId); if (!current) return; Object.assign(current, snapshot); current.updatedAt = nowIso(); saveState(); refreshHabitMetrics().then(render); });
   }
 
@@ -2365,6 +2374,7 @@
     else if (action === 'save-habit-history') { const habit = getHabit(el.dataset.habitId); const date = el.dataset.habitDate; const value = habit?.trackingType === 'numeric' ? Number($(`[data-habit-history-value][data-habit-date="${CSS.escape(date)}"]`)?.value || 0) : null; const status = habit?.trackingType === 'numeric' ? 'done' : $(`[data-habit-history-status][data-habit-date="${CSS.escape(date)}"]`)?.value || 'missed'; setHabitLog(el.dataset.habitId, date, status, value); }
     else if (action === 'save-habit-history-date') { const habit = getHabit(el.dataset.habitId); const date = $('#habit-history-date')?.value; const value = habit?.trackingType === 'numeric' ? Number($('#habit-history-new-value')?.value || 0) : null; const status = habit?.trackingType === 'numeric' ? 'done' : $('#habit-history-new-status')?.value || 'missed'; setHabitLog(el.dataset.habitId, date, status, value); }
     else if (action === 'continue-habit') { const habit = getHabit(el.dataset.habitId || modalState?.habitId); if (habit) { const boundary = el.dataset.boundary || modalState?.boundary; const prior = habitMetrics(habit).periods?.filter(period => !period.isCurrent).at(-1); habit.lastContinuationPeriod = prior?.key || Core.habitPeriodKey(habit, Core.dateOnly(), state.settings.weekStartsOn || 'monday'); if (boundary === 'onePeriod') habit.continuation = 'automatic'; if (boundary === 'end') { habit.endType = 'never'; habit.endDate = null; habit.successfulPeriodsTarget = null; } habit.updatedAt = nowIso(); saveState(); } closeModal(); refreshHabitMetrics().then(render); }
+    else if (action === 'pause-habit') updateHabitStatus(el.dataset.habitId || modalState?.habitId, 'paused');
     else if (action === 'archive-habit') updateHabitStatus(el.dataset.habitId, 'archived');
     else if (action === 'edit-goal') openGoalModal(el.dataset.goalId);
     else if (action === 'goal-menu') openGoalMenu(el, el.dataset.goalId);
@@ -2772,11 +2782,11 @@
       const next = Core.dateOnly();
       if (next !== lastToday) {
         lastToday = next;
-        refreshHabitMetrics().then(async () => { await evaluateHabitBoundaries(); render(); checkReminders(); }).catch(console.error);
+        refreshHabitDateBoundary().catch(console.error);
       } else checkReminders();
     }, 30000);
   }
 
-  window.TodoApp = { init, get state() { return state; }, render, openQuickAdd, openSearch, checkReminders, captureGoalProgress, evaluateGoalProgressChanges, setHabitLog, refreshHabitMetrics, evaluateHabitBoundaries, snoozeHabit };
+  window.TodoApp = { init, get state() { return state; }, render, openQuickAdd, openSearch, checkReminders, captureGoalProgress, evaluateGoalProgressChanges, setHabitLog, refreshHabitMetrics, refreshHabitDateBoundary, evaluateHabitBoundaries, snoozeHabit };
   init();
 })();
