@@ -435,7 +435,9 @@ select:focus-visible { outline: none; box-shadow: var(--focus-ring); }
   .modal-footer { align-items: stretch; flex-direction: column; }
   .modal-footer-actions { width: 100%; }
   .modal-footer-actions .btn { flex: 1; }
-  .task-row { grid-template-columns: 28px minmax(0, 1fr); }
+  .task-row { grid-template-columns: minmax(0, 1fr) 28px; }
+  .task-row > .complete-control { grid-column: 2; }
+  .task-row > .task-main { grid-column: 1; grid-row: 1; }
   .task-actions { display: none; }
   .property-row { grid-template-columns: 110px minmax(0,1fr); }
   .toast-root { left: 12px; right: 12px; bottom: 12px; }
