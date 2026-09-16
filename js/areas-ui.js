@@ -54,7 +54,8 @@
   }
 
   function openAreaModal(ctx, areaId = null) {
-    const { getArea, state, PROJECT_COLORS, AREA_ICONS, closePopover, setModalState, renderModal, $ } = ctx;
+    const { getArea, state, PROJECT_COLORS, AREA_ICONS, closePopover, captureModalReturnFocus, setModalState, renderModal, $ } = ctx;
+    captureModalReturnFocus();
     closePopover();
     const area = areaId ? getArea(areaId) : null;
     setModalState({ type: 'area', areaId, draft: { name: area?.name || '', color: area?.color || PROJECT_COLORS[(state.areas || []).length % PROJECT_COLORS.length], icon: area?.icon || AREA_ICONS[0] }, error: '' });

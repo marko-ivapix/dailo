@@ -45,6 +45,18 @@
   let createdGoalFocusId = null;
   const knowledgeAttachmentCache = new Map();
 
+  function captureModalReturnFocus() {
+    const active = document.activeElement;
+    modalReturnFocus = active instanceof HTMLElement && active.isConnected ? active : null;
+  }
+
+  function restoreModalReturnFocus(target, fallback = null) {
+    requestAnimationFrame(() => {
+      if (modalState || $('#modal-root .modal') || popoverEl?.isConnected) return;
+      (target?.isConnected ? target : fallback?.isConnected ? fallback : null)?.focus();
+    });
+  }
+
   // Goal panels retain a logical trigger because rendering replaces its node.
   function goalFocusTarget(element = document.activeElement) {
     if (!(element instanceof HTMLElement)) return null;
@@ -477,7 +489,7 @@
       calendarDate, calendarLogs, parseLocalDate, formatDate,
       openCalendarDetail, navigateCalendar, openPlanPicker, calendarHabitAction, openCalendarValue, openCalendarGoalProgress,
       templateTypes: TEMPLATE_TYPES, templateLabel, openTemplateEditorFromSource, saveTemplateRecord, duplicateTemplateRecord,
-      setModalReturnFocus(value) { modalReturnFocus = value; },
+      captureModalReturnFocus,
       renderProjectTaskRow(task, projectId, options = {}) {
         return taskRow(task, options.completed ? 'completed' : `project:${projectId}`, options);
       },
@@ -914,6 +926,7 @@
   }
 
   function openQuickAdd(context = {}) {
+    captureModalReturnFocus();
     closePopover();
     const defaults = {
       projectId: context.projectId || null,
@@ -936,15 +949,18 @@
   }
 
   function openTaskDetail(taskId) {
-    closePopover();
     const task = getTask(taskId);
     if (!task) return;
+    captureModalReturnFocus();
+    closePopover();
     modalState = { type: 'task', taskId, titleDraft: task.title, notesDraft: task.notes || '', error: '', attachmentRecords: [], attachmentMessage: '' };
     renderModal();
+    requestAnimationFrame(() => $('#detail-title')?.focus());
     loadTaskAttachments(taskId);
   }
 
   function openSearch() {
+    captureModalReturnFocus();
     closePopover();
     modalState = { type: 'search', query: '' };
     renderModal();
@@ -952,6 +968,7 @@
   }
 
   function openProjectModal(projectId = null, context = {}) {
+    captureModalReturnFocus();
     closePopover();
     const project = projectId ? getProject(projectId) : null;
     modalState = {
@@ -965,6 +982,7 @@
 
 
   function openTagModal(tagId = null) {
+    captureModalReturnFocus();
     closePopover();
     const tag = tagId ? getTag(tagId) : null;
     modalState = { type: 'tag', tagId, draft: { name: tag?.name || '', color: tag?.color || PROJECT_COLORS[(state.tags || []).length % PROJECT_COLORS.length] }, error: '' };
@@ -973,6 +991,7 @@
   }
 
   function openAreaLinkedModal(kind, areaId) {
+    captureModalReturnFocus();
     const label = kind === 'goal' ? 'Goal' : 'Habit';
     modalState = { type: 'area-linked', kind, areaId, draft: { name: '' }, error: '' };
     renderModal();
@@ -992,6 +1011,7 @@
 
   function openGoalModal(goalId = null, context = {}) {
     const returnFocus = goalFocusTarget();
+    captureModalReturnFocus();
     closePopover();
     const goal = goalId ? getGoal(goalId) : null;
     modalState = { type: 'goal', goalId, draft: goalDraft(goal, context.areaId), error: '', returnFocus };
@@ -1005,6 +1025,7 @@
   }
 
   function openHabitModal(habitId = null, context = {}) {
+    captureModalReturnFocus();
     closePopover(); const habit = habitId ? getHabit(habitId) : null;
     modalState = { type: 'habit', habitId, draft: habitDraft(habit, context.areaId), error: '' };
     modalState.templateContext = context;
@@ -1013,7 +1034,7 @@
   }
 
   function openConfirm(config) {
-    modalReturnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    captureModalReturnFocus();
     closePopover();
     modalState = { type: 'confirm', ...config };
     renderModal();
@@ -1035,10 +1056,7 @@
     modalState = null;
     $('#modal-root').innerHTML = '';
     restoreGoalFocus(goalReturn);
-    if (returnTarget || returnDate) requestAnimationFrame(() => {
-      const target = returnTarget?.isConnected ? returnTarget : returnDate && $(`[data-action="calendar-detail"][data-date="${returnDate}"]`);
-      target?.focus();
-    });
+    if (returnTarget || returnDate) restoreModalReturnFocus(returnTarget, returnDate && $(`[data-action="calendar-detail"][data-date="${returnDate}"]`));
   }
 
   function renderModal() {

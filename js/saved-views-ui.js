@@ -29,9 +29,9 @@
   }
 
   function openModal(context, id = null) {
-    const { state, closePopover, copyTemplate, setModalState, setModalReturnFocus, renderModal, $ } = context;
+    const { state, closePopover, copyTemplate, captureModalReturnFocus, setModalState, renderModal, $ } = context;
+    captureModalReturnFocus();
     closePopover();
-    setModalReturnFocus(document.activeElement);
     const view = state.savedViews.find(item => item.id === id);
     setModalState({ type: 'saved-view', savedViewId: id, draft: view ? copyTemplate(view) : { name: '', type: 'tasks', filters: {}, isPinned: false }, error: '' });
     renderModal();

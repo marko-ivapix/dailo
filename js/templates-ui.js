@@ -9,7 +9,8 @@
   }
 
   function openEditor(ctx, templateId = null, type = ctx.state.ui.templateType || 'task', snapshot = null) {
-    const { state, Core, copyTemplate, closePopover, setModalState, renderModal, $ } = ctx;
+    const { state, Core, copyTemplate, closePopover, captureModalReturnFocus, setModalState, renderModal, $ } = ctx;
+    captureModalReturnFocus();
     closePopover();
     const existing = state.templates.find(template => template.id === templateId);
     const empty = type === 'task' ? { title: '', subtasks: [] } : type === 'project' ? { name: '', tasks: [] } : type === 'goal' ? { title: '', milestones: [], targetValue: 100 } : { name: '', targetValue: 1, reminders: [] };
