@@ -221,7 +221,7 @@ def main():
           return {files:Object.keys(zip.files),manifest,text,summary:inspected.summary};
         }''')
         assert 'data.json' in backup_result['files']
-        assert backup_result['manifest']['backupVersion'] == 1 and backup_result['manifest']['appVersion'] == '1.2'
+        assert backup_result['manifest']['backupVersion'] == 2 and backup_result['manifest']['appVersion'] == '1.3'
         assert backup_result['text'] == 'backup-bytes'
         assert backup_result['summary']['attachments'] == 1 and backup_result['summary']['tags'] == 1
 
@@ -270,9 +270,11 @@ def main():
         add_anytime_task_with_files(page_reset, 'reset_task', 1)
         assert page_reset.evaluate("TodoAttachments.listAll().then(x=>x.length)") == 1
         page_reset.evaluate("location.hash='#settings'; TodoApp.render()")
-        page_reset.click('[data-action="reset-app"]')
+        with page_reset.expect_download():
+            page_reset.click('[data-action="reset-app"]')
+        page_reset.locator('#global-confirm-phrase').fill('RESET')
         page_reset.click('[data-action="confirm-action"]')
-        page_reset.wait_for_timeout(30)
+        page_reset.wait_for_function('TodoApp.state.tasks.length === 0 && !document.querySelector("#global-confirm-phrase")')
         assert page_reset.evaluate("TodoApp.state.tasks.length") == 0
         assert page_reset.evaluate("TodoApp.state.tags.length") == 0
         assert page_reset.evaluate("TodoAttachments.listAll().then(x=>x.length)") == 0

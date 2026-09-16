@@ -228,8 +228,9 @@ def main():
         # Confirmation dialogs trap focus and return it to their trigger on close.
         reset_trigger = page.locator('[data-action="reset-app"]')
         reset_trigger.focus()
-        reset_trigger.click()
-        page.wait_for_timeout(20)
+        with page.expect_download():
+            reset_trigger.click()
+        page.wait_for_selector('#global-confirm-phrase')
         assert page.evaluate("!!document.activeElement.closest('.modal')"), 'Modal did not receive focus'
         page.keyboard.press('Escape')
         page.wait_for_timeout(20)

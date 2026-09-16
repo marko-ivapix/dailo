@@ -448,6 +448,117 @@
     await recoverySnapshots.deleteMany([snapshotId]);
   }
 
+  const USER_STORES = ['attachments', 'habitLogs', 'goalHistory'];
+  async function captureUserData() {
+    if (memoryMode()) return Object.fromEntries(USER_STORES.map(name => [name, [...memoryStores[name].values()].map(clone)]));
+    const db = await open(), tx = db.transaction(USER_STORES, 'readonly'), done = transactionDone(tx);
+    const values = await Promise.all(USER_STORES.map(name => requestPromise(tx.objectStore(name).getAll())));
+    await done;
+    return Object.fromEntries(USER_STORES.map((name, i) => [name, values[i]]));
+  }
+
+  async function sameUserData(actual, expected) {
+    for (const name of USER_STORES) {
+      if (actual[name].length !== expected[name].length) return false;
+      const byId = new Map(actual[name].map(record => [record.id, record]));
+      for (const record of expected[name]) if (!(await sameAttachmentRecord(byId.get(record.id), record))) return false;
+    }
+    return true;
+  }
+
+  // Only user stores participate; the recovery payload must outlive this commit.
+  // An optional expected domain is compared under the same native write lock.
+  async function replaceUserData(payload, expected = null, validate = null) {
+    const next = clone(payload);
+    if (memoryMode()) {
+      const before = await captureUserData();
+      if (expected && !(await sameUserData(before, expected))) throw new Error('Stored data changed. Retry with a fresh safety backup.');
+      validate?.();
+      if (!(await sameUserData(await captureUserData(), before))) throw new Error('Stored data changed during preparation.');
+      validate?.();
+      for (const name of USER_STORES) { memoryStores[name].clear(); for (const record of next[name]) memoryStores[name].set(record.id, clone(record)); }
+      return;
+    }
+    const db = await open(), tx = db.transaction(USER_STORES, 'readwrite'), done = transactionDone(tx);
+    done.catch(() => {});
+    try {
+      await new Promise((resolve, reject) => {
+        let settled = !expected, matches = !expected, failure = null;
+        const values = USER_STORES.map(name => requestPromise(tx.objectStore(name).getAll()));
+        Promise.all(values).then(rows => expected ? sameUserData(Object.fromEntries(USER_STORES.map((name, i) => [name, rows[i]])), expected) : true)
+          .then(value => { matches = value; settled = true; }, error => { failure = error; settled = true; });
+        const pump = () => {
+          const request = tx.objectStore('attachments').get('__recovery_keepalive__');
+          request.onerror = () => reject(request.error);
+          request.onsuccess = () => {
+            if (!settled) { pump(); return; }
+            try {
+              if (failure) throw failure;
+              if (!matches) throw new Error('Stored data changed. Retry with a fresh safety backup.');
+              validate?.();
+              for (const name of USER_STORES) {
+                const store = tx.objectStore(name); store.clear();
+                for (const record of next[name]) store.put(record);
+              }
+              resolve();
+            } catch (error) { tx.abort(); reject(error); }
+          };
+        };
+        pump();
+      });
+    } catch (error) { try { tx.abort(); } catch (_) {} await done.catch(() => {}); throw error; }
+    await done;
+  }
+
+  async function createRecoverySnapshot(reason, state, storage = null) {
+    const source = storage || { captureUserData, sameUserData, recoverySnapshots };
+    const rawAppData = root.localStorage.getItem('todoAppData'), appData = rawAppData === null ? null : JSON.parse(rawAppData);
+    const stateText = JSON.stringify(state), payload = await source.captureUserData();
+    if (root.localStorage.getItem('todoAppData') !== rawAppData || JSON.stringify(state) !== stateText
+      || !(await source.sameUserData(await source.captureUserData(), payload))) throw new Error('Source changed while preparing recovery. Retry.');
+    const id = `recovery-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    await source.recoverySnapshots.put({ id, reason, phase: 'prepared', createdAt: new Date().toISOString(), rawAppData, appData,
+      liveState: JSON.parse(stateText), ...payload, attachmentRefs: payload.attachments, habitLogRefs: payload.habitLogs, goalHistoryRefs: payload.goalHistory });
+    return id;
+  }
+
+  async function verifyRecoverySnapshot(snapshotId) {
+    const snapshot = await recoverySnapshots.get(snapshotId);
+    if (!snapshot || root.localStorage.getItem('todoAppData') !== snapshot.rawAppData
+      || !(await sameUserData(await captureUserData(), snapshot))) throw new Error('Recovery verification failed. Recovery snapshot retained; retry recovery.');
+    return snapshot;
+  }
+
+  async function restoreRecoverySnapshot(snapshotId) {
+    const snapshot = await recoverySnapshots.get(snapshotId);
+    if (!snapshot) throw new Error('Recovery snapshot is unavailable.');
+    let expected = null;
+    const validate = () => {
+      if (snapshot.destination && ![snapshot.rawAppData, snapshot.destination.rawAppData].includes(root.localStorage.getItem('todoAppData')))
+        throw new Error('Recovery ownership changed: foreign metadata is present. Close other tabs and resolve the source before retrying recovery.');
+    };
+    if (snapshot.destination) {
+      validate(); expected = await captureUserData();
+      if (!(await sameUserData(expected, snapshot)) && !(await sameUserData(expected, snapshot.destination)))
+        throw new Error('Recovery ownership changed: foreign stored records or file bytes are present. Resolve the source before retrying recovery.');
+      validate();
+    }
+    await replaceUserData(snapshot, expected, validate);
+    validate();
+    if (snapshot.rawAppData === null) root.localStorage.removeItem('todoAppData');
+    else root.localStorage.setItem('todoAppData', snapshot.rawAppData);
+    await verifyRecoverySnapshot(snapshotId);
+    return snapshot.liveState || snapshot.appData;
+  }
+
+  async function replaceAllValidatedBackup(validated, expected = null, validate = null) {
+    const next = clone(validated);
+    await replaceUserData({ attachments: next.attachmentRecords, habitLogs: next.habitLogs, goalHistory: next.goalHistory }, expected, validate);
+    validate?.onCommit?.();
+    validate?.();
+    root.localStorage.setItem('todoAppData', JSON.stringify(next.state));
+  }
+
   async function clearAllForTests() {
     await Promise.all(STORES.map(clearStore));
   }
@@ -466,6 +577,13 @@
     migrateLegacyAttachments,
     prepareMigration,
     finishMigration,
+    captureUserData,
+    sameUserData,
+    replaceUserData,
+    createRecoverySnapshot,
+    restoreRecoverySnapshot,
+    verifyRecoverySnapshot,
+    replaceAllValidatedBackup,
     clearAllForTests
   };
 });

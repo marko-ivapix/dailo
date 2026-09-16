@@ -176,15 +176,15 @@ Full plan: `docs/superpowers/plans/2026-09-16-todo-v1-3.md`
 
 ## Phase 12 — Backup/recovery V1.3
 
-- [ ] V1.3 ZIP includes all V3 metadata.
-- [ ] Include attachments.
-- [ ] Include Habit logs.
-- [ ] Include Goal history.
-- [ ] Validate V2/V3 compatibility where required by spec.
-- [ ] Reset creates safety ZIP + recovery snapshot + typed RESET confirmation.
-- [ ] Restore creates safety ZIP + recovery snapshot + typed RESTORE confirmation.
-- [ ] Roll back failed replacement.
-- [ ] Clear Completed confirmation + Undo.
+- [x] V1.3 ZIP includes all V3 metadata.
+- [x] Include attachments.
+- [x] Include Habit logs.
+- [x] Include Goal history.
+- [x] Validate V2/V3 compatibility where required by spec.
+- [x] Reset creates safety ZIP + recovery snapshot + typed RESET confirmation.
+- [x] Restore creates safety ZIP + recovery snapshot + typed RESTORE confirmation.
+- [x] Roll back failed replacement.
+- [x] Clear Completed confirmation + Undo.
 
 ## Phase 13 — Cross-module quality
 

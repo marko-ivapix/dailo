@@ -620,6 +620,246 @@ def undo_failure_before_deadline(page):
     assert domain(page)==before, 'previous failed accepted Undo was discarded at original expiry'
 
 
+def global_domain(page):
+    return page.evaluate('''async()=>({raw:localStorage.getItem('todoAppData'),
+      attachments:await Promise.all((await TodoStorage.attachments.listAll()).map(async r=>({...r,blob:{type:r.blob.type,size:r.blob.size,bytes:[...new Uint8Array(await r.blob.arrayBuffer())]}}))),
+      habitLogs:await TodoStorage.habitLogs.listAll(),goalHistory:await TodoStorage.goalHistory.listAll()})''')
+
+
+def global_settled(page):
+    page.evaluate('''async()=>{const end=performance.now()+3500;while((await TodoStorage.recoverySnapshots.listAll()).length){if(performance.now()>end)throw Error('Recovery snapshot did not settle');await new Promise(requestAnimationFrame);}}''')
+
+
+def global_safety(page, mode='reset', fault=None):
+    import json, zipfile
+    route(page,'settings')
+    page.evaluate('''async()=>{const records=await TodoStorage.attachments.listAll();await new Promise((resolve,reject)=>{const r=indexedDB.open('todoAppAttachments',1);r.onupgradeneeded=()=>r.result.createObjectStore('attachments',{keyPath:'id'});r.onerror=()=>reject(r.error);r.onsuccess=()=>{const db=r.result,tx=db.transaction('attachments','readwrite');records.forEach(record=>tx.objectStore('attachments').put(record));tx.oncomplete=()=>{db.close();resolve();};tx.onabort=()=>reject(tx.error);};});}''')
+    page.evaluate('''async()=>{await TodoStorage.attachments.put({id:'physical-orphan',taskId:'deleted',fileName:'orphan.bin',mimeType:'',size:3,blob:new Blob([new Uint8Array([255,0,97])]),pendingDeleteUntil:'2030-01-01T00:00:00Z'});
+      window.events=[];
+      for(const [object,key,event] of [[TodoBackup,'exportBackupV3','export'],[TodoStorage,'createRecoverySnapshot','snapshot'],[TodoBackup,'inspectBackupV3','inspect'],[TodoStorage,'replaceAllValidatedBackup','replace'],[TodoStorage,'restoreRecoverySnapshot','rollback'],[TodoStorage.recoverySnapshots,'deleteMany','cleanup']]){const fn=object[key];object[key]=async function(...args){events.push(event);if(['replace','rollback'].includes(event)&&!(await TodoStorage.recoverySnapshots.listAll()).length)throw Error('recovery removed before '+event);return fn.apply(this,args);};}
+      const capture=TodoStorage.captureUserData;TodoStorage.captureUserData=async()=>{if(events.includes('replace')&&!events.includes('verify')&&!events.includes('rollback')){events.push('verify');if(!(await TodoStorage.recoverySnapshots.listAll()).length)throw Error('snapshot absent during verification');}return capture();};
+      const native=HTMLAnchorElement.prototype.click;HTMLAnchorElement.prototype.click=function(){if(this.download.endsWith('.zip'))events.push('download');return native.call(this);};
+    }''')
+    before=global_domain(page)
+    incoming=None
+    if mode=='restore':
+        incoming=bytes(page.evaluate('''async()=>{const s=JSON.parse(JSON.stringify(TodoApp.state));s.tasks[0].title='Incoming title';const b=await TodoBackup.exportBackupV3(s,TodoStorage,'2026-10-24T10:00:00Z');events=[];return [...new Uint8Array(await b.arrayBuffer())];}'''))
+    if fault=='replace':
+        page.evaluate('''()=>{const native=TodoStorage.replaceAllValidatedBackup;let once=true;TodoStorage.replaceAllValidatedBackup=async(...args)=>{await native(...args);if(once){once=false;throw Error('forced replacement failure');}};}''')
+    with page.expect_download() as downloaded:
+        if mode=='reset': click(page,'reset-app')
+        else: page.set_input_files('#backup-import-input',{'name':'incoming.zip','mimeType':'application/zip','buffer':incoming})
+    download=downloaded.value
+    with zipfile.ZipFile(download.path()) as archive:
+        manifest=json.loads(archive.read('data.json'))
+        assert manifest['backupVersion']==2 and manifest['appVersion']=='1.3'
+        assert len(manifest['habitLogs'])==2 and len(manifest['goalHistory'])==2
+        assert archive.read(next(r['path'] for r in manifest['attachments'] if r['id']=='f'))==b'first\x00bytes'
+    expect(page.locator('#global-confirm-phrase')).to_be_visible()
+    assert global_domain(page)==before, 'safety preparation mutated source'
+    assert page.evaluate('events')==(['export','download','snapshot']+(['inspect'] if mode=='restore' else []))
+    assert page.evaluate('async()=> (await TodoStorage.recoverySnapshots.listAll()).length')==1
+    page.locator('#global-confirm-phrase').fill('WRONG');click(page,'confirm-action')
+    assert global_domain(page)==before, 'wrong phrase changed source'
+    if fault=='cancel':
+        page.keyboard.press('Escape')
+        global_settled(page)
+        assert global_domain(page)==before
+        return
+    page.locator('#global-confirm-phrase').fill(mode.upper());click(page,'confirm-action')
+    page.wait_for_function('!document.querySelector("#global-confirm-phrase")')
+    global_settled(page)
+    if fault=='replace':
+        assert global_domain(page)==before, 'rollback did not restore exact raw/native bytes'
+        assert 'rollback' in page.evaluate('events')
+    elif mode=='reset':
+        after=global_domain(page)
+        assert not after['attachments'] and not after['habitLogs'] and not after['goalHistory']
+        assert all(not json.loads(after['raw'])[k] for k in ['tasks','projects','tags','areas','goals','habits','templates','savedViews'])
+    else:
+        assert page.evaluate('TodoApp.state.tasks[0].title')=='Incoming title'
+        assert len(global_domain(page)['attachments'])==3
+    if not fault:assert page.evaluate('events')==['export','download','snapshot']+(['inspect'] if mode=='restore' else [])+['replace','verify','cleanup']
+    page.reload();ready(page)
+    assert page.evaluate('''async()=>await new Promise((resolve,reject)=>{const r=indexedDB.open('todoAppAttachments');r.onsuccess=()=>{const db=r.result,tx=db.transaction('attachments'),read=tx.objectStore('attachments').count();read.onsuccess=()=>{resolve(read.result);db.close();};};r.onerror=()=>reject(r.error);})''')==3
+    if fault=='replace': assert global_domain(page)==before
+    elif mode=='reset': assert page.evaluate('TodoApp.state.tasks.length')==0
+    else: assert page.evaluate('TodoApp.state.tasks[0].title')=='Incoming title'
+
+
+def global_fault(page, fault, mode='reset', reload_recovery=False):
+    route(page,'settings')
+    before=global_domain(page)
+    incoming=bytes(page.evaluate('''async()=>[...new Uint8Array(await (await TodoBackup.exportBackupV3(TodoApp.state,TodoStorage,'2026-10-24T10:00:00Z')).arrayBuffer())]''')) if mode=='restore' else None
+    page.evaluate('''fault=>{
+      window.faultTrace=[];for(const [object,key] of [[TodoStorage,'restoreRecoverySnapshot'],[TodoStorage,'createRecoverySnapshot'],[TodoStorage.recoverySnapshots,'deleteMany']]){const native=object[key];object[key]=async(...args)=>{faultTrace.push(key+':start');const out=await native(...args);faultTrace.push(key+':end');return out;};}
+      window.testUndoFault=()=>{};
+      const fail=()=>{throw Error('injected '+fault);};
+      if(fault==='export')TodoBackup.exportBackupV3=fail;
+      if(fault==='download')HTMLAnchorElement.prototype.click=fail;
+      if(fault==='snapshot')TodoStorage.recoverySnapshots.put=fail;
+      if(fault==='inspect')TodoBackup.inspectBackupV3=fail;
+      if(['cleanup','abandoned-cleanup'].includes(fault)){const native=TodoStorage.recoverySnapshots.deleteMany;TodoStorage.recoverySnapshots.deleteMany=fail;testUndoFault=()=>{TodoStorage.recoverySnapshots.deleteMany=native;};}
+      if(['clear-attachments','clear-habitLogs','clear-goalHistory'].includes(fault)){const native=IDBObjectStore.prototype.clear;IDBObjectStore.prototype.clear=function(){if(this.name===fault.slice(6)){IDBObjectStore.prototype.clear=native;fail();}return native.call(this);};}
+      if(fault==='localStorage'){const native=Storage.prototype.setItem;Storage.prototype.setItem=function(key,value){if(key==='todoAppData'){Storage.prototype.setItem=native;fail();}return native.call(this,key,value);};}
+      if(fault==='verify'){const native=TodoStorage.replaceAllValidatedBackup;TodoStorage.replaceAllValidatedBackup=async(...args)=>{await native(...args);const capture=TodoStorage.captureUserData;TodoStorage.captureUserData=async()=>{TodoStorage.captureUserData=capture;const p=await capture();p.habitLogs.push({id:'phantom'});return p;};};}
+      if(fault==='rollback'){const native=TodoStorage.replaceAllValidatedBackup,put=IDBObjectStore.prototype.put;TodoStorage.replaceAllValidatedBackup=async(...args)=>{await native(...args);IDBObjectStore.prototype.put=function(...args){if(this.name==='attachments')throw Error('rollback put unavailable');return put.apply(this,args);};testUndoFault=()=>{IDBObjectStore.prototype.put=put;};fail();};}
+    }''',fault)
+    downloads=[];page.on('download',lambda d:downloads.append(d))
+    if mode=='reset':click(page,'reset-app')
+    else:page.set_input_files('#backup-import-input',{'name':'incoming.zip','mimeType':'application/zip','buffer':incoming})
+    if fault in ['export','download','snapshot','inspect']:
+        page.wait_for_function('document.querySelector("#toast-root").textContent.includes("injected")')
+        assert global_domain(page)==before
+        assert not page.locator('#global-confirm-phrase').count()
+        assert page.evaluate('async()=>!(await TodoStorage.recoverySnapshots.listAll()).length')
+        assert len(downloads)==(0 if fault in ['export','download'] else 1)
+        return
+    expect(page.locator('#global-confirm-phrase')).to_be_visible()
+    if fault=='abandoned-cleanup':page.keyboard.press('Escape')
+    else:
+        page.locator('#global-confirm-phrase').fill(mode.upper());click(page,'confirm-action')
+    if fault in ['cleanup','abandoned-cleanup','rollback']:
+        expect(page.locator('[data-action="retry-global-recovery"]')).to_be_visible()
+        assert page.evaluate('async()=> (await TodoStorage.recoverySnapshots.listAll()).length')==1
+        if fault=='abandoned-cleanup':assert global_domain(page)==before
+        elif fault=='cleanup' and mode=='reset':assert not global_domain(page)['attachments']
+        elif fault=='rollback':
+            assert 'injected rollback' in page.locator('#toast-root').inner_text()
+            assert 'rollback put unavailable' in page.locator('#toast-root').inner_text()
+        if reload_recovery:
+            page.reload()
+            expect(page.locator('[data-action="retry-global-recovery"]')).to_be_visible()
+        else:page.evaluate('()=>testUndoFault()')
+        click(page,'retry-global-recovery')
+    global_settled(page)
+    if fault!='cleanup':
+        after=global_domain(page)
+        assert after==before, str((differences(before,after),page.locator('#toast-root').inner_text(),page.evaluate('faultTrace')))
+
+
+def global_source_change(page, boundary):
+    route(page,'settings')
+    if boundary!='confirmation':
+        page.evaluate('''boundary=>{const object=boundary==='export'?TodoBackup:TodoStorage,key=boundary==='export'?'exportBackupV3':'createRecoverySnapshot',native=object[key];object[key]=async(...args)=>{const out=await native(...args);TodoApp.state.tasks[0].title='Concurrent edit';localStorage.setItem('todoAppData',JSON.stringify(TodoApp.state));return out;};}''',boundary)
+    click(page,'reset-app')
+    if boundary=='confirmation':
+        expect(page.locator('#global-confirm-phrase')).to_be_visible()
+        page.evaluate('''()=>{TodoApp.state.tasks[0].title='Concurrent edit';localStorage.setItem('todoAppData',JSON.stringify(TodoApp.state));}''')
+        page.locator('#global-confirm-phrase').fill('RESET');click(page,'confirm-action')
+    page.wait_for_function('document.querySelector("#toast-root").textContent.includes("changed")')
+    assert page.evaluate('TodoApp.state.tasks[0].title')=='Concurrent edit'
+    assert page.evaluate('async()=> (await TodoStorage.attachments.listAll()).length')==3
+
+
+def global_corrupted_reset(page):
+    page.add_init_script('localStorage.setItem("todoAppData","{broken raw")')
+    page.reload();page.wait_for_selector('[data-action="recovery-reset"]')
+    before=global_domain(page);click(page,'recovery-reset')
+    expect(page.locator('[data-action="retry-global-recovery"]')).to_be_visible()
+    assert global_domain(page)==before
+
+
+def global_undo_integration(page, success):
+    before=domain(page)
+    incoming=bytes(page.evaluate('''async()=>{const b=await TodoBackup.exportBackupV3(TodoApp.state,TodoStorage,'2026-10-24T10:00:00Z'),z=await JSZip.loadAsync(b),m=JSON.parse(await z.file('data.json').async('string')),a=m.attachments.find(a=>a.id==='f');z.file(a.path,'replacement');a.size=11;z.file('data.json',JSON.stringify(m));return [...new Uint8Array(await z.generateAsync({type:'uint8array'}))];}'''))
+    trigger(page,'task');confirmed(page);route(page,'settings')
+    remaining=page.evaluate('performance.now()')
+    if not success:
+        page.evaluate('''()=>{const native=TodoStorage.replaceAllValidatedBackup;TodoStorage.replaceAllValidatedBackup=async(...args)=>{await native(...args);throw Error('after native replacement');};}''')
+    with page.expect_download():page.set_input_files('#backup-import-input',{'name':'reused.zip','mimeType':'application/zip','buffer':incoming})
+    page.locator('#global-confirm-phrase').fill('RESTORE');click(page,'confirm-action')
+    global_settled(page)
+    if success:
+        assert not page.locator('[data-action="undo"]').count()
+        page.clock.run_for(7000)
+        assert page.evaluate('async()=>await (await TodoStorage.attachments.get("f")).blob.text()')=='replacement'
+        assert page.evaluate('TodoApp.state.tasks.some(t=>t.id==="t")')
+    else:
+        expect(page.locator('[data-action="undo"]')).to_be_visible()
+        assert page.evaluate('performance.now()')-remaining<6500
+        undo(page);assert domain(page)==before
+
+
+def global_missing_incoming(page):
+    route(page,'settings')
+    page.evaluate('''async()=>{const records=await TodoStorage.attachments.listAll();await new Promise((resolve,reject)=>{const r=indexedDB.open('todoAppAttachments',1);r.onupgradeneeded=()=>r.result.createObjectStore('attachments',{keyPath:'id'});r.onerror=()=>reject(r.error);r.onsuccess=()=>{const db=r.result,tx=db.transaction('attachments','readwrite');records.forEach(record=>tx.objectStore('attachments').put(record));tx.oncomplete=()=>{db.close();resolve();};tx.onabort=()=>reject(tx.error);};});}''')
+    before=global_domain(page)
+    incoming=bytes(page.evaluate('''async()=>{const b=await TodoBackup.exportBackupV3(TodoApp.state,TodoStorage,'2026-10-24T10:00:00Z'),z=await JSZip.loadAsync(b),m=JSON.parse(await z.file('data.json').async('string'));z.remove(m.attachments[0].path);return [...new Uint8Array(await z.generateAsync({type:'uint8array'}))];}'''))
+    with page.expect_download():page.set_input_files('#backup-import-input',{'name':'missing.zip','mimeType':'application/zip','buffer':incoming})
+    page.wait_for_function('document.querySelector("#toast-root").textContent.includes("Missing attachment file")')
+    global_settled(page)
+    assert not page.locator('#global-confirm-phrase').count()
+    assert global_domain(page)==before
+
+
+def global_mutable_incoming(page):
+    route(page,'settings')
+    incoming=bytes(page.evaluate('''async()=>[...new Uint8Array(await (await TodoBackup.exportBackupV3(TodoApp.state,TodoStorage,'2026-10-24T10:00:00Z')).arrayBuffer())]'''))
+    page.evaluate('''()=>{const native=TodoBackup.inspectBackupV3;TodoBackup.inspectBackupV3=async(...args)=>{window.exposed=await native(...args);return exposed;};}''')
+    with page.expect_download():page.set_input_files('#backup-import-input',{'name':'mutable.zip','mimeType':'application/zip','buffer':incoming})
+    expect(page.locator('#global-confirm-phrase')).to_be_visible()
+    page.evaluate('''()=>{exposed.state.tasks[0].title='MUTATED';exposed.attachmentRecords[0].blob=new Blob(['evil']);exposed.habitLogs.length=0;}''')
+    page.locator('#global-confirm-phrase').fill('RESTORE');click(page,'confirm-action');global_settled(page)
+    assert page.evaluate('TodoApp.state.tasks[0].title')=='Other task'
+    assert page.evaluate('async()=>await (await TodoStorage.attachments.get("f")).blob.text()')=='first\x00bytes'
+    assert len(global_domain(page)['habitLogs'])==2
+
+
+def global_foreign_rollback(page):
+    route(page,'settings')
+    page.evaluate('''()=>{const native=TodoStorage.replaceAllValidatedBackup;TodoStorage.replaceAllValidatedBackup=async(...args)=>{await native(...args);const incoming=JSON.parse(localStorage.getItem('todoAppData'));incoming.tasks=[{id:'t',title:'Foreign source'}];localStorage.setItem('todoAppData',JSON.stringify(incoming));await TodoStorage.attachments.put({id:'f',taskId:'t',fileName:'foreign',size:5,mimeType:'text/plain',blob:new Blob(['alien'],{type:'text/plain'})});window.foreignRaw=localStorage.getItem('todoAppData');throw Error('after-commit failure');};}''')
+    with page.expect_download():click(page,'reset-app')
+    page.locator('#global-confirm-phrase').fill('RESET');click(page,'confirm-action')
+    page.wait_for_function('document.querySelector("#toast-root").textContent.includes("after-commit failure")')
+    assert page.evaluate('localStorage.getItem("todoAppData")===foreignRaw'), 'rollback overwrote a foreign source'
+    assert page.evaluate('async()=>await (await TodoStorage.attachments.get("f")).blob.text()')=='alien'
+    expect(page.locator('[data-action="retry-global-recovery"]')).to_be_visible()
+    assert page.evaluate('async()=> (await TodoStorage.recoverySnapshots.listAll()).length')==1
+    click(page,'retry-global-recovery')
+    assert page.evaluate('localStorage.getItem("todoAppData")===foreignRaw')
+
+
+def global_rollback_native_boundary(page, raw_race=False):
+    route(page,'settings')
+    incoming=bytes(page.evaluate('''async()=>[...new Uint8Array(await (await TodoBackup.exportBackupV3(TodoApp.state,TodoStorage,'2026-10-24T10:00:00Z')).arrayBuffer())]'''))
+    page.evaluate('''rawRace=>{
+      const replace=TodoStorage.replaceAllValidatedBackup,restore=TodoStorage.restoreRecoverySnapshot,transaction=IDBDatabase.prototype.transaction;
+      TodoStorage.restoreRecoverySnapshot=async(...args)=>{window.inRollback=true;return restore(...args);};
+      TodoStorage.replaceAllValidatedBackup=async(...args)=>{await replace(...args);const original=await TodoStorage.attachments.get('f');window.incomingRecord={...original,blob:new Blob(['different!!'],{type:original.blob.type})};throw Error('native rollback boundary operation');};
+      IDBDatabase.prototype.transaction=function(names,mode,...rest){
+        if(window.inRollback && mode==='readwrite' && Array.isArray(names) && names.includes('attachments')){
+          window.inRollback=false;
+          if(rawRace){const s=JSON.parse(localStorage.getItem('todoAppData'));s.tasks[0].title='Foreign at native boundary';localStorage.setItem('todoAppData',JSON.stringify(s));window.foreignRaw=localStorage.getItem('todoAppData');}
+          else {const foreign=transaction.call(this,['attachments'],'readwrite');foreign.objectStore('attachments').put(incomingRecord);}
+        }
+        return transaction.call(this,names,mode,...rest);
+      };
+    }''',raw_race)
+    with page.expect_download():page.set_input_files('#backup-import-input',{'name':'native.zip','mimeType':'application/zip','buffer':incoming})
+    page.locator('#global-confirm-phrase').fill('RESTORE');click(page,'confirm-action')
+    expect(page.locator('[data-action="retry-global-recovery"]')).to_be_visible()
+    assert 'native rollback boundary operation' in page.locator('#toast-root').inner_text()
+    assert 'Recovery also failed' in page.locator('#toast-root').inner_text()
+    assert 'Original data was restored' not in page.locator('#toast-root').inner_text()
+    if raw_race:assert page.evaluate('localStorage.getItem("todoAppData")===foreignRaw')
+    else:assert page.evaluate('async()=>await (await TodoStorage.attachments.get("f")).blob.text()')=='different!!'
+    assert page.evaluate('async()=> (await TodoStorage.recoverySnapshots.listAll()).length')==1
+
+
+def global_verified_phase_failure(page):
+    route(page,'settings')
+    page.evaluate('''()=>{const native=TodoStorage.recoverySnapshots.put;TodoStorage.recoverySnapshots.put=async record=>{if(record.phase==='committed')throw Error('commit housekeeping denied');return native(record);};}''')
+    with page.expect_download():click(page,'reset-app')
+    page.locator('#global-confirm-phrase').fill('RESET');click(page,'confirm-action')
+    expect(page.locator('[data-action="retry-global-recovery"]')).to_be_visible()
+    assert page.evaluate('TodoApp.state.tasks.length')==0
+    page.reload();expect(page.locator('[data-action="retry-global-recovery"]')).to_be_visible()
+    click(page,'retry-global-recovery');global_settled(page)
+    assert page.evaluate('TodoApp.state.tasks.length')==0, 'housekeeping failure rolled back verified new data after reload'
+    assert not global_domain(page)['attachments']
+
+
 def main():
     class QuietHandler(SimpleHTTPRequestHandler):
         def log_message(self, *_args): pass
@@ -652,6 +892,16 @@ def main():
     cases += [('undo-boundary-'+b,lambda p,b=b:undo_metadata_boundary(p,b)) for b in ['read','before-native','during-native','after-native','parent','project-parent']]
     cases += [('undo-compensation-failure',undo_compensation_failure),('undo-compensation-replacement',lambda p:undo_compensation_failure(p,True)),('undo-failure-deadline',undo_failure_crosses_deadline)]
     cases += [('undo-failure-before-deadline',undo_failure_before_deadline)]
+    cases += [('global-'+mode+('-'+fault if fault else ''),lambda p,m=mode,f=fault:global_safety(p,m,f)) for mode in ['reset','restore'] for fault in [None,'cancel','replace']]
+    cases += [('global-'+m+'-'+f,lambda p,m=m,f=f:global_fault(p,f,m)) for m in ['reset','restore'] for f in ['export','download','snapshot','cleanup','abandoned-cleanup','clear-attachments','clear-habitLogs','clear-goalHistory','localStorage','verify','rollback']]
+    cases += [('global-restore-inspect',lambda p:global_fault(p,'inspect','restore'))]
+    cases += [('global-source-'+b,lambda p,b=b:global_source_change(p,b)) for b in ['export','snapshot','confirmation']]
+    cases += [('global-corrupted-reset',global_corrupted_reset)]
+    cases += [('global-recovery-reload',lambda p:global_fault(p,'rollback',reload_recovery=True)),('global-cleanup-reload',lambda p:global_fault(p,'cleanup',reload_recovery=True))]
+    cases += [('global-undo-retire',lambda p:global_undo_integration(p,True)),('global-undo-rollback',lambda p:global_undo_integration(p,False)),('global-missing-incoming',global_missing_incoming),('global-mutable-incoming',global_mutable_incoming)]
+    cases += [('global-foreign-rollback',global_foreign_rollback)]
+    cases += [('global-rollback-native-bytes',global_rollback_native_boundary),('global-rollback-native-raw',lambda p:global_rollback_native_boundary(p,True))]
+    cases += [('global-verified-phase-failure',global_verified_phase_failure)]
     failures=[]; count=0
     try:
         with sync_playwright() as p:

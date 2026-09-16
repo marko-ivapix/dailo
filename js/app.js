@@ -24,6 +24,8 @@
   let startupPromise = null;
   const startupQueue = [];
   let storageError = false;
+  let globalOperation = null;
+  let globalRecoveryNotice = null;
   let modalState = null;
   let popoverEl = null;
   let undoState = null;
@@ -263,6 +265,34 @@
     state = null;
     let preparingStorage = false;
     try {
+      preparingStorage = true;
+      await TodoStorage.open();
+      const retained = (await TodoStorage.recoverySnapshots.listAll()).filter(item => ['reset','restore'].includes(item.reason));
+      // A crash or failed housekeeping write can leave a fully committed domain
+      // tagged as mutating. Verify its exact destination afresh before choosing
+      // cleanup; never roll verified new data back because cleanup failed.
+      for (const item of retained.filter(item => item.phase === 'mutating' && item.destination)) {
+        if (localStorage.getItem(STORAGE_KEY) === item.destination.rawAppData
+          && Core.validateStateV3(JSON.parse(item.destination.rawAppData)).ok
+          && await TodoStorage.sameUserData(await TodoStorage.captureUserData(), item.destination)) {
+          item.phase = 'committed';
+          try { await TodoStorage.recoverySnapshots.put(item); }
+          catch (_) { globalOperation = { reason: 'cleanup', busy: true }; }
+        }
+      }
+      const interrupted = retained.find(item => ['mutating','rollback-failed'].includes(item.phase));
+      if (interrupted) {
+        const op = { snapshotId: interrupted.id, reason: interrupted.reason, token: null };
+        globalOperation = op; recovery = 'global-recovery';
+        globalNotice(`An interrupted operation needs recovery. ${interrupted.operationError || ''} ${interrupted.rollbackError || ''} Recovery copy retained. Retry recovery.`, () => rollbackGlobalOperation(op, new Error(interrupted.operationError || 'Interrupted operation')));
+        return;
+      }
+      if (retained.length) globalNotice('A temporary recovery copy remains after a completed or canceled operation. Retry cleanup.', async () => {
+        await TodoStorage.recoverySnapshots.deleteMany(retained.map(item => item.id));
+        if (globalOperation?.reason === 'cleanup') globalOperation = null;
+        globalRecoveryNotice = null; renderToast();
+      });
+      preparingStorage = false;
       const sourceAtStart = localStorage.getItem(STORAGE_KEY);
       // Real events must still identify the current source. Synthetic events deliberately
       // override an unchanged source (the established test/embedding newValue contract).
@@ -323,7 +353,7 @@
   }
 
   function saveState() {
-    if (!state) return false;
+    if (!state || globalOperation) return false;
     try {
       const persisted = { ...state };
       delete persisted.habitLogCache;
@@ -1019,6 +1049,7 @@
   }
 
   function renderRecovery() {
+    if (recovery === 'global-recovery') return '<div class="recovery"><div class="recovery-card"><h1>Recovery is required.</h1><p>An interrupted global operation retained its internal recovery copy. Use Retry recovery below before continuing.</p></div></div>';
     if (recovery === 'migration-loading') return '<div class="recovery"><div class="recovery-card"><h1>Preparing your local data…</h1><p>Please wait while local storage is checked.</p></div></div>';
     if (recovery === 'migration-error') return '<div class="recovery"><div class="recovery-card"><h1>Local data migration could not finish.</h1><p>Your saved data and original files have not been overwritten. Check available storage and close other app tabs, then retry.</p><div class="recovery-actions"><button class="btn btn-secondary" type="button" data-action="retry-load">Retry</button></div></div></div>';
     const unsupported = recovery === 'unsupported-version';
@@ -1707,7 +1738,7 @@
   }
 
   function renderConfirmModal() {
-    return modalFrame(`<div class="modal-inner"><div class="modal-header"><div><h2 class="modal-title">${esc(modalState.title)}</h2>${modalState.message ? `<p class="page-subtitle" style="margin-top:10px;max-width:380px">${esc(modalState.message)}</p>` : ''}</div><button class="btn-icon" type="button" data-action="close-modal"><i class="ph ph-x"></i></button></div><div class="modal-footer" style="border:0;padding-top:0"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">Cancel</button><button class="btn btn-danger" type="button" data-action="confirm-action">${esc(modalState.confirmLabel || 'Delete')}</button></div></div></div>`, 'confirm-modal');
+    return modalFrame(`<div class="modal-inner"><div class="modal-header"><div><h2 class="modal-title">${esc(modalState.title)}</h2>${modalState.message ? `<p class="page-subtitle" style="margin-top:10px;max-width:380px">${esc(modalState.message)}</p>` : ''}</div><button class="btn-icon" type="button" data-action="close-modal"><i class="ph ph-x"></i></button></div>${modalState.phrase ? `<label>Type ${esc(modalState.phrase)} to continue<input id="global-confirm-phrase" class="input" autocomplete="off" /></label>` : ''}<div class="modal-footer" style="border:0;padding-top:0"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">Cancel</button><button class="btn btn-danger" type="button" data-action="confirm-action">${esc(modalState.confirmLabel || 'Delete')}</button></div></div></div>`, 'confirm-modal');
   }
 
   function nextProjectColor() {
@@ -2668,7 +2699,8 @@
     const info = toastMessage ? `<div class="toast"><i class="ph ph-info toast-icon" style="color:var(--info)"></i><span class="toast-message">${esc(toastMessage)}</span></div>` : '';
     const failed = [...failedDeleteSnapshots][0];
     const recoveryNotice = failed && !undoHold ? `<div class="toast" role="alert"><i class="ph ph-warning toast-icon"></i><span class="toast-message">${esc(failed.recoveryError)} · Snapshot retained</span><button class="toast-action" type="button" data-action="retry-delete-recovery">Retry recovery</button></div>` : '';
-    root.innerHTML = undo + info + recoveryNotice;
+    const globalNotice = globalRecoveryNotice ? `<div class="toast" role="alert"><span class="toast-message">${esc(globalRecoveryNotice.message)}</span><button class="toast-action" data-action="retry-global-recovery">Retry</button></div>` : '';
+    root.innerHTML = undo + info + recoveryNotice + globalNotice;
   }
 
   async function doUndo() {
@@ -2976,7 +3008,7 @@
   }
 
   async function evaluateHabitBoundaries() {
-    if (!state || modalState?.type === 'habit-finished') return;
+    if (!state || globalOperation || modalState?.type === 'habit-finished') return;
     const today = Core.dateOnly(); const weekStartsOn = state.settings.weekStartsOn || 'monday';
     for (const habit of state.habits || []) {
       if (habit.status !== 'active') continue;
@@ -3165,9 +3197,8 @@
     if (!Backup || !Attachments) { setToastMessage('Backup is unavailable in this browser'); return; }
     setToastMessage('Preparing backup...');
     try {
-      const blob = await Backup.exportBackup(state, Attachments, nowIso());
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = `todo-backup-${Core.dateOnly()}.zip`; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url), 1000);
+      const blob = await Backup.exportBackupV3(state, TodoStorage, nowIso());
+      downloadBackup(blob);
       setToastMessage('Backup exported');
     } catch (error) { console.error(error); setToastMessage('Backup could not be created'); }
   }
@@ -3177,26 +3208,11 @@
   }
 
   async function inspectImportBackup(file) {
-    if (!file || !Backup) return;
-    setToastMessage('Validating backup...');
-    try {
-      const validated = await Backup.inspectBackup(file);
-      modalState = { type: 'import-backup', validated };
-      renderModal();
-    } catch (error) { console.error(error); setToastMessage('This backup is invalid or incomplete'); }
+    if (file) await beginGlobalOperation('restore', file);
   }
 
   async function restoreImportedBackup() {
-    if (modalState?.type !== 'import-backup') return;
-    const validated = modalState.validated;
-    try {
-      await Backup.restoreBackup(validated, {
-        attachmentApi: Attachments,
-        readState: async () => state,
-        writeState: async next => { state = normalizeState(next); if (!saveState()) throw new Error('Could not save restored state'); }
-      });
-      closeModal(); recovery = null; location.hash = '#today'; render(); setToastMessage('Backup restored');
-    } catch (error) { console.error(error); setToastMessage('Backup restore failed. Existing data was kept.'); }
+    if (globalOperation?.reason === 'restore') await commitGlobalOperation(globalOperation);
   }
 
   function clearCompleted() {
@@ -3204,10 +3220,152 @@
   }
 
   function resetApp() {
-    openConfirm({ title: 'Reset all app data?', message: 'All tasks, projects, tags, attachments and settings stored by this prototype will be deleted. This cannot be undone.', confirmLabel: 'Reset app', onConfirm: async () => {
-      try { if (Attachments) await Attachments.clearAll(); } catch (error) { console.error(error); setToastMessage('Attachments could not be cleared'); return; }
-      state = createEmptyState(); recovery = null; localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); closeModal(); location.hash = '#today'; render();
-    } });
+    return beginGlobalOperation('reset');
+  }
+
+  function downloadBackup(blob) {
+    const url = URL.createObjectURL(blob), anchor = document.createElement('a');
+    anchor.href = url; anchor.download = `todo-backup-${Core.dateOnly()}.zip`;
+    try { document.body.appendChild(anchor); anchor.click(); }
+    finally { anchor.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000); }
+  }
+
+  function compactState(value) {
+    const copy = { ...value }; delete copy.habitLogCache; delete copy.habitMetrics;
+    return JSON.stringify(copy);
+  }
+
+  function assertGlobalSource(op) {
+    if (globalOperation !== op || state !== op.source || compactState(state) !== op.stateText || localStorage.getItem(STORAGE_KEY) !== op.raw)
+      throw new Error('Source changed. Cancel and retry with a fresh safety backup.');
+  }
+
+  function globalNotice(message, retry) {
+    globalRecoveryNotice = { message, retry }; renderToast();
+  }
+
+  async function cleanupGlobalSnapshot(op) {
+    if (op.snapshotId) await TodoStorage.recoverySnapshots.deleteMany([op.snapshotId]);
+  }
+
+  async function markGlobalSnapshot(op, phase, details = {}) {
+    const snapshot = await TodoStorage.recoverySnapshots.get(op.snapshotId);
+    if (!snapshot) throw new Error('Recovery copy is missing.');
+    await TodoStorage.recoverySnapshots.put({ ...snapshot, ...details, phase });
+  }
+
+  async function abandonGlobalOperation(op, message = 'Operation canceled. Existing data was kept.') {
+    if (op.busy) return;
+    op.busy = true;
+    const returnFocus = modalReturnFocus;
+    modalState = null; renderModal();
+    let cleanupError = null;
+    try { if (op.token) await deleteLifecycle.resume(op.token); }
+    catch (error) {
+      op.busy = false;
+      globalNotice(`${message} Normal Undo could not resume: ${error.message}. Retry recovery after resolving the changed source.`, () => abandonGlobalOperation(op, message));
+      return;
+    }
+    try { await cleanupGlobalSnapshot(op); } catch (error) { cleanupError = error; }
+    globalOperation = null;
+    if (returnFocus?.isConnected) returnFocus.focus();
+    if (cleanupError) globalNotice(`${message} Temporary backup cleanup failed: ${cleanupError.message}. Retry cleanup.`, async () => {
+      await cleanupGlobalSnapshot(op); globalRecoveryNotice = null; renderToast();
+    });
+    else setToastMessage(message);
+  }
+
+  async function beginGlobalOperation(reason, file = null) {
+    if (globalOperation) return;
+    await (startupPromise || Promise.resolve());
+    if (!state || recovery) { globalNotice('Safety backup cannot represent this unreadable saved data. Nothing was changed. Use Retry after repairing or recovering the original local data.', () => startReady()); return; }
+    flushTextSave();
+    const op = { reason, source: state, busy: false };
+    globalOperation = op;
+    try {
+      op.token = await deleteLifecycle.hold();
+      op.raw = localStorage.getItem(STORAGE_KEY); op.stateText = compactState(state);
+      op.payload = await TodoStorage.captureUserData(); assertGlobalSource(op);
+      const frozenStorage = { attachments: { getMany: async ids => op.payload.attachments.filter(record => ids.includes(record.id)) },
+        habitLogs: { listAll: async () => op.payload.habitLogs }, goalHistory: { listAll: async () => op.payload.goalHistory } };
+      const blob = await Backup.exportBackupV3(JSON.parse(op.stateText), frozenStorage, nowIso());
+      assertGlobalSource(op);
+      if (!(await TodoStorage.sameUserData(await TodoStorage.captureUserData(), op.payload))) throw new Error('Stored data changed during export. Retry.');
+      assertGlobalSource(op); downloadBackup(blob);
+      op.snapshotId = await TodoStorage.createRecoverySnapshot(reason, state, TodoStorage);
+      const snapshot = await TodoStorage.recoverySnapshots.get(op.snapshotId);
+      assertGlobalSource(op);
+      if (snapshot.rawAppData !== op.raw || !(await TodoStorage.sameUserData(snapshot, op.payload))) throw new Error('Source changed during snapshot. Retry.');
+      op.validated = reason === 'restore' ? structuredClone(await Backup.inspectBackupV3(file))
+        : { state: createEmptyState(), attachmentRecords: [], habitLogs: [], goalHistory: [] };
+      op.validated.state = JSON.parse(compactState(normalizeState(op.validated.state)));
+      assertGlobalSource(op);
+      const summary = reason === 'restore' ? ` ${op.validated.state.tasks.length} tasks, ${op.validated.state.projects.length} projects, ${op.validated.state.goals.length} Goals, ${op.validated.state.habits.length} Habits, ${op.validated.attachmentRecords.length} files, ${op.validated.habitLogs.length} logs and ${op.validated.goalHistory.length} history events will be restored.` : '';
+      openConfirm({ title: reason === 'reset' ? 'Reset all app data?' : 'Restore backup?', message: 'A safety ZIP was downloaded and an internal recovery copy was created.' + summary,
+        phrase: reason.toUpperCase(), confirmLabel: reason === 'reset' ? 'Reset app' : 'Restore backup',
+        onConfirm: () => commitGlobalOperation(op), onCancel: () => abandonGlobalOperation(op) });
+    } catch (error) { await abandonGlobalOperation(op, `Safety preparation failed: ${error.message}. Nothing was replaced. Retry the operation.`); }
+  }
+
+  async function verifyGlobalReplacement(op) {
+    const next = op.validated;
+    if (localStorage.getItem(STORAGE_KEY) !== JSON.stringify(next.state)
+      || !Core.validateStateV3(next.state).ok
+      || !(await TodoStorage.sameUserData(await TodoStorage.captureUserData(), { attachments: next.attachmentRecords, habitLogs: next.habitLogs, goalHistory: next.goalHistory })))
+      throw new Error('Replacement verification failed.');
+  }
+
+  async function rollbackGlobalOperation(op, cause) {
+    if (op.recovering) return;
+    op.recovering = true;
+    try {
+      const restored = await TodoStorage.restoreRecoverySnapshot(op.snapshotId);
+      state = normalizeState(restored); recovery = null;
+      if (op.token) await deleteLifecycle.resume(op.token);
+      globalRecoveryNotice = null;
+      globalOperation = null; modalState = null; renderModal(); render();
+      try { await markGlobalSnapshot(op, 'rolled-back'); await cleanupGlobalSnapshot(op); setToastMessage(`${cause.message}. Original data was restored and verified.`); }
+      catch (cleanupError) { globalNotice(`${cause.message}. Original data was restored. Cleanup failed: ${cleanupError.message}. Retry cleanup.`, async () => { await cleanupGlobalSnapshot(op); globalRecoveryNotice = null; renderToast(); }); }
+    } catch (rollbackError) {
+      op.busy = false; modalState = null; renderModal();
+      try { await markGlobalSnapshot(op, 'rollback-failed', { operationError: cause.message, rollbackError: rollbackError.message }); }
+      catch (_) { /* The original full recovery payload remains; mutating phase is already durable. */ }
+      globalNotice(`Operation failed: ${cause.message}. Recovery also failed: ${rollbackError.message}. The recovery snapshot is retained. Retry recovery.`, () => rollbackGlobalOperation(op, cause));
+    } finally { op.recovering = false; }
+  }
+
+  async function commitGlobalOperation(op) {
+    if (globalOperation !== op || op.busy) return;
+    if ($('#global-confirm-phrase')?.value !== op.reason.toUpperCase()) { setToastMessage(`Type ${op.reason.toUpperCase()} exactly to continue.`); return; }
+    op.busy = true;
+    let mutationStarted = false;
+    try {
+      assertGlobalSource(op);
+      if (!(await TodoStorage.sameUserData(await TodoStorage.captureUserData(), op.payload))) throw new Error('Stored data changed during confirmation. Retry.');
+      assertGlobalSource(op);
+      await markGlobalSnapshot(op, 'mutating', { destination: { rawAppData: JSON.stringify(op.validated.state),
+        attachments: op.validated.attachmentRecords, habitLogs: op.validated.habitLogs, goalHistory: op.validated.goalHistory } });
+      assertGlobalSource(op);
+      const guard = () => assertGlobalSource(op);
+      guard.onCommit = () => { mutationStarted = true; };
+      await TodoStorage.replaceAllValidatedBackup(op.validated, op.payload, guard);
+      mutationStarted = true;
+      await verifyGlobalReplacement(op);
+      // Successful verification is the commit boundary. Housekeeping may fail
+      // afterward without rolling the verified new domain back.
+      let phaseError = null;
+      try { await markGlobalSnapshot(op, 'committed'); } catch (error) { phaseError = error; }
+      deleteLifecycle.retire(op.token);
+      state = normalizeState(op.validated.state); recovery = null; modalState = null;
+      globalOperation = phaseError ? op : null; renderModal(); location.hash = '#today'; render();
+      try { if (phaseError) throw phaseError; await cleanupGlobalSnapshot(op); setToastMessage(op.reason === 'reset' ? 'App data reset and verified.' : 'Backup restored and verified.'); }
+      catch (error) { globalNotice(`New data is verified. Recovery copy cleanup failed: ${error.message}. Retry cleanup.`, async () => { await markGlobalSnapshot(op, 'committed'); await cleanupGlobalSnapshot(op); if (globalOperation === op) globalOperation = null; globalRecoveryNotice = null; renderToast(); }); }
+      refreshHabitMetrics().then(render).catch(error => setToastMessage(`History display could not refresh: ${error.message}. Reload to retry.`));
+    } catch (error) {
+      op.busy = false;
+      if (mutationStarted) await rollbackGlobalOperation(op, error);
+      else await abandonGlobalOperation(op, `Operation stopped: ${error.message}. Nothing was replaced.`);
+    }
   }
 
   async function enableBrowserNotifications() {
@@ -3224,7 +3382,7 @@
   }
 
   function checkReminders() {
-    if (!state) return;
+    if (!state || globalOperation) return;
     const now = nowIso();
     const dueTasks = state.tasks.filter(task => Core.isReminderDue(task, now));
     const dueGoals = state.goals.flatMap(goal => Core.goalReminderDueMoments(goal, now).map(moment => ({ goal, moment })));
@@ -3287,6 +3445,10 @@
   function showTaskRepeatPicker(taskId, anchor) { openRepeatPicker(anchor, { type: 'task', taskId }); }
 
   function handleClick(event) {
+    if (event.target.closest('[data-action="retry-global-recovery"]')) {
+      Promise.resolve(globalRecoveryNotice?.retry()).catch(error => globalNotice(`Retry failed: ${error.message}. Recovery copy retained. Retry again.`, globalRecoveryNotice.retry)); return;
+    }
+    if (globalOperation && !event.target.closest('#modal-root [data-action="confirm-action"], #modal-root [data-action="close-modal"]')) return;
     const routeEl = event.target.closest('[data-route]');
     if (routeEl) { event.preventDefault(); navigate(routeEl.dataset.route); return; }
 
@@ -3450,7 +3612,7 @@
     else if (action === 'clear-completed') clearCompleted();
     else if (action === 'reset-app') resetApp();
     else if (action === 'retry-load') { startReady(); }
-    else if (action === 'recovery-reset') { if(Attachments) Attachments.clearAll().catch(console.error); localStorage.removeItem(STORAGE_KEY); recovery = null; state = createEmptyState(); saveState(); location.hash = '#today'; render(); }
+    else if (action === 'recovery-reset') resetApp();
   }
 
   function handlePopoverAction(button) {
@@ -3531,6 +3693,7 @@
   }
 
   function handleInput(event) {
+    if (globalOperation) return;
     if (modalState?.type === 'quick') {
       if (event.target.id === 'quick-title') { modalState.draft.title = event.target.value; modalState.error = ''; if (!modalState.draft.explicitPlan) { const parsed=Core.parseQuickPlanPhrase(event.target.value, Core.dateOnly()); modalState.draft.parsedPlanDate=parsed.plannedDate; const b=document.querySelector('[data-action="quick-plan-picker"]'); if(b) b.innerHTML=`<i class="ph ph-calendar-check"></i>${parsed.plannedDate ? esc(relativeDateLabel(parsed.plannedDate)) : 'Plan for'}`; } }
       else if (event.target.id === 'quick-notes') modalState.draft.notes = event.target.value;
@@ -3550,6 +3713,7 @@
   }
 
   function handleChange(event) {
+    if (globalOperation) return;
     if (modalState?.type === 'saved-view' && event.target.id === 'saved-view-type') {
       readSavedViewDraft();
       const draft = modalState.draft;
@@ -3594,6 +3758,7 @@
   }
 
   function handleKeydown(event) {
+    if (globalOperation && !['Escape','Tab'].includes(event.key)) return;
     const target = event.target;
     const typing = target && (target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"]') || target.isContentEditable);
 
@@ -3793,6 +3958,7 @@
     document.addEventListener('dragend', handleDragEnd);
     window.addEventListener('hashchange', () => { closePopover(); closeModal(); render(); });
     window.addEventListener('storage', event => {
+      if (globalOperation) return;
       if (event.key !== STORAGE_KEY || !event.newValue) return;
       try {
         const source = localStorage.getItem(STORAGE_KEY);
@@ -3801,7 +3967,7 @@
         }
       } catch (_) { /* keep current tab data for malformed external state */ }
     });
-    window.addEventListener('pagehide', () => { flushTaskDraft(); flushTextSave(); saveState(); });
+    window.addEventListener('pagehide', () => { if (!globalOperation) { flushTaskDraft(); flushTextSave(); saveState(); } });
     window.addEventListener('resize', closePopover);
     window.addEventListener('focus', checkReminders);
   }
@@ -3854,6 +4020,7 @@
     await startReady();
     if (!location.hash) location.hash = '#today';
     setInterval(() => {
+      if (globalOperation) return;
       const next = Core.dateOnly();
       if (next !== lastToday) {
         lastToday = next;
