@@ -219,6 +219,21 @@
       reminderFiredMoments: Array.isArray(goal.reminderFiredMoments) ? goal.reminderFiredMoments : [],
       reminders: { sevenDaysBefore: false, threeDaysBefore: false, oneDayBefore: false, onTargetDate: false, time: '09:00', ...(goal.reminders || {}) },
     }));
+    next.habits = (next.habits || []).map(habit => ({
+      name: '', areaId: null, goalIds: [], status: 'active', trackingType: 'checkbox', targetValue: null, unit: null,
+      quickValues: [], frequencyType: 'daily', weekdays: [], timesPerWeek: null, everyNDays: null, startDate: Core.dateOnly(),
+      continuation: 'automatic', endType: 'never', endDate: null, successfulPeriodsTarget: null, reminders: [], reminderFiredMoments: [],
+      createdAt: nowIso(), updatedAt: nowIso(), ...habit,
+      name: String(habit.name || habit.title || '').trim(), areaId: habit.areaId || null,
+      goalIds: Array.isArray(habit.goalIds) ? habit.goalIds : [], quickValues: Array.isArray(habit.quickValues) ? habit.quickValues.map(Number).filter(Number.isFinite) : [],
+      weekdays: Array.isArray(habit.weekdays) ? habit.weekdays.map(Number).filter(day => day >= 0 && day <= 6) : [],
+      reminders: Array.isArray(habit.reminders) ? habit.reminders.map(item => ({ id: item.id || uid('habit-reminder'), time: Core.normalizeTime(item.time) || '09:00', enabled: item.enabled !== false })) : [],
+      reminderFiredMoments: Array.isArray(habit.reminderFiredMoments) ? habit.reminderFiredMoments : [],
+      status: ['active', 'paused', 'archived'].includes(habit.status) ? habit.status : 'active',
+      trackingType: habit.trackingType === 'numeric' ? 'numeric' : 'checkbox',
+      frequencyType: ['daily', 'weekdays', 'timesPerWeek', 'everyNDays'].includes(habit.frequencyType) ? habit.frequencyType : 'daily',
+    }));
+    next.habitMetrics = next.habitMetrics || {};
     return next;
   }
 
@@ -250,7 +265,10 @@
   function saveState() {
     if (!state) return false;
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      const persisted = { ...state };
+      delete persisted.habitLogCache;
+      delete persisted.habitMetrics;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(persisted));
       storageError = false;
       return true;
     } catch (error) {
@@ -298,9 +316,13 @@
     return state?.goals?.find(goal => goal.id === id) || null;
   }
 
+  function getHabit(id) {
+    return state?.habits?.find(habit => habit.id === id) || null;
+  }
+
   function currentRoute() {
     const hash = location.hash.replace(/^#/, '') || 'today';
-    if (['today', 'inbox', 'upcoming', 'anytime', 'tags', 'areas', 'goals', 'archived', 'completed', 'settings'].includes(hash)) return { type: hash };
+    if (['today', 'inbox', 'upcoming', 'anytime', 'tags', 'areas', 'goals', 'habits', 'archived', 'completed', 'settings'].includes(hash)) return { type: hash };
     if (hash.startsWith('project/')) {
       const id = decodeURIComponent(hash.slice('project/'.length));
       if (getProject(id)) return { type: 'project', id };
@@ -315,6 +337,11 @@
       const id = decodeURIComponent(hash.slice('goal/'.length));
       if (getGoal(id)) return { type: 'goal', id };
       return { type: 'goals' };
+    }
+    if (hash.startsWith('habit/')) {
+      const id = decodeURIComponent(hash.slice('habit/'.length));
+      if (getHabit(id)) return { type: 'habit', id };
+      return { type: 'habits' };
     }
     return { type: 'today' };
   }
@@ -407,6 +434,7 @@
           <div class="sidebar-section-title">Work</div>
           <button class="sidebar-action ${route.type === 'areas' || route.type === 'area' ? 'is-active' : ''}" type="button" data-route="areas" title="Areas"><i class="ph ph-squares-four"></i><span>Areas</span></button>
           <button class="sidebar-action ${route.type === 'goals' || route.type === 'goal' ? 'is-active' : ''}" type="button" data-route="goals" title="Goals"><i class="ph ph-target"></i><span>Goals</span></button>
+          <button class="sidebar-action ${route.type === 'habits' || route.type === 'habit' ? 'is-active' : ''}" type="button" data-route="habits" title="Habits"><i class="ph ph-repeat"></i><span>Habits</span></button>
           ${pinnedAreas.length ? `<div class="pinned-areas-list">${pinnedAreas.map(area => `<button class="sidebar-action pinned-area ${route.type === 'area' && route.id === area.id ? 'is-active' : ''}" type="button" data-route="area/${esc(area.id)}" title="${esc(area.name)}"><i class="ph ${esc(area.icon)}" style="color:${esc(area.color)}"></i><span>${esc(area.name)}</span></button>`).join('')}</div>` : ''}
           <div class="sidebar-section-title sidebar-subsection-title">Tags</div>
           <button class="sidebar-action ${route.type === 'tags' ? 'is-active' : ''}" type="button" data-route="tags" title="Tags"><i class="ph ph-tag"></i><span>Tags</span></button>
@@ -443,6 +471,8 @@
     else if (route.type === 'area') content = renderArea(route.id);
     else if (route.type === 'goals') content = renderGoals();
     else if (route.type === 'goal') content = renderGoal(route.id);
+    else if (route.type === 'habits') content = renderHabits();
+    else if (route.type === 'habit') content = renderHabit(route.id);
     else if (route.type === 'archived') content = renderArchivedProjects();
     else if (route.type === 'project') content = renderProject(route.id);
     else if (route.type === 'completed') content = renderCompleted();
@@ -568,7 +598,7 @@
     html += `<section class="section area-detail-section"><div class="section-header"><h2 class="section-label">Projects</h2><span class="section-count">${projects.length}</span></div>${projects.length ? `<div class="area-object-list">${projects.map(project => `<button class="area-object" type="button" data-route="project/${esc(project.id)}"><span class="project-dot" style="--project-color:${esc(project.color)}"></span>${esc(project.name)}</button>`).join('')}</div>` : '<p class="area-empty-copy">No projects in this Area.</p>'}<button class="inline-add" type="button" data-action="area-new-project" data-area-id="${esc(area.id)}"><i class="ph ph-plus"></i> New project</button></section>`;
     html += `<section class="section area-detail-section"><div class="section-header"><h2 class="section-label">Standalone Tasks</h2><span class="section-count">${tasks.filter(task => !task.isCompleted).length}</span></div>${tasks.length ? `<div class="task-list">${tasks.map(task => taskRow(task, `area:${area.id}`)).join('')}</div>` : '<p class="area-empty-copy">No standalone tasks in this Area.</p>'}<button class="inline-add" type="button" data-action="area-new-task" data-area-id="${esc(area.id)}"><i class="ph ph-plus"></i> New task</button></section>`;
     html += `<section class="section area-detail-section"><div class="section-header"><h2 class="section-label">Goals</h2><span class="section-count">${goals.length}</span></div>${goals.length ? `<div class="area-object-list">${goals.map(goal => `<button class="area-object" type="button" data-route="goal/${esc(goal.id)}"><i class="ph ph-target"></i>${esc(goal.title || 'Untitled goal')}</button>`).join('')}</div>` : '<p class="area-empty-copy">No goals in this Area.</p>'}<button class="inline-add" type="button" data-action="area-new-goal" data-area-id="${esc(area.id)}"><i class="ph ph-plus"></i> New goal</button></section>`;
-    html += `<section class="section area-detail-section"><div class="section-header"><h2 class="section-label">Habits</h2><span class="section-count">${habits.length}</span></div>${habits.length ? `<div class="area-object-list">${habits.map(habit => `<div class="area-object"><i class="ph ph-repeat"></i>${esc(habit.name || habit.title || 'Untitled habit')}</div>`).join('')}</div>` : '<p class="area-empty-copy">No habits in this Area.</p>'}<button class="inline-add" type="button" data-action="area-new-habit" data-area-id="${esc(area.id)}"><i class="ph ph-plus"></i> New habit</button></section>`;
+    html += `<section class="section area-detail-section"><div class="section-header"><h2 class="section-label">Habits</h2><span class="section-count">${habits.length}</span></div>${habits.length ? `<div class="area-object-list">${habits.map(habit => `<button class="area-object" type="button" data-route="habit/${esc(habit.id)}"><i class="ph ph-repeat"></i>${esc(habit.name || habit.title || 'Untitled habit')}</button>`).join('')}</div>` : '<p class="area-empty-copy">No habits in this Area.</p>'}<button class="inline-add" type="button" data-action="area-new-habit" data-area-id="${esc(area.id)}"><i class="ph ph-plus"></i> New habit</button></section>`;
     return html;
   }
 
@@ -609,6 +639,54 @@
     html += `<section class="section"><div class="section-header"><h2 class="section-label">Links</h2><button class="btn btn-ghost" type="button" data-action="edit-goal-links" data-goal-id="${esc(goal.id)}">Manage links</button></div><p class="area-empty-copy">${links.length} project links · ${(goal.taskIds || []).length} direct task links · ${(goal.habitLinks || []).length} habit links</p></section>`;
     html += `<section class="section"><div class="section-header"><h2 class="section-label">Milestones</h2><button class="btn btn-ghost" type="button" data-action="new-milestone" data-goal-id="${esc(goal.id)}">Add milestone</button></div>${milestones.length ? `<div class="milestone-list">${milestones.map(milestone => `<div class="milestone-row ${!milestone.isCompleted && milestone.date && milestone.date < Core.dateOnly() ? 'is-overdue' : ''}"><button class="check-toggle ${milestone.isCompleted ? 'is-checked' : ''}" type="button" data-action="toggle-milestone" data-goal-id="${esc(goal.id)}" data-milestone-id="${esc(milestone.id)}"><i class="ph ${milestone.isCompleted ? 'ph-check' : 'ph-circle'}"></i></button><span><strong>${esc(milestone.title)}</strong><small>${milestone.date ? esc(relativeDateLabel(milestone.date)) : 'No date'}</small></span><button class="btn-icon" type="button" data-action="edit-milestone" data-goal-id="${esc(goal.id)}" data-milestone-id="${esc(milestone.id)}" aria-label="Edit milestone"><i class="ph ph-pencil-simple"></i></button><button class="btn-icon" type="button" data-action="delete-milestone" data-goal-id="${esc(goal.id)}" data-milestone-id="${esc(milestone.id)}" aria-label="Delete milestone"><i class="ph ph-trash"></i></button></div>`).join('')}</div>` : '<p class="area-empty-copy">No milestones yet.</p>'}</section>`;
     html += `<section class="section"><div class="section-header"><h2 class="section-label">Reminders</h2><button class="btn btn-ghost" type="button" data-action="edit-goal-reminders" data-goal-id="${esc(goal.id)}">Edit reminders</button></div><p class="area-empty-copy">${Core.goalReminderMoments(goal).length ? `${Core.goalReminderMoments(goal).length} reminder points at ${esc(goal.reminders.time)}` : 'No reminders enabled.'}</p></section>`;
+    return html;
+  }
+
+  function habitFrequencyLabel(habit) {
+    if (habit.frequencyType === 'weekdays') return `Weekdays ${(habit.weekdays || []).map(day => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][day]).join(', ')}`;
+    if (habit.frequencyType === 'timesPerWeek') return `${habit.timesPerWeek || 1} times/week`;
+    if (habit.frequencyType === 'everyNDays') return `Every ${habit.everyNDays || 1} days`;
+    return 'Daily';
+  }
+
+  function habitMetrics(habit) {
+    return state.habitMetrics?.[habit.id] || { currentStreak: 0, longestStreak: 0, totalCheckins: 0, completionRate: 0, currentPeriodCount: 0, currentPeriodTarget: habit.frequencyType === 'timesPerWeek' ? Number(habit.timesPerWeek || 1) : 1 };
+  }
+
+  function habitProgressLabel(habit, metrics = habitMetrics(habit)) {
+    if (habit.trackingType === 'numeric') return `${metrics.currentPeriodCount || 0} / ${habit.targetValue || 0}${habit.unit ? ` ${habit.unit}` : ''}`;
+    return habit.frequencyType === 'timesPerWeek' ? `${metrics.currentPeriodCount || 0} / ${metrics.currentPeriodTarget || habit.timesPerWeek || 1}` : metrics.currentPeriodCount ? 'Done' : 'Not checked in';
+  }
+
+  function renderHabitRow(habit) {
+    const metrics = habitMetrics(habit);
+    return `<article class="habit-row"><button class="habit-open" type="button" data-route="habit/${esc(habit.id)}"><span><strong>${esc(habit.name)}</strong><small>${esc(habitFrequencyLabel(habit))} · ${esc(habit.status)}</small></span><span class="habit-progress">${esc(habitProgressLabel(habit, metrics))}</span></button><button class="btn-icon" type="button" data-action="habit-menu" data-habit-id="${esc(habit.id)}" aria-label="Habit actions"><i class="ph ph-dots-three"></i></button></article>`;
+  }
+
+  function renderHabits() {
+    const tab = state.ui.habitTab || 'active';
+    const habits = (state.habits || []).filter(habit => tab === 'all' || (tab === 'archived' ? habit.status === 'archived' : habit.status !== 'archived'));
+    let html = pageHeader('Habits', `${habits.filter(habit => habit.status === 'active').length} active habits`, { add: false, actionHtml: '<button class="btn btn-primary" type="button" data-action="new-habit"><i class="ph ph-plus"></i> New habit</button>' });
+    html += `<div class="area-tabs"><button type="button" data-habit-tab="active" class="${tab === 'active' ? 'is-active' : ''}">Active</button><button type="button" data-habit-tab="all" class="${tab === 'all' ? 'is-active' : ''}">All</button><button type="button" data-habit-tab="archived" class="${tab === 'archived' ? 'is-active' : ''}">Archived</button></div>`;
+    return html + (habits.length ? `<div class="habit-list">${habits.map(renderHabitRow).join('')}</div>` : emptyState('No habits yet.', 'Track a repeatable behavior without turning it into a task.', 'New habit', 'new-habit'));
+  }
+
+  function heatmapHtml(habit, logs) {
+    const today = Core.dateOnly();
+    const dates = Array.from({ length: 28 }, (_, index) => Core.addDays(today, index - 27));
+    return `<div class="habit-heatmap" aria-label="Monthly heatmap">${dates.map(date => { const status = Core.habitStatusForDate(habit, logs, date, today); return `<span class="heatmap-day is-${esc(status.status)}" style="--heat-intensity:${Math.max(0, Math.min(1, Number(status.percent || 0) / 100))}" title="${esc(date)}"></span>`; }).join('')}</div>`;
+  }
+
+  function renderHabit(habitId) {
+    const habit = getHabit(habitId); if (!habit) return renderHabits();
+    const metrics = habitMetrics(habit); const logs = state.habitLogCache?.[habit.id] || [];
+    const today = Core.dateOnly(); const todayStatus = Core.habitStatusForDate(habit, logs, today, today);
+    const todayLog = logs.find(log => log.date === today);
+    const history = [...logs].sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 60);
+    let html = pageHeader(habit.name, `${habitFrequencyLabel(habit)} · ${habit.status}`, { add: false, actionHtml: `<button class="btn btn-secondary" type="button" data-action="edit-habit" data-habit-id="${esc(habit.id)}"><i class="ph ph-pencil-simple"></i> Edit</button><button class="btn-icon" type="button" data-action="habit-menu" data-habit-id="${esc(habit.id)}" aria-label="Habit actions"><i class="ph ph-dots-three"></i></button>` });
+    html += `<section class="habit-detail-card"><div class="habit-summary"><strong>${esc(habitProgressLabel(habit, metrics))}</strong><span>Current period</span></div><div class="habit-metric-grid"><div><strong>${metrics.currentStreak}</strong><span>Current streak</span></div><div><strong>${metrics.longestStreak}</strong><span>Longest streak</span></div><div><strong>${metrics.totalCheckins}</strong><span>Total check-ins</span></div><div><strong>${Math.round(metrics.completionRate)}%</strong><span>Completion rate</span></div></div>${habit.status === 'active' ? (habit.trackingType === 'numeric' ? `<div class="habit-checkin-controls">${(habit.quickValues || []).map(value => `<button class="btn btn-secondary" type="button" data-action="habit-quick-add" data-habit-id="${esc(habit.id)}" data-value="${esc(value)}">+${esc(value)}</button>`).join('')}<label class="field-label">Daily total<input id="habit-direct-total" class="input" type="number" step="any" value="${esc(todayLog?.value || 0)}" /></label><button class="btn btn-primary" type="button" data-action="save-habit-total" data-habit-id="${esc(habit.id)}">Save total</button></div>` : `<div class="habit-checkin-controls"><button class="btn btn-primary" type="button" data-action="habit-checkin" data-habit-id="${esc(habit.id)}">${todayStatus.status === 'done' ? 'Mark not done' : 'Check in'}</button><button class="btn btn-ghost" type="button" data-action="habit-skip" data-habit-id="${esc(habit.id)}">Skip today</button></div>`) : '<p class="area-empty-copy">Paused and archived habits preserve history but cannot be checked in.</p>'}</section>`;
+    html += `<section class="section"><div class="section-header"><h2 class="section-label">Monthly heatmap</h2></div>${heatmapHtml(habit, logs)}</section>`;
+    html += `<section class="section"><div class="section-header"><h2 class="section-label">History</h2></div>${history.length ? `<div class="habit-history">${history.map(log => `<div class="habit-history-row"><span>${esc(log.date)}</span>${habit.trackingType === 'numeric' ? `<input class="input" type="number" step="any" value="${esc(log.value ?? 0)}" data-habit-history-value data-habit-date="${esc(log.date)}">` : `<select class="input" data-habit-history-status data-habit-date="${esc(log.date)}"><option value="done" ${log.status === 'done' ? 'selected' : ''}>Done</option><option value="skipped" ${log.status === 'skipped' ? 'selected' : ''}>Skipped</option><option value="missed" ${log.status === 'missed' ? 'selected' : ''}>Missed</option></select>`}<button class="btn btn-ghost" type="button" data-action="save-habit-history" data-habit-id="${esc(habit.id)}" data-habit-date="${esc(log.date)}">Save</button></div>`).join('')}</div>` : '<p class="area-empty-copy">No history yet. Past dates can be corrected after their first check-in.</p>'}</section>`;
     return html;
   }
 
@@ -830,6 +908,16 @@
     renderModal(); requestAnimationFrame(() => $('#goal-title')?.focus());
   }
 
+  function habitDraft(habit = null, areaId = null) {
+    return { name: habit?.name || '', areaId: habit?.areaId || areaId || null, goalIds: habit?.goalIds || [], trackingType: habit?.trackingType || 'checkbox', targetValue: habit?.targetValue ?? 1, unit: habit?.unit || '', quickValues: (habit?.quickValues || []).join(','), frequencyType: habit?.frequencyType || 'daily', weekdays: habit?.weekdays || [1, 2, 3, 4, 5], timesPerWeek: habit?.timesPerWeek || 4, everyNDays: habit?.everyNDays || 2, startDate: habit?.startDate || Core.dateOnly(), continuation: habit?.continuation || 'automatic', endType: habit?.endType || 'never', endDate: habit?.endDate || '', successfulPeriodsTarget: habit?.successfulPeriodsTarget || '', reminders: habit?.reminders || [] };
+  }
+
+  function openHabitModal(habitId = null, context = {}) {
+    closePopover(); const habit = habitId ? getHabit(habitId) : null;
+    modalState = { type: 'habit', habitId, draft: habitDraft(habit, context.areaId), error: '' };
+    renderModal(); requestAnimationFrame(() => $('#habit-name')?.focus());
+  }
+
   function openMilestoneModal(goalId, milestoneId = null) {
     const milestone = milestoneId ? getGoal(goalId)?.milestones.find(item => item.id === milestoneId) : null;
     modalState = { type: 'milestone', goalId, milestoneId, draft: { title: milestone?.title || '', date: milestone?.date || '' }, error: '' };
@@ -875,10 +963,12 @@
     else if (modalState.type === 'area') root.innerHTML = renderAreaModal();
     else if (modalState.type === 'area-linked') root.innerHTML = renderAreaLinkedModal();
     else if (modalState.type === 'goal') root.innerHTML = renderGoalModal();
+    else if (modalState.type === 'habit') root.innerHTML = renderHabitModal();
     else if (modalState.type === 'milestone') root.innerHTML = renderMilestoneModal();
     else if (modalState.type === 'goal-links') root.innerHTML = renderGoalLinksModal();
     else if (modalState.type === 'goal-reminders') root.innerHTML = renderGoalRemindersModal();
     else if (modalState.type === 'goal-reached') root.innerHTML = renderGoalReachedModal();
+    else if (modalState.type === 'habit-finished') root.innerHTML = renderHabitFinishedModal();
     else if (modalState.type === 'confirm') root.innerHTML = renderConfirmModal();
     else if (modalState.type === 'duplicate') root.innerHTML = renderDuplicateModal();
     else if (modalState.type === 'import-backup') root.innerHTML = renderImportBackupModal();
@@ -1101,6 +1191,13 @@
     return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">${editing ? 'Edit goal' : 'New goal'}</h2><button class="btn-icon" type="button" data-action="close-modal"><i class="ph ph-x"></i></button></div><div class="form-stack"><label class="field-label">Title<input id="goal-title" class="input" maxlength="120" value="${esc(d.title)}" placeholder="What do you want to achieve?" /></label><label class="field-label">Area<select id="goal-area" class="input"><option value="">No area</option>${state.areas.filter(area => area.status === 'active' || area.id === d.areaId).map(area => `<option value="${esc(area.id)}" ${area.id === d.areaId ? 'selected' : ''}>${esc(area.name)}</option>`).join('')}</select></label><label class="field-label">Progress source<select id="goal-progress-mode" class="input"><option value="manual" ${d.progressMode === 'manual' ? 'selected' : ''}>Manual</option><option value="linkedTasks" ${d.progressMode === 'linkedTasks' ? 'selected' : ''}>Linked tasks</option><option value="linkedHabits" ${d.progressMode === 'linkedHabits' ? 'selected' : ''}>Linked habits</option></select></label><div class="goal-modal-manual ${d.progressMode === 'manual' ? '' : 'is-hidden'}"><label class="field-label">Type<select id="goal-progress-type" class="input"><option value="percentage" ${d.progressType === 'percentage' ? 'selected' : ''}>Percentage</option><option value="numeric" ${d.progressType === 'numeric' ? 'selected' : ''}>Numeric target</option></select></label><div class="goal-form-grid"><label class="field-label">Current<input id="goal-current" class="input" type="number" value="${esc(d.currentValue)}" /></label><label class="field-label">Target<input id="goal-target" class="input" type="number" value="${esc(d.targetValue)}" /></label></div><label class="field-label">Unit<input id="goal-unit" class="input" maxlength="40" value="${esc(d.unit)}" placeholder="%, km, pages" /></label></div><label class="field-label">Target date<input id="goal-target-date" class="input" type="date" value="${esc(d.targetDate)}" /></label>${modalState.error ? `<p class="validation">${esc(modalState.error)}</p>` : ''}</div><div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">Cancel</button><button class="btn btn-primary" type="button" data-action="save-goal">${editing ? 'Save changes' : 'Create goal'}</button></div></div></div>`, 'quick');
   }
 
+  function renderHabitModal() {
+    const d = modalState.draft; const editing = Boolean(modalState.habitId);
+    const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const goalLinks = state.goals.map(goal => `<label><input type="checkbox" data-habit-goal="${esc(goal.id)}" ${d.goalIds.includes(goal.id) ? 'checked' : ''}> ${esc(goal.title)}</label>`).join('') || '<span class="area-empty-copy">No Goals yet.</span>';
+    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">${editing ? 'Edit habit' : 'New habit'}</h2><button class="btn-icon" type="button" data-action="close-modal"><i class="ph ph-x"></i></button></div><div class="form-stack"><label class="field-label">Name<input id="habit-name" class="input" maxlength="120" value="${esc(d.name)}" placeholder="What do you want to practice?" /></label><label class="field-label">Area<select id="habit-area" class="input"><option value="">No area</option>${state.areas.filter(area => area.status === 'active' || area.id === d.areaId).map(area => `<option value="${esc(area.id)}" ${area.id === d.areaId ? 'selected' : ''}>${esc(area.name)}</option>`).join('')}</select></label><div class="goal-form-grid"><label class="field-label">Tracking<select id="habit-tracking" class="input"><option value="checkbox" ${d.trackingType === 'checkbox' ? 'selected' : ''}>Checkbox</option><option value="numeric" ${d.trackingType === 'numeric' ? 'selected' : ''}>Numeric</option></select></label><label class="field-label">Frequency<select id="habit-frequency" class="input"><option value="daily" ${d.frequencyType === 'daily' ? 'selected' : ''}>Daily</option><option value="weekdays" ${d.frequencyType === 'weekdays' ? 'selected' : ''}>Selected weekdays</option><option value="timesPerWeek" ${d.frequencyType === 'timesPerWeek' ? 'selected' : ''}>X times per week</option><option value="everyNDays" ${d.frequencyType === 'everyNDays' ? 'selected' : ''}>Every N days</option></select></label></div><div class="habit-frequency-fields"><label class="field-label">Target<input id="habit-target-value" class="input" type="number" min="0" step="any" value="${esc(d.targetValue)}" /></label><label class="field-label">Unit<input id="habit-unit" class="input" value="${esc(d.unit)}" placeholder="L, pages..." /></label><label class="field-label">X per week<input id="habit-times-per-week" class="input" type="number" min="1" max="7" value="${esc(d.timesPerWeek)}" /></label><label class="field-label">Every N days<input id="habit-every-n-days" class="input" type="number" min="1" value="${esc(d.everyNDays)}" /></label><div class="field-label">Weekdays<div class="weekday-picker">${weekdays.map((label, day) => `<label><input type="checkbox" data-habit-weekday="${day}" ${d.weekdays.includes(day) ? 'checked' : ''}>${label}</label>`).join('')}</div></div></div><button class="btn btn-ghost" type="button" data-action="toggle-habit-more">More</button>${d.moreOpen ? `<div class="form-stack"><label class="field-label">Start date<input id="habit-start-date" class="input" type="date" value="${esc(d.startDate)}" /></label><label class="field-label">Continuation<select id="habit-continuation" class="input"><option value="automatic" ${d.continuation === 'automatic' ? 'selected' : ''}>Repeat automatically</option><option value="askEachPeriod" ${d.continuation === 'askEachPeriod' ? 'selected' : ''}>Ask each period</option><option value="onePeriod" ${d.continuation === 'onePeriod' ? 'selected' : ''}>One period only</option></select></label><label class="field-label">End condition<select id="habit-end-type" class="input"><option value="never" ${d.endType === 'never' ? 'selected' : ''}>Never</option><option value="date" ${d.endType === 'date' ? 'selected' : ''}>On date</option><option value="successfulPeriods" ${d.endType === 'successfulPeriods' ? 'selected' : ''}>After successful periods</option></select></label><label class="field-label">End date<input id="habit-end-date" class="input" type="date" value="${esc(d.endDate)}" /></label><label class="field-label">Successful periods<input id="habit-successful-periods" class="input" type="number" min="1" value="${esc(d.successfulPeriodsTarget)}" /></label><label class="field-label">Quick values (comma separated)<input id="habit-quick-values" class="input" value="${esc(d.quickValues)}" placeholder="0.25, 0.5" /></label><label class="field-label">Reminder times (comma separated)<input id="habit-reminders" class="input" value="${esc(d.reminders.filter(item => item.enabled).map(item => item.time).join(','))}" placeholder="09:00, 18:00" /></label><div class="link-picker"><h3>Linked Goals</h3>${goalLinks}</div></div>` : ''}${modalState.error ? `<p class="validation">${esc(modalState.error)}</p>` : ''}</div><div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">Cancel</button><button class="btn btn-primary" type="button" data-action="save-habit">${editing ? 'Save changes' : 'Create habit'}</button></div></div></div>`, 'quick');
+  }
+
   function renderMilestoneModal() {
     const d = modalState.draft;
     const editing = Boolean(modalState.milestoneId);
@@ -1130,6 +1227,11 @@
 
   function renderGoalReachedModal() {
     return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">Goal reached</h2><button class="btn-icon" type="button" data-action="keep-goal-active"><i class="ph ph-x"></i></button></div><p class="dialog-copy">This goal has reached 100%. Keep tracking it or mark it as completed.</p><div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="keep-goal-active">Keep active</button><button class="btn btn-primary" type="button" data-action="complete-goal" data-goal-id="${esc(modalState.goalId)}">Mark completed</button></div></div></div>`, 'small-modal');
+  }
+
+  function renderHabitFinishedModal() {
+    const habit = getHabit(modalState.habitId);
+    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">Habit finished</h2><button class="btn-icon" type="button" data-action="continue-habit"><i class="ph ph-x"></i></button></div><p class="dialog-copy">${esc(habit?.name || 'This habit')} reached its end condition. Archive it or continue tracking.</p><div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="continue-habit">Continue habit</button><button class="btn btn-primary" type="button" data-action="archive-habit" data-habit-id="${esc(habit?.id || '')}">Archive</button></div></div></div>`, 'small-modal');
   }
 
   function renderDuplicateModal() {
@@ -1329,6 +1431,16 @@
     const lifecycle = goal.status === 'archived' ? '<button class="popover-option" type="button" data-pop-action="restore-goal" data-goal-id="' + esc(goalId) + '"><i class="ph ph-arrow-counter-clockwise"></i>Restore goal</button>' : `<button class="popover-option" type="button" data-pop-action="${goal.status === 'paused' ? 'resume-goal' : 'pause-goal'}" data-goal-id="${esc(goalId)}"><i class="ph ph-pause"></i>${goal.status === 'paused' ? 'Resume goal' : 'Pause goal'}</button>`;
     const html = `<button class="popover-option" type="button" data-pop-action="edit-goal" data-goal-id="${esc(goalId)}"><i class="ph ph-pencil-simple"></i>Edit goal</button>${lifecycle}${goal.status !== 'completed' && goal.status !== 'archived' ? `<button class="popover-option" type="button" data-pop-action="complete-goal" data-goal-id="${esc(goalId)}"><i class="ph ph-check-circle"></i>Mark completed</button>` : ''}${goal.status !== 'archived' ? `<button class="popover-option" type="button" data-pop-action="archive-goal" data-goal-id="${esc(goalId)}"><i class="ph ph-archive"></i>Archive goal</button>` : ''}<div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="delete-goal" data-goal-id="${esc(goalId)}" style="color:var(--danger)"><i class="ph ph-trash"></i>Delete goal</button>`;
     openPopover(anchor, html, { type: 'goal-menu', goalId });
+  }
+
+  function openHabitMenu(anchor, habitId) {
+    const habit = getHabit(habitId); if (!habit) return;
+    const lifecycle = habit.status === 'archived'
+      ? `<button class="popover-option" type="button" data-pop-action="restore-habit" data-habit-id="${esc(habitId)}"><i class="ph ph-arrow-counter-clockwise"></i>Restore habit</button>`
+      : `<button class="popover-option" type="button" data-pop-action="${habit.status === 'paused' ? 'resume-habit' : 'pause-habit'}" data-habit-id="${esc(habitId)}"><i class="ph ph-pause"></i>${habit.status === 'paused' ? 'Resume habit' : 'Pause habit'}</button>`;
+    const archive = habit.status !== 'archived' ? `<button class="popover-option" type="button" data-pop-action="archive-habit" data-habit-id="${esc(habitId)}"><i class="ph ph-archive"></i>Archive habit</button>` : '';
+    const html = `<button class="popover-option" type="button" data-pop-action="edit-habit" data-habit-id="${esc(habitId)}"><i class="ph ph-pencil-simple"></i>Edit habit</button>${lifecycle}${archive}<div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="snooze-habit" data-habit-id="${esc(habitId)}" data-snooze="15m"><i class="ph ph-clock"></i>Snooze 15 min</button><button class="popover-option" type="button" data-pop-action="snooze-habit" data-habit-id="${esc(habitId)}" data-snooze="1h"><i class="ph ph-clock"></i>Snooze 1 hour</button><button class="popover-option" type="button" data-pop-action="snooze-habit" data-habit-id="${esc(habitId)}" data-snooze="tonight"><i class="ph ph-moon"></i>Snooze tonight</button><div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="delete-habit" data-habit-id="${esc(habitId)}" style="color:var(--danger)"><i class="ph ph-trash"></i>Delete habit</button>`;
+    openPopover(anchor, html, { type: 'habit-menu', habitId });
   }
 
   function openMoreMenu(anchor) {
@@ -1676,8 +1788,8 @@
     if (modalState.kind === 'goal') {
       state.goals.push({ ...goalDraft(null, modalState.areaId), ...item, title: name, projectLinks: [], taskIds: [], habitLinks: [], milestones: [], reminders: { sevenDaysBefore: false, threeDaysBefore: false, oneDayBefore: false, onTargetDate: false, time: '09:00' }, completedAt: null });
       putGoalHistory(item.id, 'created');
-    } else state.habits.push(item);
-    saveState(); closeModal(); render();
+    } else state.habits.push({ ...habitDraft(null, modalState.areaId), ...item, goalIds: [], reminderFiredMoments: [] });
+    saveState(); closeModal(); refreshHabitMetrics().then(render);
   }
 
   function putGoalHistory(goalId, type, data = {}) {
@@ -1775,6 +1887,91 @@
     const after = Core.computeGoalProgress(goal, state, state.habitMetrics || {}).percent;
     if (after !== before) putGoalHistory(goalId, 'progressChanged', { from: before, to: after });
     saveState(); render(); maybePromptGoalReached(goal, before);
+  }
+
+  async function refreshHabitMetrics() {
+    if (!state || !TodoStorage?.habitLogs) return;
+    const logs = await TodoStorage.habitLogs.listAll();
+    const byHabit = {};
+    for (const log of logs) (byHabit[log.habitId] ||= []).push(log);
+    state.habitLogCache = byHabit;
+    state.habitMetrics = Object.fromEntries((state.habits || []).map(habit => [habit.id, Core.deriveHabitMetrics(habit, byHabit[habit.id] || [], Core.dateOnly(), state.settings.weekStartsOn || 'monday')]));
+  }
+
+  function readHabitDraft() {
+    const d = modalState.draft;
+    d.name = $('#habit-name')?.value || d.name; d.areaId = $('#habit-area')?.value || null; d.trackingType = $('#habit-tracking')?.value || 'checkbox'; d.frequencyType = $('#habit-frequency')?.value || 'daily';
+    d.targetValue = Number($('#habit-target-value')?.value ?? d.targetValue); d.unit = $('#habit-unit')?.value || ''; d.timesPerWeek = Math.max(1, Math.floor(Number($('#habit-times-per-week')?.value || d.timesPerWeek) || 1)); d.everyNDays = Math.max(1, Math.floor(Number($('#habit-every-n-days')?.value || d.everyNDays) || 1));
+    d.weekdays = $$('[data-habit-weekday]').filter(input => input.checked).map(input => Number(input.dataset.habitWeekday)); d.startDate = $('#habit-start-date')?.value || d.startDate || Core.dateOnly(); d.continuation = $('#habit-continuation')?.value || d.continuation; d.endType = $('#habit-end-type')?.value || d.endType; d.endDate = $('#habit-end-date')?.value || null; d.successfulPeriodsTarget = Number($('#habit-successful-periods')?.value || 0) || null;
+    d.quickValues = String($('#habit-quick-values')?.value ?? d.quickValues ?? '').split(',').map(value => Number(value.trim())).filter(value => Number.isFinite(value) && value > 0); d.reminders = String($('#habit-reminders')?.value || '').split(',').map(value => Core.normalizeTime(value.trim())).filter(Boolean).map(time => ({ id: uid('habit-reminder'), time, enabled: true }));
+    d.goalIds = $$('[data-habit-goal]').filter(input => input.checked).map(input => input.dataset.habitGoal);
+    return d;
+  }
+
+  function saveHabitModal() {
+    if (modalState?.type !== 'habit') return;
+    const d = readHabitDraft();
+    if (!String(d.name).trim()) { modalState.error = 'Habit needs a name.'; renderModal(); return; }
+    if (d.trackingType === 'numeric' && !(d.targetValue > 0)) { modalState.error = 'Numeric habits need a target above zero.'; renderModal(); return; }
+    if (d.frequencyType === 'weekdays' && !d.weekdays.length) { modalState.error = 'Select at least one weekday.'; renderModal(); return; }
+    const fields = { ...d, name: String(d.name).trim(), quickValues: d.quickValues, reminders: d.reminders, updatedAt: nowIso() };
+    const existingId = modalState.habitId;
+    const habit = existingId ? getHabit(existingId) : { id: uid('habit'), goalIds: [], status: 'active', reminderFiredMoments: [], createdAt: nowIso() };
+    Object.assign(habit, fields);
+    syncHabitGoalLinks(habit, d.goalIds);
+    if (!existingId) state.habits.push(habit);
+    saveState(); closeModal(); refreshHabitMetrics().then(render);
+    if (!existingId) navigate(`habit/${habit.id}`);
+  }
+
+  function syncHabitGoalLinks(habit, goalIds) {
+    const selected = new Set(goalIds || []);
+    for (const goal of state.goals || []) {
+      const links = (goal.habitLinks || []).filter(link => link.habitId !== habit.id);
+      if (selected.has(goal.id)) links.push((goal.habitLinks || []).find(link => link.habitId === habit.id) || { habitId: habit.id, metric: 'totalCheckins', target: habit.trackingType === 'numeric' ? Math.max(1, Number(habit.targetValue) || 1) : 1 });
+      goal.habitLinks = links;
+    }
+    habit.goalIds = [...selected];
+  }
+
+  async function setHabitLog(habitId, date, requestedStatus = 'done', requestedValue = null) {
+    const habit = getHabit(habitId); const today = Core.dateOnly();
+    if (!habit || habit.status !== 'active' || !date || date > today || !Core.habitScheduledOn(habit, date)) return false;
+    const before = captureGoalProgress();
+    const existing = (state.habitLogCache?.[habitId] || []).find(log => log.date === date);
+    let status = requestedStatus; let value = requestedValue;
+    if (habit.trackingType === 'numeric') { const numeric = Core.numericHabitState(habit, requestedValue); status = numeric.status; value = numeric.value; }
+    const record = { id: `${habitId}:${date}`, habitId, date, status: ['done', 'skipped', 'missed'].includes(status) ? status : 'done', value: value ?? null, createdAt: existing?.createdAt || nowIso(), updatedAt: nowIso() };
+    await TodoStorage.habitLogs.put(record);
+    await refreshHabitMetrics(); habit.updatedAt = nowIso(); saveState(); evaluateGoalProgressChanges(before); await maybeFinishHabit(habit); render(); return true;
+  }
+
+  async function maybeFinishHabit(habit) {
+    const metrics = habitMetrics(habit); const today = Core.dateOnly();
+    const reached = (habit.endType === 'date' && habit.endDate && today >= habit.endDate)
+      || (habit.endType === 'successfulPeriods' && metrics.successfulPeriods >= Number(habit.successfulPeriodsTarget || Infinity))
+      || (habit.continuation === 'onePeriod' && metrics.successfulPeriods >= 1)
+      || (habit.continuation === 'askEachPeriod' && metrics.periods?.some(period => period.isCurrent && period.successful && habit.lastContinuationPeriod !== period.key));
+    if (reached && habit.status === 'active') { modalState = { type: 'habit-finished', habitId: habit.id }; renderModal(); }
+  }
+
+  function updateHabitStatus(habitId, status) {
+    const habit = getHabit(habitId); if (!habit || habit.status === status) return;
+    const previous = habit.status; habit.status = status; habit.updatedAt = nowIso(); saveState(); closePopover(); render();
+    setUndo(`Habit ${status === 'paused' ? 'paused' : status === 'archived' ? 'archived' : 'restored'}`, () => { const current = getHabit(habitId); if (!current) return; current.status = previous; current.updatedAt = nowIso(); saveState(); render(); });
+  }
+
+  async function deleteHabit(habitId) {
+    const index = state.habits.findIndex(habit => habit.id === habitId); if (index < 0) return;
+    const habit = state.habits[index]; const logs = await TodoStorage.habitLogs.listByHabit(habitId); const goalLinks = state.goals.map(goal => ({ id: goal.id, links: JSON.parse(JSON.stringify(goal.habitLinks || [])) }));
+    openConfirm({ title: `Delete “${habit.name}”?`, message: 'Its check-ins, history and reminders will be removed. Goals will remain.', confirmLabel: 'Delete habit', onConfirm: async () => { state.habits.splice(index, 1); state.goals.forEach(goal => { goal.habitLinks = (goal.habitLinks || []).filter(link => link.habitId !== habitId); }); await TodoStorage.habitLogs.deleteMany(logs.map(log => log.id)); await refreshHabitMetrics(); saveState(); closeModal(); navigate('habits'); setUndo('Habit deleted', async () => { if (!getHabit(habitId)) state.habits.splice(Math.min(index, state.habits.length), 0, habit); goalLinks.forEach(snapshot => { const goal = getGoal(snapshot.id); if (goal) goal.habitLinks = snapshot.links; }); for (const log of logs) await TodoStorage.habitLogs.put(log); await refreshHabitMetrics(); saveState(); render(); }); } });
+  }
+
+  function snoozeHabit(habitId, kind) {
+    const habit = getHabit(habitId); if (!habit) return;
+    const now = new Date(); const next = new Date(now);
+    if (kind === '15m') next.setMinutes(next.getMinutes() + 15); else if (kind === '1h') next.setHours(next.getHours() + 1); else { next.setHours(now.getHours() >= 19 ? 21 : 19, 0, 0, 0); }
+    habit.snoozedUntil = next.toISOString(); habit.updatedAt = nowIso(); saveState(); setToastMessage(`Habit snoozed until ${formatReminder(habit.snoozedUntil)}`);
   }
 
   function saveMilestoneModal() {
@@ -2039,7 +2236,14 @@
     const now = nowIso();
     const dueTasks = state.tasks.filter(task => Core.isReminderDue(task, now));
     const dueGoals = state.goals.flatMap(goal => Core.goalReminderDueMoments(goal, now).map(moment => ({ goal, moment })));
-    if (!dueTasks.length && !dueGoals.length) return;
+    const today = Core.dateOnly(new Date(now));
+    const dueHabits = state.habits.flatMap(habit => {
+      if (!Core.habitReminderActive(habit, state.habitLogCache?.[habit.id] || [], now, state.settings.weekStartsOn || 'monday')) return [];
+      if (habit.snoozedUntil && new Date(habit.snoozedUntil).getTime() > new Date(now).getTime()) return [];
+      const fired = new Set(habit.reminderFiredMoments || []);
+      return (habit.reminders || []).filter(reminder => reminder.enabled && Core.normalizeTime(reminder.time)).map(reminder => ({ habit, moment: Core.combineDateTime(today, reminder.time) })).filter(item => item.moment && !fired.has(item.moment) && new Date(item.moment).getTime() <= new Date(now).getTime());
+    });
+    if (!dueTasks.length && !dueGoals.length && !dueHabits.length) return;
     for (const task of dueTasks) {
       task.reminderFiredAt = now;
       task.updatedAt = now;
@@ -2054,9 +2258,15 @@
         try { new Notification(goal.title, { body: goal.targetDate ? `Goal target ${relativeDateLabel(goal.targetDate)}` : 'Goal reminder' }); } catch (_) { /* in-app reminder remains */ }
       }
     }
+    for (const { habit, moment } of dueHabits) {
+      habit.reminderFiredMoments = [...new Set([...(habit.reminderFiredMoments || []), moment])]; habit.updatedAt = now;
+      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        try { new Notification(habit.name, { body: 'Habit reminder' }); } catch (_) { /* in-app reminder remains */ }
+      }
+    }
     saveState();
-    const total = dueTasks.length + dueGoals.length;
-    if (total === 1) setToastMessage(`Reminder: ${dueTasks[0]?.title || dueGoals[0].goal.title}`);
+    const total = dueTasks.length + dueGoals.length + dueHabits.length;
+    if (total === 1) setToastMessage(`Reminder: ${dueTasks[0]?.title || dueGoals[0]?.goal.title || dueHabits[0].habit.name}`);
     else setToastMessage(`${total} reminders are due`);
   }
 
@@ -2080,6 +2290,8 @@
     if (areaTab) { state.ui.areaTab = areaTab.dataset.tab; saveAndRender(); return; }
     const goalTab = event.target.closest('[data-goal-tab]');
     if (goalTab) { state.ui.goalTab = goalTab.dataset.goalTab; saveAndRender(); return; }
+    const habitTab = event.target.closest('[data-habit-tab]');
+    if (habitTab) { state.ui.habitTab = habitTab.dataset.habitTab; saveAndRender(); return; }
 
     const pop = event.target.closest('[data-pop-action]');
     if (pop) { handlePopoverAction(pop); return; }
@@ -2098,6 +2310,18 @@
     else if (action === 'new-project') openProjectModal();
     else if (action === 'new-area') openAreaModal();
     else if (action === 'new-goal') openGoalModal();
+    else if (action === 'new-habit') openHabitModal();
+    else if (action === 'edit-habit') openHabitModal(el.dataset.habitId);
+    else if (action === 'habit-menu') openHabitMenu(el, el.dataset.habitId);
+    else if (action === 'save-habit') saveHabitModal();
+    else if (action === 'toggle-habit-more') { readHabitDraft(); modalState.draft.moreOpen = !modalState.draft.moreOpen; renderModal(); }
+    else if (action === 'habit-checkin') { const habit = getHabit(el.dataset.habitId); const existing = state.habitLogCache?.[habit?.id]?.find(log => log.date === Core.dateOnly()); setHabitLog(el.dataset.habitId, Core.dateOnly(), existing?.status === 'done' ? 'missed' : 'done'); }
+    else if (action === 'habit-skip') setHabitLog(el.dataset.habitId, Core.dateOnly(), 'skipped');
+    else if (action === 'habit-quick-add') { const habit = getHabit(el.dataset.habitId); const existing = state.habitLogCache?.[habit?.id]?.find(log => log.date === Core.dateOnly()); setHabitLog(el.dataset.habitId, Core.dateOnly(), 'done', Number(existing?.value || 0) + Number(el.dataset.value || 0)); }
+    else if (action === 'save-habit-total') setHabitLog(el.dataset.habitId, Core.dateOnly(), 'done', Number($('#habit-direct-total')?.value || 0));
+    else if (action === 'save-habit-history') { const habit = getHabit(el.dataset.habitId); const date = el.dataset.habitDate; const value = habit?.trackingType === 'numeric' ? Number($(`[data-habit-history-value][data-habit-date="${CSS.escape(date)}"]`)?.value || 0) : null; const status = habit?.trackingType === 'numeric' ? 'done' : $(`[data-habit-history-status][data-habit-date="${CSS.escape(date)}"]`)?.value || 'missed'; setHabitLog(el.dataset.habitId, date, status, value); }
+    else if (action === 'continue-habit') { const habit = getHabit(el.dataset.habitId || modalState?.habitId); if (habit) { habit.lastContinuationPeriod = Core.habitPeriodKey(habit, Core.dateOnly(), state.settings.weekStartsOn || 'monday'); habit.updatedAt = nowIso(); saveState(); } closeModal(); render(); }
+    else if (action === 'archive-habit') updateHabitStatus(el.dataset.habitId, 'archived');
     else if (action === 'edit-goal') openGoalModal(el.dataset.goalId);
     else if (action === 'goal-menu') openGoalMenu(el, el.dataset.goalId);
     else if (action === 'save-goal') saveGoalModal();
@@ -2240,6 +2464,12 @@
     else if (action === 'complete-goal') updateGoalStatus(button.dataset.goalId, 'completed');
     else if (action === 'archive-goal') updateGoalStatus(button.dataset.goalId, 'archived');
     else if (action === 'delete-goal') { const id = button.dataset.goalId; closePopover(); deleteGoal(id); }
+    else if (action === 'edit-habit') { const id = button.dataset.habitId; closePopover(); openHabitModal(id); }
+    else if (action === 'pause-habit') updateHabitStatus(button.dataset.habitId, 'paused');
+    else if (action === 'resume-habit' || action === 'restore-habit') updateHabitStatus(button.dataset.habitId, 'active');
+    else if (action === 'archive-habit') updateHabitStatus(button.dataset.habitId, 'archived');
+    else if (action === 'delete-habit') { const id = button.dataset.habitId; closePopover(); deleteHabit(id); }
+    else if (action === 'snooze-habit') { snoozeHabit(button.dataset.habitId, button.dataset.snooze); closePopover(); }
   }
 
   function handleInput(event) {
@@ -2492,6 +2722,7 @@
     attachEvents();
     if (!location.hash) location.hash = '#today';
     else render();
+    refreshHabitMetrics().then(render).catch(console.error);
     checkReminders();
     if (Attachments) Attachments.cleanupExpired(nowIso()).catch(console.error);
     setInterval(() => {
@@ -2501,6 +2732,6 @@
     }, 30000);
   }
 
-  window.TodoApp = { init, get state() { return state; }, render, openQuickAdd, openSearch, checkReminders, captureGoalProgress, evaluateGoalProgressChanges };
+  window.TodoApp = { init, get state() { return state; }, render, openQuickAdd, openSearch, checkReminders, captureGoalProgress, evaluateGoalProgressChanges, setHabitLog, refreshHabitMetrics, snoozeHabit };
   init();
 })();

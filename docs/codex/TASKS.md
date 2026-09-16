@@ -67,31 +67,31 @@ Full plan: `docs/superpowers/plans/2026-09-16-todo-v1-3.md`
 
 ## Phase 5 — Habits
 
-- [ ] Habit route/list/filters.
-- [ ] New Habit basic flow + More section.
-- [ ] Habit Detail.
-- [ ] Checkbox tracking.
-- [ ] Numeric tracking.
-- [ ] Quick numeric increments.
-- [ ] Direct numeric total edit.
-- [ ] Daily schedule.
-- [ ] Selected weekdays schedule.
-- [ ] X times/week schedule.
-- [ ] Every N days schedule.
-- [ ] Done/Skipped/Missed logs.
-- [ ] Historical edit behavior.
-- [ ] Current/longest streak.
-- [ ] Total check-ins/completion rate.
-- [ ] X-times-per-week weekly reset + extra check-ins.
-- [ ] Continuation modes.
-- [ ] End conditions.
-- [ ] Multiple reminder times.
-- [ ] Reminder snooze.
-- [ ] Weekly reminder suppression after target reached.
-- [ ] Heatmap + history list.
-- [ ] Active/Paused/Archived lifecycle.
-- [ ] Goal linking.
-- [ ] Delete confirmation + Undo restores history/reminders/links.
+- [x] Habit route/list/filters.
+- [x] New Habit basic flow + More section.
+- [x] Habit Detail.
+- [x] Checkbox tracking.
+- [x] Numeric tracking.
+- [x] Quick numeric increments.
+- [x] Direct numeric total edit.
+- [x] Daily schedule.
+- [x] Selected weekdays schedule.
+- [x] X times/week schedule.
+- [x] Every N days schedule.
+- [x] Done/Skipped/Missed logs.
+- [x] Historical edit behavior.
+- [x] Current/longest streak.
+- [x] Total check-ins/completion rate.
+- [x] X-times-per-week weekly reset + extra check-ins.
+- [x] Continuation modes.
+- [x] End conditions.
+- [x] Multiple reminder times.
+- [x] Reminder snooze.
+- [x] Weekly reminder suppression after target reached.
+- [x] Heatmap + history list.
+- [x] Active/Paused/Archived lifecycle.
+- [x] Goal linking.
+- [x] Delete confirmation + Undo restores history/reminders/links.
 
 ## Phase 6 — Today and Upcoming
 

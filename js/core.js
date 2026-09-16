@@ -340,6 +340,128 @@
     return (goal?.milestones || []).filter(milestone => milestone && !milestone.isCompleted && milestone.date && milestone.date < today);
   }
 
+  function daysBetween(start, end) {
+    const a = parseDateOnly(start); const b = parseDateOnly(end);
+    if (!a || !b) return null;
+    return Math.round((b.getTime() - a.getTime()) / 86400000);
+  }
+
+  function weekStartFor(date, weekStartsOn = 'monday') {
+    const parsed = parseDateOnly(date);
+    if (!parsed) return null;
+    const firstDay = weekStartsOn === 'sunday' ? 0 : 1;
+    return addDays(date, -((parsed.getDay() - firstDay + 7) % 7));
+  }
+
+  function habitScheduledOn(habit, date) {
+    if (!habit || habit.status !== 'active' || !parseDateOnly(date)) return false;
+    const start = habit.startDate && parseDateOnly(habit.startDate) ? habit.startDate : date;
+    if (date < start || (habit.endType === 'date' && habit.endDate && date > habit.endDate)) return false;
+    if (habit.frequencyType === 'timesPerWeek') return true;
+    if (habit.frequencyType === 'weekdays') return (habit.weekdays || []).map(Number).includes(parseDateOnly(date).getDay());
+    if (habit.frequencyType === 'everyNDays') {
+      const days = daysBetween(start, date);
+      return days !== null && days >= 0 && days % Math.max(1, Math.floor(Number(habit.everyNDays) || 1)) === 0;
+    }
+    return habit.frequencyType === 'daily' || !habit.frequencyType;
+  }
+
+  function habitPeriodKey(habit, date, weekStartsOn = 'monday') {
+    if (!parseDateOnly(date)) return null;
+    return habit?.frequencyType === 'timesPerWeek' ? weekStartFor(date, weekStartsOn) : date;
+  }
+
+  function numericHabitState(habit, rawValue) {
+    const value = Math.max(0, safeNumber(rawValue));
+    const target = Math.max(0, safeNumber(habit?.targetValue));
+    const percent = target > 0 ? clampPercent(value / target * 100) : 0;
+    return { status: target > 0 && value >= target ? 'done' : 'missed', value, percent };
+  }
+
+  function habitStatusForDate(habit, logs, date, today = dateOnly()) {
+    const log = (logs || []).find(item => item && item.date === date && (!habit?.id || item.habitId === habit.id));
+    if (log) {
+      if (habit?.trackingType === 'numeric') return numericHabitState(habit, log.value);
+      return { status: log.status, value: log.value ?? null, percent: log.status === 'done' ? 100 : 0 };
+    }
+    if (!habitScheduledOn(habit, date)) return { status: 'unscheduled', value: null, percent: 0 };
+    return { status: date < today ? 'missed' : 'pending', value: null, percent: 0 };
+  }
+
+  function habitScheduleDates(habit, today, weekStartsOn) {
+    const start = habit?.startDate && parseDateOnly(habit.startDate) ? habit.startDate : today;
+    const dates = [];
+    for (let date = start; date <= today; date = addDays(date, 1)) {
+      if (habitScheduledOn(habit, date)) dates.push(date);
+    }
+    if (habit?.frequencyType === 'timesPerWeek') {
+      const keys = [...new Set(dates.map(date => habitPeriodKey(habit, date, weekStartsOn)))];
+      return keys.map(key => ({ key, dates: dates.filter(date => habitPeriodKey(habit, date, weekStartsOn) === key) }));
+    }
+    return dates.map(date => ({ key: date, dates: [date] }));
+  }
+
+  function deriveHabitMetrics(habit, logs, today = dateOnly(), weekStartsOn = 'monday') {
+    const relevantLogs = (logs || []).filter(log => log && (!habit?.id || log.habitId === habit.id) && log.date <= today);
+    const logByDate = new Map(relevantLogs.map(log => [log.date, log]));
+    const periods = habitScheduleDates(habit, today, weekStartsOn);
+    const currentKey = habitPeriodKey(habit, today, weekStartsOn);
+    const target = habit?.frequencyType === 'timesPerWeek' ? Math.max(1, Math.floor(Number(habit.timesPerWeek) || 1)) : 1;
+    let totalCheckins = 0; let successfulPeriods = 0; let currentStreak = 0; let longestStreak = 0; let running = 0;
+    const periodStates = periods.map(period => {
+      const entries = period.dates.map(date => ({ date, log: logByDate.get(date), state: habitStatusForDate(habit, relevantLogs, date, today) }));
+      const done = entries.filter(entry => entry.state.status === 'done').length;
+      const progressValue = habit?.trackingType === 'numeric' && habit?.frequencyType !== 'timesPerWeek'
+        ? entries.reduce((sum, entry) => sum + safeNumber(entry.state.value), 0)
+        : done;
+      totalCheckins += done;
+      const skipped = entries.some(entry => entry.state.status === 'skipped');
+      const occurrenceMissed = entries.some(entry => entry.state.status === 'missed');
+      const successful = habit?.frequencyType === 'timesPerWeek' ? done >= target : done > 0;
+      const isCurrent = period.key === currentKey;
+      // A weekly habit has one required unit: the week. Missing individual days
+      // cannot break an otherwise successful week.
+      const missed = habit?.frequencyType === 'timesPerWeek'
+        ? (!successful && period.key < currentKey)
+        : occurrenceMissed;
+      return { ...period, done, progressValue, skipped, missed, successful, isCurrent };
+    });
+    for (const period of periodStates) {
+      if (period.missed || (!period.successful && !period.skipped && !period.isCurrent)) running = 0;
+      if (period.successful) { running += habit?.frequencyType === 'timesPerWeek' ? 1 : period.done; successfulPeriods += 1; }
+      longestStreak = Math.max(longestStreak, running);
+      if (period.isCurrent) currentStreak = period.successful ? running : 0;
+    }
+    const current = periodStates.find(period => period.isCurrent);
+    const considered = periodStates.filter(period => period.key <= currentKey);
+    const completedUnits = habit?.frequencyType === 'timesPerWeek'
+      ? considered.filter(period => period.successful).length
+      : considered.reduce((sum, period) => sum + period.done, 0);
+    const expectedUnits = habit?.frequencyType === 'timesPerWeek'
+      ? considered.length
+      : considered.length;
+    return {
+      currentStreak,
+      streak: currentStreak,
+      longestStreak,
+      totalCheckins,
+      successfulPeriods,
+      completionRate: expectedUnits ? clampPercent(completedUnits / expectedUnits * 100) : 0,
+      currentPeriodCount: current?.progressValue || 0,
+      currentPeriodTarget: habit?.trackingType === 'numeric' && habit?.frequencyType !== 'timesPerWeek' ? Math.max(0, safeNumber(habit.targetValue)) : target,
+      periods: periodStates,
+    };
+  }
+
+  function habitReminderActive(habit, logs, now, weekStartsOn = 'monday') {
+    if (!habit || habit.status !== 'active' || !(habit.reminders || []).some(reminder => reminder?.enabled && normalizeTime(reminder.time))) return false;
+    const timestamp = new Date(now); if (Number.isNaN(timestamp.getTime())) return false;
+    const today = dateOnly(timestamp);
+    if (!habitScheduledOn(habit, today)) return false;
+    const metrics = deriveHabitMetrics(habit, logs, today, weekStartsOn);
+    return habit.frequencyType !== 'timesPerWeek' || metrics.currentPeriodCount < metrics.currentPeriodTarget;
+  }
+
   function tasksForTag(tasks, tagId) {
     return (tasks || []).filter(task => !task.isCompleted && Array.isArray(task.tagIds) && task.tagIds.includes(tagId));
   }
@@ -592,6 +714,12 @@
     goalReminderMoments,
     goalReminderDueMoments,
     overdueMilestones,
+    habitScheduledOn,
+    habitPeriodKey,
+    numericHabitState,
+    habitStatusForDate,
+    deriveHabitMetrics,
+    habitReminderActive,
     tasksForTag,
     parseQuickPlanPhrase,
     cloneTaskForDuplicate,

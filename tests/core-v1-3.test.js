@@ -256,3 +256,48 @@ test('goal reminder due moments fire once and never after the target date', () =
   goal.reminderFiredMoments = [];
   assert.deepEqual(Core.goalReminderDueMoments(goal, '2026-09-17T09:05:00Z'), []);
 });
+
+test('habit schedules daily, selected weekdays, every N days, and weekly targets by their defined units', () => {
+  assert.equal(Core.habitScheduledOn({ frequencyType: 'daily', startDate: '2026-09-01', status: 'active' }, '2026-09-16'), true);
+  assert.equal(Core.habitScheduledOn({ frequencyType: 'weekdays', weekdays: [1, 3, 5], startDate: '2026-09-01', status: 'active' }, '2026-09-16'), true);
+  assert.equal(Core.habitScheduledOn({ frequencyType: 'weekdays', weekdays: [1, 3, 5], startDate: '2026-09-01', status: 'active' }, '2026-09-17'), false);
+  assert.equal(Core.habitScheduledOn({ frequencyType: 'everyNDays', everyNDays: 3, startDate: '2026-09-01', status: 'active' }, '2026-09-16'), true);
+  assert.equal(Core.habitScheduledOn({ frequencyType: 'everyNDays', everyNDays: 3, startDate: '2026-09-01', status: 'active' }, '2026-09-17'), false);
+  assert.equal(Core.habitPeriodKey({ frequencyType: 'timesPerWeek' }, '2026-09-16', 'monday'), '2026-09-14');
+});
+
+test('timesPerWeek streak is successful weeks, not individual checkins', () => {
+  const habit = { id: 'h1', frequencyType: 'timesPerWeek', timesPerWeek: 4, startDate: '2026-09-01', status: 'active', trackingType: 'checkbox' };
+  const logs = [
+    ['2026-09-07', 'done'], ['2026-09-08', 'done'], ['2026-09-09', 'done'], ['2026-09-11', 'done'], ['2026-09-12', 'done'],
+    ['2026-09-14', 'done'], ['2026-09-15', 'done'], ['2026-09-16', 'done'], ['2026-09-18', 'done'],
+  ].map(([date, status], index) => ({ id: String(index), habitId: 'h1', date, status, value: null }));
+  const metrics = Core.deriveHabitMetrics(habit, logs, '2026-09-20', 'monday');
+  assert.equal(metrics.currentStreak, 2);
+  assert.equal(metrics.currentPeriodCount, 4);
+  assert.equal(metrics.totalCheckins, 9);
+});
+
+test('skipped does not break weekday streak while missed required occurrence does', () => {
+  const habit = { id: 'h-weekdays', frequencyType: 'weekdays', weekdays: [1, 3, 5], startDate: '2026-09-01', status: 'active', trackingType: 'checkbox' };
+  const logs = [
+    ['2026-09-07', 'done'], ['2026-09-09', 'skipped'], ['2026-09-11', 'done'], ['2026-09-14', 'missed'], ['2026-09-16', 'done'],
+  ].map(([date, status], index) => ({ id: String(index), habitId: habit.id, date, status, value: null }));
+  const metrics = Core.deriveHabitMetrics(habit, logs, '2026-09-16', 'monday');
+  assert.equal(metrics.currentStreak, 1);
+  assert.equal(metrics.longestStreak, 2);
+});
+
+test('numeric habit becomes done at target while preserving over-target value', () => {
+  const habit = { id: 'numeric', status: 'active', trackingType: 'numeric', targetValue: 2, frequencyType: 'daily', startDate: '2026-09-16' };
+  assert.deepEqual(Core.numericHabitState(habit, 2.4), { status: 'done', value: 2.4, percent: 100 });
+  assert.deepEqual(Core.numericHabitState(habit, 1), { status: 'missed', value: 1, percent: 50 });
+  assert.equal(Core.deriveHabitMetrics(habit, [{ id: '1', habitId: 'numeric', date: '2026-09-16', status: 'done', value: 2.4 }], '2026-09-16', 'monday').currentPeriodCount, 2.4);
+});
+
+test('habit reminders suppress completed weekly targets and inactive habits', () => {
+  const habit = { id: 'h-reminder', trackingType: 'checkbox', frequencyType: 'timesPerWeek', timesPerWeek: 4, startDate: '2026-09-01', status: 'active', reminders: [{ id: 'r1', time: '09:00', enabled: true }] };
+  const logs = ['2026-09-14', '2026-09-15', '2026-09-16', '2026-09-17'].map((date, index) => ({ id: String(index), habitId: habit.id, date, status: 'done', value: null }));
+  assert.equal(Core.habitReminderActive(habit, logs, '2026-09-17T10:00:00', 'monday'), false);
+  assert.equal(Core.habitReminderActive({ ...habit, status: 'paused' }, [], '2026-09-17T10:00:00', 'monday'), false);
+});
