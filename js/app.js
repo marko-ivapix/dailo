@@ -1747,8 +1747,8 @@
     if (!modalState || modalState.type !== 'quick') return;
     syncQuickDraftFromDom();
     const d = modalState.draft;
-    const parsed = !d.explicitPlan ? Core.parseQuickPlanPhrase(String(d.title || ''), Core.dateOnly()) : { title: String(d.title || ''), plannedDate: null };
-    const title = String((!d.explicitPlan && parsed.plannedDate ? parsed.title : d.title) || '').trim();
+    const parsed = parseQuickAddTitle(d.title, !d.explicitPlan);
+    const title = String(parsed.title || '').trim();
     const resolvedPlan = d.explicitPlan ? d.plannedDate : (parsed.plannedDate || d.plannedDate);
     if (!title) {
       modalState.error = 'Task needs a title.';
@@ -1758,7 +1758,7 @@
     const task = {
       id: uid('task'), title, notes: d.notes || '', projectId: d.projectId || null, areaId: d.projectId ? null : (d.areaId || null), goalIds: [...(d.goalIds || [])], plannedTime: d.plannedTime || null, dueTime: d.dueTime || null,
       plannedDate: resolvedPlan || null, dueDate: d.dueDate || null,
-      reminderAt: d.reminderAt || null, reminderFiredAt: null, recurrence: d.recurrence || null, tagIds: [...(d.tagIds || [])], priority: d.priority || 'none', attachmentIds: [], isInbox,
+      reminderAt: d.reminderAt || null, reminderFiredAt: null, recurrence: d.recurrence || null, tagIds: [...new Set([...(d.tagIds || []), ...parsed.tagIds])], priority: parsed.priority || d.priority || 'none', attachmentIds: [], isInbox,
       isCompleted: false, completedAt: null,
       subtasks: d.subtasks.map((s, i) => ({ ...s, order: i })),
       todayOrder: resolvedPlan === Core.dateOnly() ? nextOrder('today') : null,
@@ -1783,6 +1783,26 @@
     if (modalState?.type !== 'quick') return;
     const title = $('#quick-title'); if (title) modalState.draft.title = title.value;
     const notes = $('#quick-notes'); if (notes) modalState.draft.notes = notes.value;
+  }
+
+  function parseQuickAddTitle(rawTitle, parsePlan = true) {
+    const original = String(rawTitle || '');
+    const tagIds = [];
+    let priority = null;
+    const tokenFree = original.replace(/(^|\s)(#[^\s#]+|!(?:high|medium|low))(?=\s|$)/gi, (match, prefix, token) => {
+      if (token[0] === '#') {
+        const name = token.slice(1).toLocaleLowerCase();
+        const tag = (state.tags || []).find(item => Core.normalizeTagName(item.name).toLocaleLowerCase() === name);
+        if (!tag) return match;
+        tagIds.push(tag.id);
+      } else {
+        priority = token.slice(1).toLocaleLowerCase();
+      }
+      return prefix;
+    });
+    const parsedPlan = parsePlan ? Core.parseQuickPlanPhrase(tokenFree, Core.dateOnly()) : { title: tokenFree, plannedDate: null };
+    const title = (parsedPlan.plannedDate ? parsedPlan.title : tokenFree).replace(/\s{2,}/g, ' ').trim();
+    return { title, plannedDate: parsedPlan.plannedDate, tagIds: [...new Set(tagIds)], priority };
   }
 
   function nextOrder(context, atTop = false) {
@@ -3170,7 +3190,7 @@
     if (globalOperation) return;
     if (callDomainHook('handleInput', event) !== undefined) return;
     if (modalState?.type === 'quick') {
-      if (event.target.id === 'quick-title') { modalState.draft.title = event.target.value; modalState.error = ''; if (!modalState.draft.explicitPlan) { const parsed=Core.parseQuickPlanPhrase(event.target.value, Core.dateOnly()); modalState.draft.parsedPlanDate=parsed.plannedDate; const b=document.querySelector('[data-action="quick-plan-picker"]'); if(b) b.innerHTML=`<i class="ph ph-calendar-check"></i>${parsed.plannedDate ? esc(relativeDateLabel(parsed.plannedDate)) : 'Plan for'}`; } }
+      if (event.target.id === 'quick-title') { modalState.draft.title = event.target.value; modalState.error = ''; if (!modalState.draft.explicitPlan) { const parsed=parseQuickAddTitle(event.target.value); modalState.draft.parsedPlanDate=parsed.plannedDate; const b=document.querySelector('[data-action="quick-plan-picker"]'); if(b) b.innerHTML=`<i class="ph ph-calendar-check"></i>${parsed.plannedDate ? esc(relativeDateLabel(parsed.plannedDate)) : 'Plan for'}`; } }
       else if (event.target.id === 'quick-notes') modalState.draft.notes = event.target.value;
     }
     if (modalState?.type === 'task') {
