@@ -16,13 +16,15 @@
 
   function renderKnowledgeRow(context, type, item) {
     const { esc, getArea } = context;
-    return `<article class="goal-row"><button class="goal-open" type="button" data-route="${type}/${esc(item.id)}"><strong><i class="ph ${knowledgeIcon(type)}"></i> ${esc(item.title)}</strong><small>${esc(getArea(item.areaId)?.name || 'No area')} · ${item.linkUrls.length} links · ${item.attachmentIds.length} files</small></button><button class="btn-icon" type="button" data-action="edit-knowledge" data-owner-type="${type}" data-owner-id="${esc(item.id)}" aria-label="Edit ${type}"><i class="ph ph-pencil-simple"></i></button></article>`;
+    const areaName = getArea(item.areaId)?.name || 'No area';
+    return `<article class="goal-row knowledge-row"><button class="goal-open knowledge-open" type="button" data-route="${type}/${esc(item.id)}"><span class="knowledge-row-title"><i class="ph ${knowledgeIcon(type)}"></i><strong>${esc(item.title)}</strong></span><span class="knowledge-row-meta"><span><i class="ph ph-map-pin"></i>${esc(areaName)}</span><span><i class="ph ph-link"></i>${item.linkUrls.length} ${item.linkUrls.length === 1 ? 'link' : 'links'}</span><span><i class="ph ph-paperclip"></i>${item.attachmentIds.length} ${item.attachmentIds.length === 1 ? 'file' : 'files'}</span></span></button><button class="btn-icon" type="button" data-action="edit-knowledge" data-owner-type="${type}" data-owner-id="${esc(item.id)}" aria-label="Edit ${type}"><i class="ph ph-pencil-simple"></i></button></article>`;
   }
 
   function renderKnowledgeList(context, type) {
     const { state, knowledgeCollection, pageHeader } = context;
     const items = [...state[knowledgeCollection(type)]].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-    return pageHeader(type === 'note' ? 'Notes' : 'Resources', `${items.length} ${knowledgeCollection(type)}`, { add: false, actionHtml: `<button class="btn btn-primary" type="button" data-action="new-knowledge" data-owner-type="${type}"><i class="ph ph-plus"></i> New ${type}</button>` }) + `<section class="section">${items.length ? items.map(item => renderKnowledgeRow(context, type, item)).join('') : `<p class="area-empty-copy">No ${knowledgeCollection(type)} yet.</p>`}</section>`;
+    const label = type === 'note' ? 'Notes' : 'Resources';
+    return pageHeader(label, `${items.length} ${knowledgeCollection(type)}`, { add: false, actionHtml: `<button class="btn btn-primary" type="button" data-action="new-knowledge" data-owner-type="${type}"><i class="ph ph-plus"></i> New ${type}</button>` }) + `<section class="section knowledge-list">${items.length ? items.map(item => renderKnowledgeRow(context, type, item)).join('') : `<p class="area-empty-copy knowledge-empty">No ${label.toLowerCase()} yet. Create one to keep its links, files, and Area context together.</p>`}</section>`;
   }
 
   function knowledgeLinks(context, urls) {
@@ -41,19 +43,21 @@
     const item = owner.item, key = type + ':' + id, signature = JSON.stringify(item.attachmentIds);
     let cached = knowledgeAttachmentCache.get(key);
     if (!cached || cached.item !== item || cached.signature !== signature) {
-      cached = { item, signature, records: [], message: item.attachmentIds.length ? 'Loading attachments…' : '' };
+      cached = { item, signature, records: [], attachmentState: item.attachmentIds.length ? 'loading' : 'empty' };
       knowledgeAttachmentCache.set(key, cached);
-      readOwnerAttachments(owner).then(records => { cached.records = records; cached.message = ''; }).catch(error => { console.error(error); cached.message = 'Attachments are unavailable in this browser.'; }).finally(() => {
+      readOwnerAttachments(owner).then(records => { cached.records = records; cached.attachmentState = records.length ? 'ready' : 'empty'; }).catch(error => { console.error(error); cached.attachmentState = 'error'; }).finally(() => {
         if (knowledgeAttachmentCache.get(key) === cached && context.state && currentRoute().type === type && currentRoute().id === id) renderMain();
       });
     }
-    let html = pageHeader(item.title, `${knowledgeLabel(type)} · ${getArea(item.areaId)?.name || 'No area'}`, { add: false, actionHtml: `<button class="btn btn-secondary" type="button" data-action="edit-knowledge" data-owner-type="${type}" data-owner-id="${esc(id)}"><i class="ph ph-pencil-simple"></i> Edit</button>` });
-    html += `<section class="section"><div class="knowledge-body">${esc(type === 'note' ? item.body : item.description) || '<span class="area-empty-copy">No text yet.</span>'}</div></section><section class="section"><div class="section-header"><h2 class="section-label">Links</h2><span class="section-count">${item.linkUrls.length}</span></div><div class="area-object-list">${knowledgeLinks(context, item.linkUrls) || '<p class="area-empty-copy">No links.</p>'}</div></section>`;
+    const areaName = getArea(item.areaId)?.name || 'No area';
+    const attachmentMessage = cached.attachmentState === 'loading' ? 'Loading attachments…' : cached.attachmentState === 'error' ? 'Attachments are unavailable in this browser.' : cached.attachmentState === 'empty' ? 'No files attached yet.' : '';
+    let html = pageHeader(item.title, `${knowledgeLabel(type)} · ${areaName}`, { add: false, actionHtml: `<button class="btn btn-secondary" type="button" data-action="edit-knowledge" data-owner-type="${type}" data-owner-id="${esc(id)}"><i class="ph ph-pencil-simple"></i> Edit</button>` });
+    html += `<section class="section knowledge-summary"><div class="knowledge-context"><i class="ph ph-map-pin"></i><span>Area</span><strong>${esc(areaName)}</strong></div><div class="knowledge-body">${esc(type === 'note' ? item.body : item.description) || '<span class="area-empty-copy">No text yet.</span>'}</div></section><section class="section knowledge-links-section"><div class="section-header"><h2 class="section-label">Linked URLs</h2><span class="section-count">${item.linkUrls.length}</span></div><div class="area-object-list">${knowledgeLinks(context, item.linkUrls) || '<p class="area-empty-copy">No links added yet.</p>'}</div></section>`;
     if (type === 'resource') for (const [field, label, collection, route] of [['relatedTaskIds', 'Tasks', 'tasks', null], ['relatedProjectIds', 'Projects', 'projects', 'project'], ['relatedGoalIds', 'Goals', 'goals', 'goal'], ['relatedHabitIds', 'Habits', 'habits', 'habit']]) {
       const related = state[collection].filter(candidate => item[field].includes(candidate.id));
-      html += `<section class="section"><div class="section-header"><h2 class="section-label">Related ${label}</h2><span class="section-count">${related.length}</span></div><div class="area-object-list">${related.map(candidate => `<button class="area-object" type="button" ${route ? `data-route="${route}/${esc(candidate.id)}"` : `data-action="open-task" data-task-id="${esc(candidate.id)}"`}>${esc(candidate.title || candidate.name)}</button>`).join('') || '<p class="area-empty-copy">No relations.</p>'}</div></section>`;
+      html += `<section class="section knowledge-relations-section"><div class="section-header"><h2 class="section-label">Related ${label}</h2><span class="section-count">${related.length}</span></div><div class="area-object-list">${related.map(candidate => `<button class="area-object" type="button" ${route ? `data-route="${route}/${esc(candidate.id)}"` : `data-action="open-task" data-task-id="${esc(candidate.id)}"`}>${esc(candidate.title || candidate.name)}</button>`).join('') || `<p class="area-empty-copy">No related ${label.toLowerCase()}.</p>`}</div></section>`;
     }
-    return html + `<section class="section"><div class="section-header"><h2 class="section-label">Attachments</h2><span class="section-count">${item.attachmentIds.length}</span></div>${cached.message ? `<p class="attachment-message" role="status">${esc(cached.message)}</p>` : ''}<div class="attachment-list">${cached.records.map(record => renderAttachmentRow(record, { ownerType: type, ownerId: id })).join('')}</div></section><button class="danger-link" type="button" data-action="delete-knowledge" data-owner-type="${type}" data-owner-id="${esc(id)}"><i class="ph ph-trash"></i> Delete ${type}</button>`;
+    return html + `<section class="section knowledge-attachments-section"><div class="section-header"><h2 class="section-label">Attached files</h2><span class="section-count">${item.attachmentIds.length}</span></div>${attachmentMessage ? `<p class="attachment-message knowledge-attachment-message is-${cached.attachmentState}" role="status">${esc(attachmentMessage)}</p>` : ''}<div class="attachment-list">${cached.records.map(record => renderAttachmentRow(record, { ownerType: type, ownerId: id })).join('')}</div></section><button class="danger-link" type="button" data-action="delete-knowledge" data-owner-type="${type}" data-owner-id="${esc(id)}"><i class="ph ph-trash"></i> Delete ${type}</button>`;
   }
 
   function openKnowledgeModal(context, type, id = null, areaId = null) {
