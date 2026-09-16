@@ -463,17 +463,25 @@
       setHabitLog, updateHabitStatus, snoozeHabit, syncHabitGoalLinks,
       areaDefaults: { color: PROJECT_COLORS[0], icon: AREA_ICONS[0] },
       setCreatedGoalFocusId(value) { createdGoalFocusId = value; },
-      Core, getGoal, goalProgressLabel, goalStatusLabel, relativeDateLabel, emptyState,
+      Core, getGoal, getProject, allProjects, sortedProjects, projectTasks, goalProgressLabel, goalStatusLabel, relativeDateLabel, emptyState,
       render, restoreGoalFocus, captureGoalProgress, evaluateGoalProgressChanges,
       putGoalHistory, goalDraft, openGoalModal, openPopover, templateMenuEntry, syncGoalLinks,
       maybePromptGoalReached, updateGoalStatus, saveAndRender,
-      $, $$, esc, knowledgeCollection, getArea, attachmentOwner,
+      $, $$, esc, PROJECT_COLORS, knowledgeCollection, getArea, attachmentOwner,
       pageHeader, modalFrame, renderMain, renderModal, currentRoute,
       knowledgeAttachmentCache, readOwnerAttachments, renderAttachmentRow,
       renderAttachmentsSection, loadOwnerAttachments, addAttachments,
       closePopover, flushTextSave, goalFocusTarget, closeModal,
       nowIso, uid, copyTemplate, saveState, navigate, setToastMessage, requestDeleteEntity,
       setModalReturnFocus(value) { modalReturnFocus = value; },
+      renderProjectTaskRow(task, projectId, options = {}) {
+        return taskRow(task, options.completed ? 'completed' : `project:${projectId}`, options);
+      },
+      toggleProjectCompleted(projectId) {
+        state.ui.projectCompletedExpanded[projectId] = !state.ui.projectCompletedExpanded[projectId];
+        saveAndRender();
+      },
+      openProjectModal, saveProjectModal, archiveProject, restoreProject, deleteProject,
       renderSavedViewItem(view, item, today) {
         return view.type === 'tasks' ? taskRow(item, 'saved-view') : view.type === 'goals' ? renderGoalRow(item) : renderHabitRow(item, item.status === 'active' ? Core.habitStatusForDate(item, state.habitLogCache?.[item.id] || [], today, today) : null);
       },
@@ -652,7 +660,6 @@
     let content = callDomainHook('renderRoute', route);
     if (content === undefined) {
       if (route.type === 'templates') content = renderTemplates();
-      else if (route.type === 'projects') content = renderProjects();
       else if (route.type === 'today') content = renderToday();
       else if (route.type === 'inbox') content = renderInbox();
       else if (route.type === 'upcoming') content = renderUpcoming();
@@ -661,8 +668,6 @@
       else if (route.type === 'tags') content = renderTags();
       else if (route.type === 'areas') content = renderAreas();
       else if (route.type === 'area') content = renderArea(route.id);
-      else if (route.type === 'archived') content = renderArchivedProjects();
-      else if (route.type === 'project') content = renderProject(route.id);
       else if (route.type === 'completed') content = renderCompleted();
       else if (route.type === 'settings') content = renderSettings();
       else content = renderToday();
@@ -948,17 +953,6 @@
     return callDomainHook('renderRoute', { type: 'habit-row', habit, todayStatus }) || '';
   }
 
-  function renderArchivedProjects() {
-    const projects = allProjects().filter(project => project.isArchived);
-    let html = pageHeader('Archived Projects', `${projects.length} archived ${projects.length === 1 ? 'project' : 'projects'}`, { add: false });
-    if (!projects.length) return html + emptyState('No archived projects.', 'Archived projects stay available here until you restore them.');
-    html += `<div class="archived-project-list">${projects.map(project => {
-      const openCount = projectTasks(project.id, false).length;
-      return `<div class="archived-project-row"><div class="archived-project-main"><span class="project-dot" style="--project-color:${esc(project.color)}"></span><span><strong>${esc(project.name)}</strong><small>${openCount} open ${openCount === 1 ? 'task' : 'tasks'}</small></span></div><div class="archived-project-actions"><button class="btn btn-ghost" type="button" data-route="project/${esc(project.id)}">View</button><button class="btn btn-secondary" type="button" data-action="restore-project" data-project-id="${esc(project.id)}">Restore</button></div></div>`;
-    }).join('')}</div>`;
-    return html;
-  }
-
   function renderUpcoming() {
     const today = Core.dateOnly();
     const groups = Core.deriveUpcomingV3(state, today);
@@ -969,25 +963,6 @@
       const rel = relativeDateLabel(group.date, today);
       const dayName = [today, Core.addDays(today, 1)].includes(group.date) ? rel : WEEKDAY_FMT.format(d);
       html += `<section class="upcoming-group"><div class="group-date"><strong>${esc(dayName)}</strong><span>${esc(formatDate(group.date))}</span></div>${group.items.length ? `<div class="task-list">${group.items.map(item => taskRow(item.task, 'upcoming', { upcomingReason: item.displayReason })).join('')}</div>` : ''}${group.goals.length ? `<div><h2 class="section-label">Goals</h2><div class="goal-list">${group.goals.map(renderGoalRow).join('')}</div></div>` : ''}</section>`;
-    }
-    return html;
-  }
-
-  function renderProject(projectId) {
-    const project = getProject(projectId);
-    if (!project) return renderToday();
-    const openTasks = projectTasks(projectId, false);
-    const completed = projectTasks(projectId, true);
-    const expanded = Boolean(state.ui.projectCompletedExpanded[projectId]);
-    let html = pageHeader(project.name, `${openTasks.length} open ${openTasks.length === 1 ? 'task' : 'tasks'}`, { contextProjectId: projectId, projectMenu: projectId });
-    html += `<div style="display:flex;align-items:center;gap:8px;margin-top:-20px;margin-bottom:26px;color:var(--text-muted);font-size:12px"><span class="project-dot" style="--project-color:${esc(project.color)}"></span> Project</div>`;
-    if (openTasks.length) html += `<div class="task-list" data-list-context="project:${esc(projectId)}">${openTasks.map(t => taskRow(t, `project:${projectId}`, { draggable: true })).join('')}</div>`;
-    else html += emptyState('No open tasks.', 'Add a task to keep this project moving.', 'Add task', 'quick-add', { projectId });
-    html += `<button class="inline-add" type="button" data-action="quick-add" data-project-id="${esc(projectId)}"><i class="ph ph-plus"></i> Add task</button>`;
-    if (completed.length) {
-      html += `<section class="section"><button class="collapsible-trigger" type="button" data-action="toggle-project-completed" data-project-id="${esc(projectId)}" aria-expanded="${expanded}"><span class="left"><i class="ph ph-check-circle"></i> Completed</span><span>${completed.length} <i class="ph ph-caret-${expanded ? 'up' : 'down'}"></i></span></button>`;
-      if (expanded) html += `<div class="task-list">${completed.map(t => taskRow(t, 'completed')).join('')}</div>`;
-      html += `</section>`;
     }
     return html;
   }
@@ -1233,7 +1208,6 @@
     else if (modalState.type === 'quick') root.innerHTML = renderQuickModal();
     else if (modalState.type === 'task') root.innerHTML = renderTaskModal();
     else if (modalState.type === 'search') root.innerHTML = renderSearchModal();
-    else if (modalState.type === 'project') root.innerHTML = renderProjectModal();
     else if (modalState.type === 'tag') root.innerHTML = renderTagModal();
     else if (modalState.type === 'area') root.innerHTML = renderAreaModal();
     else if (modalState.type === 'area-linked') root.innerHTML = renderAreaLinkedModal();
@@ -1258,9 +1232,6 @@
   }
 
   const TEMPLATE_TYPES = ['task','project','habit','goal'];
-  function renderProjects() {
-    return pageHeader('Projects','Active projects',{add:false,actionHtml:'<button class="btn btn-primary" data-action="new-project">New project</button>'}) + sortedProjects().map(p=>`<button class="sidebar-action" data-route="project/${esc(p.id)}"><i class="ph ph-folder"></i><span>${esc(p.name)}</span></button>`).join('');
-  }
   function saveShortcut(command) {
     const raw=$(`[data-shortcut="${command}"]`).value,value=Core.normalizeShortcut(raw);
     shortcutError='';
@@ -1673,12 +1644,6 @@
     return `<button class="search-result" type="button" data-action="open-task" data-task-id="${esc(task.id)}"><span class="search-result-icon">${task.isCompleted ? '<i class="ph-fill ph-check-circle" style="color:var(--success)"></i>' : '<i class="ph ph-circle"></i>'}</span><span><span class="search-result-title">${esc(task.title)}</span><span class="search-result-meta">${esc(parts.join(' · ') || 'Task')}</span></span></button>`;
   }
 
-  function renderProjectModal() {
-    const editing = Boolean(modalState.projectId);
-    const d = modalState.draft;
-    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">${editing ? 'Edit project' : 'New project'}</h2><button class="btn-icon" type="button" data-action="close-modal"><i class="ph ph-x"></i></button></div><label class="field-label" for="project-name">Name</label><input id="project-name" class="input ${modalState.error ? 'is-error' : ''}" type="text" maxlength="100" value="${esc(d.name)}" placeholder="Project name" />${modalState.error ? `<div class="validation">${esc(modalState.error)}</div>` : ''}<div style="height:18px"></div><span class="field-label">Color</span><div class="color-grid">${PROJECT_COLORS.map(color => `<button class="color-swatch ${color === d.color ? 'is-selected' : ''}" type="button" data-action="select-project-color" data-color="${color}" style="--swatch:${color}" aria-label="Select project color"></button>`).join('')}</div><div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">Cancel</button><button class="btn btn-primary" type="button" data-action="save-project">${editing ? 'Save changes' : 'Create project'}</button></div></div></div>`, 'quick');
-  }
-
   function renderTagModal() {
     const editing = Boolean(modalState.tagId);
     const d = modalState.draft;
@@ -1864,16 +1829,6 @@
     const tag = getTag(tagId); if (!tag) return;
     const html = `<button class="popover-option" type="button" data-pop-action="edit-tag" data-tag-id="${esc(tagId)}"><i class="ph ph-pencil-simple"></i>Edit tag</button><button class="popover-option" type="button" data-pop-action="delete-tag" data-tag-id="${esc(tagId)}" style="color:var(--danger)"><i class="ph ph-trash"></i>Delete tag</button>`;
     openPopover(anchor, html, { type: 'tag-menu', tagId });
-  }
-
-  function openProjectMenu(anchor, projectId) {
-    const project = getProject(projectId);
-    if (!project) return;
-    const archiveAction = project.isArchived
-      ? `<button class="popover-option" type="button" data-pop-action="restore-project" data-project-id="${esc(projectId)}"><i class="ph ph-arrow-counter-clockwise"></i>Restore project</button>`
-      : `<button class="popover-option" type="button" data-pop-action="archive-project" data-project-id="${esc(projectId)}"><i class="ph ph-archive"></i>Archive project</button>`;
-    const html = `<button class="popover-option" type="button" data-pop-action="edit-project" data-project-id="${esc(projectId)}"><i class="ph ph-pencil-simple"></i>Rename / color</button>${archiveAction}<div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="delete-project" data-project-id="${esc(projectId)}" style="color:var(--danger)"><i class="ph ph-trash"></i>Delete project</button>`;
-    openPopover(anchor, templateMenuEntry('project',projectId)+html, { type: 'project-menu', projectId });
   }
 
   function openAreaMenu(anchor, areaId) {
@@ -3435,7 +3390,6 @@
     else if (action === 'open-task') openTaskDetail(el.dataset.taskId);
     else if (action === 'toggle-complete') toggleComplete(el.dataset.taskId);
     else if (action === 'open-search') openSearch();
-    else if (action === 'new-project') openProjectModal();
     else if (action === 'new-area') openAreaModal();
     else if (action === 'delete-draft-goal-milestone') deleteDraftGoalMilestone(el.dataset.milestoneId);
     else if (action === 'delete-milestone') deleteMilestone(el.dataset.goalId, el.dataset.milestoneId);
@@ -3452,13 +3406,11 @@
     else if (action === 'select-tag') { state.ui.selectedTagId = el.dataset.tagId; saveAndRender(); }
     else if (action === 'tag-menu') openTagMenu(el, el.dataset.tagId);
     else if (action === 'more-menu') openMoreMenu(el);
-    else if (action === 'project-menu') openProjectMenu(el, el.dataset.projectId);
     else if (action === 'task-menu') openTaskMenu(el, el.dataset.taskId);
     else if (action === 'attachment-menu') openAttachmentMenu(el, el.dataset.attachmentId);
     else if (action === 'attachment-image-picker') $('#attachment-image-input')?.click();
     else if (action === 'toggle-suggestions') { state.ui.suggestionsExpanded = !state.ui.suggestionsExpanded; saveAndRender(); }
     else if (action === 'toggle-today-completed') { state.ui.todayCompletedExpanded = !state.ui.todayCompletedExpanded; saveAndRender(); }
-    else if (action === 'toggle-project-completed') { const id = el.dataset.projectId; state.ui.projectCompletedExpanded[id] = !state.ui.projectCompletedExpanded[id]; saveAndRender(); }
     else if (action === 'add-all-suggestions') addAllSuggestions();
     else if (action === 'inbox-today') addTaskToToday(el.dataset.taskId);
     else if (action === 'task-project-picker') showTaskProjectPicker(el.dataset.taskId, el);
@@ -3487,11 +3439,8 @@
     else if (action === 'delete-task') deleteTask(el.dataset.taskId);
     else if (action === 'duplicate-without-files') duplicateTask(el.dataset.taskId, false);
     else if (action === 'duplicate-with-files') duplicateTask(el.dataset.taskId, true);
-    else if (action === 'select-project-color') { modalState.draft.color = el.dataset.color; renderModal(); }
     else if (action === 'select-tag-color') { modalState.draft.color = el.dataset.color; renderModal(); }
     else if (action === 'save-tag') saveTagModal();
-    else if (action === 'save-project') saveProjectModal();
-    else if (action === 'restore-project') restoreProject(el.dataset.projectId);
     else if (action === 'confirm-action') { const fn = modalState.onConfirm; if (typeof fn === 'function') fn(); }
     else if (action === 'undo') doUndo();
     else if (action === 'retry-delete-recovery') retryFailedDeleteRecovery();
@@ -3559,10 +3508,6 @@
     else if (action === 'task-delete') { const id = button.dataset.taskId; closePopover(); deleteTask(id); }
     else if (action === 'edit-tag') { const id = button.dataset.tagId; closePopover(); openTagModal(id); }
     else if (action === 'delete-tag') deleteTag(button.dataset.tagId);
-    else if (action === 'edit-project') { const id = button.dataset.projectId; closePopover(); openProjectModal(id); }
-    else if (action === 'archive-project') archiveProject(button.dataset.projectId);
-    else if (action === 'restore-project') restoreProject(button.dataset.projectId);
-    else if (action === 'delete-project') { const id = button.dataset.projectId; closePopover(); deleteProject(id); }
     else if (action === 'edit-area') { const id = button.dataset.areaId; closePopover(); openAreaModal(id); }
     else if (action === 'archive-area') archiveArea(button.dataset.areaId);
     else if (action === 'restore-area') restoreArea(button.dataset.areaId);
@@ -3588,7 +3533,6 @@
       modalState.query = event.target.value;
       const results = $('#search-results'); if (results) results.innerHTML = searchResultsHtml(modalState.query);
     }
-    if (modalState?.type === 'project' && event.target.id === 'project-name') { modalState.draft.name = event.target.value; modalState.error = ''; }
     if (modalState?.type === 'tag' && event.target.id === 'tag-name') { modalState.draft.name = event.target.value; modalState.error = ''; }
   }
 
@@ -3686,7 +3630,6 @@
 
     if (modalState?.type === 'task' && target?.id === 'detail-title' && event.key === 'Enter') { event.preventDefault(); target.blur(); return; }
     if (modalState?.type === 'task' && target?.id === 'detail-subtask' && event.key === 'Enter') { event.preventDefault(); addDetailSubtask(target.dataset.taskId, target.value); return; }
-    if (modalState?.type === 'project' && target?.id === 'project-name' && event.key === 'Enter') { event.preventDefault(); saveProjectModal(); return; }
   }
 
   function handleDblKeyActivation(event) {
