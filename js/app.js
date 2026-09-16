@@ -3327,15 +3327,27 @@
       // Keep both editing and ordinary Undo held until the verified rollback has
       // a durable safe classification. A denied phase write must stay retryable.
       await markGlobalSnapshot(op, 'rolled-back');
-      await TodoStorage.verifyRecoverySnapshot(op.snapshotId);
+      const verified = await TodoStorage.verifyRecoverySnapshot(op.snapshotId);
       if (globalOperation !== op || state !== source || compactState(state) !== sourceText) throw new Error('Recovery source changed during verification. Retry recovery.');
       state = normalizeState(restored); recovery = null;
+      const resumedSource = state, resumedText = compactState(state);
       if (op.token) await deleteLifecycle.resume(op.token);
+      // Resume also awaits Blob reads and already-due finalizers. Those may
+      // legitimately remove expired files, but cannot change metadata ownership.
+      if (localStorage.getItem(STORAGE_KEY) !== verified.rawAppData || globalOperation !== op
+        || state !== resumedSource || compactState(state) !== resumedText)
+        throw new Error('Recovery ownership changed during final Undo resume. Resolve the source and retry recovery.');
       globalRecoveryNotice = null;
       globalOperation = null; modalState = null; renderModal(); render();
       try { await cleanupGlobalSnapshot(op); setToastMessage(`${cause.message}. Original data was restored and verified.`); }
       catch (cleanupError) { globalNotice(`${cause.message}. Original data was restored. Cleanup failed: ${cleanupError.message}. Retry cleanup.`, async () => { await cleanupGlobalSnapshot(op); globalRecoveryNotice = null; renderToast(); }); }
     } catch (rollbackError) {
+      // Resume may already have released its token. Re-hold the remaining work
+      // synchronously before any bookkeeping await, keeping its original deadlines.
+      if (op.token && !undoHold && op.token.generation === undoGeneration) {
+        undoHold = op.token; undoState = null;
+        for (const work of undoWork) clearTimeout(work.timer);
+      }
       op.busy = false; modalState = null; renderModal();
       try { await markGlobalSnapshot(op, 'rollback-failed', { operationError: cause.message, rollbackError: rollbackError.message }); }
       catch (_) { /* The original full recovery payload remains; mutating phase is already durable. */ }

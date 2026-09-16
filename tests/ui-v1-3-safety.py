@@ -909,6 +909,51 @@ def global_rollback_phase_denied(page, reload_first=False):
     assert not page.locator('[data-action="retry-global-recovery"]').count()
 
 
+def global_resume_boundary(page, mode):
+    trigger(page,'task');confirmed(page);route(page,'settings')
+    page.evaluate('''mode=>{
+      const replace=TodoStorage.replaceAllValidatedBackup,resume=TodoApp.deleteLifecycle.resume,read=Blob.prototype.arrayBuffer,remove=TodoAttachments.deletePending;
+      TodoStorage.replaceAllValidatedBackup=async(...args)=>{await replace(...args);throw Error('forced resume-boundary replacement failure');};
+      TodoApp.deleteLifecycle.resume=async(...args)=>{window.inFinalResume=true;try{return await resume(...args);}finally{window.inFinalResume=false;}};
+      TodoAttachments.deletePending=async(...args)=>{window.inDueFinalizer=true;try{return await remove(...args);}finally{window.inDueFinalizer=false;}};
+      Blob.prototype.arrayBuffer=async function(){const bytes=await read.call(this);if(!window.resumeInjected&&window.inFinalResume&&(mode==='read'||mode==='finalizer'&&window.inDueFinalizer)){window.resumeInjected=true;const data=JSON.parse(localStorage.getItem('todoAppData'));data.tasks.find(t=>t.id==='t0').title='Foreign during final resume';window.resumeForeignRaw=JSON.stringify(data);localStorage.setItem('todoAppData',resumeForeignRaw);}return bytes;};
+    }''',mode)
+    with page.expect_download():click(page,'reset-app')
+    if mode in ['expired','finalizer']:page.clock.run_for(7000)
+    page.locator('#global-confirm-phrase').fill('RESET');click(page,'confirm-action')
+    if mode in ['read','finalizer']:
+        page.wait_for_function('window.resumeInjected && !document.querySelector("#global-confirm-phrase")')
+        expect(page.locator('[data-action="retry-global-recovery"]')).to_be_visible()
+        assert page.evaluate('localStorage.getItem("todoAppData")===resumeForeignRaw')
+        assert page.evaluate('async()=> (await TodoStorage.recoverySnapshots.listAll()).length')==1
+        assert 'restored and verified' not in page.locator('#toast-root').inner_text()
+        assert 'forced resume-boundary replacement failure' in page.locator('#toast-root').inner_text()
+        assert 'ownership changed during final Undo resume' in page.locator('#toast-root').inner_text()
+        assert page.evaluate('async()=>await (await TodoStorage.recoverySnapshots.listAll())[0].attachments.find(r=>r.id==="f").blob.text()')=='first\x00bytes'
+        assert not page.locator('[data-action="undo"]').count(), 'failed final resume exposed normal Undo'
+        route(page,'today');page.locator('[data-action="open-task"][data-task-id="t0"]').first.click()
+        assert not page.locator('#detail-title').count(), 'failed final resume released editing'
+        page.clock.run_for(7000)
+        assert page.evaluate('localStorage.getItem("todoAppData")===resumeForeignRaw')
+        foreign=page.evaluate('resumeForeignRaw');page.reload();page.evaluate('()=>TodoApp.ready')
+        expect(page.locator('[data-action="retry-global-recovery"]')).to_be_visible()
+        assert not page.evaluate('!!TodoApp.state')
+        click(page,'retry-global-recovery')
+        expect(page.locator('#toast-root')).to_contain_text('foreign metadata')
+        assert page.evaluate('localStorage.getItem("todoAppData")')==foreign
+        assert page.evaluate('async()=> (await TodoStorage.recoverySnapshots.listAll()).length')==1
+    else:
+        global_settled(page)
+        assert 'restored and verified' in page.locator('#toast-root').inner_text()
+        if mode=='eligible':
+            expect(page.locator('[data-action="undo"]')).to_be_visible();undo(page)
+            assert page.evaluate('TodoApp.state.tasks.some(t=>t.id==="t")')
+        else:
+            assert not page.locator('[data-action="undo"]').count()
+            assert page.evaluate('async()=>!(await TodoStorage.attachments.get("f"))&&!(await TodoStorage.attachments.get("f2"))')
+            assert not page.evaluate('TodoApp.state.tasks.some(t=>t.id==="t")')
+
+
 def main():
     class QuietHandler(SimpleHTTPRequestHandler):
         def log_message(self, *_args): pass
@@ -953,6 +998,7 @@ def main():
     cases += [('global-verified-phase-failure',global_verified_phase_failure)]
     cases += [('global-final-verify-'+b,lambda p,b=b:global_final_verification_race(p,b)) for b in ['replacement','rollback','startup']]
     cases += [('global-rollback-phase-denied',global_rollback_phase_denied),('global-rollback-phase-reload',lambda p:global_rollback_phase_denied(p,True))]
+    cases += [('global-resume-'+m,lambda p,m=m:global_resume_boundary(p,m)) for m in ['read','finalizer','eligible','expired']]
     failures=[]; count=0
     try:
         with sync_playwright() as p:
