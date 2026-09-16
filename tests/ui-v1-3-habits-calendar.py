@@ -47,6 +47,7 @@ def boot(page, now='2026-10-31T20:00:00', seed=None):
     for script in SCRIPTS:
         page.add_script_tag(content=script)
     page.wait_for_selector('.page-title')
+    page.evaluate('TodoApp.ready')
 
 
 def main():

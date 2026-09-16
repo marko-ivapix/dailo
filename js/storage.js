@@ -77,25 +77,36 @@
         try { request = root.indexedDB.open(DB_NAME, DB_VERSION); }
         catch (error) { reject(error); return; }
         request.onupgradeneeded = () => upgradeDatabase(request.result, request.transaction);
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error || new Error('Could not open storage database'));
-        request.onblocked = () => reject(new Error('Storage database is blocked'));
+        let failed = false;
+        const fail = error => { failed = true; reject(error); };
+        request.onsuccess = () => {
+          if (failed) { request.result.close(); return; }
+          request.result.onversionchange = () => { request.result.close(); dbPromise = null; };
+          resolve(request.result);
+        };
+        request.onerror = () => fail(request.error || new Error('Could not open storage database'));
+        request.onblocked = () => fail(new Error('Storage database is blocked'));
       });
     }
-    return dbPromise;
+    try { return await dbPromise; }
+    catch (error) { dbPromise = null; throw error; }
   }
 
   async function withStore(storeName, mode, fn) {
     const db = await open();
     const tx = db.transaction(storeName, mode);
+    const done = transactionDone(tx);
+    // Install completion/error handlers before issuing requests, including synchronous failures.
+    done.catch(() => {});
     let value;
     try {
       value = await fn(tx.objectStore(storeName), tx);
     } catch (error) {
       try { tx.abort(); } catch (_) { /* transaction already finished */ }
+      await done.catch(() => {});
       throw error;
     }
-    await transactionDone(tx);
+    await done;
     return value;
   }
 
@@ -237,36 +248,87 @@
       let request;
       try { request = root.indexedDB.open(LEGACY_ATTACHMENT_DB_NAME); }
       catch (error) { reject(error); return; }
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error || new Error('Could not open legacy attachment database'));
-      request.onblocked = () => reject(new Error('Legacy attachment database is blocked'));
+      let failed = false;
+      request.onsuccess = () => { if (failed) request.result.close(); else resolve(request.result); };
+      request.onerror = () => { failed = true; reject(request.error || new Error('Could not open legacy attachment database')); };
+      request.onblocked = () => { failed = true; reject(new Error('Legacy attachment database is blocked')); };
     });
   }
 
-  async function migrateLegacyAttachments(taskAttachmentIds) {
+  async function readLegacyAttachments(taskAttachmentIds) {
     const ids = new Set((taskAttachmentIds || []).filter(Boolean));
-    if (!ids.size || memoryMode()) return 0;
+    if (!ids.size || memoryMode()) return [];
     if (!root.indexedDB) throw new Error('IndexedDB unavailable');
     const legacyDb = await openLegacyAttachmentDb();
     try {
-      if (!legacyDb.objectStoreNames.contains(ATTACHMENTS_STORE)) return 0;
+      if (!legacyDb.objectStoreNames.contains(ATTACHMENTS_STORE)) return [];
       const records = await new Promise((resolve, reject) => {
         const tx = legacyDb.transaction(ATTACHMENTS_STORE, 'readonly');
-        const request = tx.objectStore(ATTACHMENTS_STORE).getAll();
-        request.onsuccess = () => resolve(request.result || []);
-        request.onerror = () => reject(request.error || new Error('Could not read legacy attachments'));
+        const records = [];
+        for (const id of ids) {
+          const request = tx.objectStore(ATTACHMENTS_STORE).get(id);
+          request.onsuccess = () => { if (request.result) records.push(request.result); };
+          request.onerror = () => reject(request.error || new Error('Could not read legacy attachments'));
+        }
+        tx.oncomplete = () => resolve(records);
         tx.onabort = () => reject(tx.error || new Error('Legacy attachment transaction aborted'));
       });
-      let copied = 0;
-      for (const record of records) {
-        if (!record || !ids.has(record.id) || await attachments.get(record.id)) continue;
-        await attachments.put(record);
-        copied += 1;
-      }
-      return copied;
+      return records;
     } finally {
       legacyDb.close();
     }
+  }
+
+  async function migrateLegacyAttachments(taskAttachmentIds) {
+    let copied = 0;
+    for (const record of await readLegacyAttachments(taskAttachmentIds)) {
+      if (await attachments.get(record.id)) continue;
+      await attachments.put(record);
+      copied += 1;
+    }
+    return copied;
+  }
+
+  const MIGRATION_SNAPSHOT_ID = 'migration-v3';
+
+  async function prepareMigration(rawAppData, appData, migrated) {
+    await open();
+    const ids = [...new Set(appData.tasks.flatMap(task => task.attachmentIds || []))];
+    const current = await attachments.getMany(ids);
+    const currentIds = new Set(current.map(record => record.id));
+    const missingIds = ids.filter(id => !currentIds.has(id));
+    const legacy = await readLegacyAttachments(missingIds);
+    const records = [...current, ...legacy];
+    if (!memoryMode()) {
+      for (const id of ids) {
+        const record = records.find(item => item.id === id);
+        const owner = appData.tasks.find(task => (task.attachmentIds || []).includes(id));
+        if (!record || record.taskId !== owner.id || !(record.blob instanceof root.Blob)
+          || record.blob.size !== record.size) throw new Error(`Missing or invalid attachment: ${id}`);
+      }
+    }
+    if (migrated || legacy.length) {
+      await recoverySnapshots.put({
+        id: MIGRATION_SNAPSHOT_ID, createdAt: new Date().toISOString(), reason: 'migration',
+        rawAppData, appData: JSON.parse(rawAppData), attachmentRefs: ids,
+        attachments: records, habitLogRefs: [], goalHistoryRefs: []
+      });
+      await migrateLegacyAttachments(missingIds);
+      // Read back from the facade's actual destination; schema persistence must follow this check.
+      for (const expected of legacy) {
+        const actual = await attachments.get(expected.id);
+        if (!actual || actual.taskId !== expected.taskId || actual.blob.type !== expected.blob.type
+          || actual.blob.size !== expected.blob.size) throw new Error(`Attachment copy verification failed: ${expected.id}`);
+        const before = new Uint8Array(await expected.blob.arrayBuffer());
+        const after = new Uint8Array(await actual.blob.arrayBuffer());
+        if (before.some((byte, index) => byte !== after[index])) throw new Error(`Attachment bytes changed: ${expected.id}`);
+      }
+    }
+    return MIGRATION_SNAPSHOT_ID;
+  }
+
+  async function finishMigration(snapshotId = MIGRATION_SNAPSHOT_ID) {
+    await recoverySnapshots.deleteMany([snapshotId]);
   }
 
   async function clearAllForTests() {
@@ -283,6 +345,8 @@
     goalHistory,
     recoverySnapshots,
     migrateLegacyAttachments,
+    prepareMigration,
+    finishMigration,
     clearAllForTests
   };
 });

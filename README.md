@@ -231,6 +231,7 @@ Then run:
 node --test tests/core.test.js
 .venv/bin/python tests/test_browser_path_adapter.py
 .venv/bin/python tests/run-browser-regressions.py
+.venv/bin/python tests/ui-v1-3-storage-migration.py
 ```
 
 Syntax checks:
@@ -242,7 +243,7 @@ node --check js/backup.js
 node --check js/app.js
 ```
 
-The browser harness uses an in-memory test adapter for attachment storage because this execution environment blocks normal browser origins. Production code defaults to the real IndexedDB adapter; the in-memory path is enabled only by the test-only `window.__TODO_TEST_MEMORY_DB__` flag.
+The V1.2 browser harness uses an in-memory test adapter enabled only by `window.__TODO_TEST_MEMORY_DB__`. The dedicated V1.3 storage-migration suite uses a temporary loopback server, a fresh managed Chromium context per test, and real IndexedDB. It verifies automatic non-destructive legacy Blob copying, schema/indexes, native Habit/date uniqueness, exact source-state preservation on failure, safety snapshots, Retry, reload, and partial V3 recovery. Contexts, browser and server are closed even on failure. Production defaults to real IndexedDB. `TodoApp.ready` can be awaited for startup migration and Habit hydration before interacting with the ready app.
 
 ## Still intentionally excluded
 

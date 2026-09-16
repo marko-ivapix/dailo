@@ -18,6 +18,7 @@
 
   let state = null;
   let recovery = null;
+  let startupPromise = null;
   let storageError = false;
   let modalState = null;
   let popoverEl = null;
@@ -180,6 +181,7 @@
     next.ui.selectedTagId = next.ui.selectedTagId || '';
     next.ui.areaTab = ['all', 'active', 'archived'].includes(next.ui.areaTab) ? next.ui.areaTab : 'all';
     next.tags = (next.tags || []).map((tag, i) => ({
+      ...tag,
       id: tag.id || uid('tag'),
       name: Core.normalizeTagName(tag.name),
       color: tag.color || PROJECT_COLORS[i % PROJECT_COLORS.length],
@@ -194,7 +196,7 @@
       tagIds: Array.isArray(t.tagIds) ? t.tagIds : [],
       priority: ['none', 'low', 'medium', 'high'].includes(t.priority) ? t.priority : 'none',
       attachmentIds: Array.isArray(t.attachmentIds) ? t.attachmentIds : [],
-      subtasks: (t.subtasks || []).map((s, i) => ({ id: s.id || uid('sub'), title: s.title || '', isCompleted: Boolean(s.isCompleted), order: Number.isFinite(s.order) ? s.order : i })),
+      subtasks: (t.subtasks || []).map((s, i) => ({ ...s, id: s.id || uid('sub'), title: s.title || '', isCompleted: Boolean(s.isCompleted), order: Number.isFinite(s.order) ? s.order : i })),
     }));
     next.projects = next.projects.map((p, i) => ({ color: PROJECT_COLORS[i % PROJECT_COLORS.length], order: i, createdAt: nowIso(), updatedAt: nowIso(), isArchived: false, archivedAt: null, ...p }));
     next.areas = (next.areas || []).map((area, i) => ({
@@ -237,11 +239,17 @@
     return next;
   }
 
-  function loadState() {
-    recovery = null;
+  async function loadState(incomingRaw) {
+    recovery = 'migration-loading';
+    state = null;
+    let preparingStorage = false;
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
+      const sourceAtStart = localStorage.getItem(STORAGE_KEY);
+      const raw = incomingRaw === undefined ? sourceAtStart : incomingRaw;
       if (!raw) {
+        preparingStorage = true;
+        await TodoStorage.open();
+        recovery = null;
         state = createSampleState();
         saveState();
         return;
@@ -253,11 +261,26 @@
         state = null;
         return;
       }
-      state = normalizeState(migration.state);
-      if (migration.migrated) saveState();
+      const prepared = normalizeState(migration.state);
+      preparingStorage = true;
+      const snapshotId = await TodoStorage.prepareMigration(raw, prepared, migration.migrated);
+      const validation = Core.validateStateV3(prepared);
+      if (!validation.ok) throw new Error(validation.reason);
+      if (localStorage.getItem(STORAGE_KEY) !== sourceAtStart) throw new Error('Local data changed in another tab; retry migration.');
+      if (migration.migrated) {
+        const persisted = { ...prepared };
+        delete persisted.habitLogCache;
+        delete persisted.habitMetrics;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(persisted));
+      }
+      recovery = null;
+      state = prepared;
+      // Snapshot removal is post-commit housekeeping, not part of migration success.
+      try { await TodoStorage.finishMigration(snapshotId); }
+      catch (error) { console.warn('Migration complete; safety snapshot cleanup will retry on reload.', error); }
     } catch (error) {
       console.error(error);
-      recovery = error && error.message === 'unsupported-version' ? 'unsupported-version' : 'corrupted-data';
+      recovery = preparingStorage ? 'migration-error' : error && error.message === 'unsupported-version' ? 'unsupported-version' : 'corrupted-data';
       state = null;
     }
   }
@@ -823,6 +846,8 @@
   }
 
   function renderRecovery() {
+    if (recovery === 'migration-loading') return '<div class="recovery"><div class="recovery-card"><h1>Preparing your local data…</h1><p>Please wait while local storage is checked.</p></div></div>';
+    if (recovery === 'migration-error') return '<div class="recovery"><div class="recovery-card"><h1>Local data migration could not finish.</h1><p>Your saved data and original files have not been overwritten. Check available storage and close other app tabs, then retry.</p><div class="recovery-actions"><button class="btn btn-secondary" type="button" data-action="retry-load">Retry</button></div></div></div>';
     const unsupported = recovery === 'unsupported-version';
     return `<div class="recovery"><div class="recovery-card"><h1>${unsupported ? 'This data is from a newer version.' : "We couldn't load your local data."}</h1><p>${unsupported ? "The prototype can't safely read this saved format." : 'Your saved data appears to be invalid. Nothing has been overwritten.'}</p><div class="recovery-actions"><button class="btn btn-secondary" type="button" data-action="retry-load">Retry</button><button class="btn btn-danger" type="button" data-action="recovery-reset">Reset local data</button></div></div></div>`;
   }
@@ -2455,7 +2480,7 @@
     else if (action === 'restore-backup') restoreImportedBackup();
     else if (action === 'clear-completed') clearCompleted();
     else if (action === 'reset-app') resetApp();
-    else if (action === 'retry-load') { loadState(); render(); }
+    else if (action === 'retry-load') { startReady(); }
     else if (action === 'recovery-reset') { if(Attachments) Attachments.clearAll().catch(console.error); localStorage.removeItem(STORAGE_KEY); recovery = null; state = createEmptyState(); saveState(); location.hash = '#today'; render(); }
   }
 
@@ -2756,28 +2781,32 @@
     window.addEventListener('storage', event => {
       if (event.key !== STORAGE_KEY || !event.newValue) return;
       try {
-        const parsed = JSON.parse(event.newValue);
-        const migrated = Core.migrateStateV3(parsed);
-        if (migrated.ok) {
-          state = normalizeState(migrated.state);
-          if (migrated.migrated) saveState();
-          recovery = null;
-          render();
-        }
-      } catch (_) { /* keep current tab data */ }
+        if (Core.migrateStateV3(JSON.parse(event.newValue)).ok) startReady(event.newValue);
+      } catch (_) { /* keep current tab data for malformed external state */ }
     });
     window.addEventListener('pagehide', () => { flushTaskDraft(); flushTextSave(); saveState(); });
     window.addEventListener('resize', closePopover);
     window.addEventListener('focus', checkReminders);
   }
 
+  function startReady(incomingRaw) {
+    if (startupPromise) return incomingRaw === undefined ? startupPromise : startupPromise.then(() => startReady(incomingRaw));
+    startupPromise = (async () => {
+      const loading = loadState(incomingRaw);
+      render();
+      await loading;
+      render();
+      if (!state) return;
+      try { await refreshHabitMetrics(); await evaluateHabitBoundaries(); render(); checkReminders(); } catch (error) { console.error(error); }
+      if (Attachments) await Attachments.cleanupExpired(nowIso()).catch(console.error);
+    })().finally(() => { startupPromise = null; });
+    return startupPromise;
+  }
+
   async function init() {
-    loadState();
     attachEvents();
+    await startReady();
     if (!location.hash) location.hash = '#today';
-    else render();
-    try { await refreshHabitMetrics(); await evaluateHabitBoundaries(); render(); checkReminders(); } catch (error) { console.error(error); }
-    if (Attachments) Attachments.cleanupExpired(nowIso()).catch(console.error);
     setInterval(() => {
       const next = Core.dateOnly();
       if (next !== lastToday) {
@@ -2787,6 +2816,6 @@
     }, 30000);
   }
 
-  window.TodoApp = { init, get state() { return state; }, render, openQuickAdd, openSearch, checkReminders, captureGoalProgress, evaluateGoalProgressChanges, setHabitLog, refreshHabitMetrics, refreshHabitDateBoundary, evaluateHabitBoundaries, snoozeHabit };
+  window.TodoApp = { init, get ready() { return startupPromise || Promise.resolve(); }, get state() { return state; }, render, openQuickAdd, openSearch, checkReminders, captureGoalProgress, evaluateGoalProgressChanges, setHabitLog, refreshHabitMetrics, refreshHabitDateBoundary, evaluateHabitBoundaries, snoozeHabit };
   init();
 })();
