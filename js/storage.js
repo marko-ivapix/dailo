@@ -164,6 +164,49 @@
     return withStore(storeName, 'readwrite', store => requestPromise(store.clear()));
   }
 
+  async function sameAttachmentRecord(actual, expected) {
+    if (!actual || !expected) return actual === expected;
+    const canonical = value => {
+      if (Array.isArray(value)) return value.map(canonical);
+      if (value && typeof value === 'object') return Object.fromEntries(Object.keys(value).sort().map(key => [key, canonical(value[key])]));
+      return value;
+    };
+    const metadata = record => { const copy = { ...record }; delete copy.blob; return JSON.stringify(canonical(copy)); };
+    if (metadata(actual) !== metadata(expected) || actual.blob?.type !== expected.blob?.type || actual.blob?.size !== expected.blob?.size) return false;
+    if (!actual.blob) return true;
+    const a = new Uint8Array(await actual.blob.arrayBuffer()), b = new Uint8Array(await expected.blob.arrayBuffer());
+    return a.length === b.length && a.every((byte, index) => byte === b[index]);
+  }
+
+  // Blob reads yield outside IDB's active request callback. Keep ONE request in
+  // flight until the comparison settles, then issue deletion inside its callback.
+  // The RW transaction locks the record throughout; no outside-read/ID-only race.
+  function mutateMatchingBlob(store, tx, expected, mutate) {
+    return new Promise((resolve, reject) => {
+      const request = store.get(expected.id);
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        let settled = false, matches = false, failure = null;
+        sameAttachmentRecord(request.result, expected).then(value => { matches = value; settled = true; }, error => { failure = error; settled = true; });
+        const keepAlive = () => {
+          try {
+            const next = store.get(expected.id);
+            next.onerror = () => reject(next.error);
+            next.onsuccess = () => {
+              if (!settled) { keepAlive(); return; }
+              try {
+                if (failure) throw failure;
+                if (matches) mutate();
+                resolve(matches ? 1 : 0);
+              } catch (error) { try { tx.abort(); } catch (_) {} reject(error); }
+            };
+          } catch (error) { reject(error); }
+        };
+        keepAlive();
+      };
+    });
+  }
+
   const attachments = {
     async put(record) { return putRecord('attachments', record, ['id', 'taskId'], 'attachment'); },
     async get(id) { return getRecord('attachments', id); },
@@ -177,9 +220,10 @@
     },
     async listByTask(taskId) { return listByIndex('attachments', 'taskId', taskId); },
     async listAll() { return listRecords('attachments'); },
-    async markPending(ids, untilIso) {
+    async markPending(ids, untilIso, token, expectedRecords = null) {
       const records = await this.getMany(ids);
-      for (const record of records) await this.put({ ...record, pendingDeleteUntil: untilIso, updatedAt: new Date().toISOString() });
+      await restoreDeleteRecords({ attachments: records.map(record => ({ ...record, pendingDeleteUntil: untilIso,
+        ...(token ? { pendingDeleteToken: token } : {}), updatedAt: new Date().toISOString() })) }, expectedRecords || records);
       return records.length;
     },
     async restorePending(ids) {
@@ -188,14 +232,27 @@
       return records.length;
     },
     async deleteMany(ids) { return deleteManyRecords('attachments', ids); },
-    async cleanupExpired(nowIso) {
+    async deletePending(records, nowIso) {
+      const due = records.filter(record => new Date(record.pendingDeleteUntil).getTime() <= new Date(nowIso).getTime());
+      if (memoryMode()) {
+        let count = 0;
+        for (const expected of due) {
+          const actual = memoryStores.attachments.get(expected.id);
+          if (await sameAttachmentRecord(actual, expected) && memoryStores.attachments.get(expected.id) === actual) { memoryStores.attachments.delete(expected.id); count++; }
+        }
+        return count;
+      }
+      // One bounded record/transaction at a time, using existing attachment limits.
+      let count = 0;
+      for (const expected of due) count += await withStore('attachments', 'readwrite', (store, tx) => mutateMatchingBlob(store, tx, expected, () => store.delete(expected.id)));
+      return count;
+    },
+    async cleanupExpired(nowIso, protectedIds = []) {
       const now = new Date(nowIso).getTime();
       if (!Number.isFinite(now)) return 0;
-      const expiredIds = (await this.listAll())
-        .filter(record => record.pendingDeleteUntil && new Date(record.pendingDeleteUntil).getTime() <= now)
-        .map(record => record.id);
-      if (expiredIds.length) await this.deleteMany(expiredIds);
-      return expiredIds.length;
+      const expired = (await this.listAll())
+        .filter(record => !protectedIds.includes(record.id) && record.pendingDeleteUntil && new Date(record.pendingDeleteUntil).getTime() <= now);
+      return this.deletePending(expired, nowIso);
     },
     async clearAll() { return clearStore('attachments'); },
     async replaceAll(records) {
@@ -242,6 +299,38 @@
     async deleteMany(ids) { return deleteManyRecords('recoverySnapshots', ids); },
     async clearAll() { return clearStore('recoverySnapshots'); }
   };
+
+  // Atomically restore only captured user records, never clear a growing store.
+  async function restoreDeleteRecords(snapshot, expectedAttachments = null) {
+    const names = ['attachments', 'habitLogs', 'goalHistory'].filter(name => snapshot[name]?.length);
+    if (!names.length) return;
+    if (memoryMode()) {
+      if (expectedAttachments) {
+        const guards = [];
+        for (const expected of expectedAttachments) {
+          const actual = memoryStores.attachments.get(expected.id);
+          if (!(await sameAttachmentRecord(actual, expected))) throw new Error('Retained attachment ownership changed.');
+          guards.push([expected.id, actual]);
+        }
+        if (guards.some(([id, record]) => memoryStores.attachments.get(id) !== record)) throw new Error('Retained attachment ownership changed.');
+      }
+      for (const name of names) for (const record of snapshot[name]) memoryStores[name].set(record.id, clone(record));
+      return;
+    }
+    const db = await open(), tx = db.transaction(names, 'readwrite'), done = transactionDone(tx);
+    done.catch(() => {});
+    try {
+      for (const name of names) for (const record of snapshot[name]) {
+        const store = tx.objectStore(name);
+        if (name === 'attachments' && expectedAttachments) {
+          const expected = expectedAttachments.find(item => item.id === record.id);
+          if (!expected || !(await mutateMatchingBlob(store, tx, expected, () => store.put(record)))) throw new Error('Retained attachment ownership changed.');
+        } else store.put(record);
+      }
+    }
+    catch (error) { try { tx.abort(); } catch (_) {} await done.catch(() => {}); throw error; }
+    await done;
+  }
 
   function openLegacyAttachmentDb() {
     return new Promise((resolve, reject) => {
@@ -344,6 +433,8 @@
     habitLogs,
     goalHistory,
     recoverySnapshots,
+    restoreDeleteRecords,
+    sameAttachmentRecord,
     migrateLegacyAttachments,
     prepareMigration,
     finishMigration,

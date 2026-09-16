@@ -168,11 +168,11 @@ Full plan: `docs/superpowers/plans/2026-09-16-todo-v1-3.md`
 
 ## Phase 11 — Universal deletion
 
-- [ ] Route all deletions through shared confirmation behavior.
-- [ ] Route all deletions through shared Undo snapshot behavior.
-- [ ] Verify Task/Subtask/Project/Tag/Area/Goal/Habit/Milestone/Attachment/Template/SavedView.
-- [ ] Verify attachment Blob retention during Undo window.
-- [ ] Verify complete relation/history restoration.
+- [x] Route all deletions through shared confirmation behavior.
+- [x] Route all deletions through shared Undo snapshot behavior.
+- [x] Verify Task/Subtask/Project/Tag/Area/Goal/Habit/Milestone/Attachment/Template/SavedView.
+- [x] Verify attachment Blob retention during Undo window.
+- [x] Verify complete relation/history restoration.
 
 ## Phase 12 — Backup/recovery V1.3
 

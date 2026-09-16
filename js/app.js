@@ -27,7 +27,11 @@
   let modalState = null;
   let popoverEl = null;
   let undoState = null;
-  let undoTimer = null;
+  const undoWork = new Set();
+  const deleteOperations = new Set();
+  const failedDeleteSnapshots = new Set();
+  let undoGeneration = 0;
+  let undoHold = null;
   let toastMessage = null;
   let toastMessageTimer = null;
   let textSaveTimer = null;
@@ -1252,9 +1256,7 @@
     saveState();closeModal();render();
   }
   function deleteSavedView(id) {
-    const index=state.savedViews.findIndex(v=>v.id===id);if(index<0)return;
-    const snapshot=copyTemplate(state.savedViews[index]);
-    openConfirm({title:`Delete “${snapshot.name}”?`,message:'Matching items will remain.',confirmLabel:'Delete view',onConfirm:()=>{state.savedViews=state.savedViews.filter(v=>v.id!==id);saveState();closeModal();render();setUndo('Saved view deleted',()=>{if(!state.savedViews.some(v=>v.id===id))state.savedViews.splice(Math.min(index,state.savedViews.length),0,snapshot);saveAndRender();});}});
+    requestDeleteEntity('saved-view', id);
   }
   function saveShortcut(command) {
     const raw=$(`[data-shortcut="${command}"]`).value,value=Core.normalizeShortcut(raw);
@@ -1362,8 +1364,7 @@
     return null;
   }
   function deleteTemplate(id) {
-    const index=state.templates.findIndex(t=>t.id===id),snapshot=copyTemplate(state.templates[index]);
-    openConfirm({title:`Delete “${snapshot.name}”?`,message:'Items created from this template will remain.',confirmLabel:'Delete template',onConfirm:()=>{state.templates.splice(index,1);saveState();closeModal();render();setUndo('Template deleted',()=>{if(!state.templates.some(t=>t.id===id))state.templates.splice(Math.min(index,state.templates.length),0,snapshot);saveAndRender();});}});
+    requestDeleteEntity('template', id);
   }
   function editTemplateRow(button,remove=false) {
     readTemplateDraft();const editor=modalState;const {parent,last}=templatePath(editor.draft.data,button.dataset.path,true);parent[last] ||= [];
@@ -1581,13 +1582,7 @@
   }
 
   async function deleteAttachment(attachmentId) {
-    const task = state.tasks.find(t => (t.attachmentIds || []).includes(attachmentId)); if (!task) return;
-    const index = task.attachmentIds.indexOf(attachmentId);
-    task.attachmentIds.splice(index, 1); task.updatedAt = nowIso();
-    const until = new Date(Date.now() + 6500).toISOString();
-    try { await Attachments.markPending([attachmentId], until); } catch (error) { console.error(error); task.attachmentIds.splice(index, 0, attachmentId); return; }
-    saveState(); closePopover(); await loadTaskAttachments(task.id); render();
-    setUndo('Attachment deleted', async () => { const t=getTask(task.id); if(!t)return; await Attachments.restorePending([attachmentId]); t.attachmentIds.splice(Math.min(index,t.attachmentIds.length),0,attachmentId); t.updatedAt=nowIso(); saveState(); render(); if(modalState?.taskId===task.id) await loadTaskAttachments(task.id); }, () => Attachments.deleteMany([attachmentId]));
+    requestDeleteEntity('attachment', attachmentId);
   }
 
   function subtaskRow(task, subtask) {
@@ -2200,34 +2195,426 @@
   }
 
   async function deleteTask(taskId) {
-    const index = state.tasks.findIndex(t => t.id === taskId); if (index < 0) return;
-    const [removed] = state.tasks.splice(index, 1);
-    const attachmentIds = [...(removed.attachmentIds || [])];
-    const until = new Date(Date.now() + 6500).toISOString();
-    if (attachmentIds.length) { try { await Attachments.markPending(attachmentIds, until); } catch (error) { state.tasks.splice(index,0,removed); return; } }
-    closeModal(); saveState(); render();
-    setUndo('Task deleted', async () => { state.tasks.splice(Math.min(index, state.tasks.length), 0, removed); if (attachmentIds.length) await Attachments.restorePending(attachmentIds); saveState(); render(); }, attachmentIds.length ? () => Attachments.deleteMany(attachmentIds) : null);
+    requestDeleteEntity('task', taskId);
   }
 
-  function setUndo(message, undoFn, finalizer = null) {
-    if (undoTimer) clearTimeout(undoTimer);
-    if (undoState?.finalizer) Promise.resolve(undoState.finalizer()).catch(console.error);
-    undoState = { message, undoFn, finalizer };
-    renderToast();
-    undoTimer = setTimeout(() => { const final = undoState?.finalizer; undoState = null; renderToast(); if (final) Promise.resolve(final()).catch(console.error); }, 6500);
+  const DELETE_COLLECTIONS = { task: 'tasks', project: 'projects', tag: 'tags', area: 'areas',
+    goal: 'goals', habit: 'habits', template: 'templates', 'saved-view': 'savedViews' };
+
+  function locateDeleteEntity(type, identity) {
+    const id = typeof identity === 'object' && identity ? identity.id : identity;
+    if (type === 'clear-completed') return { entity: state, array: state.tasks };
+    if (type === 'attachment') {
+      const owners = state.tasks.filter(task => (task.attachmentIds || []).includes(id));
+      return owners.length === 1 ? { entity: owners[0], parent: owners[0], array: owners[0].attachmentIds, id } : null;
+    }
+    const collection = type === 'subtask' ? 'tasks' : type === 'milestone' ? 'goals' : DELETE_COLLECTIONS[type];
+    const parent = identity?.parentId ? state[collection]?.find(item => item.id === identity.parentId) : null;
+    const field = type === 'subtask' ? 'subtasks' : type === 'milestone' ? 'milestones' : null;
+    const array = field ? parent?.[field] : state[collection];
+    const entity = array?.find(item => item.id === id);
+    return entity ? { entity, parent, array, collection, field, id } : null;
+  }
+
+  function requestDeleteEntity(type, identity) {
+    if (!state || undoHold) return;
+    flushTextSave();
+    const source = state, located = locateDeleteEntity(type, identity);
+    if (!located) { setToastMessage('Delete unavailable. Reopen the current item and try again.'); return; }
+    if (type === 'clear-completed' && !state.tasks.some(task => task.isCompleted)) { setToastMessage('No completed tasks to clear'); return; }
+    const label = type === 'saved-view' ? 'Saved view' : type === 'clear-completed' ? 'Completed tasks' : templateLabel(type);
+    const messages = {
+      task: 'This task, its subtasks and attachment references will be removed.',
+      subtask: 'This subtask will be removed from its task.',
+      project: `This project contains ${state.tasks.filter(task => task.projectId === identity).length} tasks. All tasks in this project, their subtasks and attachments will also be deleted.`,
+      tag: 'Tasks will remain. Their assignments to this tag will be removed.',
+      area: 'Linked objects will remain. Their Area assignments will be removed.',
+      goal: 'Projects, tasks and habits will remain. Their Goal links, milestones and Goal history will be removed.',
+      habit: 'Its check-ins, history and reminders will be removed. Goals will remain.',
+      milestone: 'This milestone will be removed from its Goal.',
+      attachment: 'This attachment will be removed from its task.',
+      template: 'Items created from this template will remain.',
+      'saved-view': 'Matching items will remain.',
+      'clear-completed': `${state.tasks.filter(task => task.isCompleted).length} completed tasks and their attachments will be removed. Undo restores them.`
+    };
+    let dialog;
+    openConfirm({ title: type === 'clear-completed' ? 'Delete all completed tasks?' : `Delete “${type === 'attachment' ? 'attachment' : located.entity.name || located.entity.title}”?`,
+      message: messages[type], confirmLabel: type === 'clear-completed' ? 'Delete completed' : `Delete ${label.toLowerCase()}`,
+      onConfirm: () => {
+        if (dialog.busy) return;
+        dialog.busy = true;
+        const operation = (async () => {
+          try {
+            const current = locateDeleteEntity(type, identity);
+            if (undoHold || source !== state || modalState !== dialog || !current || current.entity !== located.entity || current.parent !== located.parent)
+              throw new Error('The item or its owner changed. Reopen the current item.');
+            const snapshot = await buildDeleteSnapshot(type, identity);
+            if (modalState !== dialog) throw new Error('Delete cancelled.');
+            await applyDeleteSnapshot(snapshot);
+            closeModal(); render();
+            const fallback = { project: 'today', area: 'areas', goal: 'goals', habit: 'habits', 'saved-view': 'saved-views' }[type];
+            if (fallback && currentRoute().id === (typeof identity === 'object' ? identity.id : identity)) navigate(fallback);
+            setUndo(`${label} deleted`, () => restoreDeleteSnapshot(snapshot), () => finalizeDeleteSnapshot(snapshot), snapshot);
+          } catch (error) {
+            if (modalState === dialog) closeModal();
+            render(); setToastMessage(`Delete failed. ${error.message}`);
+          }
+        })();
+        deleteOperations.add(operation);
+        operation.finally(() => deleteOperations.delete(operation));
+      } });
+    dialog = modalState;
+  }
+
+  function deleteEntryArray(entry) {
+    return entry.field ? state[entry.collection].find(item => item === entry.parent)?.[entry.field] : state[entry.collection];
+  }
+
+  async function buildDeleteSnapshot(type, identity) {
+    const located = locateDeleteEntity(type, identity);
+    if (!located) throw new Error('The item no longer exists.');
+    const snapshot = { type, identity, source: state, generation: undoGeneration, token: uid('delete'),
+      deadline: Date.now() + 6500, eligibilityDeadline: performance.now() + 6500, entries: [], effects: [], attachments: [], pendingAttachments: [], habitLogs: [], goalHistory: [], applied: false, restored: false, finalized: false };
+    const capture = (collection, entity, parent = null, field = null) => {
+      const array = field ? parent[field] : state[collection];
+      snapshot.entries.push({ collection, parent, field, source: entity, entity: copyTemplate(entity), index: array.indexOf(entity) });
+    };
+    if (type === 'subtask' || type === 'milestone') capture(located.collection, located.entity, located.parent, located.field);
+    else if (type === 'clear-completed') state.tasks.filter(task => task.isCompleted).forEach(task => capture('tasks', task));
+    else if (type !== 'attachment') {
+      capture(located.collection, located.entity);
+      if (type === 'project') state.tasks.filter(task => task.projectId === identity).forEach(task => capture('tasks', task));
+    }
+    const removedTasks = new Set(snapshot.entries.filter(entry => entry.collection === 'tasks' && !entry.field).map(entry => entry.entity.id));
+    const arrayEffect = (collection, owner, field, predicate, link = null) => {
+      const target = link || owner, before = target[field] || [], removed = before.filter(predicate);
+      if (removed.length) snapshot.effects.push({ collection, owner, field, link, before: copyTemplate(before), removed: copyTemplate(removed) });
+    };
+    for (const goal of state.goals) {
+      if (removedTasks.size) {
+        arrayEffect('goals', goal, 'taskIds', id => removedTasks.has(id));
+        for (const link of goal.projectLinks || []) if (!(type === 'project' && link.projectId === identity))
+          arrayEffect('goals', goal, 'selectedTaskIds', id => removedTasks.has(id), link);
+      }
+      if (type === 'project') arrayEffect('goals', goal, 'projectLinks', link => link.projectId === identity);
+      if (type === 'habit') arrayEffect('goals', goal, 'habitLinks', link => link.habitId === identity);
+    }
+    if (type === 'tag') for (const task of state.tasks) arrayEffect('tasks', task, 'tagIds', id => id === identity);
+    if (type === 'goal') for (const collection of ['tasks', 'projects', 'habits'])
+      for (const owner of state[collection]) arrayEffect(collection, owner, 'goalIds', id => id === identity);
+    if (type === 'area') for (const collection of ['tasks', 'projects', 'goals', 'habits'])
+      for (const owner of state[collection]) if (owner.areaId === identity)
+        snapshot.effects.push({ collection, owner, field: 'areaId', scalar: true, before: owner.areaId, after: null });
+    if (type === 'attachment') {
+      snapshot.attachmentOwner = located.parent;
+      arrayEffect('tasks', located.parent, 'attachmentIds', id => id === identity);
+    }
+    const attachmentIds = type === 'attachment' ? [identity] : snapshot.entries.filter(entry => removedTasks.has(entry.entity.id)).flatMap(entry => entry.entity.attachmentIds || []);
+    snapshot.attachments = await Attachments.getMany(attachmentIds);
+    for (const id of attachmentIds) {
+      const record = snapshot.attachments.find(record => record.id === id), owner = state.tasks.find(task => (task.attachmentIds || []).includes(id));
+      if (!record || !owner || record.taskId !== owner.id || record.pendingDeleteUntil) throw new Error('Attachment owner or stored file changed.');
+    }
+    if (type === 'habit') snapshot.habitLogs = await TodoStorage.habitLogs.listByHabit(identity);
+    if (type === 'goal') snapshot.goalHistory = await TodoStorage.goalHistory.listByGoal(identity);
+    snapshot.selectedTagId = state.ui.selectedTagId;
+    validateDeleteSnapshot(snapshot);
+    return snapshot;
+  }
+
+  function validateDeleteSnapshot(snapshot, compareBefore = true) {
+    if (undoHold || snapshot.source !== state || snapshot.generation !== undoGeneration) throw new Error('The data source changed. Reopen the item.');
+    if (compareBefore && ['project','clear-completed'].includes(snapshot.type)) {
+      const current = state.tasks.filter(task => snapshot.type === 'project' ? task.projectId === snapshot.identity : task.isCompleted);
+      const captured = snapshot.entries.filter(entry => entry.collection === 'tasks' && !entry.field);
+      if (current.length !== captured.length || current.some(task => !captured.some(entry => entry.source === task))) throw new Error('The task deletion scope changed. Reopen confirmation.');
+    }
+    for (const entry of snapshot.entries) if (!deleteEntryArray(entry)?.includes(entry.source)
+      || (compareBefore && JSON.stringify(entry.source) !== JSON.stringify(entry.entity))) throw new Error('The item or parent changed.');
+    for (const effect of snapshot.effects) if (!state[effect.collection].includes(effect.owner)
+      || (effect.link && !(effect.owner.projectLinks || []).includes(effect.link))) throw new Error('A linked owner changed.');
+    if (compareBefore) for (const effect of snapshot.effects)
+      if (JSON.stringify((effect.link || effect.owner)[effect.field] || (effect.scalar ? null : [])) !== JSON.stringify(effect.before)) throw new Error('A linked assignment changed.');
+    if (snapshot.attachmentOwner && !state.tasks.includes(snapshot.attachmentOwner)) throw new Error('Attachment owner changed.');
+  }
+
+  function inverseArray(current, before, removed) {
+    const key = value => typeof value === 'object' ? value.id || value.projectId || value.habitId : value;
+    const result = [...current];
+    for (const value of removed) {
+      if (result.some(item => key(item) === key(value))) continue;
+      const index = before.findIndex(item => key(item) === key(value));
+      const next = before.slice(index + 1).find(item => result.some(actual => key(actual) === key(item)));
+      const previous = [...before.slice(0, index)].reverse().find(item => result.some(actual => key(actual) === key(item)));
+      const position = next ? result.findIndex(item => key(item) === key(next)) : previous ? result.findIndex(item => key(item) === key(previous)) + 1 : Math.min(index, result.length);
+      result.splice(position, 0, typeof value === 'object' ? copyTemplate(value) : value);
+    }
+    return result;
+  }
+
+  function mutateDeleteMetadata(snapshot, restore) {
+    const rollback = [];
+    for (const entry of snapshot.entries) {
+      const array = deleteEntryArray(entry);
+      if (!array) throw new Error('The parent changed.');
+      rollback.push(() => array.splice(0, array.length, ...entry.previous));
+      entry.previous = [...array];
+      if (restore) array.splice(Math.min(entry.index, array.length), 0, copyTemplate(entry.entity));
+      else array.splice(array.indexOf(entry.source), 1);
+    }
+    for (const effect of snapshot.effects) {
+      if (!state[effect.collection].includes(effect.owner) || (effect.link && !effect.owner.projectLinks?.includes(effect.link))) continue;
+      const target = effect.link || effect.owner, current = target[effect.field];
+      rollback.push(() => { target[effect.field] = current; });
+      if (effect.scalar) { if (!restore || current === effect.after) target[effect.field] = restore ? effect.before : effect.after; }
+      else target[effect.field] = restore ? inverseArray(current || [], effect.before, effect.removed)
+        : (current || []).filter(value => !effect.removed.some(removed => JSON.stringify(removed) === JSON.stringify(value)));
+    }
+    const selection = state.ui.selectedTagId;
+    rollback.push(() => { state.ui.selectedTagId = selection; });
+    if (snapshot.type === 'tag') {
+      if (!restore && selection === snapshot.identity) { snapshot.afterSelectedTagId = state.tags[0]?.id || ''; state.ui.selectedTagId = snapshot.afterSelectedTagId; }
+      if (restore && selection === snapshot.afterSelectedTagId) state.ui.selectedTagId = snapshot.selectedTagId;
+    }
+    return () => rollback.reverse().forEach(fn => fn());
+  }
+
+  async function applyDeleteSnapshot(snapshot) {
+    validateDeleteSnapshot(snapshot);
+    let rollback;
+    try {
+      if (snapshot.attachments.length) await Attachments.markPending(snapshot.attachments.map(record => record.id), new Date(snapshot.deadline).toISOString(), snapshot.token, snapshot.attachments);
+      if (snapshot.habitLogs.length) await TodoStorage.habitLogs.deleteMany(snapshot.habitLogs.map(record => record.id));
+      if (snapshot.goalHistory.length) await TodoStorage.goalHistory.deleteMany(snapshot.goalHistory.map(record => record.id));
+      snapshot.pendingAttachments = await Attachments.getMany(snapshot.attachments.map(record => record.id));
+      if (snapshot.pendingAttachments.length !== snapshot.attachments.length) throw new Error('Prepared files are missing.');
+      for (const original of snapshot.attachments) {
+        const actual = snapshot.pendingAttachments.find(record => record.id === original.id);
+        const normalized = { ...actual, pendingDeleteUntil: original.pendingDeleteUntil, updatedAt: original.updatedAt };
+        if (Object.hasOwn(original, 'pendingDeleteToken')) normalized.pendingDeleteToken = original.pendingDeleteToken; else delete normalized.pendingDeleteToken;
+        if (actual.pendingDeleteToken !== snapshot.token || actual.pendingDeleteUntil !== new Date(snapshot.deadline).toISOString()
+          || !(await sameStoredAttachment(normalized, original))) throw new Error('Prepared file ownership or bytes changed.');
+      }
+      validateDeleteSnapshot(snapshot);
+      rollback = mutateDeleteMetadata(snapshot, false);
+      if (!saveState()) throw new Error('Local metadata could not be saved.');
+      snapshot.applied = true;
+      if (snapshot.type === 'habit') {
+        delete state.habitLogCache?.[snapshot.identity]; delete state.habitMetrics?.[snapshot.identity];
+      }
+    } catch (error) {
+      rollback?.();
+      try {
+        const owned = { ...snapshot, attachments: [] }, expected = [];
+        for (const original of snapshot.attachments) {
+          const actual = await Attachments.get(original.id);
+          if (await sameStoredAttachment(actual, original)) continue;
+          if (actual?.pendingDeleteToken !== snapshot.token || actual.pendingDeleteUntil !== new Date(snapshot.deadline).toISOString()) continue;
+          const normalized = { ...actual, pendingDeleteUntil: original.pendingDeleteUntil, updatedAt: original.updatedAt };
+          if (Object.hasOwn(original, 'pendingDeleteToken')) normalized.pendingDeleteToken = original.pendingDeleteToken; else delete normalized.pendingDeleteToken;
+          if (!(await sameStoredAttachment(normalized, original))) continue;
+          owned.attachments.push(original); expected.push(actual);
+        }
+        await TodoStorage.restoreDeleteRecords(owned, expected);
+      }
+      catch (rollbackError) {
+        snapshot.recoveryError = `${error.message} Recovery failed: ${rollbackError.message}`;
+        failedDeleteSnapshots.add(snapshot);
+        throw new Error(`${snapshot.recoveryError}. Full snapshot retained; retry recovery when storage is available.`);
+      }
+      throw error;
+    }
+  }
+
+  async function retryFailedDeleteRecovery() {
+    if (undoHold) return;
+    const snapshot = [...failedDeleteSnapshots][0];
+    if (!snapshot || snapshot.recoveryBusy) return;
+    snapshot.recoveryBusy = true;
+    const operation = (async () => {
+      try {
+        validateDeleteSnapshot(snapshot, false);
+        const expected = [];
+        for (const original of snapshot.attachments) {
+          const actual = await Attachments.get(original.id);
+          const owner = getTask(original.taskId);
+          const normalized = actual && { ...actual, pendingDeleteUntil: original.pendingDeleteUntil, updatedAt: original.updatedAt };
+          if (normalized) { if (Object.hasOwn(original, 'pendingDeleteToken')) normalized.pendingDeleteToken = original.pendingDeleteToken; else delete normalized.pendingDeleteToken; }
+          if (!owner || !(owner.attachmentIds || []).includes(original.id) || !actual
+            || (actual.pendingDeleteUntil && (actual.pendingDeleteToken !== snapshot.token || actual.pendingDeleteUntil !== new Date(snapshot.deadline).toISOString()))
+            || !(await sameStoredAttachment(normalized, original))) throw new Error('Retained file ownership changed; recovery was not applied.');
+          expected.push(actual);
+        }
+        for (const name of ['habitLogs','goalHistory']) for (const original of snapshot[name]) {
+          const actual = await TodoStorage[name].get(original.id);
+          if (actual && JSON.stringify(actual) !== JSON.stringify(original)) throw new Error('Retained history ownership changed; recovery was not applied.');
+        }
+        validateDeleteSnapshot(snapshot, false);
+        await TodoStorage.restoreDeleteRecords(snapshot, expected);
+        for (const original of snapshot.attachments) if (!(await sameStoredAttachment(await Attachments.get(original.id), original))) throw new Error('Restored file verification failed; snapshot retained.');
+        for (const name of ['habitLogs','goalHistory']) for (const original of snapshot[name])
+          if (JSON.stringify(await TodoStorage[name].get(original.id)) !== JSON.stringify(original)) throw new Error('Restored history verification failed; snapshot retained.');
+        failedDeleteSnapshots.delete(snapshot);
+        if (snapshot.type === 'habit') await refreshHabitMetrics();
+        renderToast(); render(); setToastMessage('Delete recovery verified. Original files and history restored.');
+      } catch (error) { setToastMessage(`Recovery failed. ${error.message}`); }
+      finally { snapshot.recoveryBusy = false; }
+    })();
+    deleteOperations.add(operation);
+    operation.finally(() => deleteOperations.delete(operation));
+    await operation;
+  }
+
+  async function sameStoredAttachment(actual, expected) {
+    return Attachments.sameRecord(actual, expected);
+  }
+
+  async function restoreDeleteSnapshot(snapshot) {
+    if (snapshot.restored) return;
+    if (snapshot.source !== state || snapshot.generation !== undoGeneration) throw new Error('The data source changed.');
+    for (const entry of snapshot.entries) {
+      const array = deleteEntryArray(entry);
+      if (!array || array.some(item => item.id === entry.entity.id)) throw new Error('The item ID or parent is now in use.');
+    }
+    for (const expected of snapshot.pendingAttachments)
+      if (!(await sameStoredAttachment(await Attachments.get(expected.id), expected))) throw new Error('The retained file owner or bytes changed.');
+    if (snapshot.attachmentOwner && !state.tasks.includes(snapshot.attachmentOwner)) throw new Error('Attachment owner changed.');
+    await TodoStorage.restoreDeleteRecords(snapshot, snapshot.pendingAttachments);
+    const rollback = mutateDeleteMetadata(snapshot, true);
+    if (!saveState()) { rollback(); await reapplyDeleteRecords(snapshot); throw new Error('Local metadata could not be saved.'); }
+    snapshot.restored = true;
+    if (snapshot.type === 'habit') await refreshHabitMetrics();
+    render();
+    if (modalState?.type === 'task') await loadTaskAttachments(modalState.taskId);
+  }
+
+  async function reapplyDeleteRecords(snapshot) {
+    await TodoStorage.restoreDeleteRecords({ attachments: snapshot.pendingAttachments });
+    if (snapshot.habitLogs.length) await TodoStorage.habitLogs.deleteMany(snapshot.habitLogs.map(record => record.id));
+    if (snapshot.goalHistory.length) await TodoStorage.goalHistory.deleteMany(snapshot.goalHistory.map(record => record.id));
+  }
+
+  async function finalizeDeleteSnapshot(snapshot) {
+    if (snapshot.restored || snapshot.finalized || undoHold || snapshot.source !== state || snapshot.generation !== undoGeneration) return true;
+    if (performance.now() < snapshot.eligibilityDeadline || (snapshot.attachments.length && Date.now() < snapshot.deadline)) return false;
+    for (const expected of snapshot.pendingAttachments)
+      if (!(await sameStoredAttachment(await Attachments.get(expected.id), expected))) continue;
+      else await Attachments.deletePending([expected], nowIso());
+    snapshot.finalized = true;
+    return true;
+  }
+
+  function undoDomain() {
+    return JSON.stringify(Object.fromEntries(['tasks','projects','tags','areas','goals','habits','templates','savedViews'].map(name => [name, state?.[name]])));
+  }
+
+  const deleteLifecycle = {
+    // Hold takes effect synchronously; callers MUST await its token before capture/export.
+    async hold() {
+      if (undoHold) throw new Error('Normal Undo is already held.');
+      if (failedDeleteSnapshots.size) throw new Error('Retry delete recovery before starting a global operation.');
+      const token = { generation: undoGeneration, visible: undoState, source: state };
+      undoHold = token; undoState = null;
+      for (const work of undoWork) clearTimeout(work.timer);
+      renderToast();
+      try {
+        await Promise.all([...deleteOperations, ...[...undoWork].map(work => work.busy).filter(Boolean)]);
+        if (failedDeleteSnapshots.size) throw new Error('Retry delete recovery before starting a global operation.');
+        token.domain = undoDomain(); token.attachments = [];
+        for (const work of undoWork) for (const record of work.snapshot?.pendingAttachments || [])
+          token.attachments.push(await Attachments.get(record.id));
+        return token;
+      } catch (error) {
+        // No token escaped and no global mutation was authorized: restore the
+        // same-source eligibility, never trap the user's only recovery closure.
+        if (undoHold === token) {
+          undoHold = null;
+          undoState = token.source === state && undoWork.has(token.visible) && performance.now() < token.visible.deadline ? token.visible : null;
+          for (const work of undoWork) armUndo(work);
+          renderToast(); setToastMessage('Safety preparation failed. Normal Undo and retained files were kept.');
+        }
+        throw error;
+      }
+    },
+    // Resume is ONLY for explicitly verified rollback/cancel, never automatic hydration.
+    async resume(token) {
+      if (undoHold !== token || token.generation !== undoGeneration) throw new Error('Invalid Undo hold token.');
+      if (undoDomain() !== token.domain) throw new Error('The restored metadata does not match the held domain.');
+      for (const expected of token.attachments) if (expected && !(await sameStoredAttachment(await Attachments.get(expected.id), expected)))
+        throw new Error('The restored files do not match held ownership and bytes.');
+      for (const work of undoWork) if (work.snapshot) {
+        const snapshot = work.snapshot;
+        snapshot.source = state;
+        for (const entry of snapshot.entries) if (entry.parent) entry.parent = state[entry.collection].find(item => item.id === entry.parent.id);
+        for (const effect of snapshot.effects) {
+          effect.owner = state[effect.collection].find(item => item.id === effect.owner.id);
+          if (effect.link) effect.link = effect.owner?.projectLinks?.find(link => link.projectId === effect.link.projectId);
+        }
+        if (snapshot.attachmentOwner) snapshot.attachmentOwner = getTask(snapshot.attachmentOwner.id);
+      }
+      undoHold = null;
+      undoState = token.visible && undoWork.has(token.visible) && performance.now() < token.visible.deadline ? token.visible : null;
+      renderToast();
+      for (const work of [...undoWork]) { if (performance.now() >= work.deadline) await expireUndo(work); else armUndo(work); }
+    },
+    retire(token) {
+      if (undoHold !== token || token.generation !== undoGeneration) throw new Error('Invalid Undo hold token.');
+      undoGeneration++;
+      for (const work of undoWork) clearTimeout(work.timer);
+      undoWork.clear(); failedDeleteSnapshots.clear(); undoState = null; undoHold = null; renderToast();
+    }
+  };
+
+  function armUndo(work) {
+    clearTimeout(work.timer);
+    if (undoHold || work.generation !== undoGeneration) return;
+    work.timer = setTimeout(() => expireUndo(work), Math.max(0, work.deadline - performance.now()));
+  }
+
+  async function expireUndo(work) {
+    if (undoHold || work.generation !== undoGeneration || work.busy) return;
+    if (performance.now() < work.deadline) { armUndo(work); return; }
+    if (undoState === work) { undoState = null; renderToast(); }
+    work.busy = Promise.resolve().then(() => work.finalizer?.());
+    try {
+      const finished = await work.busy;
+      if (finished === false) work.timer = setTimeout(() => expireUndo(work), Math.max(1, work.snapshot.deadline - Date.now()));
+      else undoWork.delete(work);
+    }
+    catch (_) { setToastMessage('File cleanup failed. Retained files will be retried.'); work.timer = setTimeout(() => expireUndo(work), 30000); }
+    finally { work.busy = null; }
+  }
+
+  function setUndo(message, undoFn, finalizer = null, snapshot = null) {
+    if (undoHold) return; // Global replacement has exclusive normal-Undo ownership.
+    if (snapshot) snapshot.eligibilityDeadline = performance.now() + 6500;
+    const work = { message, undoFn, finalizer, snapshot, generation: undoGeneration,
+      deadline: snapshot?.eligibilityDeadline || performance.now() + 6500, timer: null, busy: null };
+    if (undoState && !undoState.finalizer && !undoState.busy) { clearTimeout(undoState.timer); undoWork.delete(undoState); }
+    undoWork.add(work); undoState = work; armUndo(work); renderToast();
   }
 
   function renderToast() {
     const root = $('#toast-root');
     const undo = undoState ? `<div class="toast"><i class="ph-fill ph-check-circle toast-icon"></i><span class="toast-message">${esc(undoState.message)}</span><button class="toast-action" type="button" data-action="undo">Undo</button></div>` : '';
     const info = toastMessage ? `<div class="toast"><i class="ph ph-info toast-icon" style="color:var(--info)"></i><span class="toast-message">${esc(toastMessage)}</span></div>` : '';
-    root.innerHTML = undo + info;
+    const failed = [...failedDeleteSnapshots][0];
+    const recoveryNotice = failed && !undoHold ? `<div class="toast" role="alert"><i class="ph ph-warning toast-icon"></i><span class="toast-message">${esc(failed.recoveryError)} · Snapshot retained</span><button class="toast-action" type="button" data-action="retry-delete-recovery">Retry recovery</button></div>` : '';
+    root.innerHTML = undo + info + recoveryNotice;
   }
 
-  function doUndo() {
-    if (!undoState) return;
-    const fn = undoState.undoFn;
-    undoState = null; clearTimeout(undoTimer); undoTimer = null; renderToast(); fn();
+  async function doUndo() {
+    const work = undoState;
+    if (!work || work.busy || undoHold || work.generation !== undoGeneration) return;
+    if (performance.now() >= work.deadline) { expireUndo(work); return; }
+    clearTimeout(work.timer);
+    work.busy = Promise.resolve().then(() => work.undoFn());
+    try {
+      await work.busy;
+      if (undoState === work) undoState = null;
+      undoWork.delete(work); renderToast();
+    } catch (_) { setToastMessage('Undo failed. Your recovery snapshot is retained; retry Undo.'); }
+    finally { work.busy = null; if (undoWork.has(work)) armUndo(work); }
   }
 
   function addAllSuggestions() {
@@ -2277,17 +2664,7 @@
   }
 
   function deleteTag(tagId) {
-    const tag = getTag(tagId); if (!tag) return;
-    const used = state.tasks.filter(task => Array.isArray(task.tagIds) && task.tagIds.includes(tagId)).length;
-    const perform = () => {
-      state.tags = state.tags.filter(t => t.id !== tagId);
-      state.tasks.forEach(task => { task.tagIds = (task.tagIds || []).filter(id => id !== tagId); });
-      if (state.ui.selectedTagId === tagId) state.ui.selectedTagId = state.tags[0]?.id || '';
-      saveState(); closeModal(); render();
-    };
-    closePopover();
-    if (used) openConfirm({ title: `Delete “${tag.name}”?`, message: `This tag is used by ${used} ${used === 1 ? 'task' : 'tasks'}. Tasks will not be deleted.`, confirmLabel: 'Delete tag', onConfirm: perform });
-    else perform();
+    requestDeleteEntity('tag', tagId);
   }
 
   function saveProjectModal() {
@@ -2431,7 +2808,12 @@
     const previous = { status: goal.status, completedAt: goal.completedAt };
     goal.status = status; goal.completedAt = status === 'completed' ? nowIso() : null; goal.updatedAt = nowIso();
     putGoalHistory(goal.id, 'statusChanged', { from: previous.status, to: status }); saveState(); closeModal(); render();
-    setUndo(`Goal ${status === 'completed' ? 'completed' : status === 'paused' ? 'paused' : 'restored'}`, () => { const current = getGoal(goalId); if (!current) return; Object.assign(current, previous, { updatedAt: nowIso() }); putGoalHistory(goalId, 'statusChanged', { from: status, to: previous.status }); saveState(); render(); });
+    setUndo(`Goal ${status === 'completed' ? 'completed' : status === 'paused' ? 'paused' : 'restored'}`, () => {
+      const current = getGoal(goalId); if (!current) return;
+      Object.assign(current, previous, { updatedAt: nowIso() });
+      const history = TodoStorage.goalHistory.put({ id: uid('goal-history'), goalId, type: 'statusChanged', data: { from: status, to: previous.status }, createdAt: nowIso() });
+      saveState(); render(); return history;
+    });
   }
 
   function saveGoalProgress(goalId) {
@@ -2551,13 +2933,11 @@
       habit.pauseStartedAt = null;
     }
     habit.status = status; habit.updatedAt = nowIso(); saveState(); closePopover(); if (modalState?.type === 'habit-finished') closeModal(); refreshHabitMetrics().then(render);
-    setUndo(`Habit ${status === 'paused' ? 'paused' : status === 'archived' ? 'archived' : 'restored'}`, () => { const current = getHabit(habitId); if (!current) return; Object.assign(current, snapshot); current.updatedAt = nowIso(); saveState(); refreshHabitMetrics().then(render); });
+    setUndo(`Habit ${status === 'paused' ? 'paused' : status === 'archived' ? 'archived' : 'restored'}`, () => { const current = getHabit(habitId); if (!current) return; Object.assign(current, snapshot); current.updatedAt = nowIso(); saveState(); return refreshHabitMetrics().then(render); });
   }
 
   async function deleteHabit(habitId) {
-    const index = state.habits.findIndex(habit => habit.id === habitId); if (index < 0) return;
-    const habit = state.habits[index]; const logs = await TodoStorage.habitLogs.listByHabit(habitId); const goalLinks = state.goals.map(goal => ({ id: goal.id, links: JSON.parse(JSON.stringify(goal.habitLinks || [])) }));
-    openConfirm({ title: `Delete “${habit.name}”?`, message: 'Its check-ins, history and reminders will be removed. Goals will remain.', confirmLabel: 'Delete habit', onConfirm: async () => { state.habits.splice(index, 1); state.goals.forEach(goal => { goal.habitLinks = (goal.habitLinks || []).filter(link => link.habitId !== habitId); }); await TodoStorage.habitLogs.deleteMany(logs.map(log => log.id)); await refreshHabitMetrics(); saveState(); closeModal(); navigate('habits'); setUndo('Habit deleted', async () => { if (!getHabit(habitId)) state.habits.splice(Math.min(index, state.habits.length), 0, habit); goalLinks.forEach(snapshot => { const goal = getGoal(snapshot.id); if (goal) goal.habitLinks = snapshot.links; }); for (const log of logs) await TodoStorage.habitLogs.put(log); await refreshHabitMetrics(); saveState(); render(); }); } });
+    requestDeleteEntity('habit', habitId);
   }
 
   function snoozeHabit(habitId, kind) {
@@ -2584,9 +2964,7 @@
   }
 
   function deleteMilestone(goalId, milestoneId) {
-    const goal = getGoal(goalId); const index = goal?.milestones.findIndex(item => item.id === milestoneId) ?? -1; if (index < 0) return;
-    const milestone = JSON.parse(JSON.stringify(goal.milestones[index]));
-    openConfirm({ title: `Delete “${milestone.title}”?`, message: 'This milestone will be removed from the goal.', confirmLabel: 'Delete milestone', onConfirm: () => { goal.milestones.splice(index, 1); goal.milestones.forEach((item, order) => { item.order = order; }); goal.updatedAt = nowIso(); saveState(); closeModal(); render(); setUndo('Milestone deleted', () => { const current = getGoal(goalId); if (!current) return; current.milestones.splice(Math.min(index, current.milestones.length), 0, milestone); current.milestones.forEach((item, order) => { item.order = order; }); current.updatedAt = nowIso(); saveState(); render(); }); } });
+    requestDeleteEntity('milestone', { parentId: goalId, id: milestoneId });
   }
 
   function saveGoalLinks() {
@@ -2618,11 +2996,7 @@
   }
 
   async function deleteGoal(goalId) {
-    const index = state.goals.findIndex(goal => goal.id === goalId); if (index < 0) return;
-    const goal = state.goals[index];
-    const snapshot = JSON.parse(JSON.stringify(goal)); const linkedTasks = state.tasks.filter(task => (task.goalIds || []).includes(goalId)).map(task => task.id); const linkedProjects = state.projects.filter(project => (project.goalIds || []).includes(goalId)).map(project => project.id); const linkedHabits = state.habits.filter(habit => (habit.goalIds || []).includes(goalId)).map(habit => habit.id);
-    const history = TodoStorage?.goalHistory ? await TodoStorage.goalHistory.listByGoal(goalId) : [];
-    openConfirm({ title: `Delete “${goal.title}”?`, message: 'Projects, tasks and habits will remain. Their Goal links, milestones and Goal history will be removed.', confirmLabel: 'Delete goal', onConfirm: async () => { state.goals.splice(index, 1); state.tasks.forEach(task => { task.goalIds = (task.goalIds || []).filter(id => id !== goalId); }); state.projects.forEach(project => { project.goalIds = (project.goalIds || []).filter(id => id !== goalId); }); state.habits.forEach(habit => { habit.goalIds = (habit.goalIds || []).filter(id => id !== goalId); }); if (history.length) await TodoStorage?.goalHistory.deleteMany(history.map(event => event.id)); saveState(); closeModal(); navigate('goals'); setUndo('Goal deleted', async () => { if (!getGoal(goalId)) state.goals.splice(Math.min(index, state.goals.length), 0, snapshot); linkedTasks.forEach(id => { const task = getTask(id); if (task && !task.goalIds.includes(goalId)) task.goalIds.push(goalId); }); linkedProjects.forEach(id => { const project = getProject(id); if (project && !project.goalIds.includes(goalId)) project.goalIds.push(goalId); }); linkedHabits.forEach(id => { const habit = state.habits.find(item => item.id === id); if (habit && !(habit.goalIds || []).includes(goalId)) habit.goalIds = [...(habit.goalIds || []), goalId]; }); for (const event of history) await TodoStorage?.goalHistory.put(event); saveState(); render(); }); } });
+    requestDeleteEntity('goal', goalId);
   }
 
   function archiveArea(areaId) {
@@ -2645,33 +3019,7 @@
   }
 
   function deleteArea(areaId) {
-    const areaIndex = state.areas.findIndex(area => area.id === areaId); if (areaIndex < 0) return;
-    const area = state.areas[areaIndex];
-    const snapshot = {
-      area: JSON.parse(JSON.stringify(area)), areaIndex,
-      projects: state.projects.filter(project => project.areaId === areaId).map(project => project.id),
-      tasks: state.tasks.filter(task => task.areaId === areaId).map(task => task.id),
-      goals: state.goals.filter(goal => goal.areaId === areaId).map(goal => goal.id),
-      habits: state.habits.filter(habit => habit.areaId === areaId).map(habit => habit.id),
-    };
-    const execute = () => {
-      state.areas.splice(areaIndex, 1);
-      state.projects.forEach(project => { if (project.areaId === areaId) project.areaId = null; });
-      state.tasks.forEach(task => { if (task.areaId === areaId) task.areaId = null; });
-      state.goals.forEach(goal => { if (goal.areaId === areaId) goal.areaId = null; });
-      state.habits.forEach(habit => { if (habit.areaId === areaId) habit.areaId = null; });
-      saveState(); closeModal(); navigate('areas');
-      setUndo('Area deleted', () => {
-        if (!getArea(areaId)) state.areas.splice(Math.min(snapshot.areaIndex, state.areas.length), 0, snapshot.area);
-        snapshot.projects.forEach(id => { const project = getProject(id); if (project) project.areaId = areaId; });
-        snapshot.tasks.forEach(id => { const task = getTask(id); if (task && !task.projectId) task.areaId = areaId; });
-        snapshot.goals.forEach(id => { const goal = state.goals.find(item => item.id === id); if (goal) goal.areaId = areaId; });
-        snapshot.habits.forEach(id => { const habit = state.habits.find(item => item.id === id); if (habit) habit.areaId = areaId; });
-        saveState(); render();
-      });
-    };
-    const linked = snapshot.projects.length + snapshot.tasks.length + snapshot.goals.length + snapshot.habits.length;
-    openConfirm({ title: `Delete “${area.name}”?`, message: linked ? `This Area is linked to ${linked} ${linked === 1 ? 'object' : 'objects'}. They will remain, but their Area assignment will be removed.` : 'This only deletes the Area.', confirmLabel: 'Delete area', onConfirm: execute });
+    requestDeleteEntity('area', areaId);
   }
 
   function archiveProject(projectId) {
@@ -2693,20 +3041,7 @@
   }
 
   function deleteProject(projectId) {
-    const project = getProject(projectId); if (!project) return;
-    const associated = state.tasks.filter(t => t.projectId === projectId);
-    const execute = () => {
-      const projectIndex = state.projects.findIndex(p => p.id === projectId);
-      const removedProject = state.projects[projectIndex];
-      const removedTasks = state.tasks.filter(t => t.projectId === projectId);
-      state.projects.splice(projectIndex, 1);
-      state.tasks = state.tasks.filter(t => t.projectId !== projectId);
-      saveState(); closeModal(); navigate('today'); render();
-      setUndo('Project deleted', () => { state.projects.splice(Math.min(projectIndex, state.projects.length), 0, removedProject); state.tasks.push(...removedTasks); saveState(); render(); });
-    };
-    if (associated.length) {
-      openConfirm({ title: `Delete “${project.name}”?`, message: `This project contains ${associated.length} ${associated.length === 1 ? 'task' : 'tasks'}. All tasks in this project will also be deleted.`, confirmLabel: 'Delete project', onConfirm: execute });
-    } else execute();
+    requestDeleteEntity('project', projectId);
   }
 
   function toggleSubtask(taskId, subtaskId) {
@@ -2715,8 +3050,7 @@
   }
 
   function deleteSubtask(taskId, subtaskId) {
-    const task = getTask(taskId); if (!task) return;
-    task.subtasks = task.subtasks.filter(s => s.id !== subtaskId); task.updatedAt = nowIso(); saveState(); renderModal(); render();
+    requestDeleteEntity('subtask', { parentId: taskId, id: subtaskId });
   }
 
   function editSubtask(taskId, subtaskId) {
@@ -2792,14 +3126,7 @@
   }
 
   function clearCompleted() {
-    const completed = state.tasks.filter(t => t.isCompleted);
-    const count = completed.length;
-    if (!count) { setToastMessage('No completed tasks to clear'); return; }
-    openConfirm({ title: 'Delete all completed tasks?', message: `${count} completed ${count === 1 ? 'task' : 'tasks'} and their attachments will be permanently deleted. This cannot be undone.`, confirmLabel: 'Delete completed', onConfirm: async () => {
-      const ids = completed.flatMap(t => t.attachmentIds || []);
-      try { if (ids.length) await Attachments.deleteMany(ids); } catch (error) { console.error(error); setToastMessage('Completed attachments could not be cleared'); return; }
-      state.tasks = state.tasks.filter(t => !t.isCompleted); saveState(); closeModal(); render();
-    } });
+    requestDeleteEntity('clear-completed', null);
   }
 
   function resetApp() {
@@ -3041,6 +3368,7 @@
     else if (action === 'restore-project') restoreProject(el.dataset.projectId);
     else if (action === 'confirm-action') { const fn = modalState.onConfirm; if (typeof fn === 'function') fn(); }
     else if (action === 'undo') doUndo();
+    else if (action === 'retry-delete-recovery') retryFailedDeleteRecovery();
     else if (action === 'enable-notifications') enableBrowserNotifications();
     else if (action === 'export-backup') exportBackupAction();
     else if (action === 'import-backup') chooseImportBackup();
@@ -3423,7 +3751,11 @@
         }
         render();
         checkReminders();
-        if (Attachments) await Attachments.cleanupExpired(nowIso()).catch(console.error);
+        if (Attachments && !undoHold) {
+          const protectedIds = [...state.tasks.flatMap(task => task.attachmentIds || []), ...[...failedDeleteSnapshots].flatMap(snapshot => snapshot.attachments.map(record => record.id)), ...[...undoWork].filter(work => performance.now() < work.deadline)
+            .flatMap(work => (work.snapshot?.pendingAttachments || []).map(record => record.id))];
+          await Attachments.cleanupExpired(nowIso(), protectedIds).catch(() => setToastMessage('File cleanup failed. Retained files were kept.'));
+        }
       }
     } catch (error) { failure = error; }
     // Clear and settle atomically, without a detached then/finally interval losing new work.
@@ -3456,6 +3788,6 @@
     }, 30000);
   }
 
-  window.TodoApp = { init, get ready() { return startupPromise || Promise.resolve(); }, get state() { return state; }, render, openQuickAdd, openSearch, checkReminders, captureGoalProgress, evaluateGoalProgressChanges, setHabitLog, refreshHabitMetrics, refreshHabitDateBoundary, evaluateHabitBoundaries, snoozeHabit };
+  window.TodoApp = { init, get ready() { return startupPromise || Promise.resolve(); }, get state() { return state; }, deleteLifecycle, render, openQuickAdd, openSearch, checkReminders, captureGoalProgress, evaluateGoalProgressChanges, setHabitLog, refreshHabitMetrics, refreshHabitDateBoundary, evaluateHabitBoundaries, snoozeHabit };
   init();
 })();

@@ -22,6 +22,8 @@
     markPending: storage.attachments.markPending.bind(storage.attachments),
     restorePending: storage.attachments.restorePending.bind(storage.attachments),
     deleteMany: storage.attachments.deleteMany.bind(storage.attachments),
+    deletePending: storage.attachments.deletePending.bind(storage.attachments),
+    sameRecord: storage.sameAttachmentRecord,
     cleanupExpired: storage.attachments.cleanupExpired.bind(storage.attachments),
     clearAll: storage.attachments.clearAll.bind(storage.attachments),
     replaceAll: storage.attachments.replaceAll.bind(storage.attachments)

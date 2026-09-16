@@ -105,6 +105,9 @@ def main():
         # Attachment delete keeps Blob pending and Undo restores the exact ID/bytes.
         page.click(f'[data-action="attachment-menu"][data-attachment-id="{drop_id}"]')
         page.click(f'[data-pop-action="attachment-delete"][data-attachment-id="{drop_id}"]')
+        assert page.locator('[data-action="confirm-action"]').count() == 1
+        page.click('[data-action="confirm-action"]')
+        page.wait_for_function('!document.querySelector("[data-action=confirm-action]") && !!document.querySelector("[data-action=undo]")')
         page.wait_for_timeout(20)
         after_delete = page.evaluate("id => ({refs:TodoApp.state.tasks.find(t=>t.id==='life_task').attachmentIds, rec:null})", drop_id)
         assert drop_id not in after_delete['refs']
@@ -116,7 +119,11 @@ def main():
         assert drop_id in restored['refs'] and restored['pending'] is None and restored['text'] == 'drop-bytes'
 
         # Task delete retains attachment records pending, Undo restores task + same blobs.
+        page.click('[data-action="open-task"][data-task-id="life_task"]')
         page.click('[data-action="delete-task"][data-task-id="life_task"]')
+        assert page.locator('[data-action="confirm-action"]').count() == 1
+        page.click('[data-action="confirm-action"]')
+        page.wait_for_function('!document.querySelector("[data-action=confirm-action]") && !!document.querySelector("[data-action=undo]")')
         page.wait_for_timeout(20)
         assert page.evaluate("!TodoApp.state.tasks.some(t=>t.id==='life_task')")
         pending_all = page.evaluate("async ids => Promise.all(ids.map(async id => {const r=await TodoAttachments.get(id);return !!r?.pendingDeleteUntil;}))", ids)
