@@ -197,3 +197,49 @@ test('area summary counts only matching effective objects', () => {
     projects: 1, openTasks: 2, activeGoals: 1, activeHabits: 1,
   });
 });
+
+test('linked task goal counts each parent task equally', () => {
+  const goal = { progressMode: 'linkedTasks', taskIds: ['t1', 't2'], projectLinks: [] };
+  const state = { tasks: [
+    { id: 't1', isCompleted: true, subtasks: [{ isCompleted: false }] },
+    { id: 't2', isCompleted: false, subtasks: [{ isCompleted: true }, { isCompleted: true }] },
+  ], projects: [] };
+  assert.deepEqual(Core.computeGoalProgress(goal, state, {}), { current: 1, target: 2, percent: 50 });
+});
+
+test('allTasks project links include future project tasks dynamically', () => {
+  const goal = { progressMode: 'linkedTasks', taskIds: [], projectLinks: [{ projectId: 'p1', contributionMode: 'allTasks', selectedTaskIds: [] }] };
+  const state = { tasks: [{ id: 't1', projectId: 'p1', isCompleted: true }, { id: 't2', projectId: 'p1', isCompleted: false }] };
+  assert.equal(Core.computeGoalProgress(goal, state, {}).percent, 50);
+  state.tasks.push({ id: 't3', projectId: 'p1', isCompleted: false });
+  assert.equal(Core.computeGoalProgress(goal, state, {}).percent, 33.33333333333333);
+});
+
+test('linked habit goal equal-weights capped habit contributions', () => {
+  const goal = { progressMode: 'linkedHabits', habitLinks: [
+    { habitId: 'h1', metric: 'totalCheckins', target: 10 },
+    { habitId: 'h2', metric: 'streak', target: 5 },
+  ] };
+  const metrics = { h1: { totalCheckins: 20, streak: 0, successfulPeriods: 0 }, h2: { totalCheckins: 0, streak: 2, successfulPeriods: 0 } };
+  assert.equal(Core.computeGoalProgress(goal, {}, metrics).percent, 70);
+});
+
+test('manual goal progress keeps source value while clamping percentage display', () => {
+  const progress = Core.computeGoalProgress({ progressMode: 'manual', progressType: 'percentage', currentValue: 125 }, {}, {});
+  assert.deepEqual(progress, { current: 125, target: 100, percent: 100 });
+});
+
+test('goal date helpers keep paused goals out of overdue and derive milestones/reminders', () => {
+  const goal = {
+    status: 'paused', targetDate: '2026-09-15',
+    milestones: [{ id: 'm1', date: '2026-09-15', isCompleted: false }, { id: 'm2', date: '2026-09-16', isCompleted: false }],
+    reminders: { sevenDaysBefore: true, threeDaysBefore: true, oneDayBefore: true, onTargetDate: true, time: '08:30' },
+  };
+  assert.equal(Core.isGoalOverdue(goal, '2026-09-16'), false);
+  goal.status = 'active';
+  assert.equal(Core.isGoalOverdue(goal, '2026-09-16'), true);
+  assert.deepEqual(Core.overdueMilestones(goal, '2026-09-16').map(item => item.id), ['m1']);
+  assert.deepEqual(Core.goalReminderMoments(goal), [
+    '2026-09-08T08:30:00', '2026-09-12T08:30:00', '2026-09-14T08:30:00', '2026-09-15T08:30:00',
+  ]);
+});

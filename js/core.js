@@ -264,6 +264,74 @@
     return { projects: projects.length, openTasks: openTasks.length, activeGoals: activeGoals.length, activeHabits: activeHabits.length };
   }
 
+  function goalTaskSet(goal, state) {
+    const source = state || {};
+    const taskById = new Map((source.tasks || []).filter(Boolean).map(task => [task.id, task]));
+    const ids = new Set(Array.isArray(goal?.taskIds) ? goal.taskIds : []);
+    for (const link of goal?.projectLinks || []) {
+      if (!link || !link.projectId) continue;
+      if (link.contributionMode === 'allTasks') {
+        for (const task of source.tasks || []) if (task && task.projectId === link.projectId) ids.add(task.id);
+      } else if (link.contributionMode === 'selectedTasks') {
+        for (const id of link.selectedTaskIds || []) ids.add(id);
+      }
+    }
+    return [...ids].map(id => taskById.get(id)).filter(Boolean);
+  }
+
+  function safeNumber(value) {
+    const number = Number(value);
+    return Number.isFinite(number) ? number : 0;
+  }
+
+  function clampPercent(value) {
+    return Math.max(0, Math.min(100, value));
+  }
+
+  function computeGoalProgress(goal, state = {}, habitMetrics = {}) {
+    const source = goal || {};
+    if (source.progressMode === 'linkedTasks') {
+      const tasks = goalTaskSet(source, state);
+      const current = tasks.filter(task => Boolean(task.isCompleted)).length;
+      const target = tasks.length;
+      return { current, target, percent: target ? current / target * 100 : 0 };
+    }
+    if (source.progressMode === 'linkedHabits') {
+      const links = (source.habitLinks || []).filter(link => link && link.habitId);
+      const total = links.reduce((sum, link) => {
+        const target = safeNumber(link.target);
+        const actual = safeNumber(habitMetrics?.[link.habitId]?.[link.metric]);
+        return sum + (target > 0 ? Math.min(actual / target, 1) * 100 : 0);
+      }, 0);
+      const percent = links.length ? total / links.length : 0;
+      return { current: percent, target: 100, percent };
+    }
+    const current = safeNumber(source.currentValue);
+    if (source.progressType === 'numeric') {
+      const target = safeNumber(source.targetValue);
+      return { current, target, percent: target > 0 ? clampPercent(current / target * 100) : 0 };
+    }
+    return { current, target: 100, percent: clampPercent(current) };
+  }
+
+  function isGoalOverdue(goal, today) {
+    return Boolean(goal && goal.status === 'active' && goal.targetDate && goal.targetDate < today);
+  }
+
+  function goalReminderMoments(goal) {
+    if (!goal?.targetDate || !parseDateOnly(goal.targetDate)) return [];
+    const reminders = goal.reminders || {};
+    const time = normalizeTime(reminders.time) || '09:00';
+    const offsets = [
+      ['sevenDaysBefore', -7], ['threeDaysBefore', -3], ['oneDayBefore', -1], ['onTargetDate', 0],
+    ];
+    return offsets.filter(([key]) => reminders[key]).map(([, offset]) => combineDateTime(addDays(goal.targetDate, offset), time));
+  }
+
+  function overdueMilestones(goal, today) {
+    return (goal?.milestones || []).filter(milestone => milestone && !milestone.isCompleted && milestone.date && milestone.date < today);
+  }
+
   function tasksForTag(tasks, tagId) {
     return (tasks || []).filter(task => !task.isCompleted && Array.isArray(task.tagIds) && task.tagIds.includes(tagId));
   }
@@ -511,6 +579,10 @@
     validateTagName,
     validateAreaName,
     areaSummary,
+    computeGoalProgress,
+    isGoalOverdue,
+    goalReminderMoments,
+    overdueMilestones,
     tasksForTag,
     parseQuickPlanPhrase,
     cloneTaskForDuplicate,

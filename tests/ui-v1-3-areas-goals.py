@@ -107,6 +107,92 @@ def main():
         page.click('[data-action="undo"]')
         restored = page.evaluate("id => ({area: TodoApp.state.areas.find(a => a.id === id), project: TodoApp.state.projects[0], task: TodoApp.state.tasks[0]})", area_id)
         assert restored['area'] and restored['project']['areaId'] == area_id and restored['task']['areaId'] is None
+
+        # Goal CRUD starts with a manual source and keeps completion user-controlled.
+        page.click('[data-route="goals"]')
+        page.click('[data-action="new-goal"]')
+        page.fill('#goal-title', 'Launch V1')
+        page.fill('#goal-current', '50')
+        page.click('[data-action="save-goal"]')
+        goal = page.evaluate("TodoApp.state.goals.find(g => g.title === 'Launch V1')")
+        assert goal['progressMode'] == 'manual' and goal['status'] == 'active'
+
+        # Updating manual progress to 100 asks rather than auto-completing.
+        page.fill('#goal-current-value', '100')
+        page.click('[data-action="save-goal-progress"]')
+        assert page.locator('.modal-title').inner_text() == 'Goal reached'
+        page.click('[data-action="keep-goal-active"]')
+        assert page.evaluate("id => TodoApp.state.goals.find(g => g.id === id).status", goal['id']) == 'active'
+
+        # Links update both directions and allTasks picks up a growing project scope.
+        page.click('[data-action="edit-goal"]')
+        page.select_option('#goal-progress-mode', 'linkedTasks')
+        page.click('[data-action="save-goal"]')
+        page.click('[data-action="edit-goal-links"]')
+        page.check(f'[data-goal-link-project="{project["id"]}"]')
+        page.click('[data-action="save-goal-links"]')
+        linked = page.evaluate("id => TodoApp.state.goals.find(g => g.id === id)", goal['id'])
+        assert linked['projectLinks'][0]['contributionMode'] == 'allTasks'
+        assert goal['id'] in page.evaluate("id => TodoApp.state.projects.find(p => p.id === id).goalIds", project['id'])
+        page.evaluate("id => TodoApp.state.tasks.push({id:'future-project-task', title:'Future project task', projectId:id, areaId:null, goalIds:[], isCompleted:false, subtasks:[]})", project['id'])
+        assert page.evaluate("id => TodoCore.computeGoalProgress(TodoApp.state.goals.find(g => g.id === id), TodoApp.state, {}).target", goal['id']) == 2
+
+        # Habit links retain per-link metric/target and contribute equally.
+        page.evaluate("""() => { TodoApp.state.habits.push(
+          {id:'habit-one', name:'Read', goalIds:[], status:'active'},
+          {id:'habit-two', name:'Practice', goalIds:[], status:'active'}
+        ); TodoApp.state.habitMetrics={
+          'habit-one':{totalCheckins:20,streak:0,successfulPeriods:0},
+          'habit-two':{totalCheckins:0,streak:2,successfulPeriods:0}
+        }; }""")
+        page.click('[data-action="edit-goal"]')
+        page.select_option('#goal-progress-mode', 'linkedHabits')
+        page.click('[data-action="save-goal"]')
+        page.click('[data-action="edit-goal-links"]')
+        page.check('[data-goal-link-habit="habit-one"]')
+        page.check('[data-goal-link-habit="habit-two"]')
+        page.fill('[data-goal-habit-target="habit-one"]', '10')
+        page.fill('[data-goal-habit-target="habit-two"]', '5')
+        page.select_option('[data-goal-habit-metric="habit-two"]', 'streak')
+        page.click('[data-action="save-goal-links"]')
+        assert page.evaluate("id => TodoCore.computeGoalProgress(TodoApp.state.goals.find(g => g.id === id), TodoApp.state, TodoApp.state.habitMetrics).percent", goal['id']) == 70
+
+        # Paused targets are never overdue; resuming reevaluates immediately.
+        page.evaluate("id => { const g=TodoApp.state.goals.find(g => g.id === id); g.targetDate='2000-01-01'; g.status='paused'; TodoApp.render(); }", goal['id'])
+        assert page.evaluate("id => TodoCore.isGoalOverdue(TodoApp.state.goals.find(g => g.id === id), '2026-09-16')", goal['id']) is False
+        page.click('[data-action="resume-goal"]')
+        assert page.evaluate("id => TodoCore.isGoalOverdue(TodoApp.state.goals.find(g => g.id === id), '2026-09-16')", goal['id']) is True
+
+        # Dated incomplete milestones are calendar-eligible and derive as overdue.
+        page.click('[data-action="new-milestone"]')
+        page.fill('#milestone-title', 'Ship beta')
+        page.fill('#milestone-date', '2000-01-01')
+        page.click('[data-action="save-milestone"]')
+        assert page.evaluate("id => TodoCore.overdueMilestones(TodoApp.state.goals.find(g => g.id === id), '2026-09-16').length", goal['id']) == 1
+        page.click('[data-action="edit-goal-reminders"]')
+        page.check('#goal-reminder-7')
+        page.fill('#goal-reminder-time', '08:30')
+        page.click('[data-action="save-goal-reminders"]')
+        assert page.evaluate("id => TodoCore.goalReminderMoments(TodoApp.state.goals.find(g => g.id === id)).length", goal['id']) == 1
+
+        # Creation/progress/status/link events are stored, and delete/Undo restores the Goal.
+        history_types = page.evaluate("async id => (await TodoStorage.goalHistory.listByGoal(id)).map(e => e.type)", goal['id'])
+        assert 'created' in history_types and 'progressChanged' in history_types and 'projectLinked' in history_types
+        page.click('[data-action="goal-menu"]')
+        page.click('[data-pop-action="archive-goal"]')
+        assert page.evaluate("id => TodoApp.state.goals.find(g => g.id === id).status", goal['id']) == 'archived'
+        page.click('[data-route="goals"]')
+        page.click('[data-goal-tab="archived"]')
+        page.click('[data-action="goal-menu"]')
+        page.click('[data-pop-action="restore-goal"]')
+        assert page.evaluate("id => TodoApp.state.goals.find(g => g.id === id).status", goal['id']) == 'active'
+        page.evaluate("id => { location.hash = '#goal/' + id; TodoApp.render(); }", goal['id'])
+        page.click('[data-action="goal-menu"]')
+        page.click('[data-pop-action="delete-goal"]')
+        page.click('[data-action="confirm-action"]')
+        assert page.evaluate("id => TodoApp.state.goals.some(g => g.id === id)", goal['id']) is False
+        page.click('[data-action="undo"]')
+        assert page.evaluate("id => TodoApp.state.goals.some(g => g.id === id)", goal['id']) is True
         browser.close()
 
 
