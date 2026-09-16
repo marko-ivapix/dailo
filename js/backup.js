@@ -83,6 +83,7 @@
     const numberField = (item, key, min = 0) => { if (item[key] != null && (typeof item[key] !== 'number' || !Number.isFinite(item[key]) || item[key] < min)) fail(key); };
     const booleanField = (item, key) => { if (item[key] != null && typeof item[key] !== 'boolean') fail(key); };
     const positiveInteger = value => Number.isInteger(value) && value > 0;
+    const positiveField = (item, key) => { numberField(item,key); if (item[key] != null && item[key] <= 0) fail(key); };
     const recurrence = item => {
       if (item == null) return;
       if (!object(item) || !['daily','weekly','monthly'].includes(item.frequency) || !positiveInteger(item.interval)) fail('recurrence');
@@ -102,31 +103,49 @@
     const ref = (value, collection) => { if (value != null && !ids[collection].has(value)) fail(`${collection} reference`); };
     const refs = (item, key, collection) => { if (item[key] != null) { if (!Array.isArray(item[key]) || new Set(item[key]).size !== item[key].length) fail(key); item[key].forEach(id => ref(id, collection)); } };
     const nested = (items, label) => { if (!Array.isArray(items) || items.some(item => !object(item) || !name(item.id)) || new Set(items.map(item => item.id)).size !== items.length) fail(label); };
+    const taskFields = (task, baseline = false) => {
+      if (!object(task) || !name(task.title)) fail(baseline ? 'recurrence baseline' : 'task');
+      for (const key of ['notes']) if (task[key] != null && typeof task[key] !== 'string') fail(key);
+      for (const key of ['id','projectId','areaId','recurrenceSuccessorId']) if (task[key] != null && !name(task[key])) fail(key);
+      for (const key of ['goalIds','tagIds','attachmentIds']) if (task[key] != null
+        && (!Array.isArray(task[key]) || task[key].some(id => !name(id)) || new Set(task[key]).size !== task[key].length)) fail(key);
+      enumField(task,'priority',['none','low','medium','high']);
+      booleanField(task,'isCompleted');booleanField(task,'isInbox');recurrence(task.recurrence);
+      for (const key of ['plannedDate','dueDate']) dateField(task,key);
+      for (const key of ['plannedTime','dueTime']) if (task[key] != null && root.TodoCore.normalizeTime(task[key]) !== task[key]) fail(key);
+      for (const key of ['reminderAt','reminderFiredAt','completedAt','createdAt','updatedAt']) if (task[key] != null
+        && (typeof task[key] !== 'string' || !Number.isFinite(Date.parse(task[key])))) fail(key);
+      for (const key of ['todayOrder','projectOrder','inboxOrder']) numberField(task,key,-Infinity);
+      if (task.subtasks != null) {
+        nested(task.subtasks,'subtasks');
+        for (const sub of task.subtasks) {
+          if (!name(sub.title) || sub.subtasks != null && (!Array.isArray(sub.subtasks) || sub.subtasks.length)) fail('subtask');
+          booleanField(sub,'isCompleted');numberField(sub,'order');
+        }
+      }
+      // A baseline is the actual source of the next occurrence. Its references
+      // may be stale and are pruned by generation, but its values must be usable.
+      if (task.recurrenceBaseline != null) taskFields(task.recurrenceBaseline, true);
+    };
     for (const item of [...state.tasks, ...state.projects, ...state.goals, ...state.habits]) ref(item.areaId, 'areas');
     for (const item of [...state.tasks, ...state.projects, ...state.habits]) refs(item, 'goalIds', 'goals');
     for (const task of state.tasks) {
       ref(task.projectId,'projects'); refs(task,'tagIds','tags');
-      enumField(task,'priority',['none','low','medium','high']);
-      booleanField(task,'isCompleted');booleanField(task,'isInbox');recurrence(task.recurrence);
-      if (task.recurrenceBaseline != null) { if (!object(task.recurrenceBaseline)) fail('recurrence baseline');recurrence(task.recurrenceBaseline.recurrence); }
-      for (const key of ['plannedDate','dueDate']) dateField(task,key);
-      for (const key of ['plannedTime','dueTime']) if (task[key] != null && root.TodoCore.normalizeTime(task[key]) !== task[key]) fail(key);
-      if (task.subtasks != null) { nested(task.subtasks,'subtasks'); for (const sub of task.subtasks) { if (!name(sub.title) || sub.subtasks?.length) fail('subtask');booleanField(sub,'isCompleted');numberField(sub,'order'); } }
-      if (task.attachmentIds != null && (!Array.isArray(task.attachmentIds) || new Set(task.attachmentIds).size !== task.attachmentIds.length)) fail('attachment IDs');
+      taskFields(task);
     }
     for (const area of state.areas) enumField(area,'status',['active','archived']);
     for (const goal of state.goals) {
       enumField(goal,'status',['active','paused','completed','archived']); enumField(goal,'progressMode',['manual','linkedTasks','linkedHabits']); enumField(goal,'progressType',['percentage','numeric']);
-      numberField(goal,'currentValue');numberField(goal,'targetValue',0.00000001);dateField(goal,'targetDate');refs(goal,'taskIds','tasks');
+      numberField(goal,'currentValue');positiveField(goal,'targetValue');dateField(goal,'targetDate');refs(goal,'taskIds','tasks');
       if (goal.projectLinks != null) { if (!Array.isArray(goal.projectLinks) || new Set(goal.projectLinks.map(link=>link?.projectId)).size !== goal.projectLinks.length) fail('project links'); for (const link of goal.projectLinks) { if (!object(link) || !link.projectId || !['allTasks','selectedTasks'].includes(link.contributionMode)) fail('project link');ref(link.projectId,'projects');refs(link,'selectedTaskIds','tasks');if ((link.selectedTaskIds || []).some(id => state.tasks.find(task => task.id === id)?.projectId !== link.projectId)) fail('selected project Task'); } }
-      if (goal.habitLinks != null) { if (!Array.isArray(goal.habitLinks) || new Set(goal.habitLinks.map(link=>link?.habitId)).size !== goal.habitLinks.length) fail('habit links');for (const link of goal.habitLinks) { if (!object(link) || !link.habitId || !['totalCheckins','streak','successfulPeriods','totalValue','currentStreak','longestStreak','completionRate'].includes(link.metric) || !(link.target > 0)) fail('habit link');ref(link.habitId,'habits');numberField(link,'target',0.00000001); } }
+      if (goal.habitLinks != null) { if (!Array.isArray(goal.habitLinks) || new Set(goal.habitLinks.map(link=>link?.habitId)).size !== goal.habitLinks.length) fail('habit links');for (const link of goal.habitLinks) { if (!object(link) || !link.habitId || !['totalCheckins','streak','successfulPeriods','totalValue','currentStreak','longestStreak','completionRate'].includes(link.metric) || !(link.target > 0)) fail('habit link');ref(link.habitId,'habits');positiveField(link,'target'); } }
       if (goal.milestones != null) { nested(goal.milestones,'milestones');for (const item of goal.milestones) { if (!name(item.title)) fail('milestone');dateField(item,'date'); } }
       if (goal.reminders != null && (!object(goal.reminders) || goal.reminders.time != null && root.TodoCore.normalizeTime(goal.reminders.time) !== goal.reminders.time)) fail('Goal reminders');
     }
     for (const habit of state.habits) {
       enumField(habit,'status',['active','paused','archived']);enumField(habit,'trackingType',['checkbox','numeric']);enumField(habit,'frequencyType',['daily','weekdays','timesPerWeek','everyNDays']);enumField(habit,'continuation',['automatic','askEachPeriod','onePeriod']);enumField(habit,'endType',['never','date','successfulPeriods']);
       for (const key of ['startDate','endDate']) dateField(habit,key);
-      for (const key of ['targetValue','timesPerWeek','everyNDays','successfulPeriodsTarget']) numberField(habit,key,0.00000001);
+      for (const key of ['targetValue','timesPerWeek','everyNDays','successfulPeriodsTarget']) positiveField(habit,key);
       if (habit.trackingType === 'numeric' && !(habit.targetValue > 0)
         || habit.frequencyType === 'timesPerWeek' && (!positiveInteger(habit.timesPerWeek) || habit.timesPerWeek > 7)
         || habit.frequencyType === 'everyNDays' && !positiveInteger(habit.everyNDays)
@@ -143,7 +162,7 @@
       for (const key of ['projectId','areaId','goalId']) if (data[key] != null && !name(data[key])) fail(`Template ${key}`);
       for (const key of ['plannedOffsetDays','dueOffsetDays','reminderOffsetDays','targetOffsetDays','endOffsetDays','dateOffsetDays']) if (data[key] != null && !Number.isInteger(data[key])) fail(`Template ${key}`);
       for (const key of ['plannedTime','dueTime','reminderTime','time']) if (data[key] != null && root.TodoCore.normalizeTime(data[key]) !== data[key]) fail(`Template ${key}`);
-      for (const key of ['targetValue','target','timesPerWeek','everyNDays','successfulPeriodsTarget','interval','endAfterOccurrences']) numberField(data,key,0.00000001);
+      for (const key of ['targetValue','target','timesPerWeek','everyNDays','successfulPeriodsTarget','interval','endAfterOccurrences']) positiveField(data,key);
       enumField(data,'priority',['none','low','medium','high']);enumField(data,'frequencyType',['daily','weekdays','timesPerWeek','everyNDays']);enumField(data,'trackingType',['checkbox','numeric']);enumField(data,'progressMode',['manual','linkedTasks','linkedHabits']);enumField(data,'progressType',['percentage','numeric']);enumField(data,'frequency',['daily','weekly','monthly']);
       for (const key of ['tasks','subtasks','milestones','goalLinkConfigs']) if (data[key] != null) { if (!Array.isArray(data[key])) fail(`Template ${key}`);data[key].forEach(templateData); }
       if (data.reminders != null) { if (Array.isArray(data.reminders)) data.reminders.forEach(templateData);else templateData(data.reminders); }

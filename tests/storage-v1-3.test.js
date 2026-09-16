@@ -80,6 +80,46 @@ test('backup rejects malformed reusable payloads while preserving optional stale
     const manifest=structuredClone(original);mutate(manifest);zip.file('data.json',JSON.stringify(manifest));await assert.rejects(()=>B.inspectBackupV3(zip.generateAsync({type:'blob'})));
   }
 });
+test('recurrence baseline is a usable complete task payload while optional stale references remain valid',async()=>{
+  const state=await seedBackup(), baseline={title:'Baseline',notes:'Preserve',recurrence:{frequency:'daily',interval:1},plannedDate:'2026-09-16',plannedTime:'08:15',dueDate:'2026-09-18',dueTime:'16:30',reminderAt:'2026-09-16T07:00:00Z',projectId:'deleted-project',areaId:null,goalIds:['deleted-goal'],tagIds:['deleted-tag'],attachmentIds:['deleted-file'],priority:'high',subtasks:[{id:'sub',title:'Child',order:0,isCompleted:false}]};
+  state.tasks[0].recurrenceBaseline=baseline;
+  state.tasks[0].inboxOrder=-1;baseline.inboxOrder=-2;
+  const zip=await JSZip.loadAsync(await (await B.exportBackupV3(state,S,'2026-09-16T12:00:00Z')).arrayBuffer());
+  const original=JSON.parse(await zip.file('data.json').async('string'));
+  const valid=await B.inspectBackupV3(await zip.generateAsync({type:'blob'}));
+  assert.equal(valid.state.tasks[0].recurrenceBaseline.projectId,'deleted-project');
+  assert.equal(valid.state.tasks[0].inboxOrder,-1);assert.equal(valid.state.tasks[0].recurrenceBaseline.inboxOrder,-2);
+  const next=TodoCore.buildNextRecurringTask(valid.state.tasks[0],'2026-09-16T12:00:00Z','next');
+  assert.equal(next.plannedDate,'2026-09-17');assert.equal(next.subtasks[0].title,'Child');
+  for(const [label,mutate] of [
+    ['subtasks object',b=>b.subtasks={invalid:'not an array'}],['subtask scalar',b=>b.subtasks=[4]],['subtask title',b=>b.subtasks[0].title={}],['nested subtasks',b=>b.subtasks[0].subtasks=[{title:'nested'}]],
+    ['planned date',b=>b.plannedDate='2026-02-31'],['due date type',b=>b.dueDate={}],['time',b=>b.plannedTime='25:99'],['reminder timestamp',b=>b.reminderAt='invalid'],
+    ['title',b=>b.title={}],['notes',b=>b.notes=[]],['completion',b=>b.isCompleted='yes'],['priority',b=>b.priority='urgent'],['order',b=>b.projectOrder='first'],
+    ['Goal IDs',b=>b.goalIds={bad:true}],['Tag IDs',b=>b.tagIds=[{}]],['attachment IDs',b=>b.attachmentIds='bad'],['project reference type',b=>b.projectId={}],['Area reference type',b=>b.areaId=1]
+  ]) { const manifest=structuredClone(original);mutate(manifest.data.tasks[0].recurrenceBaseline);zip.file('data.json',JSON.stringify(manifest));await assert.rejects(()=>B.inspectBackupV3(zip.generateAsync({type:'blob'})),label); }
+});
+
+test('recovery verification rejects raw changes made during actual Blob byte comparison',async()=>{
+  const state=await seedBackup(),id=await S.createRecoverySnapshot('reset',state,S),read=Blob.prototype.arrayBuffer;
+  try {
+    let changed=false;Blob.prototype.arrayBuffer=function(){if(!changed){changed=true;localStorage.setItem('todoAppData','foreign metadata during bytes verification');}return read.call(this);};
+    await assert.rejects(()=>S.verifyRecoverySnapshot(id),/verification failed/i);
+    assert.equal(localStorage.getItem('todoAppData'),'foreign metadata during bytes verification');assert.ok(await S.recoverySnapshots.get(id));
+  } finally {Blob.prototype.arrayBuffer=read;}
+});
+
+test('positive numeric backup targets have no arbitrary minimum',async()=>{
+  const state=await seedBackup();state.goals[0].progressType='numeric';state.goals[0].targetValue=1e-9;
+  state.habits[0].trackingType='numeric';state.habits[0].targetValue=1e-9;
+  state.goals[0].habitLinks=[{habitId:state.habits[0].id,metric:'totalValue',target:1e-9}];
+  state.templates=[{id:'tiny',name:'Tiny',type:'habit',data:{trackingType:'numeric',targetValue:1e-9}}];
+  const restored=await B.inspectBackupV3(await B.exportBackupV3(state,S,'2026-09-16T12:00:00Z'));
+  assert.equal(restored.state.goals[0].targetValue,1e-9);assert.equal(restored.state.habits[0].targetValue,1e-9);
+  assert.equal(restored.state.goals[0].habitLinks[0].target,1e-9);assert.equal(restored.state.templates[0].data.targetValue,1e-9);
+  for(const value of [0,-1,Infinity,NaN,'0.1']) for(const set of [s=>s.goals[0].targetValue=value,s=>s.habits[0].targetValue=value,s=>s.goals[0].habitLinks[0].target=value,s=>s.templates[0].data.targetValue=value]) {
+    const invalid=structuredClone(state);set(invalid);assert.throws(()=>B.validateDomain(invalid,[],[]));
+  }
+});
 
 test('habit logs round-trip by habit and date', async () => {
   await S.clearAllForTests();

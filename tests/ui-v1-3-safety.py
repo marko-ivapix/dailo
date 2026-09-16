@@ -860,6 +860,55 @@ def global_verified_phase_failure(page):
     assert not global_domain(page)['attachments']
 
 
+def global_final_verification_race(page, boundary):
+    route(page,'settings')
+    if boundary=='startup':
+        page.evaluate('''async()=>{const id=await TodoStorage.createRecoverySnapshot('restore',TodoApp.state,TodoStorage),s=await TodoStorage.recoverySnapshots.get(id);s.phase='mutating';s.destination={rawAppData:localStorage.getItem('todoAppData'),...(await TodoStorage.captureUserData())};await TodoStorage.recoverySnapshots.put(s);}''')
+        page.add_init_script('''{const read=Blob.prototype.arrayBuffer;Blob.prototype.arrayBuffer=async function(){const bytes=await read.call(this);if(!window.changedDuringVerification){window.changedDuringVerification=true;const data=JSON.parse(localStorage.getItem('todoAppData'));data.tasks[0].title='Foreign during final verification';window.foreignRaw=JSON.stringify(data);localStorage.setItem('todoAppData',foreignRaw);}return bytes;};}''')
+        page.reload();page.evaluate('()=>TodoApp.ready')
+        assert page.evaluate('window.changedDuringVerification')
+        assert page.evaluate('localStorage.getItem("todoAppData")===foreignRaw')
+        assert page.evaluate('async()=> (await TodoStorage.recoverySnapshots.listAll())[0].phase')!='committed', 'startup certified a changed source'
+        expect(page.locator('[data-action="retry-global-recovery"]')).to_be_visible()
+        assert not page.evaluate('!!TodoApp.state'), 'startup exposed an unverified recovery domain'
+        return
+    incoming=bytes(page.evaluate('''async()=>[...new Uint8Array(await (await TodoBackup.exportBackupV3(TodoApp.state,TodoStorage,'2026-10-24T10:00:00Z')).arrayBuffer())]'''))
+    page.evaluate('''boundary=>{
+      const read=Blob.prototype.arrayBuffer,replace=TodoStorage.replaceAllValidatedBackup,restore=TodoStorage.restoreRecoverySnapshot,set=Storage.prototype.setItem;
+      TodoStorage.replaceAllValidatedBackup=async(...args)=>{await replace(...args);if(boundary==='replacement')window.verifyGate=true;else throw Error('force verified rollback');};
+      TodoStorage.restoreRecoverySnapshot=async(...args)=>{window.inRollback=true;return restore(...args);};
+      Storage.prototype.setItem=function(key,value){const result=set.call(this,key,value);if(window.inRollback&&key==='todoAppData'&&!window.changedDuringVerification)window.verifyGate=true;return result;};
+      Blob.prototype.arrayBuffer=async function(){const bytes=await read.call(this);if(window.verifyGate&&!window.changedDuringVerification){window.changedDuringVerification=true;const data=JSON.parse(localStorage.getItem('todoAppData'));data.tasks[0].title='Foreign during final verification';window.foreignRaw=JSON.stringify(data);set.call(localStorage,'todoAppData',foreignRaw);}return bytes;};
+    }''',boundary)
+    with page.expect_download():page.set_input_files('#backup-import-input',{'name':'verify.zip','mimeType':'application/zip','buffer':incoming})
+    page.locator('#global-confirm-phrase').fill('RESTORE');click(page,'confirm-action')
+    page.wait_for_function('window.changedDuringVerification && !document.querySelector("#global-confirm-phrase")')
+    assert page.evaluate('localStorage.getItem("todoAppData")===foreignRaw'), 'verification overwrote foreign raw data'
+    assert page.evaluate('async()=> (await TodoStorage.recoverySnapshots.listAll()).length')==1, 'final verification discarded recovery after source changed'
+    expect(page.locator('[data-action="retry-global-recovery"]')).to_be_visible()
+    assert 'verified.' not in page.locator('#toast-root').inner_text(), 'false recovery success'
+
+
+def global_rollback_phase_denied(page, reload_first=False):
+    route(page,'settings')
+    page.evaluate('''()=>{const replace=TodoStorage.replaceAllValidatedBackup,put=TodoStorage.recoverySnapshots.put;TodoStorage.replaceAllValidatedBackup=async(...args)=>{await replace(...args);throw Error('replacement failed for phase test');};TodoStorage.recoverySnapshots.put=async record=>{if(record.phase==='rolled-back')throw Error('rolled-back marker denied');return put(record);};window.allowPhase=()=>{TodoStorage.recoverySnapshots.put=put;};}''')
+    with page.expect_download():click(page,'reset-app')
+    page.locator('#global-confirm-phrase').fill('RESET');click(page,'confirm-action')
+    expect(page.locator('[data-action="retry-global-recovery"]')).to_be_visible()
+    page.evaluate('()=>location.hash="#project/p"')
+    page.locator('[data-action="open-task"][data-task-id="t"]').first.click()
+    assert not page.locator('#detail-title').count(), 'editing released while durable rollback phase was still mutating'
+    if reload_first:
+        page.reload();expect(page.locator('[data-action="retry-global-recovery"]')).to_be_visible()
+    else:page.evaluate('()=>allowPhase()')
+    click(page,'retry-global-recovery');global_settled(page);ready(page)
+    route(page,'today');page.locator('[data-action="open-task"][data-task-id="t0"]').first.click()
+    page.locator('#detail-title').fill('Legitimate after recovery');page.locator('#detail-title').press('Tab');click(page,'close-modal')
+    page.reload();ready(page)
+    assert page.evaluate('TodoApp.state.tasks.find(t=>t.id==="t0").title')=='Legitimate after recovery', 'legitimate edit after safe recovery did not survive reload'
+    assert not page.locator('[data-action="retry-global-recovery"]').count()
+
+
 def main():
     class QuietHandler(SimpleHTTPRequestHandler):
         def log_message(self, *_args): pass
@@ -902,6 +951,8 @@ def main():
     cases += [('global-foreign-rollback',global_foreign_rollback)]
     cases += [('global-rollback-native-bytes',global_rollback_native_boundary),('global-rollback-native-raw',lambda p:global_rollback_native_boundary(p,True))]
     cases += [('global-verified-phase-failure',global_verified_phase_failure)]
+    cases += [('global-final-verify-'+b,lambda p,b=b:global_final_verification_race(p,b)) for b in ['replacement','rollback','startup']]
+    cases += [('global-rollback-phase-denied',global_rollback_phase_denied),('global-rollback-phase-reload',lambda p:global_rollback_phase_denied(p,True))]
     failures=[]; count=0
     try:
         with sync_playwright() as p:

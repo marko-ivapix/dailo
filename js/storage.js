@@ -515,7 +515,8 @@
     const rawAppData = root.localStorage.getItem('todoAppData'), appData = rawAppData === null ? null : JSON.parse(rawAppData);
     const stateText = JSON.stringify(state), payload = await source.captureUserData();
     if (root.localStorage.getItem('todoAppData') !== rawAppData || JSON.stringify(state) !== stateText
-      || !(await source.sameUserData(await source.captureUserData(), payload))) throw new Error('Source changed while preparing recovery. Retry.');
+      || !(await source.sameUserData(await source.captureUserData(), payload))
+      || root.localStorage.getItem('todoAppData') !== rawAppData || JSON.stringify(state) !== stateText) throw new Error('Source changed while preparing recovery. Retry.');
     const id = `recovery-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     await source.recoverySnapshots.put({ id, reason, phase: 'prepared', createdAt: new Date().toISOString(), rawAppData, appData,
       liveState: JSON.parse(stateText), ...payload, attachmentRefs: payload.attachments, habitLogRefs: payload.habitLogs, goalHistoryRefs: payload.goalHistory });
@@ -525,7 +526,8 @@
   async function verifyRecoverySnapshot(snapshotId) {
     const snapshot = await recoverySnapshots.get(snapshotId);
     if (!snapshot || root.localStorage.getItem('todoAppData') !== snapshot.rawAppData
-      || !(await sameUserData(await captureUserData(), snapshot))) throw new Error('Recovery verification failed. Recovery snapshot retained; retry recovery.');
+      || !(await sameUserData(await captureUserData(), snapshot))
+      || root.localStorage.getItem('todoAppData') !== snapshot.rawAppData) throw new Error('Recovery verification failed. Recovery snapshot retained; retry recovery.');
     return snapshot;
   }
 

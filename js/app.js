@@ -274,7 +274,8 @@
       for (const item of retained.filter(item => item.phase === 'mutating' && item.destination)) {
         if (localStorage.getItem(STORAGE_KEY) === item.destination.rawAppData
           && Core.validateStateV3(JSON.parse(item.destination.rawAppData)).ok
-          && await TodoStorage.sameUserData(await TodoStorage.captureUserData(), item.destination)) {
+          && await TodoStorage.sameUserData(await TodoStorage.captureUserData(), item.destination)
+          && localStorage.getItem(STORAGE_KEY) === item.destination.rawAppData) {
           item.phase = 'committed';
           try { await TodoStorage.recoverySnapshots.put(item); }
           catch (_) { globalOperation = { reason: 'cleanup', busy: true }; }
@@ -3311,7 +3312,9 @@
     const next = op.validated;
     if (localStorage.getItem(STORAGE_KEY) !== JSON.stringify(next.state)
       || !Core.validateStateV3(next.state).ok
-      || !(await TodoStorage.sameUserData(await TodoStorage.captureUserData(), { attachments: next.attachmentRecords, habitLogs: next.habitLogs, goalHistory: next.goalHistory })))
+      || !(await TodoStorage.sameUserData(await TodoStorage.captureUserData(), { attachments: next.attachmentRecords, habitLogs: next.habitLogs, goalHistory: next.goalHistory }))
+      || localStorage.getItem(STORAGE_KEY) !== JSON.stringify(next.state) || globalOperation !== op
+      || state !== op.source || compactState(state) !== op.stateText)
       throw new Error('Replacement verification failed.');
   }
 
@@ -3319,12 +3322,18 @@
     if (op.recovering) return;
     op.recovering = true;
     try {
+      const source = state, sourceText = compactState(state);
       const restored = await TodoStorage.restoreRecoverySnapshot(op.snapshotId);
+      // Keep both editing and ordinary Undo held until the verified rollback has
+      // a durable safe classification. A denied phase write must stay retryable.
+      await markGlobalSnapshot(op, 'rolled-back');
+      await TodoStorage.verifyRecoverySnapshot(op.snapshotId);
+      if (globalOperation !== op || state !== source || compactState(state) !== sourceText) throw new Error('Recovery source changed during verification. Retry recovery.');
       state = normalizeState(restored); recovery = null;
       if (op.token) await deleteLifecycle.resume(op.token);
       globalRecoveryNotice = null;
       globalOperation = null; modalState = null; renderModal(); render();
-      try { await markGlobalSnapshot(op, 'rolled-back'); await cleanupGlobalSnapshot(op); setToastMessage(`${cause.message}. Original data was restored and verified.`); }
+      try { await cleanupGlobalSnapshot(op); setToastMessage(`${cause.message}. Original data was restored and verified.`); }
       catch (cleanupError) { globalNotice(`${cause.message}. Original data was restored. Cleanup failed: ${cleanupError.message}. Retry cleanup.`, async () => { await cleanupGlobalSnapshot(op); globalRecoveryNotice = null; renderToast(); }); }
     } catch (rollbackError) {
       op.busy = false; modalState = null; renderModal();
@@ -3355,6 +3364,7 @@
       // afterward without rolling the verified new domain back.
       let phaseError = null;
       try { await markGlobalSnapshot(op, 'committed'); } catch (error) { phaseError = error; }
+      await verifyGlobalReplacement(op);
       deleteLifecycle.retire(op.token);
       state = normalizeState(op.validated.state); recovery = null; modalState = null;
       globalOperation = phaseError ? op : null; renderModal(); location.hash = '#today'; render();
