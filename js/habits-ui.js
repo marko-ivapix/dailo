@@ -253,8 +253,9 @@
   }
 
   async function addStarterExamples(ctx) {
-    const { state, Core, uid, nowIso, habitDraft, areaDefaults, saveState, render, setToastMessage, refreshHabitMetrics } = ctx;
+    const { state, Core, uid, nowIso, habitDraft, areaDefaults, PROJECT_COLORS, saveState, render, setToastMessage, refreshHabitMetrics } = ctx;
     const normalizeName = value => Core.normalizeTagName(value).toLocaleLowerCase();
+    const samplePrefix = 'workspace-starter-v1';
     const areas = [
       ['family-friends', 'Family & Friends'], ['work', 'Work'], ['personal-growth', 'Personal Growth'],
       ['home', 'Home'], ['travel', 'Travel'], ['health', 'Health'], ['career', 'Career'], ['finance', 'Finance']
@@ -267,15 +268,18 @@
       ['daily', 'program-30-minutes', 'Program 30 minutes'], ['daily', 'read-learn-30-minutes', 'Read/learn 30 minutes'],
       ['night', 'beard-balm', 'Beard balm'], ['night', 'tomorrow-tasks', "Enter tomorrow's tasks"]
     ];
-    const addedAreas = []; const addedHabits = []; const timestamp = nowIso();
+    const addedAreas = [], addedHabits = [], addedProjects = [], addedTasks = [], addedGoals = [], addedNotes = [], addedResources = [];
+    const timestamp = nowIso(), today = Core.dateOnly();
+    const hasSampleOrName = (collection, sampleKey, name, field = 'name') => collection.some(item => item.sampleKey === sampleKey || normalizeName(item[field]) === normalizeName(name));
+    const byName = (collection, name, field = 'name') => collection.find(item => normalizeName(item[field]) === normalizeName(name));
     for (const [key, name] of areas) {
       const sampleKey = 'area-routines-v1:area:' + key;
-      if (state.areas.some(area => area.sampleKey === sampleKey || normalizeName(area.name) === normalizeName(name))) continue;
+      if (hasSampleOrName(state.areas, sampleKey, name)) continue;
       addedAreas.push({ id: uid('area'), sampleKey, name, ...areaDefaults, status: 'active', isPinned: false, createdAt: timestamp, updatedAt: timestamp });
     }
     for (const [routine, key, name] of habits) {
       const sampleKey = 'area-routines-v1:habit:' + routine + ':' + key;
-      if (state.habits.some(habit => habit.sampleKey === sampleKey || ((habit.routine || 'daily') === routine && normalizeName(habit.name) === normalizeName(name)))) continue;
+      if (state.habits.some(habit => habit.sampleKey === sampleKey || normalizeName(habit.name) === normalizeName(name))) continue;
       addedHabits.push({
         ...habitDraft(), id: uid('habit'), sampleKey, name, routine, status: 'active',
         areaId: null, goalIds: [], quickValues: [], reminders: [], reminderFiredMoments: [],
@@ -284,11 +288,56 @@
         endDate: null, successfulPeriodsTarget: null, createdAt: timestamp, updatedAt: timestamp
       });
     }
-    if (!addedAreas.length && !addedHabits.length) { setToastMessage('Starter examples already present.'); return; }
-    state.areas.push(...addedAreas); state.habits.push(...addedHabits);
+    const allAreas = [...state.areas, ...addedAreas];
+    const workArea = byName(allAreas, 'Work');
+    const healthArea = byName(allAreas, 'Health');
+    const projects = [
+      ['weekly-plan', 'Plan your week', workArea?.id || null],
+      ['health-baseline', 'Health baseline', healthArea?.id || null],
+    ];
+    for (const [key, name, areaId] of projects) {
+      const sampleKey = `${samplePrefix}:project:${key}`;
+      if (hasSampleOrName(state.projects, sampleKey, name)) continue;
+      addedProjects.push({ id: uid('project'), sampleKey, name, color: PROJECT_COLORS[addedProjects.length % PROJECT_COLORS.length], areaId, goalIds: [], order: state.projects.length + addedProjects.length, isArchived: false, archivedAt: null, createdAt: timestamp, updatedAt: timestamp });
+    }
+    const allProjects = [...state.projects, ...addedProjects];
+    const weeklyPlan = byName(allProjects, 'Plan your week');
+    const tasks = [
+      ['today-priority', 'Choose today’s priority', { projectId: weeklyPlan?.id || null, plannedDate: today, todayOrder: 0 }],
+      ['overdue-follow-up', 'Follow up on an overdue commitment', { projectId: weeklyPlan?.id || null, dueDate: Core.addDays(today, -1) }],
+      ['due-soon-review', 'Review this week’s plan', { projectId: weeklyPlan?.id || null, dueDate: Core.addDays(today, 2) }],
+    ];
+    for (const [key, title, extra] of tasks) {
+      const sampleKey = `${samplePrefix}:task:${key}`;
+      if (hasSampleOrName(state.tasks, sampleKey, title, 'title')) continue;
+      const projectId = extra.projectId && allProjects.some(project => project.id === extra.projectId) ? extra.projectId : null;
+      addedTasks.push({ id: uid('task'), sampleKey, title, notes: '', projectId, areaId: projectId ? null : workArea?.id || null, goalIds: [], plannedDate: extra.plannedDate || null, plannedTime: null, dueDate: extra.dueDate || null, dueTime: null, reminderAt: null, reminderFiredAt: null, recurrence: null, tagIds: [], priority: 'none', attachmentIds: [], isInbox: !(projectId || extra.plannedDate), isCompleted: false, completedAt: null, subtasks: [], todayOrder: extra.todayOrder ?? null, projectOrder: projectId ? addedTasks.filter(task => task.projectId === projectId).length : null, inboxOrder: null, createdAt: timestamp, updatedAt: timestamp });
+    }
+    const allHabits = [...state.habits, ...addedHabits];
+    const linkedProject = addedProjects[0];
+    const linkedTask = addedTasks.find(task => task.sampleKey === `${samplePrefix}:task:today-priority`);
+    const linkedHabit = addedHabits.find(habit => habit.sampleKey === 'area-routines-v1:habit:daily:program-30-minutes');
+    const goalName = 'Build a sustainable weekly rhythm', goalKey = `${samplePrefix}:goal:weekly-rhythm`;
+    if (!hasSampleOrName(state.goals, goalKey, goalName, 'title')) {
+      const goal = { id: uid('goal'), sampleKey: goalKey, title: goalName, areaId: workArea?.id || null, horizon: 'short', status: 'active', progressMode: 'linkedTasks', progressType: 'percentage', currentValue: 0, targetValue: 100, unit: '', targetDate: Core.addDays(today, 14), projectLinks: linkedProject ? [{ projectId: linkedProject.id, contributionMode: 'allTasks', selectedTaskIds: [] }] : [], taskIds: linkedTask ? [linkedTask.id] : [], habitLinks: linkedHabit ? [{ habitId: linkedHabit.id, metric: 'totalCheckins', target: 7 }] : [], milestones: [], reminders: { sevenDaysBefore: false, threeDaysBefore: false, oneDayBefore: false, onTargetDate: false, time: '09:00' }, reminderFiredMoments: [], createdAt: timestamp, updatedAt: timestamp, completedAt: null };
+      addedGoals.push(goal);
+      if (linkedProject) linkedProject.goalIds.push(goal.id);
+      if (linkedTask) linkedTask.goalIds.push(goal.id);
+      if (linkedHabit) linkedHabit.goalIds.push(goal.id);
+    }
+    const allGoals = [...state.goals, ...addedGoals];
+    const noteName = 'Weekly planning notes', noteKey = `${samplePrefix}:note:weekly-planning`;
+    if (!hasSampleOrName(state.notes, noteKey, noteName, 'title')) addedNotes.push({ id: uid('note'), sampleKey: noteKey, title: noteName, body: 'Use this note to capture decisions, loose ends, and a short review for next week.', areaId: workArea?.id || null, linkUrls: [], attachmentIds: [], createdAt: timestamp, updatedAt: timestamp });
+    const resourceName = 'Starter workspace guide', resourceKey = `${samplePrefix}:resource:workspace-guide`;
+    const weeklyRhythmGoal = byName(allGoals, goalName, 'title');
+    const programHabit = byName(allHabits, 'Program 30 minutes');
+    if (!hasSampleOrName(state.resources, resourceKey, resourceName, 'title')) addedResources.push({ id: uid('resource'), sampleKey: resourceKey, title: resourceName, description: 'A lightweight reference connected to the starter workspace. Edit or delete it whenever you are ready.', areaId: workArea?.id || null, linkUrls: [], attachmentIds: [], relatedTaskIds: linkedTask ? [linkedTask.id] : [], relatedProjectIds: weeklyPlan ? [weeklyPlan.id] : [], relatedGoalIds: weeklyRhythmGoal ? [weeklyRhythmGoal.id] : [], relatedHabitIds: programHabit ? [programHabit.id] : [], createdAt: timestamp, updatedAt: timestamp });
+    const additions = [[state.areas, addedAreas], [state.habits, addedHabits], [state.projects, addedProjects], [state.tasks, addedTasks], [state.goals, addedGoals], [state.notes, addedNotes], [state.resources, addedResources]];
+    if (!additions.some(([, records]) => records.length)) { setToastMessage('Starter examples already present.'); return; }
+    for (const [collection, records] of additions) collection.push(...records);
     if (!saveState()) {
       // Only this invocation's new object references are removed; existing edits stay intact.
-      for (const [collection, records] of [[state.areas, addedAreas], [state.habits, addedHabits]]) {
+      for (const [collection, records] of additions) {
         for (const record of records) { const index = collection.indexOf(record); if (index !== -1) collection.splice(index, 1); }
       }
       render(); setToastMessage('Could not save starter examples locally. Free up browser storage and try again.'); return;
@@ -296,7 +345,7 @@
     try {
       await refreshHabitMetrics();
       if (ctx.state !== state) return;
-      render(); setToastMessage(`Added ${addedAreas.length} Areas and ${addedHabits.length} Habits. All examples are editable.`);
+      render(); setToastMessage(`Added ${addedAreas.length} Areas, ${addedProjects.length} Projects, ${addedTasks.length} Tasks, ${addedGoals.length} Goals, ${addedHabits.length} Habits, ${addedNotes.length} Notes and ${addedResources.length} Resources. All examples are editable.`);
     } catch (error) {
       console.error(error);
       if (ctx.state !== state) return;
