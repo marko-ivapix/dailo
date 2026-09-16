@@ -7,7 +7,9 @@
 
   const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
   const MAX_ATTACHMENTS_PER_OWNER = 10;
-  const BACKUP_VERSION = 3;
+  // V1.3's ZIP format is version 2.  The app/schema version is tracked
+  // separately in the manifest data (`data.version === 3`).
+  const BACKUP_VERSION = 2;
 
   function requireZip() {
     if (!root.JSZip) throw new Error('ZIP support unavailable');
@@ -258,13 +260,16 @@
     const paths = new Set();
     for (const item of attachments) {
       const owner = owners.get(item.id), parts = typeof item.path === 'string' ? item.path.split('/') : [];
-      if (manifest.backupVersion < 3 && owner.type !== 'task'
+      // V1.2 packages (backupVersion 1) only knew about task attachments.
+      // V1.3 packages (backupVersion 2) may also contain Note/Resource files.
+      if (manifest.backupVersion === 1 && owner.type !== 'task'
         || parts.length !== 3 || `${parts[0]}/${parts[1]}` !== ownerDirectory(owner)
         || !parts[2] || ['.', '..'].includes(parts[2]) || /[\\:*?"<>|\x00-\x1f]/.test(parts[2]) || paths.has(item.path)
         || item.blobType != null && typeof item.blobType !== 'string') throw new Error('Invalid attachment path or metadata');
       paths.add(item.path);
       const entry = zip.file(item.path);
-      if (!entry || entry.unsafeOriginalName && entry.unsafeOriginalName !== item.path) throw new Error(`Missing or unsafe attachment file: ${item.fileName}`);
+      if (!entry) throw new Error(`Missing attachment file: ${item.fileName}`);
+      if (entry.unsafeOriginalName && entry.unsafeOriginalName !== item.path) throw new Error(`Unsafe attachment file: ${item.fileName}`);
       const blob = new root.Blob([await entry.async('uint8array')], { type: item.blobType ?? item.mimeType });
       if (blob.size !== Number(item.size)) throw new Error(`Attachment size mismatch: ${item.fileName}`);
       if (blob.size > MAX_ATTACHMENT_BYTES) throw new Error(`Attachment exceeds 10 MB: ${item.fileName}`);
