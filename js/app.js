@@ -4,6 +4,7 @@
   const Core = window.TodoCore;
   const Attachments = window.TodoAttachments;
   const Backup = window.TodoBackup;
+  const TemplatesUI = window.TodoTemplatesUI;
   const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
   const MAX_ATTACHMENTS_PER_TASK = 10;
   const STORAGE_KEY = 'todoAppData';
@@ -25,6 +26,7 @@
   let lastToday = Core.dateOnly();
   let dragState = null;
   let modalReturnFocus = null;
+  let activeTemplateType = 'task';
 
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -262,7 +264,7 @@
 
   function currentRoute() {
     const hash = location.hash.replace(/^#/, '') || 'today';
-    if (['today', 'inbox', 'upcoming', 'anytime', 'tags', 'archived', 'completed', 'settings'].includes(hash)) return { type: hash };
+    if (['today', 'inbox', 'upcoming', 'anytime', 'tags', 'templates', 'archived', 'completed', 'settings'].includes(hash)) return { type: hash };
     if (hash.startsWith('project/')) {
       const id = decodeURIComponent(hash.slice('project/'.length));
       if (getProject(id)) return { type: 'project', id };
@@ -382,6 +384,7 @@
     else if (route.type === 'upcoming') content = renderUpcoming();
     else if (route.type === 'anytime') content = renderAnytime();
     else if (route.type === 'tags') content = renderTags();
+    else if (route.type === 'templates') content = renderTemplates();
     else if (route.type === 'archived') content = renderArchivedProjects();
     else if (route.type === 'project') content = renderProject(route.id);
     else if (route.type === 'completed') content = renderCompleted();
@@ -469,6 +472,11 @@
     }
     html += '</div>';
     return html;
+  }
+
+  function renderTemplates() {
+    if (!TemplatesUI) return emptyState('Templates unavailable', 'Reload the prototype to load the Templates interface.');
+    return TemplatesUI.renderTemplates(state.templates || [], activeTemplateType);
   }
 
   function renderArchivedProjects() {
@@ -1070,7 +1078,7 @@
 
   function openMoreMenu(anchor) {
     const route = currentRoute();
-    const html = `<button class="popover-option ${route.type === 'anytime' ? 'is-selected' : ''}" type="button" data-route="anytime"><i class="ph ph-infinity"></i>Anytime</button><button class="popover-option ${route.type === 'archived' ? 'is-selected' : ''}" type="button" data-route="archived"><i class="ph ph-archive"></i>Archived Projects</button><div class="popover-separator"></div><button class="popover-option ${route.type === 'completed' ? 'is-selected' : ''}" type="button" data-route="completed"><i class="ph ph-check-circle"></i>Completed</button><button class="popover-option ${route.type === 'settings' ? 'is-selected' : ''}" type="button" data-route="settings"><i class="ph ph-gear"></i>Settings</button>`;
+    const html = `<button class="popover-option ${route.type === 'anytime' ? 'is-selected' : ''}" type="button" data-route="anytime"><i class="ph ph-infinity"></i>Anytime</button><button class="popover-option ${route.type === 'templates' ? 'is-selected' : ''}" type="button" data-route="templates"><i class="ph ph-bookmark-simple"></i>Templates</button><button class="popover-option ${route.type === 'archived' ? 'is-selected' : ''}" type="button" data-route="archived"><i class="ph ph-archive"></i>Archived Projects</button><div class="popover-separator"></div><button class="popover-option ${route.type === 'completed' ? 'is-selected' : ''}" type="button" data-route="completed"><i class="ph ph-check-circle"></i>Completed</button><button class="popover-option ${route.type === 'settings' ? 'is-selected' : ''}" type="button" data-route="settings"><i class="ph ph-gear"></i>Settings</button>`;
     openPopover(anchor, html, { type: 'more' });
   }
 
@@ -1581,6 +1589,7 @@
     else if (action === 'open-search') openSearch();
     else if (action === 'new-project') openProjectModal();
     else if (action === 'new-tag') openTagModal();
+    else if (action === 'select-template-type') { activeTemplateType = el.dataset.templateType; render(); }
     else if (action === 'select-tag') { state.ui.selectedTagId = el.dataset.tagId; saveAndRender(); }
     else if (action === 'tag-menu') openTagMenu(el, el.dataset.tagId);
     else if (action === 'more-menu') openMoreMenu(el);
