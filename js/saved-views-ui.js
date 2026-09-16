@@ -9,15 +9,32 @@
   };
 
   const label = value => value[0].toUpperCase() + value.slice(1);
+  const FILTER_LABELS = { areaId: 'Area', projectId: 'Project', tagId: 'Tag', priority: 'Priority', completion: 'Completion', plannedDate: 'Planned', dueDate: 'Due', targetDate: 'Target', status: 'Status', trackingType: 'Tracking', frequencyType: 'Frequency' };
+  const VALUE_LABELS = { none: 'None', low: 'Low', medium: 'Medium', high: 'High', open: 'Open', completed: 'Completed', active: 'Active', paused: 'Paused', archived: 'Archived', checkbox: 'Checkbox', numeric: 'Numeric', daily: 'Daily', weekdays: 'Selected weekdays', timesPerWeek: 'X times per week', everyNDays: 'Every N days' };
 
   function actions(context, view) {
     const { esc } = context;
     return `<div class="modal-footer-actions">${[['edit-saved-view', 'ph-pencil-simple', 'Edit view'], ['duplicate-saved-view', 'ph-copy', 'Duplicate view'], ['pin-saved-view', 'ph-push-pin', view.isPinned ? 'Unpin view' : 'Pin view'], ['delete-saved-view', 'ph-trash', 'Delete view']].map(([action, icon, text]) => `<button class="btn-icon" type="button" data-action="${action}" data-saved-view-id="${esc(view.id)}" aria-label="${text}" title="${text}"><i class="ph ${icon}"></i></button>`).join('')}</div>`;
   }
 
+  function filterSummary(context, view) {
+    const { state, esc, formatDate } = context;
+    const filters = view.filters || {};
+    const names = { areaId: state.areas, projectId: state.projects, tagId: state.tags };
+    const parts = Object.entries(filters).filter(([, value]) => value).map(([key, value]) => {
+      let text = value;
+      if (names[key]) text = names[key].find(item => item.id === value)?.name || 'Missing reference';
+      else if (['plannedDate', 'dueDate', 'targetDate'].includes(key)) text = formatDate ? formatDate(value) : value;
+      else text = VALUE_LABELS[value] || label(String(value));
+      return `${FILTER_LABELS[key] || label(key)}: ${text}`;
+    });
+    const summary = parts.length ? parts.join(' · ') : `All ${label(view.type).toLowerCase()}`;
+    return `<span class="goal-row-meta"><small>${esc(summary)}</small></span>`;
+  }
+
   function renderList(context) {
     const { state, pageHeader, esc } = context;
-    return pageHeader('Saved Views', 'Reusable filters for one object type.', { add: false, actionHtml: '<button class="btn btn-primary" data-action="new-saved-view"><i class="ph ph-plus"></i> New saved view</button>' }) + `<section class="section">${state.savedViews.length ? state.savedViews.map(view => `<article class="goal-row" data-saved-view-row="${esc(view.id)}"><button class="goal-open" type="button" data-route="saved-view/${esc(view.id)}"><strong>${esc(view.name)}</strong><small>${esc(label(view.type))}${view.isPinned ? ' · Pinned' : ''}</small></button>${actions(context, view)}</article>`).join('') : '<p class="area-empty-copy">No saved views yet. Create a filter you can return to.</p>'}</section>`;
+    return pageHeader('Saved Views', 'Reusable filters for one object type.', { add: false, actionHtml: '<button class="btn btn-primary" data-action="new-saved-view"><i class="ph ph-plus"></i> New saved view</button>' }) + `<section class="section">${state.savedViews.length ? state.savedViews.map(view => `<article class="goal-row" data-saved-view-row="${esc(view.id)}"><button class="goal-open" type="button" data-route="saved-view/${esc(view.id)}"><span class="goal-row-top"><strong>${esc(view.name)}</strong><small>${esc(label(view.type))}${view.isPinned ? ' · Pinned' : ''}</small></span>${filterSummary(context, view)}</button>${actions(context, view)}</article>`).join('') : '<p class="area-empty-copy">No saved views yet. Create a filter you can return to.</p>'}</section>`;
   }
 
   function renderDetail(context, id) {
