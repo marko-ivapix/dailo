@@ -472,7 +472,27 @@
       knowledgeAttachmentCache, readOwnerAttachments, renderAttachmentRow,
       renderAttachmentsSection, loadOwnerAttachments, addAttachments,
       closePopover, flushTextSave, goalFocusTarget, closeModal,
-      nowIso, uid, copyTemplate, saveState, navigate, setToastMessage, requestDeleteEntity
+      nowIso, uid, copyTemplate, saveState, navigate, setToastMessage, requestDeleteEntity,
+      setModalReturnFocus(value) { modalReturnFocus = value; },
+      renderSavedViewItem(view, item, today) {
+        return view.type === 'tasks' ? taskRow(item, 'saved-view') : view.type === 'goals' ? renderGoalRow(item) : renderHabitRow(item, item.status === 'active' ? Core.habitStatusForDate(item, state.habitLogCache?.[item.id] || [], today, today) : null);
+      },
+      saveSavedViewDraft(id, draft) {
+        const existing = state.savedViews.find(view => view.id === id);
+        const view = { ...draft, name: draft.name.trim(), id: existing?.id || uid('view'), createdAt: existing?.createdAt || nowIso(), updatedAt: nowIso() };
+        if (existing) state.savedViews.splice(state.savedViews.indexOf(existing), 1, view); else state.savedViews.push(view);
+        saveState(); closeModal(); render();
+      },
+      duplicateSavedView(id) {
+        const source = state.savedViews.find(view => view.id === id);
+        if (!source) return;
+        const view = copyTemplate(source); view.id = uid('view'); view.name += ' copy'; view.createdAt = view.updatedAt = nowIso(); state.savedViews.push(view); saveAndRender();
+      },
+      toggleSavedViewPin(id) {
+        const view = state.savedViews.find(item => item.id === id);
+        if (!view) return;
+        view.isPinned = !view.isPinned; view.updatedAt = nowIso(); saveAndRender();
+      }
     };
   }
 
@@ -632,8 +652,6 @@
     let content = callDomainHook('renderRoute', route);
     if (content === undefined) {
       if (route.type === 'templates') content = renderTemplates();
-      else if (route.type === 'saved-views') content = renderSavedViews();
-      else if (route.type === 'saved-view') content = renderSavedView(route.id);
       else if (route.type === 'projects') content = renderProjects();
       else if (route.type === 'today') content = renderToday();
       else if (route.type === 'inbox') content = renderInbox();
@@ -1227,7 +1245,6 @@
     else if (modalState.type === 'import-backup') root.innerHTML = renderImportBackupModal();
     else if (modalState.type === 'template') root.innerHTML = renderTemplateModal();
     else if (modalState.type === 'template-picker') root.innerHTML = renderTemplatePicker();
-    else if (modalState.type === 'saved-view') root.innerHTML = renderSavedViewModal();
     else if (modalState.type === 'recurrence-scope') root.innerHTML = renderRecurrenceScope();
     if (['quick','project','habit','goal'].includes(modalState.type) && !modalState.taskId && !modalState.projectId && !modalState.habitId && !modalState.goalId) {
       $('.modal-inner',root)?.insertAdjacentHTML('afterbegin','<button class="btn btn-ghost" type="button" data-action="from-template"><i class="ph ph-copy"></i> From template</button>');
@@ -1241,55 +1258,8 @@
   }
 
   const TEMPLATE_TYPES = ['task','project','habit','goal'];
-  const SAVED_VIEW_TYPES = ['tasks','goals','habits'];
-  const SAVED_FILTER_KEYS = {tasks:['areaId','projectId','tagId','priority','plannedDate','dueDate','completion'],goals:['areaId','status','targetDate'],habits:['areaId','status','trackingType','frequencyType']};
   function renderProjects() {
     return pageHeader('Projects','Active projects',{add:false,actionHtml:'<button class="btn btn-primary" data-action="new-project">New project</button>'}) + sortedProjects().map(p=>`<button class="sidebar-action" data-route="project/${esc(p.id)}"><i class="ph ph-folder"></i><span>${esc(p.name)}</span></button>`).join('');
-  }
-  function savedViewActions(view) {
-    return `<div class="modal-footer-actions">${[['edit-saved-view','ph-pencil-simple','Edit view'],['duplicate-saved-view','ph-copy','Duplicate view'],['pin-saved-view','ph-push-pin',view.isPinned?'Unpin view':'Pin view'],['delete-saved-view','ph-trash','Delete view']].map(([action,icon,label])=>`<button class="btn-icon" type="button" data-action="${action}" data-saved-view-id="${esc(view.id)}" aria-label="${label}" title="${label}"><i class="ph ${icon}"></i></button>`).join('')}</div>`;
-  }
-  function renderSavedViews() {
-    return pageHeader('Saved Views','Reusable filters for one object type.',{add:false,actionHtml:'<button class="btn btn-primary" data-action="new-saved-view"><i class="ph ph-plus"></i> New saved view</button>'}) + `<section class="section">${state.savedViews.length?state.savedViews.map(view=>`<article class="goal-row" data-saved-view-row="${esc(view.id)}"><button class="goal-open" type="button" data-route="saved-view/${esc(view.id)}"><strong>${esc(view.name)}</strong><small>${esc(templateLabel(view.type))}${view.isPinned?' · Pinned':''}</small></button>${savedViewActions(view)}</article>`).join(''):'<p class="area-empty-copy">No saved views yet. Create a filter you can return to.</p>'}</section>`;
-  }
-  function renderSavedView(id) {
-    const view=state.savedViews.find(v=>v.id===id);
-    if(!view)return pageHeader('Saved View not found','This view may have been deleted.',{add:false});
-    const today=Core.dateOnly(),rows=Core.applySavedView(view,state,today);
-    const renderRow=item=>view.type==='tasks'?taskRow(item,'saved-view'):view.type==='goals'?renderGoalRow(item):renderHabitRow(item,item.status==='active'?Core.habitStatusForDate(item,state.habitLogCache?.[item.id] || [],today,today):null);
-    return pageHeader(view.name,`${rows.length} ${view.type}`,{add:false,actionHtml:savedViewActions(view)}) + `<section class="section" data-saved-results="${esc(id)}">${rows.length?rows.map(renderRow).join(''):'<p class="area-empty-copy">No matching items. Adjust this view’s filters to change the results.</p>'}</section>`;
-  }
-  function openSavedViewModal(id=null) {
-    closePopover();modalReturnFocus=document.activeElement;
-    const view=state.savedViews.find(v=>v.id===id);
-    modalState={type:'saved-view',savedViewId:id,draft:view?copyTemplate(view):{name:'',type:'tasks',filters:{},isPinned:false},error:''};
-    renderModal();requestAnimationFrame(()=>$('#saved-view-name')?.focus());
-  }
-  function readSavedViewDraft() {
-    const draft=modalState.draft;draft.name=$('#saved-view-name').value;draft.isPinned=$('#saved-view-pinned').checked;
-    draft.filters=Object.fromEntries($$('[data-saved-filter]').filter(e=>e.value).map(e=>[e.dataset.savedFilter,e.value]));
-  }
-  function renderSavedViewModal() {
-    const {draft,error}=modalState;
-    const choices={areaId:state.areas.map(a=>[a.id,a.name]),projectId:state.projects.map(p=>[p.id,p.name]),tagId:state.tags.map(t=>[t.id,t.name]),priority:['none','low','medium','high'].map(v=>[v,templateLabel(v)]),completion:[['open','Open'],['completed','Completed']],status:(draft.type==='goals'?['active','paused','completed','archived']:['active','paused','archived']).map(v=>[v,templateLabel(v)]),trackingType:[['checkbox','Checkbox'],['numeric','Numeric']],frequencyType:[['daily','Daily'],['weekdays','Selected weekdays'],['timesPerWeek','X times per week'],['everyNDays','Every N days']]};
-    const labels={areaId:'Area',projectId:'Project',tagId:'Tag',priority:'Priority',completion:'Completion',plannedDate:'Planned date (exact day)',dueDate:'Due date (exact day)',targetDate:'Target date (exact day)',status:'Status',trackingType:'Tracking',frequencyType:'Frequency'};
-    const fields=SAVED_FILTER_KEYS[draft.type].map(key=>{
-      let opts=choices[key];const value=draft.filters[key] || '';
-      if(opts && value && !opts.some(([v])=>v===value))opts=[...opts,[value,'Missing reference']];
-      return `<label class="field-label">${labels[key]}${opts?`<select class="input" data-saved-filter="${key}"><option value="">Any</option>${opts.map(([v,label])=>`<option value="${esc(v)}" ${v===value?'selected':''}>${esc(label)}</option>`).join('')}</select>`:`<input class="input" type="date" data-saved-filter="${key}" value="${esc(value)}" />`}</label>`;
-    }).join('');
-    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">${modalState.savedViewId?'Edit':'New'} saved view</h2><button class="btn-icon" data-action="close-modal" aria-label="Close"><i class="ph ph-x"></i></button></div><label class="field-label" for="saved-view-name">Name</label><input class="input" id="saved-view-name" value="${esc(draft.name)}" /><label class="field-label" for="saved-view-type">Object type</label><select class="input" id="saved-view-type">${SAVED_VIEW_TYPES.map(v=>`<option value="${v}" ${v===draft.type?'selected':''}>${templateLabel(v)}</option>`).join('')}</select><div class="template-fields">${fields}</div><label class="field-label"><input id="saved-view-pinned" type="checkbox" ${draft.isPinned?'checked':''} /> Pin to sidebar</label>${error?`<p class="validation" role="alert">${esc(error)}</p>`:''}<div class="modal-footer"><button class="btn btn-ghost" data-action="close-modal">Cancel</button><button class="btn btn-primary" data-action="save-saved-view">Save view</button></div></div>`,'quick');
-  }
-  function saveSavedView() {
-    readSavedViewDraft();const draft=modalState.draft;
-    if(!draft.name.trim()){modalState.error='Give this view a name.';renderModal();return;}
-    const existing=state.savedViews.find(v=>v.id===modalState.savedViewId);
-    const view={...draft,name:draft.name.trim(),id:existing?.id || uid('view'),createdAt:existing?.createdAt || nowIso(),updatedAt:nowIso()};
-    if(existing)state.savedViews.splice(state.savedViews.indexOf(existing),1,view);else state.savedViews.push(view);
-    saveState();closeModal();render();
-  }
-  function deleteSavedView(id) {
-    requestDeleteEntity('saved-view', id);
   }
   function saveShortcut(command) {
     const raw=$(`[data-shortcut="${command}"]`).value,value=Core.normalizeShortcut(raw);
@@ -3430,12 +3400,6 @@
     if (callDomainHook('handleAction', action, event) !== undefined) return;
     if(action==='recurrence-scope'){applyRecurrenceScope(el.dataset.scope);return;}
     if(action==='from-template')openTemplatePicker();
-    else if(action==='new-saved-view')openSavedViewModal();
-    else if(action==='edit-saved-view')openSavedViewModal(el.dataset.savedViewId);
-    else if(action==='save-saved-view')saveSavedView();
-    else if(action==='delete-saved-view')deleteSavedView(el.dataset.savedViewId);
-    else if(action==='duplicate-saved-view'){const source=state.savedViews.find(v=>v.id===el.dataset.savedViewId);if(source){const view=copyTemplate(source);view.id=uid('view');view.name+=' copy';view.createdAt=view.updatedAt=nowIso();state.savedViews.push(view);saveAndRender();}}
-    else if(action==='pin-saved-view'){const view=state.savedViews.find(v=>v.id===el.dataset.savedViewId);if(view){view.isPinned=!view.isPinned;view.updatedAt=nowIso();saveAndRender();}}
     else if(action==='toggle-sidebar-section'){const key=el.dataset.section;state.ui.sidebarSections[key]=!state.ui.sidebarSections[key];saveAndRender();}
     else if(action==='save-shortcut')saveShortcut(el.dataset.command);
     else if(action==='disable-shortcut'){state.settings.shortcuts[el.dataset.command]=null;shortcutError='';saveAndRender();}
@@ -3631,18 +3595,6 @@
   function handleChange(event) {
     if (globalOperation) return;
     if (callDomainHook('handleInput', event) !== undefined) return;
-    if (modalState?.type === 'saved-view' && event.target.id === 'saved-view-type') {
-      readSavedViewDraft();
-      const draft = modalState.draft;
-      draft.type = event.target.value;
-      draft.filters = Object.fromEntries(Object.entries(draft.filters).filter(([key]) => SAVED_FILTER_KEYS[draft.type].includes(key)));
-      const statuses = draft.type === 'goals' ? ['active','paused','completed','archived'] : ['active','paused','archived'];
-      if (draft.filters.status && !statuses.includes(draft.filters.status)) delete draft.filters.status;
-      modalState.error = '';
-      renderModal();
-      $('#saved-view-type')?.focus();
-      return;
-    }
     if(modalState?.type==='template' && event.target.dataset.templateField?.endsWith('goalIds')){readTemplateDraft();renderModal();return;}
     if (event.target.matches('[data-calendar-visibility]')) { state.ui.calendarVisibility = { tasks: true, habits: true, goals: true, milestones: true, ...(state.ui.calendarVisibility || {}), [event.target.dataset.calendarVisibility]: event.target.checked }; saveAndRender(); return; }
     if (event.target.matches('[data-task-time]')) { updateTask(event.target.dataset.taskId, { [event.target.dataset.taskTime]: Core.normalizeTime(event.target.value) }, false); render(); return; }
