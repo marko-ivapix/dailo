@@ -24,12 +24,12 @@ Full plan: `docs/superpowers/plans/2026-09-16-todo-v1-3.md`
 
 ## Phase 2 — IndexedDB V3 storage
 
-- [ ] Preserve attachment storage compatibility.
-- [ ] Add Habit log store.
-- [ ] Add Goal history store.
-- [ ] Add recovery snapshot store.
-- [ ] Add CRUD helpers and transaction/error handling.
-- [ ] Test persistence independently from UI.
+- [x] Preserve attachment storage compatibility.
+- [x] Add Habit log store.
+- [x] Add Goal history store.
+- [x] Add recovery snapshot store.
+- [x] Add CRUD helpers and transaction/error handling.
+- [x] Test persistence independently from UI.
 
 ## Phase 3 — Areas
 
