@@ -624,6 +624,18 @@ button.area-object:hover { background: var(--surface-interactive); }
 
 /* V1.3 Goals */
 .goal-list { display:grid; gap:8px; }
+.goal-group, .habit-group { position:relative; }
+.goal-group-header, .habit-group-header { min-height:50px; margin-bottom:10px; padding:9px 12px; border:1px solid var(--border-subtle); border-radius:var(--radius-md); background:var(--surface-card-dark); }
+.goal-group-heading, .habit-group-heading { min-width:0; display:flex; align-items:center; gap:10px; }
+.goal-group-heading > i, .habit-group-heading > i { width:28px; height:28px; display:inline-flex; align-items:center; justify-content:center; border-radius:var(--radius-sm); background:var(--surface-interactive); color:var(--primary-focus); font-size:16px; }
+.goal-group-heading > div, .habit-group-heading > div { min-width:0; }
+.goal-group-heading p, .habit-group-heading p { margin:2px 0 0; color:var(--text-muted); font-size:12px; line-height:1.35; }
+.goal-group .section-count, .habit-group .section-count { min-width:24px; height:24px; display:inline-flex; align-items:center; justify-content:center; padding:0 7px; border-radius:var(--radius-pill); background:var(--surface-interactive); color:var(--text-secondary); font-variant-numeric:tabular-nums; }
+.goal-group--short .goal-group-heading > i { color:var(--accent); }
+.goal-group--mid .goal-group-heading > i { color:var(--primary-focus); }
+.goal-group--long .goal-group-heading > i { color:var(--warning); }
+.goal-group--month .goal-group-heading > i { color:var(--primary-focus); }
+.goal-group--undated .goal-group-heading > i, .habit-group--paused .habit-group-heading > i { color:var(--text-muted); }
 .goal-row { min-height:104px; display:grid; grid-template-columns:minmax(0,1fr) auto; border:1px solid var(--border-subtle); border-radius:var(--radius-md); background:var(--surface-card-dark); overflow:hidden; transition:border-color var(--motion-fast) var(--ease-standard), background var(--motion-fast) var(--ease-standard); }
 .goal-row:hover, .goal-row:focus-within { border-color:var(--border-default); }
 .goal-open { min-width:0; padding:14px; border:0; background:transparent; color:inherit; cursor:pointer; text-align:left; display:grid; gap:9px; }
@@ -677,6 +689,9 @@ button.area-object:hover { background: var(--surface-interactive); }
 
 /* V1.3 Habits */
 .habit-list { display:grid; gap:8px; }
+.habit-group--morning .habit-group-heading > i { color:var(--warning); }
+.habit-group--daily .habit-group-heading > i { color:var(--accent); }
+.habit-group--night .habit-group-heading > i { color:var(--primary-focus); }
 .today-context { display:flex; align-items:baseline; flex-wrap:wrap; gap:8px 14px; margin:-12px 0 28px; padding-bottom:14px; border-bottom:1px solid var(--border-subtle); color:var(--text-muted); font-size:13px; }
 .today-context-date { display:inline-flex; align-items:center; gap:7px; color:var(--text-secondary); font-weight:600; }
 .today-context-date i { color:var(--primary-focus); font-size:16px; }

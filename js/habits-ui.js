@@ -3,6 +3,11 @@
 
   // UI only: live state, persistence, metrics and overlay ownership remain in app.js.
   const ROUTINES = Object.freeze({ morning: 'Morning', daily: 'Daily', night: 'Night' });
+  const ROUTINE_DETAILS = Object.freeze({
+    morning: { icon: 'ph-sun', copy: 'Start-of-day practices.' },
+    daily: { icon: 'ph-check-square', copy: 'Flexible routines to complete during the day.' },
+    night: { icon: 'ph-moon', copy: 'Wind-down practices for the end of the day.' }
+  });
 
   function routineOptions(value) {
     return Object.entries(ROUTINES).map(([key, label]) => `<option value="${key}" ${(value || 'daily') === key ? 'selected' : ''}>${label}</option>`).join('');
@@ -121,8 +126,11 @@
     return `<article class="habit-row habit-row--${esc(status)}"${todayStatus ? ' style="grid-template-columns:minmax(0,1fr) auto"' : ''}><button class="habit-open" type="button" data-route="habit/${esc(habit.id)}"><span><strong>${esc(habit.name)}</strong><small class="habit-row-meta"><span>${esc(ROUTINES[habit.routine || 'daily'])}</span><span>${esc(habitFrequencyLabel(ctx, habit))}</span><span class="habit-status habit-status--${esc(status)}">${esc(status)}</span></small></span><span class="habit-progress">${esc(habitProgressLabel(ctx, habit, metrics))}</span></button>${todayStatus ? `<div class="habit-checkin-controls">${actions}${menu}</div>` : menu}</article>`;
   }
 
-  function renderHabitSection(ctx, label, habits) {
-    return `<section class="section"><div class="section-header"><h2 class="section-label">${ctx.esc(label)}</h2><span class="section-count">${habits.length}</span></div>${habits.length ? `<div class="habit-list">${habits.map(habit => renderHabitRow(ctx, habit)).join('')}</div>` : '<p class="area-empty-copy">No active habits in this routine.</p>'}</section>`;
+  function renderHabitSection(ctx, label, habits, group = {}) {
+    const icon = group.icon ? `<i class="ph ${group.icon}" aria-hidden="true"></i>` : '';
+    const copy = group.copy ? `<p>${ctx.esc(group.copy)}</p>` : '';
+    const groupClass = group.className ? ` ${group.className}` : '';
+    return `<section class="section habit-group${groupClass}"><div class="section-header habit-group-header"><div class="habit-group-heading">${icon}<div><h2 class="section-label">${ctx.esc(label)}</h2>${copy}</div></div><span class="section-count">${habits.length}</span></div>${habits.length ? `<div class="habit-list">${habits.map(habit => renderHabitRow(ctx, habit)).join('')}</div>` : '<p class="area-empty-copy">No active habits in this routine.</p>'}</section>`;
   }
 
   function renderHabits(ctx) {
@@ -134,10 +142,10 @@
     if (!habits.length) return html + emptyState('No habits yet.', 'Track a repeatable behavior without turning it into a task.', 'New habit', 'new-habit');
     if (tab !== 'active') return html + `<div class="habit-list">${habits.map(habit => renderHabitRow(ctx, habit)).join('')}</div>`;
     for (const [routine, label] of Object.entries(ROUTINES)) {
-      html += renderHabitSection(ctx, label, habits.filter(habit => habit.status === 'active' && (habit.routine || 'daily') === routine));
+      html += renderHabitSection(ctx, label, habits.filter(habit => habit.status === 'active' && (habit.routine || 'daily') === routine), { ...ROUTINE_DETAILS[routine], className: `habit-group--${routine}` });
     }
     const paused = habits.filter(habit => habit.status === 'paused');
-    return html + (paused.length ? renderHabitSection(ctx, 'Paused', paused) : '');
+    return html + (paused.length ? renderHabitSection(ctx, 'Paused', paused, { icon: 'ph-pause', copy: 'Paused habits keep their history and settings.', className: 'habit-group--paused' }) : '');
   }
 
   function heatmapHtml(ctx, habit, logs) {

@@ -3,6 +3,11 @@
 
   // UI only: live app state and persistence/overlay helpers arrive per invocation.
   const HORIZONS = Object.freeze({ short: 'Short-term', mid: 'Mid-term', long: 'Long-term' });
+  const HORIZON_DETAILS = Object.freeze({
+    short: { icon: 'ph-flag', copy: 'Near-term outcomes to move forward now.' },
+    mid: { icon: 'ph-path', copy: 'Outcomes taking shape over the coming months.' },
+    long: { icon: 'ph-mountains', copy: 'Long-range direction and durable ambitions.' }
+  });
 
   function normalizeHorizon(value) {
     return Object.hasOwn(HORIZONS, value) ? value : 'short';
@@ -12,8 +17,11 @@
     return Object.entries(HORIZONS).map(([key, label]) => `<option value="${key}" ${normalizeHorizon(value) === key ? 'selected' : ''}>${label}</option>`).join('');
   }
 
-  function renderGoalSection(ctx, label, goals, emptyCopy) {
-    return `<section class="section"><div class="section-header"><h2 class="section-label">${ctx.esc(label)}</h2><span class="section-count">${goals.length}</span></div>${goals.length ? `<div class="goal-list">${goals.map(goal => renderGoalRow(ctx, goal)).join('')}</div>` : `<p class="area-empty-copy">${ctx.esc(emptyCopy)}</p>`}</section>`;
+  function renderGoalSection(ctx, label, goals, emptyCopy, group = {}) {
+    const icon = group.icon ? `<i class="ph ${group.icon}" aria-hidden="true"></i>` : '';
+    const copy = group.copy ? `<p>${ctx.esc(group.copy)}</p>` : '';
+    const groupClass = group.className ? ` ${group.className}` : '';
+    return `<section class="section goal-group${groupClass}"><div class="section-header goal-group-header"><div class="goal-group-heading">${icon}<div><h2 class="section-label">${ctx.esc(label)}</h2>${copy}</div></div><span class="section-count">${goals.length}</span></div>${goals.length ? `<div class="goal-list">${goals.map(goal => renderGoalRow(ctx, goal)).join('')}</div>` : `<p class="area-empty-copy">${ctx.esc(emptyCopy)}</p>`}</section>`;
   }
 
   function renderGoalRow(ctx, goal) {
@@ -41,12 +49,12 @@
       }
       for (const [month, items] of months) {
         const label = Core.parseDateOnly(month + '-01').toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
-        html += renderGoalSection(ctx, label, items, 'No active goals in this month.');
+        html += renderGoalSection(ctx, label, items, 'No active goals in this month.', { icon: 'ph-calendar-blank', copy: 'Goals with target dates in this month.', className: 'goal-group--month' });
       }
-      return html + renderGoalSection(ctx, 'Undated', undated, 'No undated active goals.');
+      return html + renderGoalSection(ctx, 'Undated', undated, 'No undated active goals.', { icon: 'ph-calendar-x', copy: 'Active goals without a target date.', className: 'goal-group--undated' });
     }
     if (!goals.length) return html + emptyState('No goals here yet.', 'Create a goal to track a meaningful outcome.', 'New goal', 'new-goal');
-    return html + Object.entries(HORIZONS).map(([horizon, label]) => renderGoalSection(ctx, label, goals.filter(goal => normalizeHorizon(goal.horizon) === horizon), `No ${label.toLowerCase()} goals here.`)).join('');
+    return html + Object.entries(HORIZONS).map(([horizon, label]) => renderGoalSection(ctx, label, goals.filter(goal => normalizeHorizon(goal.horizon) === horizon), `No ${label.toLowerCase()} goals here.`, { ...HORIZON_DETAILS[horizon], className: `goal-group--${horizon}` })).join('');
   }
 
   function renderGoal(ctx, goalId) {
