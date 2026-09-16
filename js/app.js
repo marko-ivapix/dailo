@@ -39,6 +39,8 @@
   let textSaveTimer = null;
   let lastToday = Core.dateOnly();
   let dragState = null;
+  let taskSwipeState = null;
+  let suppressTaskSwipeClick = false;
   let modalReturnFocus = null;
   let goalPropertyEditor = null;
   let habitPropertyEditor = null;
@@ -3329,6 +3331,68 @@
     }
   }
 
+  function resetTaskSwipe(row, originalStyle) {
+    if (!row) return;
+    row.style.background = originalStyle.background;
+    row.style.borderColor = originalStyle.borderColor;
+    row.style.touchAction = originalStyle.touchAction;
+  }
+
+  function handleTaskSwipeStart(event) {
+    if (window.innerWidth > 700 || event.pointerType === 'mouse' || !event.isPrimary || event.button !== 0) return;
+    const row = event.target.closest('.task-row');
+    if (!row || row.classList.contains('is-completed') || event.target.closest('button, input, textarea, select, [contenteditable]')) return;
+    taskSwipeState = {
+      row,
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      distance: 0,
+      swiping: false,
+      originalStyle: { background: row.style.background, borderColor: row.style.borderColor, touchAction: row.style.touchAction }
+    };
+    row.style.touchAction = 'pan-y';
+    row.setPointerCapture?.(event.pointerId);
+  }
+
+  function handleTaskSwipeMove(event) {
+    const swipe = taskSwipeState;
+    if (!swipe || swipe.pointerId !== event.pointerId) return;
+    const horizontal = event.clientX - swipe.startX;
+    const vertical = event.clientY - swipe.startY;
+    if (Math.abs(vertical) > Math.abs(horizontal) && Math.abs(vertical) > 8) {
+      resetTaskSwipe(swipe.row, swipe.originalStyle);
+      taskSwipeState = null;
+      return;
+    }
+    if (horizontal <= 0 || Math.abs(horizontal) <= Math.abs(vertical)) return;
+    event.preventDefault();
+    swipe.distance = horizontal;
+    swipe.swiping = true;
+    const progress = Math.min(1, horizontal / 96);
+    swipe.row.style.background = `linear-gradient(90deg, rgba(48, 203, 173, ${0.14 + progress * 0.22}) ${progress * 100}%, transparent ${progress * 100}%)`;
+    swipe.row.style.borderColor = `rgba(48, 203, 173, ${0.3 + progress * 0.5})`;
+  }
+
+  function finishTaskSwipe(event) {
+    const swipe = taskSwipeState;
+    if (!swipe || swipe.pointerId !== event.pointerId) return;
+    taskSwipeState = null;
+    swipe.row.releasePointerCapture?.(event.pointerId);
+    resetTaskSwipe(swipe.row, swipe.originalStyle);
+    if (!swipe.swiping) return;
+    suppressTaskSwipeClick = true;
+    setTimeout(() => { suppressTaskSwipeClick = false; }, 0);
+    if (event.type !== 'pointercancel' && swipe.distance >= 96) toggleComplete(swipe.row.dataset.taskId);
+  }
+
+  function handleTaskSwipeClick(event) {
+    if (!suppressTaskSwipeClick) return;
+    suppressTaskSwipeClick = false;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }
+
   function handleDragStart(event) {
     const calendar = event.target.closest('[data-calendar-drag][draggable="true"]');
     if (calendar) { dragState = { type: `calendar-${calendar.dataset.calendarDrag}`, id: calendar.dataset.calendarItemId }; event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', dragState.id); calendar.classList.add('is-dragging'); return; }
@@ -3452,6 +3516,11 @@
   }
 
   function attachEvents() {
+    document.addEventListener('pointerdown', handleTaskSwipeStart);
+    document.addEventListener('pointermove', handleTaskSwipeMove, { passive: false });
+    document.addEventListener('pointerup', finishTaskSwipe);
+    document.addEventListener('pointercancel', finishTaskSwipe);
+    document.addEventListener('click', handleTaskSwipeClick, true);
     document.addEventListener('click', handleClick);
     document.addEventListener('input', handleInput);
     document.addEventListener('change', handleChange);
