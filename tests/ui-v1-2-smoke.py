@@ -40,7 +40,7 @@ def boot(page, seed=None):
 
 def main():
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True, args=['--no-sandbox'])
+        browser = p.chromium.launch(headless=True, executable_path='/usr/bin/chromium', args=['--no-sandbox'])
         page = browser.new_page(viewport={"width": 1440, "height": 1000})
         boot(page)
 

@@ -215,13 +215,22 @@ Modal dialogs trap keyboard focus. Confirmation dialogs return focus to their tr
 
 ## Tests
 
-Run all current regression/integration checks:
+Run all current regression/integration checks. The browser command below uses a test-only adapter: on non-Linux hosts it redirects the unchanged V1.2 `/usr/bin/chromium` test launch path to Playwright's managed Chromium. It does not affect production code or direct execution of the original browser scripts.
+
+Install the pinned browser-test dependency and Chromium once in a worktree-local virtual environment:
+
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements-browser-tests.txt
+.venv/bin/python -m playwright install chromium
+```
+
+Then run:
 
 ```bash
 node --test tests/core.test.js
-python tests/ui-v1-1-smoke.py
-python tests/ui-v1-2-smoke.py
-python tests/ui-v1-2-lifecycle.py
+.venv/bin/python tests/test_browser_path_adapter.py
+.venv/bin/python tests/run-browser-regressions.py
 ```
 
 Syntax checks:

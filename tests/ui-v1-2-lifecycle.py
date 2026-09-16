@@ -62,7 +62,7 @@ def add_anytime_task_with_files(page, task_id='life_task', file_count=1):
 
 def main():
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True, args=['--no-sandbox'])
+        browser = p.chromium.launch(headless=True, executable_path='/usr/bin/chromium', args=['--no-sandbox'])
 
         # Attachment picker + drag/drop + delete/Undo + task delete/Undo.
         page = browser.new_page(viewport={'width': 1440, 'height': 1000})
