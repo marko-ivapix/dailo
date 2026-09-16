@@ -21,6 +21,14 @@ Space Grotesk, Geist and Phosphor icon styles are referenced from public CDNs. T
 
 ## What is included
 
+### Prototype routines and starter examples
+
+Habit create/edit includes Morning, Daily, and Night routines. The active Habits view groups these routines; Today continues to follow each Habit's schedule.
+
+Use **Settings → Data → Add starter examples** to add eight editable Areas (Family & Friends, Work, Personal Growth, Home, Travel, Health, Career, Finance) and twelve editable Habits. Morning: Cold shower, Wim Hof breathing, 10-minute workout, Beard balm. Daily: No-nut, Training four times per week, Sleep before midnight, Sleep 7–8 hours, Program 30 minutes, Read/learn 30 minutes. Night: Beard balm, Enter tomorrow's tasks. Training uses four times per week; the others use daily schedules. New Habits have no Area, Goal links, reminders, or check-in history.
+
+The action is explicit and adds only missing examples. Stable markers prevent repeat creation after edits; matching Area names and Habit names within the same routine also prevent initial duplicates without modifying user records. Archived/paused matches remain untouched. Deleting an example makes it eligible to be added again. Starter-action repetition, reload persistence, and routine interactions remain unverified in a browser under the fast-prototype workflow.
+
 ### Core task workflow
 
 - Today with Overdue, manually planned tasks, rule-based Suggestions and Completed-today
