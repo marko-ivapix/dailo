@@ -654,8 +654,11 @@
   }
 
   function habitProgressLabel(habit, metrics = habitMetrics(habit)) {
+    // A numeric target describes one check-in; X/week is a separate weekly
+    // target and must remain visible when both are configured.
+    if (habit.frequencyType === 'timesPerWeek') return `${metrics.currentPeriodCount || 0} / ${metrics.currentPeriodTarget || habit.timesPerWeek || 1} this week`;
     if (habit.trackingType === 'numeric') return `${metrics.currentPeriodCount || 0} / ${habit.targetValue || 0}${habit.unit ? ` ${habit.unit}` : ''}`;
-    return habit.frequencyType === 'timesPerWeek' ? `${metrics.currentPeriodCount || 0} / ${metrics.currentPeriodTarget || habit.timesPerWeek || 1}` : metrics.currentPeriodCount ? 'Done' : 'Not checked in';
+    return metrics.currentPeriodCount ? 'Done' : 'Not checked in';
   }
 
   function renderHabitRow(habit) {
@@ -673,8 +676,11 @@
 
   function heatmapHtml(habit, logs) {
     const today = Core.dateOnly();
-    const dates = Array.from({ length: 28 }, (_, index) => Core.addDays(today, index - 27));
-    return `<div class="habit-heatmap" aria-label="Monthly heatmap">${dates.map(date => { const status = Core.habitStatusForDate(habit, logs, date, today); return `<span class="heatmap-day is-${esc(status.status)}" style="--heat-intensity:${Math.max(0, Math.min(1, Number(status.percent || 0) / 100))}" title="${esc(date)}"></span>`; }).join('')}</div>`;
+    const current = new Date(`${today}T12:00:00`);
+    const year = current.getFullYear(); const month = current.getMonth();
+    const count = new Date(year, month + 1, 0).getDate();
+    const dates = Array.from({ length: count }, (_, index) => `${year}-${String(month + 1).padStart(2, '0')}-${String(index + 1).padStart(2, '0')}`);
+    return `<p class="area-empty-copy">${esc(current.toLocaleDateString(undefined, { month: 'long', year: 'numeric' }))}</p><div class="habit-heatmap" aria-label="Monthly heatmap">${dates.map(date => { const status = Core.habitStatusForDate(habit, logs, date, today); return `<span class="heatmap-day is-${esc(status.status)}" style="--heat-intensity:${Math.max(0, Math.min(1, Number(status.percent || 0) / 100))}" title="${esc(date)}"></span>`; }).join('')}</div>`;
   }
 
   function renderHabit(habitId) {
@@ -682,11 +688,12 @@
     const metrics = habitMetrics(habit); const logs = state.habitLogCache?.[habit.id] || [];
     const today = Core.dateOnly(); const todayStatus = Core.habitStatusForDate(habit, logs, today, today);
     const todayLog = logs.find(log => log.date === today);
-    const history = [...logs].sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 60);
+    const history = [...logs].sort((a, b) => String(b.date).localeCompare(String(a.date)));
     let html = pageHeader(habit.name, `${habitFrequencyLabel(habit)} · ${habit.status}`, { add: false, actionHtml: `<button class="btn btn-secondary" type="button" data-action="edit-habit" data-habit-id="${esc(habit.id)}"><i class="ph ph-pencil-simple"></i> Edit</button><button class="btn-icon" type="button" data-action="habit-menu" data-habit-id="${esc(habit.id)}" aria-label="Habit actions"><i class="ph ph-dots-three"></i></button>` });
     html += `<section class="habit-detail-card"><div class="habit-summary"><strong>${esc(habitProgressLabel(habit, metrics))}</strong><span>Current period</span></div><div class="habit-metric-grid"><div><strong>${metrics.currentStreak}</strong><span>Current streak</span></div><div><strong>${metrics.longestStreak}</strong><span>Longest streak</span></div><div><strong>${metrics.totalCheckins}</strong><span>Total check-ins</span></div><div><strong>${Math.round(metrics.completionRate)}%</strong><span>Completion rate</span></div></div>${habit.status === 'active' ? (habit.trackingType === 'numeric' ? `<div class="habit-checkin-controls">${(habit.quickValues || []).map(value => `<button class="btn btn-secondary" type="button" data-action="habit-quick-add" data-habit-id="${esc(habit.id)}" data-value="${esc(value)}">+${esc(value)}</button>`).join('')}<label class="field-label">Daily total<input id="habit-direct-total" class="input" type="number" step="any" value="${esc(todayLog?.value || 0)}" /></label><button class="btn btn-primary" type="button" data-action="save-habit-total" data-habit-id="${esc(habit.id)}">Save total</button></div>` : `<div class="habit-checkin-controls"><button class="btn btn-primary" type="button" data-action="habit-checkin" data-habit-id="${esc(habit.id)}">${todayStatus.status === 'done' ? 'Mark not done' : 'Check in'}</button><button class="btn btn-ghost" type="button" data-action="habit-skip" data-habit-id="${esc(habit.id)}">Skip today</button></div>`) : '<p class="area-empty-copy">Paused and archived habits preserve history but cannot be checked in.</p>'}</section>`;
     html += `<section class="section"><div class="section-header"><h2 class="section-label">Monthly heatmap</h2></div>${heatmapHtml(habit, logs)}</section>`;
-    html += `<section class="section"><div class="section-header"><h2 class="section-label">History</h2></div>${history.length ? `<div class="habit-history">${history.map(log => `<div class="habit-history-row"><span>${esc(log.date)}</span>${habit.trackingType === 'numeric' ? `<input class="input" type="number" step="any" value="${esc(log.value ?? 0)}" data-habit-history-value data-habit-date="${esc(log.date)}">` : `<select class="input" data-habit-history-status data-habit-date="${esc(log.date)}"><option value="done" ${log.status === 'done' ? 'selected' : ''}>Done</option><option value="skipped" ${log.status === 'skipped' ? 'selected' : ''}>Skipped</option><option value="missed" ${log.status === 'missed' ? 'selected' : ''}>Missed</option></select>`}<button class="btn btn-ghost" type="button" data-action="save-habit-history" data-habit-id="${esc(habit.id)}" data-habit-date="${esc(log.date)}">Save</button></div>`).join('')}</div>` : '<p class="area-empty-copy">No history yet. Past dates can be corrected after their first check-in.</p>'}</section>`;
+    const historyEditor = `<div class="habit-history-row"><input id="habit-history-date" class="input" type="date" max="${esc(today)}" value="${esc(today)}">${habit.trackingType === 'numeric' ? `<input id="habit-history-new-value" class="input" type="number" step="any" value="0">` : `<select id="habit-history-new-status" class="input"><option value="done">Done</option><option value="skipped">Skipped</option><option value="missed">Missed</option></select>`}<button class="btn btn-ghost" type="button" data-action="save-habit-history-date" data-habit-id="${esc(habit.id)}">Save date</button></div>`;
+    html += `<section class="section"><div class="section-header"><h2 class="section-label">History</h2></div>${historyEditor}${history.length ? `<div class="habit-history">${history.map(log => `<div class="habit-history-row"><span>${esc(log.date)}</span>${habit.trackingType === 'numeric' ? `<input class="input" type="number" step="any" value="${esc(log.value ?? 0)}" data-habit-history-value data-habit-date="${esc(log.date)}">` : `<select class="input" data-habit-history-status data-habit-date="${esc(log.date)}"><option value="done" ${log.status === 'done' ? 'selected' : ''}>Done</option><option value="skipped" ${log.status === 'skipped' ? 'selected' : ''}>Skipped</option><option value="missed" ${log.status === 'missed' ? 'selected' : ''}>Missed</option></select>`}<button class="btn btn-ghost" type="button" data-action="save-habit-history" data-habit-id="${esc(habit.id)}" data-habit-date="${esc(log.date)}">Save</button></div>`).join('')}</div>` : '<p class="area-empty-copy">No history yet. Choose any eligible past date to add a correction.</p>'}</section>`;
     return html;
   }
 
@@ -909,7 +916,7 @@
   }
 
   function habitDraft(habit = null, areaId = null) {
-    return { name: habit?.name || '', areaId: habit?.areaId || areaId || null, goalIds: habit?.goalIds || [], trackingType: habit?.trackingType || 'checkbox', targetValue: habit?.targetValue ?? 1, unit: habit?.unit || '', quickValues: (habit?.quickValues || []).join(','), frequencyType: habit?.frequencyType || 'daily', weekdays: habit?.weekdays || [1, 2, 3, 4, 5], timesPerWeek: habit?.timesPerWeek || 4, everyNDays: habit?.everyNDays || 2, startDate: habit?.startDate || Core.dateOnly(), continuation: habit?.continuation || 'automatic', endType: habit?.endType || 'never', endDate: habit?.endDate || '', successfulPeriodsTarget: habit?.successfulPeriodsTarget || '', reminders: habit?.reminders || [] };
+    return { name: habit?.name || '', areaId: habit?.areaId || areaId || null, goalIds: [...(habit?.goalIds || [])], trackingType: habit?.trackingType || 'checkbox', targetValue: habit?.targetValue ?? 1, unit: habit?.unit || '', quickValues: (habit?.quickValues || []).join(','), frequencyType: habit?.frequencyType || 'daily', weekdays: habit?.weekdays || [1, 2, 3, 4, 5], timesPerWeek: habit?.timesPerWeek || 4, everyNDays: habit?.everyNDays || 2, startDate: habit?.startDate || Core.dateOnly(), continuation: habit?.continuation || 'automatic', endType: habit?.endType || 'never', endDate: habit?.endDate || '', successfulPeriodsTarget: habit?.successfulPeriodsTarget || '', reminders: (habit?.reminders || []).map(item => ({ ...item })) };
   }
 
   function openHabitModal(habitId = null, context = {}) {
@@ -1231,7 +1238,11 @@
 
   function renderHabitFinishedModal() {
     const habit = getHabit(modalState.habitId);
-    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">Habit finished</h2><button class="btn-icon" type="button" data-action="continue-habit"><i class="ph ph-x"></i></button></div><p class="dialog-copy">${esc(habit?.name || 'This habit')} reached its end condition. Archive it or continue tracking.</p><div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="continue-habit">Continue habit</button><button class="btn btn-primary" type="button" data-action="archive-habit" data-habit-id="${esc(habit?.id || '')}">Archive</button></div></div></div>`, 'small-modal');
+    const boundary = modalState.boundary || 'end';
+    const ask = boundary === 'ask'; const onePeriod = boundary === 'onePeriod';
+    const title = ask ? 'Continue habit?' : onePeriod ? 'Habit period finished' : 'Habit finished';
+    const copy = ask ? `${habit?.name || 'This habit'} completed its period. Continue, pause, or archive it.` : onePeriod ? `${habit?.name || 'This habit'} was set to one period. Convert it to a repeating habit or archive it.` : `${habit?.name || 'This habit'} reached its end condition. Archive it or continue tracking.`;
+    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">${esc(title)}</h2><button class="btn-icon" type="button" data-action="continue-habit"><i class="ph ph-x"></i></button></div><p class="dialog-copy">${esc(copy)}</p><div class="modal-footer"><span></span><div class="modal-footer-actions">${ask ? '<button class="btn btn-ghost" type="button" data-action="pause-habit" data-habit-id="' + esc(habit?.id || '') + '">Pause</button>' : ''}<button class="btn btn-ghost" type="button" data-action="continue-habit" data-habit-id="${esc(habit?.id || '')}" data-boundary="${esc(boundary)}">${onePeriod ? 'Convert to repeating' : 'Continue habit'}</button><button class="btn btn-primary" type="button" data-action="archive-habit" data-habit-id="${esc(habit?.id || '')}">Archive</button></div></div></div>`, 'small-modal');
   }
 
   function renderDuplicateModal() {
@@ -1902,9 +1913,20 @@
     const d = modalState.draft;
     d.name = $('#habit-name')?.value || d.name; d.areaId = $('#habit-area')?.value || null; d.trackingType = $('#habit-tracking')?.value || 'checkbox'; d.frequencyType = $('#habit-frequency')?.value || 'daily';
     d.targetValue = Number($('#habit-target-value')?.value ?? d.targetValue); d.unit = $('#habit-unit')?.value || ''; d.timesPerWeek = Math.max(1, Math.floor(Number($('#habit-times-per-week')?.value || d.timesPerWeek) || 1)); d.everyNDays = Math.max(1, Math.floor(Number($('#habit-every-n-days')?.value || d.everyNDays) || 1));
-    d.weekdays = $$('[data-habit-weekday]').filter(input => input.checked).map(input => Number(input.dataset.habitWeekday)); d.startDate = $('#habit-start-date')?.value || d.startDate || Core.dateOnly(); d.continuation = $('#habit-continuation')?.value || d.continuation; d.endType = $('#habit-end-type')?.value || d.endType; d.endDate = $('#habit-end-date')?.value || null; d.successfulPeriodsTarget = Number($('#habit-successful-periods')?.value || 0) || null;
-    d.quickValues = String($('#habit-quick-values')?.value ?? d.quickValues ?? '').split(',').map(value => Number(value.trim())).filter(value => Number.isFinite(value) && value > 0); d.reminders = String($('#habit-reminders')?.value || '').split(',').map(value => Core.normalizeTime(value.trim())).filter(Boolean).map(time => ({ id: uid('habit-reminder'), time, enabled: true }));
-    d.goalIds = $$('[data-habit-goal]').filter(input => input.checked).map(input => input.dataset.habitGoal);
+    d.weekdays = $$('[data-habit-weekday]').filter(input => input.checked).map(input => Number(input.dataset.habitWeekday));
+    const startDate = $('#habit-start-date'); const continuation = $('#habit-continuation'); const endType = $('#habit-end-type'); const endDate = $('#habit-end-date'); const successfulPeriods = $('#habit-successful-periods'); const quickValues = $('#habit-quick-values'); const reminders = $('#habit-reminders'); const goalControls = $$('[data-habit-goal]');
+    if (startDate) d.startDate = startDate.value || d.startDate || Core.dateOnly();
+    if (continuation) d.continuation = continuation.value || d.continuation;
+    if (endType) d.endType = endType.value || d.endType;
+    if (endDate) d.endDate = endDate.value || null;
+    if (successfulPeriods) d.successfulPeriodsTarget = Number(successfulPeriods.value || 0) || null;
+    if (quickValues) d.quickValues = String(quickValues.value ?? '').split(',').map(value => Number(value.trim())).filter(value => Number.isFinite(value) && value > 0);
+    else if (typeof d.quickValues === 'string') d.quickValues = d.quickValues.split(',').map(value => Number(value.trim())).filter(value => Number.isFinite(value) && value > 0);
+    if (reminders) {
+      const oldByTime = new Map((d.reminders || []).map(item => [item.time, item]));
+      d.reminders = String(reminders.value || '').split(',').map(value => Core.normalizeTime(value.trim())).filter(Boolean).map(time => ({ ...(oldByTime.get(time) || {}), id: oldByTime.get(time)?.id || uid('habit-reminder'), time, enabled: oldByTime.get(time)?.enabled !== false }));
+    }
+    if (goalControls.length) d.goalIds = goalControls.filter(input => input.checked).map(input => input.dataset.habitGoal);
     return d;
   }
 
@@ -1936,29 +1958,44 @@
 
   async function setHabitLog(habitId, date, requestedStatus = 'done', requestedValue = null) {
     const habit = getHabit(habitId); const today = Core.dateOnly();
-    if (!habit || habit.status !== 'active' || !date || date > today || !Core.habitScheduledOn(habit, date)) return false;
+    // Historical corrections remain valid after a pause/archive. Only today's
+    // live check-in is controlled by the current lifecycle state.
+    if (!habit || !date || date > today || (date === today && habit.status !== 'active') || !Core.habitScheduledOn(habit, date, { historical: true })) return false;
     const before = captureGoalProgress();
     const existing = (state.habitLogCache?.[habitId] || []).find(log => log.date === date);
     let status = requestedStatus; let value = requestedValue;
     if (habit.trackingType === 'numeric') { const numeric = Core.numericHabitState(habit, requestedValue); status = numeric.status; value = numeric.value; }
     const record = { id: `${habitId}:${date}`, habitId, date, status: ['done', 'skipped', 'missed'].includes(status) ? status : 'done', value: value ?? null, createdAt: existing?.createdAt || nowIso(), updatedAt: nowIso() };
     await TodoStorage.habitLogs.put(record);
-    await refreshHabitMetrics(); habit.updatedAt = nowIso(); saveState(); evaluateGoalProgressChanges(before); await maybeFinishHabit(habit); render(); return true;
+    await refreshHabitMetrics(); habit.updatedAt = nowIso(); saveState(); evaluateGoalProgressChanges(before); await evaluateHabitBoundaries(); render(); return true;
   }
 
-  async function maybeFinishHabit(habit) {
-    const metrics = habitMetrics(habit); const today = Core.dateOnly();
-    const reached = (habit.endType === 'date' && habit.endDate && today >= habit.endDate)
-      || (habit.endType === 'successfulPeriods' && metrics.successfulPeriods >= Number(habit.successfulPeriodsTarget || Infinity))
-      || (habit.continuation === 'onePeriod' && metrics.successfulPeriods >= 1)
-      || (habit.continuation === 'askEachPeriod' && metrics.periods?.some(period => period.isCurrent && period.successful && habit.lastContinuationPeriod !== period.key));
-    if (reached && habit.status === 'active') { modalState = { type: 'habit-finished', habitId: habit.id }; renderModal(); }
+  async function evaluateHabitBoundaries() {
+    if (!state || modalState?.type === 'habit-finished') return;
+    const today = Core.dateOnly(); const weekStartsOn = state.settings.weekStartsOn || 'monday';
+    for (const habit of state.habits || []) {
+      if (habit.status !== 'active') continue;
+      const metrics = habitMetrics(habit);
+      const ended = (habit.endType === 'date' && habit.endDate && today > habit.endDate)
+        || (habit.endType === 'successfulPeriods' && metrics.successfulPeriods >= Number(habit.successfulPeriodsTarget || Infinity));
+      const prior = metrics.periods?.filter(period => !period.isCurrent).at(-1);
+      const continued = prior?.successful && habit.lastContinuationPeriod !== prior.key;
+      const boundary = ended ? 'end' : habit.continuation === 'onePeriod' && prior?.successful ? 'onePeriod' : habit.continuation === 'askEachPeriod' && continued ? 'ask' : null;
+      if (boundary) { modalState = { type: 'habit-finished', habitId: habit.id, boundary }; renderModal(); return; }
+    }
   }
 
   function updateHabitStatus(habitId, status) {
     const habit = getHabit(habitId); if (!habit || habit.status === status) return;
-    const previous = habit.status; habit.status = status; habit.updatedAt = nowIso(); saveState(); closePopover(); render();
-    setUndo(`Habit ${status === 'paused' ? 'paused' : status === 'archived' ? 'archived' : 'restored'}`, () => { const current = getHabit(habitId); if (!current) return; current.status = previous; current.updatedAt = nowIso(); saveState(); render(); });
+    const snapshot = JSON.parse(JSON.stringify(habit)); const today = Core.dateOnly();
+    if (status === 'paused' && habit.status === 'active') habit.pauseStartedAt = today;
+    if (status === 'active' && habit.status === 'paused') {
+      const startDate = habit.pauseStartedAt || today; const endDate = Core.addDays(today, -1);
+      if (startDate <= endDate) habit.pauseIntervals = [...(habit.pauseIntervals || []), { startDate, endDate }];
+      habit.pauseStartedAt = null;
+    }
+    habit.status = status; habit.updatedAt = nowIso(); saveState(); closePopover(); refreshHabitMetrics().then(render);
+    setUndo(`Habit ${status === 'paused' ? 'paused' : status === 'archived' ? 'archived' : 'restored'}`, () => { const current = getHabit(habitId); if (!current) return; Object.assign(current, snapshot); current.updatedAt = nowIso(); saveState(); refreshHabitMetrics().then(render); });
   }
 
   async function deleteHabit(habitId) {
@@ -1971,7 +2008,7 @@
     const habit = getHabit(habitId); if (!habit) return;
     const now = new Date(); const next = new Date(now);
     if (kind === '15m') next.setMinutes(next.getMinutes() + 15); else if (kind === '1h') next.setHours(next.getHours() + 1); else { next.setHours(now.getHours() >= 19 ? 21 : 19, 0, 0, 0); }
-    habit.snoozedUntil = next.toISOString(); habit.updatedAt = nowIso(); saveState(); setToastMessage(`Habit snoozed until ${formatReminder(habit.snoozedUntil)}`);
+    habit.snoozedUntil = next.toISOString(); habit.pendingSnoozeAt = next.toISOString(); habit.updatedAt = nowIso(); saveState(); setToastMessage(`Habit snoozed until ${formatReminder(habit.snoozedUntil)}`);
   }
 
   function saveMilestoneModal() {
@@ -2239,7 +2276,11 @@
     const today = Core.dateOnly(new Date(now));
     const dueHabits = state.habits.flatMap(habit => {
       if (!Core.habitReminderActive(habit, state.habitLogCache?.[habit.id] || [], now, state.settings.weekStartsOn || 'monday')) return [];
-      if (habit.snoozedUntil && new Date(habit.snoozedUntil).getTime() > new Date(now).getTime()) return [];
+      const nowTime = new Date(now).getTime(); const pending = habit.pendingSnoozeAt && new Date(habit.pendingSnoozeAt).getTime();
+      // A snooze is a distinct notification, not merely a suppression of the
+      // original moment. Lifecycle and weekly-target suppression apply first.
+      if (pending && pending <= nowTime) return [{ habit, moment: `snooze:${habit.pendingSnoozeAt}`, snooze: true }];
+      if (habit.snoozedUntil && new Date(habit.snoozedUntil).getTime() > nowTime) return [];
       const fired = new Set(habit.reminderFiredMoments || []);
       return (habit.reminders || []).filter(reminder => reminder.enabled && Core.normalizeTime(reminder.time)).map(reminder => ({ habit, moment: Core.combineDateTime(today, reminder.time) })).filter(item => item.moment && !fired.has(item.moment) && new Date(item.moment).getTime() <= new Date(now).getTime());
     });
@@ -2258,8 +2299,10 @@
         try { new Notification(goal.title, { body: goal.targetDate ? `Goal target ${relativeDateLabel(goal.targetDate)}` : 'Goal reminder' }); } catch (_) { /* in-app reminder remains */ }
       }
     }
-    for (const { habit, moment } of dueHabits) {
-      habit.reminderFiredMoments = [...new Set([...(habit.reminderFiredMoments || []), moment])]; habit.updatedAt = now;
+    for (const { habit, moment, snooze } of dueHabits) {
+      habit.reminderFiredMoments = [...new Set([...(habit.reminderFiredMoments || []), moment])];
+      if (snooze) { habit.pendingSnoozeAt = null; habit.snoozedUntil = null; }
+      habit.updatedAt = now;
       if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
         try { new Notification(habit.name, { body: 'Habit reminder' }); } catch (_) { /* in-app reminder remains */ }
       }
@@ -2320,7 +2363,8 @@
     else if (action === 'habit-quick-add') { const habit = getHabit(el.dataset.habitId); const existing = state.habitLogCache?.[habit?.id]?.find(log => log.date === Core.dateOnly()); setHabitLog(el.dataset.habitId, Core.dateOnly(), 'done', Number(existing?.value || 0) + Number(el.dataset.value || 0)); }
     else if (action === 'save-habit-total') setHabitLog(el.dataset.habitId, Core.dateOnly(), 'done', Number($('#habit-direct-total')?.value || 0));
     else if (action === 'save-habit-history') { const habit = getHabit(el.dataset.habitId); const date = el.dataset.habitDate; const value = habit?.trackingType === 'numeric' ? Number($(`[data-habit-history-value][data-habit-date="${CSS.escape(date)}"]`)?.value || 0) : null; const status = habit?.trackingType === 'numeric' ? 'done' : $(`[data-habit-history-status][data-habit-date="${CSS.escape(date)}"]`)?.value || 'missed'; setHabitLog(el.dataset.habitId, date, status, value); }
-    else if (action === 'continue-habit') { const habit = getHabit(el.dataset.habitId || modalState?.habitId); if (habit) { habit.lastContinuationPeriod = Core.habitPeriodKey(habit, Core.dateOnly(), state.settings.weekStartsOn || 'monday'); habit.updatedAt = nowIso(); saveState(); } closeModal(); render(); }
+    else if (action === 'save-habit-history-date') { const habit = getHabit(el.dataset.habitId); const date = $('#habit-history-date')?.value; const value = habit?.trackingType === 'numeric' ? Number($('#habit-history-new-value')?.value || 0) : null; const status = habit?.trackingType === 'numeric' ? 'done' : $('#habit-history-new-status')?.value || 'missed'; setHabitLog(el.dataset.habitId, date, status, value); }
+    else if (action === 'continue-habit') { const habit = getHabit(el.dataset.habitId || modalState?.habitId); if (habit) { const boundary = el.dataset.boundary || modalState?.boundary; const prior = habitMetrics(habit).periods?.filter(period => !period.isCurrent).at(-1); habit.lastContinuationPeriod = prior?.key || Core.habitPeriodKey(habit, Core.dateOnly(), state.settings.weekStartsOn || 'monday'); if (boundary === 'onePeriod') habit.continuation = 'automatic'; if (boundary === 'end') { habit.endType = 'never'; habit.endDate = null; habit.successfulPeriodsTarget = null; } habit.updatedAt = nowIso(); saveState(); } closeModal(); refreshHabitMetrics().then(render); }
     else if (action === 'archive-habit') updateHabitStatus(el.dataset.habitId, 'archived');
     else if (action === 'edit-goal') openGoalModal(el.dataset.goalId);
     else if (action === 'goal-menu') openGoalMenu(el, el.dataset.goalId);
@@ -2717,21 +2761,22 @@
     window.addEventListener('focus', checkReminders);
   }
 
-  function init() {
+  async function init() {
     loadState();
     attachEvents();
     if (!location.hash) location.hash = '#today';
     else render();
-    refreshHabitMetrics().then(render).catch(console.error);
-    checkReminders();
+    try { await refreshHabitMetrics(); await evaluateHabitBoundaries(); render(); checkReminders(); } catch (error) { console.error(error); }
     if (Attachments) Attachments.cleanupExpired(nowIso()).catch(console.error);
     setInterval(() => {
       const next = Core.dateOnly();
-      if (next !== lastToday) { lastToday = next; render(); }
-      checkReminders();
+      if (next !== lastToday) {
+        lastToday = next;
+        refreshHabitMetrics().then(async () => { await evaluateHabitBoundaries(); render(); checkReminders(); }).catch(console.error);
+      } else checkReminders();
     }, 30000);
   }
 
-  window.TodoApp = { init, get state() { return state; }, render, openQuickAdd, openSearch, checkReminders, captureGoalProgress, evaluateGoalProgressChanges, setHabitLog, refreshHabitMetrics, snoozeHabit };
+  window.TodoApp = { init, get state() { return state; }, render, openQuickAdd, openSearch, checkReminders, captureGoalProgress, evaluateGoalProgressChanges, setHabitLog, refreshHabitMetrics, evaluateHabitBoundaries, snoozeHabit };
   init();
 })();

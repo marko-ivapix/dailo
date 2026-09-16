@@ -301,3 +301,23 @@ test('habit reminders suppress completed weekly targets and inactive habits', ()
   assert.equal(Core.habitReminderActive(habit, logs, '2026-09-17T10:00:00', 'monday'), false);
   assert.equal(Core.habitReminderActive({ ...habit, status: 'paused' }, [], '2026-09-17T10:00:00', 'monday'), false);
 });
+
+test('paused historical habit metrics preserve completed periods and skip its pause boundary', () => {
+  const habit = { id: 'paused', status: 'paused', trackingType: 'checkbox', frequencyType: 'daily', startDate: '2026-09-01', pauseIntervals: [{ startDate: '2026-09-03', endDate: '2026-09-05' }] };
+  const logs = [{ id: '1', habitId: 'paused', date: '2026-09-01', status: 'done', value: null }, { id: '2', habitId: 'paused', date: '2026-09-02', status: 'done', value: null }, { id: '3', habitId: 'paused', date: '2026-09-06', status: 'done', value: null }];
+  const metrics = Core.deriveHabitMetrics(habit, logs, '2026-09-06', 'monday');
+  assert.equal(metrics.totalCheckins, 3);
+  assert.equal(metrics.currentStreak, 3);
+  assert.equal(Core.habitScheduledOn(habit, '2026-09-02', { historical: true }), true);
+  assert.equal(Core.habitScheduledOn(habit, '2026-09-04', { historical: true }), false);
+});
+
+test('streak carries across unscheduled, skipped, and pending current units until a closed required miss', () => {
+  const habit = { id: 'carry', status: 'active', trackingType: 'checkbox', frequencyType: 'weekdays', weekdays: [1, 3, 5], startDate: '2026-09-01' };
+  const logs = [{ id: '1', habitId: 'carry', date: '2026-09-14', status: 'done', value: null }, { id: '2', habitId: 'carry', date: '2026-09-16', status: 'skipped', value: null }];
+  assert.equal(Core.deriveHabitMetrics(habit, logs, '2026-09-16', 'monday').currentStreak, 1);
+  assert.equal(Core.deriveHabitMetrics(habit, logs, '2026-09-15', 'monday').currentStreak, 1);
+  const weekly = { id: 'weekly-carry', status: 'active', trackingType: 'checkbox', frequencyType: 'timesPerWeek', timesPerWeek: 2, startDate: '2026-09-01' };
+  const weeklyLogs = [{ id: '1', habitId: weekly.id, date: '2026-09-07', status: 'done', value: null }, { id: '2', habitId: weekly.id, date: '2026-09-08', status: 'done', value: null }];
+  assert.equal(Core.deriveHabitMetrics(weekly, weeklyLogs, '2026-09-15', 'monday').currentStreak, 1);
+});

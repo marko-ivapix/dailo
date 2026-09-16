@@ -353,10 +353,15 @@
     return addDays(date, -((parsed.getDay() - firstDay + 7) % 7));
   }
 
-  function habitScheduledOn(habit, date) {
-    if (!habit || habit.status !== 'active' || !parseDateOnly(date)) return false;
+  function habitPausedOn(habit, date) {
+    return (habit?.pauseIntervals || []).some(interval => interval?.startDate && date >= interval.startDate && (!interval.endDate || date <= interval.endDate))
+      || Boolean(habit?.status === 'paused' && habit?.pauseStartedAt && date >= habit.pauseStartedAt);
+  }
+
+  function habitScheduledOn(habit, date, options = {}) {
+    if (!habit || (!options.historical && habit.status !== 'active') || !parseDateOnly(date)) return false;
     const start = habit.startDate && parseDateOnly(habit.startDate) ? habit.startDate : date;
-    if (date < start || (habit.endType === 'date' && habit.endDate && date > habit.endDate)) return false;
+    if (date < start || habitPausedOn(habit, date) || (habit.endType === 'date' && habit.endDate && date > habit.endDate)) return false;
     if (habit.frequencyType === 'timesPerWeek') return true;
     if (habit.frequencyType === 'weekdays') return (habit.weekdays || []).map(Number).includes(parseDateOnly(date).getDay());
     if (habit.frequencyType === 'everyNDays') {
@@ -384,7 +389,7 @@
       if (habit?.trackingType === 'numeric') return numericHabitState(habit, log.value);
       return { status: log.status, value: log.value ?? null, percent: log.status === 'done' ? 100 : 0 };
     }
-    if (!habitScheduledOn(habit, date)) return { status: 'unscheduled', value: null, percent: 0 };
+    if (!habitScheduledOn(habit, date, { historical: true })) return { status: 'unscheduled', value: null, percent: 0 };
     return { status: date < today ? 'missed' : 'pending', value: null, percent: 0 };
   }
 
@@ -392,7 +397,7 @@
     const start = habit?.startDate && parseDateOnly(habit.startDate) ? habit.startDate : today;
     const dates = [];
     for (let date = start; date <= today; date = addDays(date, 1)) {
-      if (habitScheduledOn(habit, date)) dates.push(date);
+      if (habitScheduledOn(habit, date, { historical: true })) dates.push(date);
     }
     if (habit?.frequencyType === 'timesPerWeek') {
       const keys = [...new Set(dates.map(date => habitPeriodKey(habit, date, weekStartsOn)))];
@@ -407,7 +412,7 @@
     const periods = habitScheduleDates(habit, today, weekStartsOn);
     const currentKey = habitPeriodKey(habit, today, weekStartsOn);
     const target = habit?.frequencyType === 'timesPerWeek' ? Math.max(1, Math.floor(Number(habit.timesPerWeek) || 1)) : 1;
-    let totalCheckins = 0; let successfulPeriods = 0; let currentStreak = 0; let longestStreak = 0; let running = 0;
+    let totalCheckins = 0; let successfulPeriods = 0; let longestStreak = 0; let running = 0;
     const periodStates = periods.map(period => {
       const entries = period.dates.map(date => ({ date, log: logByDate.get(date), state: habitStatusForDate(habit, relevantLogs, date, today) }));
       const done = entries.filter(entry => entry.state.status === 'done').length;
@@ -430,7 +435,6 @@
       if (period.missed || (!period.successful && !period.skipped && !period.isCurrent)) running = 0;
       if (period.successful) { running += habit?.frequencyType === 'timesPerWeek' ? 1 : period.done; successfulPeriods += 1; }
       longestStreak = Math.max(longestStreak, running);
-      if (period.isCurrent) currentStreak = period.successful ? running : 0;
     }
     const current = periodStates.find(period => period.isCurrent);
     const considered = periodStates.filter(period => period.key <= currentKey);
@@ -441,8 +445,8 @@
       ? considered.length
       : considered.length;
     return {
-      currentStreak,
-      streak: currentStreak,
+      currentStreak: running,
+      streak: running,
       longestStreak,
       totalCheckins,
       successfulPeriods,
