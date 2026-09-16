@@ -131,6 +131,8 @@
       areas: [],
       goals: [],
       habits: [],
+      notes: [],
+      resources: [],
       templates: [],
       savedViews: [],
       settings: { weekStartsOn: 'monday', shortcuts: { ...SHORTCUT_DEFAULTS } },
@@ -249,8 +251,11 @@
       status: area.status === 'archived' ? 'archived' : 'active',
       isPinned: Boolean(area.isPinned),
     }));
+    for (const key of ['notes', 'resources']) next[key] = next[key].map(item => ({
+      ...item, createdAt: item.createdAt || nowIso(), updatedAt: item.updatedAt || nowIso(),
+    }));
     next.goals = (next.goals || []).map(goal => ({
-      title: '', areaId: null, status: 'active', progressMode: 'manual', progressType: 'percentage',
+      title: '', areaId: null, horizon: 'short', status: 'active', progressMode: 'manual', progressType: 'percentage',
       currentValue: 0, targetValue: 100, unit: '', targetDate: null, projectLinks: [], taskIds: [], habitLinks: [], milestones: [],
       reminders: { sevenDaysBefore: false, threeDaysBefore: false, oneDayBefore: false, onTargetDate: false, time: '09:00' },
       reminderFiredMoments: [], createdAt: nowIso(), updatedAt: nowIso(), completedAt: null, ...goal,
@@ -265,7 +270,7 @@
       reminders: { sevenDaysBefore: false, threeDaysBefore: false, oneDayBefore: false, onTargetDate: false, time: '09:00', ...(goal.reminders || {}) },
     }));
     next.habits = (next.habits || []).map(habit => ({
-      name: '', areaId: null, goalIds: [], status: 'active', trackingType: 'checkbox', targetValue: null, unit: null,
+      name: '', areaId: null, routine: 'daily', goalIds: [], status: 'active', trackingType: 'checkbox', targetValue: null, unit: null,
       quickValues: [], frequencyType: 'daily', weekdays: [], timesPerWeek: null, everyNDays: null, startDate: Core.dateOnly(),
       continuation: 'automatic', endType: 'never', endDate: null, successfulPeriodsTarget: null, reminders: [], reminderFiredMoments: [],
       createdAt: nowIso(), updatedAt: nowIso(), ...habit,

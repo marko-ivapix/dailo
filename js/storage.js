@@ -207,8 +207,52 @@
     });
   }
 
+  function attachmentOwners(state) {
+    return [
+      ...state.tasks.map(item => ({ type: 'task', item })),
+      ...state.notes.map(item => ({ type: 'note', item })),
+      ...state.resources.map(item => ({ type: 'resource', item })),
+    ];
+  }
+
+  function attachmentBelongsTo(record, owner) {
+    return Boolean(record && (owner.type === 'task'
+      ? record.taskId === owner.item.id
+      : record.ownerType === owner.type && record.ownerId === owner.item.id));
+  }
+
+  function requireAttachmentRecord(record) {
+    requireRecord(record, ['id'], 'attachment');
+    if (['note', 'resource'].includes(record.ownerType)) {
+      requireRecord(record, ['ownerId'], 'attachment');
+      if (record.taskId != null) throw new Error('Invalid attachment ownership');
+    } else {
+      requireRecord(record, ['taskId'], 'attachment');
+      if (record.ownerType != null && record.ownerType !== 'task') throw new Error('Invalid attachment ownership');
+    }
+  }
+
+  function verifyAttachmentReferences(state, records) {
+    const byId = new Map();
+    for (const record of records) {
+      requireAttachmentRecord(record);
+      if (byId.has(record.id)) throw new Error(`Duplicate attachment: ${record.id}`);
+      byId.set(record.id, record);
+    }
+    for (const owner of attachmentOwners(state)) {
+      for (const id of owner.item.attachmentIds || []) {
+        const record = byId.get(id);
+        if (!attachmentBelongsTo(record, owner) || !(record.blob instanceof root.Blob)
+          || record.blob.size !== record.size) throw new Error(`Missing or invalid attachment: ${id}`);
+      }
+    }
+  }
+
   const attachments = {
-    async put(record) { return putRecord('attachments', record, ['id', 'taskId'], 'attachment'); },
+    async put(record) {
+      requireAttachmentRecord(record);
+      return putRecord('attachments', record, ['id'], 'attachment');
+    },
     async get(id) { return getRecord('attachments', id); },
     async getMany(ids) {
       const records = [];
@@ -257,7 +301,7 @@
     async clearAll() { return clearStore('attachments'); },
     async replaceAll(records) {
       const list = records || [];
-      list.forEach(record => requireRecord(record, ['id', 'taskId'], 'attachment'));
+      list.forEach(requireAttachmentRecord);
       if (memoryMode()) {
         memoryStores.attachments.clear();
         list.forEach(record => memoryStores.attachments.set(record.id, clone(record)));
@@ -410,20 +454,16 @@
 
   async function prepareMigration(rawAppData, appData, migrated) {
     await open();
-    const ids = [...new Set(appData.tasks.flatMap(task => task.attachmentIds || []))];
+    const owners = attachmentOwners(appData);
+    const ids = [...new Set(owners.flatMap(owner => owner.item.attachmentIds || []))];
+    const taskIds = new Set(appData.tasks.flatMap(task => task.attachmentIds || []));
     const current = await attachments.getMany(ids);
     const currentIds = new Set(current.map(record => record.id));
-    const missingIds = ids.filter(id => !currentIds.has(id));
+    // Only legacy task attachments may be copied from the legacy database.
+    const missingIds = ids.filter(id => taskIds.has(id) && !currentIds.has(id));
     const legacy = await readLegacyAttachments(missingIds);
     const records = [...current, ...legacy];
-    if (!memoryMode()) {
-      for (const id of ids) {
-        const record = records.find(item => item.id === id);
-        const owner = appData.tasks.find(task => (task.attachmentIds || []).includes(id));
-        if (!record || record.taskId !== owner.id || !(record.blob instanceof root.Blob)
-          || record.blob.size !== record.size) throw new Error(`Missing or invalid attachment: ${id}`);
-      }
-    }
+    verifyAttachmentReferences(appData, records);
     if (migrated || legacy.length) {
       await recoverySnapshots.put({
         id: MIGRATION_SNAPSHOT_ID, createdAt: new Date().toISOString(), reason: 'migration',
@@ -441,6 +481,7 @@
         if (before.some((byte, index) => byte !== after[index])) throw new Error(`Attachment bytes changed: ${expected.id}`);
       }
     }
+    verifyAttachmentReferences(appData, await attachments.getMany(ids));
     return MIGRATION_SNAPSHOT_ID;
   }
 
@@ -555,6 +596,7 @@
 
   async function replaceAllValidatedBackup(validated, expected = null, validate = null) {
     const next = clone(validated);
+    verifyAttachmentReferences(next.state, next.attachmentRecords);
     await replaceUserData({ attachments: next.attachmentRecords, habitLogs: next.habitLogs, goalHistory: next.goalHistory }, expected, validate);
     validate?.onCommit?.();
     validate?.();
@@ -576,6 +618,9 @@
     recoverySnapshots,
     restoreDeleteRecords,
     sameAttachmentRecord,
+    attachmentOwners,
+    attachmentBelongsTo,
+    verifyAttachmentReferences,
     migrateLegacyAttachments,
     prepareMigration,
     finishMigration,

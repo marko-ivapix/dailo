@@ -743,7 +743,7 @@
   }
 
   function invalidV3Collection(input) {
-    return ['areas', 'goals', 'habits', 'templates', 'savedViews']
+    return ['tasks', 'projects', 'tags', 'areas', 'goals', 'habits', 'notes', 'resources', 'templates', 'savedViews']
       .find(key => Object.hasOwn(input, key) && !Array.isArray(input[key]));
   }
 
@@ -751,12 +751,35 @@
     return value === null || typeof value === 'string' && value.trim();
   }
 
+  function entityIdArrayIsValid(value) {
+    return Array.isArray(value) && value.every(id => typeof id === 'string' && id.trim());
+  }
+
   function invalidExplicitV3Field(input) {
+    for (const [key, field, values] of [['goals', 'horizon', ['short', 'mid', 'long']], ['habits', 'routine', ['morning', 'daily', 'night']]]) {
+      for (const item of input[key] || []) {
+        if (item && Object.hasOwn(item, field) && !values.includes(item[field])) return `invalid-${field}`;
+      }
+    }
+    for (const key of ['notes', 'resources']) {
+      for (const item of input[key] || []) {
+        if (!item || typeof item !== 'object' || Array.isArray(item)) return `invalid-${key}`;
+        for (const field of ['title', key === 'notes' ? 'body' : 'description', 'createdAt', 'updatedAt']) {
+          if (Object.hasOwn(item, field) && typeof item[field] !== 'string') return `invalid-${key}-${field}`;
+        }
+        if (Object.hasOwn(item, 'areaId') && !isNullableEntityId(item.areaId)) return `invalid-${key}-area-id`;
+        if (Object.hasOwn(item, 'linkUrls') && (!Array.isArray(item.linkUrls) || item.linkUrls.some(url => typeof url !== 'string'))) return `invalid-${key}-links`;
+        for (const field of ['attachmentIds', ...(key === 'resources' ? ['relatedTaskIds', 'relatedProjectIds', 'relatedGoalIds', 'relatedHabitIds'] : [])]) {
+          if (Object.hasOwn(item, field) && !entityIdArrayIsValid(item[field])) return `invalid-${key}-${field}`;
+        }
+      }
+    }
     if (Array.isArray(input.tasks)) {
       for (const task of input.tasks) {
         if (!task || typeof task !== 'object') continue;
         if (Object.hasOwn(task, 'areaId') && !isNullableEntityId(task.areaId)) return 'invalid-task-area-id';
         if (Object.hasOwn(task, 'goalIds') && !Array.isArray(task.goalIds)) return 'invalid-task-goal-ids';
+        if (Object.hasOwn(task, 'attachmentIds') && !entityIdArrayIsValid(task.attachmentIds)) return 'invalid-task-attachment-ids';
         if (Object.hasOwn(task, 'plannedTime') && task.plannedTime !== null && normalizeTime(task.plannedTime) !== task.plannedTime) return 'invalid-task-planned-time';
         if (Object.hasOwn(task, 'dueTime') && task.dueTime !== null && normalizeTime(task.dueTime) !== task.dueTime) return 'invalid-task-due-time';
       }
@@ -778,7 +801,9 @@
 
   function validateStateV3(state, migrated = false) {
     if (!state || typeof state !== 'object' || state.version !== 3) return { ok: false, reason: 'unsupported-version' };
-    const collections = ['tasks', 'projects', 'tags', 'areas', 'goals', 'habits', 'templates', 'savedViews'];
+    // Older V3 recovery destinations can predate these optional collections.
+    state = { notes: [], resources: [], ...state };
+    const collections = ['tasks', 'projects', 'tags', 'areas', 'goals', 'habits', 'notes', 'resources', 'templates', 'savedViews'];
     for (const key of collections) {
       if (!collectionIsValid(state, key)) return { ok: false, reason: `invalid-${key}` };
     }
@@ -792,6 +817,18 @@
     if (!objectIdsAreValid(state.habits)) return { ok: false, reason: 'invalid-habit' };
     if (!objectIdsAreValid(state.templates)) return { ok: false, reason: 'invalid-template' };
     if (!objectIdsAreValid(state.savedViews)) return { ok: false, reason: 'invalid-saved-view' };
+    const malformedField = invalidExplicitV3Field(state);
+    if (malformedField) return { ok: false, reason: malformedField };
+    for (const key of ['notes', 'resources']) {
+      if (!objectIdsAreValid(state[key]) || new Set(state[key].map(item => item.id)).size !== state[key].length) return { ok: false, reason: `invalid-${key}-id` };
+      for (const item of state[key]) {
+        if (typeof item.title !== 'string' || !item.title.trim()
+          || typeof item[key === 'notes' ? 'body' : 'description'] !== 'string'
+          || typeof item.createdAt !== 'string' || typeof item.updatedAt !== 'string'
+          || !isNullableEntityId(item.areaId) || !Array.isArray(item.linkUrls)
+          || !entityIdArrayIsValid(item.attachmentIds)) return { ok: false, reason: `invalid-${key}` };
+      }
+    }
 
     for (const task of state.tasks) {
       if (!String(task.title || '').trim()) return { ok: false, reason: 'invalid-task' };
@@ -810,6 +847,18 @@
     const projectIds = new Set(state.projects.map(project => project.id));
     const areaIds = new Set(state.areas.map(area => area.id));
     const goalIds = new Set(state.goals.map(goal => goal.id));
+    const relatedIds = {
+      relatedTaskIds: new Set(state.tasks.map(task => task.id)), relatedProjectIds: projectIds,
+      relatedGoalIds: goalIds, relatedHabitIds: new Set(state.habits.map(habit => habit.id)),
+    };
+    for (const key of ['notes', 'resources']) {
+      for (const item of state[key]) {
+        if (item.areaId && !areaIds.has(item.areaId)) return { ok: false, reason: `missing-${key}-area` };
+        if (key === 'resources') for (const [field, ids] of Object.entries(relatedIds)) {
+          if (!entityIdArrayIsValid(item[field]) || item[field].some(id => !ids.has(id))) return { ok: false, reason: `invalid-resource-${field}` };
+        }
+      }
+    }
     for (const task of state.tasks) {
       if (task.projectId && !projectIds.has(task.projectId)) return { ok: false, reason: 'missing-task-project' };
       if (task.projectId && task.areaId) return { ok: false, reason: 'task-area-project-conflict' };
@@ -844,6 +893,18 @@
     state.habits = Array.isArray(state.habits) ? state.habits : [];
     state.templates = Array.isArray(state.templates) ? state.templates : [];
     state.savedViews = Array.isArray(state.savedViews) ? state.savedViews : [];
+    for (const key of ['notes', 'resources']) {
+      state[key] = (state[key] || []).map(item => ({
+        title: '', [key === 'notes' ? 'body' : 'description']: '', areaId: null,
+        attachmentIds: [], createdAt: '', updatedAt: '',
+        ...(key === 'resources' ? { relatedTaskIds: [], relatedProjectIds: [], relatedGoalIds: [], relatedHabitIds: [] } : {}),
+        ...item,
+        linkUrls: [...new Set((item.linkUrls || []).map(url => url.trim()).filter(Boolean))],
+      }));
+    }
+    state.goals = state.goals.map(goal => goal && ({ horizon: 'short', ...goal }));
+    state.habits = state.habits.map(habit => habit && ({ routine: 'daily', ...habit }));
+    if (!Array.isArray(state.tasks) || !Array.isArray(state.projects)) return { ok: false, reason: 'invalid-state' };
     state.tasks = state.tasks.map(task => {
       const recurrence=normalizeRecurrenceV3(task.recurrence);
       return {
