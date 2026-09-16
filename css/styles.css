@@ -617,6 +617,9 @@ select:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 button.area-object { width: 100%; border: 0; background: transparent; cursor: pointer; text-align: left; }
 button.area-object:hover { background: var(--surface-interactive); }
 .area-object > i { color: var(--text-muted); }
+.area-project > span:last-child { min-width: 0; display: grid; gap: 3px; }
+.area-project strong { color: var(--text-secondary); font-weight: 600; }
+.area-project small { color: var(--text-muted); font-size: 12px; }
 .area-icon-grid { display: flex; flex-wrap: wrap; gap: 7px; }
 .area-icon-choice { width: 38px; height: 38px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); background: var(--surface-interactive); color: var(--text-muted); cursor: pointer; }
 .area-icon-choice:hover, .area-icon-choice.is-selected { color: var(--text-primary); border-color: var(--primary-focus); box-shadow: var(--focus-ring); }
