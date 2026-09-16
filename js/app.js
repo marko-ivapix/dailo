@@ -463,7 +463,7 @@
       setHabitLog, updateHabitStatus, snoozeHabit, syncHabitGoalLinks,
       areaDefaults: { color: PROJECT_COLORS[0], icon: AREA_ICONS[0] },
       setCreatedGoalFocusId(value) { createdGoalFocusId = value; },
-      Core, getGoal, getProject, allProjects, sortedProjects, projectTasks, goalProgressLabel, goalStatusLabel, relativeDateLabel, emptyState,
+      Core, getTask, getGoal, getProject, allProjects, sortedProjects, projectTasks, goalProgressLabel, goalStatusLabel, relativeDateLabel, formatReminder, recurrenceLabel, priorityLabel, priorityIcon, tagSummary, clampOrder, emptyState,
       render, restoreGoalFocus, captureGoalProgress, evaluateGoalProgressChanges,
       putGoalHistory, goalDraft, openGoalModal, openPopover, templateMenuEntry, syncGoalLinks,
       maybePromptGoalReached, updateGoalStatus, saveAndRender,
@@ -901,32 +901,7 @@
   }
 
   function taskRow(task, context, options = {}) {
-    const project = getProject(task.projectId);
-    const today = Core.dateOnly();
-    const meta = [];
-    if (project) meta.push(`<span style="display:inline-flex;align-items:center;gap:6px"><span class="project-dot" style="--project-color:${esc(project.color)}"></span>${esc(project.name)}</span>`);
-    if (task.dueDate) {
-      let cls = '';
-      let label = `Due ${relativeDateLabel(task.dueDate, today)}`;
-      if (!task.isCompleted && task.dueDate < today) { cls = 'danger'; label = `Overdue · ${relativeDateLabel(task.dueDate, today)}`; }
-      else if (task.dueDate === today) cls = 'warning';
-      meta.push(`<span class="${cls}">${esc(label)}</span>`);
-    }
-    if (options.upcomingReason === 'planned' && task.plannedDate) meta.push(`<span>Planned ${esc(relativeDateLabel(task.plannedDate, today))}</span>`);
-    if (options.suggestionReason === 'missed-plan') meta.push(`<span>Missed ${esc(relativeDateLabel(task.plannedDate, today))}</span>`);
-    if (task.isCompleted && task.completedAt) meta.push(`<span class="success">Completed ${esc(relativeDateLabel(String(task.completedAt).slice(0,10), today))}</span>`);
-    const combinedMeta = meta.map((m, i) => `${i ? '<span class="separator">·</span>' : ''}${m}`).join('');
-    const draggable = options.draggable && !task.isCompleted;
-    const rowClass = `task-row ${task.isCompleted ? 'is-completed' : ''}`;
-    return `<article class="${rowClass}" data-task-id="${esc(task.id)}" data-list-context="${esc(context)}" ${draggable ? 'draggable="true"' : ''}>
-      <button class="complete-control ${task.isCompleted ? 'is-completed' : ''}" type="button" data-action="toggle-complete" data-task-id="${esc(task.id)}" aria-label="${task.isCompleted ? 'Mark incomplete' : 'Complete task'}">${task.isCompleted ? '<i class="ph ph-check"></i>' : ''}</button>
-      <div class="task-main" data-action="open-task" data-task-id="${esc(task.id)}" role="button" tabindex="0">
-        <div class="task-title">${esc(task.title)}</div>
-        ${combinedMeta ? `<div class="task-meta">${combinedMeta}</div>` : ''}
-        ${options.inbox ? `<div class="quick-actions"><button class="quick-chip" type="button" data-action="inbox-today" data-task-id="${esc(task.id)}">Today</button><button class="quick-chip" type="button" data-action="task-project-picker" data-task-id="${esc(task.id)}">Project</button><button class="quick-chip" type="button" data-action="task-due-picker" data-task-id="${esc(task.id)}">Date</button></div>` : ''}
-      </div>
-      <div class="task-actions"><button class="btn-icon" type="button" data-action="task-menu" data-task-id="${esc(task.id)}" aria-label="Task actions"><i class="ph ph-dots-three"></i></button></div>
-    </article>`;
+    return callDomainHook('renderTaskRow', task, context, options) || '';
   }
 
   function renderRecovery() {
@@ -1071,7 +1046,6 @@
     const domainContent = callDomainHook('renderRoute', { type: 'modal', modalType: modalState.type });
     if (domainContent !== undefined) root.innerHTML = domainContent;
     else if (modalState.type === 'quick') root.innerHTML = renderQuickModal();
-    else if (modalState.type === 'task') root.innerHTML = renderTaskModal();
     else if (modalState.type === 'search') root.innerHTML = renderSearchModal();
     else if (modalState.type === 'tag') root.innerHTML = renderTagModal();
     else if (modalState.type === 'area-linked') root.innerHTML = renderAreaLinkedModal();
@@ -1207,35 +1181,6 @@
     return tags.map(tag => `<span class="tag-inline"><span class="tag-dot" style="--tag-color:${esc(tag.color)}"></span>${esc(tag.name)}</span>`).join(' ');
   }
 
-  function renderTaskModal() {
-    const task = getTask(modalState.taskId);
-    if (!task) return '';
-    const project = getProject(task.projectId);
-    const completedCount = task.subtasks.filter(s => s.isCompleted).length;
-    const today = Core.dateOnly();
-    const dueClass = task.dueDate && !task.isCompleted && task.dueDate < today ? 'danger' : (task.dueDate === today ? 'warning' : '');
-    return modalFrame(`<div class="modal-inner">
-      <div class="modal-header"><div class="modal-task-title-wrap"><button class="complete-control ${task.isCompleted ? 'is-completed' : ''}" type="button" data-action="toggle-complete" data-task-id="${esc(task.id)}">${task.isCompleted ? '<i class="ph ph-check"></i>' : ''}</button><input id="detail-title" class="modal-task-title" type="text" maxlength="500" value="${esc(modalState.titleDraft)}" aria-label="Task title" /></div><button class="btn-icon" type="button" data-action="close-modal" aria-label="Close"><i class="ph ph-x"></i></button></div>
-      ${modalState.error ? `<div class="validation" style="margin:-8px 0 8px 36px">${esc(modalState.error)}</div>` : ''}
-      <div class="detail-section"><textarea id="detail-notes" class="detail-notes" placeholder="Add notes...">${esc(modalState.notesDraft)}</textarea></div>
-      <div class="detail-section detail-properties">
-        <div class="detail-heading">Task properties</div>
-        <button class="property-row" type="button" data-action="task-project-picker" data-task-id="${esc(task.id)}"><span class="property-key">Project</span><span class="property-value">${project ? `<span style="display:inline-flex;align-items:center;gap:7px"><span class="project-dot" style="--project-color:${esc(project.color)}"></span>${esc(project.name)}</span>` : 'No project'}</span></button>
-        <button class="property-row" type="button" data-action="task-plan-picker" data-task-id="${esc(task.id)}"><span class="property-key">Plan for</span><span class="property-value">${task.plannedDate ? esc(relativeDateLabel(task.plannedDate)) : 'Not planned'}</span></button>
-        <button class="property-row" type="button" data-action="task-due-picker" data-task-id="${esc(task.id)}"><span class="property-key">Due date</span><span class="property-value"><span class="${dueClass}">${task.dueDate ? esc(relativeDateLabel(task.dueDate)) : 'No due date'}</span></span></button>
-        <label class="property-row" for="detail-planned-time"><span class="property-key">Planned time</span><input id="detail-planned-time" class="input task-time-input" type="time" value="${esc(task.plannedTime || '')}" data-task-time="plannedTime" data-task-id="${esc(task.id)}"></label>
-        <label class="property-row" for="detail-due-time"><span class="property-key">Due time</span><input id="detail-due-time" class="input task-time-input" type="time" value="${esc(task.dueTime || '')}" data-task-time="dueTime" data-task-id="${esc(task.id)}"></label>
-        <button class="property-row" type="button" data-action="task-tags-picker" data-task-id="${esc(task.id)}"><span class="property-key">Tags</span><span class="property-value">${tagSummary(task.tagIds) || 'No tags'}</span></button>
-        <button class="property-row" type="button" data-action="task-priority-picker" data-task-id="${esc(task.id)}"><span class="property-key">Priority</span><span class="property-value priority-value">${priorityIcon(task.priority)}${esc(priorityLabel(task.priority))}</span></button>
-        <button class="property-row" type="button" data-action="task-reminder-picker" data-task-id="${esc(task.id)}"><span class="property-key">Reminder</span><span class="property-value">${task.reminderAt ? esc(formatReminder(task.reminderAt)) : 'No reminder'}</span></button>
-        <button class="property-row" type="button" data-action="task-repeat-picker" data-task-id="${esc(task.id)}"><span class="property-key">Repeat</span><span class="property-value">${esc(recurrenceLabel(task.recurrence))}</span></button>
-      </div>
-      ${renderAttachmentsSection({ ownerType: 'task', ownerId: task.id })}
-      <div class="detail-section"><div class="detail-heading"><span>Subtasks</span><span>${completedCount} / ${task.subtasks.length}</span></div><div class="subtask-list" data-subtask-list="${esc(task.id)}">${[...task.subtasks].sort((a,b)=>clampOrder(a.order)-clampOrder(b.order)).map(s => subtaskRow(task, s)).join('')}</div><div class="add-subtask-input"><span></span><input id="detail-subtask" class="input" type="text" placeholder="Add subtask..." data-task-id="${esc(task.id)}" /></div></div>
-      <div class="detail-section" style="padding-bottom:0"><button class="danger-link" type="button" data-action="delete-task" data-task-id="${esc(task.id)}"><i class="ph ph-trash"></i> Delete task</button></div>
-    </div>`);
-  }
-
   function formatBytes(bytes) {
     const n = Number(bytes) || 0;
     if (n < 1024) return `${n} B`;
@@ -1367,10 +1312,6 @@
       setToastMessage('Attachment owner changed. Reopen the current item.'); return;
     }
     requestDeleteEntity('attachment', attachmentId);
-  }
-
-  function subtaskRow(task, subtask) {
-    return `<div class="subtask-row ${subtask.isCompleted ? 'is-completed' : ''}" draggable="true" data-subtask-id="${esc(subtask.id)}" data-parent-task-id="${esc(task.id)}"><button class="complete-control ${subtask.isCompleted ? 'is-completed' : ''}" type="button" data-action="toggle-subtask" data-task-id="${esc(task.id)}" data-subtask-id="${esc(subtask.id)}">${subtask.isCompleted ? '<i class="ph ph-check"></i>' : ''}</button><span class="subtask-title" data-action="edit-subtask" data-task-id="${esc(task.id)}" data-subtask-id="${esc(subtask.id)}" tabindex="0">${esc(subtask.title)}</span><button class="btn-icon" type="button" data-action="delete-subtask" data-task-id="${esc(task.id)}" data-subtask-id="${esc(subtask.id)}"><i class="ph ph-x"></i></button></div>`;
   }
 
   function renderSearchModal() {
