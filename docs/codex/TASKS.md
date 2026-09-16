@@ -15,12 +15,12 @@ Full plan: `docs/superpowers/plans/2026-09-16-todo-v1-3.md`
 
 ## Phase 1 — Schema V3 and migration
 
-- [ ] Add/verify schema version 3.
-- [ ] Add V1.3 default fields to Task and Project.
-- [ ] Add global collections for Areas, Goals, Habits, Templates, Saved Views.
-- [ ] Preserve all V1.2 fields/data during migration.
-- [ ] Add migration validation and failure behavior.
-- [ ] Prove migration with tests.
+- [x] Add/verify schema version 3.
+- [x] Add V1.3 default fields to Task and Project.
+- [x] Add global collections for Areas, Goals, Habits, Templates, Saved Views.
+- [x] Preserve all V1.2 fields/data during migration.
+- [x] Add migration validation and failure behavior.
+- [x] Prove migration with tests.
 
 ## Phase 2 — IndexedDB V3 storage
 
