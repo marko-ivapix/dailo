@@ -6,12 +6,12 @@ Full plan: `docs/superpowers/plans/2026-09-16-todo-v1-3.md`
 
 ## Phase 0 — Repository audit
 
-- [ ] Inspect current file tree and identify actual runtime modules/tests.
-- [ ] Read `AGENTS.md`.
-- [ ] Read the V1.3 design spec.
-- [ ] Read the V1.3 implementation plan.
-- [ ] Run the complete existing V1.2 baseline/regression suite.
-- [ ] Record any baseline failures before changing production code.
+- [x] Inspect current file tree and identify actual runtime modules/tests.
+- [x] Read `AGENTS.md`.
+- [x] Read the V1.3 design spec.
+- [x] Read the V1.3 implementation plan.
+- [x] Run the complete existing V1.2 baseline/regression suite.
+- [x] Record any baseline failures before changing production code.
 
 ## Phase 1 — Schema V3 and migration
 
