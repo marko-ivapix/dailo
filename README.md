@@ -21,6 +21,12 @@ Space Grotesk, Geist and Phosphor icon styles are referenced from public CDNs. T
 
 ## What is included
 
+### Area knowledge and Goal horizons
+
+**Notes** and **Resources** have dedicated sidebar lists and detail editors, with optional Area assignment, links, and attachments. Area Detail also shows their counts and contextual creation controls. Resources can link to Tasks, Projects, Goals, and Habits; deleting an Area clears its assignment without deleting these records. Goal create/edit includes Short-term, Mid-term, and Long-term horizons; **By month** groups Goals by target date, with undated Goals separate.
+
+These prototype additions received bounded source/diff inspection only: automated tests, runtime/syntax checks, browser interactions, and independent reviews were not run in the fast-prototype workflow. Reload persistence, attachment selection/deletion/Undo, ZIP round trips, failure recovery, and keyboard/focus behavior remain unverified at runtime.
+
 ### Prototype routines and starter examples
 
 Habit create/edit includes Morning, Daily, and Night routines. The active Habits view groups these routines; Today continues to follow each Habit's schedule.
@@ -81,8 +87,9 @@ The list UI uses a small flag indicator:
 
 Attachments are real local files stored as Blobs in IndexedDB.
 
-- Task Detail only; Quick Add remains lightweight
-- Add through file picker or drag & drop
+- In Task Detail, find files under **Task properties → Attachments**; Quick Add remains lightweight
+- Use **Add image** for an image-filtered file chooser, or **Add attachment** / drag & drop for any file type
+- Both choosers share the same attachment list, limits, ownership, and delete/Undo flow; image filtering is chooser guidance, not a separate file store or preview
 - All file types allowed
 - Maximum **10 MB per file**
 - Maximum **10 attachments per task**
@@ -93,6 +100,8 @@ Attachments are real local files stored as Blobs in IndexedDB.
 - Expired pending deletions are cleaned from IndexedDB
 
 Binary files never enter localStorage.
+
+Notes and Resources use the same attachment store and limits (10 files per owner). Existing Task attachment IDs and ownership remain unchanged. This build exports ZIP backup version 3 with knowledge files and still imports valid versions 1/2/3; older builds limited to backup version 2 cannot import newly exported version 3 ZIPs.
 
 ### V1.2 — Duplicate task
 

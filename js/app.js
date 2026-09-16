@@ -1521,6 +1521,7 @@
       ${modalState.error ? `<div class="validation" style="margin:-8px 0 8px 36px">${esc(modalState.error)}</div>` : ''}
       <div class="detail-section"><textarea id="detail-notes" class="detail-notes" placeholder="Add notes...">${esc(modalState.notesDraft)}</textarea></div>
       <div class="detail-section detail-properties">
+        <div class="detail-heading">Task properties</div>
         <button class="property-row" type="button" data-action="task-project-picker" data-task-id="${esc(task.id)}"><span class="property-key">Project</span><span class="property-value">${project ? `<span style="display:inline-flex;align-items:center;gap:7px"><span class="project-dot" style="--project-color:${esc(project.color)}"></span>${esc(project.name)}</span>` : 'No project'}</span></button>
         <button class="property-row" type="button" data-action="task-plan-picker" data-task-id="${esc(task.id)}"><span class="property-key">Plan for</span><span class="property-value">${task.plannedDate ? esc(relativeDateLabel(task.plannedDate)) : 'Not planned'}</span></button>
         <button class="property-row" type="button" data-action="task-due-picker" data-task-id="${esc(task.id)}"><span class="property-key">Due date</span><span class="property-value"><span class="${dueClass}">${task.dueDate ? esc(relativeDateLabel(task.dueDate)) : 'No due date'}</span></span></button>
@@ -1531,8 +1532,8 @@
         <button class="property-row" type="button" data-action="task-reminder-picker" data-task-id="${esc(task.id)}"><span class="property-key">Reminder</span><span class="property-value">${task.reminderAt ? esc(formatReminder(task.reminderAt)) : 'No reminder'}</span></button>
         <button class="property-row" type="button" data-action="task-repeat-picker" data-task-id="${esc(task.id)}"><span class="property-key">Repeat</span><span class="property-value">${esc(recurrenceLabel(task.recurrence))}</span></button>
       </div>
-      <div class="detail-section"><div class="detail-heading"><span>Subtasks</span><span>${completedCount} / ${task.subtasks.length}</span></div><div class="subtask-list" data-subtask-list="${esc(task.id)}">${[...task.subtasks].sort((a,b)=>clampOrder(a.order)-clampOrder(b.order)).map(s => subtaskRow(task, s)).join('')}</div><div class="add-subtask-input"><span></span><input id="detail-subtask" class="input" type="text" placeholder="Add subtask..." data-task-id="${esc(task.id)}" /></div></div>
       ${renderAttachmentsSection({ ownerType: 'task', ownerId: task.id })}
+      <div class="detail-section"><div class="detail-heading"><span>Subtasks</span><span>${completedCount} / ${task.subtasks.length}</span></div><div class="subtask-list" data-subtask-list="${esc(task.id)}">${[...task.subtasks].sort((a,b)=>clampOrder(a.order)-clampOrder(b.order)).map(s => subtaskRow(task, s)).join('')}</div><div class="add-subtask-input"><span></span><input id="detail-subtask" class="input" type="text" placeholder="Add subtask..." data-task-id="${esc(task.id)}" /></div></div>
       <div class="detail-section" style="padding-bottom:0"><button class="danger-link" type="button" data-action="delete-task" data-task-id="${esc(task.id)}"><i class="ph ph-trash"></i> Delete task</button></div>
     </div>`);
   }
@@ -1558,7 +1559,8 @@
     const item = attachmentOwner(owner)?.item;
     const count = item ? item.attachmentIds.length : modalState.pendingFiles.length;
     const attrs = `data-owner-type="${esc(owner.ownerType)}" data-owner-id="${esc(owner.ownerId || '')}"${owner.ownerType === 'task' ? ` data-task-id="${esc(owner.ownerId)}"` : ''}`;
-    return `<div class="detail-section attachments-section"><div class="detail-heading"><span>Attachments</span><span>${count} / ${MAX_ATTACHMENTS_PER_TASK}</span></div><label class="attachment-drop-zone" ${attrs}><i class="ph ph-paperclip"></i><span><strong>Drop files here</strong><small>or choose files · max 10 MB each</small></span><span class="btn btn-secondary attachment-add-button">Add attachment</span><input id="attachment-input" type="file" multiple hidden ${attrs}></label>${modalState.attachmentMessage ? `<div class="attachment-message" role="status">${esc(modalState.attachmentMessage)}</div>` : ''}<div class="attachment-list">${(modalState.attachmentRecords || []).map(record => renderAttachmentRow(record, owner)).join('')}</div></div>`;
+    const imageControl = owner.ownerType === 'task' ? `<button class="btn btn-secondary" type="button" data-action="attachment-image-picker"><i class="ph ph-image" aria-hidden="true"></i>Add image</button><input id="attachment-image-input" type="file" accept="image/*" multiple hidden ${attrs}>` : '';
+    return `<div class="detail-section attachments-section"><div class="detail-heading"><span>Attachments</span><span>${count} / ${MAX_ATTACHMENTS_PER_TASK}</span></div><label class="attachment-drop-zone" ${attrs}><i class="ph ph-paperclip"></i><span><strong>Drop files here</strong><small>or choose files · max 10 MB each</small></span><span class="btn btn-secondary attachment-add-button">Add attachment</span><input id="attachment-input" type="file" multiple hidden ${attrs}></label>${imageControl}${modalState.attachmentMessage ? `<div class="attachment-message" role="status">${esc(modalState.attachmentMessage)}</div>` : ''}<div class="attachment-list">${(modalState.attachmentRecords || []).map(record => renderAttachmentRow(record, owner)).join('')}</div></div>`;
   }
 
   async function readOwnerAttachments(owner) {
@@ -3489,6 +3491,7 @@
     else if (action === 'project-menu') openProjectMenu(el, el.dataset.projectId);
     else if (action === 'task-menu') openTaskMenu(el, el.dataset.taskId);
     else if (action === 'attachment-menu') openAttachmentMenu(el, el.dataset.attachmentId);
+    else if (action === 'attachment-image-picker') $('#attachment-image-input')?.click();
     else if (action === 'toggle-suggestions') { state.ui.suggestionsExpanded = !state.ui.suggestionsExpanded; saveAndRender(); }
     else if (action === 'toggle-today-completed') { state.ui.todayCompletedExpanded = !state.ui.todayCompletedExpanded; saveAndRender(); }
     else if (action === 'toggle-project-completed') { const id = el.dataset.projectId; state.ui.projectCompletedExpanded[id] = !state.ui.projectCompletedExpanded[id]; saveAndRender(); }
@@ -3643,7 +3646,7 @@
     if(modalState?.type==='template' && event.target.dataset.templateField?.endsWith('goalIds')){readTemplateDraft();renderModal();return;}
     if (event.target.matches('[data-calendar-visibility]')) { state.ui.calendarVisibility = { tasks: true, habits: true, goals: true, milestones: true, ...(state.ui.calendarVisibility || {}), [event.target.dataset.calendarVisibility]: event.target.checked }; saveAndRender(); return; }
     if (event.target.matches('[data-task-time]')) { updateTask(event.target.dataset.taskId, { [event.target.dataset.taskTime]: Core.normalizeTime(event.target.value) }, false); render(); return; }
-    if (event.target.id === 'attachment-input') { receiveAttachmentFiles(event.target.dataset, [...event.target.files]); event.target.value=''; return; }
+    if (['attachment-input', 'attachment-image-input'].includes(event.target.id)) { receiveAttachmentFiles(event.target.dataset, [...event.target.files]); event.target.value=''; return; }
     if (event.target.id === 'backup-import-input') { const file=event.target.files?.[0]; event.target.value=''; if(file) inspectImportBackup(file); return; }
     if (event.target.id === 'completed-project-filter') {
       state.ui.completedProjectFilter = event.target.value || '';
