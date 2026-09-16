@@ -538,27 +538,32 @@
 
   function renderToday() {
     const today = Core.dateOnly();
-    const sections = Core.deriveTodaySections(state.tasks, today);
+    const sections = Core.deriveTodayV3(state, Object.values(state.habitLogCache || {}).flat(), today);
     const total = sections.today.length;
     let html = pageHeader('Today', `${formatPageToday(today)}${total ? ` · ${total} ${total === 1 ? 'task' : 'tasks'}` : ''}`, { contextToday: true });
 
     if (sections.overdue.length) {
-      html += `<section class="section"><div class="section-header"><h2 class="section-label danger">Overdue</h2><span class="section-count">${sections.overdue.length}</span></div><div class="task-list">${sections.overdue.map(t => taskRow(t, 'today', { overdue: true })).join('')}</div></section>`;
+      html += `<section class="section"><div class="section-header"><h2 class="section-label danger">Overdue Tasks</h2><span class="section-count">${sections.overdue.length}</span></div><div class="task-list">${sections.overdue.map(t => taskRow(t, 'today', { overdue: true })).join('')}</div></section>`;
     }
 
-    html += `<section class="section"><div class="section-header"><h2 class="section-label">Today</h2><span class="section-count">${sections.today.length}</span></div>`;
-    if (sections.today.length) html += `<div class="task-list" data-list-context="today">${sections.today.map(t => taskRow(t, 'today', { draggable: true })).join('')}</div>`;
-    else html += emptyState('Nothing planned for today.', sections.suggestions.length ? `${sections.suggestions.length} suggestions available.` : 'Add a task when you are ready.', 'Add task', 'quick-add', { today: true });
-    html += `<button class="inline-add" type="button" data-action="quick-add" data-today="true"><i class="ph ph-plus"></i> Add task</button></section>`;
-
-    if (sections.suggestions.length) {
-      const open = state.ui.suggestionsExpanded;
-      html += `<section class="section"><button class="collapsible-trigger" type="button" data-action="toggle-suggestions" aria-expanded="${open}"><span class="left"><i class="ph ph-sparkle"></i> Suggested for today</span><span>${sections.suggestions.length} <i class="ph ph-caret-${open ? 'up' : 'down'}"></i></span></button>`;
-      if (open) {
-        html += `<div class="task-list">${sections.suggestions.map(item => taskRow(item.task, 'suggestion', { suggestionReason: item.reason })).join('')}</div><button class="btn btn-ghost" type="button" data-action="add-all-suggestions"><i class="ph ph-plus-circle"></i> Add all to Today</button>`;
+    if (sections.today.length || sections.suggestions.length) {
+      html += `<section class="section"><div class="section-header"><h2 class="section-label">Tasks</h2><span class="section-count">${sections.today.length}</span></div>`;
+      if (sections.today.length) html += `<div class="task-list" data-list-context="today">${sections.today.map(t => taskRow(t, 'today', { draggable: true })).join('')}</div>`;
+      html += `<button class="inline-add" type="button" data-action="quick-add" data-today="true"><i class="ph ph-plus"></i> Add task</button>`;
+      if (sections.suggestions.length) {
+        const open = state.ui.suggestionsExpanded;
+        html += `<div><button class="collapsible-trigger" type="button" data-action="toggle-suggestions" aria-expanded="${open}"><span class="left"><i class="ph ph-sparkle"></i> Suggested for today</span><span>${sections.suggestions.length} <i class="ph ph-caret-${open ? 'up' : 'down'}"></i></span></button>`;
+        if (open) html += `<div class="task-list">${sections.suggestions.map(item => taskRow(item.task, 'suggestion', { suggestionReason: item.reason })).join('')}</div><button class="btn btn-ghost" type="button" data-action="add-all-suggestions"><i class="ph ph-plus-circle"></i> Add all to Today</button>`;
+        html += `</div>`;
       }
       html += `</section>`;
     }
+    if (sections.habits.length) html += `<section class="section"><div class="section-header"><h2 class="section-label">Habits</h2><span class="section-count">${sections.habits.length}</span></div><div class="habit-list">${sections.habits.map(item => renderHabitRow(item.habit, item.status)).join('')}</div></section>`;
+    if (sections.overdueMilestones.length) html += `<section class="section"><div class="section-header"><h2 class="section-label danger">Overdue Milestones</h2><span class="section-count">${sections.overdueMilestones.length}</span></div><div class="milestone-list">${sections.overdueMilestones.map(({ goal, milestone }) => `<div class="milestone-row"><button class="task-check" type="button" data-action="toggle-milestone" data-goal-id="${esc(goal.id)}" data-milestone-id="${esc(milestone.id)}" aria-label="Complete milestone"><i class="ph ph-circle"></i></button><button class="btn btn-ghost" type="button" data-route="goal/${esc(goal.id)}">${esc(milestone.title)} · ${esc(goal.title)}</button><small>${esc(relativeDateLabel(milestone.date))}</small></div>`).join('')}</div></section>`;
+    for (const [label, goals, danger] of [['Overdue Goals', sections.overdueGoals, true], ['Goals', sections.goals, false]]) {
+      if (goals.length) html += `<section class="section"><div class="section-header"><h2 class="section-label${danger ? ' danger' : ''}">${label}</h2><span class="section-count">${goals.length}</span></div><div class="goal-list">${goals.map(renderGoalRow).join('')}</div></section>`;
+    }
+    if (!sections.today.length && !sections.overdue.length && !sections.habits.length && !sections.overdueMilestones.length && !sections.overdueGoals.length && !sections.goals.length && !sections.completed.length && !sections.suggestions.length) html += emptyState('Nothing planned for today.', 'Add a task when you are ready.', 'Add task', 'quick-add', { today: true });
 
     if (sections.completed.length) {
       const open = state.ui.todayCompletedExpanded;
@@ -703,9 +708,13 @@
     return metrics.currentPeriodCount ? 'Done' : 'Not checked in';
   }
 
-  function renderHabitRow(habit) {
+  function renderHabitRow(habit, todayStatus = null) {
     const metrics = habitMetrics(habit);
-    return `<article class="habit-row"><button class="habit-open" type="button" data-route="habit/${esc(habit.id)}"><span><strong>${esc(habit.name)}</strong><small>${esc(habitFrequencyLabel(habit))} · ${esc(habit.status)}</small></span><span class="habit-progress">${esc(habitProgressLabel(habit, metrics))}</span></button><button class="btn-icon" type="button" data-action="habit-menu" data-habit-id="${esc(habit.id)}" aria-label="Habit actions"><i class="ph ph-dots-three"></i></button></article>`;
+    const actions = !todayStatus ? '' : habit.trackingType === 'numeric'
+      ? `${(habit.quickValues || []).map(value => `<button class="btn btn-secondary" type="button" data-action="habit-quick-add" data-habit-id="${esc(habit.id)}" data-value="${esc(value)}">+${esc(value)}</button>`).join('')}<button class="btn btn-ghost" type="button" data-route="habit/${esc(habit.id)}">Edit total</button>`
+      : `<button class="btn btn-secondary" type="button" data-action="habit-checkin" data-habit-id="${esc(habit.id)}">${todayStatus.status === 'done' ? 'Mark not done' : 'Check in'}</button><button class="btn btn-ghost" type="button" data-action="habit-skip" data-habit-id="${esc(habit.id)}">Skip today</button>`;
+    const menu = `<button class="btn-icon" type="button" data-action="habit-menu" data-habit-id="${esc(habit.id)}" aria-label="Habit actions"><i class="ph ph-dots-three"></i></button>`;
+    return `<article class="habit-row"${todayStatus ? ' style="grid-template-columns:minmax(0,1fr) auto"' : ''}><button class="habit-open" type="button" data-route="habit/${esc(habit.id)}"><span><strong>${esc(habit.name)}</strong><small>${esc(habitFrequencyLabel(habit))} · ${esc(todayStatus?.status || habit.status)}</small></span><span class="habit-progress">${esc(habitProgressLabel(habit, metrics))}</span></button>${todayStatus ? `<div class="habit-checkin-controls">${actions}${menu}</div>` : menu}</article>`;
   }
 
   function renderHabits() {
@@ -713,7 +722,7 @@
     const habits = (state.habits || []).filter(habit => tab === 'all' || (tab === 'archived' ? habit.status === 'archived' : habit.status !== 'archived'));
     let html = pageHeader('Habits', `${habits.filter(habit => habit.status === 'active').length} active habits`, { add: false, actionHtml: '<button class="btn btn-primary" type="button" data-action="new-habit"><i class="ph ph-plus"></i> New habit</button>' });
     html += `<div class="area-tabs"><button type="button" data-habit-tab="active" class="${tab === 'active' ? 'is-active' : ''}">Active</button><button type="button" data-habit-tab="all" class="${tab === 'all' ? 'is-active' : ''}">All</button><button type="button" data-habit-tab="archived" class="${tab === 'archived' ? 'is-active' : ''}">Archived</button></div>`;
-    return html + (habits.length ? `<div class="habit-list">${habits.map(renderHabitRow).join('')}</div>` : emptyState('No habits yet.', 'Track a repeatable behavior without turning it into a task.', 'New habit', 'new-habit'));
+    return html + (habits.length ? `<div class="habit-list">${habits.map(habit => renderHabitRow(habit)).join('')}</div>` : emptyState('No habits yet.', 'Track a repeatable behavior without turning it into a task.', 'New habit', 'new-habit'));
   }
 
   function heatmapHtml(habit, logs) {
@@ -752,14 +761,14 @@
 
   function renderUpcoming() {
     const today = Core.dateOnly();
-    const groups = Core.deriveUpcoming(state.tasks, today);
+    const groups = Core.deriveUpcomingV3(state, today);
     let html = pageHeader('Upcoming', 'Planned work and upcoming deadlines', {});
     if (!groups.length) return html + emptyState('Nothing scheduled.', 'Tasks you plan or set a due date for will appear here.');
     for (const group of groups) {
       const d = parseLocalDate(group.date);
       const rel = relativeDateLabel(group.date, today);
       const dayName = [today, Core.addDays(today, 1)].includes(group.date) ? rel : WEEKDAY_FMT.format(d);
-      html += `<section class="upcoming-group"><div class="group-date"><strong>${esc(dayName)}</strong><span>${esc(formatDate(group.date))}</span></div><div class="task-list">${group.items.map(item => taskRow(item.task, 'upcoming', { upcomingReason: item.displayReason })).join('')}</div></section>`;
+      html += `<section class="upcoming-group"><div class="group-date"><strong>${esc(dayName)}</strong><span>${esc(formatDate(group.date))}</span></div>${group.items.length ? `<div class="task-list">${group.items.map(item => taskRow(item.task, 'upcoming', { upcomingReason: item.displayReason })).join('')}</div>` : ''}${group.goals.length ? `<div><h2 class="section-label">Goals</h2><div class="goal-list">${group.goals.map(renderGoalRow).join('')}</div></div>` : ''}</section>`;
     }
     return html;
   }

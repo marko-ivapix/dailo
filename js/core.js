@@ -105,6 +105,34 @@
       }));
   }
 
+  function deriveTodayV3(state, habitLogs, today) {
+    const goals = state.goals || [];
+    const activeGoals = goals.filter(goal => goal.status === 'active');
+    return {
+      ...deriveTodaySections(state.tasks || [], today),
+      habits: (state.habits || []).filter(habit => habitScheduledOn(habit, today)).map(habit => ({
+        habit, status: habitStatusForDate(habit, habitLogs || [], today, today),
+      })),
+      overdueMilestones: goals.flatMap(goal => (goal.milestones || [])
+        .filter(milestone => milestone.date && milestone.date < today && !milestone.isCompleted)
+        .map(milestone => ({ goal, milestone }))),
+      overdueGoals: activeGoals.filter(goal => goal.targetDate && goal.targetDate < today),
+      goals: activeGoals.filter(goal => goal.targetDate === today),
+    };
+  }
+
+  function deriveUpcomingV3(state, today) {
+    const groups = new Map(deriveUpcoming(state.tasks || [], today).map(group => [group.date, { ...group, goals: [] }]));
+    for (const goal of state.goals || []) {
+      if (goal.status !== 'active' || !goal.targetDate || goal.targetDate <= today) continue;
+      if (!groups.has(goal.targetDate)) groups.set(goal.targetDate, { date: goal.targetDate, items: [], goals: [] });
+      groups.get(goal.targetDate).goals.push(goal);
+    }
+    return [...groups.values()].sort((a, b) => a.date.localeCompare(b.date)).map(group => ({
+      ...group, goals: group.goals.sort((a, b) => String(a.title).localeCompare(String(b.title))),
+    }));
+  }
+
 
 
   function deriveAnytime(tasks) {
@@ -698,8 +726,10 @@
     isOverdue,
     isInboxActive,
     deriveTodaySections,
+    deriveTodayV3,
     deriveAnytime,
     deriveUpcoming,
+    deriveUpcomingV3,
     nextRecurrenceDate,
     buildNextRecurringTask,
     isReminderDue,

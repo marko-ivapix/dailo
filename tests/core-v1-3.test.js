@@ -2,6 +2,71 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const Core = require('../js/core.js');
 
+test('today v3 keeps task sections and adds scheduled habits, overdue milestones and goals', () => {
+  const tasks = [
+    { id: 'late', title: 'Late', dueDate: '2026-09-15' },
+    { id: 'today', title: 'Today', plannedDate: '2026-09-16' },
+    { id: 'suggest', title: 'Suggest', dueDate: '2026-09-16' },
+    { id: 'done', title: 'Done', isCompleted: true, completedAt: '2026-09-16T10:00:00' },
+  ];
+  const state = { tasks, goals: [
+    { id: 'g-overdue', title: 'Overdue goal', status: 'active', targetDate: '2026-09-15', milestones: [] },
+    { id: 'g-today', title: 'Today goal', status: 'active', targetDate: '2026-09-16', milestones: [
+      { id: 'm-overdue', title: 'Late milestone', date: '2026-09-15', isCompleted: false },
+      { id: 'm-done', date: '2026-09-14', isCompleted: true },
+      { id: 'm-today', date: '2026-09-16', isCompleted: false },
+      { id: 'm-undated', isCompleted: false },
+    ] },
+    ...['paused', 'completed', 'archived'].map(status => ({ id: status, status, targetDate: '2026-09-15', milestones: [{ id: `m-${status}`, date: '2026-09-15', isCompleted: false }] })),
+  ], habits: [
+    { id: 'h-daily', name: 'Daily', status: 'active', frequencyType: 'daily', startDate: '2026-09-01', trackingType: 'checkbox' },
+    { id: 'h-weekly', name: 'Gym', status: 'active', frequencyType: 'timesPerWeek', timesPerWeek: 4, startDate: '2026-09-01', trackingType: 'checkbox' },
+    { id: 'h-weekday', status: 'active', frequencyType: 'weekdays', weekdays: [3], startDate: '2026-09-01' },
+    { id: 'h-otherday', status: 'active', frequencyType: 'weekdays', weekdays: [4], startDate: '2026-09-01' },
+    { id: 'h-interval', status: 'active', frequencyType: 'everyNDays', everyNDays: 2, startDate: '2026-09-14' },
+    { id: 'h-offinterval', status: 'active', frequencyType: 'everyNDays', everyNDays: 2, startDate: '2026-09-15' },
+    { id: 'h-future', status: 'active', frequencyType: 'daily', startDate: '2026-09-17' },
+    { id: 'h-paused', status: 'paused', frequencyType: 'daily', startDate: '2026-09-01' },
+    { id: 'h-ended', status: 'active', frequencyType: 'daily', startDate: '2026-09-01', endType: 'date', endDate: '2026-09-15' },
+  ] };
+  const logs = ['2026-09-13','2026-09-14','2026-09-15','2026-09-16'].map(date => ({ habitId: 'h-weekly', date, status: 'done' }));
+  logs.push({ habitId: 'h-daily', date: '2026-09-16', status: 'skipped' });
+  const before = JSON.stringify(state);
+  const result = Core.deriveTodayV3(state, logs, '2026-09-16');
+  for (const key of ['overdue', 'today', 'suggestions', 'completed']) assert.deepEqual(result[key], Core.deriveTodaySections(tasks, '2026-09-16')[key]);
+  assert.deepEqual(result.overdueGoals.map(x => x.id), ['g-overdue']);
+  assert.deepEqual(result.goals.map(x => x.id), ['g-today']);
+  assert.deepEqual(result.overdueMilestones.map(x => [x.goal.id, x.milestone.id]), [['g-today', 'm-overdue'], ['paused', 'm-paused'], ['completed', 'm-completed'], ['archived', 'm-archived']]);
+  assert.deepEqual(result.habits.map(x => x.habit.id), ['h-daily','h-weekly','h-weekday','h-interval']);
+  assert.equal(result.habits[0].status.status, 'skipped');
+  assert.equal(result.habits[1].status.status, 'done');
+  assert.equal(JSON.stringify(state), before);
+});
+
+test('upcoming v3 preserves task groups and groups only future active goals without habits', () => {
+  const state = { tasks: [{ id: 'future', title: 'Future task', plannedDate: '2026-09-18', dueDate: '2026-09-19' }], habits: [{ id: 'habit', status: 'active', frequencyType: 'daily' }], goals: [
+    { id: 'g-future', title: 'Future goal', status: 'active', targetDate: '2026-09-18' },
+    { id: 'g-only', title: 'Goal only', status: 'active', targetDate: '2026-09-17' },
+    ...['paused','completed','archived'].map(status => ({ id: status, status, targetDate: '2026-09-20' })),
+    { id: 'today', status: 'active', targetDate: '2026-09-16' },
+    { id: 'late', status: 'active', targetDate: '2026-09-15' },
+    { id: 'undated', status: 'active', targetDate: null },
+  ] };
+  const groups = Core.deriveUpcomingV3(state, '2026-09-16');
+  assert.deepEqual(groups.map(group => [group.date, group.items.map(item => item.task.id), group.goals.map(goal => goal.id)]), [
+    ['2026-09-17', [], ['g-only']], ['2026-09-18', ['future'], ['g-future']],
+  ]);
+  assert.deepEqual(groups[1].items, Core.deriveUpcoming(state.tasks, '2026-09-16')[0].items);
+  assert.equal(groups.some(group => group.habits), false);
+});
+
+test('today v3 derives numeric partial and completed status from transient logs', () => {
+  const state = { habits: [{ id: 'water', status: 'active', trackingType: 'numeric', targetValue: 2, frequencyType: 'daily', startDate: '2026-09-16' }] };
+  assert.deepEqual(Core.deriveTodayV3(state, [{ habitId: 'water', date: '2026-09-16', value: 0.5 }], '2026-09-16').habits[0].status, { status: 'missed', value: 0.5, percent: 25 });
+  assert.deepEqual(Core.deriveTodayV3(state, [{ habitId: 'water', date: '2026-09-16', value: 2.4 }], '2026-09-16').habits[0].status, { status: 'done', value: 2.4, percent: 100 });
+  assert.deepEqual(Core.deriveUpcomingV3({}, '2026-09-16'), []);
+});
+
 function v2State(overrides = {}) {
   return {
     version: 2,

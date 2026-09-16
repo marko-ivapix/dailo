@@ -58,8 +58,88 @@ def main():
         if executable:
             launch_args['executable_path'] = executable
         browser = p.chromium.launch(**launch_args)
+        context = browser.new_context(viewport={'width': 1440, 'height': 1000})
         try:
-            page = browser.new_page(viewport={'width': 1440, 'height': 1000})
+            planning = context.new_page()
+            planning_seed = seed_state()
+            planning_seed['tasks'] = [
+                {'id': 'late-task', 'title': 'Late task', 'dueDate': '2026-09-15'},
+                {'id': 'today-task', 'title': 'Planned task', 'plannedDate': '2026-09-16'},
+                {'id': 'future-task', 'title': 'Future task', 'plannedDate': '2026-09-18'},
+                {'id': 'suggest-task', 'title': 'Suggested deadline', 'dueDate': '2026-09-16'},
+                {'id': 'done-task', 'title': 'Completed task', 'isCompleted': True, 'completedAt': '2026-09-16T10:00:00'},
+            ]
+            planning_seed['goals'] = [
+                {'id': 'late-goal', 'title': 'Late goal', 'status': 'active', 'targetDate': '2026-09-15'},
+                {'id': 'today-goal', 'title': 'Today goal', 'status': 'active', 'targetDate': '2026-09-16', 'progressMode': 'linkedHabits', 'habitLinks': [{'habitId': 'daily', 'metric': 'totalCheckins', 'target': 2}], 'milestones': [{'id': 'late-milestone', 'title': 'Late milestone', 'date': '2026-09-15', 'isCompleted': False}]},
+                {'id': 'future-goal', 'title': 'Future goal', 'status': 'active', 'targetDate': '2026-09-18'},
+                {'id': 'goal-only', 'title': 'Goal only date', 'status': 'active', 'targetDate': '2026-09-17'},
+                {'id': 'paused-goal', 'title': 'Hidden paused goal', 'status': 'paused', 'targetDate': '2026-09-18'},
+                {'id': 'completed-goal', 'title': 'Hidden completed goal', 'status': 'completed', 'targetDate': '2026-09-18'},
+                {'id': 'archived-goal', 'title': 'Hidden archived goal', 'status': 'archived', 'targetDate': '2026-09-18'},
+            ]
+            planning_seed['habits'] = [
+                {'id': 'daily', 'name': 'Daily planning habit', 'status': 'active', 'frequencyType': 'daily', 'trackingType': 'checkbox', 'startDate': '2026-09-16'},
+                {'id': 'weekly', 'name': 'Weekly planning habit', 'status': 'active', 'frequencyType': 'timesPerWeek', 'timesPerWeek': 2, 'trackingType': 'checkbox', 'startDate': '2026-09-14'},
+                {'id': 'numeric', 'name': 'Numeric planning habit', 'status': 'active', 'frequencyType': 'daily', 'trackingType': 'numeric', 'targetValue': 2, 'quickValues': [0.5, 1], 'startDate': '2026-09-16'},
+                {'id': 'offday', 'name': 'Hidden offday habit', 'status': 'active', 'frequencyType': 'weekdays', 'weekdays': [4], 'startDate': '2026-09-01'},
+            ]
+            boot(planning, now='2026-09-16T12:00:00', seed=planning_seed)
+            labels = planning.locator('#main .section-label').all_text_contents()
+            assert labels == ['Overdue Tasks', 'Tasks', 'Habits', 'Overdue Milestones', 'Overdue Goals', 'Goals'], labels
+            assert planning.locator('#main [data-action="toggle-today-completed"]').count() == 1
+            assert planning.locator('#main').inner_text().index('Goals') < planning.locator('#main').inner_text().rindex('Completed')
+            suggestion_section = planning.locator('[data-action="toggle-suggestions"]').locator('xpath=ancestor::section[1]')
+            assert suggestion_section.locator('.section-label').inner_text() == 'Tasks'
+            planning.click('[data-action="toggle-suggestions"]')
+            assert 'Suggested deadline' in suggestion_section.inner_text()
+            assert 'due today' in suggestion_section.inner_text().lower()
+            planning.click('[data-action="add-all-suggestions"]')
+            assert planning.evaluate("TodoApp.state.tasks.find(task => task.id === 'suggest-task').plannedDate") == '2026-09-16'
+            assert planning.locator('#main [data-route="habit/offday"]').count() == 0
+            planning.click('#main [data-action="habit-checkin"][data-habit-id="daily"]')
+            planning.wait_for_function("TodoApp.state.habitMetrics.daily.totalCheckins === 1")
+            assert '50%' in planning.locator('#main .goal-row[data-goal-id="today-goal"]').inner_text()
+            planning.click('#main [data-action="habit-quick-add"][data-habit-id="numeric"][data-value="0.5"]')
+            planning.wait_for_function("TodoApp.state.habitMetrics.numeric.currentPeriodCount === 0.5")
+            assert '0.5 / 2' in planning.locator('#main .habit-open[data-route="habit/numeric"]').inner_text()
+            planning.evaluate("async () => { await TodoApp.setHabitLog('weekly', '2026-09-14', 'done'); await TodoApp.setHabitLog('weekly', '2026-09-15', 'done'); }")
+            assert '2 / 2 this week' in planning.locator('#main [data-route="habit/weekly"]').inner_text()
+            planning.click('#main [data-action="habit-checkin"][data-habit-id="weekly"]')
+            planning.wait_for_function("TodoApp.state.habitMetrics.weekly.currentPeriodCount === 3")
+            assert '3 / 2 this week' in planning.locator('#main [data-route="habit/weekly"]').inner_text()
+            planning.click('#main [data-action="habit-skip"][data-habit-id="daily"]')
+            planning.wait_for_function("TodoApp.state.habitLogCache.daily[0].status === 'skipped'")
+            assert 'skipped' in planning.locator('#main [data-route="habit/daily"]').inner_text()
+            assert '0%' in planning.locator('#main .goal-row[data-goal-id="today-goal"]').inner_text()
+            planning.click('#main [data-action="toggle-milestone"]')
+            assert planning.locator('#main .section-label').all_text_contents() == ['Overdue Tasks', 'Tasks', 'Habits', 'Overdue Goals', 'Goals']
+            stored = planning.evaluate("JSON.parse(localStorage.getItem('todoAppData'))")
+            assert not any(key in stored for key in ['habitLogCache', 'habitMetrics', 'habitLogs'])
+            planning.click('[data-route="upcoming"]')
+            planning.wait_for_function("document.querySelector('.page-title').textContent === 'Upcoming'")
+            assert planning.locator('#main .goal-row').count() == 2
+            assert 'Future task' in planning.locator('#main').inner_text()
+            assert 'Hidden paused goal' not in planning.locator('#main').inner_text()
+            assert 'Hidden completed goal' not in planning.locator('#main').inner_text()
+            assert 'Hidden archived goal' not in planning.locator('#main').inner_text()
+            assert planning.locator('#main .habit-row').count() == 0
+            planning.evaluate("TodoApp.state.tasks = []; TodoApp.state.goals = []; location.hash = '#today'; TodoApp.render()")
+            planning.wait_for_function("location.hash === '#today' && document.querySelector('.page-title').textContent === 'Today'")
+            assert planning.locator('#main .section-label').all_text_contents() == ['Habits']
+            # Correcting a historical required miss refreshes the displayed
+            # streak on the detail surface as well as hydrated metrics.
+            planning.evaluate("async () => { TodoApp.state.habits.push({id:'streak', name:'Streak correction', status:'active', frequencyType:'daily', trackingType:'checkbox', startDate:'2026-09-14'}); await TodoApp.setHabitLog('streak','2026-09-14','done'); await TodoApp.setHabitLog('streak','2026-09-16','done'); location.hash = '#habit/streak'; }")
+            planning.wait_for_selector('.habit-metric-grid')
+            assert planning.locator('.habit-metric-grid > div').nth(0).locator('strong').inner_text() == '1'
+            planning.fill('#habit-history-date', '2026-09-15')
+            planning.select_option('#habit-history-new-status', 'done')
+            planning.click('[data-action="save-habit-history-date"]')
+            planning.wait_for_function("TodoApp.state.habitMetrics.streak.currentStreak === 3")
+            assert planning.locator('.habit-metric-grid > div').nth(0).locator('strong').inner_text() == '3'
+            planning.close()
+
+            page = context.new_page()
             boot(page)
 
             # Checkbox habit CRUD, Today-compatible X/week count, lifecycle, and delete/Undo.
@@ -122,7 +202,7 @@ def main():
             page.click('[data-action="save-habit"]')
             assert page.evaluate("id => TodoApp.state.habits.find(h => h.id === id).quickValues", numeric_id) == [0.5, 1]
             persisted_state = page.evaluate('TodoApp.state')
-            reloaded = browser.new_page(viewport={'width': 1440, 'height': 1000})
+            reloaded = context.new_page()
             boot(reloaded, seed=persisted_state)
             reloaded.evaluate(f"location.hash = '#habit/{numeric_id}'")
             reloaded.wait_for_selector('[data-action="habit-quick-add"][data-value="0.5"]')
@@ -257,7 +337,7 @@ def main():
             # modal action, closes the decision, and changes lifecycle state.
             ask_seed = seed_state()
             ask_seed['habits'] = [{ 'id': 'missed-ask', 'name': 'Missed ask', 'status': 'active', 'trackingType': 'checkbox', 'frequencyType': 'daily', 'startDate': '2026-10-30', 'continuation': 'askEachPeriod', 'endType': 'never', 'reminders': [], 'pauseIntervals': [] }]
-            startup = browser.new_page(viewport={'width': 1440, 'height': 1000})
+            startup = context.new_page()
             boot(startup, seed=ask_seed)
             startup.wait_for_selector('.modal-title')
             assert startup.locator('.modal-title').inner_text() == 'Continue habit?'
@@ -268,7 +348,7 @@ def main():
 
             one_seed = seed_state()
             one_seed['habits'] = [{ 'id': 'missed-one', 'name': 'Missed one', 'status': 'active', 'trackingType': 'checkbox', 'frequencyType': 'daily', 'startDate': '2026-10-30', 'continuation': 'onePeriod', 'endType': 'never', 'reminders': [], 'pauseIntervals': [] }]
-            startup = browser.new_page(viewport={'width': 1440, 'height': 1000})
+            startup = context.new_page()
             boot(startup, seed=one_seed)
             startup.wait_for_selector('.modal-title')
             assert startup.locator('.modal-title').inner_text() == 'Habit period finished'
@@ -282,13 +362,22 @@ def main():
               await TodoApp.refreshHabitMetrics(); TodoApp.checkReminders();
             }''')
             assert page.evaluate("TodoApp.state.habitMetrics['weekly-reset'].currentPeriodCount") == 4
+            page.evaluate("location.hash = '#habit/weekly-reset'; TodoApp.render()")
+            page.wait_for_function("document.querySelector('.page-title').textContent === 'Weekly reset'")
+            assert '4 / 4 this week' in page.locator('.habit-detail-card').inner_text()
             assert page.evaluate("TodoApp.state.habits.find(h => h.id === 'weekly-reset').reminderFiredMoments") == []
             page.evaluate("window.__TODO_TEST_SET_NOW__('2026-11-02T20:00:00')")
             page.evaluate('TodoApp.refreshHabitDateBoundary()')
             page.wait_for_timeout(40)
             assert page.evaluate("TodoApp.state.habitMetrics['weekly-reset'].currentPeriodCount") == 0
             assert page.evaluate("TodoApp.state.habitMetrics['weekly-reset'].currentPeriodTarget") == 4
+            assert '0 / 4 this week' in page.locator('.habit-detail-card').inner_text()
+            page.click('[data-route="today"]')
+            page.wait_for_function("document.querySelector('.page-title').textContent === 'Today'")
+            assert '0 / 4 this week' in page.locator('#main [data-route="habit/weekly-reset"]').inner_text()
+            print('PASS: Today/Upcoming integration, rendered historical streak correction, rendered weekly reset, and existing Habit UI regressions')
         finally:
+            context.close()
             browser.close()
 
 

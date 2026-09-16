@@ -95,13 +95,13 @@ Full plan: `docs/superpowers/plans/2026-09-16-todo-v1-3.md`
 
 ## Phase 6 — Today and Upcoming
 
-- [ ] Today Habits section.
-- [ ] Today Goals due today.
-- [ ] Today Overdue Goals section.
-- [ ] Today Overdue Milestones section.
-- [ ] Existing task Today behavior remains intact.
-- [ ] Upcoming future Goals section.
-- [ ] Confirm Habits do not appear in Upcoming.
+- [x] Today Habits section.
+- [x] Today Goals due today.
+- [x] Today Overdue Goals section.
+- [x] Today Overdue Milestones section.
+- [x] Existing task Today behavior remains intact.
+- [x] Upcoming future Goals section.
+- [x] Confirm Habits do not appear in Upcoming.
 
 ## Phase 7 — Calendar
 
