@@ -583,9 +583,17 @@ button.area-object:hover { background: var(--surface-interactive); }
 .goal-progress-large { display:grid; grid-template-columns:86px minmax(0,1fr); align-items:center; gap:12px; }
 .goal-progress-large strong { color:var(--text-primary); font:600 24px/1 var(--font-display); }
 .goal-detail-actions { display:flex; gap:8px; flex-wrap:wrap; }
+.goal-properties { margin-block-end:24px; }
+.goal-property { display:grid; grid-template-columns:120px minmax(0,1fr); align-items:center; gap:12px; }
+.goal-property .btn { justify-content:flex-start; text-align:start; overflow-wrap:anywhere; }
+.goal-property-editor { display:grid; gap:10px; max-width:480px; }
+.goal-property-editor .input { min-width:0; }
+@media (max-width:700px) { .goal-property { grid-template-columns:1fr; gap:4px; } }
 .milestone-list { display:grid; gap:4px; }
 .milestone-row { min-height:50px; display:grid; grid-template-columns:32px minmax(0,1fr) 36px 36px; gap:8px; align-items:center; padding:6px; border-radius:var(--radius-sm); }
 .milestone-row:hover { background:var(--surface-interactive); }
+.milestone-row.goal-draft-milestone { grid-template-columns:minmax(0,1fr) 36px 36px; }
+.goal-draft-milestone strong { overflow-wrap:anywhere; }
 .milestone-row span { min-width:0; display:grid; gap:2px; }
 .milestone-row strong { color:var(--text-secondary); font-size:14px; }
 .goal-form-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }

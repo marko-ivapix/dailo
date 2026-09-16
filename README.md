@@ -232,6 +232,7 @@ node --test tests/core.test.js
 .venv/bin/python tests/test_browser_path_adapter.py
 .venv/bin/python tests/run-browser-regressions.py
 .venv/bin/python tests/ui-v1-3-storage-migration.py
+.venv/bin/python tests/ui-v1-3-goal-ux.py
 ```
 
 Syntax checks:
@@ -244,6 +245,8 @@ node --check js/app.js
 ```
 
 The V1.2 browser harness uses an in-memory test adapter enabled only by `window.__TODO_TEST_MEMORY_DB__`. The dedicated V1.3 storage-migration suite uses a temporary loopback server, a fresh managed Chromium context per test, and real IndexedDB. It verifies automatic non-destructive legacy Blob copying, schema/indexes, native Habit/date uniqueness, exact source-state preservation on failure, safety snapshots, Retry, reload, and partial V3 recovery. Contexts, browser and server are closed even on failure. Production defaults to real IndexedDB. `TodoApp.ready` can be awaited for startup migration and Habit hydration before interacting with the ready app.
+
+Goal creation keeps milestones, reminders and source-specific links under More. Nested editors change only the draft until Create/Save. Goal Detail offers inline title/Area/target/unit/date editors (Save or Enter to commit, Cancel or Escape to discard), dedicated progress-source/link/milestone/reminder panels, and a quick status menu. Switching progress source retains inactive relationships and manual values. The native Goal UX suite covers these controls, contextual/template dates, reciprocal links, cancellation, validation, focus, keyboard behavior and reload persistence.
 
 ## Still intentionally excluded
 

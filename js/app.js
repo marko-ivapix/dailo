@@ -40,6 +40,27 @@
   let lastToday = Core.dateOnly();
   let dragState = null;
   let modalReturnFocus = null;
+  let goalPropertyEditor = null;
+  let createdGoalFocusId = null;
+
+  // Goal panels retain a logical trigger because rendering replaces its node.
+  function goalFocusTarget(element = document.activeElement) {
+    if (!(element instanceof HTMLElement)) return null;
+    const keys = ['action', 'goalProperty', 'goalId', 'milestoneId', 'areaId', 'date'];
+    const attrs = keys.filter(key => element.dataset[key] !== undefined).map(key => `[data-${key.replace(/[A-Z]/g, c => '-' + c.toLowerCase())}="${CSS.escape(element.dataset[key])}"]`).join('');
+    return { element, selector: attrs || (element.id ? '#' + CSS.escape(element.id) : '') };
+  }
+
+  function restoreGoalFocus(target) {
+    if (!target) return;
+    requestAnimationFrame(() => {
+      const trigger = target.element?.isConnected ? target.element : target.selector && $(target.selector);
+      const modal = $('#modal-root .modal');
+      // A new decision may now be the highest overlay; never focus behind it.
+      const control = modal ? (modal.contains(trigger) ? trigger : [...modal.querySelectorAll('input, select, textarea')].find(el => el.offsetParent !== null) || modal.querySelector('.modal-footer button, button')) : trigger || $('#main [data-goal-property="title"]') || $('#main');
+      control?.focus();
+    });
+  }
   let calendarReturnDate = null;
   const calendarHabitQueues = new Map();
 
@@ -575,6 +596,10 @@
     else if (route.type === 'settings') content = renderSettings();
     else content = renderToday();
     main.innerHTML = `${warning}<div class="content ${route.type === 'calendar' ? 'calendar-content' : ''}">${content}</div>`;
+    if (createdGoalFocusId && route.type === 'goal' && route.id === createdGoalFocusId) {
+      createdGoalFocusId = null;
+      restoreGoalFocus(goalFocusTarget(main.querySelector('[data-goal-property="title"]')));
+    }
   }
 
   function pageHeader(title, subtitle, options = {}) {
@@ -851,11 +876,64 @@
     const statusAction = goal.status === 'paused' ? 'resume-goal' : goal.status === 'active' ? 'pause-goal' : goal.status === 'completed' ? 'restore-goal' : 'restore-goal';
     const statusText = goal.status === 'paused' ? 'Resume' : goal.status === 'active' ? 'Pause' : 'Restore';
     let html = pageHeader(goal.title, goalStatusLabel(goal), { add: false, actionHtml: `<button class="btn btn-secondary" type="button" data-action="edit-goal" data-goal-id="${esc(goal.id)}"><i class="ph ph-pencil-simple"></i> Edit</button><button class="btn-icon" type="button" data-action="goal-menu" data-goal-id="${esc(goal.id)}" aria-label="Goal actions"><i class="ph ph-dots-three"></i></button>` });
+    html += `<div class="form-stack goal-properties">${[['title','Title'],['areaId','Area'],['targetValue','Target value'],['unit','Unit'],['targetDate','Target date']].map(([field,label]) => renderGoalProperty(goal, field, label)).join('')}<div class="goal-detail-actions"><button class="btn btn-secondary" type="button" data-action="edit-goal-source" data-goal-id="${esc(goal.id)}">Progress source</button><button class="btn btn-secondary" type="button" data-action="goal-status-menu" data-goal-id="${esc(goal.id)}">Status: ${esc(goalStatusLabel(goal))}</button></div></div>`;
     html += `<section class="goal-detail-card"><div class="goal-progress-large"><strong>${esc(goalProgressLabel(goal))}</strong><span class="goal-progress"><span style="width:${Math.max(0, Math.min(100, progress.percent))}%"></span></span></div>${goal.progressMode === 'manual' ? `<label class="field-label" for="goal-current-value">${goal.progressType === 'numeric' ? 'Current value' : 'Progress percentage'}<input id="goal-current-value" class="input" type="number" value="${esc(goal.currentValue)}" data-goal-id="${esc(goal.id)}" /></label><button class="btn btn-secondary" type="button" data-action="save-goal-progress" data-goal-id="${esc(goal.id)}">Update progress</button>` : `<p class="area-empty-copy">Progress is calculated from ${goal.progressMode === 'linkedTasks' ? 'linked tasks' : 'linked habits'}.</p>`}<div class="goal-detail-actions"><button class="btn btn-ghost" type="button" data-action="${statusAction}" data-goal-id="${esc(goal.id)}">${statusText}</button>${goal.status !== 'completed' && goal.status !== 'archived' ? `<button class="btn btn-secondary" type="button" data-action="complete-goal" data-goal-id="${esc(goal.id)}">Mark completed</button>` : ''}</div></section>`;
     html += `<section class="section"><div class="section-header"><h2 class="section-label">Links</h2><button class="btn btn-ghost" type="button" data-action="edit-goal-links" data-goal-id="${esc(goal.id)}">Manage links</button></div><p class="area-empty-copy">${links.length} project links · ${(goal.taskIds || []).length} direct task links · ${(goal.habitLinks || []).length} habit links</p></section>`;
     html += `<section class="section"><div class="section-header"><h2 class="section-label">Milestones</h2><button class="btn btn-ghost" type="button" data-action="new-milestone" data-goal-id="${esc(goal.id)}">Add milestone</button></div>${milestones.length ? `<div class="milestone-list">${milestones.map(milestone => `<div class="milestone-row ${!milestone.isCompleted && milestone.date && milestone.date < Core.dateOnly() ? 'is-overdue' : ''}"><button class="check-toggle ${milestone.isCompleted ? 'is-checked' : ''}" type="button" data-action="toggle-milestone" data-goal-id="${esc(goal.id)}" data-milestone-id="${esc(milestone.id)}"><i class="ph ${milestone.isCompleted ? 'ph-check' : 'ph-circle'}"></i></button><span><strong>${esc(milestone.title)}</strong><small>${milestone.date ? esc(relativeDateLabel(milestone.date)) : 'No date'}</small></span><button class="btn-icon" type="button" data-action="edit-milestone" data-goal-id="${esc(goal.id)}" data-milestone-id="${esc(milestone.id)}" aria-label="Edit milestone"><i class="ph ph-pencil-simple"></i></button><button class="btn-icon" type="button" data-action="delete-milestone" data-goal-id="${esc(goal.id)}" data-milestone-id="${esc(milestone.id)}" aria-label="Delete milestone"><i class="ph ph-trash"></i></button></div>`).join('')}</div>` : '<p class="area-empty-copy">No milestones yet.</p>'}</section>`;
     html += `<section class="section"><div class="section-header"><h2 class="section-label">Reminders</h2><button class="btn btn-ghost" type="button" data-action="edit-goal-reminders" data-goal-id="${esc(goal.id)}">Edit reminders</button></div><p class="area-empty-copy">${Core.goalReminderMoments(goal).length ? `${Core.goalReminderMoments(goal).length} reminder points at ${esc(goal.reminders.time)}` : 'No reminders enabled.'}</p></section>`;
     return html;
+  }
+
+  function renderGoalProperty(goal, field, label) {
+    const editor = goalPropertyEditor?.goal === goal && goalPropertyEditor.field === field ? goalPropertyEditor : null;
+    const value = field === 'areaId' ? getArea(goal.areaId)?.name || 'No area' : goal[field] ?? '';
+    if (!editor) return `<div class="goal-property"><span class="field-label">${label}</span><button class="btn btn-ghost" type="button" data-goal-property="${field}" data-goal-id="${esc(goal.id)}">${esc(value || (field === 'targetDate' ? 'No date' : 'Not set'))}</button></div>`;
+    const id = 'goal-detail-' + field;
+    const input = field === 'areaId' ? `<select id="${id}" class="input"><option value="">No area</option>${state.areas.filter(a => a.status === 'active' || a.id === goal.areaId).map(a => `<option value="${esc(a.id)}" ${a.id === editor.value ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select>` : `<input id="${id}" class="input" type="${field === 'targetValue' ? 'number' : field === 'targetDate' ? 'date' : 'text'}" ${field === 'targetValue' ? 'step="any"' : field === 'title' ? 'maxlength="120"' : field === 'unit' ? 'maxlength="40"' : ''} value="${esc(editor.value)}" ${editor.error ? 'aria-invalid="true" aria-describedby="goal-property-error"' : ''} />`;
+    return `<div class="goal-property-editor"><label class="field-label" for="${id}">${label}</label>${input}${editor.error ? `<p id="goal-property-error" class="validation" role="alert">${esc(editor.error)}</p>` : ''}<div class="goal-detail-actions"><button class="btn btn-secondary" type="button" data-action="save-goal-property">Save ${label.toLowerCase()}</button><button class="btn btn-ghost" type="button" data-action="cancel-goal-property">Cancel</button></div></div>`;
+  }
+
+  function openGoalProperty(element) {
+    const goal = getGoal(element.dataset.goalId); if (!goal) return;
+    goalPropertyEditor = { goal, field: element.dataset.goalProperty, value: goal[element.dataset.goalProperty] ?? '', returnFocus: goalFocusTarget(element) };
+    render(); requestAnimationFrame(() => $('#goal-detail-' + goalPropertyEditor?.field)?.focus());
+  }
+
+  function cancelGoalProperty() {
+    const target = goalPropertyEditor?.returnFocus; goalPropertyEditor = null; render(); restoreGoalFocus(target);
+  }
+
+  function saveGoalProperty() {
+    const editor = goalPropertyEditor;
+    if (!editor || getGoal(editor.goal.id) !== editor.goal) { cancelGoalProperty(); return; }
+    const { goal, field } = editor; editor.value = $('#goal-detail-' + field)?.value ?? editor.value;
+    const value = field === 'targetValue' ? Number(editor.value) : field === 'areaId' || field === 'targetDate' ? editor.value || null : String(editor.value).trim();
+    const error = field === 'title' && !value ? 'Goal needs a title.' : field === 'targetValue' && (!Number.isFinite(value) || value <= 0) ? 'Enter a target above zero.' : '';
+    if (error) { editor.error = error; render(); requestAnimationFrame(() => $('#goal-detail-' + field)?.focus()); return; }
+    const before = captureGoalProgress([goal.id]); const old = goal[field];
+    if (old !== value) { goal[field] = value; goal.updatedAt = nowIso(); if (field === 'targetDate') putGoalHistory(goal.id, 'targetDateChanged', { from: old, to: value }); saveState(); }
+    const target = editor.returnFocus; goalPropertyEditor = null; render(); restoreGoalFocus(target); evaluateGoalProgressChanges(before);
+  }
+
+  function openGoalSourceModal(goalId) {
+    const goal = getGoal(goalId); if (!goal) return;
+    modalState = { type: 'goal-source', goalId, source: goal, draft: goalDraft(goal), returnFocus: goalFocusTarget(), error: '' }; renderModal();
+  }
+
+  function saveGoalSource() {
+    if (modalState?.type !== 'goal-source') return;
+    const goal = getGoal(modalState.goalId); if (!goal || goal !== modalState.source) { closeModal(); return; }
+    readGoalDraft(); const d = modalState.draft;
+    if (d.progressMode === 'manual' && d.progressType === 'numeric' && !(Number.isFinite(d.targetValue) && d.targetValue > 0)) { modalState.error = 'Numeric goals need a target above zero.'; renderModal(); return; }
+    const before = captureGoalProgress([goal.id]);
+    goal.progressMode = d.progressMode; goal.progressType = d.progressType; goal.updatedAt = nowIso(); saveState(); closeModal(); render(); evaluateGoalProgressChanges(before);
+  }
+
+  function openGoalStatusMenu(anchor, goalId) {
+    const goal = getGoal(goalId); if (!goal) return;
+    const choices = [['active','resume-goal','Active'],['paused','pause-goal','Paused'],['completed','complete-goal','Completed'],['archived','archive-goal','Archived']];
+    openPopover(anchor, choices.map(([status,action,label]) => `<button class="popover-option" type="button" data-pop-action="${action}" data-goal-id="${esc(goalId)}" ${goal.status === status ? 'disabled' : ''}>${label}</button>`).join(''), { type: 'goal-status' });
+    popoverEl.goalReturnFocus = goalFocusTarget(anchor); popoverEl.querySelector('button:not([disabled])')?.focus();
   }
 
   function habitFrequencyLabel(habit) {
@@ -1136,13 +1214,16 @@
       title: goal?.title || '', areaId: goal?.areaId || areaId || null, status: goal?.status || 'active',
       progressMode: goal?.progressMode || 'manual', progressType: goal?.progressType || 'percentage',
       currentValue: goal?.currentValue ?? 0, targetValue: goal?.targetValue ?? 100, unit: goal?.unit || '', targetDate: goal?.targetDate || '',
+      projectLinks: copyTemplate(goal?.projectLinks || []), taskIds: [...(goal?.taskIds || [])], habitLinks: copyTemplate(goal?.habitLinks || []),
+      milestones: copyTemplate(goal?.milestones || []), reminders: { sevenDaysBefore: false, threeDaysBefore: false, oneDayBefore: false, onTargetDate: false, time: '09:00', ...goal?.reminders },
     };
   }
 
   function openGoalModal(goalId = null, context = {}) {
+    const returnFocus = goalFocusTarget();
     closePopover();
     const goal = goalId ? getGoal(goalId) : null;
-    modalState = { type: 'goal', goalId, draft: goalDraft(goal, context.areaId), error: '' };
+    modalState = { type: 'goal', goalId, draft: goalDraft(goal, context.areaId), error: '', returnFocus };
     modalState.templateContext = context;
     if (!goal && context.targetDate) modalState.draft.targetDate = context.targetDate;
     renderModal(); requestAnimationFrame(() => $('#goal-title')?.focus());
@@ -1161,20 +1242,26 @@
   }
 
   function openMilestoneModal(goalId, milestoneId = null) {
-    const milestone = milestoneId ? getGoal(goalId)?.milestones.find(item => item.id === milestoneId) : null;
-    modalState = { type: 'milestone', goalId, milestoneId, draft: { title: milestone?.title || '', date: milestone?.date || '' }, error: '' };
+    const previous = modalState?.type === 'goal' ? modalState : null;
+    if (previous) readGoalDraft();
+    const milestone = milestoneId ? (previous?.draft || getGoal(goalId))?.milestones.find(item => item.id === milestoneId) : null;
+    modalState = { type: 'milestone', goalId, milestoneId, previous, returnFocus: goalFocusTarget(), draft: { title: milestone?.title || '', date: milestone?.date || '' }, error: '' };
     renderModal(); requestAnimationFrame(() => $('#milestone-title')?.focus());
   }
 
   function openGoalLinksModal(goalId) {
-    const goal = getGoal(goalId); if (!goal) return;
-    modalState = { type: 'goal-links', goalId, draft: { taskIds: [...(goal.taskIds || [])], projectLinks: JSON.parse(JSON.stringify(goal.projectLinks || [])), habitLinks: JSON.parse(JSON.stringify(goal.habitLinks || [])) } };
+    const previous = modalState?.type === 'goal' ? modalState : null;
+    if (previous) readGoalDraft();
+    const goal = previous?.draft || getGoal(goalId); if (!goal) return;
+    modalState = { type: 'goal-links', goalId, previous, returnFocus: goalFocusTarget(), draft: { taskIds: [...(goal.taskIds || [])], projectLinks: copyTemplate(goal.projectLinks || []), habitLinks: copyTemplate(goal.habitLinks || []) } };
     renderModal();
   }
 
   function openGoalRemindersModal(goalId) {
-    const goal = getGoal(goalId); if (!goal) return;
-    modalState = { type: 'goal-reminders', goalId, draft: { ...goal.reminders } };
+    const previous = modalState?.type === 'goal' ? modalState : null;
+    if (previous) readGoalDraft();
+    const goal = previous?.draft || getGoal(goalId); if (!goal) return;
+    modalState = { type: 'goal-reminders', goalId, previous, returnFocus: goalFocusTarget(), draft: { ...goal.reminders } };
     renderModal();
   }
 
@@ -1186,16 +1273,21 @@
   }
 
   function closeModal() {
+    if (modalState?.previous?.type === 'goal') {
+      const target = modalState.returnFocus; modalState = modalState.previous; renderModal(); restoreGoalFocus(target); return;
+    }
     if(modalState?.type==='recurrence-scope'){cancelRecurrenceScope();return;}
     if(modalState?.type==='template-picker'){modalState=modalState.previous;renderModal();return;}
     if(modalState?.onCancel){const cancel=modalState.onCancel;cancel();return;}
     if(flushTaskDraft(()=>closeModal()))return;
+    const goalReturn = modalState?.returnFocus;
     const returnTarget = modalReturnFocus;
     const returnDate = calendarReturnDate;
     modalReturnFocus = null;
     calendarReturnDate = null;
     modalState = null;
     $('#modal-root').innerHTML = '';
+    restoreGoalFocus(goalReturn);
     if (returnTarget || returnDate) requestAnimationFrame(() => {
       const target = returnTarget?.isConnected ? returnTarget : returnDate && $(`[data-action="calendar-detail"][data-date="${returnDate}"]`);
       target?.focus();
@@ -1213,6 +1305,7 @@
     else if (modalState.type === 'area') root.innerHTML = renderAreaModal();
     else if (modalState.type === 'area-linked') root.innerHTML = renderAreaLinkedModal();
     else if (modalState.type === 'goal') root.innerHTML = renderGoalModal();
+    else if (modalState.type === 'goal-source') root.innerHTML = renderGoalSourceModal();
     else if (modalState.type === 'habit') root.innerHTML = renderHabitModal();
     else if (modalState.type === 'calendar-day') root.innerHTML = renderCalendarDetail();
     else if (modalState.type === 'calendar-value') root.innerHTML = renderCalendarValue();
@@ -1233,6 +1326,7 @@
       $('.modal-inner',root)?.insertAdjacentHTML('afterbegin','<button class="btn btn-ghost" type="button" data-action="from-template"><i class="ph ph-copy"></i> From template</button>');
     }
     if (['confirm','recurrence-scope'].includes(modalState?.type)) requestAnimationFrame(() => root.querySelector('.modal button, .modal [href], .modal input, .modal select, .modal textarea, .modal [tabindex]:not([tabindex="-1"])')?.focus());
+    if (['goal', 'goal-source', 'goal-links', 'goal-reminders', 'milestone'].includes(modalState?.type)) requestAnimationFrame(() => ([...root.querySelectorAll('input, select, textarea')].find(el => el.offsetParent !== null) || root.querySelector('.modal-footer [data-action="close-modal"]'))?.focus());
   }
 
   function modalFrame(content, cls = '') {
@@ -1425,14 +1519,10 @@
   function openTemplatePicker() {
     if(modalState.type==='quick')syncQuickDraftFromDom();
     if(modalState.type==='habit')readHabitDraft();
-    if(modalState.type==='goal') {
-      const controls={title:'goal-title',areaId:'goal-area',progressMode:'goal-progress-mode',progressType:'goal-progress-type',currentValue:'goal-current',targetValue:'goal-target',unit:'goal-unit',targetDate:'goal-target-date'};
-      for(const [key,id] of Object.entries(controls)) {
-        const input=$('#'+id);if(input)modalState.draft[key]=key==='currentValue'||key==='targetValue'?Number(input.value):input.value;
-      }
-    }
+    if(modalState.type==='goal') readGoalDraft();
     const previous=modalState;const type=previous.type==='quick'?'task':previous.type;
-    modalState={type:'template-picker',kind:type,previous};renderModal();
+    modalState={type:'template-picker',kind:type,previous,returnFocus:previous.type === 'goal' ? goalFocusTarget() : null};renderModal();
+    if (previous.type === 'goal') requestAnimationFrame(() => $('#modal-root [data-action="choose-template"], #modal-root [data-action="template-picker-back"]')?.focus());
   }
   function renderTemplatePicker() {
     const rows=state.templates.filter(t=>t.type===modalState.kind);
@@ -1674,7 +1764,15 @@
 
   function renderGoalModal() {
     const d = modalState.draft; const editing = Boolean(modalState.goalId);
-    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">${editing ? 'Edit goal' : 'New goal'}</h2><button class="btn-icon" type="button" data-action="close-modal"><i class="ph ph-x"></i></button></div><div class="form-stack"><label class="field-label">Title<input id="goal-title" class="input" maxlength="120" value="${esc(d.title)}" placeholder="What do you want to achieve?" /></label><label class="field-label">Area<select id="goal-area" class="input"><option value="">No area</option>${state.areas.filter(area => area.status === 'active' || area.id === d.areaId).map(area => `<option value="${esc(area.id)}" ${area.id === d.areaId ? 'selected' : ''}>${esc(area.name)}</option>`).join('')}</select></label><label class="field-label">Progress source<select id="goal-progress-mode" class="input"><option value="manual" ${d.progressMode === 'manual' ? 'selected' : ''}>Manual</option><option value="linkedTasks" ${d.progressMode === 'linkedTasks' ? 'selected' : ''}>Linked tasks</option><option value="linkedHabits" ${d.progressMode === 'linkedHabits' ? 'selected' : ''}>Linked habits</option></select></label><div class="goal-modal-manual ${d.progressMode === 'manual' ? '' : 'is-hidden'}"><label class="field-label">Type<select id="goal-progress-type" class="input"><option value="percentage" ${d.progressType === 'percentage' ? 'selected' : ''}>Percentage</option><option value="numeric" ${d.progressType === 'numeric' ? 'selected' : ''}>Numeric target</option></select></label><div class="goal-form-grid"><label class="field-label">Current<input id="goal-current" class="input" type="number" value="${esc(d.currentValue)}" /></label><label class="field-label">Target<input id="goal-target" class="input" type="number" value="${esc(d.targetValue)}" /></label></div><label class="field-label">Unit<input id="goal-unit" class="input" maxlength="40" value="${esc(d.unit)}" placeholder="%, km, pages" /></label></div><label class="field-label">Target date<input id="goal-target-date" class="input" type="date" value="${esc(d.targetDate)}" /></label>${modalState.error ? `<p class="validation">${esc(modalState.error)}</p>` : ''}</div><div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">Cancel</button><button class="btn btn-primary" type="button" data-action="save-goal">${editing ? 'Save changes' : 'Create goal'}</button></div></div></div>`, 'quick');
+    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">${editing ? 'Edit goal' : 'New goal'}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="Close"><i class="ph ph-x"></i></button></div><div class="form-stack"><label class="field-label">Title<input id="goal-title" class="input" maxlength="120" value="${esc(d.title)}" placeholder="What do you want to achieve?" /></label><label class="field-label">Area<select id="goal-area" class="input"><option value="">No area</option>${state.areas.filter(area => area.status === 'active' || area.id === d.areaId).map(area => `<option value="${esc(area.id)}" ${area.id === d.areaId ? 'selected' : ''}>${esc(area.name)}</option>`).join('')}</select></label>${goalSourceFields(d)}<label class="field-label">Target date<input id="goal-target-date" class="input" type="date" value="${esc(d.targetDate)}" /></label><button class="btn btn-ghost" type="button" data-action="toggle-goal-more" aria-expanded="${Boolean(d.moreOpen)}" aria-controls="goal-more">More</button>${d.moreOpen ? `<div id="goal-more" class="form-stack"><div class="section-header"><h3 class="section-label">Milestones</h3><button class="btn btn-ghost" type="button" data-action="draft-goal-milestone">Add milestone</button></div>${d.milestones.map(m => `<div class="milestone-row goal-draft-milestone"><span><strong>${esc(m.title)}</strong><small>${esc(m.date || 'No date')}</small></span><button class="btn-icon" type="button" data-action="draft-goal-milestone" data-milestone-id="${esc(m.id)}" aria-label="Edit milestone"><i class="ph ph-pencil-simple"></i></button><button class="btn-icon" type="button" data-action="delete-draft-goal-milestone" data-milestone-id="${esc(m.id)}" aria-label="Delete milestone"><i class="ph ph-trash"></i></button></div>`).join('')}<button class="btn btn-secondary" type="button" data-action="draft-goal-reminders">Reminders</button><button class="btn btn-secondary" type="button" data-action="draft-goal-links">Linked Projects${d.progressMode === 'linkedTasks' ? ' / Tasks' : d.progressMode === 'linkedHabits' ? ' / Habits' : ''}</button><p class="area-empty-copy">${d.projectLinks.length} project links · ${d.taskIds.length} task links · ${d.habitLinks.length} habit links</p></div>` : ''}${modalState.error ? `<p class="validation" role="alert">${esc(modalState.error)}</p>` : ''}</div><div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">Cancel</button><button class="btn btn-primary" type="button" data-action="save-goal">${editing ? 'Save changes' : 'Create goal'}</button></div></div></div>`, 'quick');
+  }
+
+  function goalSourceFields(d, includeValues = true) {
+    return `<label class="field-label">Progress source<select id="goal-progress-mode" class="input">${[['manual','Manual'],['linkedTasks','Linked tasks'],['linkedHabits','Linked habits']].map(([v,l]) => `<option value="${v}" ${d.progressMode === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label><div class="goal-modal-manual ${d.progressMode === 'manual' ? '' : 'is-hidden'}"><label class="field-label">Type<select id="goal-progress-type" class="input"><option value="percentage" ${d.progressType === 'percentage' ? 'selected' : ''}>Percentage</option><option value="numeric" ${d.progressType === 'numeric' ? 'selected' : ''}>Numeric target</option></select></label>${includeValues ? `<div class="goal-form-grid"><label class="field-label">Current<input id="goal-current" class="input" type="number" step="any" value="${esc(d.currentValue)}" /></label><label class="field-label">Target<input id="goal-target" class="input" type="number" step="any" value="${esc(d.targetValue)}" /></label></div><label class="field-label">Unit<input id="goal-unit" class="input" maxlength="40" value="${esc(d.unit)}" /></label>` : ''}</div>`;
+  }
+
+  function renderGoalSourceModal() {
+    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">Goal progress source</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="Close"><i class="ph ph-x"></i></button></div><div class="form-stack">${goalSourceFields(modalState.draft, false)}<p class="area-empty-copy">Only the selected source contributes. Existing links and manual values are retained.</p>${modalState.error ? `<p class="validation" role="alert">${esc(modalState.error)}</p>` : ''}</div><div class="modal-footer"><button class="btn btn-ghost" type="button" data-action="close-modal">Cancel</button><button class="btn btn-primary" type="button" data-action="save-goal-source">Save source</button></div></div>`, 'small-modal');
   }
 
   function renderHabitModal() {
@@ -1687,7 +1785,7 @@
   function renderMilestoneModal() {
     const d = modalState.draft;
     const editing = Boolean(modalState.milestoneId);
-    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">${editing ? 'Edit milestone' : 'New milestone'}</h2><button class="btn-icon" type="button" data-action="close-modal"><i class="ph ph-x"></i></button></div><div class="form-stack"><label class="field-label">Title<input id="milestone-title" class="input" maxlength="120" value="${esc(d.title)}" /></label><label class="field-label">Date<input id="milestone-date" class="input" type="date" value="${esc(d.date)}" /></label></div><div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">Cancel</button><button class="btn btn-primary" type="button" data-action="save-milestone">${editing ? 'Save milestone' : 'Add milestone'}</button></div></div></div>`, 'small-modal');
+    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">${editing ? 'Edit milestone' : 'New milestone'}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="Close"><i class="ph ph-x"></i></button></div><div class="form-stack"><label class="field-label">Title<input id="milestone-title" class="input" maxlength="120" value="${esc(d.title)}" /></label><label class="field-label">Date<input id="milestone-date" class="input" type="date" value="${esc(d.date)}" /></label>${modalState.error ? `<p class="validation" role="alert">${esc(modalState.error)}</p>` : ''}</div><div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">Cancel</button><button class="btn btn-primary" type="button" data-action="save-milestone">${editing ? 'Save milestone' : 'Add milestone'}</button></div></div></div>`, 'small-modal');
   }
 
   function renderGoalLinksModal() {
@@ -1696,14 +1794,17 @@
     const taskIds = new Set(d.taskIds);
     const habitIds = new Set(d.habitLinks.map(link => link.habitId));
     const projects = state.projects.map(project => {
-      const link = d.projectLinks.find(item => item.projectId === project.id);
-      const mode = link?.contributionMode || 'allTasks';
+      const link = d.projectLinks.find(item => item.projectId === project.id) || d.projectDrafts?.[project.id];
+      const mode = d.projectModes?.[project.id] || link?.contributionMode || 'allTasks';
       const selected = new Set(link?.selectedTaskIds || []);
       const projectTasks = state.tasks.filter(task => task.projectId === project.id);
       const picker = mode === 'selectedTasks' ? `<div class="project-task-picker" data-project-task-picker="${esc(project.id)}">${projectTasks.length ? projectTasks.map(task => `<label><input type="checkbox" data-goal-project-task="${esc(project.id)}:${esc(task.id)}" ${selected.has(task.id) ? 'checked' : ''}> ${esc(task.title)}</label>`).join('') : '<small>No tasks in this Project.</small>'}</div>` : '';
       return `<div class="goal-project-link"><label><input type="checkbox" data-goal-link-project="${esc(project.id)}" ${projectIds.has(project.id) ? 'checked' : ''}> ${esc(project.name)} <select data-goal-project-mode="${esc(project.id)}"><option value="allTasks" ${mode === 'allTasks' ? 'selected' : ''}>All tasks</option><option value="selectedTasks" ${mode === 'selectedTasks' ? 'selected' : ''}>Selected tasks</option></select></label>${picker}</div>`;
     }).join('') || '<p>No projects yet.</p>';
-    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">Goal links</h2><button class="btn-icon" type="button" data-action="close-modal"><i class="ph ph-x"></i></button></div><div class="link-picker"><h3>Projects</h3>${projects}<h3>Tasks</h3>${state.tasks.map(task => `<label><input type="checkbox" data-goal-link-task="${esc(task.id)}" ${taskIds.has(task.id) ? 'checked' : ''}> ${esc(task.title)}</label>`).join('') || '<p>No tasks yet.</p>'}<h3>Habits</h3>${state.habits.map(habit => { const link = d.habitLinks.find(item => item.habitId === habit.id); return `<label><input type="checkbox" data-goal-link-habit="${esc(habit.id)}" ${habitIds.has(habit.id) ? 'checked' : ''}> ${esc(habit.name || habit.title)} <select data-goal-habit-metric="${esc(habit.id)}"><option value="totalCheckins" ${(link?.metric || 'totalCheckins') === 'totalCheckins' ? 'selected' : ''}>Check-ins</option><option value="streak" ${link?.metric === 'streak' ? 'selected' : ''}>Streak</option><option value="successfulPeriods" ${link?.metric === 'successfulPeriods' ? 'selected' : ''}>Periods</option></select><input type="number" min="1" value="${esc(link?.target || 1)}" data-goal-habit-target="${esc(habit.id)}"></label>`; }).join('') || '<p>Habits will be available after you create them.</p>'}</div><div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">Cancel</button><button class="btn btn-primary" type="button" data-action="save-goal-links">Save links</button></div></div></div>`, 'quick');
+    const source = modalState.previous?.draft.progressMode;
+    const tasks = !source || source === 'linkedTasks' ? `<h3>Tasks</h3>${state.tasks.map(task => `<label><input type="checkbox" data-goal-link-task="${esc(task.id)}" ${taskIds.has(task.id) ? 'checked' : ''}> ${esc(task.title)}</label>`).join('') || '<p>No tasks yet.</p>'}` : '';
+    const habits = !source || source === 'linkedHabits' ? `<h3>Habits</h3>${state.habits.map(habit => { const link = d.habitLinks.find(item => item.habitId === habit.id) || d.habitDrafts?.[habit.id]; return `<label><input type="checkbox" data-goal-link-habit="${esc(habit.id)}" ${habitIds.has(habit.id) ? 'checked' : ''}> ${esc(habit.name || habit.title)} <select aria-label="${esc(habit.name)} metric" data-goal-habit-metric="${esc(habit.id)}"><option value="totalCheckins" ${(link?.metric || 'totalCheckins') === 'totalCheckins' ? 'selected' : ''}>Check-ins</option><option value="streak" ${link?.metric === 'streak' ? 'selected' : ''}>Streak</option><option value="successfulPeriods" ${link?.metric === 'successfulPeriods' ? 'selected' : ''}>Periods</option></select><input aria-label="${esc(habit.name)} target" type="number" min="0" step="any" value="${esc(link?.target ?? 1)}" data-goal-habit-target="${esc(habit.id)}"></label>`; }).join('') || '<p>Habits will be available after you create them.</p>'}` : '';
+    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">Goal links</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="Close"><i class="ph ph-x"></i></button></div><div class="link-picker"><h3>Projects</h3>${projects}${tasks}${habits}</div>${modalState.error ? `<p class="validation" role="alert">${esc(modalState.error)}</p>` : ''}<div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">Cancel</button><button class="btn btn-primary" type="button" data-action="save-goal-links">Save links</button></div></div></div>`, 'quick');
   }
 
   function renderGoalRemindersModal() {
@@ -1959,8 +2060,10 @@
   }
 
   function closePopover() {
+    const target = popoverEl?.goalReturnFocus;
     if (popoverEl) popoverEl.remove();
     popoverEl = null;
+    restoreGoalFocus(target);
   }
 
   function showCustomDate(popButton) {
@@ -2856,31 +2959,39 @@
     goal.projectLinks = projectLinks; goal.taskIds = taskIds; goal.habitLinks = habitLinks;
   }
 
+  function readGoalDraft() {
+    const d = modalState.draft;
+    for (const [field, id] of Object.entries({title:'goal-title',areaId:'goal-area',progressMode:'goal-progress-mode',progressType:'goal-progress-type',currentValue:'goal-current',targetValue:'goal-target',unit:'goal-unit',targetDate:'goal-target-date'})) {
+      const input = $('#' + id); if (!input) continue;
+      d[field] = ['currentValue','targetValue'].includes(field) ? Number(input.value) : ['areaId','targetDate'].includes(field) ? input.value || null : input.value;
+    }
+    return d;
+  }
+
   function saveGoalModal() {
     if (modalState?.type !== 'goal') return;
-    const d = modalState.draft;
-    d.title = $('#goal-title')?.value || d.title;
-    d.areaId = $('#goal-area')?.value || null;
-    d.progressMode = $('#goal-progress-mode')?.value || d.progressMode;
-    d.progressType = $('#goal-progress-type')?.value || d.progressType;
-    d.currentValue = Number($('#goal-current')?.value ?? d.currentValue);
-    d.targetValue = Number($('#goal-target')?.value ?? d.targetValue);
-    d.unit = $('#goal-unit')?.value || '';
-    d.targetDate = $('#goal-target-date')?.value || null;
+    const d = readGoalDraft();
     if (!String(d.title).trim()) { modalState.error = 'Goal needs a title.'; renderModal(); return; }
-    if (d.progressMode === 'manual' && d.progressType === 'numeric' && !(d.targetValue > 0)) { modalState.error = 'Numeric goals need a target above zero.'; renderModal(); return; }
+    if (d.progressMode === 'manual' && d.progressType === 'numeric' && !(Number.isFinite(d.targetValue) && d.targetValue > 0)) { modalState.error = 'Numeric goals need a target above zero.'; renderModal(); return; }
+    const { moreOpen, ...fields } = d;
     if (modalState.goalId) {
       const goal = getGoal(modalState.goalId); if (!goal) return;
       const oldProgress = Core.computeGoalProgress(goal, state, state.habitMetrics || {}).percent;
       const oldDate = goal.targetDate;
-      Object.assign(goal, { ...d, updatedAt: nowIso() });
+      const oldProjects = new Set(goal.projectLinks.map(link => link.projectId));
+      syncGoalLinks(goal, d.projectLinks, d.taskIds, d.habitLinks);
+      Object.assign(goal, { ...fields, title: d.title.trim(), updatedAt: nowIso() });
+      d.projectLinks.forEach(link => { if (!oldProjects.has(link.projectId)) putGoalHistory(goal.id, 'projectLinked', { projectId: link.projectId }); });
+      oldProjects.forEach(projectId => { if (!d.projectLinks.some(link => link.projectId === projectId)) putGoalHistory(goal.id, 'projectUnlinked', { projectId }); });
       const nextProgress = Core.computeGoalProgress(goal, state, state.habitMetrics || {}).percent;
       if (nextProgress !== oldProgress) putGoalHistory(goal.id, 'progressChanged', { from: oldProgress, to: nextProgress });
       if (oldDate !== goal.targetDate) putGoalHistory(goal.id, 'targetDateChanged', { from: oldDate, to: goal.targetDate });
+      modalState.savedGoalSource = goal;
       saveState(); closeModal(); render(); maybePromptGoalReached(goal, oldProgress);
     } else {
-      const goal = { ...(modalState.templateInstance?.goal || {}), id: uid('goal'), ...d, projectLinks: [], taskIds: [], habitLinks: [], milestones: modalState.templateInstance?.goal.milestones || [], reminders: modalState.templateInstance?.goal.reminders || { sevenDaysBefore: false, threeDaysBefore: false, oneDayBefore: false, onTargetDate: false, time: '09:00' }, createdAt: nowIso(), updatedAt: nowIso(), completedAt: null };
-      state.goals.push(goal); putGoalHistory(goal.id, 'created'); saveState(); closeModal(); navigate(`goal/${goal.id}`);
+      const goal = { ...(modalState.templateInstance?.goal || {}), id: uid('goal'), ...fields, title: d.title.trim(), createdAt: nowIso(), updatedAt: nowIso(), completedAt: null };
+      modalState.savedGoalSource = goal;
+      state.goals.push(goal); syncGoalLinks(goal, d.projectLinks, d.taskIds, d.habitLinks); putGoalHistory(goal.id, 'created'); saveState(); closeModal(); createdGoalFocusId = goal.id; navigate(`goal/${goal.id}`);
     }
   }
 
@@ -2914,7 +3025,7 @@
     const goal = getGoal(goalId); if (!goal || goal.status === status) return;
     const previous = { status: goal.status, completedAt: goal.completedAt };
     goal.status = status; goal.completedAt = status === 'completed' ? nowIso() : null; goal.updatedAt = nowIso();
-    putGoalHistory(goal.id, 'statusChanged', { from: previous.status, to: status }); saveState(); closeModal(); render();
+    putGoalHistory(goal.id, 'statusChanged', { from: previous.status, to: status }); saveState(); closePopover(); closeModal(); render();
     setUndo(`Goal ${status === 'completed' ? 'completed' : status === 'paused' ? 'paused' : 'restored'}`, () => {
       const current = getGoal(goalId); if (!current) return;
       Object.assign(current, previous, { updatedAt: nowIso() });
@@ -3056,11 +3167,13 @@
 
   function saveMilestoneModal() {
     if (modalState?.type !== 'milestone') return;
-    const goal = getGoal(modalState.goalId); if (!goal) return;
-    const title = String($('#milestone-title')?.value || '').trim(); if (!title) { modalState.error = 'Milestone needs a title.'; renderModal(); return; }
+    const goal = modalState.previous?.draft || getGoal(modalState.goalId); if (!goal) return;
+    modalState.draft = { title: $('#milestone-title')?.value || '', date: $('#milestone-date')?.value || '' };
+    const title = String(modalState.draft.title).trim(); if (!title) { modalState.error = 'Milestone needs a title.'; renderModal(); return; }
     const existing = modalState.milestoneId ? goal.milestones.find(item => item.id === modalState.milestoneId) : null;
     if (existing) Object.assign(existing, { title, date: $('#milestone-date')?.value || null });
     else goal.milestones.push({ id: uid('milestone'), title, date: $('#milestone-date')?.value || null, isCompleted: false, completedAt: null, order: goal.milestones.length });
+    if (modalState.previous) { closeModal(); return; }
     goal.updatedAt = nowIso();
     saveState(); closeModal(); render();
   }
@@ -3074,22 +3187,55 @@
     requestDeleteEntity('milestone', { parentId: goalId, id: milestoneId });
   }
 
+  function readGoalLinkDraft() {
+    const d = modalState.draft;
+    const projects = $$('[data-goal-link-project]');
+    d.projectModes ||= {}; d.projectDrafts ||= {};
+    $$('[data-goal-project-mode]').forEach(input => { d.projectModes[input.dataset.goalProjectMode] = input.value; });
+    projects.forEach(input => {
+      const projectId = input.dataset.goalLinkProject;
+      const old = d.projectLinks.find(link => link.projectId === projectId) || d.projectDrafts[projectId];
+      const picker = $(`[data-project-task-picker="${CSS.escape(projectId)}"]`);
+      const selectedTaskIds = picker ? $$('[data-goal-project-task]', picker).filter(i => i.checked).map(i => i.dataset.goalProjectTask.slice(projectId.length + 1)) : [...(old?.selectedTaskIds || [])];
+      d.projectDrafts[projectId] = { ...old, projectId, contributionMode: d.projectModes[projectId] || 'allTasks', selectedTaskIds };
+    });
+    if (projects.length) d.projectLinks = projects.filter(input => input.checked).map(input => d.projectDrafts[input.dataset.goalLinkProject]);
+    const tasks = $$('[data-goal-link-task]');
+    if (tasks.length) d.taskIds = tasks.filter(input => input.checked).map(input => input.dataset.goalLinkTask);
+    const habits = $$('[data-goal-link-habit]');
+    d.habitDrafts ||= {};
+    habits.forEach(input => {
+      const id = input.dataset.goalLinkHabit; const old = d.habitLinks.find(link => link.habitId === id) || d.habitDrafts[id];
+      d.habitDrafts[id] = { ...old, habitId: id, metric: $(`[data-goal-habit-metric="${CSS.escape(id)}"]`)?.value || 'totalCheckins', target: Number($(`[data-goal-habit-target="${CSS.escape(id)}"]`)?.value ?? old?.target ?? 1) };
+    });
+    if (habits.length) d.habitLinks = habits.filter(input => input.checked).map(input => d.habitDrafts[input.dataset.goalLinkHabit]);
+    return d;
+  }
+
+  function deleteDraftGoalMilestone(id) {
+    if (modalState?.type !== 'goal') return;
+    readGoalDraft(); const editor = modalState; const index = editor.draft.milestones.findIndex(m => m.id === id); if (index < 0) return;
+    const milestone = copyTemplate(editor.draft.milestones[index]); const target = goalFocusTarget();
+    const back = () => { modalState = editor; renderModal(); restoreGoalFocus(target); };
+    openConfirm({ title: 'Delete milestone?', message: 'This removes the milestone from this Goal draft.', onCancel: back, onConfirm: () => {
+      editor.draft.milestones.splice(index, 1); back(); setUndo('Milestone deleted', () => {
+        editor.draft.milestones.splice(Math.min(index, editor.draft.milestones.length), 0, copyTemplate(milestone));
+        const saved = editor.savedGoalSource;
+        if (saved && getGoal(saved.id) === saved) { if (!saved.milestones.some(m => m.id === id)) saved.milestones.splice(Math.min(index, saved.milestones.length), 0, copyTemplate(milestone)); saveState(); render(); }
+        if (modalState === editor) { readGoalDraft(); renderModal(); }
+      });
+    } });
+  }
+
   function saveGoalLinks() {
     if (modalState?.type !== 'goal-links') return;
+    const d = readGoalLinkDraft();
+    if (d.habitLinks.some(link => !Number.isFinite(link.target) || link.target <= 0)) { modalState.error = 'Enter a Habit target above zero.'; renderModal(); return; }
+    if (modalState.previous) { Object.assign(modalState.previous.draft, { projectLinks: d.projectLinks, taskIds: d.taskIds, habitLinks: d.habitLinks }); closeModal(); return; }
     const goal = getGoal(modalState.goalId); if (!goal) return;
     const progressBefore = captureGoalProgress();
     const oldProjects = new Set((goal.projectLinks || []).map(link => link.projectId));
-    const projectLinks = $$('[data-goal-link-project]').filter(input => input.checked).map(input => {
-      const projectId = input.dataset.goalLinkProject;
-      const contributionMode = document.querySelector(`[data-goal-project-mode="${CSS.escape(projectId)}"]`)?.value || 'allTasks';
-      const oldLink = (goal.projectLinks || []).find(link => link.projectId === projectId);
-      const selectedTaskIds = contributionMode === 'selectedTasks'
-        ? $$(`[data-goal-project-task^="${CSS.escape(projectId)}:"]`).filter(task => task.checked).map(task => task.dataset.goalProjectTask.split(':').slice(1).join(':'))
-        : (oldLink?.selectedTaskIds || []);
-      return { projectId, contributionMode, selectedTaskIds };
-    });
-    const taskIds = $$('[data-goal-link-task]').filter(input => input.checked).map(input => input.dataset.goalLinkTask);
-    const habitLinks = $$('[data-goal-link-habit]').filter(input => input.checked).map(input => { const id = input.dataset.goalLinkHabit; return { habitId: id, metric: document.querySelector(`[data-goal-habit-metric="${CSS.escape(id)}"]`)?.value || 'totalCheckins', target: Number(document.querySelector(`[data-goal-habit-target="${CSS.escape(id)}"]`)?.value || 1) || 1 }; });
+    const { projectLinks, taskIds, habitLinks } = d;
     syncGoalLinks(goal, projectLinks, taskIds, habitLinks); goal.updatedAt = nowIso();
     projectLinks.forEach(link => { if (!oldProjects.has(link.projectId)) putGoalHistory(goal.id, 'projectLinked', { projectId: link.projectId }); });
     oldProjects.forEach(projectId => { if (!projectLinks.some(link => link.projectId === projectId)) putGoalHistory(goal.id, 'projectUnlinked', { projectId }); });
@@ -3098,8 +3244,10 @@
 
   function saveGoalReminders() {
     if (modalState?.type !== 'goal-reminders') return;
-    const goal = getGoal(modalState.goalId); if (!goal) return;
-    goal.reminders = { sevenDaysBefore: Boolean($('#goal-reminder-7')?.checked), threeDaysBefore: Boolean($('#goal-reminder-3')?.checked), oneDayBefore: Boolean($('#goal-reminder-1')?.checked), onTargetDate: Boolean($('#goal-reminder-date')?.checked), time: Core.normalizeTime($('#goal-reminder-time')?.value) || '09:00' }; goal.updatedAt = nowIso(); saveState(); closeModal(); render();
+    const goal = modalState.previous?.draft || getGoal(modalState.goalId); if (!goal) return;
+    goal.reminders = { ...modalState.draft, sevenDaysBefore: Boolean($('#goal-reminder-7')?.checked), threeDaysBefore: Boolean($('#goal-reminder-3')?.checked), oneDayBefore: Boolean($('#goal-reminder-1')?.checked), onTargetDate: Boolean($('#goal-reminder-date')?.checked), time: Core.normalizeTime($('#goal-reminder-time')?.value) || '09:00' };
+    if (modalState.previous) { closeModal(); return; }
+    goal.updatedAt = nowIso(); saveState(); closeModal(); render();
   }
 
   async function deleteGoal(goalId) {
@@ -3485,6 +3633,8 @@
 
     const pop = event.target.closest('[data-pop-action]');
     if (pop) { handlePopoverAction(pop); return; }
+    const goalProperty = event.target.closest('[data-goal-property]');
+    if (goalProperty) { openGoalProperty(goalProperty); return; }
 
     const el = event.target.closest('[data-action]');
     if (!el) {
@@ -3506,7 +3656,7 @@
     else if(action==='reset-shortcuts'){state.settings.shortcuts={...SHORTCUT_DEFAULTS};shortcutError='';saveAndRender();}
     else if(action==='more-route'){closePopover();navigate(el.dataset.moreRoute);}
     else if(action==='choose-template')chooseTemplate(el.dataset.templateId);
-    else if(action==='template-picker-back'){modalState=modalState.previous;renderModal();}
+    else if(action==='template-picker-back'){if(modalState.previous?.type==='goal')closeModal();else{modalState=modalState.previous;renderModal();}}
     else if(action==='new-template')openTemplateModal();
     else if(action==='edit-template')openTemplateModal(el.dataset.templateId);
     else if(action==='save-template')saveTemplate();
@@ -3539,6 +3689,16 @@
     else if (action === 'new-project') openProjectModal();
     else if (action === 'new-area') openAreaModal();
     else if (action === 'new-goal') openGoalModal();
+    else if (action === 'toggle-goal-more') { readGoalDraft(); modalState.draft.moreOpen = !modalState.draft.moreOpen; renderModal(); requestAnimationFrame(() => $('[data-action="toggle-goal-more"]')?.focus()); }
+    else if (action === 'draft-goal-links') openGoalLinksModal();
+    else if (action === 'draft-goal-reminders') openGoalRemindersModal();
+    else if (action === 'draft-goal-milestone') openMilestoneModal(null, el.dataset.milestoneId);
+    else if (action === 'delete-draft-goal-milestone') deleteDraftGoalMilestone(el.dataset.milestoneId);
+    else if (action === 'edit-goal-source') openGoalSourceModal(el.dataset.goalId);
+    else if (action === 'save-goal-source') saveGoalSource();
+    else if (action === 'save-goal-property') saveGoalProperty();
+    else if (action === 'cancel-goal-property') cancelGoalProperty();
+    else if (action === 'goal-status-menu') openGoalStatusMenu(el, el.dataset.goalId);
     else if (action === 'new-habit') openHabitModal();
     else if (action === 'edit-habit') openHabitModal(el.dataset.habitId);
     else if (action === 'habit-menu') openHabitMenu(el, el.dataset.habitId);
@@ -3716,6 +3876,8 @@
 
   function handleInput(event) {
     if (globalOperation) return;
+    if (goalPropertyEditor && event.target.id === 'goal-detail-' + goalPropertyEditor.field) goalPropertyEditor.value = event.target.value;
+    if (['goal', 'goal-source'].includes(modalState?.type) && event.target.id.startsWith('goal-')) readGoalDraft();
     if (modalState?.type === 'quick') {
       if (event.target.id === 'quick-title') { modalState.draft.title = event.target.value; modalState.error = ''; if (!modalState.draft.explicitPlan) { const parsed=Core.parseQuickPlanPhrase(event.target.value, Core.dateOnly()); modalState.draft.parsedPlanDate=parsed.plannedDate; const b=document.querySelector('[data-action="quick-plan-picker"]'); if(b) b.innerHTML=`<i class="ph ph-calendar-check"></i>${parsed.plannedDate ? esc(relativeDateLabel(parsed.plannedDate)) : 'Plan for'}`; } }
       else if (event.target.id === 'quick-notes') modalState.draft.notes = event.target.value;
@@ -3736,6 +3898,10 @@
 
   function handleChange(event) {
     if (globalOperation) return;
+    if (goalPropertyEditor && event.target.id === 'goal-detail-' + goalPropertyEditor.field) goalPropertyEditor.value = event.target.value;
+    if (['goal','goal-source'].includes(modalState?.type) && ['goal-progress-mode','goal-progress-type'].includes(event.target.id)) {
+      const id = event.target.id; readGoalDraft(); renderModal(); requestAnimationFrame(() => $('#' + id)?.focus()); return;
+    }
     if (modalState?.type === 'saved-view' && event.target.id === 'saved-view-type') {
       readSavedViewDraft();
       const draft = modalState.draft;
@@ -3760,11 +3926,8 @@
       state.ui.completedPeriod = Number(event.target.value) || 0;
       saveAndRender();
     } else if (modalState?.type === 'goal-links' && event.target.matches('[data-goal-project-mode]')) {
-      const projectId = event.target.dataset.goalProjectMode;
-      const link = modalState.draft.projectLinks.find(item => item.projectId === projectId);
-      if (link) link.contributionMode = event.target.value;
-      else modalState.draft.projectLinks.push({ projectId, contributionMode: event.target.value, selectedTaskIds: [] });
-      renderModal();
+      const projectId = event.target.dataset.goalProjectMode; readGoalLinkDraft(); renderModal();
+      requestAnimationFrame(() => $(`[data-goal-project-mode="${CSS.escape(projectId)}"]`)?.focus());
     }
   }
 
@@ -3783,6 +3946,15 @@
     if (globalOperation && !['Escape','Tab'].includes(event.key)) return;
     const target = event.target;
     const typing = target && (target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"]') || target.isContentEditable);
+    if (goalPropertyEditor && !modalState && !popoverEl && (event.key === 'Escape' || (event.key === 'Enter' && typing && !event.isComposing))) {
+      event.preventDefault(); if (event.key === 'Escape') cancelGoalProperty(); else saveGoalProperty(); return;
+    }
+    if (popoverEl?.dataset.popoverType === 'goal-status' && event.key === 'Tab') {
+      const controls = [...popoverEl.querySelectorAll('button:not([disabled])')];
+      const first = controls[0], last = controls.at(-1);
+      if (!popoverEl.contains(document.activeElement) || (!event.shiftKey && document.activeElement === last) || (event.shiftKey && document.activeElement === first)) { event.preventDefault(); (event.shiftKey ? last : first)?.focus(); }
+      return;
+    }
 
     if (modalState && event.key === 'Tab') {
       const modal = $('#modal-root .modal');
