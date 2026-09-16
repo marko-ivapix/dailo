@@ -33,15 +33,15 @@ Full plan: `docs/superpowers/plans/2026-09-16-todo-v1-3.md`
 
 ## Phase 3 — Areas
 
-- [ ] Areas route/sidebar entry.
-- [ ] Add Area.
-- [ ] Edit Area.
-- [ ] Archive/Restore Area.
-- [ ] Delete Area with confirmation + Undo.
-- [ ] Pin/unpin Area.
-- [ ] Area Detail with Projects/standalone Tasks/Goals/Habits.
-- [ ] Context creation from Area Detail.
-- [ ] Project Area inheritance for task behavior.
+- [x] Areas route/sidebar entry.
+- [x] Add Area.
+- [x] Edit Area.
+- [x] Archive/Restore Area.
+- [x] Delete Area with confirmation + Undo.
+- [x] Pin/unpin Area.
+- [x] Area Detail with Projects/standalone Tasks/Goals/Habits.
+- [x] Context creation from Area Detail.
+- [x] Project Area inheritance for task behavior.
 
 ## Phase 4 — Goals
 

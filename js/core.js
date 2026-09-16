@@ -246,6 +246,24 @@
     return { ok: true };
   }
 
+  function validateAreaName(areas, name, excludeId = null) {
+    const normalized = normalizeTagName(name);
+    if (!normalized) return { ok: false, reason: 'empty-area' };
+    const lower = normalized.toLocaleLowerCase();
+    const duplicate = (areas || []).some(area => area && area.id !== excludeId && normalizeTagName(area.name).toLocaleLowerCase() === lower);
+    if (duplicate) return { ok: false, reason: 'duplicate-area' };
+    return { ok: true };
+  }
+
+  function areaSummary(areaId, state) {
+    const source = state || {};
+    const projects = (source.projects || []).filter(project => project && project.areaId === areaId);
+    const openTasks = (source.tasks || []).filter(task => task && !task.isCompleted && effectiveTaskArea(task, source.projects || []) === areaId);
+    const activeGoals = (source.goals || []).filter(goal => goal && goal.areaId === areaId && goal.status === 'active');
+    const activeHabits = (source.habits || []).filter(habit => habit && habit.areaId === areaId && habit.status === 'active');
+    return { projects: projects.length, openTasks: openTasks.length, activeGoals: activeGoals.length, activeHabits: activeHabits.length };
+  }
+
   function tasksForTag(tasks, tagId) {
     return (tasks || []).filter(task => !task.isCompleted && Array.isArray(task.tagIds) && task.tagIds.includes(tagId));
   }
@@ -491,6 +509,8 @@
     combineDateTime,
     normalizeTagName,
     validateTagName,
+    validateAreaName,
+    areaSummary,
     tasksForTag,
     parseQuickPlanPhrase,
     cloneTaskForDuplicate,

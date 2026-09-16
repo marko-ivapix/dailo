@@ -9,6 +9,7 @@
   const STORAGE_KEY = 'todoAppData';
   const VERSION = 3;
   const PROJECT_COLORS = ['#5362FF', '#30CBAD', '#A879FF', '#4CC9F0', '#F5B942', '#FF8A5B', '#F06A8A', '#8FD14F'];
+  const AREA_ICONS = ['ph-briefcase', 'ph-house', 'ph-heart', 'ph-chart-line-up', 'ph-graduation-cap', 'ph-palette', 'ph-plant', 'ph-airplane'];
   const DATE_FMT = new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
   const SHORT_DATE_FMT = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' });
   const WEEKDAY_FMT = new Intl.DateTimeFormat(undefined, { weekday: 'long' });
@@ -176,6 +177,7 @@
     next.ui.completedProjectFilter = next.ui.completedProjectFilter || '';
     next.ui.completedPeriod = Number(next.ui.completedPeriod) || 0;
     next.ui.selectedTagId = next.ui.selectedTagId || '';
+    next.ui.areaTab = ['all', 'active', 'archived'].includes(next.ui.areaTab) ? next.ui.areaTab : 'all';
     next.tags = (next.tags || []).map((tag, i) => ({
       id: tag.id || uid('tag'),
       name: Core.normalizeTagName(tag.name),
@@ -194,6 +196,13 @@
       subtasks: (t.subtasks || []).map((s, i) => ({ id: s.id || uid('sub'), title: s.title || '', isCompleted: Boolean(s.isCompleted), order: Number.isFinite(s.order) ? s.order : i })),
     }));
     next.projects = next.projects.map((p, i) => ({ color: PROJECT_COLORS[i % PROJECT_COLORS.length], order: i, createdAt: nowIso(), updatedAt: nowIso(), isArchived: false, archivedAt: null, ...p }));
+    next.areas = (next.areas || []).map((area, i) => ({
+      name: '', color: PROJECT_COLORS[i % PROJECT_COLORS.length], icon: AREA_ICONS[0], status: 'active', isPinned: false,
+      createdAt: nowIso(), updatedAt: nowIso(), ...area,
+      name: Core.normalizeTagName(area.name),
+      status: area.status === 'archived' ? 'archived' : 'active',
+      isPinned: Boolean(area.isPinned),
+    }));
     return next;
   }
 
@@ -265,13 +274,22 @@
     return state?.tags?.find(t => t.id === id) || null;
   }
 
+  function getArea(id) {
+    return state?.areas?.find(area => area.id === id) || null;
+  }
+
   function currentRoute() {
     const hash = location.hash.replace(/^#/, '') || 'today';
-    if (['today', 'inbox', 'upcoming', 'anytime', 'tags', 'archived', 'completed', 'settings'].includes(hash)) return { type: hash };
+    if (['today', 'inbox', 'upcoming', 'anytime', 'tags', 'areas', 'archived', 'completed', 'settings'].includes(hash)) return { type: hash };
     if (hash.startsWith('project/')) {
       const id = decodeURIComponent(hash.slice('project/'.length));
       if (getProject(id)) return { type: 'project', id };
       return { type: 'today' };
+    }
+    if (hash.startsWith('area/')) {
+      const id = decodeURIComponent(hash.slice('area/'.length));
+      if (getArea(id)) return { type: 'area', id };
+      return { type: 'areas' };
     }
     return { type: 'today' };
   }
@@ -290,6 +308,10 @@
 
   function sortedProjects() {
     return allProjects().filter(project => !project.isArchived);
+  }
+
+  function sortedAreas() {
+    return [...(state.areas || [])].sort((a, b) => String(a.name).localeCompare(String(b.name)));
   }
 
   function activeInboxTasks() {
@@ -323,6 +345,7 @@
     const inboxCount = activeInboxTasks().length;
     const collapsed = state.ui.sidebarCollapsed;
     const projects = sortedProjects();
+    const pinnedAreas = sortedAreas().filter(area => area.status === 'active' && area.isPinned);
     $('#sidebar').innerHTML = `
       <div class="sidebar-header">
         <div class="brand" title="To Do prototype">
@@ -356,7 +379,10 @@
         </section>
 
         <section class="sidebar-section sidebar-tags-section">
-          <div class="sidebar-section-title">Tags</div>
+          <div class="sidebar-section-title">Work</div>
+          <button class="sidebar-action ${route.type === 'areas' || route.type === 'area' ? 'is-active' : ''}" type="button" data-route="areas" title="Areas"><i class="ph ph-squares-four"></i><span>Areas</span></button>
+          ${pinnedAreas.length ? `<div class="pinned-areas-list">${pinnedAreas.map(area => `<button class="sidebar-action pinned-area ${route.type === 'area' && route.id === area.id ? 'is-active' : ''}" type="button" data-route="area/${esc(area.id)}" title="${esc(area.name)}"><i class="ph ${esc(area.icon)}" style="color:${esc(area.color)}"></i><span>${esc(area.name)}</span></button>`).join('')}</div>` : ''}
+          <div class="sidebar-section-title sidebar-subsection-title">Tags</div>
           <button class="sidebar-action ${route.type === 'tags' ? 'is-active' : ''}" type="button" data-route="tags" title="Tags"><i class="ph ph-tag"></i><span>Tags</span></button>
         </section>
 
@@ -387,6 +413,8 @@
     else if (route.type === 'upcoming') content = renderUpcoming();
     else if (route.type === 'anytime') content = renderAnytime();
     else if (route.type === 'tags') content = renderTags();
+    else if (route.type === 'areas') content = renderAreas();
+    else if (route.type === 'area') content = renderArea(route.id);
     else if (route.type === 'archived') content = renderArchivedProjects();
     else if (route.type === 'project') content = renderProject(route.id);
     else if (route.type === 'completed') content = renderCompleted();
@@ -473,6 +501,46 @@
       html += `<section class="selected-tag-section"><div class="section-header"><div><h2 class="selected-tag-title"><span class="tag-dot" style="--tag-color:${esc(selected.color)}"></span>${esc(selected.name)}</h2><p class="page-subtitle">${tasks.length} active ${tasks.length === 1 ? 'task' : 'tasks'}</p></div></div>${tasks.length ? `<div class="task-list">${tasks.map(t => taskRow(t, 'tags')).join('')}</div>` : emptyState('No active tasks with this tag.', 'Assign this tag from Quick Add or Task Detail.')}</section>`;
     }
     html += '</div>';
+    return html;
+  }
+
+  function areaSummaryCards(summary) {
+    return `<div class="area-summary" aria-label="Area summary"><div><strong>${summary.projects}</strong><span>Projects</span></div><div><strong>${summary.openTasks}</strong><span>Open tasks</span></div><div><strong>${summary.activeGoals}</strong><span>Active goals</span></div><div><strong>${summary.activeHabits}</strong><span>Active habits</span></div></div>`;
+  }
+
+  function areaIcon(area) {
+    return `<i class="ph ${esc(area.icon || AREA_ICONS[0])}" style="color:${esc(area.color || PROJECT_COLORS[0])}"></i>`;
+  }
+
+  function renderAreas() {
+    const tab = state.ui.areaTab || 'all';
+    const all = sortedAreas();
+    const areas = all.filter(area => tab === 'all' || area.status === tab);
+    const actions = `<button class="btn btn-primary" type="button" data-action="new-area"><i class="ph ph-plus"></i> New area</button>`;
+    let html = pageHeader('Areas', `${all.filter(area => area.status === 'active').length} active ${all.filter(area => area.status === 'active').length === 1 ? 'area' : 'areas'}`, { add: false, actionHtml: actions });
+    html += `<div class="area-tabs" role="tablist"><button type="button" data-tab="all" class="${tab === 'all' ? 'is-active' : ''}">All</button><button type="button" data-tab="active" class="${tab === 'active' ? 'is-active' : ''}">Active</button><button type="button" data-tab="archived" class="${tab === 'archived' ? 'is-active' : ''}">Archived</button></div>`;
+    if (!areas.length) return html + emptyState(tab === 'archived' ? 'No archived areas.' : 'No areas yet.', tab === 'archived' ? 'Archived areas can be restored here.' : 'Areas organize projects, standalone tasks, goals and habits.', tab === 'archived' ? '' : 'New area', tab === 'archived' ? '' : 'new-area');
+    html += `<div class="area-list">${areas.map(area => {
+      const summary = Core.areaSummary(area.id, state);
+      return `<article class="area-row" data-area-id="${esc(area.id)}"><button class="area-open" type="button" data-route="area/${esc(area.id)}">${areaIcon(area)}<span><strong>${esc(area.name)}</strong><small>${summary.projects} projects · ${summary.openTasks} open tasks · ${summary.activeGoals} active goals · ${summary.activeHabits} active habits</small></span></button><div class="area-row-actions">${area.isPinned && area.status === 'active' ? '<i class="ph ph-push-pin" aria-label="Pinned"></i>' : ''}<button class="btn-icon" type="button" data-action="area-menu" data-area-id="${esc(area.id)}" aria-label="Area actions"><i class="ph ph-dots-three"></i></button></div></article>`;
+    }).join('')}</div>`;
+    return html;
+  }
+
+  function renderArea(areaId) {
+    const area = getArea(areaId);
+    if (!area) return renderAreas();
+    const summary = Core.areaSummary(areaId, state);
+    const projects = (state.projects || []).filter(project => project.areaId === areaId);
+    const tasks = (state.tasks || []).filter(task => !task.projectId && task.areaId === areaId);
+    const goals = (state.goals || []).filter(goal => goal.areaId === areaId);
+    const habits = (state.habits || []).filter(habit => habit.areaId === areaId);
+    let html = pageHeader(area.name, area.status === 'archived' ? 'Archived area' : 'Organize the work that belongs together', { add: false, actionHtml: `<button class="btn-icon" type="button" data-action="area-menu" data-area-id="${esc(area.id)}" aria-label="Area actions"><i class="ph ph-dots-three"></i></button>` });
+    html += `<div class="area-detail-label">${areaIcon(area)} <span>Area</span></div>${areaSummaryCards(summary)}`;
+    html += `<section class="section area-detail-section"><div class="section-header"><h2 class="section-label">Projects</h2><span class="section-count">${projects.length}</span></div>${projects.length ? `<div class="area-object-list">${projects.map(project => `<button class="area-object" type="button" data-route="project/${esc(project.id)}"><span class="project-dot" style="--project-color:${esc(project.color)}"></span>${esc(project.name)}</button>`).join('')}</div>` : '<p class="area-empty-copy">No projects in this Area.</p>'}<button class="inline-add" type="button" data-action="area-new-project" data-area-id="${esc(area.id)}"><i class="ph ph-plus"></i> New project</button></section>`;
+    html += `<section class="section area-detail-section"><div class="section-header"><h2 class="section-label">Standalone Tasks</h2><span class="section-count">${tasks.filter(task => !task.isCompleted).length}</span></div>${tasks.length ? `<div class="task-list">${tasks.map(task => taskRow(task, `area:${area.id}`)).join('')}</div>` : '<p class="area-empty-copy">No standalone tasks in this Area.</p>'}<button class="inline-add" type="button" data-action="area-new-task" data-area-id="${esc(area.id)}"><i class="ph ph-plus"></i> New task</button></section>`;
+    html += `<section class="section area-detail-section"><div class="section-header"><h2 class="section-label">Goals</h2><span class="section-count">${goals.length}</span></div>${goals.length ? `<div class="area-object-list">${goals.map(goal => `<div class="area-object"><i class="ph ph-target"></i>${esc(goal.name || goal.title || 'Untitled goal')}</div>`).join('')}</div>` : '<p class="area-empty-copy">No goals in this Area.</p>'}<button class="inline-add" type="button" data-action="area-new-goal" data-area-id="${esc(area.id)}"><i class="ph ph-plus"></i> New goal</button></section>`;
+    html += `<section class="section area-detail-section"><div class="section-header"><h2 class="section-label">Habits</h2><span class="section-count">${habits.length}</span></div>${habits.length ? `<div class="area-object-list">${habits.map(habit => `<div class="area-object"><i class="ph ph-repeat"></i>${esc(habit.name || habit.title || 'Untitled habit')}</div>`).join('')}</div>` : '<p class="area-empty-copy">No habits in this Area.</p>'}<button class="inline-add" type="button" data-action="area-new-habit" data-area-id="${esc(area.id)}"><i class="ph ph-plus"></i> New habit</button></section>`;
     return html;
   }
 
@@ -610,6 +678,7 @@
     closePopover();
     const defaults = {
       projectId: context.projectId || null,
+      areaId: context.areaId || null,
       plannedDate: context.today ? Core.dateOnly() : null,
       processed: Boolean(context.anytime),
     };
@@ -617,7 +686,7 @@
       type: 'quick',
       defaults,
       draft: {
-        title: '', notes: '', projectId: defaults.projectId, plannedDate: defaults.plannedDate, parsedPlanDate: null, explicitPlan: Boolean(defaults.plannedDate),
+        title: '', notes: '', projectId: defaults.projectId, areaId: defaults.areaId, plannedDate: defaults.plannedDate, parsedPlanDate: null, explicitPlan: Boolean(defaults.plannedDate),
         dueDate: null, reminderAt: null, reminderFiredAt: null, recurrence: null, tagIds: [], priority: 'none', subtasks: [], moreOpen: false,
       },
       error: '',
@@ -642,12 +711,12 @@
     requestAnimationFrame(() => $('#search-query')?.focus());
   }
 
-  function openProjectModal(projectId = null) {
+  function openProjectModal(projectId = null, context = {}) {
     closePopover();
     const project = projectId ? getProject(projectId) : null;
     modalState = {
       type: 'project', projectId,
-      draft: { name: project?.name || '', color: project?.color || nextProjectColor() },
+      draft: { name: project?.name || '', color: project?.color || nextProjectColor(), areaId: project?.areaId || context.areaId || null },
       error: '',
     };
     renderModal();
@@ -661,6 +730,21 @@
     modalState = { type: 'tag', tagId, draft: { name: tag?.name || '', color: tag?.color || PROJECT_COLORS[(state.tags || []).length % PROJECT_COLORS.length] }, error: '' };
     renderModal();
     requestAnimationFrame(() => $('#tag-name')?.focus());
+  }
+
+  function openAreaModal(areaId = null) {
+    closePopover();
+    const area = areaId ? getArea(areaId) : null;
+    modalState = { type: 'area', areaId, draft: { name: area?.name || '', color: area?.color || PROJECT_COLORS[(state.areas || []).length % PROJECT_COLORS.length], icon: area?.icon || AREA_ICONS[0] }, error: '' };
+    renderModal();
+    requestAnimationFrame(() => $('#area-name')?.focus());
+  }
+
+  function openAreaLinkedModal(kind, areaId) {
+    const label = kind === 'goal' ? 'Goal' : 'Habit';
+    modalState = { type: 'area-linked', kind, areaId, draft: { name: '' }, error: '' };
+    renderModal();
+    requestAnimationFrame(() => $('#area-linked-name')?.focus());
   }
 
   function openConfirm(config) {
@@ -687,6 +771,8 @@
     else if (modalState.type === 'search') root.innerHTML = renderSearchModal();
     else if (modalState.type === 'project') root.innerHTML = renderProjectModal();
     else if (modalState.type === 'tag') root.innerHTML = renderTagModal();
+    else if (modalState.type === 'area') root.innerHTML = renderAreaModal();
+    else if (modalState.type === 'area-linked') root.innerHTML = renderAreaLinkedModal();
     else if (modalState.type === 'confirm') root.innerHTML = renderConfirmModal();
     else if (modalState.type === 'duplicate') root.innerHTML = renderDuplicateModal();
     else if (modalState.type === 'import-backup') root.innerHTML = renderImportBackupModal();
@@ -893,6 +979,17 @@
     return modalFrame(`<div class="modal-inner"><div class="modal-header"><div><h2 class="dialog-title">${editing ? 'Edit tag' : 'New tag'}</h2></div><button class="btn-icon" type="button" data-action="close-modal" aria-label="Close"><i class="ph ph-x"></i></button></div><div class="form-stack"><label class="field-label" for="tag-name">Name</label><input id="tag-name" class="input ${modalState.error ? 'is-error' : ''}" type="text" maxlength="80" value="${esc(d.name)}" placeholder="Tag name" />${modalState.error ? `<div class="validation">${esc(modalState.error)}</div>` : ''}<div class="field-label">Color</div><div class="color-grid">${PROJECT_COLORS.map(c => `<button class="color-swatch ${c === d.color ? 'is-selected' : ''}" type="button" data-action="select-tag-color" data-color="${c}" style="--swatch:${c}" aria-label="Select color"></button>`).join('')}</div></div><div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">Cancel</button><button class="btn btn-primary" type="button" data-action="save-tag">${editing ? 'Save' : 'Create'}</button></div></div></div>`, 'small-modal');
   }
 
+  function renderAreaModal() {
+    const editing = Boolean(modalState.areaId);
+    const d = modalState.draft;
+    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">${editing ? 'Edit area' : 'New area'}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="Close"><i class="ph ph-x"></i></button></div><label class="field-label" for="area-name">Name</label><input id="area-name" class="input ${modalState.error ? 'is-error' : ''}" type="text" maxlength="100" value="${esc(d.name)}" placeholder="Area name" />${modalState.error ? `<div class="validation">${esc(modalState.error)}</div>` : ''}<div style="height:18px"></div><span class="field-label">Color</span><div class="color-grid">${PROJECT_COLORS.map(color => `<button class="color-swatch ${color === d.color ? 'is-selected' : ''}" type="button" data-action="select-area-color" data-color="${color}" style="--swatch:${color}" aria-label="Select area color"></button>`).join('')}</div><div style="height:18px"></div><span class="field-label">Icon</span><div class="area-icon-grid">${AREA_ICONS.map(icon => `<button class="area-icon-choice ${icon === d.icon ? 'is-selected' : ''}" type="button" data-action="select-area-icon" data-icon="${icon}" aria-label="Select area icon"><i class="ph ${icon}"></i></button>`).join('')}</div><div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">Cancel</button><button class="btn btn-primary" type="button" data-action="save-area">${editing ? 'Save changes' : 'Create area'}</button></div></div></div>`, 'quick');
+  }
+
+  function renderAreaLinkedModal() {
+    const label = modalState.kind === 'goal' ? 'Goal' : 'Habit';
+    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">New ${label}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="Close"><i class="ph ph-x"></i></button></div><label class="field-label" for="area-linked-name">Name</label><input id="area-linked-name" class="input ${modalState.error ? 'is-error' : ''}" type="text" maxlength="100" value="${esc(modalState.draft.name)}" placeholder="${label} name" />${modalState.error ? `<div class="validation">${esc(modalState.error)}</div>` : ''}<div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">Cancel</button><button class="btn btn-primary" type="button" data-action="save-area-linked">Create ${label.toLowerCase()}</button></div></div></div>`, 'quick');
+  }
+
   function renderDuplicateModal() {
     const task = getTask(modalState.taskId); if (!task) return '';
     const count = (task.attachmentIds || []).length;
@@ -1073,6 +1170,18 @@
     openPopover(anchor, html, { type: 'project-menu', projectId });
   }
 
+  function openAreaMenu(anchor, areaId) {
+    const area = getArea(areaId); if (!area) return;
+    const archiveAction = area.status === 'archived'
+      ? `<button class="popover-option" type="button" data-pop-action="restore-area" data-area-id="${esc(areaId)}"><i class="ph ph-arrow-counter-clockwise"></i>Restore area</button>`
+      : `<button class="popover-option" type="button" data-pop-action="archive-area" data-area-id="${esc(areaId)}"><i class="ph ph-archive"></i>Archive area</button>`;
+    const pinAction = area.status === 'active'
+      ? `<button class="popover-option" type="button" data-pop-action="${area.isPinned ? 'unpin-area' : 'pin-area'}" data-area-id="${esc(areaId)}"><i class="ph ${area.isPinned ? 'ph-push-pin-slash' : 'ph-push-pin'}"></i>${area.isPinned ? 'Unpin from sidebar' : 'Pin to sidebar'}</button>`
+      : '';
+    const html = `<button class="popover-option" type="button" data-pop-action="edit-area" data-area-id="${esc(areaId)}"><i class="ph ph-pencil-simple"></i>Edit area</button>${pinAction}${archiveAction}<div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="delete-area" data-area-id="${esc(areaId)}" style="color:var(--danger)"><i class="ph ph-trash"></i>Delete area</button>`;
+    openPopover(anchor, html, { type: 'area-menu', areaId });
+  }
+
   function openMoreMenu(anchor) {
     const route = currentRoute();
     const html = `<button class="popover-option ${route.type === 'anytime' ? 'is-selected' : ''}" type="button" data-route="anytime"><i class="ph ph-infinity"></i>Anytime</button><button class="popover-option ${route.type === 'archived' ? 'is-selected' : ''}" type="button" data-route="archived"><i class="ph ph-archive"></i>Archived Projects</button><div class="popover-separator"></div><button class="popover-option ${route.type === 'completed' ? 'is-selected' : ''}" type="button" data-route="completed"><i class="ph ph-check-circle"></i>Completed</button><button class="popover-option ${route.type === 'settings' ? 'is-selected' : ''}" type="button" data-route="settings"><i class="ph ph-gear"></i>Settings</button>`;
@@ -1132,6 +1241,7 @@
   function setProject(targetType, taskId, projectId) {
     if (targetType === 'quick') {
       modalState.draft.projectId = projectId || null;
+      if (projectId) modalState.draft.areaId = null;
       if (projectId) modalState.draft.isInbox = false;
       closePopover();
       renderModal();
@@ -1140,6 +1250,7 @@
     const task = getTask(taskId);
     if (!task) return;
     task.projectId = projectId || null;
+    task.areaId = null;
     if (projectId) task.isInbox = false;
     task.updatedAt = nowIso();
     saveState(); closePopover(); render();
@@ -1185,7 +1296,7 @@
     }
     const isInbox = modalState.defaults.processed ? false : !(d.projectId || resolvedPlan);
     const task = {
-      id: uid('task'), title, notes: d.notes || '', projectId: d.projectId || null,
+      id: uid('task'), title, notes: d.notes || '', projectId: d.projectId || null, areaId: d.projectId ? null : (d.areaId || null), goalIds: [], plannedTime: null, dueTime: null,
       plannedDate: resolvedPlan || null, dueDate: d.dueDate || null,
       reminderAt: d.reminderAt || null, reminderFiredAt: null, recurrence: d.recurrence || null, tagIds: [...(d.tagIds || [])], priority: d.priority || 'none', attachmentIds: [], isInbox,
       isCompleted: false, completedAt: null,
@@ -1199,7 +1310,7 @@
     saveState();
     if (keepOpen) {
       const defaults = modalState.defaults;
-      modalState = { type: 'quick', defaults, draft: { title: '', notes: '', projectId: defaults.projectId, plannedDate: defaults.plannedDate, parsedPlanDate: null, explicitPlan: Boolean(defaults.plannedDate), dueDate: null, reminderAt: null, reminderFiredAt: null, recurrence: null, tagIds: [], priority: 'none', subtasks: [], moreOpen: false }, error: '' };
+      modalState = { type: 'quick', defaults, draft: { title: '', notes: '', projectId: defaults.projectId, areaId: defaults.areaId, plannedDate: defaults.plannedDate, parsedPlanDate: null, explicitPlan: Boolean(defaults.plannedDate), dueDate: null, reminderAt: null, reminderFiredAt: null, recurrence: null, tagIds: [], priority: 'none', subtasks: [], moreOpen: false }, error: '' };
       render(); renderModal(); requestAnimationFrame(() => $('#quick-title')?.focus());
     } else {
       closeModal(); render();
@@ -1382,9 +1493,87 @@
       const project = getProject(modalState.projectId); if (!project) return;
       project.name = name; project.color = modalState.draft.color; project.updatedAt = nowIso();
     } else {
-      state.projects.push({ id: uid('project'), name, color: modalState.draft.color, order: nextProjectOrder(), isArchived: false, archivedAt: null, createdAt: nowIso(), updatedAt: nowIso() });
+      state.projects.push({ id: uid('project'), name, color: modalState.draft.color, areaId: modalState.draft.areaId || null, goalIds: [], order: nextProjectOrder(), isArchived: false, archivedAt: null, createdAt: nowIso(), updatedAt: nowIso() });
     }
     saveState(); closeModal(); render();
+  }
+
+  function saveAreaModal() {
+    if (modalState?.type !== 'area') return;
+    const input = $('#area-name');
+    if (input) modalState.draft.name = input.value;
+    const name = Core.normalizeTagName(modalState.draft.name);
+    const valid = Core.validateAreaName(state.areas || [], name, modalState.areaId || null);
+    if (!valid.ok) {
+      modalState.error = valid.reason === 'duplicate-area' ? 'An area with this name already exists.' : 'Area needs a name.';
+      renderModal(); requestAnimationFrame(() => $('#area-name')?.focus()); return;
+    }
+    if (modalState.areaId) {
+      const area = getArea(modalState.areaId); if (!area) return;
+      area.name = name; area.color = modalState.draft.color; area.icon = modalState.draft.icon; area.updatedAt = nowIso();
+    } else {
+      state.areas.push({ id: uid('area'), name, color: modalState.draft.color, icon: modalState.draft.icon, status: 'active', isPinned: false, createdAt: nowIso(), updatedAt: nowIso() });
+    }
+    saveState(); closeModal(); render();
+  }
+
+  function saveAreaLinkedModal() {
+    if (modalState?.type !== 'area-linked') return;
+    const input = $('#area-linked-name');
+    const name = String(input?.value || modalState.draft.name || '').trim();
+    if (!name) { modalState.error = `${modalState.kind === 'goal' ? 'Goal' : 'Habit'} needs a name.`; renderModal(); return; }
+    const item = { id: uid(modalState.kind), name, areaId: modalState.areaId, status: 'active', createdAt: nowIso(), updatedAt: nowIso() };
+    if (modalState.kind === 'goal') state.goals.push(item); else state.habits.push(item);
+    saveState(); closeModal(); render();
+  }
+
+  function archiveArea(areaId) {
+    const area = getArea(areaId); if (!area || area.status === 'archived') return;
+    const previous = { status: area.status, isPinned: area.isPinned, updatedAt: area.updatedAt };
+    area.status = 'archived'; area.isPinned = false; area.updatedAt = nowIso();
+    saveState(); closePopover();
+    if (currentRoute().type === 'area' && currentRoute().id === areaId) navigate('areas'); else render();
+    setUndo('Area archived', () => { const current = getArea(areaId); if (!current) return; Object.assign(current, previous, { updatedAt: nowIso() }); saveState(); render(); });
+  }
+
+  function restoreArea(areaId) {
+    const area = getArea(areaId); if (!area) return;
+    area.status = 'active'; area.updatedAt = nowIso(); saveState(); closePopover(); render(); setToastMessage('Area restored');
+  }
+
+  function toggleAreaPin(areaId) {
+    const area = getArea(areaId); if (!area || area.status === 'archived') return;
+    area.isPinned = !area.isPinned; area.updatedAt = nowIso(); saveState(); closePopover(); render();
+  }
+
+  function deleteArea(areaId) {
+    const areaIndex = state.areas.findIndex(area => area.id === areaId); if (areaIndex < 0) return;
+    const area = state.areas[areaIndex];
+    const snapshot = {
+      area: JSON.parse(JSON.stringify(area)), areaIndex,
+      projects: state.projects.filter(project => project.areaId === areaId).map(project => project.id),
+      tasks: state.tasks.filter(task => task.areaId === areaId).map(task => task.id),
+      goals: state.goals.filter(goal => goal.areaId === areaId).map(goal => goal.id),
+      habits: state.habits.filter(habit => habit.areaId === areaId).map(habit => habit.id),
+    };
+    const execute = () => {
+      state.areas.splice(areaIndex, 1);
+      state.projects.forEach(project => { if (project.areaId === areaId) project.areaId = null; });
+      state.tasks.forEach(task => { if (task.areaId === areaId) task.areaId = null; });
+      state.goals.forEach(goal => { if (goal.areaId === areaId) goal.areaId = null; });
+      state.habits.forEach(habit => { if (habit.areaId === areaId) habit.areaId = null; });
+      saveState(); closeModal(); navigate('areas');
+      setUndo('Area deleted', () => {
+        if (!getArea(areaId)) state.areas.splice(Math.min(snapshot.areaIndex, state.areas.length), 0, snapshot.area);
+        snapshot.projects.forEach(id => { const project = getProject(id); if (project) project.areaId = areaId; });
+        snapshot.tasks.forEach(id => { const task = getTask(id); if (task && !task.projectId) task.areaId = areaId; });
+        snapshot.goals.forEach(id => { const goal = state.goals.find(item => item.id === id); if (goal) goal.areaId = areaId; });
+        snapshot.habits.forEach(id => { const habit = state.habits.find(item => item.id === id); if (habit) habit.areaId = areaId; });
+        saveState(); render();
+      });
+    };
+    const linked = snapshot.projects.length + snapshot.tasks.length + snapshot.goals.length + snapshot.habits.length;
+    openConfirm({ title: `Delete “${area.name}”?`, message: linked ? `This Area is linked to ${linked} ${linked === 1 ? 'object' : 'objects'}. They will remain, but their Area assignment will be removed.` : 'This only deletes the Area.', confirmLabel: 'Delete area', onConfirm: execute });
   }
 
   function archiveProject(projectId) {
@@ -1570,6 +1759,9 @@
     const routeEl = event.target.closest('[data-route]');
     if (routeEl) { event.preventDefault(); navigate(routeEl.dataset.route); return; }
 
+    const areaTab = event.target.closest('[data-tab]');
+    if (areaTab) { state.ui.areaTab = areaTab.dataset.tab; saveAndRender(); return; }
+
     const pop = event.target.closest('[data-pop-action]');
     if (pop) { handlePopoverAction(pop); return; }
 
@@ -1580,11 +1772,22 @@
     }
     const action = el.dataset.action;
     if (action === 'toggle-sidebar') { state.ui.sidebarCollapsed = !state.ui.sidebarCollapsed; saveAndRender(); }
-    else if (action === 'quick-add') openQuickAdd({ projectId: el.dataset.projectId || null, today: el.dataset.today === 'true', anytime: el.dataset.anytime === 'true' });
+    else if (action === 'quick-add') openQuickAdd({ projectId: el.dataset.projectId || null, areaId: el.dataset.areaId || null, today: el.dataset.today === 'true', anytime: el.dataset.anytime === 'true' });
     else if (action === 'open-task') openTaskDetail(el.dataset.taskId);
     else if (action === 'toggle-complete') toggleComplete(el.dataset.taskId);
     else if (action === 'open-search') openSearch();
     else if (action === 'new-project') openProjectModal();
+    else if (action === 'new-area') openAreaModal();
+    else if (action === 'area-menu') openAreaMenu(el, el.dataset.areaId);
+    else if (action === 'area-new-task') openQuickAdd({ areaId: el.dataset.areaId, anytime: true });
+    else if (action === 'area-new-project') openProjectModal(null, { areaId: el.dataset.areaId });
+    else if (action === 'area-new-goal') openAreaLinkedModal('goal', el.dataset.areaId);
+    else if (action === 'area-new-habit') openAreaLinkedModal('habit', el.dataset.areaId);
+    else if (action === 'select-area-color') { modalState.draft.color = el.dataset.color; renderModal(); }
+    else if (action === 'select-area-icon') { modalState.draft.icon = el.dataset.icon; renderModal(); }
+    else if (action === 'save-area') saveAreaModal();
+    else if (action === 'save-area-linked') saveAreaLinkedModal();
+    else if (action === 'area-tab') { state.ui.areaTab = el.dataset.tab; saveAndRender(); }
     else if (action === 'new-tag') openTagModal();
     else if (action === 'select-tag') { state.ui.selectedTagId = el.dataset.tagId; saveAndRender(); }
     else if (action === 'tag-menu') openTagMenu(el, el.dataset.tagId);
@@ -1667,7 +1870,7 @@
     else if (action === 'inline-project-create') {
       const name = String($('#inline-project-name', popoverEl)?.value || '').trim();
       if (!name) { const er = $('#inline-project-error', popoverEl); if (er) er.hidden = false; return; }
-      const project = { id: uid('project'), name, color: button.dataset.color || nextProjectColor(), order: nextProjectOrder(), isArchived: false, archivedAt: null, createdAt: nowIso(), updatedAt: nowIso() };
+      const project = { id: uid('project'), name, color: button.dataset.color || nextProjectColor(), areaId: null, goalIds: [], order: nextProjectOrder(), isArchived: false, archivedAt: null, createdAt: nowIso(), updatedAt: nowIso() };
       state.projects.push(project); saveState();
       setProject(button.dataset.targetType, button.dataset.taskId, project.id);
       render();
@@ -1688,6 +1891,11 @@
     else if (action === 'archive-project') archiveProject(button.dataset.projectId);
     else if (action === 'restore-project') restoreProject(button.dataset.projectId);
     else if (action === 'delete-project') { const id = button.dataset.projectId; closePopover(); deleteProject(id); }
+    else if (action === 'edit-area') { const id = button.dataset.areaId; closePopover(); openAreaModal(id); }
+    else if (action === 'archive-area') archiveArea(button.dataset.areaId);
+    else if (action === 'restore-area') restoreArea(button.dataset.areaId);
+    else if (action === 'pin-area' || action === 'unpin-area') toggleAreaPin(button.dataset.areaId);
+    else if (action === 'delete-area') { const id = button.dataset.areaId; closePopover(); deleteArea(id); }
   }
 
   function handleInput(event) {
@@ -1852,7 +2060,7 @@
 
   function moveTaskByDrop(taskId, target) {
     const task = getTask(taskId); if (!task || !target) return;
-    const prev = { plannedDate: task.plannedDate, isInbox: task.isInbox, todayOrder: task.todayOrder, projectId: task.projectId, projectOrder: task.projectOrder };
+    const prev = { plannedDate: task.plannedDate, isInbox: task.isInbox, todayOrder: task.todayOrder, projectId: task.projectId, areaId: task.areaId, projectOrder: task.projectOrder };
     let message = '';
     if (target.dataset.dropPlan === 'today') {
       if (task.plannedDate === Core.dateOnly() && !task.isInbox) return;
@@ -1864,7 +2072,7 @@
     } else if (target.dataset.dropProjectId) {
       const projectId = target.dataset.dropProjectId;
       if (!getProject(projectId) || (task.projectId === projectId && !task.isInbox)) return;
-      task.projectId = projectId; task.isInbox = false; task.projectOrder = nextOrder(`project:${projectId}`); message = 'Task moved to project';
+      task.projectId = projectId; task.areaId = null; task.isInbox = false; task.projectOrder = nextOrder(`project:${projectId}`); message = 'Task moved to project';
     } else return;
     task.updatedAt = nowIso(); saveState(); render();
     setUndo(message, () => { const current = getTask(taskId); if (!current) return; Object.assign(current, prev, { updatedAt: nowIso() }); saveState(); render(); });

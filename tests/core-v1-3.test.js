@@ -173,3 +173,27 @@ test('combineDateTime returns a local datetime only for valid date and time', ()
   assert.equal(Core.combineDateTime('2026-09-20', '9:30'), null);
   assert.equal(Core.combineDateTime(null, '09:30'), null);
 });
+
+test('validateAreaName normalizes names and rejects duplicates', () => {
+  const areas = [{ id: 'a1', name: '  Business  ' }];
+  assert.deepEqual(Core.validateAreaName(areas, 'business'), { ok: false, reason: 'duplicate-area' });
+  assert.deepEqual(Core.validateAreaName(areas, 'Business', 'a1'), { ok: true });
+  assert.deepEqual(Core.validateAreaName(areas, '   '), { ok: false, reason: 'empty-area' });
+});
+
+test('area summary counts only matching effective objects', () => {
+  const state = {
+    projects: [{ id: 'p1', areaId: 'a1', isArchived: false }],
+    tasks: [
+      { id: 't1', projectId: 'p1', areaId: null, isCompleted: false },
+      { id: 't2', projectId: null, areaId: 'a1', isCompleted: false },
+      { id: 't3', projectId: null, areaId: 'a2', isCompleted: false },
+      { id: 't4', projectId: 'p1', areaId: null, isCompleted: true },
+    ],
+    goals: [{ id: 'g1', areaId: 'a1', status: 'active' }],
+    habits: [{ id: 'h1', areaId: 'a1', status: 'active' }],
+  };
+  assert.deepEqual(Core.areaSummary('a1', state), {
+    projects: 1, openTasks: 2, activeGoals: 1, activeHabits: 1,
+  });
+});
