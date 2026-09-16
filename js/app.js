@@ -801,7 +801,7 @@
       goalCount && `${goalCount} ${goalCount === 1 ? 'goal' : 'goals'}`,
       overdueCount && `${overdueCount} overdue`,
     ].filter(Boolean).join(' · ');
-    let html = pageHeader('Today', '', { contextToday: true });
+    let html = pageHeader('Today', '', { contextToday: true, actionHtml: '<button class="btn btn-secondary" type="button" data-action="open-focus"><i class="ph ph-crosshair"></i> Focus</button>' });
     html += `<div class="today-context" data-today-context="true"><span class="today-context-date"><i class="ph ph-calendar-blank"></i>${esc(formatPageToday(today))}</span>${contextCounts ? `<span class="today-context-summary">${esc(contextCounts)}</span>` : ''}</div>`;
 
     if (sections.overdue.length) {
@@ -985,6 +985,35 @@
     loadTaskAttachments(taskId);
   }
 
+  function focusableTasks() {
+    const sections = Core.deriveTodaySections(state.tasks, Core.dateOnly());
+    return [...sections.overdue, ...sections.today];
+  }
+
+  function openFocusMode(taskId = null) {
+    const task = taskId ? getTask(taskId) : focusableTasks()[0];
+    if (!task || task.isCompleted) { setToastMessage('No open overdue or Today tasks to focus on'); return; }
+    captureModalReturnFocus();
+    closePopover();
+    modalState = { type: 'focus', taskId: task.id };
+    renderModal();
+    requestAnimationFrame(() => $('[data-action="focus-complete"]')?.focus());
+  }
+
+  function focusNextTask(currentTaskId = modalState?.taskId) {
+    const tasks = focusableTasks();
+    if (!tasks.length) { closeModal(); setToastMessage('All overdue and Today tasks are complete'); return; }
+    const currentIndex = tasks.findIndex(task => task.id === currentTaskId);
+    modalState = { type: 'focus', taskId: (tasks[currentIndex + 1] || tasks[0]).id };
+    renderModal();
+    requestAnimationFrame(() => $('[data-action="focus-complete"]')?.focus());
+  }
+
+  function completeFocusTask(taskId) {
+    toggleComplete(taskId);
+    focusNextTask(taskId);
+  }
+
   function openSearch() {
     captureModalReturnFocus();
     closePopover();
@@ -1096,6 +1125,7 @@
     else if (modalState.type === 'area-linked') root.innerHTML = renderAreaLinkedModal();
     else if (modalState.type === 'confirm') root.innerHTML = renderConfirmModal();
     else if (modalState.type === 'duplicate') root.innerHTML = renderDuplicateModal();
+    else if (modalState.type === 'focus') root.innerHTML = renderFocusModal();
     else if (modalState.type === 'import-backup') root.innerHTML = renderImportBackupModal();
     else if (modalState.type === 'template-picker') root.innerHTML = renderTemplatePicker();
     else if (modalState.type === 'recurrence-scope') root.innerHTML = renderRecurrenceScope();
@@ -1108,6 +1138,31 @@
 
   function modalFrame(content, cls = '') {
     return `<div class="modal-backdrop" data-action="modal-backdrop"><section class="modal ${cls}" role="dialog" aria-modal="true">${content}</section></div>`;
+  }
+
+  function renderFocusModal() {
+    const task = getTask(modalState.taskId);
+    if (!task || task.isCompleted) {
+      const next = focusableTasks()[0];
+      if (next) { modalState = { type: 'focus', taskId: next.id }; return renderFocusModal(); }
+      return modalFrame('<div class="modal-inner focus-modal"><div class="modal-header"><div><p class="focus-kicker">Focus mode</p><h2 class="modal-title">Nothing left to focus on</h2></div></div><div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-primary" type="button" data-action="close-modal">Exit</button></div></div></div>', 'focus-modal');
+    }
+    const today = Core.dateOnly();
+    const project = getProject(task.projectId);
+    const metadata = [];
+    if (project) metadata.push(`<span><span class="project-dot" style="--project-color:${esc(project.color)}"></span>${esc(project.name)}</span>`);
+    if (task.dueDate) metadata.push(`<span class="${task.dueDate < today ? 'danger' : task.dueDate === today ? 'warning' : ''}">${esc(task.dueDate < today ? `Overdue · ${relativeDateLabel(task.dueDate, today)}` : `Due ${relativeDateLabel(task.dueDate, today)}`)}</span>`);
+    if (task.plannedDate) metadata.push(`<span>Planned ${esc(relativeDateLabel(task.plannedDate, today))}</span>`);
+    if (task.priority && task.priority !== 'none') metadata.push(`<span>${priorityIcon(task.priority)}${esc(priorityLabel(task.priority))} priority</span>`);
+    const subtasks = [...(task.subtasks || [])].sort((a, b) => clampOrder(a.order) - clampOrder(b.order));
+    const completed = subtasks.filter(subtask => subtask.isCompleted).length;
+    return modalFrame(`<div class="modal-inner focus-modal">
+      <div class="modal-header"><div><p class="focus-kicker">Focus mode</p><h2 class="modal-title">${esc(task.title)}</h2></div><button class="btn-icon" type="button" data-action="close-modal" aria-label="Exit focus mode"><i class="ph ph-x"></i></button></div>
+      ${metadata.length ? `<div class="focus-meta">${metadata.join('<span class="separator">·</span>')}</div>` : ''}
+      ${task.notes ? `<p class="focus-notes">${esc(task.notes)}</p>` : ''}
+      ${subtasks.length ? `<section class="focus-subtasks"><div class="detail-heading"><span>Subtasks</span><span>${completed} / ${subtasks.length}</span></div><div class="subtask-list">${subtasks.map(subtask => `<div class="subtask-row ${subtask.isCompleted ? 'is-completed' : ''}"><span class="complete-control ${subtask.isCompleted ? 'is-completed' : ''}">${subtask.isCompleted ? '<i class="ph ph-check"></i>' : ''}</span><span class="subtask-title">${esc(subtask.title)}</span></div>`).join('')}</div></section>` : ''}
+      <div class="modal-footer"><button class="btn btn-ghost" type="button" data-action="close-modal">Exit</button><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="focus-next" data-task-id="${esc(task.id)}">Next task</button><button class="btn btn-secondary" type="button" data-action="focus-open-details" data-task-id="${esc(task.id)}">Open details</button><button class="btn btn-secondary" type="button" data-action="focus-tomorrow" data-task-id="${esc(task.id)}">Tomorrow</button><button class="btn btn-primary" type="button" data-action="focus-complete" data-task-id="${esc(task.id)}"><i class="ph ph-check"></i> Complete</button></div></div>
+    </div>`, 'focus-modal');
   }
 
   const TEMPLATE_TYPES = ['task','project','habit','goal'];
@@ -3107,6 +3162,11 @@
     else if (action === 'toggle-sidebar') { state.ui.sidebarCollapsed = !state.ui.sidebarCollapsed; saveAndRender(); }
     else if (action === 'quick-add') openQuickAdd({ projectId: el.dataset.projectId || null, areaId: el.dataset.areaId || null, today: el.dataset.today === 'true', anytime: el.dataset.anytime === 'true' });
     else if (action === 'open-task') openTaskDetail(el.dataset.taskId);
+    else if (action === 'open-focus') openFocusMode();
+    else if (action === 'focus-complete') completeFocusTask(el.dataset.taskId);
+    else if (action === 'focus-tomorrow') { moveTaskToTomorrow(el.dataset.taskId); if (modalState?.type === 'focus') focusNextTask(el.dataset.taskId); }
+    else if (action === 'focus-open-details') openTaskDetail(el.dataset.taskId);
+    else if (action === 'focus-next') focusNextTask(el.dataset.taskId);
     else if (action === 'toggle-complete') toggleComplete(el.dataset.taskId);
     else if (action === 'open-search') openSearch();
     else if (action === 'delete-draft-goal-milestone') deleteDraftGoalMilestone(el.dataset.milestoneId);
