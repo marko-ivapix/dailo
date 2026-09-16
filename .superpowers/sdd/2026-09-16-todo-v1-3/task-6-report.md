@@ -151,3 +151,10 @@ Result: exit code 0; stdout/stderr empty. Its 3 V1.2 isolated browser scripts pa
 node --check js/core.js && node --check js/app.js && git diff --check
 Result: exit code 0.
 ```
+
+## Controller final fix-2 verification at `7ca9b50`
+
+- `node --test tests/core.test.js tests/core-v1-3.test.js tests/storage-v1-3.test.js`: actual exit code 0; 52 pass, 0 fail/cancelled/skipped/todo.
+- `.venv/bin/python tests/ui-v1-3-habits-calendar.py`: actual completed exit code 0 (exec session `43133`); stdout/stderr empty. The earlier `73353d5` failing run is superseded only by this tested fix, not erased.
+
+Scoped review is still required before Task 6 is marked complete.
