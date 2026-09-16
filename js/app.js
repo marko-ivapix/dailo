@@ -19,6 +19,7 @@
   let state = null;
   let recovery = null;
   let startupPromise = null;
+  const startupQueue = [];
   let storageError = false;
   let modalState = null;
   let popoverEl = null;
@@ -239,20 +240,28 @@
     return next;
   }
 
-  async function loadState(incomingRaw) {
+  async function loadState(incoming, sourceRetries = 0) {
     recovery = 'migration-loading';
     state = null;
     let preparingStorage = false;
     try {
       const sourceAtStart = localStorage.getItem(STORAGE_KEY);
-      const raw = incomingRaw === undefined ? sourceAtStart : incomingRaw;
+      // Real events must still identify the current source. Synthetic events deliberately
+      // override an unchanged source (the established test/embedding newValue contract).
+      const currentIncoming = incoming && incoming.source === sourceAtStart
+        && (incoming.synthetic || incoming.raw === sourceAtStart);
+      const raw = currentIncoming ? incoming.raw : sourceAtStart;
       if (!raw) {
         preparingStorage = true;
         await TodoStorage.open();
+        if (localStorage.getItem(STORAGE_KEY) !== sourceAtStart) {
+          if (sourceRetries < 3) return loadState(undefined, sourceRetries + 1);
+          throw new Error('Local data keeps changing in another tab; retry migration.');
+        }
         recovery = null;
         state = createSampleState();
         saveState();
-        return;
+        return localStorage.getItem(STORAGE_KEY);
       }
       const parsed = JSON.parse(raw);
       const migration = Core.migrateStateV3(parsed);
@@ -266,18 +275,28 @@
       const snapshotId = await TodoStorage.prepareMigration(raw, prepared, migration.migrated);
       const validation = Core.validateStateV3(prepared);
       if (!validation.ok) throw new Error(validation.reason);
-      if (localStorage.getItem(STORAGE_KEY) !== sourceAtStart) throw new Error('Local data changed in another tab; retry migration.');
+      if (localStorage.getItem(STORAGE_KEY) !== sourceAtStart) {
+        if (sourceRetries < 3) return loadState(undefined, sourceRetries + 1);
+        throw new Error('Local data keeps changing in another tab; retry migration.');
+      }
+      let committedSource = sourceAtStart;
       if (migration.migrated) {
         const persisted = { ...prepared };
         delete persisted.habitLogCache;
         delete persisted.habitMetrics;
         localStorage.setItem(STORAGE_KEY, JSON.stringify(persisted));
+        committedSource = localStorage.getItem(STORAGE_KEY);
       }
-      recovery = null;
-      state = prepared;
       // Snapshot removal is post-commit housekeeping, not part of migration success.
       try { await TodoStorage.finishMigration(snapshotId); }
       catch (error) { console.warn('Migration complete; safety snapshot cleanup will retry on reload.', error); }
+      if (localStorage.getItem(STORAGE_KEY) !== committedSource) {
+        if (sourceRetries < 3) return loadState(undefined, sourceRetries + 1);
+        throw new Error('Local data keeps changing in another tab; retry migration.');
+      }
+      recovery = null;
+      state = prepared;
+      return committedSource;
     } catch (error) {
       console.error(error);
       recovery = preparingStorage ? 'migration-error' : error && error.message === 'unsupported-version' ? 'unsupported-version' : 'corrupted-data';
@@ -2781,7 +2800,10 @@
     window.addEventListener('storage', event => {
       if (event.key !== STORAGE_KEY || !event.newValue) return;
       try {
-        if (Core.migrateStateV3(JSON.parse(event.newValue)).ok) startReady(event.newValue);
+        const source = localStorage.getItem(STORAGE_KEY);
+        if (Core.migrateStateV3(JSON.parse(event.newValue)).ok) {
+          startReady({ raw: event.newValue, source, synthetic: !event.isTrusted });
+        }
       } catch (_) { /* keep current tab data for malformed external state */ }
     });
     window.addEventListener('pagehide', () => { flushTaskDraft(); flushTextSave(); saveState(); });
@@ -2789,18 +2811,43 @@
     window.addEventListener('focus', checkReminders);
   }
 
-  function startReady(incomingRaw) {
-    if (startupPromise) return incomingRaw === undefined ? startupPromise : startupPromise.then(() => startReady(incomingRaw));
-    startupPromise = (async () => {
-      const loading = loadState(incomingRaw);
-      render();
-      await loading;
-      render();
-      if (!state) return;
-      try { await refreshHabitMetrics(); await evaluateHabitBoundaries(); render(); checkReminders(); } catch (error) { console.error(error); }
-      if (Attachments) await Attachments.cleanupExpired(nowIso()).catch(console.error);
-    })().finally(() => { startupPromise = null; });
-    return startupPromise;
+  async function drainReady(resolve, reject) {
+    let failure = null;
+    try {
+      while (startupQueue.length) {
+        const loading = loadState(startupQueue.shift());
+        render();
+        const committedSource = await loading;
+        render();
+        if (!state) continue;
+        try { await refreshHabitMetrics(); await evaluateHabitBoundaries(); } catch (error) { console.error(error); }
+        // Hydration yields too: do not let reminders save an obsolete exposed state.
+        if (localStorage.getItem(STORAGE_KEY) !== committedSource) {
+          state = null;
+          recovery = 'migration-loading';
+          startupQueue.unshift(undefined);
+          continue;
+        }
+        render();
+        checkReminders();
+        if (Attachments) await Attachments.cleanupExpired(nowIso()).catch(console.error);
+      }
+    } catch (error) { failure = error; }
+    // Clear and settle atomically, without a detached then/finally interval losing new work.
+    startupPromise = null;
+    if (failure) reject(failure);
+    else resolve();
+  }
+
+  function startReady(incoming) {
+    if (startupPromise && incoming === undefined) return startupPromise;
+    startupQueue.push(incoming);
+    if (startupPromise) return startupPromise;
+    let resolve, reject;
+    const published = new Promise((done, fail) => { resolve = done; reject = fail; });
+    startupPromise = published;
+    drainReady(resolve, reject);
+    return published;
   }
 
   async function init() {

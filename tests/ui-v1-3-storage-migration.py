@@ -88,6 +88,23 @@ FAILURE = """mode => {
   };
 }"""
 
+DEFER_OPEN = """(() => {
+  window.deferredLoads = [];
+  window.receivedStorage = [];
+  window.addEventListener('storage', e => window.receivedStorage.push(JSON.parse(e.newValue).tasks[0].title));
+  for (const name of ['open','prepareMigration']) {
+    const original = TodoStorage[name];
+    TodoStorage[name] = async (...args) => {
+      if (!window.releaseFutureLoads) await new Promise(resolve => window.deferredLoads.push(resolve));
+      return original(...args);
+    };
+  }
+  window.releaseAllLoads = () => {
+    window.releaseFutureLoads = true;
+    window.deferredLoads.splice(0).forEach(resolve => resolve());
+  };
+})();"""
+
 
 class MigrationTests(unittest.TestCase):
     def run(self, result=None):
@@ -119,6 +136,117 @@ class MigrationTests(unittest.TestCase):
           const r = await TodoAttachments.get(id);
           return r ? {id:r.id, taskId:r.taskId, type:r.blob.type, bytes:[...new Uint8Array(await r.blob.arrayBuffer())]} : null;
         }""", attachment_id)
+
+    def deferred_boot(self, empty=False):
+        if empty:
+            self.page.evaluate("localStorage.removeItem('todoAppData')")
+        storage = (ROOT / 'js/storage.js').read_text()
+        self.page.route('**/js/storage.js', lambda route: route.fulfill(body=storage + DEFER_OPEN, content_type='text/javascript'))
+        self.page.goto(self.origin + '/index.html')
+        self.page.wait_for_function('window.deferredLoads?.length === 1')
+        writer = self.context.new_page()
+        writer.route('**/seed.html', lambda route: route.fulfill(body='<html></html>', content_type='text/html'))
+        writer.goto(self.origin + '/seed.html')
+        return writer
+
+    def write_incoming(self, writer, title, version=2):
+        data = json.loads(RAW)
+        data['tasks'][0]['title'] = title
+        if version == 3:
+            writer.add_script_tag(url=self.origin + '/js/core.js')
+            data = writer.evaluate('data => TodoCore.migrateStateV3(data).state', data)
+        writer.evaluate("data => localStorage.setItem('todoAppData',JSON.stringify(data))", data)
+        self.page.wait_for_function('title => window.receivedStorage.includes(title)', arg=title)
+        return writer.evaluate("localStorage.getItem('todoAppData')")
+
+    def test_queued_obsolete_v2_event_cannot_overwrite_newest_source(self):
+        self.check_obsolete_queue(2)
+
+    def test_queued_obsolete_v3_event_cannot_expose_over_newest_source(self):
+        self.check_obsolete_queue(3)
+
+    def check_obsolete_queue(self, version):
+        writer = self.deferred_boot()
+        self.write_incoming(writer, 'Queued B', version)
+        newest_raw = self.write_incoming(writer, 'Newest C', 3)
+        self.page.evaluate('''() => {
+          window.exposedTitles = [];
+          const observer = new MutationObserver(() => {
+            if (TodoApp.state) window.exposedTitles.push(TodoApp.state.tasks[0].title);
+          });
+          observer.observe(document.querySelector('#app'), {subtree:true,childList:true});
+          window.releaseAllLoads();
+        }''')
+        self.page.evaluate('TodoApp.ready')
+        self.assertEqual(self.page.evaluate("localStorage.getItem('todoAppData')"), newest_raw)
+        self.assertEqual(self.page.evaluate("JSON.parse(localStorage.getItem('todoAppData')).tasks[0].title"), 'Newest C')
+        self.assertEqual(self.page.evaluate('TodoApp.state?.tasks[0].title'), 'Newest C')
+        self.assertNotIn('Queued B', self.page.evaluate('window.exposedTitles'))
+        self.page.evaluate("window.dispatchEvent(new Event('pagehide'))")
+        self.assertEqual(self.page.evaluate("JSON.parse(localStorage.getItem('todoAppData')).tasks[0].title"), 'Newest C')
+
+    def test_delayed_empty_startup_cannot_overwrite_new_source(self):
+        writer = self.deferred_boot(empty=True)
+        created_raw = self.write_incoming(writer, 'Created during open', 3)
+        self.page.evaluate('window.releaseAllLoads()')
+        self.page.evaluate('TodoApp.ready')
+        self.assertEqual(self.page.evaluate("localStorage.getItem('todoAppData')"), created_raw)
+        self.assertEqual(self.page.evaluate("JSON.parse(localStorage.getItem('todoAppData')).tasks[0].title"), 'Created during open')
+        self.assertEqual(self.page.evaluate('TodoApp.state?.tasks[0].title'), 'Created during open')
+
+    def test_ready_waits_for_queued_migration_and_hydration(self):
+        writer = self.deferred_boot(empty=True)
+        self.write_incoming(writer, 'Incoming B')
+        self.page.evaluate('''() => {
+          window.queueReadyResult = null;
+          TodoApp.ready.then(() => {
+            window.queueReadyResult = {
+              title: TodoApp.state?.tasks[0]?.title,
+              hydrated: !!TodoApp.state?.habitLogCache,
+              bytesReady: !!TodoApp.state?.habitMetrics
+            };
+          });
+          window.releaseAllLoads();
+        }''')
+        self.page.wait_for_function('window.queueReadyResult !== null')
+        self.assertEqual(self.page.evaluate('window.queueReadyResult'),
+                         {'title': 'Incoming B', 'hydrated': True, 'bytesReady': True})
+        self.assertEqual(self.blob()['bytes'], [0, 255, 17, 128, 42])
+
+    def test_native_v1_legacy_blob_startup_preserves_original_metadata(self):
+        original = json.loads(RAW)
+        original['version'] = 1
+        self.page.evaluate("raw => localStorage.setItem('todoAppData',raw)", json.dumps(original, indent=2))
+        self.boot()
+        self.assertEqual(self.page.evaluate('TodoApp.state.version'), 3)
+        for key, value in original['tasks'][0].items():
+            self.assertEqual(self.page.evaluate('key => TodoApp.state.tasks[0][key]', key), value, key)
+        for collection in ['projects', 'tags']:
+            for key, value in original[collection][0].items():
+                self.assertEqual(self.page.evaluate('([collection,key]) => TodoApp.state[collection][0][key]', [collection, key]), value, key)
+        for collection in ['settings', 'ui']:
+            for key, value in original[collection].items():
+                self.assertEqual(self.page.evaluate('([collection,key]) => TodoApp.state[collection][key]', [collection, key]), value, key)
+        self.assertEqual(self.page.evaluate('''() => {
+          const t = TodoApp.state.tasks[0];
+          return {areaId:t.areaId,goalIds:t.goalIds,plannedTime:t.plannedTime,dueTime:t.dueTime};
+        }'''), {'areaId': None, 'goalIds': [], 'plannedTime': None, 'dueTime': None})
+        for collection in ['areas', 'goals', 'habits', 'templates', 'savedViews']:
+            self.assertEqual(self.page.evaluate('collection => TodoApp.state[collection]', collection), [])
+        self.assertEqual(self.blob()['bytes'], [0, 255, 17, 128, 42])
+        self.assertEqual(self.blob()['type'], 'application/x-migration-test')
+
+    def test_synthetic_v3_new_value_deliberately_overrides_unchanged_source(self):
+        self.boot()
+        self.page.evaluate('''() => {
+          const incoming = JSON.parse(localStorage.getItem('todoAppData'));
+          incoming.tasks[0].title = 'Synthetic V3 override';
+          window.dispatchEvent(new StorageEvent('storage', {key:'todoAppData',newValue:JSON.stringify(incoming)}));
+        }''')
+        self.page.evaluate('TodoApp.ready')
+        self.assertEqual(self.page.evaluate('TodoApp.state.tasks[0].title'), 'Synthetic V3 override')
+        self.page.evaluate("window.dispatchEvent(new Event('pagehide'))")
+        self.assertEqual(self.page.evaluate("JSON.parse(localStorage.getItem('todoAppData')).tasks[0].title"), 'Synthetic V3 override')
 
     def test_automatic_legacy_blob_startup(self):
         self.boot()
