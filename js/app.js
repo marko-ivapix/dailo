@@ -780,14 +780,23 @@
     const today = Core.dateOnly();
     const sections = Core.deriveTodayV3(state, Object.values(state.habitLogCache || {}).flat(), today);
     const total = sections.today.length;
-    let html = pageHeader('Today', `${formatPageToday(today)}${total ? ` · ${total} ${total === 1 ? 'task' : 'tasks'}` : ''}`, { contextToday: true });
+    const goalCount = sections.goals.length + sections.overdueGoals.length;
+    const overdueCount = sections.overdue.length + sections.overdueMilestones.length + sections.overdueGoals.length;
+    const contextCounts = [
+      total && `${total} ${total === 1 ? 'task' : 'tasks'} planned`,
+      sections.habits.length && `${sections.habits.length} ${sections.habits.length === 1 ? 'routine' : 'routines'}`,
+      goalCount && `${goalCount} ${goalCount === 1 ? 'goal' : 'goals'}`,
+      overdueCount && `${overdueCount} overdue`,
+    ].filter(Boolean).join(' · ');
+    let html = pageHeader('Today', '', { contextToday: true });
+    html += `<div class="today-context" data-today-context="true"><span class="today-context-date"><i class="ph ph-calendar-blank"></i>${esc(formatPageToday(today))}</span>${contextCounts ? `<span class="today-context-summary">${esc(contextCounts)}</span>` : ''}</div>`;
 
     if (sections.overdue.length) {
-      html += `<section class="section"><div class="section-header"><h2 class="section-label danger">Overdue Tasks</h2><span class="section-count">${sections.overdue.length}</span></div><div class="task-list">${sections.overdue.map(t => taskRow(t, 'today', { overdue: true })).join('')}</div></section>`;
+      html += `<section class="section today-section today-section--overdue" data-today-section="overdue-tasks"><div class="section-header"><h2 class="section-label danger">Overdue Tasks</h2><span class="section-count">${sections.overdue.length}</span></div><div class="task-list">${sections.overdue.map(t => taskRow(t, 'today', { overdue: true })).join('')}</div></section>`;
     }
 
     if (sections.today.length || sections.suggestions.length) {
-      html += `<section class="section"><div class="section-header"><h2 class="section-label">Tasks</h2><span class="section-count">${sections.today.length}</span></div>`;
+      html += `<section class="section today-section today-section--tasks" data-today-section="tasks"><div class="section-header"><h2 class="section-label">Tasks</h2><span class="section-count">${sections.today.length}</span></div>`;
       if (sections.today.length) html += `<div class="task-list" data-list-context="today">${sections.today.map(t => taskRow(t, 'today', { draggable: true })).join('')}</div>`;
       html += `<button class="inline-add" type="button" data-action="quick-add" data-today="true"><i class="ph ph-plus"></i> Add task</button>`;
       if (sections.suggestions.length) {
@@ -798,16 +807,16 @@
       }
       html += `</section>`;
     }
-    if (sections.habits.length) html += `<section class="section"><div class="section-header"><h2 class="section-label">Habits</h2><span class="section-count">${sections.habits.length}</span></div><div class="habit-list">${sections.habits.map(item => renderHabitRow(item.habit, item.status)).join('')}</div></section>`;
-    if (sections.overdueMilestones.length) html += `<section class="section"><div class="section-header"><h2 class="section-label danger">Overdue Milestones</h2><span class="section-count">${sections.overdueMilestones.length}</span></div><div class="milestone-list">${sections.overdueMilestones.map(({ goal, milestone }) => `<div class="milestone-row"><button class="task-check" type="button" data-action="toggle-milestone" data-goal-id="${esc(goal.id)}" data-milestone-id="${esc(milestone.id)}" aria-label="Complete milestone"><i class="ph ph-circle"></i></button><button class="btn btn-ghost" type="button" data-route="goal/${esc(goal.id)}">${esc(milestone.title)} · ${esc(goal.title)}</button><small>${esc(relativeDateLabel(milestone.date))}</small></div>`).join('')}</div></section>`;
+    if (sections.habits.length) html += `<section class="section today-section today-section--habits" data-today-section="habits"><div class="section-header"><h2 class="section-label">Habits</h2><span class="section-count">${sections.habits.length}</span></div><div class="habit-list">${sections.habits.map(item => renderHabitRow(item.habit, item.status)).join('')}</div></section>`;
+    if (sections.overdueMilestones.length) html += `<section class="section today-section today-section--overdue" data-today-section="overdue-milestones"><div class="section-header"><h2 class="section-label danger">Overdue Milestones</h2><span class="section-count">${sections.overdueMilestones.length}</span></div><div class="milestone-list">${sections.overdueMilestones.map(({ goal, milestone }) => `<div class="milestone-row"><button class="task-check" type="button" data-action="toggle-milestone" data-goal-id="${esc(goal.id)}" data-milestone-id="${esc(milestone.id)}" aria-label="Complete milestone"><i class="ph ph-circle"></i></button><button class="btn btn-ghost" type="button" data-route="goal/${esc(goal.id)}">${esc(milestone.title)} · ${esc(goal.title)}</button><small>${esc(relativeDateLabel(milestone.date))}</small></div>`).join('')}</div></section>`;
     for (const [label, goals, danger] of [['Overdue Goals', sections.overdueGoals, true], ['Goals', sections.goals, false]]) {
-      if (goals.length) html += `<section class="section"><div class="section-header"><h2 class="section-label${danger ? ' danger' : ''}">${label}</h2><span class="section-count">${goals.length}</span></div><div class="goal-list">${goals.map(renderGoalRow).join('')}</div></section>`;
+      if (goals.length) html += `<section class="section today-section today-section--${danger ? 'overdue' : 'goals'}" data-today-section="${danger ? 'overdue-goals' : 'goals'}"><div class="section-header"><h2 class="section-label${danger ? ' danger' : ''}">${label}</h2><span class="section-count">${goals.length}</span></div><div class="goal-list">${goals.map(renderGoalRow).join('')}</div></section>`;
     }
     if (!sections.today.length && !sections.overdue.length && !sections.habits.length && !sections.overdueMilestones.length && !sections.overdueGoals.length && !sections.goals.length && !sections.completed.length && !sections.suggestions.length) html += emptyState('Nothing planned for today.', 'Add a task when you are ready.', 'Add task', 'quick-add', { today: true });
 
     if (sections.completed.length) {
       const open = state.ui.todayCompletedExpanded;
-      html += `<section class="section"><button class="collapsible-trigger" type="button" data-action="toggle-today-completed" aria-expanded="${open}"><span class="left"><i class="ph ph-check-circle"></i> Completed</span><span>${sections.completed.length} <i class="ph ph-caret-${open ? 'up' : 'down'}"></i></span></button>`;
+      html += `<section class="section today-section today-section--completed" data-today-section="completed"><button class="collapsible-trigger" type="button" data-action="toggle-today-completed" aria-expanded="${open}"><span class="left"><i class="ph ph-check-circle"></i> Completed</span><span>${sections.completed.length} <i class="ph ph-caret-${open ? 'up' : 'down'}"></i></span></button>`;
       if (open) html += `<div class="task-list">${sections.completed.map(t => taskRow(t, 'completed')).join('')}</div>`;
       html += `</section>`;
     }
