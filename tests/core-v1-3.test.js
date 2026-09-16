@@ -2,6 +2,79 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const Core = require('../js/core.js');
 
+test('calendar merges same-day task dates and retains independent event times and object identity', () => {
+  const a = { id: 'a', title: 'A', plannedDate: '2026-10-28', plannedTime: '09:00', dueDate: '2026-10-30', dueTime: '17:00' };
+  const b = { id: 'b', title: 'B', plannedDate: '2026-10-29', plannedTime: '14:00', dueDate: '2026-10-29', dueTime: '18:00' };
+  const state = { tasks: [a, b], goals: [], habits: [] };
+  const planned = Core.deriveCalendarDay(state, [], '2026-10-28');
+  const due = Core.deriveCalendarDay(state, [], '2026-10-30');
+  const combined = Core.deriveCalendarDay(state, [], '2026-10-29');
+  assert.equal(planned.tasks[0].task, a);
+  assert.equal(due.tasks[0].task, a);
+  assert.equal(planned.tasks[0].kind, 'planned');
+  assert.equal(due.tasks[0].kind, 'due');
+  assert.equal(planned.timed[0].time, '09:00');
+  assert.equal(due.timed[0].time, '17:00');
+  assert.equal(combined.tasks.length, 1);
+  assert.equal(combined.tasks[0].kind, 'planned+due');
+  assert.equal(combined.tasks[0].task, b);
+  assert.equal(combined.timed[0].time, '14:00');
+});
+
+test('calendar week partitions all-day entries and sorts timed tasks chronologically without mutating state', () => {
+  const state = { tasks: [
+    { id: 'late', title: 'Late', plannedDate: '2026-10-29', plannedTime: '16:00' },
+    { id: 'all', title: 'All day', plannedDate: '2026-10-29' },
+    { id: 'early', title: 'Early', dueDate: '2026-10-29', dueTime: '08:00' },
+  ], goals: [{ id: 'g', title: 'Goal', targetDate: '2026-10-29', milestones: [{ id: 'm', title: 'Milestone', date: '2026-10-29' }] }],
+  habits: [{ id: 'h', name: 'Wednesday', status: 'active', frequencyType: 'weekdays', weekdays: [3], startDate: '2026-10-01' }] };
+  const before = JSON.stringify(state);
+  const week = Core.deriveCalendarWeek(state, [], '2026-10-26');
+  assert.deepEqual(week.map(day => day.date), ['2026-10-26', '2026-10-27', '2026-10-28', '2026-10-29', '2026-10-30', '2026-10-31', '2026-11-01']);
+  assert.deepEqual(week[3].timed.map(entry => entry.task.id), ['early', 'late']);
+  assert.deepEqual(week[3].allDay.map(entry => entry.type), ['task', 'goal', 'milestone']);
+  assert.equal(week[2].habits[0].habit.id, 'h');
+  assert.equal(week[3].habits.length, 0);
+  assert.equal(JSON.stringify(state), before);
+});
+
+test('calendar month summary uses actual leap-year and year-boundary dates with counts only', () => {
+  const state = { tasks: [{ id: 't', plannedDate: '2028-02-29', dueDate: '2028-02-29' }], habits: [], goals: [] };
+  const leap = Core.deriveCalendarMonthSummary(state, [], '2028-02');
+  assert.equal(leap.length, 29);
+  assert.equal(leap[0].date, '2028-02-01');
+  assert.equal(leap[28].date, '2028-02-29');
+  assert.deepEqual(leap[28].counts, { tasks: 1, habits: 0, goals: 0, milestones: 0 });
+  assert.equal('tasks' in leap[28], false);
+  assert.equal(Core.deriveCalendarMonthSummary(state, [], '2027-02').length, 28);
+  assert.equal(Core.deriveCalendarMonthSummary(state, [], '2026-12').at(-1).date, '2026-12-31');
+  assert.equal(Core.deriveCalendarMonthSummary(state, [], '2027-01')[0].date, '2027-01-01');
+});
+
+test('calendar visibility consistently filters day, week, and month without changing entities', () => {
+  const state = { tasks: [{ id: 't', plannedDate: '2026-10-29' }], habits: [], goals: [{ id: 'g', targetDate: '2026-10-29', milestones: [{ id: 'm', date: '2026-10-29' }] }], ui: { calendarVisibility: { tasks: false, goals: false, milestones: true, habits: true } } };
+  const day = Core.deriveCalendarDay(state, [], '2026-10-29');
+  assert.equal(day.tasks.length, 0);
+  assert.equal(day.goals.length, 0);
+  assert.equal(day.milestones.length, 1);
+  assert.equal(Core.deriveCalendarWeek(state, [], '2026-10-26')[3].allDay.length, 1);
+  assert.deepEqual(Core.deriveCalendarMonthSummary(state, [], '2026-10')[28].counts, { tasks: 0, habits: 0, goals: 0, milestones: 1 });
+});
+
+test('calendar is a literal date projection but Habits use only canonical active schedules and statuses', () => {
+  const state = { projects: [{ id: 'p', isArchived: true }], tasks: [{ id: 't', projectId: 'p', isCompleted: true, plannedDate: '2026-10-29' }],
+    goals: ['active', 'paused', 'completed', 'archived'].map(status => ({ id: status, status, targetDate: '2026-10-29', milestones: [{ id: `m-${status}`, date: '2026-10-29', isCompleted: true }] })),
+    habits: ['active', 'paused', 'archived'].map(status => ({ id: `h-${status}`, status, frequencyType: 'daily', startDate: '2026-10-01', trackingType: 'checkbox' })) };
+  const logs = [{ id: 'l', habitId: 'h-active', date: '2026-10-29', status: 'done' }];
+  const day = Core.deriveCalendarDay(state, logs, '2026-10-29');
+  assert.equal(day.tasks.length, 1);
+  assert.equal(day.goals.length, 4);
+  assert.equal(day.milestones.length, 4);
+  assert.deepEqual(day.habits.map(entry => entry.habit.id), ['h-active']);
+  assert.equal(day.habits[0].status.status, 'done');
+  assert.equal(Core.deriveCalendarDay(state, logs, '2026-10-30').habits[0].status.status, 'pending');
+});
+
 test('today v3 keeps task sections and adds scheduled habits, overdue milestones and goals', () => {
   const tasks = [
     { id: 'late', title: 'Late', dueDate: '2026-09-15' },

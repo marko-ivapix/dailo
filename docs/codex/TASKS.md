@@ -105,24 +105,24 @@ Full plan: `docs/superpowers/plans/2026-09-16-todo-v1-3.md`
 
 ## Phase 7 — Calendar
 
-- [ ] Calendar route.
-- [ ] Week view with seven columns.
-- [ ] All-day/timed ordering.
-- [ ] Task plannedTime and dueTime.
-- [ ] Planned and Due representations.
-- [ ] Same-day Planned+Due merged display.
-- [ ] Goals on targetDate.
-- [ ] Habits on scheduled dates.
-- [ ] Milestones on dated milestones.
-- [ ] Task date drag.
-- [ ] Goal target-date drag.
-- [ ] Habit non-draggable rule.
-- [ ] Month grid and true month navigation.
-- [ ] Month summary counts.
-- [ ] Day Detail.
-- [ ] Day Detail quick actions.
-- [ ] Calendar create Task/Goal/Habit.
-- [ ] Calendar visibility filters.
+- [x] Calendar route.
+- [x] Week view with seven columns.
+- [x] All-day/timed ordering.
+- [x] Task plannedTime and dueTime.
+- [x] Planned and Due representations.
+- [x] Same-day Planned+Due merged display.
+- [x] Goals on targetDate.
+- [x] Habits on scheduled dates.
+- [x] Milestones on dated milestones.
+- [x] Task date drag.
+- [x] Goal target-date drag.
+- [x] Habit non-draggable rule.
+- [x] Month grid and true month navigation.
+- [x] Month summary counts.
+- [x] Day Detail.
+- [x] Day Detail quick actions.
+- [x] Calendar create Task/Goal/Habit.
+- [x] Calendar visibility filters.
 
 ## Phase 8 — Templates
 

@@ -1,5 +1,8 @@
 from pathlib import Path
 import shutil
+from functools import partial
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+from threading import Thread
 
 from playwright.sync_api import sync_playwright
 
@@ -50,6 +53,288 @@ def boot(page, now='2026-10-31T20:00:00', seed=None):
     page.evaluate('TodoApp.ready')
 
 
+def native_calendar(browser):
+    """Real styled document and native IndexedDB in a disposable origin/context."""
+    class QuietHandler(SimpleHTTPRequestHandler):
+        def log_message(self, *_args):
+            pass
+    server = ThreadingHTTPServer(('127.0.0.1', 0), partial(QuietHandler, directory=str(ROOT)))
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    context = None
+    try:
+        context = browser.new_context(viewport={'width': 1440, 'height': 1000})
+        context.add_init_script('''{
+          const NativeDate = Date; let current = new NativeDate('2026-10-31T12:00:00').getTime();
+          window.Date = class extends NativeDate { constructor(...args) { super(...(args.length ? args : [current])); } static now() { return current; } };
+          window.__TODO_TEST_SET_NOW__ = value => { current = new NativeDate(value).getTime(); };
+        }''')
+        page = context.new_page()
+        errors = []
+        page.on('pageerror', lambda error: errors.append(str(error)))
+        url = f'http://127.0.0.1:{server.server_port}/index.html'
+        def ready():
+            page.wait_for_function('window.TodoApp && window.TodoStorage && TodoApp.ready')
+            page.evaluate('() => TodoApp.ready')
+            page.wait_for_selector('.page-title')
+        # Seed before any app pagehide saver exists; a same-tab reload of a
+        # live sample app would correctly persist its in-memory sample state.
+        page.goto(url.replace('/index.html', '/vendor/'), wait_until='domcontentloaded')
+        seed = seed_state()
+        seed['tasks'] = [
+            {'id': 'task-plan-due', 'title': 'Plan and deadline', 'plannedDate': '2026-10-28', 'plannedTime': '09:00', 'dueDate': '2026-10-30', 'dueTime': '17:00'},
+            {'id': 'task-same', 'title': 'Same day task', 'plannedDate': '2026-10-29', 'plannedTime': '14:00', 'dueDate': '2026-10-29', 'dueTime': '18:00'},
+            {'id': 'task-all-day', 'title': 'All day task', 'plannedDate': '2026-10-29'},
+            {'id': 'task-early', 'title': 'Early task', 'plannedDate': '2026-10-29', 'plannedTime': '08:00'},
+            {'id': 'task-late', 'title': 'Late task', 'plannedDate': '2026-10-29', 'plannedTime': '16:00'},
+        ]
+        seed['goals'] = [
+            {'id': 'goal-target', 'title': 'Target goal', 'status': 'active', 'targetDate': '2026-10-29', 'progressMode': 'manual', 'currentValue': 0},
+            {'id': 'goal-milestone', 'title': 'Milestone parent', 'status': 'active', 'milestones': [{'id': 'milestone-dated', 'title': 'Dated milestone', 'date': '2026-10-29', 'isCompleted': False}]},
+            {'id': 'goal-calendar-linked', 'title': 'Calendar linked goal', 'status': 'active', 'progressMode': 'linkedHabits', 'habitLinks': [{'habitId': 'habit-numeric', 'metric': 'totalCheckins', 'target': 1}]},
+        ]
+        seed['habits'] = [
+            {'id': 'habit-check', 'name': 'Wednesday check', 'status': 'active', 'frequencyType': 'weekdays', 'weekdays': [3], 'trackingType': 'checkbox', 'startDate': '2026-10-01'},
+            {'id': 'habit-numeric', 'name': 'Thursday numeric', 'status': 'active', 'frequencyType': 'weekdays', 'weekdays': [4], 'trackingType': 'numeric', 'targetValue': 2, 'quickValues': [0.5], 'startDate': '2026-10-01'},
+            {'id': 'weekly-native', 'name': 'Weekly native', 'status': 'active', 'frequencyType': 'timesPerWeek', 'timesPerWeek': 2, 'trackingType': 'checkbox', 'startDate': '2026-10-26'},
+            {'id': 'habit-paused', 'name': 'Paused invisible', 'status': 'paused', 'frequencyType': 'daily', 'trackingType': 'checkbox', 'startDate': '2026-10-01'},
+            {'id': 'habit-archived', 'name': 'Archived invisible', 'status': 'archived', 'frequencyType': 'daily', 'trackingType': 'checkbox', 'startDate': '2026-10-01'},
+        ]
+        seed['projects'] = [{'id': 'archived-project', 'name': 'Archived project', 'isArchived': True}]
+        seed['tasks'].append({'id': 'completed-calendar-task', 'title': 'Completed dated task', 'projectId': 'archived-project', 'isCompleted': True, 'completedAt': '2026-10-27T09:00:00', 'plannedDate': '2026-10-27'})
+        for status in ['paused', 'completed', 'archived']:
+            seed['goals'].append({'id': f'goal-{status}', 'title': f'{status} dated goal', 'status': status, 'targetDate': '2026-10-27', 'milestones': [{'id': f'milestone-{status}', 'title': f'{status} completed milestone', 'date': '2026-10-27', 'isCompleted': True}]})
+        page.evaluate('seed => localStorage.setItem("todoAppData", JSON.stringify(seed))', seed)
+        page.goto(url, wait_until='domcontentloaded')
+        ready()
+        assert page.evaluate('window.__TODO_TEST_MEMORY_DB__ === undefined')
+        assert page.locator('link[href="css/styles.css"]').count() == 1
+        page.click('[data-route="calendar"]')
+        page.wait_for_function('document.querySelector(".page-title").textContent === "Calendar"')
+        assert page.locator('.calendar-week > [data-calendar-date]').count() == 7
+        assert page.locator('.calendar-hour-slot').count() == 0
+        for column in page.locator('.calendar-week > [data-calendar-date]').all():
+            assert column.locator('.calendar-all-day').count() == 1
+            assert column.locator('.calendar-timed').count() == 1
+            assert column.evaluate('(el) => !!(el.querySelector(".calendar-all-day").compareDocumentPosition(el.querySelector(".calendar-timed")) & Node.DOCUMENT_POSITION_FOLLOWING)')
+        def cell(date):
+            return page.locator(f'#main [data-calendar-date="{date}"]')
+        def item(id, root=None):
+            return (root or page.locator('#main')).locator(f'[data-calendar-item-id="{id}"]')
+        assert cell('2026-10-29').count() == 1, page.evaluate('({today:TodoCore.dateOnly(), ui:TodoApp.state.ui, dates:[...document.querySelectorAll("[data-calendar-date]")].map(el => el.dataset.calendarDate)})')
+        assert item('task-all-day', cell('2026-10-29')).count() == 1, page.evaluate('TodoApp.state.tasks')
+        assert item('task-all-day', cell('2026-10-29')).locator('xpath=..').get_attribute('class') == 'calendar-all-day'
+        assert cell('2026-10-29').locator('.calendar-timed [data-calendar-item-id]').evaluate_all('(els) => els.map(el => el.dataset.calendarItemId)') == ['task-early', 'task-same', 'task-late']
+        assert '09:00' in item('task-plan-due', cell('2026-10-28')).inner_text()
+        assert '17:00' in item('task-plan-due', cell('2026-10-30')).inner_text()
+        assert item('task-same', cell('2026-10-29')).count() == 1
+        assert all(time in item('task-same').inner_text() for time in ['14:00', '18:00'])
+        assert item('habit-check', cell('2026-10-28')).count() == 1
+        assert item('habit-numeric', cell('2026-10-29')).count() == 1
+        assert item('goal-target', cell('2026-10-29')).count() == 1
+        assert item('milestone-dated', cell('2026-10-29')).count() == 1
+        assert item('completed-calendar-task', cell('2026-10-27')).get_attribute('class').endswith('is-completed')
+        assert item('habit-paused').count() == item('habit-archived').count() == 0
+        for status in ['paused', 'completed', 'archived']:
+            assert status in item(f'goal-{status}', cell('2026-10-27')).inner_text().lower()
+            assert 'Completed' in item(f'milestone-{status}', cell('2026-10-27')).inner_text()
+        for date in ['2026-10-28', '2026-10-30']:
+            item('task-plan-due', cell(date)).locator('[data-action="open-task"]').click()
+            assert page.locator('#detail-title').input_value() == 'Plan and deadline'
+            page.click('[data-action="close-modal"]')
+        screenshots = ROOT / '.superpowers/sdd/2026-09-16-todo-v1-3/calendar-screenshots'
+        screenshots.mkdir(exist_ok=True)
+        page.screenshot(path=str(screenshots / 'week.png'), full_page=True)
+        def drag(id, source_date, target_date):
+            source = item(id, cell(source_date))
+            transfer = page.evaluate_handle('new DataTransfer()')
+            try:
+                source.dispatch_event('dragstart', {'dataTransfer': transfer})
+                target = cell(target_date)
+                for event in ['dragenter', 'dragover', 'drop']:
+                    target.dispatch_event(event, {'dataTransfer': transfer})
+                page.locator('body').dispatch_event('dragend', {'dataTransfer': transfer})
+            finally:
+                transfer.dispose()
+        drag('task-plan-due', '2026-10-28', '2026-10-30')
+        page.wait_for_function('JSON.parse(localStorage.getItem("todoAppData")).tasks.find(t => t.id === "task-plan-due").plannedDate === "2026-10-30"')
+        assert page.evaluate('TodoApp.state.tasks.find(t => t.id === "task-plan-due").plannedTime') == '09:00'
+        assert item('task-plan-due', cell('2026-10-30')).count() == 1
+        assert all(time in item('task-plan-due').inner_text() for time in ['09:00', '17:00'])
+        drag('goal-target', '2026-10-29', '2026-10-30')
+        page.wait_for_function('TodoApp.state.goals.find(g => g.id === "goal-target").targetDate === "2026-10-30"')
+        assert item('goal-target', cell('2026-10-30')).count() == 1
+        assert item('habit-check').get_attribute('draggable') != 'true'
+        schedule = page.evaluate('TodoApp.state.habits.find(h => h.id === "habit-check")')
+        drag('habit-check', '2026-10-28', '2026-10-30')
+        assert page.evaluate('TodoApp.state.habits.find(h => h.id === "habit-check")') == schedule
+        # Independent optional time fields are editable, clearable and durable.
+        item('task-same').locator('[data-action="open-task"]').click()
+        page.fill('#detail-planned-time', '13:30')
+        page.locator('#detail-planned-time').dispatch_event('change')
+        page.fill('#detail-due-time', '19:00')
+        page.locator('#detail-due-time').dispatch_event('change')
+        page.fill('#detail-due-time', '')
+        page.locator('#detail-due-time').dispatch_event('change')
+        assert page.evaluate('TodoApp.state.tasks.find(t => t.id === "task-same").dueTime') is None
+        assert page.evaluate('TodoApp.state.tasks.find(t => t.id === "task-same").plannedTime') == '13:30'
+        page.fill('#detail-due-time', '19:00')
+        page.locator('#detail-due-time').dispatch_event('change')
+        page.click('[data-action="close-modal"]')
+        assert all(time in item('task-same').inner_text() for time in ['13:30', '19:00'])
+        page.click('[data-action="calendar-view"][data-view="month"]')
+        for label, first, last in [('October 2026', '2026-10-01', '2026-10-31'), ('November 2026', '2026-11-01', '2026-11-30'), ('December 2026', '2026-12-01', '2026-12-31'), ('January 2027', '2027-01-01', '2027-01-31'), ('February 2027', '2027-02-01', '2027-02-28')]:
+            assert page.locator('.calendar-period').inner_text() == label
+            dates = page.locator('.calendar-month [data-calendar-date]').evaluate_all('(els) => els.map(el => el.dataset.calendarDate)')
+            assert dates[0] == first and dates[-1] == last
+            if label != 'February 2027':
+                page.click('[data-action="calendar-next"]')
+        for _ in range(4):
+            page.click('[data-action="calendar-prev"]')
+        assert '4 tasks' in cell('2026-10-29').inner_text()
+        assert '1 milestone' in cell('2026-10-29').inner_text()
+        assert '2 habits' in cell('2026-10-29').inner_text()
+        assert cell('2026-10-29').locator('[data-calendar-item-id]').count() == 0
+        assert 'tasks' not in cell('2026-10-01').inner_text()
+        page.screenshot(path=str(screenshots / 'month.png'), full_page=True)
+        def detail(date):
+            cell(date).click()
+            page.wait_for_selector(f'.calendar-day-detail[data-detail-date="{date}"]')
+            page.wait_for_function('document.activeElement?.dataset.action === "close-modal"')
+            assert date in page.locator('.calendar-day-detail .modal-title').inner_text()
+            return page.locator('.calendar-day-detail')
+        d = detail('2026-10-29')
+        assert page.locator('[data-action="close-modal"]').evaluate('(el) => el === document.activeElement')
+        d.locator('[data-action="calendar-new-habit"]').focus()
+        page.keyboard.press('Tab')
+        assert page.locator('[data-action="close-modal"]').evaluate('(el) => el === document.activeElement')
+        page.keyboard.press('Escape')
+        page.wait_for_function('document.activeElement?.dataset.calendarDate === "2026-10-29"')
+        d = detail('2026-10-29')
+        assert item('task-same', d).count() == 1
+        assert item('habit-numeric', d).count() == 1
+        assert item('milestone-dated', d).count() == 1
+        page.screenshot(path=str(screenshots / 'day-detail.png'), full_page=True, animations='disabled')
+        item('task-same', d).locator('[data-action="toggle-complete"]').click()
+        assert page.evaluate('TodoApp.state.tasks.find(t => t.id === "task-same").isCompleted')
+        item('task-all-day', d).locator('[data-action="calendar-task-move"]').click()
+        page.click('[data-pop-action="show-custom-date"]')
+        page.fill('#custom-date-input', '2026-10-30')
+        page.click('[data-pop-action="custom-date-apply"]')
+        assert page.evaluate('TodoApp.state.tasks.find(t => t.id === "task-all-day").plannedDate') == '2026-10-30'
+        item('task-same', d).locator('.calendar-quick-actions [data-action="open-task"]').click()
+        assert page.locator('#detail-title').input_value() == 'Same day task'
+        page.keyboard.press('Escape')
+        d = detail('2026-10-28')
+        item('habit-check', d).locator('[data-action="calendar-habit-checkin"]').click()
+        page.wait_for_function('TodoApp.state.habitLogCache["habit-check"]?.some(log => log.date === "2026-10-28" && log.status === "done")')
+        page.keyboard.press('Escape')
+        page.wait_for_function('document.activeElement?.dataset.calendarDate === "2026-10-28"')
+        d = detail('2026-10-29')
+        item('habit-numeric', d).locator('[data-action="calendar-habit-add"]').click()
+        page.wait_for_function('TodoApp.state.habitLogCache["habit-numeric"]?.[0].value === 0.5')
+        assert '0.5 / 2' in item('habit-numeric', d).inner_text()
+        item('habit-numeric', d).locator('[data-action="calendar-habit-edit"]').click()
+        page.fill('#calendar-habit-value', '1.5')
+        page.click('[data-action="calendar-save-habit-value"]')
+        page.wait_for_function('TodoApp.state.habitLogCache["habit-numeric"]?.[0].value === 1.5')
+        item('habit-numeric', d).locator('.calendar-quick-actions [data-route="habit/habit-numeric"]').click()
+        page.wait_for_selector('.habit-detail-card')
+        page.click('[data-route="calendar"]')
+        d = detail('2026-10-30')
+        item('goal-target', d).locator('[data-action="calendar-goal-progress"]').click()
+        page.fill('#goal-current-value', '40')
+        page.click('[data-action="save-goal-progress"]')
+        assert page.evaluate('TodoApp.state.goals.find(g => g.id === "goal-target").currentValue') == 40
+        page.keyboard.press('Escape')
+        d = detail('2026-10-30')
+        item('goal-target', d).locator('.calendar-quick-actions [data-route="goal/goal-target"]').click()
+        page.wait_for_function('document.querySelector(".page-title").textContent === "Target goal"')
+        page.click('[data-route="calendar"]')
+        d = detail('2026-10-29')
+        item('milestone-dated', d).locator('[data-action="toggle-milestone"]').click()
+        assert page.evaluate('TodoApp.state.goals.find(g => g.id === "goal-milestone").milestones[0].isCompleted')
+        item('milestone-dated', d).locator('.calendar-quick-actions [data-route="goal/goal-milestone"]').click()
+        page.wait_for_function('document.querySelector(".page-title").textContent === "Milestone parent"')
+        page.click('[data-route="calendar"]')
+        # Every creation uses the selected date, including dates beyond today.
+        for kind, title, field, save in [('task', 'Calendar created task', '#quick-title', 'create-task'), ('goal', 'Calendar created goal', '#goal-title', 'save-goal'), ('habit', 'Calendar created habit', '#habit-name', 'save-habit')]:
+            d = detail('2026-10-31')
+            d.locator(f'[data-action="calendar-new-{kind}"]').click()
+            page.fill(field, title)
+            if kind == 'goal':
+                assert page.locator('#goal-target-date').input_value() == '2026-10-31'
+            if kind == 'habit':
+                page.click('[data-action="toggle-habit-more"]')
+                assert page.locator('#habit-start-date').input_value() == '2026-10-31'
+            page.click(f'[data-action="{save}"]')
+            collection, name_key, date_key = {'task': ('tasks', 'title', 'plannedDate'), 'goal': ('goals', 'title', 'targetDate'), 'habit': ('habits', 'name', 'startDate')}[kind]
+            assert page.evaluate('([collection, key, title, dateKey]) => TodoApp.state[collection].find(x => x[key] === title)[dateKey]', [collection, name_key, title, date_key]) == '2026-10-31'
+            if kind != 'task':
+                page.click('[data-route="calendar"]')
+        # Toggle every type in Month, Day Detail and Week; preserve on reload.
+        for kind, fixture, date in [('tasks', 'task-same', '2026-10-29'), ('habits', 'habit-numeric', '2026-10-29'), ('goals', 'goal-target', '2026-10-30'), ('milestones', 'milestone-dated', '2026-10-29')]:
+            page.locator(f'[data-calendar-visibility="{kind}"]').uncheck()
+            assert kind.rstrip('s') not in cell(date).locator('.calendar-counts').inner_text()
+            d = detail(date)
+            assert item(fixture, d).count() == 0
+            page.keyboard.press('Escape')
+            page.click('[data-action="calendar-view"][data-view="week"]')
+            assert item(fixture).count() == 0
+            page.click('[data-action="calendar-view"][data-view="month"]')
+            page.locator(f'[data-calendar-visibility="{kind}"]').check()
+        page.locator('[data-calendar-visibility="milestones"]').uncheck()
+        page.reload(wait_until='domcontentloaded')
+        ready()
+        assert not page.locator('[data-calendar-visibility="milestones"]').is_checked()
+        assert page.evaluate('TodoApp.state.tasks.find(t => t.id === "task-same").plannedTime') == '13:30'
+        assert page.evaluate('TodoApp.state.tasks.find(t => t.id === "task-same").dueTime') == '19:00'
+        assert page.evaluate('TodoApp.state.tasks.find(t => t.id === "task-all-day").plannedTime') is None
+        assert page.evaluate('async () => (await TodoStorage.habitLogs.listByHabit("habit-check"))[0].status') == 'done'
+        assert page.evaluate('async () => (await TodoStorage.habitLogs.listByHabit("habit-numeric"))[0].value') == 1.5
+        history = page.evaluate('async () => await TodoStorage.goalHistory.listByGoal("goal-target")')
+        assert any(h['type'] == 'targetDateChanged' and h['data'] == {'from': '2026-10-29', 'to': '2026-10-30'} for h in history)
+        assert any(h['type'] == 'progressChanged' and h['data']['to'] == 40 for h in history)
+        d = detail('2026-10-29')
+        item('habit-numeric', d).locator('[data-action="calendar-habit-edit"]').click()
+        page.fill('#calendar-habit-value', '2')
+        page.click('[data-action="calendar-save-habit-value"]')
+        page.wait_for_function('TodoApp.state.habitLogCache["habit-numeric"]?.[0].value === 2')
+        assert page.locator('.modal-title').inner_text() == 'Goal reached', page.evaluate('({progress:TodoCore.computeGoalProgress(TodoApp.state.goals.find(g => g.id === "goal-calendar-linked"),TodoApp.state,TodoApp.state.habitMetrics),metrics:TodoApp.state.habitMetrics["habit-numeric"],title:document.querySelector(".modal-title").textContent})')
+        page.get_by_role('button', name='Keep active', exact=True).click()
+        assert page.evaluate('TodoApp.state.goals.find(g => g.id === "goal-calendar-linked").status') == 'active'
+        page.locator('[data-calendar-visibility="milestones"]').check()
+        # February leap year and future scheduled Habit are shown but cannot check in.
+        page.evaluate('TodoApp.state.ui.calendarDate = "2028-02-01"; TodoApp.render()')
+        assert page.locator('.calendar-month [data-calendar-date]').count() == 29
+        assert cell('2028-02-29').count() == 1
+        d = detail('2028-02-03')
+        future = item('habit-numeric', d)
+        assert future.locator('[data-action="calendar-habit-add"]').is_disabled()
+        assert future.locator('[data-action="calendar-habit-edit"]').is_disabled()
+        assert page.evaluate('async () => await TodoApp.setHabitLog("habit-numeric", "2028-02-03", "done", 2)') is False
+        page.keyboard.press('Escape')
+        # Native prior-week logs survive the same date-boundary refresh and reload.
+        page.evaluate('''async () => { await TodoApp.setHabitLog('weekly-native','2026-10-27','done'); await TodoApp.setHabitLog('weekly-native','2026-10-28','done'); window.__TODO_TEST_SET_NOW__('2026-11-02T12:00:00'); await TodoApp.refreshHabitDateBoundary(); }''')
+        assert page.evaluate('TodoApp.state.habitMetrics["weekly-native"].currentPeriodCount') == 0
+        assert page.evaluate('async () => (await TodoStorage.habitLogs.listByHabit("weekly-native")).length') == 2
+        page.reload(wait_until='domcontentloaded')
+        ready()
+        page.evaluate("async () => { window.__TODO_TEST_SET_NOW__('2026-11-02T12:00:00'); await TodoApp.refreshHabitDateBoundary(); }")
+        assert page.evaluate('TodoApp.state.habitMetrics["weekly-native"].currentPeriodCount') == 0
+        assert page.evaluate('async () => (await TodoStorage.habitLogs.listByHabit("weekly-native")).length') == 2
+        assert errors == [], errors
+        print('PASS: 18 Calendar acceptance scenarios, independent time editor, future Habit guard, native Habit/Goal history reload, native weekly history retained')
+    finally:
+        try:
+            if context:
+                context.close()
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join()
+
+
 def main():
     executable = chromium_path()
     with sync_playwright() as p:
@@ -60,6 +345,7 @@ def main():
         browser = p.chromium.launch(**launch_args)
         context = browser.new_context(viewport={'width': 1440, 'height': 1000})
         try:
+            native_calendar(browser)
             planning = context.new_page()
             planning_seed = seed_state()
             planning_seed['tasks'] = [
@@ -371,6 +657,7 @@ def main():
             page.wait_for_timeout(40)
             assert page.evaluate("TodoApp.state.habitMetrics['weekly-reset'].currentPeriodCount") == 0
             assert page.evaluate("TodoApp.state.habitMetrics['weekly-reset'].currentPeriodTarget") == 4
+            assert page.evaluate("async () => (await TodoStorage.habitLogs.listByHabit('weekly-reset')).length") == 4
             assert '0 / 4 this week' in page.locator('.habit-detail-card').inner_text()
             page.click('[data-route="today"]')
             page.wait_for_function("document.querySelector('.page-title').textContent === 'Today'")

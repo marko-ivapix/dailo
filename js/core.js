@@ -133,6 +133,36 @@
     }));
   }
 
+  // Calendar projects dates, not active lists. Every entry retains its entity.
+  function deriveCalendarDay(state, habitLogs, date) {
+    const visibility = { tasks: true, habits: true, goals: true, milestones: true, ...(state.ui?.calendarVisibility || {}) };
+    const tasks = visibility.tasks ? (state.tasks || []).flatMap(task => {
+      const planned = task.plannedDate === date; const due = task.dueDate === date;
+      if (!planned && !due) return [];
+      return [{ type: 'task', task, kind: planned && due ? 'planned+due' : planned ? 'planned' : 'due', time: (planned ? task.plannedTime : task.dueTime) || (due ? task.dueTime : null) || null }];
+    }) : [];
+    const goals = visibility.goals ? (state.goals || []).filter(goal => goal.targetDate === date).map(goal => ({ type: 'goal', goal, time: null })) : [];
+    const milestones = visibility.milestones ? (state.goals || []).flatMap(goal => (goal.milestones || []).filter(milestone => milestone.date === date).map(milestone => ({ type: 'milestone', goal, milestone, time: null }))) : [];
+    const habits = visibility.habits ? (state.habits || []).filter(habit => habitScheduledOn(habit, date)).map(habit => ({ type: 'habit', habit, status: habitStatusForDate(habit, habitLogs, date), time: null })) : [];
+    const entries = [...tasks, ...habits, ...goals, ...milestones];
+    return { date, tasks, habits, goals, milestones, allDay: entries.filter(entry => !entry.time), timed: entries.filter(entry => entry.time).sort((a, b) => a.time.localeCompare(b.time)) };
+  }
+
+  function deriveCalendarWeek(state, habitLogs, weekStart) {
+    if (!parseDateOnly(weekStart)) return [];
+    return Array.from({ length: 7 }, (_, index) => deriveCalendarDay(state, habitLogs, addDays(weekStart, index)));
+  }
+
+  function deriveCalendarMonthSummary(state, habitLogs, month) {
+    const first = parseDateOnly(`${String(month).slice(0, 7)}-01`);
+    if (!first) return [];
+    const length = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
+    return Array.from({ length }, (_, index) => {
+      const day = deriveCalendarDay(state, habitLogs, addDays(dateOnly(first), index));
+      return { date: day.date, counts: { tasks: day.tasks.length, habits: day.habits.length, goals: day.goals.length, milestones: day.milestones.length } };
+    });
+  }
+
 
 
   function deriveAnytime(tasks) {
@@ -730,6 +760,9 @@
     deriveAnytime,
     deriveUpcoming,
     deriveUpcomingV3,
+    deriveCalendarDay,
+    deriveCalendarWeek,
+    deriveCalendarMonthSummary,
     nextRecurrenceDate,
     buildNextRecurringTask,
     isReminderDue,

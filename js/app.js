@@ -29,6 +29,7 @@
   let lastToday = Core.dateOnly();
   let dragState = null;
   let modalReturnFocus = null;
+  let calendarReturnDate = null;
 
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -106,6 +107,8 @@
         projectCompletedExpanded: {},
         completedProjectFilter: '',
         completedPeriod: 0,
+        calendarView: 'week',
+        calendarVisibility: { tasks: true, habits: true, goals: true, milestones: true },
       },
     };
   }
@@ -181,6 +184,8 @@
     next.ui.completedPeriod = Number(next.ui.completedPeriod) || 0;
     next.ui.selectedTagId = next.ui.selectedTagId || '';
     next.ui.areaTab = ['all', 'active', 'archived'].includes(next.ui.areaTab) ? next.ui.areaTab : 'all';
+    next.ui.calendarView = next.ui.calendarView === 'month' ? 'month' : 'week';
+    next.ui.calendarVisibility = Object.fromEntries(['tasks', 'habits', 'goals', 'milestones'].map(type => [type, next.ui.calendarVisibility?.[type] !== false]));
     next.tags = (next.tags || []).map((tag, i) => ({
       ...tag,
       id: tag.id || uid('tag'),
@@ -364,7 +369,7 @@
 
   function currentRoute() {
     const hash = location.hash.replace(/^#/, '') || 'today';
-    if (['today', 'inbox', 'upcoming', 'anytime', 'tags', 'areas', 'goals', 'habits', 'archived', 'completed', 'settings'].includes(hash)) return { type: hash };
+    if (['today', 'inbox', 'upcoming', 'calendar', 'anytime', 'tags', 'areas', 'goals', 'habits', 'archived', 'completed', 'settings'].includes(hash)) return { type: hash };
     if (hash.startsWith('project/')) {
       const id = decodeURIComponent(hash.slice('project/'.length));
       if (getProject(id)) return { type: 'project', id };
@@ -455,6 +460,7 @@
           ${navItem('today', 'ph-sun', 'Today', route.type === 'today', '', 'data-drop-plan="today"')}
           ${navItem('inbox', 'ph-tray', 'Inbox', route.type === 'inbox', inboxCount || '')}
           ${navItem('upcoming', 'ph-calendar-dots', 'Upcoming', route.type === 'upcoming')}
+          ${navItem('calendar', 'ph-calendar-blank', 'Calendar', route.type === 'calendar')}
           <div class="task-context-drop tomorrow-drop-target" data-drop-plan="tomorrow" aria-label="Drop task to plan for tomorrow"><i class="ph ph-arrow-bend-down-right"></i><span>Tomorrow</span></div>
         </nav>
 
@@ -507,6 +513,7 @@
     if (route.type === 'today') content = renderToday();
     else if (route.type === 'inbox') content = renderInbox();
     else if (route.type === 'upcoming') content = renderUpcoming();
+    else if (route.type === 'calendar') content = renderCalendar();
     else if (route.type === 'anytime') content = renderAnytime();
     else if (route.type === 'tags') content = renderTags();
     else if (route.type === 'areas') content = renderAreas();
@@ -520,7 +527,7 @@
     else if (route.type === 'completed') content = renderCompleted();
     else if (route.type === 'settings') content = renderSettings();
     else content = renderToday();
-    main.innerHTML = `${warning}<div class="content">${content}</div>`;
+    main.innerHTML = `${warning}<div class="content ${route.type === 'calendar' ? 'calendar-content' : ''}">${content}</div>`;
   }
 
   function pageHeader(title, subtitle, options = {}) {
@@ -534,6 +541,110 @@
         ${actionHtml}${projectMenu}${addButton}
       </div>
     </header>`;
+  }
+
+  function calendarLogs() {
+    return Object.values(state.habitLogCache || {}).flat();
+  }
+
+  function calendarDate() {
+    return Core.parseDateOnly(state.ui.calendarDate) ? state.ui.calendarDate : Core.dateOnly();
+  }
+
+  function calendarItem(entry, detail = false, date = calendarDate()) {
+    const { task, habit, goal, milestone } = entry;
+    const id = task?.id || habit?.id || milestone?.id || goal?.id;
+    const title = task?.title || habit?.name || milestone?.title || goal?.title;
+    const completed = task ? task.isCompleted : milestone ? milestone.isCompleted : goal?.status === 'completed';
+    const open = task ? `data-action="open-task" data-task-id="${esc(id)}"` : `data-route="${habit ? 'habit' : 'goal'}/${esc(habit ? id : goal.id)}"`;
+    const metadata = task ? [entry.kind.includes('planned') ? `Planned${task.plannedTime ? ` ${task.plannedTime}` : ''}` : '', entry.kind.includes('due') ? `Due${task.dueTime ? ` ${task.dueTime}` : ''}` : '', task.isCompleted ? 'Completed' : ''].filter(Boolean).join(' · ')
+      : habit ? `${habit.trackingType === 'numeric' ? `${entry.status.value || 0} / ${habit.targetValue} ${habit.unit || ''} · ` : ''}${entry.status.status}`
+      : milestone ? `Milestone · ${goal.title}${milestone.isCompleted ? ' · Completed' : ''}` : `Goal · ${goalStatusLabel(goal)} · ${goalProgressLabel(goal)}`;
+    let actions = '';
+    if (detail && task) actions = `<button class="quick-chip" type="button" data-action="toggle-complete" data-task-id="${esc(id)}">${task.isCompleted ? 'Reopen' : 'Complete'}</button><button class="quick-chip" type="button" data-action="calendar-task-move" data-task-id="${esc(id)}">Move</button>`;
+    if (detail && habit) {
+      const disabled = date > Core.dateOnly() ? 'disabled' : '';
+      actions = habit.trackingType === 'numeric' ? (habit.quickValues || []).map(value => `<button class="quick-chip" type="button" data-action="calendar-habit-add" data-habit-id="${esc(id)}" data-date="${date}" data-value="${value}" ${disabled}>+${value}</button>`).join('') + `<button class="quick-chip" type="button" data-action="calendar-habit-edit" data-habit-id="${esc(id)}" data-date="${date}" ${disabled}>Edit value</button>` : `<button class="quick-chip" type="button" data-action="calendar-habit-checkin" data-habit-id="${esc(id)}" data-date="${date}" ${disabled}>${entry.status.status === 'done' ? 'Undo check-in' : 'Check in'}</button>`;
+    }
+    if (detail && goal && !milestone) actions = `<button class="quick-chip" type="button" data-action="calendar-goal-progress" data-goal-id="${esc(id)}">Update progress</button>`;
+    if (detail && milestone) actions = `<button class="quick-chip" type="button" data-action="toggle-milestone" data-goal-id="${esc(goal.id)}" data-milestone-id="${esc(id)}">${milestone.isCompleted ? 'Reopen' : 'Complete'}</button>`;
+    return `<article class="calendar-item calendar-${entry.type} ${completed ? 'is-completed' : ''}" data-calendar-item-id="${esc(id)}" data-calendar-type="${entry.type}" ${!detail && (task || (!milestone && goal)) ? `draggable="true" data-calendar-drag="${entry.type}"` : ''}><button class="calendar-item-open" type="button" ${open}><strong>${esc(title)}</strong><small>${esc(metadata)}</small></button>${detail ? `<div class="calendar-quick-actions">${actions}<button class="quick-chip" type="button" ${open}>${milestone ? 'Open Goal' : 'Open'}</button></div>` : ''}</article>`;
+  }
+
+  function calendarCounts(counts) {
+    return Object.entries(counts).filter(([, count]) => count).map(([type, count]) => `${count} ${count === 1 ? type.slice(0, -1) : type}`).join(' · ');
+  }
+
+  function renderCalendar() {
+    const date = calendarDate(); const view = state.ui.calendarView === 'month' ? 'month' : 'week';
+    const visibility = { tasks: true, habits: true, goals: true, milestones: true, ...(state.ui.calendarVisibility || {}) };
+    const weekStart = Core.habitPeriodKey({ frequencyType: 'timesPerWeek' }, date, state.settings.weekStartsOn || 'monday');
+    const month = date.slice(0, 7);
+    const period = view === 'month' ? new Intl.DateTimeFormat('en', { month: 'long', year: 'numeric' }).format(parseLocalDate(`${month}-01`)) : `${formatDate(weekStart)} – ${formatDate(Core.addDays(weekStart, 6))}, ${parseLocalDate(date).getFullYear()}`;
+    let html = pageHeader('Calendar', 'Plan tasks, goals and habits by date.', { add: false, actionHtml: `<button class="btn btn-primary" type="button" data-action="calendar-add" data-date="${date}"><i class="ph ph-plus"></i> Add</button>` });
+    html += `<div class="calendar-toolbar"><div class="calendar-navigation"><button class="btn-icon" type="button" data-action="calendar-prev" aria-label="Previous ${view}"><i class="ph ph-caret-left"></i></button><h2 class="calendar-period">${esc(period)}</h2><button class="btn-icon" type="button" data-action="calendar-next" aria-label="Next ${view}"><i class="ph ph-caret-right"></i></button><button class="btn btn-ghost" type="button" data-action="calendar-today">Today</button></div><div class="list-tabs" aria-label="Calendar view">${['week', 'month'].map(mode => `<button class="btn btn-ghost ${view === mode ? 'is-active' : ''}" type="button" data-action="calendar-view" data-view="${mode}" aria-pressed="${view === mode}">${mode === 'week' ? 'Week' : 'Month'}</button>`).join('')}</div></div><div class="calendar-visibility" aria-label="Show calendar types"><span>Show</span>${Object.entries(visibility).map(([type, visible]) => `<label><input type="checkbox" data-calendar-visibility="${type}" ${visible ? 'checked' : ''}>${type[0].toUpperCase() + type.slice(1)}</label>`).join('')}</div>`;
+    if (view === 'week') {
+      const days = Core.deriveCalendarWeek(state, calendarLogs(), weekStart);
+      html += `<div class="calendar-scroll"><div class="calendar-week">${days.map(day => `<section class="calendar-day ${day.date === Core.dateOnly() ? 'is-today' : ''} ${day.date === date ? 'is-selected' : ''}" data-calendar-date="${day.date}"><button class="calendar-day-heading" type="button" data-action="calendar-detail" data-date="${day.date}"><span>${new Intl.DateTimeFormat('en', { weekday: 'short' }).format(parseLocalDate(day.date))}</span><strong>${parseLocalDate(day.date).getDate()}</strong></button><div class="calendar-region-label">All day</div><div class="calendar-all-day">${day.allDay.map(entry => calendarItem(entry, false, day.date)).join('')}</div><div class="calendar-region-label">Timed</div><div class="calendar-timed">${day.timed.map(entry => calendarItem(entry, false, day.date)).join('')}</div></section>`).join('')}</div></div>`;
+    } else {
+      const days = Core.deriveCalendarMonthSummary(state, calendarLogs(), month);
+      const startDay = parseLocalDate(days[0].date).getDay(); const firstWeekday = state.settings.weekStartsOn === 'sunday' ? 0 : 1;
+      const offset = (startDay - firstWeekday + 7) % 7;
+      html += `<div class="calendar-month">${Array.from({ length: 7 }, (_, i) => `<div class="calendar-weekday">${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][(firstWeekday + i) % 7]}</div>`).join('')}${Array.from({ length: offset }, () => '<div class="calendar-month-blank" aria-hidden="true"></div>').join('')}${days.map(day => `<button class="calendar-month-day ${day.date === Core.dateOnly() ? 'is-today' : ''} ${day.date === date ? 'is-selected' : ''}" type="button" data-calendar-date="${day.date}" data-action="calendar-detail" data-date="${day.date}"><strong>${parseLocalDate(day.date).getDate()}</strong><span class="calendar-counts">${esc(calendarCounts(day.counts))}</span></button>`).join('')}</div>`;
+    }
+    return html;
+  }
+
+  function openCalendarDetail(date) {
+    if (!Core.parseDateOnly(date)) return;
+    state.ui.calendarDate = date; saveState(); render();
+    calendarReturnDate = date;
+    modalReturnFocus = $(`[data-action="calendar-detail"][data-date="${date}"]`) || $('[data-action="calendar-add"]');
+    modalState = { type: 'calendar-day', date }; renderModal();
+    requestAnimationFrame(() => $('.calendar-day-detail [data-action="close-modal"]')?.focus());
+  }
+
+  function renderCalendarDetail() {
+    const date = modalState.date; const day = Core.deriveCalendarDay(state, calendarLogs(), date);
+    return modalFrame(`<div class="modal-inner calendar-day-detail" data-detail-date="${date}"><div class="modal-header"><h2 class="modal-title">Day Detail · ${date}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="Close"><i class="ph ph-x"></i></button></div><p class="page-subtitle">${esc(formatDate(date, 'full'))}</p><div class="calendar-detail-items">${[...day.allDay, ...day.timed].map(entry => calendarItem(entry, true, date)).join('') || '<p class="area-empty-copy">No visible items for this date.</p>'}</div><div class="calendar-creation">${['task', 'goal', 'habit'].map(type => `<button class="btn btn-secondary" type="button" data-action="calendar-new-${type}" data-date="${date}"><i class="ph ph-plus"></i> ${type[0].toUpperCase() + type.slice(1)}</button>`).join('')}</div></div>`);
+  }
+
+  function navigateCalendar(direction) {
+    const date = parseLocalDate(calendarDate());
+    state.ui.calendarDate = state.ui.calendarView === 'month' ? Core.dateOnly(new Date(date.getFullYear(), date.getMonth() + direction, 1)) : Core.addDays(calendarDate(), direction * 7);
+    saveAndRender();
+  }
+
+  async function calendarHabitAction(el, mode) {
+    const id = el.dataset.habitId; const date = el.dataset.date;
+    const existing = state.habitLogCache?.[id]?.find(log => log.date === date);
+    const value = mode === 'add' ? Number(existing?.value || 0) + Number(el.dataset.value) : null;
+    await setHabitLog(id, date, mode === 'check' && existing?.status === 'done' ? 'missed' : 'done', value);
+    if (modalState?.type === 'calendar-day') renderModal();
+  }
+
+  function openCalendarValue(habitId, date) {
+    if (date > Core.dateOnly()) return;
+    modalState = { type: 'calendar-value', habitId, date }; renderModal();
+    requestAnimationFrame(() => $('#calendar-habit-value')?.focus());
+  }
+
+  function renderCalendarValue() {
+    const { habitId, date } = modalState;
+    const value = state.habitLogCache?.[habitId]?.find(log => log.date === date)?.value || 0;
+    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">Edit value · ${esc(getHabit(habitId)?.name)}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="Close"><i class="ph ph-x"></i></button></div><label class="field-label">${date}<input class="input" id="calendar-habit-value" type="number" min="0" step="any" value="${value}"></label><button class="btn btn-primary" type="button" data-action="calendar-save-habit-value" data-habit-id="${esc(habitId)}" data-date="${date}">Save value</button></div>`);
+  }
+
+  function openCalendarGoalProgress(goalId) {
+    const goal = getGoal(goalId); if (!goal) return;
+    if (goal.progressMode !== 'manual') { navigate(`goal/${goalId}`); return; }
+    modalState = { type: 'calendar-progress', goalId }; renderModal();
+    requestAnimationFrame(() => $('#goal-current-value')?.focus());
+  }
+
+  function renderCalendarGoalProgress() {
+    const goal = getGoal(modalState.goalId);
+    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">Update progress · ${esc(goal.title)}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="Close"><i class="ph ph-x"></i></button></div><label class="field-label">${goal.progressType === 'numeric' ? 'Current value' : 'Progress percentage'}<input id="goal-current-value" class="input" type="number" value="${goal.currentValue}"></label><button class="btn btn-primary" type="button" data-action="save-goal-progress" data-goal-id="${esc(goal.id)}">Update progress</button></div>`);
   }
 
   function renderToday() {
@@ -885,7 +996,7 @@
     const defaults = {
       projectId: context.projectId || null,
       areaId: context.areaId || null,
-      plannedDate: context.today ? Core.dateOnly() : null,
+      plannedDate: context.plannedDate || (context.today ? Core.dateOnly() : null),
       processed: Boolean(context.anytime),
     };
     modalState = {
@@ -965,6 +1076,7 @@
     closePopover();
     const goal = goalId ? getGoal(goalId) : null;
     modalState = { type: 'goal', goalId, draft: goalDraft(goal, context.areaId), error: '' };
+    if (!goal && context.targetDate) modalState.draft.targetDate = context.targetDate;
     renderModal(); requestAnimationFrame(() => $('#goal-title')?.focus());
   }
 
@@ -975,6 +1087,7 @@
   function openHabitModal(habitId = null, context = {}) {
     closePopover(); const habit = habitId ? getHabit(habitId) : null;
     modalState = { type: 'habit', habitId, draft: habitDraft(habit, context.areaId), error: '' };
+    if (!habit && context.startDate) modalState.draft.startDate = context.startDate;
     renderModal(); requestAnimationFrame(() => $('#habit-name')?.focus());
   }
 
@@ -1006,10 +1119,15 @@
   function closeModal() {
     flushTaskDraft();
     const returnTarget = modalReturnFocus;
+    const returnDate = calendarReturnDate;
     modalReturnFocus = null;
+    calendarReturnDate = null;
     modalState = null;
     $('#modal-root').innerHTML = '';
-    if (returnTarget?.isConnected) requestAnimationFrame(() => returnTarget.focus());
+    if (returnTarget || returnDate) requestAnimationFrame(() => {
+      const target = returnTarget?.isConnected ? returnTarget : returnDate && $(`[data-action="calendar-detail"][data-date="${returnDate}"]`);
+      target?.focus();
+    });
   }
 
   function renderModal() {
@@ -1024,6 +1142,9 @@
     else if (modalState.type === 'area-linked') root.innerHTML = renderAreaLinkedModal();
     else if (modalState.type === 'goal') root.innerHTML = renderGoalModal();
     else if (modalState.type === 'habit') root.innerHTML = renderHabitModal();
+    else if (modalState.type === 'calendar-day') root.innerHTML = renderCalendarDetail();
+    else if (modalState.type === 'calendar-value') root.innerHTML = renderCalendarValue();
+    else if (modalState.type === 'calendar-progress') root.innerHTML = renderCalendarGoalProgress();
     else if (modalState.type === 'milestone') root.innerHTML = renderMilestoneModal();
     else if (modalState.type === 'goal-links') root.innerHTML = renderGoalLinksModal();
     else if (modalState.type === 'goal-reminders') root.innerHTML = renderGoalRemindersModal();
@@ -1093,6 +1214,8 @@
         <button class="property-row" type="button" data-action="task-project-picker" data-task-id="${esc(task.id)}"><span class="property-key">Project</span><span class="property-value">${project ? `<span style="display:inline-flex;align-items:center;gap:7px"><span class="project-dot" style="--project-color:${esc(project.color)}"></span>${esc(project.name)}</span>` : 'No project'}</span></button>
         <button class="property-row" type="button" data-action="task-plan-picker" data-task-id="${esc(task.id)}"><span class="property-key">Plan for</span><span class="property-value">${task.plannedDate ? esc(relativeDateLabel(task.plannedDate)) : 'Not planned'}</span></button>
         <button class="property-row" type="button" data-action="task-due-picker" data-task-id="${esc(task.id)}"><span class="property-key">Due date</span><span class="property-value"><span class="${dueClass}">${task.dueDate ? esc(relativeDateLabel(task.dueDate)) : 'No due date'}</span></span></button>
+        <label class="property-row" for="detail-planned-time"><span class="property-key">Planned time</span><input id="detail-planned-time" class="input task-time-input" type="time" value="${esc(task.plannedTime || '')}" data-task-time="plannedTime" data-task-id="${esc(task.id)}"></label>
+        <label class="property-row" for="detail-due-time"><span class="property-key">Due time</span><input id="detail-due-time" class="input task-time-input" type="time" value="${esc(task.dueTime || '')}" data-task-time="dueTime" data-task-id="${esc(task.id)}"></label>
         <button class="property-row" type="button" data-action="task-tags-picker" data-task-id="${esc(task.id)}"><span class="property-key">Tags</span><span class="property-value">${tagSummary(task.tagIds) || 'No tags'}</span></button>
         <button class="property-row" type="button" data-action="task-priority-picker" data-task-id="${esc(task.id)}"><span class="property-key">Priority</span><span class="property-value priority-value">${priorityIcon(task.priority)}${esc(priorityLabel(task.priority))}</span></button>
         <button class="property-row" type="button" data-action="task-reminder-picker" data-task-id="${esc(task.id)}"><span class="property-key">Reminder</span><span class="property-value">${task.reminderAt ? esc(formatReminder(task.reminderAt)) : 'No reminder'}</span></button>
@@ -1594,6 +1717,7 @@
     task.updatedAt = nowIso();
     saveState(); closePopover(); render();
     if (modalState?.type === 'task' && modalState.taskId === taskId) renderModal();
+    if (modalState?.type === 'calendar-day') renderModal();
   }
 
   function setDue(targetType, taskId, date) {
@@ -1688,7 +1812,7 @@
       if (generatedId) state.tasks = state.tasks.filter(item => item.id !== generatedId);
       saveState(); render();
     });
-    render(); if (modalState?.type === 'task') renderModal(); evaluateGoalProgressChanges(goalProgressBefore);
+    render(); if (['task', 'calendar-day'].includes(modalState?.type)) renderModal(); evaluateGoalProgressChanges(goalProgressBefore);
   }
 
   async function duplicateTask(taskId, copyFiles = false) {
@@ -2086,7 +2210,7 @@
 
   function toggleMilestone(goalId, milestoneId) {
     const goal = getGoal(goalId); const milestone = goal?.milestones.find(item => item.id === milestoneId); if (!milestone) return;
-    milestone.isCompleted = !milestone.isCompleted; milestone.completedAt = milestone.isCompleted ? nowIso() : null; goal.updatedAt = nowIso(); saveState(); render();
+    milestone.isCompleted = !milestone.isCompleted; milestone.completedAt = milestone.isCompleted ? nowIso() : null; goal.updatedAt = nowIso(); saveState(); render(); if (modalState?.type === 'calendar-day') renderModal();
   }
 
   function deleteMilestone(goalId, milestoneId) {
@@ -2408,6 +2532,23 @@
     }
     const action = el.dataset.action;
     if (action === 'toggle-sidebar') { state.ui.sidebarCollapsed = !state.ui.sidebarCollapsed; saveAndRender(); }
+    else if (action === 'calendar-view') { state.ui.calendarView = el.dataset.view === 'month' ? 'month' : 'week'; saveAndRender(); }
+    else if (action === 'calendar-prev') navigateCalendar(-1);
+    else if (action === 'calendar-next') navigateCalendar(1);
+    else if (action === 'calendar-today') { state.ui.calendarDate = Core.dateOnly(); saveAndRender(); }
+    else if (action === 'calendar-detail' || action === 'calendar-add') openCalendarDetail(el.dataset.date);
+    else if (action === 'calendar-new-task') openQuickAdd({ plannedDate: el.dataset.date });
+    else if (action === 'calendar-new-goal') openGoalModal(null, { targetDate: el.dataset.date });
+    else if (action === 'calendar-new-habit') openHabitModal(null, { startDate: el.dataset.date });
+    else if (action === 'calendar-task-move') openPlanPicker(el, { type: 'task', taskId: el.dataset.taskId });
+    else if (action === 'calendar-habit-checkin') calendarHabitAction(el, 'check').catch(console.error);
+    else if (action === 'calendar-habit-add') calendarHabitAction(el, 'add').catch(console.error);
+    else if (action === 'calendar-habit-edit') openCalendarValue(el.dataset.habitId, el.dataset.date);
+    else if (action === 'calendar-save-habit-value') {
+      const date = el.dataset.date;
+      setHabitLog(el.dataset.habitId, date, 'done', Number($('#calendar-habit-value')?.value || 0)).then(saved => { if (saved && modalState?.type === 'calendar-value') openCalendarDetail(date); }).catch(console.error);
+    }
+    else if (action === 'calendar-goal-progress') openCalendarGoalProgress(el.dataset.goalId);
     else if (action === 'quick-add') openQuickAdd({ projectId: el.dataset.projectId || null, areaId: el.dataset.areaId || null, today: el.dataset.today === 'true', anytime: el.dataset.anytime === 'true' });
     else if (action === 'open-task') openTaskDetail(el.dataset.taskId);
     else if (action === 'toggle-complete') toggleComplete(el.dataset.taskId);
@@ -2599,6 +2740,8 @@
   }
 
   function handleChange(event) {
+    if (event.target.matches('[data-calendar-visibility]')) { state.ui.calendarVisibility = { tasks: true, habits: true, goals: true, milestones: true, ...(state.ui.calendarVisibility || {}), [event.target.dataset.calendarVisibility]: event.target.checked }; saveAndRender(); return; }
+    if (event.target.matches('[data-task-time]')) { updateTask(event.target.dataset.taskId, { [event.target.dataset.taskTime]: Core.normalizeTime(event.target.value) }, false); render(); return; }
     if (event.target.id === 'attachment-input') { addAttachments(event.target.dataset.taskId, event.target.files); event.target.value=''; return; }
     if (event.target.id === 'backup-import-input') { const file=event.target.files?.[0]; event.target.value=''; if(file) inspectImportBackup(file); return; }
     if (event.target.id === 'completed-project-filter') {
@@ -2696,6 +2839,8 @@
   }
 
   function handleDragStart(event) {
+    const calendar = event.target.closest('[data-calendar-drag][draggable="true"]');
+    if (calendar) { dragState = { type: `calendar-${calendar.dataset.calendarDrag}`, id: calendar.dataset.calendarItemId }; event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', dragState.id); calendar.classList.add('is-dragging'); return; }
     const project = event.target.closest('.project-item[draggable="true"]');
     if (project) { dragState = { type: 'project', id: project.dataset.projectId }; event.dataTransfer.effectAllowed = 'move'; return; }
     const sub = event.target.closest('.subtask-row[draggable="true"]');
@@ -2708,6 +2853,9 @@
     const dropZone = event.target.closest?.('.attachment-drop-zone');
     if (dropZone && event.dataTransfer?.types?.includes('Files')) { event.preventDefault(); dropZone.classList.add('is-dragover'); return; }
     if (!dragState) return;
+    const calendarTarget = event.target.closest('[data-calendar-date]');
+    if (calendarTarget && ['calendar-task', 'calendar-goal'].includes(dragState.type)) { event.preventDefault(); calendarTarget.classList.add('is-drop-target'); return; }
+    if (dragState.type.startsWith('calendar-')) return;
     if (dragState.type === 'project') {
       const target = event.target.closest('.project-item[draggable="true"]'); if (!target || target.dataset.projectId === dragState.id) return; event.preventDefault(); return;
     }
@@ -2731,7 +2879,20 @@
     if (dropZone && event.dataTransfer?.files?.length) { event.preventDefault(); dropZone.classList.remove('is-dragover'); addAttachments(dropZone.dataset.taskId, event.dataTransfer.files); return; }
     if (!dragState) return;
     event.preventDefault();
-    if (dragState.type === 'project') {
+    if (dragState.type.startsWith('calendar-')) {
+      const target = event.target.closest('[data-calendar-date]');
+      if (target) {
+        const date = target.dataset.calendarDate;
+        if (Core.parseDateOnly(date) && dragState.type === 'calendar-task') updateTask(dragState.id, { plannedDate: date });
+        else if (Core.parseDateOnly(date) && dragState.type === 'calendar-goal') {
+          const goal = getGoal(dragState.id);
+          if (goal && goal.targetDate !== date) {
+            const from = goal.targetDate; goal.targetDate = date; goal.updatedAt = nowIso();
+            putGoalHistory(goal.id, 'targetDateChanged', { from, to: date }); saveAndRender();
+          }
+        }
+      }
+    } else if (dragState.type === 'project') {
       const target = event.target.closest('.project-item[draggable="true"]'); if (target) reorderProjects(dragState.id, target.dataset.projectId);
     } else if (dragState.type === 'subtask') {
       const target = event.target.closest('.subtask-row[draggable="true"]'); if (target && target.dataset.parentTaskId === dragState.parentId) reorderSubtasks(dragState.parentId, dragState.id, target.dataset.subtaskId);
