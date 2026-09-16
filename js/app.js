@@ -909,7 +909,7 @@
       const related = state[collection].filter(candidate => item[field].includes(candidate.id));
       html += `<section class="section"><div class="section-header"><h2 class="section-label">Related ${label}</h2><span class="section-count">${related.length}</span></div><div class="area-object-list">${related.map(candidate => `<button class="area-object" type="button" ${route ? `data-route="${route}/${esc(candidate.id)}"` : `data-action="open-task" data-task-id="${esc(candidate.id)}"`}>${esc(candidate.title || candidate.name)}</button>`).join('') || '<p class="area-empty-copy">No relations.</p>'}</div></section>`;
     }
-    return html + `<section class="section"><div class="section-header"><h2 class="section-label">Attachments</h2><span class="section-count">${item.attachmentIds.length}</span></div>${cached.message ? `<p class="attachment-message" role="status">${esc(cached.message)}</p>` : ''}<div class="attachment-list">${cached.records.map(renderAttachmentRow).join('')}</div></section><button class="danger-link" type="button" data-action="delete-knowledge" data-owner-type="${type}" data-owner-id="${esc(id)}"><i class="ph ph-trash"></i> Delete ${type}</button>`;
+    return html + `<section class="section"><div class="section-header"><h2 class="section-label">Attachments</h2><span class="section-count">${item.attachmentIds.length}</span></div>${cached.message ? `<p class="attachment-message" role="status">${esc(cached.message)}</p>` : ''}<div class="attachment-list">${cached.records.map(record => renderAttachmentRow(record, { ownerType: type, ownerId: id })).join('')}</div></section><button class="danger-link" type="button" data-action="delete-knowledge" data-owner-type="${type}" data-owner-id="${esc(id)}"><i class="ph ph-trash"></i> Delete ${type}</button>`;
   }
 
   function goalProgressLabel(goal) {
@@ -1244,7 +1244,7 @@
       </section>
       <section class="settings-card">
         <h2>Data</h2>
-        <div class="settings-row"><div class="settings-label"><strong>Export backup</strong><span>Download tasks, projects, tags, settings and attachment files in one ZIP.</span></div><button class="btn btn-secondary" type="button" data-action="export-backup">Export backup</button></div>
+        <div class="settings-row"><div class="settings-label"><strong>Export backup</strong><span>Download all app data, including Notes, Resources and their files, in one ZIP.</span></div><button class="btn btn-secondary" type="button" data-action="export-backup">Export backup</button></div>
         <div class="settings-row"><div class="settings-label"><strong>Import backup</strong><span>Replace all current app data from a previously exported ZIP backup.</span></div><div><button class="btn btn-secondary" type="button" data-action="import-backup">Import backup</button><input id="backup-import-input" type="file" accept=".zip,application/zip" hidden /></div></div>
         <div class="settings-row"><div class="settings-label"><strong>Clear completed tasks</strong><span>Permanently delete all completed tasks and their attachments.</span></div><button class="btn btn-secondary" type="button" data-action="clear-completed">Clear</button></div>
         <div class="settings-row"><div class="settings-label"><strong>Reset app data</strong><span>Delete tasks, projects, tags, attachments and preferences stored by this prototype.</span></div><button class="btn btn-ghost" type="button" data-action="reset-app" style="color:var(--danger)">Reset</button></div>
@@ -1861,15 +1861,15 @@
     return ext || String(record.mimeType || 'File').split('/').pop().toUpperCase() || 'FILE';
   }
 
-  function renderAttachmentRow(record) {
-    return `<div class="attachment-row" data-attachment-id="${esc(record.id)}"><i class="ph ph-file attachment-file-icon"></i><div class="attachment-main"><strong title="${esc(record.fileName)}">${esc(record.fileName)}</strong><small>${esc(fileTypeLabel(record))} · ${esc(formatBytes(record.size))}</small></div><button class="btn-icon" type="button" data-action="attachment-menu" data-attachment-id="${esc(record.id)}" aria-label="Attachment actions"><i class="ph ph-dots-three"></i></button></div>`;
+  function renderAttachmentRow(record, owner) {
+    return `<div class="attachment-row" data-attachment-id="${esc(record.id)}"><i class="ph ph-file attachment-file-icon"></i><div class="attachment-main"><strong title="${esc(record.fileName)}">${esc(record.fileName)}</strong><small>${esc(fileTypeLabel(record))} · ${esc(formatBytes(record.size))}</small></div><button class="btn-icon" type="button" data-action="attachment-menu" data-attachment-id="${esc(record.id)}" data-owner-type="${esc(owner.ownerType)}" data-owner-id="${esc(owner.ownerId)}" aria-label="Attachment actions"><i class="ph ph-dots-three"></i></button></div>`;
   }
 
   function renderAttachmentsSection(owner) {
     const item = attachmentOwner(owner)?.item;
     const count = item ? item.attachmentIds.length : modalState.pendingFiles.length;
     const attrs = `data-owner-type="${esc(owner.ownerType)}" data-owner-id="${esc(owner.ownerId || '')}"${owner.ownerType === 'task' ? ` data-task-id="${esc(owner.ownerId)}"` : ''}`;
-    return `<div class="detail-section attachments-section"><div class="detail-heading"><span>Attachments</span><span>${count} / ${MAX_ATTACHMENTS_PER_TASK}</span></div><label class="attachment-drop-zone" ${attrs}><i class="ph ph-paperclip"></i><span><strong>Drop files here</strong><small>or choose files · max 10 MB each</small></span><span class="btn btn-secondary attachment-add-button">Add attachment</span><input id="attachment-input" type="file" multiple hidden ${attrs}></label>${modalState.attachmentMessage ? `<div class="attachment-message" role="status">${esc(modalState.attachmentMessage)}</div>` : ''}<div class="attachment-list">${(modalState.attachmentRecords || []).map(renderAttachmentRow).join('')}</div></div>`;
+    return `<div class="detail-section attachments-section"><div class="detail-heading"><span>Attachments</span><span>${count} / ${MAX_ATTACHMENTS_PER_TASK}</span></div><label class="attachment-drop-zone" ${attrs}><i class="ph ph-paperclip"></i><span><strong>Drop files here</strong><small>or choose files · max 10 MB each</small></span><span class="btn btn-secondary attachment-add-button">Add attachment</span><input id="attachment-input" type="file" multiple hidden ${attrs}></label>${modalState.attachmentMessage ? `<div class="attachment-message" role="status">${esc(modalState.attachmentMessage)}</div>` : ''}<div class="attachment-list">${(modalState.attachmentRecords || []).map(record => renderAttachmentRow(record, owner)).join('')}</div></div>`;
   }
 
   async function readOwnerAttachments(owner) {
@@ -1959,7 +1959,7 @@
   }
 
   function openAttachmentMenu(anchor, attachmentId) {
-    const html = `<button class="popover-option" type="button" data-pop-action="attachment-open" data-attachment-id="${esc(attachmentId)}"><i class="ph ph-arrow-square-out"></i>Open</button><button class="popover-option" type="button" data-pop-action="attachment-download" data-attachment-id="${esc(attachmentId)}"><i class="ph ph-download-simple"></i>Download</button><div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="attachment-delete" data-attachment-id="${esc(attachmentId)}" style="color:var(--danger)"><i class="ph ph-trash"></i>Delete</button>`;
+    const html = `<button class="popover-option" type="button" data-pop-action="attachment-open" data-attachment-id="${esc(attachmentId)}"><i class="ph ph-arrow-square-out"></i>Open</button><button class="popover-option" type="button" data-pop-action="attachment-download" data-attachment-id="${esc(attachmentId)}"><i class="ph ph-download-simple"></i>Download</button><div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="attachment-delete" data-attachment-id="${esc(attachmentId)}" data-owner-type="${esc(anchor.dataset.ownerType)}" data-owner-id="${esc(anchor.dataset.ownerId)}" style="color:var(--danger)"><i class="ph ph-trash"></i>Delete</button>`;
     openPopover(anchor, html, { type: 'attachment-menu', attachmentId });
   }
 
@@ -1972,7 +1972,11 @@
     closePopover();
   }
 
-  async function deleteAttachment(attachmentId) {
+  async function deleteAttachment(attachmentId, descriptor) {
+    const owner = attachmentOwner(descriptor), located = locateDeleteEntity('attachment', attachmentId);
+    if (!owner || located?.parent !== owner.item || located.ownerType !== owner.type) {
+      setToastMessage('Attachment owner changed. Reopen the current item.'); return;
+    }
     requestDeleteEntity('attachment', attachmentId);
   }
 
@@ -2641,8 +2645,8 @@
       area: 'Linked objects will remain. Their Area assignments will be removed.',
       goal: 'Projects, tasks and habits will remain. Their Goal links, milestones and Goal history will be removed.',
       habit: 'Its check-ins, history and reminders will be removed. Goals will remain.',
-      note: 'This Note and its attachment references will be removed. Undo restores them.',
-      resource: 'This Resource, its relations and attachment references will be removed. Undo restores them.',
+      note: 'This Note will be removed. Its files are retained through the Undo window. Undo restores the Note and files.',
+      resource: 'This Resource and its relations will be removed. Its files are retained through the Undo window. Undo restores them.',
       milestone: 'This milestone will be removed from its Goal.',
       attachment: 'This attachment will be removed from its owner.',
       template: 'Items created from this template will remain.',
@@ -2715,6 +2719,11 @@
     if (type === 'tag') for (const task of state.tasks) arrayEffect('tasks', task, 'tagIds', id => id === identity);
     if (type === 'goal') for (const collection of ['tasks', 'projects', 'habits'])
       for (const owner of state[collection]) arrayEffect(collection, owner, 'goalIds', id => id === identity);
+    for (const resource of state.resources) {
+      if (removedTasks.size) arrayEffect('resources', resource, 'relatedTaskIds', id => removedTasks.has(id));
+      const field = { project: 'relatedProjectIds', goal: 'relatedGoalIds', habit: 'relatedHabitIds' }[type];
+      if (field) arrayEffect('resources', resource, field, id => id === identity);
+    }
     if (type === 'area') for (const collection of ['tasks', 'projects', 'goals', 'habits', 'notes', 'resources'])
       for (const owner of state[collection]) if (owner.areaId === identity)
         snapshot.effects.push({ collection, owner, field: 'areaId', scalar: true, before: owner.areaId, after: null });
@@ -2725,6 +2734,12 @@
       arrayEffect(located.collection, located.parent, 'attachmentIds', id => id === identity);
     }
     const attachmentIds = type === 'attachment' ? [identity] : snapshot.entries.filter(entry => ['tasks', 'notes', 'resources'].includes(entry.collection) && !entry.field).flatMap(entry => entry.entity.attachmentIds || []);
+    if (new Set(attachmentIds).size !== attachmentIds.length) throw new Error('An attachment ID is reused.');
+    snapshot.fileOwners = attachmentIds.map(id => {
+      const owners = TodoStorage.attachmentOwners(state).filter(owner => (owner.item.attachmentIds || []).includes(id));
+      if (owners.length !== 1) throw new Error('Attachment owner changed.');
+      return { id, ...owners[0] };
+    });
     snapshot.attachments = await Attachments.getMany(attachmentIds);
     for (const id of attachmentIds) {
       const record = snapshot.attachments.find(record => record.id === id), owners = TodoStorage.attachmentOwners(state).filter(owner => (owner.item.attachmentIds || []).includes(id));
@@ -2750,7 +2765,22 @@
       || (effect.link && !(effect.owner.projectLinks || []).includes(effect.link))) throw new Error('A linked owner changed.');
     if (compareBefore) for (const effect of snapshot.effects)
       if (JSON.stringify((effect.link || effect.owner)[effect.field] || (effect.scalar ? null : [])) !== JSON.stringify(effect.before)) throw new Error('A linked assignment changed.');
+    if (compareBefore) for (const [collection, field] of Object.entries({ tasks: 'relatedTaskIds', projects: 'relatedProjectIds', goals: 'relatedGoalIds', habits: 'relatedHabitIds' })) {
+      const removed = new Set(snapshot.entries.filter(entry => entry.collection === collection && !entry.field).map(entry => entry.entity.id));
+      if (!removed.size) continue;
+      for (const resource of state.resources) if ((resource[field] || []).some(id => removed.has(id))
+        && !snapshot.effects.some(effect => effect.owner === resource && effect.field === field))
+        throw new Error('Resource relations changed. Reopen confirmation.');
+    }
     if (snapshot.attachmentOwner && !state[snapshot.attachmentOwnerCollection].includes(snapshot.attachmentOwner)) throw new Error('Attachment owner changed.');
+    for (const captured of snapshot.fileOwners) {
+      const owners = TodoStorage.attachmentOwners(state).filter(owner => (owner.item.attachmentIds || []).includes(captured.id));
+      const record = snapshot.attachments.find(item => item.id === captured.id);
+      if (owners.length !== 1 || owners[0].item !== captured.item || owners[0].type !== captured.type
+        || owners[0].item.attachmentIds.filter(id => id === captured.id).length !== 1
+        || !TodoStorage.attachmentBelongsTo(record, owners[0]) || !(record.blob instanceof Blob) || record.size !== record.blob.size)
+        throw new Error('Attachment owner or stored file changed.');
+    }
   }
 
   function inverseArray(current, before, removed) {
@@ -2798,7 +2828,7 @@
     validateDeleteSnapshot(snapshot);
     let rollback;
     try {
-      if (snapshot.attachments.length) await Attachments.markPending(snapshot.attachments.map(record => record.id), new Date(snapshot.deadline).toISOString(), snapshot.token, snapshot.attachments);
+      if (snapshot.attachments.length) await Attachments.markPending(snapshot.attachments.map(record => record.id), new Date(snapshot.deadline).toISOString(), snapshot.token, snapshot.attachments, () => validateDeleteSnapshot(snapshot));
       if (snapshot.habitLogs.length) await TodoStorage.habitLogs.deleteMany(snapshot.habitLogs.map(record => record.id));
       if (snapshot.goalHistory.length) await TodoStorage.goalHistory.deleteMany(snapshot.goalHistory.map(record => record.id));
       snapshot.pendingAttachments = await Attachments.getMany(snapshot.attachments.map(record => record.id));
@@ -2830,7 +2860,7 @@
           if (!(await sameStoredAttachment(normalized, original))) continue;
           owned.attachments.push(original); expected.push(actual);
         }
-        await TodoStorage.restoreDeleteRecords(owned, expected);
+        await TodoStorage.restoreDeleteRecords(owned, expected, () => validateDeleteSnapshot(snapshot, false));
       }
       catch (rollbackError) {
         snapshot.recoveryError = `${error.message} Recovery failed: ${rollbackError.message}`;
@@ -2872,7 +2902,7 @@
           if (actual && JSON.stringify(actual) !== JSON.stringify(original)) throw new Error('Retained history ownership changed; recovery was not applied.');
         }
         validateDeleteSnapshot(snapshot, false);
-        await TodoStorage.restoreDeleteRecords(snapshot, expected);
+        await TodoStorage.restoreDeleteRecords(snapshot, expected, () => validateDeleteSnapshot(snapshot, false));
         for (const original of snapshot.attachments) if (!(await sameStoredAttachment(await Attachments.get(original.id), original))) throw new Error('Restored file verification failed; snapshot retained.');
         for (const name of ['habitLogs','goalHistory']) for (const original of snapshot[name])
           if (JSON.stringify(await TodoStorage[name].get(original.id)) !== JSON.stringify(original)) throw new Error('Restored history verification failed; snapshot retained.');
@@ -2899,9 +2929,18 @@
       if (entry.collection === 'tasks' && !entry.field && entry.entity.projectId
         && !snapshot.entries.some(parent => parent.collection === 'projects' && parent.entity.id === entry.entity.projectId)
         && !state.projects.includes(entry.projectParent)) throw new Error('The Task Project parent changed.');
+      if (['notes', 'resources'].includes(entry.collection)) {
+        const exists = (collection, id) => state[collection].some(item => item.id === id)
+          || snapshot.entries.some(other => other.collection === collection && !other.field && other.entity.id === id);
+        if (entry.entity.areaId && !exists('areas', entry.entity.areaId)) throw new Error('The Area no longer exists. Restore it before retrying Undo.');
+        if (entry.collection === 'resources') for (const [field, collection] of Object.entries({ relatedTaskIds: 'tasks', relatedProjectIds: 'projects', relatedGoalIds: 'goals', relatedHabitIds: 'habits' }))
+          if (entry.entity[field].some(id => !exists(collection, id))) throw new Error('A related item no longer exists. Restore it before retrying Undo.');
+      }
     }
     if (snapshot.attachmentOwner && !state[snapshot.attachmentOwnerCollection].includes(snapshot.attachmentOwner)) throw new Error('Attachment owner changed.');
     if (snapshot.attachmentOwner && snapshot.attachmentOwner.attachmentIds?.includes(snapshot.identity)) throw new Error('The attachment ID is now in use.');
+    const referenced = new Set(TodoStorage.attachmentOwners(state).flatMap(owner => owner.item.attachmentIds || []));
+    if (snapshot.attachments.some(record => referenced.has(record.id))) throw new Error('The attachment ID is now in use by an owner.');
     for (const effect of snapshot.effects) if (!state[effect.collection].includes(effect.owner)
       || (effect.link && !effect.owner.projectLinks?.includes(effect.link))) throw new Error('A linked owner changed.');
   }
@@ -2966,15 +3005,20 @@
   async function finalizeDeleteSnapshot(snapshot) {
     if (snapshot.restored || snapshot.finalized || undoHold || snapshot.source !== state || snapshot.generation !== undoGeneration) return true;
     if (performance.now() < snapshot.eligibilityDeadline || (snapshot.attachments.length && Date.now() < snapshot.deadline)) return false;
+    const validate = record => {
+      if (undoHold || snapshot.source !== state || snapshot.generation !== undoGeneration
+        || TodoStorage.attachmentOwners(state).some(owner => (owner.item.attachmentIds || []).includes(record.id)))
+        throw new Error('File ownership changed. Retained files were kept.');
+    };
     for (const expected of snapshot.pendingAttachments)
       if (!(await sameStoredAttachment(await Attachments.get(expected.id), expected))) continue;
-      else await Attachments.deletePending([expected], nowIso());
+      else await Attachments.deletePending([expected], nowIso(), validate);
     snapshot.finalized = true;
     return true;
   }
 
   function undoDomain() {
-    return JSON.stringify(Object.fromEntries(['tasks','projects','tags','areas','goals','habits','templates','savedViews'].map(name => [name, state?.[name]])));
+    return JSON.stringify(Object.fromEntries(['tasks','projects','tags','areas','goals','habits','notes','resources','templates','savedViews'].map(name => [name, state?.[name]])));
   }
 
   const deleteLifecycle = {
@@ -3734,7 +3778,7 @@
         : { state: createEmptyState(), attachmentRecords: [], habitLogs: [], goalHistory: [] };
       op.validated.state = JSON.parse(compactState(normalizeState(op.validated.state)));
       assertGlobalSource(op);
-      const summary = reason === 'restore' ? ` ${op.validated.state.tasks.length} tasks, ${op.validated.state.projects.length} projects, ${op.validated.state.goals.length} Goals, ${op.validated.state.habits.length} Habits, ${op.validated.attachmentRecords.length} files, ${op.validated.habitLogs.length} logs and ${op.validated.goalHistory.length} history events will be restored.` : '';
+      const summary = reason === 'restore' ? ` ${op.validated.state.tasks.length} tasks, ${op.validated.state.projects.length} projects, ${op.validated.state.goals.length} Goals, ${op.validated.state.habits.length} Habits, ${op.validated.state.notes.length} Notes, ${op.validated.state.resources.length} Resources, ${op.validated.attachmentRecords.length} files, ${op.validated.habitLogs.length} logs and ${op.validated.goalHistory.length} history events will be restored.` : '';
       openConfirm({ title: reason === 'reset' ? 'Reset all app data?' : 'Restore backup?', message: 'A safety ZIP was downloaded and an internal recovery copy was created.' + summary,
         phrase: reason.toUpperCase(), confirmLabel: reason === 'reset' ? 'Reset app' : 'Restore backup',
         onConfirm: () => commitGlobalOperation(op), onCancel: () => abandonGlobalOperation(op) });
@@ -4142,7 +4186,7 @@
     else if (action === 'task-duplicate') startDuplicate(button.dataset.taskId);
     else if (action === 'attachment-open') openAttachment(button.dataset.attachmentId, false);
     else if (action === 'attachment-download') openAttachment(button.dataset.attachmentId, true);
-    else if (action === 'attachment-delete') deleteAttachment(button.dataset.attachmentId);
+    else if (action === 'attachment-delete') deleteAttachment(button.dataset.attachmentId, { ownerType: button.dataset.ownerType, ownerId: button.dataset.ownerId });
     else if (action === 'task-open-project') { const taskId = button.dataset.taskId; closePopover(); const anchor = document.querySelector(`[data-action="task-menu"][data-task-id="${CSS.escape(taskId)}"]`) || button; openProjectPicker(anchor, { type: 'task', taskId }); }
     else if (action === 'task-open-due') { const taskId = button.dataset.taskId; closePopover(); const anchor = document.querySelector(`[data-action="task-menu"][data-task-id="${CSS.escape(taskId)}"]`) || button; openDuePicker(anchor, { type: 'task', taskId }); }
     else if (action === 'task-delete') { const id = button.dataset.taskId; closePopover(); deleteTask(id); }
@@ -4491,9 +4535,15 @@
         render();
         checkReminders();
         if (Attachments && !undoHold) {
-          const protectedIds = [...state.tasks.flatMap(task => task.attachmentIds || []), ...[...failedDeleteSnapshots].flatMap(snapshot => snapshot.attachments.map(record => record.id)), ...[...undoWork].filter(work => performance.now() < work.deadline)
+          const protectedIds = [...TodoStorage.attachmentOwners(state).flatMap(owner => owner.item.attachmentIds || []), ...[...failedDeleteSnapshots].flatMap(snapshot => snapshot.attachments.map(record => record.id)), ...[...undoWork]
             .flatMap(work => (work.snapshot?.pendingAttachments || []).map(record => record.id))];
-          await Attachments.cleanupExpired(nowIso(), protectedIds).catch(() => setToastMessage('File cleanup failed. Retained files were kept.'));
+          await Attachments.cleanupExpired(nowIso(), protectedIds, record => {
+            if (undoHold || localStorage.getItem(STORAGE_KEY) !== committedSource || !state
+              || TodoStorage.attachmentOwners(state).some(owner => (owner.item.attachmentIds || []).includes(record.id))
+              || [...failedDeleteSnapshots].some(snapshot => snapshot.attachments.some(file => file.id === record.id))
+              || [...undoWork].some(work => work.snapshot?.attachments.some(file => file.id === record.id)))
+              throw new Error('File ownership changed during cleanup.');
+          }).catch(() => setToastMessage('File cleanup failed. Retained files were kept.'));
         }
       }
     } catch (error) { failure = error; }

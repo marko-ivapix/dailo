@@ -210,15 +210,16 @@
   function attachmentOwners(state) {
     return [
       ...state.tasks.map(item => ({ type: 'task', item })),
-      ...state.notes.map(item => ({ type: 'note', item })),
-      ...state.resources.map(item => ({ type: 'resource', item })),
+      ...(state.notes || []).map(item => ({ type: 'note', item })),
+      ...(state.resources || []).map(item => ({ type: 'resource', item })),
     ];
   }
 
   function attachmentBelongsTo(record, owner) {
     return Boolean(record && (owner.type === 'task'
-      ? record.taskId === owner.item.id
-      : record.ownerType === owner.type && record.ownerId === owner.item.id));
+      ? record.taskId === owner.item.id && (record.ownerType == null || record.ownerType === 'task')
+        && (record.ownerId == null || record.ownerId === owner.item.id)
+      : record.taskId == null && record.ownerType === owner.type && record.ownerId === owner.item.id));
   }
 
   function requireAttachmentRecord(record) {
@@ -239,8 +240,11 @@
       if (byId.has(record.id)) throw new Error(`Duplicate attachment: ${record.id}`);
       byId.set(record.id, record);
     }
+    const referenced = new Set();
     for (const owner of attachmentOwners(state)) {
       for (const id of owner.item.attachmentIds || []) {
+        if (referenced.has(id)) throw new Error(`Reused attachment reference: ${id}`);
+        referenced.add(id);
         const record = byId.get(id);
         if (!attachmentBelongsTo(record, owner) || !(record.blob instanceof root.Blob)
           || record.blob.size !== record.size) throw new Error(`Missing or invalid attachment: ${id}`);
@@ -264,10 +268,10 @@
     },
     async listByTask(taskId) { return listByIndex('attachments', 'taskId', taskId); },
     async listAll() { return listRecords('attachments'); },
-    async markPending(ids, untilIso, token, expectedRecords = null) {
+    async markPending(ids, untilIso, token, expectedRecords = null, validate = null) {
       const records = await this.getMany(ids);
       await restoreDeleteRecords({ attachments: records.map(record => ({ ...record, pendingDeleteUntil: untilIso,
-        ...(token ? { pendingDeleteToken: token } : {}), updatedAt: new Date().toISOString() })) }, expectedRecords || records);
+        ...(token ? { pendingDeleteToken: token } : {}), updatedAt: new Date().toISOString() })) }, expectedRecords || records, validate);
       return records.length;
     },
     async restorePending(ids) {
@@ -276,27 +280,27 @@
       return records.length;
     },
     async deleteMany(ids) { return deleteManyRecords('attachments', ids); },
-    async deletePending(records, nowIso) {
+    async deletePending(records, nowIso, validate = null) {
       const due = records.filter(record => new Date(record.pendingDeleteUntil).getTime() <= new Date(nowIso).getTime());
       if (memoryMode()) {
         let count = 0;
         for (const expected of due) {
           const actual = memoryStores.attachments.get(expected.id);
-          if (await sameAttachmentRecord(actual, expected) && memoryStores.attachments.get(expected.id) === actual) { memoryStores.attachments.delete(expected.id); count++; }
+          if (await sameAttachmentRecord(actual, expected) && memoryStores.attachments.get(expected.id) === actual) { validate?.(expected); memoryStores.attachments.delete(expected.id); count++; }
         }
         return count;
       }
       // One bounded record/transaction at a time, using existing attachment limits.
       let count = 0;
-      for (const expected of due) count += await withStore('attachments', 'readwrite', (store, tx) => mutateMatchingBlob(store, tx, expected, () => store.delete(expected.id)));
+      for (const expected of due) count += await withStore('attachments', 'readwrite', (store, tx) => mutateMatchingBlob(store, tx, expected, () => { validate?.(expected); store.delete(expected.id); }));
       return count;
     },
-    async cleanupExpired(nowIso, protectedIds = []) {
+    async cleanupExpired(nowIso, protectedIds = [], validate = null) {
       const now = new Date(nowIso).getTime();
       if (!Number.isFinite(now)) return 0;
       const expired = (await this.listAll())
         .filter(record => !protectedIds.includes(record.id) && record.pendingDeleteUntil && new Date(record.pendingDeleteUntil).getTime() <= now);
-      return this.deletePending(expired, nowIso);
+      return this.deletePending(expired, nowIso, validate);
     },
     async clearAll() { return clearStore('attachments'); },
     async replaceAll(records) {
