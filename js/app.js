@@ -472,6 +472,7 @@
       knowledgeAttachmentCache, readOwnerAttachments, renderAttachmentRow,
       renderAttachmentsSection, loadOwnerAttachments, addAttachments,
       closePopover, flushTextSave, goalFocusTarget, closeModal,
+      openGoalHistory,
       nowIso, uid, copyTemplate, saveState, navigate, setToastMessage, requestDeleteEntity, openConfirm, setUndo,
       calendarDate, calendarLogs, parseLocalDate, formatDate,
       openCalendarDetail, navigateCalendar, openPlanPicker, calendarHabitAction, openCalendarValue, openCalendarGoalProgress,
@@ -1058,7 +1059,7 @@
       $('.modal-inner',root)?.insertAdjacentHTML('afterbegin','<button class="btn btn-ghost" type="button" data-action="from-template"><i class="ph ph-copy"></i> From template</button>');
     }
     if (['confirm','recurrence-scope'].includes(modalState?.type)) requestAnimationFrame(() => root.querySelector('.modal button, .modal [href], .modal input, .modal select, .modal textarea, .modal [tabindex]:not([tabindex="-1"])')?.focus());
-    if (['goal', 'goal-source', 'goal-links', 'goal-reminders', 'milestone', 'habit-settings'].includes(modalState?.type)) requestAnimationFrame(() => ([...root.querySelectorAll('input, select, textarea')].find(el => el.offsetParent !== null) || root.querySelector('.modal-footer [data-action="close-modal"]'))?.focus());
+    if (['goal', 'goal-source', 'goal-links', 'goal-reminders', 'goal-history', 'milestone', 'habit-settings'].includes(modalState?.type)) requestAnimationFrame(() => ([...root.querySelectorAll('input, select, textarea')].find(el => el.offsetParent !== null) || root.querySelector('.modal-footer [data-action="close-modal"]'))?.focus());
   }
 
   function modalFrame(content, cls = '') {
@@ -2452,6 +2453,22 @@
   function putGoalHistory(goalId, type, data = {}) {
     if (!TodoStorage?.goalHistory) return;
     TodoStorage.goalHistory.put({ id: uid('goal-history'), goalId, type, data, createdAt: nowIso() }).catch(console.error);
+  }
+
+  function openGoalHistory(goalId, trigger) {
+    if (!getGoal(goalId)) return;
+    closePopover();
+    modalState = { type: 'goal-history', goalId, events: null, error: '', returnFocus: goalFocusTarget(trigger) };
+    renderModal();
+    TodoStorage.goalHistory.listByGoal(goalId).then(events => {
+      if (modalState?.type !== 'goal-history' || modalState.goalId !== goalId) return;
+      modalState.events = events;
+      renderModal();
+    }).catch(error => {
+      if (modalState?.type !== 'goal-history' || modalState.goalId !== goalId) return;
+      modalState.error = error?.message || 'Goal history could not be loaded.';
+      renderModal();
+    });
   }
 
   function syncGoalLinks(goal, projectLinks, taskIds, habitLinks) {

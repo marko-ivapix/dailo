@@ -61,6 +61,7 @@
     html += `<section class="section"><div class="section-header"><h2 class="section-label">Links</h2><button class="btn btn-ghost" type="button" data-action="edit-goal-links" data-goal-id="${esc(goal.id)}">Manage links</button></div><p class="area-empty-copy">${links.length} project links · ${(goal.taskIds || []).length} direct task links · ${(goal.habitLinks || []).length} habit links</p></section>`;
     html += `<section class="section"><div class="section-header"><h2 class="section-label">Milestones</h2><button class="btn btn-ghost" type="button" data-action="new-milestone" data-goal-id="${esc(goal.id)}">Add milestone</button></div>${milestones.length ? `<div class="milestone-list">${milestones.map(milestone => `<div class="milestone-row ${!milestone.isCompleted && milestone.date && milestone.date < Core.dateOnly() ? 'is-overdue' : ''}"><button class="check-toggle ${milestone.isCompleted ? 'is-checked' : ''}" type="button" data-action="toggle-milestone" data-goal-id="${esc(goal.id)}" data-milestone-id="${esc(milestone.id)}"><i class="ph ${milestone.isCompleted ? 'ph-check' : 'ph-circle'}"></i></button><span><strong>${esc(milestone.title)}</strong><small>${milestone.date ? esc(relativeDateLabel(milestone.date)) : 'No date'}</small></span><button class="btn-icon" type="button" data-action="edit-milestone" data-goal-id="${esc(goal.id)}" data-milestone-id="${esc(milestone.id)}" aria-label="Edit milestone"><i class="ph ph-pencil-simple"></i></button><button class="btn-icon" type="button" data-action="delete-milestone" data-goal-id="${esc(goal.id)}" data-milestone-id="${esc(milestone.id)}" aria-label="Delete milestone"><i class="ph ph-trash"></i></button></div>`).join('')}</div>` : '<p class="area-empty-copy">No milestones yet.</p>'}</section>`;
     html += `<section class="section"><div class="section-header"><h2 class="section-label">Reminders</h2><button class="btn btn-ghost" type="button" data-action="edit-goal-reminders" data-goal-id="${esc(goal.id)}">Edit reminders</button></div><p class="area-empty-copy">${Core.goalReminderMoments(goal).length ? `${Core.goalReminderMoments(goal).length} reminder points at ${esc(goal.reminders.time)}` : 'No reminders enabled.'}</p></section>`;
+    html += `<section class="section"><div class="section-header"><h2 class="section-label">History</h2><button class="btn btn-ghost" type="button" data-action="open-goal-history" data-goal-id="${esc(goal.id)}">View history</button></div><p class="area-empty-copy">Significant Goal changes are kept here.</p></section>`;
     return html;
   }
 
@@ -202,6 +203,43 @@
   function renderGoalReachedModal(ctx) {
     const { esc, modalFrame } = ctx;
     return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">Goal reached</h2><button class="btn-icon" type="button" data-action="keep-goal-active"><i class="ph ph-x"></i></button></div><p class="dialog-copy">This goal has reached 100%. Keep tracking it or mark it as completed.</p><div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="keep-goal-active">Keep active</button><button class="btn btn-primary" type="button" data-action="complete-goal" data-goal-id="${esc(ctx.modalState.goalId)}">Mark completed</button></div></div></div>`, 'small-modal');
+  }
+
+  function goalHistoryEventLabel(type) {
+    return { created: 'Goal created', progressChanged: 'Progress changed', manualProgress: 'Manual progress updated', statusChanged: 'Status changed', targetDateChanged: 'Target date changed', projectLinked: 'Project linked', projectUnlinked: 'Project unlinked' }[type] || 'Goal updated';
+  }
+
+  function goalHistoryDate(ctx, value) {
+    if (!value) return 'No date';
+    return ctx.Core.parseDateOnly(value)?.toLocaleDateString(undefined, { dateStyle: 'medium' }) || String(value);
+  }
+
+  function goalHistoryValue(value, suffix = '') {
+    if (value === null || value === undefined || value === '') return 'Not set';
+    return `${value}${suffix}`;
+  }
+
+  function goalHistorySummary(ctx, event) {
+    const data = event?.data && typeof event.data === 'object' ? event.data : {};
+    if (['progressChanged', 'manualProgress'].includes(event.type)) return `${goalHistoryValue(data.from, '%')} → ${goalHistoryValue(data.to, '%')}`;
+    if (event.type === 'statusChanged') return `${goalHistoryValue(data.from)} → ${goalHistoryValue(data.to)}`;
+    if (event.type === 'targetDateChanged') return `${goalHistoryDate(ctx, data.from)} → ${goalHistoryDate(ctx, data.to)}`;
+    if (['projectLinked', 'projectUnlinked'].includes(event.type)) return ctx.getProject(data.projectId)?.name || data.projectId || 'Project';
+    const entries = Object.entries(data);
+    return entries.length ? entries.map(([key, value]) => `${key}: ${goalHistoryValue(value)}`).join(' · ') : 'No additional details';
+  }
+
+  function goalHistoryTimestamp(event) {
+    const timestamp = Date.parse(event?.createdAt);
+    return Number.isFinite(timestamp) ? new Date(timestamp).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : 'Unknown time';
+  }
+
+  function renderGoalHistoryModal(ctx) {
+    const { esc, getGoal, modalFrame, modalState } = ctx;
+    const goal = getGoal(modalState.goalId);
+    const events = Array.isArray(modalState.events) ? [...modalState.events].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)) : null;
+    const body = !goal ? '<p class="area-empty-copy">This Goal is no longer available.</p>' : modalState.error ? `<p class="validation" role="alert">${esc(modalState.error)}</p>` : !events ? '<p class="area-empty-copy">Loading history…</p>' : !events.length ? '<p class="area-empty-copy">No significant changes have been recorded yet.</p>' : `<div class="form-stack">${events.map(event => `<article class="goal-property"><span class="field-label">${esc(goalHistoryEventLabel(event.type))}</span><strong>${esc(goalHistorySummary(ctx, event))}</strong><small>${esc(goalHistoryTimestamp(event))}</small></article>`).join('')}</div>`;
+    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">Goal history</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="Close"><i class="ph ph-x"></i></button></div>${body}<div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">Close</button></div></div></div>`, 'quick');
   }
 
   function openGoalMenu(ctx, anchor, goalId) {
@@ -362,6 +400,7 @@
     else if (action === 'complete-goal') updateGoalStatus(el.dataset.goalId, 'completed');
     else if (action === 'archive-goal') updateGoalStatus(el.dataset.goalId, 'archived');
     else if (action === 'keep-goal-active') { closeModal(); render(); }
+    else if (action === 'open-goal-history') ctx.openGoalHistory(el.dataset.goalId, el);
     else if (action === 'edit-goal-links') openGoalLinksModal(ctx, el.dataset.goalId);
     else if (action === 'save-goal-links') saveGoalLinks(ctx);
     else if (action === 'new-milestone') openMilestoneModal(ctx, el.dataset.goalId);
@@ -413,7 +452,7 @@
       if (route.type === 'goal') return renderGoal(ctx, route.id);
       if (route.type === 'goal-row') return renderGoalRow(ctx, route.goal);
       if (route.type !== 'modal') return false;
-      const renderers = { goal: renderGoalModal, 'goal-source': renderGoalSourceModal, milestone: renderMilestoneModal, 'goal-links': renderGoalLinksModal, 'goal-reminders': renderGoalRemindersModal, 'goal-reached': renderGoalReachedModal };
+      const renderers = { goal: renderGoalModal, 'goal-source': renderGoalSourceModal, milestone: renderMilestoneModal, 'goal-links': renderGoalLinksModal, 'goal-reminders': renderGoalRemindersModal, 'goal-reached': renderGoalReachedModal, 'goal-history': renderGoalHistoryModal };
       return renderers[route.modalType]?.(ctx);
     },
     handleAction,
