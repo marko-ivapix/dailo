@@ -41,12 +41,13 @@
   let dragState = null;
   let modalReturnFocus = null;
   let goalPropertyEditor = null;
+  let habitPropertyEditor = null;
   let createdGoalFocusId = null;
 
   // Goal panels retain a logical trigger because rendering replaces its node.
   function goalFocusTarget(element = document.activeElement) {
     if (!(element instanceof HTMLElement)) return null;
-    const keys = ['action', 'goalProperty', 'goalId', 'milestoneId', 'areaId', 'date'];
+    const keys = ['action', 'goalProperty', 'goalId', 'milestoneId', 'habitProperty', 'habitId', 'areaId', 'date'];
     const attrs = keys.filter(key => element.dataset[key] !== undefined).map(key => `[data-${key.replace(/[A-Z]/g, c => '-' + c.toLowerCase())}="${CSS.escape(element.dataset[key])}"]`).join('');
     return { element, selector: attrs || (element.id ? '#' + CSS.escape(element.id) : '') };
   }
@@ -57,7 +58,7 @@
       const trigger = target.element?.isConnected ? target.element : target.selector && $(target.selector);
       const modal = $('#modal-root .modal');
       // A new decision may now be the highest overlay; never focus behind it.
-      const control = modal ? (modal.contains(trigger) ? trigger : [...modal.querySelectorAll('input, select, textarea')].find(el => el.offsetParent !== null) || modal.querySelector('.modal-footer button, button')) : trigger || $('#main [data-goal-property="title"]') || $('#main');
+      const control = modal ? (modal.contains(trigger) ? trigger : [...modal.querySelectorAll('input, select, textarea')].find(el => el.offsetParent !== null) || modal.querySelector('.modal-footer button, button')) : trigger || $('#main [data-goal-property="title"]') || $('#main [data-habit-property="name"]') || $('#main');
       control?.focus();
     });
   }
@@ -915,6 +916,85 @@
     const target = editor.returnFocus; goalPropertyEditor = null; render(); restoreGoalFocus(target); evaluateGoalProgressChanges(before);
   }
 
+  function openHabitProperty(element) {
+    const habit = getHabit(element.dataset.habitId); if (!habit) return;
+    const field = element.dataset.habitProperty;
+    habitPropertyEditor = { habit, field, value: field === 'quickValues' ? (habit.quickValues || []).join(', ') : habit[field] ?? '', returnFocus: goalFocusTarget(element) };
+    render(); requestAnimationFrame(() => $('#habit-detail-' + habitPropertyEditor?.field)?.focus());
+  }
+
+  function cancelHabitProperty() {
+    const target = habitPropertyEditor?.returnFocus; habitPropertyEditor = null; render(); restoreGoalFocus(target);
+  }
+
+  function saveHabitProperty() {
+    const editor = habitPropertyEditor;
+    if (!editor || getHabit(editor.habit.id) !== editor.habit) { cancelHabitProperty(); return; }
+    const { habit, field } = editor; editor.value = $('#habit-detail-' + field)?.value ?? editor.value;
+    const value = field === 'targetValue' ? Number(editor.value) : field === 'areaId' ? editor.value || null : field === 'quickValues' ? String(editor.value).split(',').map(item => Number(item.trim())).filter(item => Number.isFinite(item) && item > 0) : String(editor.value).trim();
+    const hasHistory = (state.habitLogCache?.[habit.id] || []).length > 0;
+    const error = field === 'name' && !value ? 'Habit needs a name.' : field === 'targetValue' && habit.trackingType === 'numeric' && (!Number.isFinite(value) || value <= 0) ? 'Numeric habits need a target above zero.' : field === 'trackingType' && value !== habit.trackingType && hasHistory ? 'Tracking cannot change while this Habit has history.' : '';
+    if (error) { editor.error = error; render(); requestAnimationFrame(() => $('#habit-detail-' + field)?.focus()); return; }
+    const old = habit[field];
+    if (JSON.stringify(old) !== JSON.stringify(value)) { habit[field] = value; habit.updatedAt = nowIso(); saveState(); }
+    const target = editor.returnFocus; habitPropertyEditor = null; render(); restoreGoalFocus(target);
+  }
+
+  function openHabitSettings(element) {
+    const habit = getHabit(element.dataset.habitId); if (!habit) return;
+    const logs = state.habitLogCache?.[habit.id] || []; const today = Core.dateOnly(); const todayLog = logs.find(log => log.date === today);
+    modalState = { type: 'habit-settings', panel: element.dataset.habitPanel, habitId: habit.id, source: habit, draft: { ...habitDraft(habit), historyDate: today, historyValue: todayLog?.value ?? 0, historyStatus: todayLog?.status || 'done' }, returnFocus: goalFocusTarget(element), error: '' };
+    renderModal();
+  }
+
+  function habitSettingsFields(d, panel) {
+    const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    if (panel === 'frequency') return `<label class="field-label">Frequency<select id="habit-panel-frequency" class="input"><option value="daily" ${d.frequencyType === 'daily' ? 'selected' : ''}>Daily</option><option value="weekdays" ${d.frequencyType === 'weekdays' ? 'selected' : ''}>Selected weekdays</option><option value="timesPerWeek" ${d.frequencyType === 'timesPerWeek' ? 'selected' : ''}>X times per week</option><option value="everyNDays" ${d.frequencyType === 'everyNDays' ? 'selected' : ''}>Every N days</option></select></label><div class="habit-frequency-fields"><label class="field-label">X per week<input id="habit-panel-times" class="input" type="number" min="1" max="7" step="1" value="${esc(d.timesPerWeek)}"></label><label class="field-label">Every N days<input id="habit-panel-every" class="input" type="number" min="1" step="1" value="${esc(d.everyNDays)}"></label><div class="field-label">Weekdays<div class="weekday-picker">${weekdays.map((label, day) => `<label><input type="checkbox" data-habit-panel-weekday="${day}" ${d.weekdays.includes(day) ? 'checked' : ''}>${label}</label>`).join('')}</div></div></div>`;
+    if (panel === 'reminders') return `<label class="field-label">Reminder times (comma separated)<input id="habit-panel-reminders" class="input" value="${esc((d.reminders || []).filter(item => item.enabled).map(item => item.time).join(','))}" placeholder="09:00, 18:00"></label><p class="area-empty-copy">Disabled reminder records stay intact.</p>`;
+    if (panel === 'continuation') return `<label class="field-label">Continuation<select id="habit-panel-continuation" class="input"><option value="automatic" ${d.continuation === 'automatic' ? 'selected' : ''}>Repeat automatically</option><option value="askEachPeriod" ${d.continuation === 'askEachPeriod' ? 'selected' : ''}>Ask each period</option><option value="onePeriod" ${d.continuation === 'onePeriod' ? 'selected' : ''}>One period only</option></select></label>`;
+    if (panel === 'end') return `<label class="field-label">End condition<select id="habit-panel-end-type" class="input"><option value="never" ${d.endType === 'never' ? 'selected' : ''}>Never</option><option value="date" ${d.endType === 'date' ? 'selected' : ''}>On date</option><option value="successfulPeriods" ${d.endType === 'successfulPeriods' ? 'selected' : ''}>After successful periods</option></select></label><label class="field-label">End date<input id="habit-panel-end-date" class="input" type="date" value="${esc(d.endDate)}"></label><label class="field-label">Successful periods<input id="habit-panel-successful-periods" class="input" type="number" min="1" step="1" value="${esc(d.successfulPeriodsTarget)}"></label>`;
+    if (panel === 'goals') return `<div class="link-picker"><h3>Linked Goals</h3>${state.goals.map(goal => `<label><input type="checkbox" data-habit-panel-goal="${esc(goal.id)}" ${d.goalIds.includes(goal.id) ? 'checked' : ''}>${esc(goal.title)}</label>`).join('') || '<span class="area-empty-copy">No Goals yet.</span>'}</div>`;
+    return `<label class="field-label">Date<input id="habit-panel-history-date" class="input" type="date" max="${esc(Core.dateOnly())}" value="${esc(d.historyDate)}"></label>${d.trackingType === 'numeric' ? `<label class="field-label">Total<input id="habit-panel-history-value" class="input" type="number" step="any" value="${esc(d.historyValue)}"></label>` : `<label class="field-label">Status<select id="habit-panel-history-status" class="input"><option value="done" ${d.historyStatus === 'done' ? 'selected' : ''}>Done</option><option value="skipped" ${d.historyStatus === 'skipped' ? 'selected' : ''}>Skipped</option><option value="missed" ${d.historyStatus === 'missed' ? 'selected' : ''}>Missed</option></select></label>`}`;
+  }
+
+  function renderHabitSettingsModal() {
+    const names = { frequency: 'Frequency', reminders: 'Reminders', continuation: 'Continuation', end: 'End condition', goals: 'Linked Goals', history: 'Edit history' };
+    const d = modalState.draft; const name = names[modalState.panel] || 'Habit settings';
+    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">${name}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="Close"><i class="ph ph-x"></i></button></div><div class="form-stack">${habitSettingsFields(d, modalState.panel)}${modalState.error ? `<p class="validation" role="alert">${esc(modalState.error)}</p>` : ''}</div><div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">Cancel</button><button class="btn btn-primary" type="button" data-action="save-habit-settings">Save ${name.toLowerCase()}</button></div></div></div>`, 'small-modal');
+  }
+
+  async function saveHabitSettings() {
+    if (modalState?.type !== 'habit-settings') return;
+    const editor = modalState; const habit = getHabit(editor.habitId);
+    if (!habit || habit !== editor.source) { closeModal(); return; }
+    const d = editor.draft; const panel = editor.panel;
+    if (panel === 'frequency') {
+      d.frequencyType = $('#habit-panel-frequency')?.value || d.frequencyType;
+      d.timesPerWeek = Number($('#habit-panel-times')?.value); d.everyNDays = Number($('#habit-panel-every')?.value); d.weekdays = $$('[data-habit-panel-weekday]').filter(input => input.checked).map(input => Number(input.dataset.habitPanelWeekday));
+      if ((d.frequencyType === 'timesPerWeek' && (!Number.isInteger(d.timesPerWeek) || d.timesPerWeek < 1 || d.timesPerWeek > 7)) || (d.frequencyType === 'everyNDays' && (!Number.isInteger(d.everyNDays) || d.everyNDays < 1)) || (d.frequencyType === 'weekdays' && !d.weekdays.length)) { editor.error = 'Use a positive whole-number schedule and select weekdays when needed.'; renderModal(); return; }
+      Object.assign(habit, { frequencyType: d.frequencyType, timesPerWeek: d.timesPerWeek, everyNDays: d.everyNDays, weekdays: d.weekdays });
+    } else if (panel === 'reminders') {
+      const oldByTime = new Map((habit.reminders || []).map(item => [item.time, item])); const disabled = (habit.reminders || []).filter(item => item.enabled === false);
+      const enabled = String($('#habit-panel-reminders')?.value || '').split(',').map(value => Core.normalizeTime(value.trim())).filter(Boolean).map(time => ({ ...(oldByTime.get(time) || {}), id: oldByTime.get(time)?.id || uid('habit-reminder'), time, enabled: oldByTime.get(time)?.enabled !== false }));
+      habit.reminders = [...disabled, ...enabled.filter(item => !disabled.some(disabledItem => disabledItem.id === item.id))];
+    } else if (panel === 'continuation') habit.continuation = $('#habit-panel-continuation')?.value || habit.continuation;
+    else if (panel === 'end') {
+      const endType = $('#habit-panel-end-type')?.value || 'never'; const endDate = $('#habit-panel-end-date')?.value || null; const periods = $('#habit-panel-successful-periods')?.value;
+      if (endType === 'date' && !endDate) { editor.error = 'Choose an end date.'; renderModal(); return; }
+      if (endType === 'successfulPeriods' && (!Number.isInteger(Number(periods)) || Number(periods) < 1)) { editor.error = 'Successful periods must be a positive whole number.'; renderModal(); return; }
+      Object.assign(habit, { endType, endDate: endType === 'date' ? endDate : null, successfulPeriodsTarget: endType === 'successfulPeriods' ? Number(periods) : null });
+    } else if (panel === 'goals') {
+      syncHabitGoalLinks(habit, $$('[data-habit-panel-goal]').filter(input => input.checked).map(input => input.dataset.habitPanelGoal));
+    } else {
+      const date = $('#habit-panel-history-date')?.value; const value = habit.trackingType === 'numeric' ? Number($('#habit-panel-history-value')?.value || 0) : null; const status = habit.trackingType === 'numeric' ? 'done' : $('#habit-panel-history-status')?.value || 'missed';
+      if (!date || date > Core.dateOnly()) { editor.error = 'Choose an eligible past date.'; renderModal(); return; }
+      const target = editor.returnFocus; const saved = await setHabitLog(habit.id, date, status, value);
+      if (!saved) { editor.error = 'That date is not scheduled for this Habit.'; renderModal(); return; }
+      if (modalState === editor) { modalState = null; $('#modal-root').innerHTML = ''; restoreGoalFocus(target); } return;
+    }
+    habit.updatedAt = nowIso(); saveState(); const target = editor.returnFocus; closeModal(); await refreshHabitMetrics(); render(); restoreGoalFocus(target);
+  }
+
   function openGoalSourceModal(goalId) {
     const goal = getGoal(goalId); if (!goal) return;
     modalState = { type: 'goal-source', goalId, source: goal, draft: goalDraft(goal), returnFocus: goalFocusTarget(), error: '' }; renderModal();
@@ -988,11 +1068,21 @@
     const todayLog = logs.find(log => log.date === today);
     const history = [...logs].sort((a, b) => String(b.date).localeCompare(String(a.date)));
     let html = pageHeader(habit.name, `${habitFrequencyLabel(habit)} · ${habit.status}`, { add: false, actionHtml: `<button class="btn btn-secondary" type="button" data-action="edit-habit" data-habit-id="${esc(habit.id)}"><i class="ph ph-pencil-simple"></i> Edit</button><button class="btn-icon" type="button" data-action="habit-menu" data-habit-id="${esc(habit.id)}" aria-label="Habit actions"><i class="ph ph-dots-three"></i></button>` });
+    html += `<div class="form-stack goal-properties habit-properties">${[['name','Name'],['areaId','Area'],['trackingType','Tracking'],['targetValue','Target value'],['unit','Unit'],['quickValues','Quick values']].map(([field,label]) => renderHabitProperty(habit, field, label)).join('')}<div class="goal-detail-actions"><button class="btn btn-secondary" type="button" data-action="edit-habit-settings" data-habit-id="${esc(habit.id)}" data-habit-panel="frequency">Frequency</button><button class="btn btn-secondary" type="button" data-action="edit-habit-settings" data-habit-id="${esc(habit.id)}" data-habit-panel="reminders">Reminders</button><button class="btn btn-secondary" type="button" data-action="edit-habit-settings" data-habit-id="${esc(habit.id)}" data-habit-panel="continuation">Continuation</button><button class="btn btn-secondary" type="button" data-action="edit-habit-settings" data-habit-id="${esc(habit.id)}" data-habit-panel="end">End condition</button><button class="btn btn-secondary" type="button" data-action="edit-habit-settings" data-habit-id="${esc(habit.id)}" data-habit-panel="goals">Linked Goals</button></div></div>`;
     html += `<section class="habit-detail-card"><div class="habit-summary"><strong>${esc(habitProgressLabel(habit, metrics))}</strong><span>Current period</span></div><div class="habit-metric-grid"><div><strong>${metrics.currentStreak}</strong><span>Current streak</span></div><div><strong>${metrics.longestStreak}</strong><span>Longest streak</span></div><div><strong>${metrics.totalCheckins}</strong><span>Total check-ins</span></div><div><strong>${Math.round(metrics.completionRate)}%</strong><span>Completion rate</span></div></div>${habit.status === 'active' ? (habit.trackingType === 'numeric' ? `<div class="habit-checkin-controls">${(habit.quickValues || []).map(value => `<button class="btn btn-secondary" type="button" data-action="habit-quick-add" data-habit-id="${esc(habit.id)}" data-value="${esc(value)}">+${esc(value)}</button>`).join('')}<label class="field-label">Daily total<input id="habit-direct-total" class="input" type="number" step="any" value="${esc(todayLog?.value || 0)}" /></label><button class="btn btn-primary" type="button" data-action="save-habit-total" data-habit-id="${esc(habit.id)}">Save total</button></div>` : `<div class="habit-checkin-controls"><button class="btn btn-primary" type="button" data-action="habit-checkin" data-habit-id="${esc(habit.id)}">${todayStatus.status === 'done' ? 'Mark not done' : 'Check in'}</button><button class="btn btn-ghost" type="button" data-action="habit-skip" data-habit-id="${esc(habit.id)}">Skip today</button></div>`) : '<p class="area-empty-copy">Paused and archived habits preserve history but cannot be checked in.</p>'}</section>`;
     html += `<section class="section"><div class="section-header"><h2 class="section-label">Monthly heatmap</h2></div>${heatmapHtml(habit, logs)}</section>`;
     const historyEditor = `<div class="habit-history-row"><input id="habit-history-date" class="input" type="date" max="${esc(today)}" value="${esc(today)}">${habit.trackingType === 'numeric' ? `<input id="habit-history-new-value" class="input" type="number" step="any" value="0">` : `<select id="habit-history-new-status" class="input"><option value="done">Done</option><option value="skipped">Skipped</option><option value="missed">Missed</option></select>`}<button class="btn btn-ghost" type="button" data-action="save-habit-history-date" data-habit-id="${esc(habit.id)}">Save date</button></div>`;
-    html += `<section class="section"><div class="section-header"><h2 class="section-label">History</h2></div>${historyEditor}${history.length ? `<div class="habit-history">${history.map(log => `<div class="habit-history-row"><span>${esc(log.date)}</span>${habit.trackingType === 'numeric' ? `<input class="input" type="number" step="any" value="${esc(log.value ?? 0)}" data-habit-history-value data-habit-date="${esc(log.date)}">` : `<select class="input" data-habit-history-status data-habit-date="${esc(log.date)}"><option value="done" ${log.status === 'done' ? 'selected' : ''}>Done</option><option value="skipped" ${log.status === 'skipped' ? 'selected' : ''}>Skipped</option><option value="missed" ${log.status === 'missed' ? 'selected' : ''}>Missed</option></select>`}<button class="btn btn-ghost" type="button" data-action="save-habit-history" data-habit-id="${esc(habit.id)}" data-habit-date="${esc(log.date)}">Save</button></div>`).join('')}</div>` : '<p class="area-empty-copy">No history yet. Choose any eligible past date to add a correction.</p>'}</section>`;
+    html += `<section class="section"><div class="section-header"><h2 class="section-label">History</h2><button class="btn btn-ghost" type="button" data-action="edit-habit-settings" data-habit-id="${esc(habit.id)}" data-habit-panel="history">Edit history</button></div>${historyEditor}${history.length ? `<div class="habit-history">${history.map(log => `<div class="habit-history-row"><span>${esc(log.date)}</span>${habit.trackingType === 'numeric' ? `<input class="input" type="number" step="any" value="${esc(log.value ?? 0)}" data-habit-history-value data-habit-date="${esc(log.date)}">` : `<select class="input" data-habit-history-status data-habit-date="${esc(log.date)}"><option value="done" ${log.status === 'done' ? 'selected' : ''}>Done</option><option value="skipped" ${log.status === 'skipped' ? 'selected' : ''}>Skipped</option><option value="missed" ${log.status === 'missed' ? 'selected' : ''}>Missed</option></select>`}<button class="btn btn-ghost" type="button" data-action="save-habit-history" data-habit-id="${esc(habit.id)}" data-habit-date="${esc(log.date)}">Save</button></div>`).join('')}</div>` : '<p class="area-empty-copy">No history yet. Choose any eligible past date to add a correction.</p>'}</section>`;
     return html;
+  }
+
+  function renderHabitProperty(habit, field, label) {
+    const editor = habitPropertyEditor?.habit === habit && habitPropertyEditor.field === field ? habitPropertyEditor : null;
+    const value = field === 'areaId' ? getArea(habit.areaId)?.name || 'No area' : field === 'quickValues' ? (habit.quickValues || []).join(', ') : habit[field] ?? '';
+    if (!editor) return `<div class="goal-property"><span class="field-label">${label}</span><button class="btn btn-ghost" type="button" data-habit-property="${field}" data-habit-id="${esc(habit.id)}">${esc(value || (field === 'unit' || field === 'quickValues' ? 'Not set' : 'No area'))}</button></div>`;
+    const id = 'habit-detail-' + field;
+    const input = field === 'areaId' ? `<select id="${id}" class="input"><option value="">No area</option>${state.areas.filter(a => a.status === 'active' || a.id === habit.areaId).map(a => `<option value="${esc(a.id)}" ${a.id === editor.value ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select>` : field === 'trackingType' ? `<select id="${id}" class="input"><option value="checkbox" ${editor.value === 'checkbox' ? 'selected' : ''}>Checkbox</option><option value="numeric" ${editor.value === 'numeric' ? 'selected' : ''}>Numeric</option></select>` : `<input id="${id}" class="input" type="${field === 'targetValue' ? 'number' : 'text'}" ${field === 'targetValue' ? 'step="any"' : field === 'name' ? 'maxlength="120"' : ''} value="${esc(editor.value)}" ${editor.error ? 'aria-invalid="true" aria-describedby="habit-property-error"' : ''}>`;
+    return `<div class="goal-property-editor"><label class="field-label" for="${id}">${label}</label>${input}${editor.error ? `<p id="habit-property-error" class="validation" role="alert">${esc(editor.error)}</p>` : ''}<div class="goal-detail-actions"><button class="btn btn-secondary" type="button" data-action="save-habit-property">Save ${label.toLowerCase()}</button><button class="btn btn-ghost" type="button" data-action="cancel-habit-property">Cancel</button></div></div>`;
   }
 
   function renderArchivedProjects() {
@@ -1307,6 +1397,7 @@
     else if (modalState.type === 'goal') root.innerHTML = renderGoalModal();
     else if (modalState.type === 'goal-source') root.innerHTML = renderGoalSourceModal();
     else if (modalState.type === 'habit') root.innerHTML = renderHabitModal();
+    else if (modalState.type === 'habit-settings') root.innerHTML = renderHabitSettingsModal();
     else if (modalState.type === 'calendar-day') root.innerHTML = renderCalendarDetail();
     else if (modalState.type === 'calendar-value') root.innerHTML = renderCalendarValue();
     else if (modalState.type === 'calendar-progress') root.innerHTML = renderCalendarGoalProgress();
@@ -1326,7 +1417,7 @@
       $('.modal-inner',root)?.insertAdjacentHTML('afterbegin','<button class="btn btn-ghost" type="button" data-action="from-template"><i class="ph ph-copy"></i> From template</button>');
     }
     if (['confirm','recurrence-scope'].includes(modalState?.type)) requestAnimationFrame(() => root.querySelector('.modal button, .modal [href], .modal input, .modal select, .modal textarea, .modal [tabindex]:not([tabindex="-1"])')?.focus());
-    if (['goal', 'goal-source', 'goal-links', 'goal-reminders', 'milestone'].includes(modalState?.type)) requestAnimationFrame(() => ([...root.querySelectorAll('input, select, textarea')].find(el => el.offsetParent !== null) || root.querySelector('.modal-footer [data-action="close-modal"]'))?.focus());
+    if (['goal', 'goal-source', 'goal-links', 'goal-reminders', 'milestone', 'habit-settings'].includes(modalState?.type)) requestAnimationFrame(() => ([...root.querySelectorAll('input, select, textarea')].find(el => el.offsetParent !== null) || root.querySelector('.modal-footer [data-action="close-modal"]'))?.focus());
   }
 
   function modalFrame(content, cls = '') {
@@ -1486,6 +1577,10 @@
     if(type==='goal' && (d.milestones || []).some(m=>!String(m.title || '').trim()))return 'Milestones need a title.';
     if((type==='habit' && d.trackingType==='numeric' || type==='goal' && d.progressType==='numeric') && !(d.targetValue>0))return 'Numeric targets must be above zero.';
     if(type==='habit' && d.frequencyType==='weekdays' && (!(d.weekdays || []).length || d.weekdays.some(n=>!Number.isInteger(n)||n<0||n>6)))return 'Select valid weekdays from 0 to 6.';
+    if(type==='habit' && d.frequencyType==='timesPerWeek' && (!Number.isInteger(d.timesPerWeek)||d.timesPerWeek<1||d.timesPerWeek>7))return 'Times per week must be a positive whole number up to 7.';
+    if(type==='habit' && d.frequencyType==='everyNDays' && (!Number.isInteger(d.everyNDays)||d.everyNDays<1))return 'Every N days must be a positive whole number.';
+    if(type==='habit' && d.endType==='successfulPeriods' && (!Number.isInteger(d.successfulPeriodsTarget)||d.successfulPeriodsTarget<1))return 'Successful periods must be a positive whole number.';
+    if(type==='habit' && d.endType==='date' && !Number.isInteger(d.endOffsetDays))return 'Provide a whole-number end day offset.';
     if(type==='habit' && (d.goalLinkConfigs || []).some(c=>!(c.target>0)))return 'Goal contribution targets must be above zero.';
     return null;
   }
@@ -1779,7 +1874,7 @@
     const d = modalState.draft; const editing = Boolean(modalState.habitId);
     const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const goalLinks = state.goals.map(goal => `<label><input type="checkbox" data-habit-goal="${esc(goal.id)}" ${d.goalIds.includes(goal.id) ? 'checked' : ''}> ${esc(goal.title)}</label>`).join('') || '<span class="area-empty-copy">No Goals yet.</span>';
-    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">${editing ? 'Edit habit' : 'New habit'}</h2><button class="btn-icon" type="button" data-action="close-modal"><i class="ph ph-x"></i></button></div><div class="form-stack"><label class="field-label">Name<input id="habit-name" class="input" maxlength="120" value="${esc(d.name)}" placeholder="What do you want to practice?" /></label><label class="field-label">Area<select id="habit-area" class="input"><option value="">No area</option>${state.areas.filter(area => area.status === 'active' || area.id === d.areaId).map(area => `<option value="${esc(area.id)}" ${area.id === d.areaId ? 'selected' : ''}>${esc(area.name)}</option>`).join('')}</select></label><div class="goal-form-grid"><label class="field-label">Tracking<select id="habit-tracking" class="input"><option value="checkbox" ${d.trackingType === 'checkbox' ? 'selected' : ''}>Checkbox</option><option value="numeric" ${d.trackingType === 'numeric' ? 'selected' : ''}>Numeric</option></select></label><label class="field-label">Frequency<select id="habit-frequency" class="input"><option value="daily" ${d.frequencyType === 'daily' ? 'selected' : ''}>Daily</option><option value="weekdays" ${d.frequencyType === 'weekdays' ? 'selected' : ''}>Selected weekdays</option><option value="timesPerWeek" ${d.frequencyType === 'timesPerWeek' ? 'selected' : ''}>X times per week</option><option value="everyNDays" ${d.frequencyType === 'everyNDays' ? 'selected' : ''}>Every N days</option></select></label></div><div class="habit-frequency-fields"><label class="field-label">Target<input id="habit-target-value" class="input" type="number" min="0" step="any" value="${esc(d.targetValue)}" /></label><label class="field-label">Unit<input id="habit-unit" class="input" value="${esc(d.unit)}" placeholder="L, pages..." /></label><label class="field-label">X per week<input id="habit-times-per-week" class="input" type="number" min="1" max="7" value="${esc(d.timesPerWeek)}" /></label><label class="field-label">Every N days<input id="habit-every-n-days" class="input" type="number" min="1" value="${esc(d.everyNDays)}" /></label><div class="field-label">Weekdays<div class="weekday-picker">${weekdays.map((label, day) => `<label><input type="checkbox" data-habit-weekday="${day}" ${d.weekdays.includes(day) ? 'checked' : ''}>${label}</label>`).join('')}</div></div></div><button class="btn btn-ghost" type="button" data-action="toggle-habit-more">More</button>${d.moreOpen ? `<div class="form-stack"><label class="field-label">Start date<input id="habit-start-date" class="input" type="date" value="${esc(d.startDate)}" /></label><label class="field-label">Continuation<select id="habit-continuation" class="input"><option value="automatic" ${d.continuation === 'automatic' ? 'selected' : ''}>Repeat automatically</option><option value="askEachPeriod" ${d.continuation === 'askEachPeriod' ? 'selected' : ''}>Ask each period</option><option value="onePeriod" ${d.continuation === 'onePeriod' ? 'selected' : ''}>One period only</option></select></label><label class="field-label">End condition<select id="habit-end-type" class="input"><option value="never" ${d.endType === 'never' ? 'selected' : ''}>Never</option><option value="date" ${d.endType === 'date' ? 'selected' : ''}>On date</option><option value="successfulPeriods" ${d.endType === 'successfulPeriods' ? 'selected' : ''}>After successful periods</option></select></label><label class="field-label">End date<input id="habit-end-date" class="input" type="date" value="${esc(d.endDate)}" /></label><label class="field-label">Successful periods<input id="habit-successful-periods" class="input" type="number" min="1" value="${esc(d.successfulPeriodsTarget)}" /></label><label class="field-label">Quick values (comma separated)<input id="habit-quick-values" class="input" value="${esc(d.quickValues)}" placeholder="0.25, 0.5" /></label><label class="field-label">Reminder times (comma separated)<input id="habit-reminders" class="input" value="${esc(d.reminders.filter(item => item.enabled).map(item => item.time).join(','))}" placeholder="09:00, 18:00" /></label><div class="link-picker"><h3>Linked Goals</h3>${goalLinks}</div></div>` : ''}${modalState.error ? `<p class="validation">${esc(modalState.error)}</p>` : ''}</div><div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">Cancel</button><button class="btn btn-primary" type="button" data-action="save-habit">${editing ? 'Save changes' : 'Create habit'}</button></div></div></div>`, 'quick');
+    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">${editing ? 'Edit habit' : 'New habit'}</h2><button class="btn-icon" type="button" data-action="close-modal"><i class="ph ph-x"></i></button></div><div class="form-stack"><label class="field-label">Name<input id="habit-name" class="input" maxlength="120" value="${esc(d.name)}" placeholder="What do you want to practice?" /></label><label class="field-label">Area<select id="habit-area" class="input"><option value="">No area</option>${state.areas.filter(area => area.status === 'active' || area.id === d.areaId).map(area => `<option value="${esc(area.id)}" ${area.id === d.areaId ? 'selected' : ''}>${esc(area.name)}</option>`).join('')}</select></label><div class="goal-form-grid"><label class="field-label">Tracking<select id="habit-tracking" class="input"><option value="checkbox" ${d.trackingType === 'checkbox' ? 'selected' : ''}>Checkbox</option><option value="numeric" ${d.trackingType === 'numeric' ? 'selected' : ''}>Numeric</option></select></label><label class="field-label">Frequency<select id="habit-frequency" class="input"><option value="daily" ${d.frequencyType === 'daily' ? 'selected' : ''}>Daily</option><option value="weekdays" ${d.frequencyType === 'weekdays' ? 'selected' : ''}>Selected weekdays</option><option value="timesPerWeek" ${d.frequencyType === 'timesPerWeek' ? 'selected' : ''}>X times per week</option><option value="everyNDays" ${d.frequencyType === 'everyNDays' ? 'selected' : ''}>Every N days</option></select></label></div><div class="habit-frequency-fields"><label class="field-label">Target<input id="habit-target-value" class="input" type="number" min="0" step="any" value="${esc(d.targetValue)}" /></label><label class="field-label">Unit<input id="habit-unit" class="input" value="${esc(d.unit)}" placeholder="L, pages..." /></label><label class="field-label">X per week<input id="habit-times-per-week" class="input" type="number" min="1" max="7" value="${esc(d.timesPerWeek)}" /></label><label class="field-label">Every N days<input id="habit-every-n-days" class="input" type="number" min="1" value="${esc(d.everyNDays)}" /></label><div class="field-label">Weekdays<div class="weekday-picker">${weekdays.map((label, day) => `<label><input type="checkbox" data-habit-weekday="${day}" ${d.weekdays.includes(day) ? 'checked' : ''}>${label}</label>`).join('')}</div></div></div><button class="btn btn-ghost" type="button" data-action="toggle-habit-more" aria-expanded="${Boolean(d.moreOpen)}" aria-controls="habit-more">More</button>${d.moreOpen ? `<div id="habit-more" class="form-stack"><label class="field-label">Start date<input id="habit-start-date" class="input" type="date" value="${esc(d.startDate)}" /></label><label class="field-label">Continuation<select id="habit-continuation" class="input"><option value="automatic" ${d.continuation === 'automatic' ? 'selected' : ''}>Repeat automatically</option><option value="askEachPeriod" ${d.continuation === 'askEachPeriod' ? 'selected' : ''}>Ask each period</option><option value="onePeriod" ${d.continuation === 'onePeriod' ? 'selected' : ''}>One period only</option></select></label><label class="field-label">End condition<select id="habit-end-type" class="input"><option value="never" ${d.endType === 'never' ? 'selected' : ''}>Never</option><option value="date" ${d.endType === 'date' ? 'selected' : ''}>On date</option><option value="successfulPeriods" ${d.endType === 'successfulPeriods' ? 'selected' : ''}>After successful periods</option></select></label><label class="field-label">End date<input id="habit-end-date" class="input" type="date" value="${esc(d.endDate)}" /></label><label class="field-label">Successful periods<input id="habit-successful-periods" class="input" type="number" min="1" value="${esc(d.successfulPeriodsTarget)}" /></label><label class="field-label">Quick values (comma separated)<input id="habit-quick-values" class="input" value="${esc(d.quickValues)}" placeholder="0.25, 0.5" /></label><label class="field-label">Reminder times (comma separated)<input id="habit-reminders" class="input" value="${esc(d.reminders.filter(item => item.enabled).map(item => item.time).join(','))}" placeholder="09:00, 18:00" /></label><div class="link-picker"><h3>Linked Goals</h3>${goalLinks}</div></div>` : ''}${modalState.error ? `<p class="validation">${esc(modalState.error)}</p>` : ''}</div><div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">Cancel</button><button class="btn btn-primary" type="button" data-action="save-habit">${editing ? 'Save changes' : 'Create habit'}</button></div></div></div>`, 'quick');
   }
 
   function renderMilestoneModal() {
@@ -3055,14 +3150,14 @@
   function readHabitDraft() {
     const d = modalState.draft;
     d.name = $('#habit-name')?.value || d.name; d.areaId = $('#habit-area')?.value || null; d.trackingType = $('#habit-tracking')?.value || 'checkbox'; d.frequencyType = $('#habit-frequency')?.value || 'daily';
-    d.targetValue = Number($('#habit-target-value')?.value ?? d.targetValue); d.unit = $('#habit-unit')?.value || ''; d.timesPerWeek = Math.max(1, Math.floor(Number($('#habit-times-per-week')?.value || d.timesPerWeek) || 1)); d.everyNDays = Math.max(1, Math.floor(Number($('#habit-every-n-days')?.value || d.everyNDays) || 1));
+    d.targetValue = Number($('#habit-target-value')?.value ?? d.targetValue); d.unit = $('#habit-unit')?.value || ''; d.timesPerWeek = Number($('#habit-times-per-week')?.value ?? d.timesPerWeek); d.everyNDays = Number($('#habit-every-n-days')?.value ?? d.everyNDays);
     d.weekdays = $$('[data-habit-weekday]').filter(input => input.checked).map(input => Number(input.dataset.habitWeekday));
     const startDate = $('#habit-start-date'); const continuation = $('#habit-continuation'); const endType = $('#habit-end-type'); const endDate = $('#habit-end-date'); const successfulPeriods = $('#habit-successful-periods'); const quickValues = $('#habit-quick-values'); const reminders = $('#habit-reminders'); const goalControls = $$('[data-habit-goal]');
     if (startDate) d.startDate = startDate.value || d.startDate || Core.dateOnly();
     if (continuation) d.continuation = continuation.value || d.continuation;
     if (endType) d.endType = endType.value || d.endType;
     if (endDate) d.endDate = endDate.value || null;
-    if (successfulPeriods) d.successfulPeriodsTarget = Number(successfulPeriods.value || 0) || null;
+    if (successfulPeriods) d.successfulPeriodsTarget = successfulPeriods.value === '' ? null : Number(successfulPeriods.value);
     if (quickValues) d.quickValues = String(quickValues.value ?? '').split(',').map(value => Number(value.trim())).filter(value => Number.isFinite(value) && value > 0);
     else if (typeof d.quickValues === 'string') d.quickValues = d.quickValues.split(',').map(value => Number(value.trim())).filter(value => Number.isFinite(value) && value > 0);
     if (reminders) {
@@ -3081,6 +3176,10 @@
     if (!String(d.name).trim()) { modalState.error = 'Habit needs a name.'; renderModal(); return; }
     if (d.trackingType === 'numeric' && !(d.targetValue > 0)) { modalState.error = 'Numeric habits need a target above zero.'; renderModal(); return; }
     if (d.frequencyType === 'weekdays' && !d.weekdays.length) { modalState.error = 'Select at least one weekday.'; renderModal(); return; }
+    if (d.frequencyType === 'timesPerWeek' && (!Number.isInteger(d.timesPerWeek) || d.timesPerWeek < 1 || d.timesPerWeek > 7)) { modalState.error = 'Times per week must be a positive whole number up to 7.'; renderModal(); return; }
+    if (d.frequencyType === 'everyNDays' && (!Number.isInteger(d.everyNDays) || d.everyNDays < 1)) { modalState.error = 'Every N days must be a positive whole number.'; renderModal(); return; }
+    if (d.endType === 'date' && !d.endDate) { modalState.error = 'Choose an end date.'; renderModal(); return; }
+    if (d.endType === 'successfulPeriods' && (!Number.isInteger(d.successfulPeriodsTarget) || d.successfulPeriodsTarget < 1)) { modalState.error = 'Successful periods must be a positive whole number.'; renderModal(); return; }
     const fields = { ...d, name: String(d.name).trim(), quickValues: d.quickValues, reminders: d.reminders, updatedAt: nowIso() };
     const existingId = modalState.habitId;
     const habit = existingId ? getHabit(existingId) : { id: uid('habit'), goalIds: [], status: 'active', reminderFiredMoments: [], createdAt: nowIso() };
@@ -3635,6 +3734,8 @@
     if (pop) { handlePopoverAction(pop); return; }
     const goalProperty = event.target.closest('[data-goal-property]');
     if (goalProperty) { openGoalProperty(goalProperty); return; }
+    const habitProperty = event.target.closest('[data-habit-property]');
+    if (habitProperty) { openHabitProperty(habitProperty); return; }
 
     const el = event.target.closest('[data-action]');
     if (!el) {
@@ -3699,11 +3800,15 @@
     else if (action === 'save-goal-property') saveGoalProperty();
     else if (action === 'cancel-goal-property') cancelGoalProperty();
     else if (action === 'goal-status-menu') openGoalStatusMenu(el, el.dataset.goalId);
+    else if (action === 'edit-habit-settings') openHabitSettings(el);
+    else if (action === 'save-habit-settings') saveHabitSettings();
+    else if (action === 'save-habit-property') saveHabitProperty();
+    else if (action === 'cancel-habit-property') cancelHabitProperty();
     else if (action === 'new-habit') openHabitModal();
     else if (action === 'edit-habit') openHabitModal(el.dataset.habitId);
     else if (action === 'habit-menu') openHabitMenu(el, el.dataset.habitId);
     else if (action === 'save-habit') saveHabitModal();
-    else if (action === 'toggle-habit-more') { readHabitDraft(); modalState.draft.moreOpen = !modalState.draft.moreOpen; renderModal(); }
+    else if (action === 'toggle-habit-more') { readHabitDraft(); modalState.draft.moreOpen = !modalState.draft.moreOpen; renderModal(); requestAnimationFrame(() => $('[data-action="toggle-habit-more"]')?.focus()); }
     else if (action === 'habit-checkin') { const habit = getHabit(el.dataset.habitId); const existing = state.habitLogCache?.[habit?.id]?.find(log => log.date === Core.dateOnly()); setHabitLog(el.dataset.habitId, Core.dateOnly(), existing?.status === 'done' ? 'missed' : 'done'); }
     else if (action === 'habit-skip') setHabitLog(el.dataset.habitId, Core.dateOnly(), 'skipped');
     else if (action === 'habit-quick-add') { const habit = getHabit(el.dataset.habitId); const existing = state.habitLogCache?.[habit?.id]?.find(log => log.date === Core.dateOnly()); setHabitLog(el.dataset.habitId, Core.dateOnly(), 'done', Number(existing?.value || 0) + Number(el.dataset.value || 0)); }
@@ -3877,6 +3982,7 @@
   function handleInput(event) {
     if (globalOperation) return;
     if (goalPropertyEditor && event.target.id === 'goal-detail-' + goalPropertyEditor.field) goalPropertyEditor.value = event.target.value;
+    if (habitPropertyEditor && event.target.id === 'habit-detail-' + habitPropertyEditor.field) habitPropertyEditor.value = event.target.value;
     if (['goal', 'goal-source'].includes(modalState?.type) && event.target.id.startsWith('goal-')) readGoalDraft();
     if (modalState?.type === 'quick') {
       if (event.target.id === 'quick-title') { modalState.draft.title = event.target.value; modalState.error = ''; if (!modalState.draft.explicitPlan) { const parsed=Core.parseQuickPlanPhrase(event.target.value, Core.dateOnly()); modalState.draft.parsedPlanDate=parsed.plannedDate; const b=document.querySelector('[data-action="quick-plan-picker"]'); if(b) b.innerHTML=`<i class="ph ph-calendar-check"></i>${parsed.plannedDate ? esc(relativeDateLabel(parsed.plannedDate)) : 'Plan for'}`; } }
@@ -3899,6 +4005,7 @@
   function handleChange(event) {
     if (globalOperation) return;
     if (goalPropertyEditor && event.target.id === 'goal-detail-' + goalPropertyEditor.field) goalPropertyEditor.value = event.target.value;
+    if (habitPropertyEditor && event.target.id === 'habit-detail-' + habitPropertyEditor.field) habitPropertyEditor.value = event.target.value;
     if (['goal','goal-source'].includes(modalState?.type) && ['goal-progress-mode','goal-progress-type'].includes(event.target.id)) {
       const id = event.target.id; readGoalDraft(); renderModal(); requestAnimationFrame(() => $('#' + id)?.focus()); return;
     }
@@ -3948,6 +4055,9 @@
     const typing = target && (target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"]') || target.isContentEditable);
     if (goalPropertyEditor && !modalState && !popoverEl && (event.key === 'Escape' || (event.key === 'Enter' && typing && !event.isComposing))) {
       event.preventDefault(); if (event.key === 'Escape') cancelGoalProperty(); else saveGoalProperty(); return;
+    }
+    if (habitPropertyEditor && !modalState && !popoverEl && (event.key === 'Escape' || (event.key === 'Enter' && typing && !event.isComposing))) {
+      event.preventDefault(); if (event.key === 'Escape') cancelHabitProperty(); else saveHabitProperty(); return;
     }
     if (popoverEl?.dataset.popoverType === 'goal-status' && event.key === 'Tab') {
       const controls = [...popoverEl.querySelectorAll('button:not([disabled])')];
