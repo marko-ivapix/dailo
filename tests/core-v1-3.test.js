@@ -45,6 +45,26 @@ test('future split is independent and occurrence-only generation uses original b
   const mixed=Core.splitRecurrenceForFuture(occurrence,{title:'Future title'},'2026-10-01');
   assert.equal(mixed.plannedDate,'2026-10-06');const mixedNext=Core.buildNextRecurringTask(mixed,'2026-10-01T12:00:00Z','mixed-next');assert.equal(mixedNext.title,'Future title');assert.equal(mixedNext.plannedDate,'2026-10-08');assert.equal(mixedNext.recurrence.frequency,'weekly');
 });
+test('partial future cadence patch preserves baseline end configuration after occurrence-only override',()=>{
+  for(const original of [{endType:'never'},{endType:'date',endDate:'2026-10-10'},{endType:'afterOccurrences',endAfterOccurrences:3}]){
+    const baseline=recurringFixture({seriesId:'series-A',...original});
+    const occurrence={...baseline,recurrence:{...baseline.recurrence,endType:'afterOccurrences',endAfterOccurrences:1},recurrenceBaseline:JSON.parse(JSON.stringify(baseline))};
+    const branch=Core.splitRecurrenceForFuture(occurrence,{recurrence:{frequency:'daily',interval:2}},'2026-10-01');
+    assert.equal(branch.recurrence.endType,original.endType);assert.equal(branch.recurrence.endDate,original.endDate || null);assert.equal(branch.recurrence.endAfterOccurrences,original.endAfterOccurrences || null);
+    const next=Core.buildNextRecurringTask(branch,'2026-10-01T12:00:00Z','r2');assert.ok(next);assert.equal(next.plannedDate,'2026-10-03');assert.equal(next.recurrence.frequency,'daily');
+  }
+});
+test('reopened predecessor Skip flags the earliest pending trigger without an existing successor',()=>{
+  const app=require('node:fs').readFileSync(require('node:path').join(__dirname,'../js/app.js'),'utf8');
+  const manage=app.slice(app.indexOf('  function manageRecurrence('),app.indexOf('  function setProject(',app.indexOf('  function manageRecurrence(')));
+  for(const selected of ['r1','r2']){
+    const tasks=[{...recurringFixture({seriesId:'series-A'}),isCompleted:false,recurrenceSuccessorId:'r2'},{...recurringFixture({seriesId:'series-A'}),id:'r2',plannedDate:'2026-10-08',isCompleted:false,recurrenceSuccessorId:null}];
+    const context={state:{tasks},getTask:id=>tasks.find(t=>t.id===id),taskRecurrence:t=>t?.recurrence,Core:{dateOnly:()=> '2026-10-01'},nowIso:()=> '2026-10-01T12:00:00Z',closePopover(){},saveState(){},render(){},renderModal(){}};
+    require('node:vm').runInNewContext(manage+`;manageRecurrence('${selected}','skip-recurrence');`,context);
+    assert.notEqual(tasks[0].recurrence.skipNext,true);assert.equal(tasks[1].recurrence.skipNext,true);
+    assert.equal(Core.buildNextRecurringTask(tasks[1],'2026-10-08T12:00:00Z','r3').plannedDate,'2026-10-22');
+  }
+});
 test('duplicate and template instances reset recurrence runtime and preserve their different date policies',()=>{
   const source=recurringFixture({status:'paused',endType:'date',endDate:'2026-10-29',occurrencesCreated:2,skipNext:true,seriesId:'old'});
   const duplicate=Core.cloneTaskForDuplicate(source,'copy','2026-11-10T12:00:00Z');

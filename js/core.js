@@ -299,7 +299,8 @@
   }
   function splitRecurrenceForFuture(task,changes,effectiveDate) {
     const baseline=task.recurrenceBaseline;
-    const clone=templateCopy(task),rule=normalizeRecurrenceV3(changes.recurrence===undefined?(baseline || task).recurrence:changes.recurrence);
+    const clone=templateCopy(task),sourceRule=(baseline || task).recurrence;
+    const rule=normalizeRecurrenceV3(changes.recurrence===undefined?sourceRule:changes.recurrence?{...sourceRule,...changes.recurrence}:null);
     Object.assign(clone,templateCopy(changes));
     clone.recurrence=rule?{...rule,seriesId:`${task.id}_branch_${effectiveDate}_${globalThis.crypto.randomUUID()}`}:null;
     clone.recurrenceBaseline=baseline?{...templateCopy(baseline),...templateCopy(changes),recurrence:templateCopy(clone.recurrence)}:null;

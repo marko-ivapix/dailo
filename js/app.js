@@ -1839,7 +1839,7 @@
       closePopover(); renderModal(); return;
     }
     const task = getTask(taskId); if (!task) return;
-    closePopover();requestTaskEdit(taskId,{recurrence:value?{...value,seriesId:value.seriesId || taskId}:null});
+    closePopover();requestTaskEdit(taskId,{recurrence:taskRecurrence(task)?recurrence:value?{...value,seriesId:value.seriesId || taskId}:null});
   }
 
   function dateOption(label, date, current, action, target) {
@@ -1982,7 +1982,9 @@
     const changes=pending.changes;
     if(scope==='occurrence') {
       if(!task.recurrenceBaseline){task.recurrenceBaseline=copyTemplate(task);delete task.recurrenceBaseline.recurrenceBaseline;}
-      Object.assign(task,copyTemplate(changes),{updatedAt:nowIso()});
+      const scoped=copyTemplate(changes);
+      if(Object.hasOwn(scoped,'recurrence'))scoped.recurrence=Core.normalizeRecurrenceV3(scoped.recurrence?{...(task.recurrence || taskRecurrence(task)),...scoped.recurrence}:null);
+      Object.assign(task,scoped,{updatedAt:nowIso()});
     } else {
       const original=copyTemplate(task),oldSeries=taskRecurrence(task)?.seriesId;
       const effective=task.plannedDate || task.dueDate || Core.dateOnly();
@@ -2015,7 +2017,7 @@
     const task = getTask(taskId);
     if (!task || modalState?.type==='recurrence-scope') return false;
     changes={...taskDraftChanges(task),...changes};
-    changes=Object.fromEntries(Object.entries(changes).filter(([key,value])=>JSON.stringify(value)!==JSON.stringify(task[key])));
+    changes=Object.fromEntries(Object.entries(changes).filter(([key,value])=>JSON.stringify(key==='recurrence' && value?Core.normalizeRecurrenceV3({...task.recurrence,...value}):value)!==JSON.stringify(task[key])));
     if(!Object.keys(changes).length){after?.();return false;}
     if(taskRecurrence(task)) {
       const focusSelector=document.activeElement?.id?`#${document.activeElement.id}`:'#detail-title';
@@ -2048,7 +2050,7 @@
     const effective=task.plannedDate || task.dueDate || Core.dateOnly();
     const pending=state.tasks.filter(sibling=>!sibling.isCompleted && taskRecurrence(sibling)?.seriesId===rule.seriesId && (sibling.id===taskId || (sibling.plannedDate || sibling.dueDate)>=effective && (sibling.plannedDate || sibling.dueDate)>=Core.dateOnly())).sort((a,b)=>(a.plannedDate || a.dueDate || '').localeCompare(b.plannedDate || b.dueDate || '') || a.id.localeCompare(b.id));
     const update=action==='skip-recurrence'?{skipNext:true}:{status:action==='pause-recurrence'?'paused':action==='resume-recurrence'?'active':'ended'};
-    for(const item of action==='skip-recurrence'?[pending[0] || task]:[task,...pending.filter(s=>s.id!==taskId)]){
+    for(const item of action==='skip-recurrence'?[pending.find(s=>!s.recurrenceSuccessorId) || task]:[task,...pending.filter(s=>s.id!==taskId)]){
       if(item.recurrence)Object.assign(item.recurrence,update);
       if(item.recurrenceBaseline?.recurrence)Object.assign(item.recurrenceBaseline.recurrence,update);
       item.updatedAt=nowIso();
