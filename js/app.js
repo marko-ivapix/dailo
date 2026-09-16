@@ -504,7 +504,15 @@
         const view = state.savedViews.find(item => item.id === id);
         if (!view) return;
         view.isPinned = !view.isPinned; view.updatedAt = nowIso(); saveAndRender();
-      }
+      },
+      shortcutLabels: SHORTCUT_LABELS,
+      shortcutError: () => shortcutError,
+      notificationButtonLabel() {
+        return typeof Notification === 'undefined' ? 'Unavailable' : (Notification.permission === 'granted' ? 'Enabled' : Notification.permission === 'denied' ? 'Blocked' : 'Enable');
+      },
+      saveShortcut,
+      disableShortcut,
+      resetShortcuts
     };
   }
 
@@ -671,7 +679,6 @@
       else if (route.type === 'anytime') content = renderAnytime();
       else if (route.type === 'tags') content = renderTags();
       else if (route.type === 'completed') content = renderCompleted();
-      else if (route.type === 'settings') content = renderSettings();
       else content = renderToday();
     }
     main.innerHTML = `${warning}<div class="content ${route.type === 'calendar' ? 'calendar-content' : ''}">${content}</div>`;
@@ -947,40 +954,6 @@
     return html;
   }
 
-  function renderSettings() {
-    return `${pageHeader('Settings', 'Prototype preferences and local data', { add: false })}
-      <section class="settings-card">
-        <h2>General</h2>
-        <div class="settings-row">
-          <div class="settings-label"><strong>Week starts on</strong><span>Used for date grouping and future calendar behavior.</span></div>
-          <button class="btn btn-secondary" type="button" disabled aria-disabled="true">Monday</button>
-        </div>
-        <div class="settings-row">
-          <div class="settings-label"><strong>Theme</strong><span>Dark is the approved MVP theme.</span></div>
-          <button class="btn btn-secondary" type="button" disabled aria-disabled="true">Dark</button>
-        </div>
-      </section>
-      <section class="settings-card">
-        <h2>Keyboard shortcuts</h2>
-        <p class="area-empty-copy">Use a letter or digit with optional Ctrl/Cmd, Alt and Shift. Leave disabled commands unassigned.</p>
-        ${shortcutError?`<p class="validation" role="alert">${esc(shortcutError)}</p>`:''}
-        ${Object.entries(SHORTCUT_LABELS).map(([key,label])=>`<div class="settings-row shortcut-row"><label class="settings-label" for="shortcut-${key}"><strong>${label}</strong></label><input class="input shortcut-input" id="shortcut-${key}" data-shortcut="${key}" aria-label="${label} shortcut" placeholder="Disabled" value="${esc(state.settings.shortcuts[key] || '')}" /><button class="btn btn-secondary" data-action="save-shortcut" data-command="${key}">Save</button><button class="btn btn-ghost" data-action="disable-shortcut" data-command="${key}">Disable</button></div>`).join('')}
-        <button class="btn btn-secondary" data-action="reset-shortcuts">Reset to defaults</button>
-      </section>
-      <section class="settings-card">
-        <h2>Notifications</h2>
-        <div class="settings-row"><div class="settings-label"><strong>Browser reminders</strong><span>In-app reminders always work while the prototype is open. Browser notifications are optional.</span></div><button class="btn btn-secondary" type="button" data-action="enable-notifications">${typeof Notification === 'undefined' ? 'Unavailable' : (Notification.permission === 'granted' ? 'Enabled' : Notification.permission === 'denied' ? 'Blocked' : 'Enable')}</button></div>
-      </section>
-      <section class="settings-card">
-        <h2>Data</h2>
-        <div class="settings-row"><div class="settings-label"><strong>Export backup</strong><span>Download all app data, including Notes, Resources and their files, in one ZIP.</span></div><button class="btn btn-secondary" type="button" data-action="export-backup">Export backup</button></div>
-        <div class="settings-row"><div class="settings-label"><strong>Import backup</strong><span>Replace all current app data from a previously exported ZIP backup.</span></div><div><button class="btn btn-secondary" type="button" data-action="import-backup">Import backup</button><input id="backup-import-input" type="file" accept=".zip,application/zip" hidden /></div></div>
-        <div class="settings-row"><div class="settings-label"><strong>Starter examples</strong><span>Add missing editable Areas and Morning, Daily, and Night Habits. Existing items and edits stay intact.</span></div><button class="btn btn-secondary" type="button" data-action="add-starter-examples">Add starter examples</button></div>
-        <div class="settings-row"><div class="settings-label"><strong>Clear completed tasks</strong><span>Permanently delete all completed tasks and their attachments.</span></div><button class="btn btn-secondary" type="button" data-action="clear-completed">Clear</button></div>
-        <div class="settings-row"><div class="settings-label"><strong>Reset app data</strong><span>Delete tasks, projects, tags, attachments and preferences stored by this prototype.</span></div><button class="btn btn-ghost" type="button" data-action="reset-app" style="color:var(--danger)">Reset</button></div>
-      </section>`;
-  }
-
   function emptyState(title, text, cta, action, data = {}) {
     const attrs = Object.entries(data).map(([key, value]) => `data-${key.replace(/[A-Z]/g, m => '-' + m.toLowerCase())}="${esc(value)}"`).join(' ');
     return `<div class="empty-state"><h3>${esc(title)}</h3><p>${esc(text)}</p>${cta ? `<button class="btn btn-primary" type="button" data-action="${esc(action)}" ${attrs}><i class="ph ph-plus"></i>${esc(cta)}</button>` : ''}</div>`;
@@ -1190,6 +1163,8 @@
     if(shortcutError){render();return;}
     state.settings.shortcuts[command]=value;saveAndRender();
   }
+  function disableShortcut(command) { state.settings.shortcuts[command]=null; shortcutError=''; saveAndRender(); }
+  function resetShortcuts() { state.settings.shortcuts={...SHORTCUT_DEFAULTS}; shortcutError=''; saveAndRender(); }
   const copyTemplate = value => JSON.parse(JSON.stringify(value));
   const templateLabel = type => type[0].toUpperCase() + type.slice(1);
   function renderTemplates() {
@@ -3249,9 +3224,6 @@
     if(action==='recurrence-scope'){applyRecurrenceScope(el.dataset.scope);return;}
     if(action==='from-template')openTemplatePicker();
     else if(action==='toggle-sidebar-section'){const key=el.dataset.section;state.ui.sidebarSections[key]=!state.ui.sidebarSections[key];saveAndRender();}
-    else if(action==='save-shortcut')saveShortcut(el.dataset.command);
-    else if(action==='disable-shortcut'){state.settings.shortcuts[el.dataset.command]=null;shortcutError='';saveAndRender();}
-    else if(action==='reset-shortcuts'){state.settings.shortcuts={...SHORTCUT_DEFAULTS};shortcutError='';saveAndRender();}
     else if(action==='more-route'){closePopover();navigate(el.dataset.moreRoute);}
     else if(action==='choose-template')chooseTemplate(el.dataset.templateId);
     else if(action==='template-picker-back'){if(modalState.previous?.type==='goal')closeModal();else{modalState=modalState.previous;renderModal();}}
