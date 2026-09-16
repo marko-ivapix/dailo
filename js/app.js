@@ -370,7 +370,7 @@
 
   function currentRoute() {
     const hash = location.hash.replace(/^#/, '') || 'today';
-    if (['today', 'inbox', 'upcoming', 'calendar', 'anytime', 'tags', 'areas', 'goals', 'habits', 'archived', 'completed', 'settings'].includes(hash)) return { type: hash };
+    if (['today', 'inbox', 'upcoming', 'calendar', 'anytime', 'tags', 'areas', 'goals', 'habits', 'templates', 'archived', 'completed', 'settings'].includes(hash)) return { type: hash };
     if (hash.startsWith('project/')) {
       const id = decodeURIComponent(hash.slice('project/'.length));
       if (getProject(id)) return { type: 'project', id };
@@ -484,6 +484,7 @@
           <button class="sidebar-action ${route.type === 'areas' || route.type === 'area' ? 'is-active' : ''}" type="button" data-route="areas" title="Areas"><i class="ph ph-squares-four"></i><span>Areas</span></button>
           <button class="sidebar-action ${route.type === 'goals' || route.type === 'goal' ? 'is-active' : ''}" type="button" data-route="goals" title="Goals"><i class="ph ph-target"></i><span>Goals</span></button>
           <button class="sidebar-action ${route.type === 'habits' || route.type === 'habit' ? 'is-active' : ''}" type="button" data-route="habits" title="Habits"><i class="ph ph-repeat"></i><span>Habits</span></button>
+          <button class="sidebar-action ${route.type === 'templates' ? 'is-active' : ''}" type="button" data-route="templates" title="Templates"><i class="ph ph-copy"></i><span>Templates</span></button>
           ${pinnedAreas.length ? `<div class="pinned-areas-list">${pinnedAreas.map(area => `<button class="sidebar-action pinned-area ${route.type === 'area' && route.id === area.id ? 'is-active' : ''}" type="button" data-route="area/${esc(area.id)}" title="${esc(area.name)}"><i class="ph ${esc(area.icon)}" style="color:${esc(area.color)}"></i><span>${esc(area.name)}</span></button>`).join('')}</div>` : ''}
           <div class="sidebar-section-title sidebar-subsection-title">Tags</div>
           <button class="sidebar-action ${route.type === 'tags' ? 'is-active' : ''}" type="button" data-route="tags" title="Tags"><i class="ph ph-tag"></i><span>Tags</span></button>
@@ -511,7 +512,8 @@
     const main = $('#main');
     const warning = storageError ? `<div class="global-warning"><i class="ph ph-warning-circle"></i> Changes couldn't be saved locally. Refreshing may cause data loss.</div>` : '';
     let content = '';
-    if (route.type === 'today') content = renderToday();
+    if (route.type === 'templates') content = renderTemplates();
+    else if (route.type === 'today') content = renderToday();
     else if (route.type === 'inbox') content = renderInbox();
     else if (route.type === 'upcoming') content = renderUpcoming();
     else if (route.type === 'calendar') content = renderCalendar();
@@ -1013,6 +1015,7 @@
     };
     modalState = {
       type: 'quick',
+      templateContext: context,
       defaults,
       draft: {
         title: '', notes: '', projectId: defaults.projectId, areaId: defaults.areaId, plannedDate: defaults.plannedDate, parsedPlanDate: null, explicitPlan: Boolean(defaults.plannedDate),
@@ -1044,7 +1047,7 @@
     closePopover();
     const project = projectId ? getProject(projectId) : null;
     modalState = {
-      type: 'project', projectId,
+      type: 'project', projectId, templateContext: context,
       draft: { name: project?.name || '', color: project?.color || nextProjectColor(), areaId: project?.areaId || context.areaId || null },
       error: '',
     };
@@ -1088,6 +1091,7 @@
     closePopover();
     const goal = goalId ? getGoal(goalId) : null;
     modalState = { type: 'goal', goalId, draft: goalDraft(goal, context.areaId), error: '' };
+    modalState.templateContext = context;
     if (!goal && context.targetDate) modalState.draft.targetDate = context.targetDate;
     renderModal(); requestAnimationFrame(() => $('#goal-title')?.focus());
   }
@@ -1099,6 +1103,7 @@
   function openHabitModal(habitId = null, context = {}) {
     closePopover(); const habit = habitId ? getHabit(habitId) : null;
     modalState = { type: 'habit', habitId, draft: habitDraft(habit, context.areaId), error: '' };
+    modalState.templateContext = context;
     if (!habit && context.startDate) modalState.draft.startDate = context.startDate;
     renderModal(); requestAnimationFrame(() => $('#habit-name')?.focus());
   }
@@ -1129,6 +1134,8 @@
   }
 
   function closeModal() {
+    if(modalState?.type==='template-picker'){modalState=modalState.previous;renderModal();return;}
+    if(modalState?.onCancel){const cancel=modalState.onCancel;cancel();return;}
     flushTaskDraft();
     const returnTarget = modalReturnFocus;
     const returnDate = calendarReturnDate;
@@ -1165,11 +1172,186 @@
     else if (modalState.type === 'confirm') root.innerHTML = renderConfirmModal();
     else if (modalState.type === 'duplicate') root.innerHTML = renderDuplicateModal();
     else if (modalState.type === 'import-backup') root.innerHTML = renderImportBackupModal();
+    else if (modalState.type === 'template') root.innerHTML = renderTemplateModal();
+    else if (modalState.type === 'template-picker') root.innerHTML = renderTemplatePicker();
+    if (['quick','project','habit','goal'].includes(modalState.type) && !modalState.taskId && !modalState.projectId && !modalState.habitId && !modalState.goalId) {
+      $('.modal-inner',root)?.insertAdjacentHTML('afterbegin','<button class="btn btn-ghost" type="button" data-action="from-template"><i class="ph ph-copy"></i> From template</button>');
+    }
     if (modalState?.type === 'confirm') requestAnimationFrame(() => root.querySelector('.modal button, .modal [href], .modal input, .modal select, .modal textarea, .modal [tabindex]:not([tabindex="-1"])')?.focus());
   }
 
   function modalFrame(content, cls = '') {
     return `<div class="modal-backdrop" data-action="modal-backdrop"><section class="modal ${cls}" role="dialog" aria-modal="true">${content}</section></div>`;
+  }
+
+  const TEMPLATE_TYPES = ['task','project','habit','goal'];
+  const copyTemplate = value => JSON.parse(JSON.stringify(value));
+  const templateLabel = type => type[0].toUpperCase() + type.slice(1);
+  function renderTemplates() {
+    const type = TEMPLATE_TYPES.includes(state.ui.templateType) ? state.ui.templateType : 'task';
+    const rows = state.templates.filter(t => t.type === type);
+    return pageHeader('Templates','Reusable snapshots with relative dates.',{add:false,actionHtml:'<button class="btn btn-primary" type="button" data-action="new-template"><i class="ph ph-plus"></i> New template</button>'}) + `<div class="view-tabs">${TEMPLATE_TYPES.map(t=>`<button class="btn ${t===type?'btn-secondary':'btn-ghost'}" type="button" data-template-type="${t}">${templateLabel(t)}</button>`).join('')}</div><section class="section">${rows.length ? rows.map(t=>`<article class="goal-row" data-template-row="${esc(t.id)}"><div class="goal-open"><strong>${esc(t.name)}</strong><small>${esc(t.data.title || t.data.name || '')}</small></div><div class="modal-footer-actions"><button class="btn-icon" data-action="use-template" data-template-id="${esc(t.id)}" aria-label="Use template"><i class="ph ph-plus"></i></button><button class="btn-icon" data-action="edit-template" data-template-id="${esc(t.id)}" aria-label="Edit template"><i class="ph ph-pencil-simple"></i></button><button class="btn-icon" data-action="duplicate-template" data-template-id="${esc(t.id)}" aria-label="Duplicate template"><i class="ph ph-copy"></i></button><button class="btn-icon" data-action="delete-template" data-template-id="${esc(t.id)}" aria-label="Delete template"><i class="ph ph-trash"></i></button></div></article>`).join('') : '<p class="area-empty-copy">No templates yet. Create one or save an existing item as a template.</p>'}</section>`;
+  }
+  function openTemplateModal(templateId = null, type = state.ui.templateType || 'task', snapshot = null) {
+    closePopover();
+    const existing = state.templates.find(t=>t.id===templateId);
+    const empty = type === 'task' ? {title:'',subtasks:[]} : type === 'project' ? {name:'',tasks:[]} : type === 'goal' ? {title:'',milestones:[],targetValue:100} : {name:'',targetValue:1,reminders:[]};
+    const draft = existing ? copyTemplate(existing) : {name:'',...(snapshot || Core.templateFromEntity(type,empty,{},Core.dateOnly()))};
+    modalState = {type:'template',templateId,draft,error:''};
+    renderModal(); requestAnimationFrame(()=>$('#template-name')?.focus());
+  }
+  function templateField(data,key,label,kind='text',options=null,prefix='') {
+    const path = `${prefix}${key}`;
+    const value = data[key];
+    const attrs = `class="input" data-template-field="${path}" data-template-kind="${kind}"`;
+    let input;
+    if (options) input = `<select ${attrs} ${kind==='ids'||kind==='indices'?'multiple':''}>${options.map(([v,l])=>`<option value="${esc(v)}" ${kind==='ids'||kind==='indices'?(value || []).includes(v)?'selected':'':String(value ?? '')===String(v)?'selected':''}>${esc(l)}</option>`).join('')}</select>`;
+    else if (kind==='boolean') input = `<input ${attrs} type="checkbox" ${value?'checked':''}>`;
+    else if (kind==='notes') input = `<textarea ${attrs}>${esc(value || '')}</textarea>`;
+    else input = `<input ${attrs} type="${['number','time','color'].includes(kind)?kind:'text'}" ${kind==='number'?'step="any"':''} value="${esc(Array.isArray(value)?value.join(','):value ?? '')}">`;
+    return `<label class="field-label">${label}${input}</label>`;
+  }
+  function templateFields(type,d,prefix='') {
+    const f=(key,label,kind,opts)=>templateField(d,key,label,kind,opts,prefix);
+    const choices=key=>[['','None'],...state[key].map(x=>[x.id,x.name || x.title])];
+    let html=f(type==='task'||type==='goal'?'title':'name',type==='task'||type==='goal'?'Title':'Name')+f('areaId','Area','text',choices('areas'));
+    if (type!=='goal') html+=f('goalIds','Goal links (select multiple)','ids',state.goals.map(g=>[g.id,g.title]));
+    if(type==='task') {
+      html+=f('notes','Notes','notes')+f('projectId','Project','text',choices('projects'))+f('tagIds','Tags (select multiple)','ids',state.tags.map(t=>[t.id,t.name]))+f('priority','Priority','text',[['none','None'],['low','Low'],['medium','Medium'],['high','High']])+f('plannedOffsetDays','Planned day offset (blank = none)','number')+f('plannedTime','Planned time','time')+f('dueOffsetDays','Due day offset (blank = none)','number')+f('dueTime','Due time','time')+f('reminderOffsetDays','Reminder day offset (blank = none)','number')+f('reminderTime','Reminder local time','time');
+      const recurrence=d.recurrence || {};
+      html+=templateField(recurrence,'frequency','Repeat','text',[['','Does not repeat'],['daily','Daily'],['weekly','Weekly'],['monthly','Monthly']],`${prefix}recurrence.`)+templateField(recurrence,'interval','Repeat interval','number',null,`${prefix}recurrence.`);
+      html+=templateRows('subtasks',d.subtasks || [],prefix,'subtask');
+    } else if(type==='project') html+=f('color','Color','color')+templateRows('tasks',d.tasks || [],prefix,'task');
+    else if(type==='habit') {
+      html+=f('trackingType','Tracking','text',[['checkbox','Checkbox'],['numeric','Numeric']])+f('targetValue','Target','number')+f('unit','Unit')+f('quickValues','Quick values (comma separated)','numbers')+f('frequencyType','Frequency','text',[['daily','Daily'],['weekdays','Selected weekdays'],['timesPerWeek','X times per week'],['everyNDays','Every N days']])+f('weekdays','Weekdays (0 = Sun, 1 = Mon … 6 = Sat)','numbers')+f('timesPerWeek','Times per week','number')+f('everyNDays','Every N days','number')+f('continuation','Continuation','text',[['automatic','Repeat automatically'],['askEachPeriod','Ask each period'],['onePeriod','One period only']])+f('endType','End condition','text',[['never','Never'],['date','On relative date'],['successfulPeriods','After successful periods']])+f('endOffsetDays','End day offset (blank = none)','number')+f('successfulPeriodsTarget','Successful periods','number')+templateRows('reminders',d.reminders || [],prefix,'reminder');
+    } else {
+      html+=f('progressMode','Progress source','text',[['manual','Manual'],['linkedTasks','Linked tasks'],['linkedHabits','Linked habits']])+f('progressType','Progress type','text',[['percentage','Percentage'],['numeric','Numeric target']])+f('targetValue','Target value','number')+f('unit','Unit')+f('targetOffsetDays','Target day offset (blank = none)','number')+templateRows('milestones',d.milestones || [],prefix,'milestone');
+      const r=d.reminders || {};
+      html+=['sevenDaysBefore','threeDaysBefore','oneDayBefore','onTargetDate'].map((key,i)=>templateField(r,key,['7 days before','3 days before','1 day before','On target date'][i],'boolean',null,`${prefix}reminders.`)).join('')+templateField(r,'time','Reminder time','time',null,`${prefix}reminders.`);
+    }
+    if(type==='project' || type==='habit') {
+      d.goalLinkConfigs=(d.goalIds || []).map(goalId=>(d.goalLinkConfigs || []).find(c=>c.goalId===goalId) || (type==='project'?{goalId,contributionMode:'allTasks',selectedTaskIndices:[]}:{goalId,metric:'totalCheckins',target:type==='habit' && d.trackingType==='numeric'?d.targetValue || 1:1}));
+      html+=d.goalLinkConfigs.map((c,i)=>`<fieldset class="template-rows"><legend>${esc(getGoal(c.goalId)?.title || 'Linked Goal')}</legend>${type==='project'?templateField(c,'contributionMode','Project contribution','text',[['allTasks','All predefined tasks'],['selectedTasks','Selected predefined tasks']],`${prefix}goalLinkConfigs.${i}.`)+templateField(c,'selectedTaskIndices','Contributing tasks (select multiple)','indices',(d.tasks || []).map((t,index)=>[index,t.title || `Task ${index+1}`]),`${prefix}goalLinkConfigs.${i}.`):templateField(c,'metric','Habit metric','text',[['totalCheckins','Check-ins'],['streak','Streak'],['successfulPeriods','Successful periods']],`${prefix}goalLinkConfigs.${i}.`)+templateField(c,'target','Goal contribution target','number',null,`${prefix}goalLinkConfigs.${i}.`)}</fieldset>`).join('');
+    }
+    return html;
+  }
+  function templateRows(key,rows,prefix,kind) {
+    const path=prefix+key;
+    return `<fieldset class="template-rows"><legend>${templateLabel(key)}</legend>${rows.map((row,i)=>`<div class="template-row">${kind==='task'?templateFields('task',row,`${path}.${i}.`):kind==='reminder'?templateField(row,'time','Time','time',null,`${path}.${i}.`)+templateField(row,'enabled','Enabled','boolean',null,`${path}.${i}.`):templateField(row,'title','Title','text',null,`${path}.${i}.`)+(kind==='milestone'?templateField(row,'dateOffsetDays','Day offset (blank = none)','number',null,`${path}.${i}.`):'')}<button class="btn btn-ghost" type="button" data-action="template-remove-row" data-path="${path}" data-index="${i}">Remove ${kind}</button></div>`).join('')}<button class="btn btn-ghost" type="button" data-action="template-add-row" data-path="${path}" data-kind="${kind}">Add ${kind}</button></fieldset>`;
+  }
+  function renderTemplateModal() {
+    const d=modalState.draft;
+    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">${modalState.templateId?'Edit':'New'} ${templateLabel(d.type)} template</h2><button class="btn-icon" data-action="close-modal" aria-label="Close"><i class="ph ph-x"></i></button></div><div class="form-stack"><label class="field-label">Template name<input id="template-name" class="input" value="${esc(d.name)}"></label><p class="area-empty-copy">Day offsets are relative to the day you create an item. Use 0 for Today; negative values are allowed.</p>${templateFields(d.type,d.data)}${modalState.error?`<p class="validation">${esc(modalState.error)}</p>`:''}</div><div class="modal-footer"><span></span><button class="btn btn-primary" type="button" data-action="save-template">Save template</button></div></div>`,'quick');
+  }
+  function templatePath(data,path,create=false) {
+    const keys=path.split('.'),last=keys.pop();let parent=data;
+    for(const key of keys) { if(parent[key]==null && create) parent[key]={}; parent=parent[key]; }
+    return {parent,last};
+  }
+  function readTemplateDraft() {
+    if(modalState?.type!=='template') return;
+    modalState.draft.name=$('#template-name')?.value || '';
+    $$('[data-template-field]').forEach(input=>{
+      const {parent,last}=templatePath(modalState.draft.data,input.dataset.templateField,true);
+      const kind=input.dataset.templateKind;
+      parent[last]=kind==='boolean'?input.checked:kind==='number'?(input.value===''?null:Number(input.value)):kind==='numbers'?input.value.split(',').filter(v=>v.trim()).map(Number):kind==='ids'||kind==='indices'?[...input.selectedOptions].map(o=>kind==='indices'?Number(o.value):o.value):input.value || null;
+    });
+  }
+  function saveTemplate() {
+    readTemplateDraft(); const d=modalState.draft;
+    if(!d.name.trim() || !String(d.data.title || d.data.name || '').trim()) {modalState.error='Template and item need a name.';renderModal();return;}
+    const problem = templateDataProblem(d.type,d.data);
+    if(problem){modalState.error=problem;renderModal();return;}
+    const id=modalState.templateId;
+    const record={...copyTemplate(d),name:d.name.trim(),id:id || uid('template'),createdAt:id?state.templates.find(t=>t.id===id).createdAt:nowIso(),updatedAt:nowIso()};
+    if(id) state.templates[state.templates.findIndex(t=>t.id===id)]=record;else state.templates.push(record);
+    modalState.savedTemplateId=record.id;
+    state.ui.templateType=d.type;saveState();closeModal();render();
+  }
+  function templateDataProblem(type,d) {
+    const relativeProblem = value => value && typeof value==='object' && Object.entries(value).some(([key,item])=>key.endsWith('OffsetDays') ? item!==null && !Number.isInteger(item) : typeof item==='object' && relativeProblem(item));
+    if(relativeProblem(d))return 'Day offsets must be whole numbers.';
+    if(type==='task' && (d.subtasks || []).some(s=>!String(s.title || '').trim())) return 'Subtasks need a title.';
+    if(type==='project') {for(const t of d.tasks || []){if(!String(t.title || '').trim())return 'Predefined tasks need a title.';const error=templateDataProblem('task',t);if(error)return error;}}
+    if(type==='goal' && (d.milestones || []).some(m=>!String(m.title || '').trim()))return 'Milestones need a title.';
+    if((type==='habit' && d.trackingType==='numeric' || type==='goal' && d.progressType==='numeric') && !(d.targetValue>0))return 'Numeric targets must be above zero.';
+    if(type==='habit' && d.frequencyType==='weekdays' && (!(d.weekdays || []).length || d.weekdays.some(n=>!Number.isInteger(n)||n<0||n>6)))return 'Select valid weekdays from 0 to 6.';
+    if(type==='habit' && (d.goalLinkConfigs || []).some(c=>!(c.target>0)))return 'Goal contribution targets must be above zero.';
+    return null;
+  }
+  function deleteTemplate(id) {
+    const index=state.templates.findIndex(t=>t.id===id),snapshot=copyTemplate(state.templates[index]);
+    openConfirm({title:`Delete “${snapshot.name}”?`,message:'Items created from this template will remain.',confirmLabel:'Delete template',onConfirm:()=>{state.templates.splice(index,1);saveState();closeModal();render();setUndo('Template deleted',()=>{if(!state.templates.some(t=>t.id===id))state.templates.splice(Math.min(index,state.templates.length),0,snapshot);saveAndRender();});}});
+  }
+  function editTemplateRow(button,remove=false) {
+    readTemplateDraft();const editor=modalState;const {parent,last}=templatePath(editor.draft.data,button.dataset.path,true);parent[last] ||= [];
+    if(!remove){const kind=button.dataset.kind;parent[last].push(kind==='task'?Core.templateFromEntity('task',{title:'',subtasks:[]}).data:kind==='reminder'?{time:'09:00',enabled:true}:{title:'',dateOffsetDays:null,isCompleted:false,completedAt:null});renderModal();return;}
+    const index=Number(button.dataset.index),snapshot=copyTemplate(parent[last][index]);
+    const removedSelections=button.dataset.path==='tasks'?(editor.draft.data.goalLinkConfigs || []).filter(c=>(c.selectedTaskIndices || []).includes(index)).map(c=>c.goalId):[];
+    const adjustSelections=(data,inserting=false)=>{
+      if(button.dataset.path!=='tasks')return;
+      for(const c of data.goalLinkConfigs || []) {
+        c.selectedTaskIndices=(c.selectedTaskIndices || []).filter(i=>inserting || i!==index).map(i=>inserting?(i>=index?i+1:i):(i>index?i-1:i));
+        if(inserting && removedSelections.includes(c.goalId))c.selectedTaskIndices.push(index);
+        c.selectedTaskIndices.sort((a,b)=>a-b);
+      }
+    };
+    const focusPath=$('[data-template-field]:focus')?.dataset.templateField;
+    const restoreEditor=()=>{modalState=editor;renderModal();requestAnimationFrame(()=>$(`[data-template-field="${focusPath || button.dataset.path+'.'+index+'.title'}"]`)?.focus());};
+    openConfirm({title:'Remove template row?',message:'This changes only the template draft.',onConfirm:()=>{parent[last].splice(index,1);adjustSelections(editor.draft.data);restoreEditor();setUndo('Template row removed',()=>{
+      if(modalState===editor)readTemplateDraft();
+      parent[last].splice(Math.min(index,parent[last].length),0,copyTemplate(snapshot));
+      adjustSelections(editor.draft.data,true);
+      const saved=state.templates.find(t=>t.id===editor.savedTemplateId);
+      if(saved){const target=templatePath(saved.data,button.dataset.path,true);target.parent[target.last] ||= [];target.parent[target.last].splice(Math.min(index,target.parent[target.last].length),0,copyTemplate(snapshot));adjustSelections(saved.data,true);saved.updatedAt=nowIso();saveAndRender();}
+      if(modalState===editor)restoreEditor();
+    });},onCancel:restoreEditor});
+  }
+  function openTemplatePicker() {
+    if(modalState.type==='quick')syncQuickDraftFromDom();
+    if(modalState.type==='habit')readHabitDraft();
+    if(modalState.type==='goal') {
+      const controls={title:'goal-title',areaId:'goal-area',progressMode:'goal-progress-mode',progressType:'goal-progress-type',currentValue:'goal-current',targetValue:'goal-target',unit:'goal-unit',targetDate:'goal-target-date'};
+      for(const [key,id] of Object.entries(controls)) {
+        const input=$('#'+id);if(input)modalState.draft[key]=key==='currentValue'||key==='targetValue'?Number(input.value):input.value;
+      }
+    }
+    const previous=modalState;const type=previous.type==='quick'?'task':previous.type;
+    modalState={type:'template-picker',kind:type,previous};renderModal();
+  }
+  function renderTemplatePicker() {
+    const rows=state.templates.filter(t=>t.type===modalState.kind);
+    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">From ${templateLabel(modalState.kind)} template</h2><button class="btn-icon" data-action="template-picker-back" aria-label="Back"><i class="ph ph-x"></i></button></div>${rows.length?rows.map(t=>`<button class="btn btn-secondary template-choice" data-action="choose-template" data-template-id="${esc(t.id)}">${esc(t.name)}</button>`).join(''):'<p class="area-empty-copy">No templates of this type yet.</p>'}</div>`,'quick');
+  }
+  function chooseTemplate(id) {
+    const template=state.templates.find(t=>t.id===id); if(!template)return;
+    const previous=modalState.previous;const context=previous.templateContext || {};
+    const contextDate=context.plannedDate || context.targetDate || context.startDate || Core.dateOnly();
+    const out=Core.instantiateTemplate(template,contextDate,{state,makeId:uid,nowIso:nowIso()});
+    modalState=previous;
+    const item=out[template.type];
+    if(context.areaId && getArea(context.areaId))item.areaId=context.areaId;
+    if(template.type==='task') {
+      if(context.projectId && getProject(context.projectId))item.projectId=context.projectId;
+      if(item.projectId)item.areaId=null;
+      modalState.draft={...modalState.draft,...item,explicitPlan:true,parsedPlanDate:null,moreOpen:false};
+    } else if(template.type==='project')modalState.draft={...item};
+    else if(template.type==='habit')modalState.draft=habitDraft(item);
+    else modalState.draft=goalDraft(item);
+    modalState.templateInstance=out;renderModal();
+  }
+  function templateMenuEntry(type,id) {
+    return `<button class="popover-option" type="button" data-pop-action="save-template" data-template-source-type="${type}" data-template-source-id="${esc(id)}"><i class="ph ph-copy"></i>Save as template</button>`;
+  }
+  function syncTemplateEntityGoalLinks(kind,item,configs=[]) {
+    for(const id of item.goalIds || []) {
+      const goal=getGoal(id);if(!goal)continue;
+      if(kind==='task' && !(goal.taskIds || []).includes(item.id))goal.taskIds=[...(goal.taskIds || []),item.id];
+      if(kind==='project' && !(goal.projectLinks || []).some(l=>l.projectId===item.id)) {
+        const config=configs.find(c=>c.goalId===id);
+        goal.projectLinks=[...(goal.projectLinks || []),{projectId:item.id,contributionMode:config?.contributionMode || 'allTasks',selectedTaskIds:[...(config?.selectedTaskIds || [])]}];
+      }
+    }
   }
 
   function renderQuickModal() {
@@ -1594,7 +1776,7 @@
     const today = Core.dateOnly();
     const todayAction = task.plannedDate === today ? '' : `<button class="popover-option" type="button" data-pop-action="task-add-today" data-task-id="${esc(taskId)}"><i class="ph ph-sun"></i>Add to Today</button>`;
     const html = `${todayAction}<button class="popover-option" type="button" data-pop-action="task-move-tomorrow" data-task-id="${esc(taskId)}"><i class="ph ph-arrow-right"></i>Move to Tomorrow</button><button class="popover-option" type="button" data-pop-action="task-open-plan" data-task-id="${esc(taskId)}"><i class="ph ph-calendar-check"></i>Plan for...</button><button class="popover-option" type="button" data-pop-action="task-open-due" data-task-id="${esc(taskId)}"><i class="ph ph-flag"></i>Change due date</button><button class="popover-option" type="button" data-pop-action="task-open-project" data-task-id="${esc(taskId)}"><i class="ph ph-folder-simple"></i>Move to project</button><button class="popover-option" type="button" data-pop-action="task-duplicate" data-task-id="${esc(taskId)}"><i class="ph ph-copy"></i>Duplicate</button><div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="task-delete" data-task-id="${esc(taskId)}" style="color:var(--danger)"><i class="ph ph-trash"></i>Delete</button>`;
-    openPopover(anchor, html, { type: 'task-menu', taskId });
+    openPopover(anchor, templateMenuEntry('task',taskId)+html, { type: 'task-menu', taskId });
   }
 
   function openTagMenu(anchor, tagId) {
@@ -1610,7 +1792,7 @@
       ? `<button class="popover-option" type="button" data-pop-action="restore-project" data-project-id="${esc(projectId)}"><i class="ph ph-arrow-counter-clockwise"></i>Restore project</button>`
       : `<button class="popover-option" type="button" data-pop-action="archive-project" data-project-id="${esc(projectId)}"><i class="ph ph-archive"></i>Archive project</button>`;
     const html = `<button class="popover-option" type="button" data-pop-action="edit-project" data-project-id="${esc(projectId)}"><i class="ph ph-pencil-simple"></i>Rename / color</button>${archiveAction}<div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="delete-project" data-project-id="${esc(projectId)}" style="color:var(--danger)"><i class="ph ph-trash"></i>Delete project</button>`;
-    openPopover(anchor, html, { type: 'project-menu', projectId });
+    openPopover(anchor, templateMenuEntry('project',projectId)+html, { type: 'project-menu', projectId });
   }
 
   function openAreaMenu(anchor, areaId) {
@@ -1629,7 +1811,7 @@
     const goal = getGoal(goalId); if (!goal) return;
     const lifecycle = goal.status === 'archived' ? '<button class="popover-option" type="button" data-pop-action="restore-goal" data-goal-id="' + esc(goalId) + '"><i class="ph ph-arrow-counter-clockwise"></i>Restore goal</button>' : `<button class="popover-option" type="button" data-pop-action="${goal.status === 'paused' ? 'resume-goal' : 'pause-goal'}" data-goal-id="${esc(goalId)}"><i class="ph ph-pause"></i>${goal.status === 'paused' ? 'Resume goal' : 'Pause goal'}</button>`;
     const html = `<button class="popover-option" type="button" data-pop-action="edit-goal" data-goal-id="${esc(goalId)}"><i class="ph ph-pencil-simple"></i>Edit goal</button>${lifecycle}${goal.status !== 'completed' && goal.status !== 'archived' ? `<button class="popover-option" type="button" data-pop-action="complete-goal" data-goal-id="${esc(goalId)}"><i class="ph ph-check-circle"></i>Mark completed</button>` : ''}${goal.status !== 'archived' ? `<button class="popover-option" type="button" data-pop-action="archive-goal" data-goal-id="${esc(goalId)}"><i class="ph ph-archive"></i>Archive goal</button>` : ''}<div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="delete-goal" data-goal-id="${esc(goalId)}" style="color:var(--danger)"><i class="ph ph-trash"></i>Delete goal</button>`;
-    openPopover(anchor, html, { type: 'goal-menu', goalId });
+    openPopover(anchor, templateMenuEntry('goal',goalId)+html, { type: 'goal-menu', goalId });
   }
 
   function openHabitMenu(anchor, habitId) {
@@ -1639,7 +1821,7 @@
       : `<button class="popover-option" type="button" data-pop-action="${habit.status === 'paused' ? 'resume-habit' : 'pause-habit'}" data-habit-id="${esc(habitId)}"><i class="ph ph-pause"></i>${habit.status === 'paused' ? 'Resume habit' : 'Pause habit'}</button>`;
     const archive = habit.status !== 'archived' ? `<button class="popover-option" type="button" data-pop-action="archive-habit" data-habit-id="${esc(habitId)}"><i class="ph ph-archive"></i>Archive habit</button>` : '';
     const html = `<button class="popover-option" type="button" data-pop-action="edit-habit" data-habit-id="${esc(habitId)}"><i class="ph ph-pencil-simple"></i>Edit habit</button>${lifecycle}${archive}<div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="snooze-habit" data-habit-id="${esc(habitId)}" data-snooze="15m"><i class="ph ph-clock"></i>Snooze 15 min</button><button class="popover-option" type="button" data-pop-action="snooze-habit" data-habit-id="${esc(habitId)}" data-snooze="1h"><i class="ph ph-clock"></i>Snooze 1 hour</button><button class="popover-option" type="button" data-pop-action="snooze-habit" data-habit-id="${esc(habitId)}" data-snooze="tonight"><i class="ph ph-moon"></i>Snooze tonight</button><div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="delete-habit" data-habit-id="${esc(habitId)}" style="color:var(--danger)"><i class="ph ph-trash"></i>Delete habit</button>`;
-    openPopover(anchor, html, { type: 'habit-menu', habitId });
+    openPopover(anchor, templateMenuEntry('habit',habitId)+html, { type: 'habit-menu', habitId });
   }
 
   function openMoreMenu(anchor) {
@@ -1757,7 +1939,7 @@
     }
     const isInbox = modalState.defaults.processed ? false : !(d.projectId || resolvedPlan);
     const task = {
-      id: uid('task'), title, notes: d.notes || '', projectId: d.projectId || null, areaId: d.projectId ? null : (d.areaId || null), goalIds: [], plannedTime: null, dueTime: null,
+      id: uid('task'), title, notes: d.notes || '', projectId: d.projectId || null, areaId: d.projectId ? null : (d.areaId || null), goalIds: [...(d.goalIds || [])], plannedTime: d.plannedTime || null, dueTime: d.dueTime || null,
       plannedDate: resolvedPlan || null, dueDate: d.dueDate || null,
       reminderAt: d.reminderAt || null, reminderFiredAt: null, recurrence: d.recurrence || null, tagIds: [...(d.tagIds || [])], priority: d.priority || 'none', attachmentIds: [], isInbox,
       isCompleted: false, completedAt: null,
@@ -1768,6 +1950,7 @@
       createdAt: nowIso(), updatedAt: nowIso(),
     };
     state.tasks.push(task);
+    if(modalState.templateInstance)syncTemplateEntityGoalLinks('task',task);
     saveState();
     if (keepOpen) {
       const defaults = modalState.defaults;
@@ -1955,7 +2138,17 @@
       const project = getProject(modalState.projectId); if (!project) return;
       project.name = name; project.color = modalState.draft.color; project.updatedAt = nowIso();
     } else {
-      state.projects.push({ id: uid('project'), name, color: modalState.draft.color, areaId: modalState.draft.areaId || null, goalIds: [], order: nextProjectOrder(), isArchived: false, archivedAt: null, createdAt: nowIso(), updatedAt: nowIso() });
+      const project={ id: uid('project'), name, color: modalState.draft.color, areaId: modalState.draft.areaId || null, goalIds: [...(modalState.draft.goalIds || [])], order: nextProjectOrder(), isArchived: false, archivedAt: null, createdAt: nowIso(), updatedAt: nowIso() };
+      state.projects.push(project);
+      if(modalState.templateInstance) {
+        const before=captureGoalProgress();
+        for(const child of modalState.templateInstance.tasks || []) {
+          child.projectId=project.id;child.areaId=null;child.projectOrder=nextOrder(`project:${project.id}`);child.todayOrder=child.plannedDate===Core.dateOnly()?nextOrder('today'):null;child.isInbox=false;child.inboxOrder=null;
+          state.tasks.push(child);syncTemplateEntityGoalLinks('task',child);
+        }
+        syncTemplateEntityGoalLinks('project',project,modalState.templateInstance.goalLinks);
+        saveState();closeModal();render();evaluateGoalProgressChanges(before);return;
+      }
     }
     saveState(); closeModal(); render();
   }
@@ -2041,7 +2234,7 @@
       if (oldDate !== goal.targetDate) putGoalHistory(goal.id, 'targetDateChanged', { from: oldDate, to: goal.targetDate });
       saveState(); closeModal(); render(); maybePromptGoalReached(goal, oldProgress);
     } else {
-      const goal = { id: uid('goal'), ...d, projectLinks: [], taskIds: [], habitLinks: [], milestones: [], reminders: { sevenDaysBefore: false, threeDaysBefore: false, oneDayBefore: false, onTargetDate: false, time: '09:00' }, createdAt: nowIso(), updatedAt: nowIso(), completedAt: null };
+      const goal = { ...(modalState.templateInstance?.goal || {}), id: uid('goal'), ...d, projectLinks: [], taskIds: [], habitLinks: [], milestones: modalState.templateInstance?.goal.milestones || [], reminders: modalState.templateInstance?.goal.reminders || { sevenDaysBefore: false, threeDaysBefore: false, oneDayBefore: false, onTargetDate: false, time: '09:00' }, createdAt: nowIso(), updatedAt: nowIso(), completedAt: null };
       state.goals.push(goal); putGoalHistory(goal.id, 'created'); saveState(); closeModal(); navigate(`goal/${goal.id}`);
     }
   }
@@ -2131,17 +2324,21 @@
     const existingId = modalState.habitId;
     const habit = existingId ? getHabit(existingId) : { id: uid('habit'), goalIds: [], status: 'active', reminderFiredMoments: [], createdAt: nowIso() };
     Object.assign(habit, fields);
-    syncHabitGoalLinks(habit, d.goalIds);
+    const before=modalState.templateInstance?captureGoalProgress():null;
+    syncHabitGoalLinks(habit, d.goalIds,modalState.templateInstance?.goalLinks);
     if (!existingId) state.habits.push(habit);
-    saveState(); closeModal(); refreshHabitMetrics().then(render);
+    saveState(); closeModal(); refreshHabitMetrics().then(()=>{render();if(before)evaluateGoalProgressChanges(before);});
     if (!existingId) navigate(`habit/${habit.id}`);
   }
 
-  function syncHabitGoalLinks(habit, goalIds) {
+  function syncHabitGoalLinks(habit, goalIds,configs=[]) {
     const selected = new Set(goalIds || []);
     for (const goal of state.goals || []) {
       const links = (goal.habitLinks || []).filter(link => link.habitId !== habit.id);
-      if (selected.has(goal.id)) links.push((goal.habitLinks || []).find(link => link.habitId === habit.id) || { habitId: habit.id, metric: 'totalCheckins', target: habit.trackingType === 'numeric' ? Math.max(1, Number(habit.targetValue) || 1) : 1 });
+      if (selected.has(goal.id)) {
+        const config=configs.find(c=>c.goalId===goal.id);
+        links.push((goal.habitLinks || []).find(link => link.habitId === habit.id) || { habitId: habit.id, metric: config?.metric || 'totalCheckins', target: config?.target || (habit.trackingType === 'numeric' ? Math.max(1, Number(habit.targetValue) || 1) : 1) });
+      }
       goal.habitLinks = links;
     }
     habit.goalIds = [...selected];
@@ -2533,6 +2730,8 @@
     if (goalTab) { state.ui.goalTab = goalTab.dataset.goalTab; saveAndRender(); return; }
     const habitTab = event.target.closest('[data-habit-tab]');
     if (habitTab) { state.ui.habitTab = habitTab.dataset.habitTab; saveAndRender(); return; }
+    const templateTab=event.target.closest('[data-template-type]');
+    if(templateTab){state.ui.templateType=templateTab.dataset.templateType;saveAndRender();return;}
 
     const pop = event.target.closest('[data-pop-action]');
     if (pop) { handlePopoverAction(pop); return; }
@@ -2543,7 +2742,17 @@
       return;
     }
     const action = el.dataset.action;
-    if (action === 'toggle-sidebar') { state.ui.sidebarCollapsed = !state.ui.sidebarCollapsed; saveAndRender(); }
+    if(action==='from-template')openTemplatePicker();
+    else if(action==='choose-template')chooseTemplate(el.dataset.templateId);
+    else if(action==='template-picker-back'){modalState=modalState.previous;renderModal();}
+    else if(action==='new-template')openTemplateModal();
+    else if(action==='edit-template')openTemplateModal(el.dataset.templateId);
+    else if(action==='save-template')saveTemplate();
+    else if(action==='delete-template')deleteTemplate(el.dataset.templateId);
+    else if(action==='duplicate-template'){const record=copyTemplate(state.templates.find(t=>t.id===el.dataset.templateId));record.id=uid('template');record.name+=' copy';record.createdAt=record.updatedAt=nowIso();state.templates.push(record);saveAndRender();}
+    else if(action==='use-template'){const template=state.templates.find(t=>t.id===el.dataset.templateId);if(template){if(template.type==='task')openQuickAdd();else if(template.type==='project')openProjectModal();else if(template.type==='habit')openHabitModal();else openGoalModal();openTemplatePicker();chooseTemplate(template.id);}}
+    else if(action==='template-add-row' || action==='template-remove-row')editTemplateRow(el,action==='template-remove-row');
+    else if (action === 'toggle-sidebar') { state.ui.sidebarCollapsed = !state.ui.sidebarCollapsed; saveAndRender(); }
     else if (action === 'calendar-view') { state.ui.calendarView = el.dataset.view === 'month' ? 'month' : 'week'; saveAndRender(); }
     else if (action === 'calendar-prev') navigateCalendar(-1);
     else if (action === 'calendar-next') navigateCalendar(1);
@@ -2667,7 +2876,12 @@
 
   function handlePopoverAction(button) {
     const action = button.dataset.popAction;
-    if (action === 'set-project') setProject(button.dataset.targetType, button.dataset.taskId, button.dataset.projectId);
+    if(action==='save-template') {
+      const type=button.dataset.templateSourceType,id=button.dataset.templateSourceId;
+      const source=type==='task'?getTask(id):type==='project'?getProject(id):type==='habit'?getHabit(id):getGoal(id);
+      if(source)openTemplateModal(null,type,Core.templateFromEntity(type,source,state,Core.dateOnly()));
+    }
+    else if (action === 'set-project') setProject(button.dataset.targetType, button.dataset.taskId, button.dataset.projectId);
     else if (action === 'toggle-tag') toggleTag(button.dataset.targetType, button.dataset.taskId, button.dataset.tagId);
     else if (action === 'set-priority') setPriority(button.dataset.targetType, button.dataset.taskId, button.dataset.priority);
     else if (action === 'set-plan') setPlan(button.dataset.targetType, button.dataset.taskId, button.dataset.date);
@@ -2752,6 +2966,7 @@
   }
 
   function handleChange(event) {
+    if(modalState?.type==='template' && event.target.dataset.templateField?.endsWith('goalIds')){readTemplateDraft();renderModal();return;}
     if (event.target.matches('[data-calendar-visibility]')) { state.ui.calendarVisibility = { tasks: true, habits: true, goals: true, milestones: true, ...(state.ui.calendarVisibility || {}), [event.target.dataset.calendarVisibility]: event.target.checked }; saveAndRender(); return; }
     if (event.target.matches('[data-task-time]')) { updateTask(event.target.dataset.taskId, { [event.target.dataset.taskTime]: Core.normalizeTime(event.target.value) }, false); render(); return; }
     if (event.target.id === 'attachment-input') { addAttachments(event.target.dataset.taskId, event.target.files); event.target.value=''; return; }

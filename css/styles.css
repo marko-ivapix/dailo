@@ -616,4 +616,8 @@ button.area-object:hover { background: var(--surface-interactive); }
 .habit-frequency-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
 .weekday-picker { display:flex; flex-wrap:wrap; gap:6px; margin-top:5px; }
 .weekday-picker label { display:inline-flex; align-items:center; gap:3px; color:var(--text-secondary); font-size:12px; }
+.template-rows { min-width:0; border:1px solid var(--border-default); border-radius:var(--radius-sm); padding:12px; }
+.template-rows legend { color:var(--text-secondary); font-size:13px; }
+.template-row { display:grid; gap:12px; padding:12px 0; border-bottom:1px solid var(--border-default); }
+.template-choice { display:block; margin:10px 0; width:100%; text-align:left; }
 @media (max-width:700px) { .habit-metric-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } .habit-history-row { grid-template-columns:90px minmax(0,1fr); } .habit-history-row .btn { grid-column:2; justify-self:start; } .habit-frequency-fields { grid-template-columns:1fr; } }

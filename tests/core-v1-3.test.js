@@ -2,6 +2,89 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const Core = require('../js/core.js');
 
+test('task template offsets resolve from instantiation date', () => {
+  const tpl = { type:'task', data:{ title:'Proposal', plannedOffsetDays:0, dueOffsetDays:3 } };
+  const out = Core.instantiateTemplate(tpl, '2026-09-20', { taskId:'new-task' });
+  assert.equal(out.task.plannedDate, '2026-09-20');
+  assert.equal(out.task.dueDate, '2026-09-23');
+  assert.equal(Core.instantiateTemplate({type:'task',data:{title:'Undated',dueOffsetDays:-1,recurrence:{frequency:null,interval:null}}},'2028-03-01',{taskId:'undated'}).task.recurrence,null);
+});
+
+test('goal template excludes live links history progress and completed milestone state', () => {
+  const goal = {
+    id:'g1', title:'Launch', areaId:'a1', progressMode:'manual', progressType:'percentage',
+    currentValue:70, targetValue:100, unit:'%', targetDate:'2026-11-15',
+    projectLinks:[{projectId:'p1',contributionMode:'allTasks',selectedTaskIds:[]}],
+    taskIds:['t1'], habitLinks:[{habitId:'h1',metric:'streak',target:30}],
+    milestones:[{id:'m1',title:'Beta',date:'2026-10-01',isCompleted:true,completedAt:'2026-09-30T10:00:00Z',order:0}],
+    reminders:{sevenDaysBefore:true,threeDaysBefore:false,oneDayBefore:true,onTargetDate:true,time:'09:00'}
+  };
+  const tpl = Core.templateFromEntity('goal', goal, { projects:[], tasks:[], habits:[] });
+  assert.equal(tpl.data.projectLinks, undefined);
+  assert.equal(tpl.data.taskIds, undefined);
+  assert.equal(tpl.data.habitLinks, undefined);
+  assert.equal(tpl.data.currentValue, undefined);
+  assert.equal(tpl.data.milestones.every(m=>m.isCompleted === false && m.completedAt == null), true);
+});
+
+test('template snapshots keep nested relative dates independent and reset runtime with fresh IDs', () => {
+  let counter = 0;
+  const ids = { makeId: prefix => `${prefix}-fresh-${++counter}`, nowIso:'2026-10-24T12:00:00Z' };
+  const state = {areas:[{id:'a'}], goals:[{id:'g'}], tags:[{id:'tag'}], projects:[{id:'p',areaId:'a'}], tasks:[]};
+  const source = {id:'old',title:'Task',projectId:'p',areaId:null,goalIds:['g'],tagIds:['tag'],plannedDate:'2026-10-24',plannedTime:'08:00',dueDate:'2026-10-27',dueTime:'17:00',reminderAt:new Date(2026,9,25,9,30).toISOString(),reminderFiredAt:'old',attachmentIds:['file'],isCompleted:true,subtasks:[{id:'s',title:'Child',isCompleted:true}],recurrence:{frequency:'weekly',interval:2}};
+  state.tasks = [source];
+  const tpl = Core.templateFromEntity('task',source,state,'2026-10-24');
+  assert.equal(tpl.data.plannedDate,undefined);
+  assert.equal(tpl.data.reminderAt,undefined);
+  assert.equal(tpl.data.reminderOffsetDays,1);
+  source.subtasks[0].title='Changed'; source.recurrence.interval=8;
+  const out=Core.instantiateTemplate(tpl,'2026-10-25',{...ids,state}).task;
+  assert.equal(out.plannedDate,'2026-10-25'); assert.equal(out.dueDate,'2026-10-28');
+  assert.equal(out.plannedTime,'08:00'); assert.equal(out.dueTime,'17:00');
+  assert.equal(new Date(out.reminderAt).getHours(),9); assert.equal(Core.dateOnly(new Date(out.reminderAt)),'2026-10-26');
+  assert.equal(out.areaId,null); assert.deepEqual(out.goalIds,['g']); assert.deepEqual(out.tagIds,['tag']);
+  assert.equal(out.isCompleted,false); assert.deepEqual(out.attachmentIds,[]); assert.equal(out.reminderFiredAt,null);
+  assert.equal(out.subtasks[0].title,'Child'); assert.equal(out.subtasks[0].isCompleted,false); assert.notEqual(out.subtasks[0].id,'s'); assert.equal(out.recurrence.interval,2);
+  const missing=Core.instantiateTemplate(tpl,'2028-02-28',{...ids,state:{projects:[],areas:[],goals:[],tags:[]}}).task;
+  assert.equal(missing.projectId,null); assert.equal(missing.areaId,null); assert.deepEqual(missing.goalIds,[]); assert.deepEqual(missing.tagIds,[]); assert.equal(missing.dueDate,'2028-03-02');
+  const project=Core.templateFromEntity('project',{id:'p',name:'Project',areaId:'a',goalIds:['g'],isArchived:true},state,'2026-10-24');
+  const a=Core.instantiateTemplate(project,'2026-12-31',{...ids,state});
+  const b=Core.instantiateTemplate(project,'2027-01-02',{...ids,state});
+  assert.notEqual(a.project.id,b.project.id); assert.equal(a.project.isArchived,false);
+  assert.equal(a.tasks[0].projectId,a.project.id); assert.equal(a.tasks[0].areaId,null); assert.equal(a.tasks[0].dueDate,'2027-01-03');
+  assert.notEqual(a.tasks[0].id,b.tasks[0].id); assert.notEqual(a.tasks[0].subtasks[0].id,b.tasks[0].subtasks[0].id);
+});
+
+test('habit and goal templates rebase end targets and milestones without tracking timelines', () => {
+  let n=0; const ids={makeId:p=>`${p}-${++n}`,state:{areas:[],goals:[]}};
+  const h=Core.templateFromEntity('habit',{id:'old',name:'Habit',status:'paused',startDate:'2026-01-01',endType:'date',endDate:'2026-09-19',pauseIntervals:[{}],logs:[{}],quickValues:[1,2],reminders:[{id:'r',time:'09:00',enabled:true}],reminderFiredMoments:['x'],lastContinuationPeriod:'x'}, {}, '2026-09-20');
+  assert.equal(h.data.startDate,undefined); assert.equal(h.data.endDate,undefined); assert.equal(h.data.endOffsetDays,-1);
+  const fresh=Core.instantiateTemplate(h,'2027-01-01',ids).habit;
+  assert.equal(fresh.startDate,'2027-01-01'); assert.equal(fresh.endDate,'2026-12-31'); assert.equal(fresh.status,'active');
+  assert.deepEqual(fresh.reminderFiredMoments,[]); assert.deepEqual(fresh.pauseIntervals,[]); assert.equal(fresh.logs,undefined); assert.equal(fresh.lastContinuationPeriod,undefined); assert.notEqual(fresh.reminders[0].id,'r');
+  const g=Core.templateFromEntity('goal',{id:'g',title:'Goal',currentValue:70,targetValue:100,targetDate:'2026-09-23',milestones:[{id:'m',title:'First',date:'2026-09-19',isCompleted:true},{id:'u',title:'Undated'}],history:[{}],reminderFiredMoments:['x']},{},'2026-09-20');
+  const out=Core.instantiateTemplate(g,'2028-03-01',ids).goal;
+  assert.equal(out.currentValue,0); assert.equal(out.targetDate,'2028-03-04'); assert.equal(out.milestones[0].date,'2028-02-29'); assert.equal(out.milestones[1].date,null);
+  assert.equal(out.milestones[0].isCompleted,false); assert.notEqual(out.milestones[0].id,'m'); assert.deepEqual(out.projectLinks,[]); assert.deepEqual(out.taskIds,[]); assert.deepEqual(out.habitLinks,[]); assert.equal(out.history,undefined);
+});
+
+test('project and habit template snapshots rebind independent per-goal relation settings', () => {
+  let n=0;const ids={makeId:p=>`${p}-${++n}`};
+  const state={projects:[{id:'p',name:'P',goalIds:['g']}],tasks:[{id:'t0',title:'Zero',projectId:'p',projectOrder:0},{id:'t1',title:'One',projectId:'p',projectOrder:1}],habits:[{id:'h',name:'H',goalIds:['g']}],goals:[{id:'g',projectLinks:[{projectId:'p',contributionMode:'selectedTasks',selectedTaskIds:['t1']}],habitLinks:[{habitId:'h',metric:'streak',target:30}]}]};
+  const project=Core.templateFromEntity('project',state.projects[0],state,'2026-09-20');
+  const habit=Core.templateFromEntity('habit',state.habits[0],state,'2026-09-20');
+  assert.deepEqual(project.data.goalLinkConfigs,[{goalId:'g',contributionMode:'selectedTasks',selectedTaskIndices:[1]}]);
+  assert.deepEqual(habit.data.goalLinkConfigs,[{goalId:'g',metric:'streak',target:30}]);
+  state.goals[0].projectLinks[0].selectedTaskIds=[];state.goals[0].habitLinks[0].target=2;
+  const p=Core.instantiateTemplate(project,'2026-10-01',{...ids,state});const h=Core.instantiateTemplate(habit,'2026-10-01',{...ids,state});
+  assert.deepEqual(p.goalLinks,[{goalId:'g',contributionMode:'selectedTasks',selectedTaskIds:[p.tasks[1].id]}]);
+  assert.deepEqual(h.goalLinks,[{goalId:'g',metric:'streak',target:30}]);
+  p.goalLinks[0].selectedTaskIds.length=0; h.goalLinks[0].target=1;
+  assert.deepEqual(project.data.goalLinkConfigs[0].selectedTaskIndices,[1]);assert.equal(habit.data.goalLinkConfigs[0].target,30);
+  assert.deepEqual(Core.instantiateTemplate(project,'2026-10-01',{...ids,state:{goals:[]}}).goalLinks,[]);
+  assert.deepEqual(Core.instantiateTemplate(habit,'2026-10-01',{...ids,state:{goals:[]}}).goalLinks,[]);
+});
+
 test('calendar merges same-day task dates and retains independent event times and object identity', () => {
   const a = { id: 'a', title: 'A', plannedDate: '2026-10-28', plannedTime: '09:00', dueDate: '2026-10-30', dueTime: '17:00' };
   const b = { id: 'b', title: 'B', plannedDate: '2026-10-29', plannedTime: '14:00', dueDate: '2026-10-29', dueTime: '18:00' };

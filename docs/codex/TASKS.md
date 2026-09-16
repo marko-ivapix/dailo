@@ -126,15 +126,15 @@ Full plan: `docs/superpowers/plans/2026-09-16-todo-v1-3.md`
 
 ## Phase 8 — Templates
 
-- [ ] Templates route.
-- [ ] Task templates.
-- [ ] Project templates with predefined tasks.
-- [ ] Habit templates.
-- [ ] Goal templates.
-- [ ] Add/Edit/Delete/Duplicate.
-- [ ] Save as template from all supported objects.
-- [ ] Relative-date resolution.
-- [ ] Verify history/current-progress exclusions.
+- [x] Templates route.
+- [x] Task templates.
+- [x] Project templates with predefined tasks.
+- [x] Habit templates.
+- [x] Goal templates.
+- [x] Add/Edit/Delete/Duplicate.
+- [x] Save as template from all supported objects.
+- [x] Relative-date resolution.
+- [x] Verify history/current-progress exclusions.
 
 ## Phase 9 — Saved Views/sidebar/shortcuts
 

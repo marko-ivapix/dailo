@@ -23,6 +23,81 @@
     return dateOnly(copy);
   }
 
+  const templateCopy = value => JSON.parse(JSON.stringify(value));
+  function templateOffset(value, anchor) {
+    if (!value) return null;
+    const a = parseDateOnly(anchor), b = parseDateOnly(value);
+    return Math.round((Date.UTC(b.getFullYear(), b.getMonth(), b.getDate()) - Date.UTC(a.getFullYear(), a.getMonth(), a.getDate())) / 86400000);
+  }
+  function templateFromEntity(type, entity, state = {}, contextDate = dateOnly()) {
+    const pick = keys => Object.fromEntries(keys.filter(key => entity[key] !== undefined).map(key => [key, templateCopy(entity[key])]));
+    let data;
+    if (type === 'task') {
+      data = pick(['title','notes','projectId','areaId','goalIds','tagIds','priority','plannedTime','dueTime']);
+      data.recurrence = entity.recurrence ? { frequency: entity.recurrence.frequency, interval: entity.recurrence.interval } : null;
+      data.plannedOffsetDays = templateOffset(entity.plannedDate, contextDate);
+      data.dueOffsetDays = templateOffset(entity.dueDate, contextDate);
+      data.subtasks = (entity.subtasks || []).map((s, order) => ({ title:s.title, order, isCompleted:false, completedAt:null }));
+      const reminder = entity.reminderAt && new Date(entity.reminderAt);
+      data.reminderOffsetDays = reminder && !Number.isNaN(reminder.getTime()) ? templateOffset(dateOnly(reminder), contextDate) : null;
+      data.reminderTime = reminder && !Number.isNaN(reminder.getTime()) ? `${pad(reminder.getHours())}:${pad(reminder.getMinutes())}` : null;
+    } else if (type === 'project') {
+      data = pick(['name','areaId','goalIds','color']);
+      const children=(state.tasks || []).filter(t => t.projectId === entity.id).sort(byOrder('projectOrder'));
+      data.tasks = children.map(t => {
+        const child = templateFromEntity('task',t,state,contextDate).data;
+        child.projectId = null; child.areaId = null;
+        return child;
+      });
+      data.goalLinkConfigs=(data.goalIds || []).flatMap(goalId=>{
+        const link=(state.goals || []).find(g=>g.id===goalId)?.projectLinks?.find(l=>l.projectId===entity.id);
+        return link ? [{goalId,contributionMode:link.contributionMode,selectedTaskIndices:children.map((t,index)=>(link.selectedTaskIds || []).includes(t.id)?index:null).filter(index=>index!==null)}] : [];
+      });
+    } else if (type === 'habit') {
+      data = pick(['name','areaId','goalIds','trackingType','targetValue','unit','quickValues','frequencyType','weekdays','timesPerWeek','everyNDays','continuation','endType','successfulPeriodsTarget']);
+      data.endOffsetDays = templateOffset(entity.endDate, contextDate);
+      data.reminders = (entity.reminders || []).map(r => ({time:r.time,enabled:r.enabled !== false}));
+      data.goalLinkConfigs=(data.goalIds || []).flatMap(goalId=>{
+        const link=(state.goals || []).find(g=>g.id===goalId)?.habitLinks?.find(l=>l.habitId===entity.id);
+        return link ? [{goalId,metric:link.metric,target:link.target}] : [];
+      });
+    } else if (type === 'goal') {
+      data = pick(['title','areaId','progressMode','progressType','targetValue','unit']);
+      data.targetOffsetDays = templateOffset(entity.targetDate, contextDate);
+      data.milestones = (entity.milestones || []).map((m,order) => ({title:m.title,dateOffsetDays:templateOffset(m.date,contextDate),order,isCompleted:false,completedAt:null}));
+      const r = entity.reminders || {};
+      data.reminders = {sevenDaysBefore:!!r.sevenDaysBefore,threeDaysBefore:!!r.threeDaysBefore,oneDayBefore:!!r.oneDayBefore,onTargetDate:!!r.onTargetDate,time:r.time || '09:00'};
+    } else throw new Error('Unsupported template type');
+    return {type,data};
+  }
+
+  function instantiateTemplate(template, contextDate, ids = {}) {
+    const d = templateCopy(template.data || {});
+    const makeId = ids.makeId || (prefix => `${prefix}_${globalThis.crypto.randomUUID()}`);
+    const ts = ids.nowIso || new Date().toISOString();
+    const resolve = offset => Number.isInteger(offset) ? addDays(contextDate,offset) : null;
+    const live = (key,id) => id && (!ids.state || (ids.state[key] || []).some(e => e.id === id)) ? id : null;
+    const links = (key,values) => [...new Set((values || []).filter(id => live(key,id)))];
+    const common = {createdAt:ts,updatedAt:ts};
+    const configs=(d.goalLinkConfigs || []).filter(c=>(d.goalIds || []).includes(c.goalId) && live('goals',c.goalId));
+    const task = (data, taskId, projectId = live('projects',data.projectId)) => ({
+      ...common,id:taskId || makeId('task'),title:data.title || '',notes:data.notes || '',projectId,areaId:projectId ? null : live('areas',data.areaId),goalIds:links('goals',data.goalIds),tagIds:links('tags',data.tagIds),priority:data.priority || 'none',
+      plannedDate:resolve(data.plannedOffsetDays),dueDate:resolve(data.dueOffsetDays),plannedTime:normalizeTime(data.plannedTime),dueTime:normalizeTime(data.dueTime),
+      reminderAt:resolve(data.reminderOffsetDays) && normalizeTime(data.reminderTime) ? combineDateTime(resolve(data.reminderOffsetDays), data.reminderTime) : null,reminderFiredAt:null,
+      recurrence:data.recurrence?.frequency ? {frequency:data.recurrence.frequency,interval:data.recurrence.interval || 1} : null,attachmentIds:[],isCompleted:false,completedAt:null,isInbox:!(projectId || resolve(data.plannedOffsetDays)),todayOrder:null,projectOrder:null,inboxOrder:null,
+      subtasks:(data.subtasks || []).map((s,order)=>({id:makeId('sub'),title:s.title,order,isCompleted:false,completedAt:null})),
+    });
+    if (template.type === 'task') return {task:task(d,ids.taskId)};
+    if (template.type === 'project') {
+      const project = {...common,id:ids.projectId || makeId('project'),name:d.name || '',color:d.color || '#5362FF',areaId:live('areas',d.areaId),goalIds:links('goals',d.goalIds),isArchived:false,archivedAt:null,order:null};
+      const tasks=(d.tasks || []).map(child=>task(child,null,project.id));
+      return {project,tasks,goalLinks:configs.map(c=>({goalId:c.goalId,contributionMode:c.contributionMode,selectedTaskIds:[...new Set((c.selectedTaskIndices || []).filter(i=>Number.isInteger(i) && tasks[i]).map(i=>tasks[i].id))]}))};
+    }
+    if (template.type === 'habit') return {habit:{...common,id:ids.habitId || makeId('habit'),name:d.name || '',areaId:live('areas',d.areaId),goalIds:links('goals',d.goalIds),status:'active',trackingType:d.trackingType || 'checkbox',targetValue:d.targetValue ?? 1,unit:d.unit || '',quickValues:d.quickValues || [],frequencyType:d.frequencyType || 'daily',weekdays:d.weekdays || [1,2,3,4,5],timesPerWeek:d.timesPerWeek || 4,everyNDays:d.everyNDays || 2,startDate:contextDate,continuation:d.continuation || 'automatic',endType:d.endType || 'never',endDate:resolve(d.endOffsetDays),successfulPeriodsTarget:d.successfulPeriodsTarget || null,reminders:(d.reminders || []).map(r=>({id:makeId('habit-reminder'),time:r.time,enabled:r.enabled !== false})),reminderFiredMoments:[],pauseIntervals:[],pauseStartedAt:null},goalLinks:configs.map(c=>({goalId:c.goalId,metric:c.metric,target:c.target}))};
+    if (template.type === 'goal') return {goal:{...common,id:ids.goalId || makeId('goal'),title:d.title || '',areaId:live('areas',d.areaId),status:'active',progressMode:d.progressMode || 'manual',progressType:d.progressType || 'percentage',currentValue:0,targetValue:d.targetValue ?? 100,unit:d.unit || '',targetDate:resolve(d.targetOffsetDays),projectLinks:[],taskIds:[],habitLinks:[],completedAt:null,reminderFiredMoments:[],reminders:d.reminders || {},milestones:(d.milestones || []).map((m,order)=>({id:makeId('milestone'),title:m.title,date:resolve(m.dateOffsetDays),order,isCompleted:false,completedAt:null}))}};
+    throw new Error('Unsupported template type');
+  }
+
   function isCompleted(task) {
     return Boolean(task && task.isCompleted);
   }
@@ -753,6 +828,8 @@
     dateOnly,
     parseDateOnly,
     addDays,
+    templateFromEntity,
+    instantiateTemplate,
     isOverdue,
     isInboxActive,
     deriveTodaySections,
