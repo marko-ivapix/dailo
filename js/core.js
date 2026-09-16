@@ -328,6 +328,14 @@
     return offsets.filter(([key]) => reminders[key]).map(([, offset]) => combineDateTime(addDays(goal.targetDate, offset), time));
   }
 
+  function goalReminderDueMoments(goal, now) {
+    if (!goal || goal.status !== 'active' || !goal.targetDate) return [];
+    const nowDate = new Date(now);
+    if (Number.isNaN(nowDate.getTime()) || dateOnly(nowDate) > goal.targetDate) return [];
+    const fired = new Set(Array.isArray(goal.reminderFiredMoments) ? goal.reminderFiredMoments : []);
+    return goalReminderMoments(goal).filter(moment => !fired.has(moment) && new Date(moment).getTime() <= nowDate.getTime());
+  }
+
   function overdueMilestones(goal, today) {
     return (goal?.milestones || []).filter(milestone => milestone && !milestone.isCompleted && milestone.date && milestone.date < today);
   }
@@ -582,6 +590,7 @@
     computeGoalProgress,
     isGoalOverdue,
     goalReminderMoments,
+    goalReminderDueMoments,
     overdueMilestones,
     tasksForTag,
     parseQuickPlanPhrase,

@@ -208,7 +208,7 @@
       title: '', areaId: null, status: 'active', progressMode: 'manual', progressType: 'percentage',
       currentValue: 0, targetValue: 100, unit: '', targetDate: null, projectLinks: [], taskIds: [], habitLinks: [], milestones: [],
       reminders: { sevenDaysBefore: false, threeDaysBefore: false, oneDayBefore: false, onTargetDate: false, time: '09:00' },
-      createdAt: nowIso(), updatedAt: nowIso(), completedAt: null, ...goal,
+      reminderFiredMoments: [], createdAt: nowIso(), updatedAt: nowIso(), completedAt: null, ...goal,
       title: String(goal.title || goal.name || '').trim(),
       areaId: goal.areaId || null,
       status: ['active', 'paused', 'completed', 'archived'].includes(goal.status) ? goal.status : 'active',
@@ -216,6 +216,7 @@
       progressType: goal.progressType === 'numeric' ? 'numeric' : 'percentage',
       projectLinks: Array.isArray(goal.projectLinks) ? goal.projectLinks : [], taskIds: Array.isArray(goal.taskIds) ? goal.taskIds : [],
       habitLinks: Array.isArray(goal.habitLinks) ? goal.habitLinks : [], milestones: Array.isArray(goal.milestones) ? goal.milestones : [],
+      reminderFiredMoments: Array.isArray(goal.reminderFiredMoments) ? goal.reminderFiredMoments : [],
       reminders: { sevenDaysBefore: false, threeDaysBefore: false, oneDayBefore: false, onTargetDate: false, time: '09:00', ...(goal.reminders || {}) },
     }));
     return next;
@@ -606,7 +607,7 @@
     let html = pageHeader(goal.title, goalStatusLabel(goal), { add: false, actionHtml: `<button class="btn btn-secondary" type="button" data-action="edit-goal" data-goal-id="${esc(goal.id)}"><i class="ph ph-pencil-simple"></i> Edit</button><button class="btn-icon" type="button" data-action="goal-menu" data-goal-id="${esc(goal.id)}" aria-label="Goal actions"><i class="ph ph-dots-three"></i></button>` });
     html += `<section class="goal-detail-card"><div class="goal-progress-large"><strong>${esc(goalProgressLabel(goal))}</strong><span class="goal-progress"><span style="width:${Math.max(0, Math.min(100, progress.percent))}%"></span></span></div>${goal.progressMode === 'manual' ? `<label class="field-label" for="goal-current-value">${goal.progressType === 'numeric' ? 'Current value' : 'Progress percentage'}<input id="goal-current-value" class="input" type="number" value="${esc(goal.currentValue)}" data-goal-id="${esc(goal.id)}" /></label><button class="btn btn-secondary" type="button" data-action="save-goal-progress" data-goal-id="${esc(goal.id)}">Update progress</button>` : `<p class="area-empty-copy">Progress is calculated from ${goal.progressMode === 'linkedTasks' ? 'linked tasks' : 'linked habits'}.</p>`}<div class="goal-detail-actions"><button class="btn btn-ghost" type="button" data-action="${statusAction}" data-goal-id="${esc(goal.id)}">${statusText}</button>${goal.status !== 'completed' && goal.status !== 'archived' ? `<button class="btn btn-secondary" type="button" data-action="complete-goal" data-goal-id="${esc(goal.id)}">Mark completed</button>` : ''}</div></section>`;
     html += `<section class="section"><div class="section-header"><h2 class="section-label">Links</h2><button class="btn btn-ghost" type="button" data-action="edit-goal-links" data-goal-id="${esc(goal.id)}">Manage links</button></div><p class="area-empty-copy">${links.length} project links · ${(goal.taskIds || []).length} direct task links · ${(goal.habitLinks || []).length} habit links</p></section>`;
-    html += `<section class="section"><div class="section-header"><h2 class="section-label">Milestones</h2><button class="btn btn-ghost" type="button" data-action="new-milestone" data-goal-id="${esc(goal.id)}">Add milestone</button></div>${milestones.length ? `<div class="milestone-list">${milestones.map(milestone => `<div class="milestone-row ${!milestone.isCompleted && milestone.date && milestone.date < Core.dateOnly() ? 'is-overdue' : ''}"><button class="check-toggle ${milestone.isCompleted ? 'is-checked' : ''}" type="button" data-action="toggle-milestone" data-goal-id="${esc(goal.id)}" data-milestone-id="${esc(milestone.id)}"><i class="ph ${milestone.isCompleted ? 'ph-check' : 'ph-circle'}"></i></button><span><strong>${esc(milestone.title)}</strong><small>${milestone.date ? esc(relativeDateLabel(milestone.date)) : 'No date'}</small></span><button class="btn-icon" type="button" data-action="delete-milestone" data-goal-id="${esc(goal.id)}" data-milestone-id="${esc(milestone.id)}" aria-label="Delete milestone"><i class="ph ph-trash"></i></button></div>`).join('')}</div>` : '<p class="area-empty-copy">No milestones yet.</p>'}</section>`;
+    html += `<section class="section"><div class="section-header"><h2 class="section-label">Milestones</h2><button class="btn btn-ghost" type="button" data-action="new-milestone" data-goal-id="${esc(goal.id)}">Add milestone</button></div>${milestones.length ? `<div class="milestone-list">${milestones.map(milestone => `<div class="milestone-row ${!milestone.isCompleted && milestone.date && milestone.date < Core.dateOnly() ? 'is-overdue' : ''}"><button class="check-toggle ${milestone.isCompleted ? 'is-checked' : ''}" type="button" data-action="toggle-milestone" data-goal-id="${esc(goal.id)}" data-milestone-id="${esc(milestone.id)}"><i class="ph ${milestone.isCompleted ? 'ph-check' : 'ph-circle'}"></i></button><span><strong>${esc(milestone.title)}</strong><small>${milestone.date ? esc(relativeDateLabel(milestone.date)) : 'No date'}</small></span><button class="btn-icon" type="button" data-action="edit-milestone" data-goal-id="${esc(goal.id)}" data-milestone-id="${esc(milestone.id)}" aria-label="Edit milestone"><i class="ph ph-pencil-simple"></i></button><button class="btn-icon" type="button" data-action="delete-milestone" data-goal-id="${esc(goal.id)}" data-milestone-id="${esc(milestone.id)}" aria-label="Delete milestone"><i class="ph ph-trash"></i></button></div>`).join('')}</div>` : '<p class="area-empty-copy">No milestones yet.</p>'}</section>`;
     html += `<section class="section"><div class="section-header"><h2 class="section-label">Reminders</h2><button class="btn btn-ghost" type="button" data-action="edit-goal-reminders" data-goal-id="${esc(goal.id)}">Edit reminders</button></div><p class="area-empty-copy">${Core.goalReminderMoments(goal).length ? `${Core.goalReminderMoments(goal).length} reminder points at ${esc(goal.reminders.time)}` : 'No reminders enabled.'}</p></section>`;
     return html;
   }
@@ -829,8 +830,9 @@
     renderModal(); requestAnimationFrame(() => $('#goal-title')?.focus());
   }
 
-  function openMilestoneModal(goalId) {
-    modalState = { type: 'milestone', goalId, draft: { title: '', date: '' }, error: '' };
+  function openMilestoneModal(goalId, milestoneId = null) {
+    const milestone = milestoneId ? getGoal(goalId)?.milestones.find(item => item.id === milestoneId) : null;
+    modalState = { type: 'milestone', goalId, milestoneId, draft: { title: milestone?.title || '', date: milestone?.date || '' }, error: '' };
     renderModal(); requestAnimationFrame(() => $('#milestone-title')?.focus());
   }
 
@@ -1101,7 +1103,8 @@
 
   function renderMilestoneModal() {
     const d = modalState.draft;
-    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">New milestone</h2><button class="btn-icon" type="button" data-action="close-modal"><i class="ph ph-x"></i></button></div><div class="form-stack"><label class="field-label">Title<input id="milestone-title" class="input" maxlength="120" value="${esc(d.title)}" /></label><label class="field-label">Date<input id="milestone-date" class="input" type="date" value="${esc(d.date)}" /></label></div><div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">Cancel</button><button class="btn btn-primary" type="button" data-action="save-milestone">Add milestone</button></div></div></div>`, 'small-modal');
+    const editing = Boolean(modalState.milestoneId);
+    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">${editing ? 'Edit milestone' : 'New milestone'}</h2><button class="btn-icon" type="button" data-action="close-modal"><i class="ph ph-x"></i></button></div><div class="form-stack"><label class="field-label">Title<input id="milestone-title" class="input" maxlength="120" value="${esc(d.title)}" /></label><label class="field-label">Date<input id="milestone-date" class="input" type="date" value="${esc(d.date)}" /></label></div><div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">Cancel</button><button class="btn btn-primary" type="button" data-action="save-milestone">${editing ? 'Save milestone' : 'Add milestone'}</button></div></div></div>`, 'small-modal');
   }
 
   function renderGoalLinksModal() {
@@ -1109,7 +1112,15 @@
     const projectIds = new Set(d.projectLinks.map(link => link.projectId));
     const taskIds = new Set(d.taskIds);
     const habitIds = new Set(d.habitLinks.map(link => link.habitId));
-    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">Goal links</h2><button class="btn-icon" type="button" data-action="close-modal"><i class="ph ph-x"></i></button></div><div class="link-picker"><h3>Projects</h3>${state.projects.map(project => `<label><input type="checkbox" data-goal-link-project="${esc(project.id)}" ${projectIds.has(project.id) ? 'checked' : ''}> ${esc(project.name)} <select data-goal-project-mode="${esc(project.id)}"><option value="allTasks" ${(d.projectLinks.find(link => link.projectId === project.id)?.contributionMode || 'allTasks') === 'allTasks' ? 'selected' : ''}>All tasks</option><option value="selectedTasks" ${(d.projectLinks.find(link => link.projectId === project.id)?.contributionMode) === 'selectedTasks' ? 'selected' : ''}>Selected tasks</option></select></label>`).join('') || '<p>No projects yet.</p>'}<h3>Tasks</h3>${state.tasks.map(task => `<label><input type="checkbox" data-goal-link-task="${esc(task.id)}" ${taskIds.has(task.id) ? 'checked' : ''}> ${esc(task.title)}</label>`).join('') || '<p>No tasks yet.</p>'}<h3>Habits</h3>${state.habits.map(habit => { const link = d.habitLinks.find(item => item.habitId === habit.id); return `<label><input type="checkbox" data-goal-link-habit="${esc(habit.id)}" ${habitIds.has(habit.id) ? 'checked' : ''}> ${esc(habit.name || habit.title)} <select data-goal-habit-metric="${esc(habit.id)}"><option value="totalCheckins" ${(link?.metric || 'totalCheckins') === 'totalCheckins' ? 'selected' : ''}>Check-ins</option><option value="streak" ${link?.metric === 'streak' ? 'selected' : ''}>Streak</option><option value="successfulPeriods" ${link?.metric === 'successfulPeriods' ? 'selected' : ''}>Periods</option></select><input type="number" min="1" value="${esc(link?.target || 1)}" data-goal-habit-target="${esc(habit.id)}"></label>`; }).join('') || '<p>Habits will be available after you create them.</p>'}</div><div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">Cancel</button><button class="btn btn-primary" type="button" data-action="save-goal-links">Save links</button></div></div></div>`, 'quick');
+    const projects = state.projects.map(project => {
+      const link = d.projectLinks.find(item => item.projectId === project.id);
+      const mode = link?.contributionMode || 'allTasks';
+      const selected = new Set(link?.selectedTaskIds || []);
+      const projectTasks = state.tasks.filter(task => task.projectId === project.id);
+      const picker = mode === 'selectedTasks' ? `<div class="project-task-picker" data-project-task-picker="${esc(project.id)}">${projectTasks.length ? projectTasks.map(task => `<label><input type="checkbox" data-goal-project-task="${esc(project.id)}:${esc(task.id)}" ${selected.has(task.id) ? 'checked' : ''}> ${esc(task.title)}</label>`).join('') : '<small>No tasks in this Project.</small>'}</div>` : '';
+      return `<div class="goal-project-link"><label><input type="checkbox" data-goal-link-project="${esc(project.id)}" ${projectIds.has(project.id) ? 'checked' : ''}> ${esc(project.name)} <select data-goal-project-mode="${esc(project.id)}"><option value="allTasks" ${mode === 'allTasks' ? 'selected' : ''}>All tasks</option><option value="selectedTasks" ${mode === 'selectedTasks' ? 'selected' : ''}>Selected tasks</option></select></label>${picker}</div>`;
+    }).join('') || '<p>No projects yet.</p>';
+    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">Goal links</h2><button class="btn-icon" type="button" data-action="close-modal"><i class="ph ph-x"></i></button></div><div class="link-picker"><h3>Projects</h3>${projects}<h3>Tasks</h3>${state.tasks.map(task => `<label><input type="checkbox" data-goal-link-task="${esc(task.id)}" ${taskIds.has(task.id) ? 'checked' : ''}> ${esc(task.title)}</label>`).join('') || '<p>No tasks yet.</p>'}<h3>Habits</h3>${state.habits.map(habit => { const link = d.habitLinks.find(item => item.habitId === habit.id); return `<label><input type="checkbox" data-goal-link-habit="${esc(habit.id)}" ${habitIds.has(habit.id) ? 'checked' : ''}> ${esc(habit.name || habit.title)} <select data-goal-habit-metric="${esc(habit.id)}"><option value="totalCheckins" ${(link?.metric || 'totalCheckins') === 'totalCheckins' ? 'selected' : ''}>Check-ins</option><option value="streak" ${link?.metric === 'streak' ? 'selected' : ''}>Streak</option><option value="successfulPeriods" ${link?.metric === 'successfulPeriods' ? 'selected' : ''}>Periods</option></select><input type="number" min="1" value="${esc(link?.target || 1)}" data-goal-habit-target="${esc(habit.id)}"></label>`; }).join('') || '<p>Habits will be available after you create them.</p>'}</div><div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">Cancel</button><button class="btn btn-primary" type="button" data-action="save-goal-links">Save links</button></div></div></div>`, 'quick');
   }
 
   function renderGoalRemindersModal() {
@@ -1475,6 +1486,7 @@
 
   function toggleComplete(taskId) {
     const task = getTask(taskId); if (!task) return;
+    const goalProgressBefore = captureGoalProgress();
     const previous = { isCompleted: task.isCompleted, completedAt: task.completedAt };
     if (task.isCompleted) {
       task.isCompleted = false; task.completedAt = null;
@@ -1500,7 +1512,7 @@
       if (generatedId) state.tasks = state.tasks.filter(item => item.id !== generatedId);
       saveState(); render();
     });
-    render(); if (modalState?.type === 'task') renderModal();
+    render(); if (modalState?.type === 'task') renderModal(); evaluateGoalProgressChanges(goalProgressBefore);
   }
 
   async function duplicateTask(taskId, copyFiles = false) {
@@ -1729,6 +1741,25 @@
     }
   }
 
+  function captureGoalProgress(goalIds = null) {
+    const ids = goalIds ? new Set(goalIds) : null;
+    return new Map((state.goals || []).filter(goal => !ids || ids.has(goal.id)).map(goal => [goal.id, Core.computeGoalProgress(goal, state, state.habitMetrics || {}).percent]));
+  }
+
+  function evaluateGoalProgressChanges(before) {
+    for (const goal of state.goals || []) {
+      if (!before?.has(goal.id)) continue;
+      const previous = before.get(goal.id);
+      const current = Core.computeGoalProgress(goal, state, state.habitMetrics || {}).percent;
+      if (current !== previous) putGoalHistory(goal.id, 'progressChanged', { from: previous, to: current });
+      if (goal.status === 'active' && previous < 100 && current >= 100) {
+        maybePromptGoalReached(goal, previous);
+        return goal;
+      }
+    }
+    return null;
+  }
+
   function updateGoalStatus(goalId, status) {
     const goal = getGoal(goalId); if (!goal || goal.status === status) return;
     const previous = { status: goal.status, completedAt: goal.completedAt };
@@ -1750,7 +1781,10 @@
     if (modalState?.type !== 'milestone') return;
     const goal = getGoal(modalState.goalId); if (!goal) return;
     const title = String($('#milestone-title')?.value || '').trim(); if (!title) { modalState.error = 'Milestone needs a title.'; renderModal(); return; }
-    goal.milestones.push({ id: uid('milestone'), title, date: $('#milestone-date')?.value || null, isCompleted: false, completedAt: null, order: goal.milestones.length }); goal.updatedAt = nowIso();
+    const existing = modalState.milestoneId ? goal.milestones.find(item => item.id === modalState.milestoneId) : null;
+    if (existing) Object.assign(existing, { title, date: $('#milestone-date')?.value || null });
+    else goal.milestones.push({ id: uid('milestone'), title, date: $('#milestone-date')?.value || null, isCompleted: false, completedAt: null, order: goal.milestones.length });
+    goal.updatedAt = nowIso();
     saveState(); closeModal(); render();
   }
 
@@ -1768,14 +1802,23 @@
   function saveGoalLinks() {
     if (modalState?.type !== 'goal-links') return;
     const goal = getGoal(modalState.goalId); if (!goal) return;
+    const progressBefore = captureGoalProgress();
     const oldProjects = new Set((goal.projectLinks || []).map(link => link.projectId));
-    const projectLinks = $$('[data-goal-link-project]').filter(input => input.checked).map(input => ({ projectId: input.dataset.goalLinkProject, contributionMode: document.querySelector(`[data-goal-project-mode="${CSS.escape(input.dataset.goalLinkProject)}"]`)?.value || 'allTasks', selectedTaskIds: [] }));
+    const projectLinks = $$('[data-goal-link-project]').filter(input => input.checked).map(input => {
+      const projectId = input.dataset.goalLinkProject;
+      const contributionMode = document.querySelector(`[data-goal-project-mode="${CSS.escape(projectId)}"]`)?.value || 'allTasks';
+      const oldLink = (goal.projectLinks || []).find(link => link.projectId === projectId);
+      const selectedTaskIds = contributionMode === 'selectedTasks'
+        ? $$(`[data-goal-project-task^="${CSS.escape(projectId)}:"]`).filter(task => task.checked).map(task => task.dataset.goalProjectTask.split(':').slice(1).join(':'))
+        : (oldLink?.selectedTaskIds || []);
+      return { projectId, contributionMode, selectedTaskIds };
+    });
     const taskIds = $$('[data-goal-link-task]').filter(input => input.checked).map(input => input.dataset.goalLinkTask);
     const habitLinks = $$('[data-goal-link-habit]').filter(input => input.checked).map(input => { const id = input.dataset.goalLinkHabit; return { habitId: id, metric: document.querySelector(`[data-goal-habit-metric="${CSS.escape(id)}"]`)?.value || 'totalCheckins', target: Number(document.querySelector(`[data-goal-habit-target="${CSS.escape(id)}"]`)?.value || 1) || 1 }; });
     syncGoalLinks(goal, projectLinks, taskIds, habitLinks); goal.updatedAt = nowIso();
     projectLinks.forEach(link => { if (!oldProjects.has(link.projectId)) putGoalHistory(goal.id, 'projectLinked', { projectId: link.projectId }); });
     oldProjects.forEach(projectId => { if (!projectLinks.some(link => link.projectId === projectId)) putGoalHistory(goal.id, 'projectUnlinked', { projectId }); });
-    saveState(); closeModal(); render();
+    saveState(); closeModal(); render(); evaluateGoalProgressChanges(progressBefore);
   }
 
   function saveGoalReminders() {
@@ -1994,18 +2037,27 @@
   function checkReminders() {
     if (!state) return;
     const now = nowIso();
-    const due = state.tasks.filter(task => Core.isReminderDue(task, now));
-    if (!due.length) return;
-    for (const task of due) {
+    const dueTasks = state.tasks.filter(task => Core.isReminderDue(task, now));
+    const dueGoals = state.goals.flatMap(goal => Core.goalReminderDueMoments(goal, now).map(moment => ({ goal, moment })));
+    if (!dueTasks.length && !dueGoals.length) return;
+    for (const task of dueTasks) {
       task.reminderFiredAt = now;
       task.updatedAt = now;
       if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
         try { new Notification(task.title, { body: task.dueDate ? `Due ${relativeDateLabel(task.dueDate)}` : 'Task reminder' }); } catch (_) { /* in-app reminder remains */ }
       }
     }
+    for (const { goal, moment } of dueGoals) {
+      goal.reminderFiredMoments = [...new Set([...(goal.reminderFiredMoments || []), moment])];
+      goal.updatedAt = now;
+      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        try { new Notification(goal.title, { body: goal.targetDate ? `Goal target ${relativeDateLabel(goal.targetDate)}` : 'Goal reminder' }); } catch (_) { /* in-app reminder remains */ }
+      }
+    }
     saveState();
-    if (due.length === 1) setToastMessage(`Reminder: ${due[0].title}`);
-    else setToastMessage(`${due.length} task reminders are due`);
+    const total = dueTasks.length + dueGoals.length;
+    if (total === 1) setToastMessage(`Reminder: ${dueTasks[0]?.title || dueGoals[0].goal.title}`);
+    else setToastMessage(`${total} reminders are due`);
   }
 
   function setToastMessage(message) {
@@ -2058,6 +2110,7 @@
     else if (action === 'edit-goal-links') openGoalLinksModal(el.dataset.goalId);
     else if (action === 'save-goal-links') saveGoalLinks();
     else if (action === 'new-milestone') openMilestoneModal(el.dataset.goalId);
+    else if (action === 'edit-milestone') openMilestoneModal(el.dataset.goalId, el.dataset.milestoneId);
     else if (action === 'save-milestone') saveMilestoneModal();
     else if (action === 'toggle-milestone') toggleMilestone(el.dataset.goalId, el.dataset.milestoneId);
     else if (action === 'delete-milestone') deleteMilestone(el.dataset.goalId, el.dataset.milestoneId);
@@ -2217,6 +2270,12 @@
     } else if (event.target.id === 'completed-period-filter') {
       state.ui.completedPeriod = Number(event.target.value) || 0;
       saveAndRender();
+    } else if (modalState?.type === 'goal-links' && event.target.matches('[data-goal-project-mode]')) {
+      const projectId = event.target.dataset.goalProjectMode;
+      const link = modalState.draft.projectLinks.find(item => item.projectId === projectId);
+      if (link) link.contributionMode = event.target.value;
+      else modalState.draft.projectLinks.push({ projectId, contributionMode: event.target.value, selectedTaskIds: [] });
+      renderModal();
     }
   }
 
@@ -2442,6 +2501,6 @@
     }, 30000);
   }
 
-  window.TodoApp = { init, get state() { return state; }, render, openQuickAdd, openSearch };
+  window.TodoApp = { init, get state() { return state; }, render, openQuickAdd, openSearch, checkReminders, captureGoalProgress, evaluateGoalProgressChanges };
   init();
 })();

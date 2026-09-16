@@ -196,5 +196,63 @@ def main():
         browser.close()
 
 
+def goal_fix_round_contract():
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True, executable_path=chromium_path(), args=['--no-sandbox'])
+        page = browser.new_page(viewport={'width': 1440, 'height': 1000})
+        boot(page)
+        page.evaluate('''() => {
+          const now = new Date();
+          const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+          TodoApp.state.projects.push({id:'project-selected',name:'Selected scope',goalIds:[],areaId:null,isArchived:false});
+          TodoApp.state.tasks.push(
+            {id:'selected-a',title:'Selected A',projectId:'project-selected',areaId:null,goalIds:[],plannedDate:local,isCompleted:false,subtasks:[]},
+            {id:'selected-b',title:'Selected B',projectId:'project-selected',areaId:null,goalIds:[],isCompleted:false,subtasks:[]}
+          );
+          TodoApp.state.goals.push({
+            id:'goal-selected',title:'Selected task goal',areaId:null,status:'active',progressMode:'linkedTasks',progressType:'percentage',currentValue:0,targetValue:100,unit:'',targetDate:local,
+            projectLinks:[{projectId:'project-selected',contributionMode:'selectedTasks',selectedTaskIds:['selected-a']}],taskIds:[],habitLinks:[],milestones:[{id:'milestone-edit',title:'Before edit',date:local,isCompleted:false,completedAt:null,order:0}],
+            reminders:{sevenDaysBefore:false,threeDaysBefore:false,oneDayBefore:false,onTargetDate:true,time:new Date(now.getTime()-60000).toTimeString().slice(0,5)},reminderFiredMoments:[],createdAt:'x',updatedAt:'x',completedAt:null
+          });
+          location.hash = '#goal/goal-selected'; TodoApp.render();
+        }''')
+
+        # selectedTasks exposes its own in-project picker and preserves its selection.
+        page.click('[data-action="edit-goal-links"]')
+        assert page.locator('[data-goal-project-task="project-selected:selected-a"]').is_checked()
+        assert page.locator('[data-goal-project-task="project-selected:selected-b"]').is_checked() is False
+        page.check('[data-goal-project-task="project-selected:selected-b"]')
+        page.click('[data-action="save-goal-links"]')
+        assert page.evaluate("TodoApp.state.goals[0].projectLinks[0].selectedTaskIds.sort()") == ['selected-a', 'selected-b']
+        page.click('[data-action="edit-goal-links"]')
+        page.click('[data-action="save-goal-links"]')
+        assert page.evaluate("TodoApp.state.goals[0].projectLinks[0].selectedTaskIds.sort()") == ['selected-a', 'selected-b']
+
+        # Completing the last linked task prompts; the reusable evaluator also powers link changes.
+        page.evaluate("TodoApp.state.goals[0].projectLinks[0].selectedTaskIds=['selected-a']")
+        page.evaluate("location.hash='#today'; TodoApp.render()")
+        page.click('[data-action="toggle-complete"][data-task-id="selected-a"]')
+        assert page.locator('.modal-title').inner_text() == 'Goal reached'
+        page.click('[data-action="keep-goal-active"]')
+
+        # Goal reminder delivery records its moment exactly once and is not re-fired.
+        page.evaluate("TodoApp.checkReminders()")
+        fired = page.evaluate("TodoApp.state.goals[0].reminderFiredMoments")
+        assert len(fired) == 1
+        page.evaluate("TodoApp.checkReminders()")
+        assert page.evaluate("TodoApp.state.goals[0].reminderFiredMoments.length") == 1
+        page.evaluate("TodoApp.state.goals[0].targetDate='2000-01-01'; TodoApp.state.goals[0].reminderFiredMoments=[]; TodoApp.checkReminders()")
+        assert page.evaluate("TodoApp.state.goals[0].reminderFiredMoments.length") == 0
+
+        # Milestones can be edited without recreating the child record.
+        page.evaluate("location.hash='#goal/goal-selected'; TodoApp.render()")
+        page.click('[data-action="edit-milestone"][data-milestone-id="milestone-edit"]')
+        page.fill('#milestone-title', 'After edit')
+        page.click('[data-action="save-milestone"]')
+        assert page.evaluate("TodoApp.state.goals[0].milestones[0].title") == 'After edit'
+        browser.close()
+
+
 if __name__ == '__main__':
     main()
+    goal_fix_round_contract()

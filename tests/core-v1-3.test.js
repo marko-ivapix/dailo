@@ -243,3 +243,16 @@ test('goal date helpers keep paused goals out of overdue and derive milestones/r
     '2026-09-08T08:30:00', '2026-09-12T08:30:00', '2026-09-14T08:30:00', '2026-09-15T08:30:00',
   ]);
 });
+
+test('goal reminder due moments fire once and never after the target date', () => {
+  const goal = {
+    status: 'active', targetDate: '2026-09-16',
+    reminders: { sevenDaysBefore: false, threeDaysBefore: false, oneDayBefore: false, onTargetDate: true, time: '09:00' },
+    reminderFiredMoments: [],
+  };
+  assert.deepEqual(Core.goalReminderDueMoments(goal, '2026-09-16T09:05:00Z'), ['2026-09-16T09:00:00']);
+  goal.reminderFiredMoments.push('2026-09-16T09:00:00');
+  assert.deepEqual(Core.goalReminderDueMoments(goal, '2026-09-16T09:05:00Z'), []);
+  goal.reminderFiredMoments = [];
+  assert.deepEqual(Core.goalReminderDueMoments(goal, '2026-09-17T09:05:00Z'), []);
+});
