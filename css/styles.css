@@ -276,6 +276,13 @@ select:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .inline-add { width: 100%; min-height: 44px; margin-top: 6px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text-muted); display: flex; align-items: center; gap: 8px; padding: 8px 9px; cursor: pointer; text-align: left; }
 .inline-add:hover { background: var(--surface-interactive); color: var(--text-secondary); }
 .inline-add i { color: var(--primary-focus); font-size: 18px; }
+.today-actions { margin: 0 0 24px; padding: 0 0 24px; border-bottom: 1px solid var(--border-subtle); }
+.today-actions .section-header { margin-bottom: 10px; }
+.today-actions-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.today-action { min-height: 72px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); background: var(--surface-card-dark); color: var(--text-secondary); display: grid; place-items: center; align-content: center; gap: 7px; padding: 12px; font: 600 13px/1.2 var(--font-ui); cursor: pointer; }
+.today-action i { color: var(--primary-focus); font-size: 20px; }
+.today-action:hover { border-color: var(--border-default); background: var(--surface-interactive); color: var(--text-primary); }
+.today-action:focus-visible { border-color: var(--primary-focus); }
 
 .empty-state { padding: 40px 16px; border: 1px dashed var(--border-subtle); border-radius: var(--radius-md); text-align: center; color: var(--text-muted); }
 .empty-state h3 { margin: 0 0 8px; color: var(--text-secondary); font-size: 16px; font-weight: 600; }
@@ -437,6 +444,8 @@ select:focus-visible { outline: none; box-shadow: var(--focus-ring); }
   .page-header { flex-direction: column; margin-bottom: 24px; padding-bottom: 16px; gap: 16px; }
   .page-actions { width: 100%; justify-content: stretch; }
   .page-actions .btn { flex: 1; }
+  .today-actions-grid { grid-template-columns: 1fr; }
+  .today-action { min-height: 52px; grid-template-columns: 24px minmax(0, 1fr); justify-items: start; align-content: center; gap: 10px; padding-inline: 14px; text-align: left; }
   .section + .section { padding-top: 20px; }
   .modal-inner { padding: 20px; }
   .modal-footer { align-items: stretch; flex-direction: column; }

@@ -9,6 +9,32 @@ from playwright.sync_api import sync_playwright, expect
 
 ROOT = Path(__file__).resolve().parents[1]
 
+def today_daily_actions(page):
+    actions = page.locator('[data-today-actions]')
+    expect(actions).to_have_count(1)
+    assert actions.locator('[data-route="inbox"]').count() == 1
+    assert actions.locator('[data-action="quick-add"]').count() == 1
+    assert actions.locator('[data-action="open-focus"]').count() == 1
+    assert actions.locator('[data-route="calendar"]').count() == 1
+
+    actions.locator('[data-route="inbox"]').click()
+    expect(page.locator('.page-title')).to_have_text('Inbox')
+    assert page.locator('[data-today-actions]').count() == 0
+
+    page.evaluate("location.hash = '#today'")
+    expect(page.locator('.page-title')).to_have_text('Today')
+    page.locator('[data-today-actions] [data-action="quick-add"]').click()
+    expect(page.locator('#quick-title')).to_be_visible()
+    page.keyboard.press('Escape')
+
+    page.locator('[data-today-actions] [data-action="open-focus"]').click()
+    expect(page.locator('.focus-modal')).to_be_visible()
+    page.keyboard.press('Escape')
+
+    page.locator('[data-today-actions] [data-route="calendar"]').click()
+    expect(page.locator('.page-title')).to_have_text('Calendar')
+    print('PASS: Today daily actions reuse Inbox, Quick Add, Focus and Calendar routes')
+
 def recurrence_workflows(page,ready,route,click,persisted):
     seed={'version':3,'tasks':[],'projects':[{'id':'p','name':'Project'}],'tags':[{'id':'tag','name':'Tag'}],'areas':[{'id':'a','name':'Area','status':'active'}],'goals':[{'id':'g1','title':'First goal','progressMode':'linkedTasks','taskIds':['r1']},{'id':'g2','title':'Second goal','progressMode':'linkedTasks','taskIds':['r1'],'projectLinks':[{'projectId':'p','contributionMode':'selectedTasks','selectedTaskIds':['r1']}]}],'habits':[],'templates':[],'savedViews':[],'settings':{},'ui':{}}
     base={'title':'Recurring source','notes':'Original notes','projectId':'p','plannedDate':'2026-10-24','dueDate':'2026-10-27','plannedTime':'08:00','dueTime':'17:00','reminderAt':'2026-10-25T08:30:00+01:00','goalIds':['g1','g2'],'tagIds':[],'subtasks':[],'recurrence':{'frequency':'weekly','interval':1,'seriesId':'series-A'}}
@@ -249,6 +275,7 @@ def main():
                     expect(page.locator('.page-title')).to_have_text('Today')
                     assert page.locator('#sidebar [data-sidebar-section]').count()==6
                     print('PASS: native empty-storage Today-first startup and six sidebar groups (1 case)')
+                    today_daily_actions(page)
                     if '--recurrence-only' in sys.argv:
                         def ready():page.wait_for_function('window.TodoApp && TodoApp.ready');page.evaluate('TodoApp.ready')
                         def route(value):page.evaluate('v=>location.hash="#"+v',value);page.wait_for_function('v=>location.hash==="#"+v',arg=value);expect(page.locator('.page-title')).to_have_text({'project/p':'Project','completed':'Completed','templates':'Templates','area/a':'Area','goal/g1':'First goal'}.get(value,value.capitalize()))
