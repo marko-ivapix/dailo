@@ -573,7 +573,7 @@
   function renderMain() {
     const route = currentRoute();
     const main = $('#main');
-    const warning = storageError ? `<div class="global-warning"><i class="ph ph-warning-circle"></i> Changes couldn't be saved locally. Refreshing may cause data loss.</div>` : '';
+    const warning = storageError ? `<div class="global-warning" role="alert"><i class="ph ph-warning-circle"></i> Changes couldn't be saved locally. Refreshing may cause data loss.</div>` : '';
     let content = '';
     if (route.type === 'templates') content = renderTemplates();
     else if (route.type === 'saved-views') content = renderSavedViews();
@@ -709,7 +709,8 @@
 
   function openCalendarValue(habitId, date) {
     if (date > Core.dateOnly()) return;
-    modalState = { type: 'calendar-value', habitId, date }; renderModal();
+    // Keep the Day Detail usable as the keyboard return point for its quick edit.
+    modalState = { type: 'calendar-value', habitId, date, previous: modalState, returnFocus: goalFocusTarget() }; renderModal();
     requestAnimationFrame(() => $('#calendar-habit-value')?.focus());
   }
 
@@ -722,7 +723,8 @@
   function openCalendarGoalProgress(goalId) {
     const goal = getGoal(goalId); if (!goal) return;
     if (goal.progressMode !== 'manual') { navigate(`goal/${goalId}`); return; }
-    modalState = { type: 'calendar-progress', goalId }; renderModal();
+    // This panel is launched from Day Detail too, so Esc should return there.
+    modalState = { type: 'calendar-progress', goalId, previous: modalState, returnFocus: goalFocusTarget() }; renderModal();
     requestAnimationFrame(() => $('#goal-current-value')?.focus());
   }
 
@@ -1363,7 +1365,7 @@
   }
 
   function closeModal() {
-    if (modalState?.previous?.type === 'goal') {
+    if (modalState?.previous?.type === 'goal' || (modalState?.previous && ['calendar-value', 'calendar-progress'].includes(modalState.type))) {
       const target = modalState.returnFocus; modalState = modalState.previous; renderModal(); restoreGoalFocus(target); return;
     }
     if(modalState?.type==='recurrence-scope'){cancelRecurrenceScope();return;}
