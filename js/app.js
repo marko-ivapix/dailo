@@ -43,11 +43,12 @@
   let goalPropertyEditor = null;
   let habitPropertyEditor = null;
   let createdGoalFocusId = null;
+  const knowledgeAttachmentCache = new Map();
 
   // Goal panels retain a logical trigger because rendering replaces its node.
   function goalFocusTarget(element = document.activeElement) {
     if (!(element instanceof HTMLElement)) return null;
-    const keys = ['action', 'goalProperty', 'goalId', 'milestoneId', 'habitProperty', 'habitId', 'areaId', 'date'];
+    const keys = ['action', 'goalProperty', 'goalId', 'milestoneId', 'habitProperty', 'habitId', 'areaId', 'ownerType', 'ownerId', 'date'];
     const attrs = keys.filter(key => element.dataset[key] !== undefined).map(key => `[data-${key.replace(/[A-Z]/g, c => '-' + c.toLowerCase())}="${CSS.escape(element.dataset[key])}"]`).join('');
     return { element, selector: attrs || (element.id ? '#' + CSS.escape(element.id) : '') };
   }
@@ -438,9 +439,23 @@
     return state?.habits?.find(habit => habit.id === id) || null;
   }
 
+  function attachmentOwner(owner) {
+    if (!state) return null;
+    const descriptor = typeof owner === 'string' ? { ownerType: 'task', ownerId: owner } : owner;
+    return TodoStorage.attachmentOwners(state).find(candidate => candidate.type === descriptor?.ownerType && candidate.item.id === descriptor.ownerId) || null;
+  }
+
+  const knowledgeCollection = type => type === 'note' ? 'notes' : 'resources';
+  const knowledgeLabel = type => type === 'note' ? 'Note' : 'Resource';
+  const knowledgeIcon = type => type === 'note' ? 'ph-note' : 'ph-link';
+
   function currentRoute() {
     const hash = location.hash.replace(/^#/, '') || 'today';
-    if (['today', 'inbox', 'upcoming', 'calendar', 'anytime', 'tags', 'areas', 'goals', 'habits', 'templates', 'projects', 'saved-views', 'archived', 'completed', 'settings'].includes(hash)) return { type: hash };
+    if (['today', 'inbox', 'upcoming', 'calendar', 'anytime', 'tags', 'areas', 'notes', 'resources', 'goals', 'habits', 'templates', 'projects', 'saved-views', 'archived', 'completed', 'settings'].includes(hash)) return { type: hash };
+    for (const type of ['note', 'resource']) if (hash.startsWith(type + '/')) {
+      const id = decodeURIComponent(hash.slice(type.length + 1));
+      return attachmentOwner({ ownerType: type, ownerId: id }) ? { type, id } : { type: knowledgeCollection(type) };
+    }
     if (hash.startsWith('saved-view/')) return {type:'saved-view',id:decodeURIComponent(hash.slice('saved-view/'.length))};
     if (hash.startsWith('project/')) {
       const id = decodeURIComponent(hash.slice('project/'.length));
@@ -517,7 +532,7 @@
     const collapsed = state.ui.sidebarCollapsed;
     const projects = sortedProjects();
     const pinnedAreas = sortedAreas().filter(area => area.status === 'active' && area.isPinned);
-    const moduleRoute = {project:'projects',area:'areas',goal:'goals',habit:'habits','saved-view':'saved-views'}[route.type];
+    const moduleRoute = {project:'projects',area:'areas',note:'notes',resource:'resources',goal:'goals',habit:'habits','saved-view':'saved-views'}[route.type];
     const link = (path,icon,label) => navItem(path,icon,label,route.type === path || moduleRoute === path || path.startsWith(route.type+'/') && route.id === path.split('/')[1]);
     const group = (key,label,body) => `<section class="sidebar-section" data-sidebar-section="${key}"><button class="sidebar-section-title sidebar-section-toggle" type="button" data-action="toggle-sidebar-section" data-section="${key}" aria-expanded="${!state.ui.sidebarSections[key]}" aria-controls="sidebar-${key}" title="${label}"><span>${label}</span><i class="ph ${state.ui.sidebarSections[key]?'ph-caret-right':'ph-caret-down'}"></i></button><div class="sidebar-section-body" id="sidebar-${key}" ${state.ui.sidebarSections[key]?'hidden':''}>${body}</div></section>`;
     $('#sidebar').innerHTML = `
@@ -551,7 +566,7 @@
           <button class="sidebar-action sidebar-new-project" type="button" data-action="new-project" title="New project">
             <i class="ph ph-plus"></i><span>New project</span>
           </button>
-          ${link('areas','ph-squares-four','Areas')}${link('tags','ph-tag','Tags')}`)}
+          ${link('areas','ph-squares-four','Areas')}${link('notes','ph-note','Notes')}${link('resources','ph-link','Resources')}${link('tags','ph-tag','Tags')}`)}
         ${group('progress','PROGRESS',link('goals','ph-target','Goals')+link('habits','ph-repeat','Habits'))}
         ${group('tools','TOOLS',link('templates','ph-copy','Templates')+link('saved-views','ph-funnel','Saved Views'))}
         ${group('pinned-areas','PINNED AREAS',`<div class="pinned-areas-list">${pinnedAreas.map(area => `<button class="sidebar-action pinned-area ${route.type === 'area' && route.id === area.id ? 'is-active' : ''}" type="button" data-route="area/${esc(area.id)}" title="${esc(area.name)}"><i class="ph ${esc(area.icon)}" style="color:${esc(area.color)}"></i><span>${esc(area.name)}</span></button>`).join('')}</div>`)}
@@ -592,6 +607,8 @@
     else if (route.type === 'tags') content = renderTags();
     else if (route.type === 'areas') content = renderAreas();
     else if (route.type === 'area') content = renderArea(route.id);
+    else if (route.type === 'notes' || route.type === 'resources') content = renderKnowledgeList(route.type === 'notes' ? 'note' : 'resource');
+    else if (route.type === 'note' || route.type === 'resource') content = renderKnowledgeDetail(route.type, route.id);
     else if (route.type === 'goals') content = renderGoals();
     else if (route.type === 'goal') content = renderGoal(route.id);
     else if (route.type === 'habits') content = renderHabits();
@@ -811,8 +828,8 @@
     return html;
   }
 
-  function areaSummaryCards(summary) {
-    return `<div class="area-summary" aria-label="Area summary"><div><strong>${summary.projects}</strong><span>Projects</span></div><div><strong>${summary.openTasks}</strong><span>Open tasks</span></div><div><strong>${summary.activeGoals}</strong><span>Active goals</span></div><div><strong>${summary.activeHabits}</strong><span>Active habits</span></div></div>`;
+  function areaSummaryCards(summary, areaId) {
+    return `<div class="area-summary" aria-label="Area summary"><div><strong>${summary.projects}</strong><span>Projects</span></div><div><strong>${summary.openTasks}</strong><span>Open tasks</span></div><div><strong>${summary.activeGoals}</strong><span>Active goals</span></div><div><strong>${summary.activeHabits}</strong><span>Active habits</span></div><div><strong>${state.notes.filter(item => item.areaId === areaId).length}</strong><span>Notes</span></div><div><strong>${state.resources.filter(item => item.areaId === areaId).length}</strong><span>Resources</span></div></div>`;
   }
 
   function areaIcon(area) {
@@ -829,7 +846,9 @@
     if (!areas.length) return html + emptyState(tab === 'archived' ? 'No archived areas.' : 'No areas yet.', tab === 'archived' ? 'Archived areas can be restored here.' : 'Areas organize projects, standalone tasks, goals and habits.', tab === 'archived' ? '' : 'New area', tab === 'archived' ? '' : 'new-area');
     html += `<div class="area-list">${areas.map(area => {
       const summary = Core.areaSummary(area.id, state);
-      return `<article class="area-row" data-area-id="${esc(area.id)}"><button class="area-open" type="button" data-route="area/${esc(area.id)}">${areaIcon(area)}<span><strong>${esc(area.name)}</strong><small>${summary.projects} projects · ${summary.openTasks} open tasks · ${summary.activeGoals} active goals · ${summary.activeHabits} active habits</small></span></button><div class="area-row-actions">${area.isPinned && area.status === 'active' ? '<i class="ph ph-push-pin" aria-label="Pinned"></i>' : ''}<button class="btn-icon" type="button" data-action="area-menu" data-area-id="${esc(area.id)}" aria-label="Area actions"><i class="ph ph-dots-three"></i></button></div></article>`;
+      const notes = state.notes.filter(item => item.areaId === area.id).length;
+      const resources = state.resources.filter(item => item.areaId === area.id).length;
+      return `<article class="area-row" data-area-id="${esc(area.id)}"><button class="area-open" type="button" data-route="area/${esc(area.id)}">${areaIcon(area)}<span><strong>${esc(area.name)}</strong><small>${summary.projects} projects · ${summary.openTasks} open tasks · ${summary.activeGoals} active goals · ${summary.activeHabits} active habits · ${notes} notes · ${resources} resources</small></span></button><div class="area-row-actions">${area.isPinned && area.status === 'active' ? '<i class="ph ph-push-pin" aria-label="Pinned"></i>' : ''}<button class="btn-icon" type="button" data-action="area-menu" data-area-id="${esc(area.id)}" aria-label="Area actions"><i class="ph ph-dots-three"></i></button></div></article>`;
     }).join('')}</div>`;
     return html;
   }
@@ -843,12 +862,54 @@
     const goals = (state.goals || []).filter(goal => goal.areaId === areaId);
     const habits = (state.habits || []).filter(habit => habit.areaId === areaId);
     let html = pageHeader(area.name, area.status === 'archived' ? 'Archived area' : 'Organize the work that belongs together', { add: false, actionHtml: `<button class="btn-icon" type="button" data-action="area-menu" data-area-id="${esc(area.id)}" aria-label="Area actions"><i class="ph ph-dots-three"></i></button>` });
-    html += `<div class="area-detail-label">${areaIcon(area)} <span>Area</span></div>${areaSummaryCards(summary)}`;
+    html += `<div class="area-detail-label">${areaIcon(area)} <span>Area</span></div>${areaSummaryCards(summary, areaId)}`;
     html += `<section class="section area-detail-section"><div class="section-header"><h2 class="section-label">Projects</h2><span class="section-count">${projects.length}</span></div>${projects.length ? `<div class="area-object-list">${projects.map(project => `<button class="area-object" type="button" data-route="project/${esc(project.id)}"><span class="project-dot" style="--project-color:${esc(project.color)}"></span>${esc(project.name)}</button>`).join('')}</div>` : '<p class="area-empty-copy">No projects in this Area.</p>'}<button class="inline-add" type="button" data-action="area-new-project" data-area-id="${esc(area.id)}"><i class="ph ph-plus"></i> New project</button></section>`;
     html += `<section class="section area-detail-section"><div class="section-header"><h2 class="section-label">Standalone Tasks</h2><span class="section-count">${tasks.filter(task => !task.isCompleted).length}</span></div>${tasks.length ? `<div class="task-list">${tasks.map(task => taskRow(task, `area:${area.id}`)).join('')}</div>` : '<p class="area-empty-copy">No standalone tasks in this Area.</p>'}<button class="inline-add" type="button" data-action="area-new-task" data-area-id="${esc(area.id)}"><i class="ph ph-plus"></i> New task</button></section>`;
     html += `<section class="section area-detail-section"><div class="section-header"><h2 class="section-label">Goals</h2><span class="section-count">${goals.length}</span></div>${goals.length ? `<div class="area-object-list">${goals.map(goal => `<button class="area-object" type="button" data-route="goal/${esc(goal.id)}"><i class="ph ph-target"></i>${esc(goal.title || 'Untitled goal')}</button>`).join('')}</div>` : '<p class="area-empty-copy">No goals in this Area.</p>'}<button class="inline-add" type="button" data-action="area-new-goal" data-area-id="${esc(area.id)}"><i class="ph ph-plus"></i> New goal</button></section>`;
     html += `<section class="section area-detail-section"><div class="section-header"><h2 class="section-label">Habits</h2><span class="section-count">${habits.length}</span></div>${habits.length ? `<div class="area-object-list">${habits.map(habit => `<button class="area-object" type="button" data-route="habit/${esc(habit.id)}"><i class="ph ph-repeat"></i>${esc(habit.name || habit.title || 'Untitled habit')}</button>`).join('')}</div>` : '<p class="area-empty-copy">No habits in this Area.</p>'}<button class="inline-add" type="button" data-action="area-new-habit" data-area-id="${esc(area.id)}"><i class="ph ph-plus"></i> New habit</button></section>`;
+    for (const type of ['note', 'resource']) {
+      const items = state[knowledgeCollection(type)].filter(item => item.areaId === areaId);
+      html += `<section class="section area-detail-section"><div class="section-header"><h2 class="section-label">${knowledgeCollection(type) === 'notes' ? 'Notes' : 'Resources'}</h2><span class="section-count">${items.length}</span></div>${items.length ? items.map(item => renderKnowledgeRow(type, item)).join('') : `<p class="area-empty-copy">No ${knowledgeCollection(type)} in this Area.</p>`}<button class="inline-add" type="button" data-action="new-knowledge" data-owner-type="${type}" data-area-id="${esc(areaId)}"><i class="ph ph-plus"></i> New ${type}</button></section>`;
+    }
     return html;
+  }
+
+  function renderKnowledgeRow(type, item) {
+    return `<article class="goal-row"><button class="goal-open" type="button" data-route="${type}/${esc(item.id)}"><strong><i class="ph ${knowledgeIcon(type)}"></i> ${esc(item.title)}</strong><small>${esc(getArea(item.areaId)?.name || 'No area')} · ${item.linkUrls.length} links · ${item.attachmentIds.length} files</small></button><button class="btn-icon" type="button" data-action="edit-knowledge" data-owner-type="${type}" data-owner-id="${esc(item.id)}" aria-label="Edit ${type}"><i class="ph ph-pencil-simple"></i></button></article>`;
+  }
+
+  function renderKnowledgeList(type) {
+    const items = [...state[knowledgeCollection(type)]].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    return pageHeader(type === 'note' ? 'Notes' : 'Resources', `${items.length} ${knowledgeCollection(type)}`, { add: false, actionHtml: `<button class="btn btn-primary" type="button" data-action="new-knowledge" data-owner-type="${type}"><i class="ph ph-plus"></i> New ${type}</button>` }) + `<section class="section">${items.length ? items.map(item => renderKnowledgeRow(type, item)).join('') : `<p class="area-empty-copy">No ${knowledgeCollection(type)} yet.</p>`}</section>`;
+  }
+
+  function knowledgeLinks(urls) {
+    return urls.map(url => {
+      let safe = false;
+      try { safe = ['http:', 'https:', 'mailto:'].includes(new URL(url).protocol); } catch (_) {}
+      return safe ? `<a class="area-object knowledge-link" href="${esc(url)}" target="_blank" rel="noopener noreferrer"><i class="ph ph-arrow-square-out"></i><span>${esc(url)}</span></a>` : `<span class="area-object knowledge-link"><i class="ph ph-link"></i><span>${esc(url)}</span></span>`;
+    }).join('');
+  }
+
+  function renderKnowledgeDetail(type, id) {
+    const owner = attachmentOwner({ ownerType: type, ownerId: id });
+    if (!owner) return renderKnowledgeList(type);
+    const item = owner.item, key = type + ':' + id, signature = JSON.stringify(item.attachmentIds);
+    let cached = knowledgeAttachmentCache.get(key);
+    if (!cached || cached.item !== item || cached.signature !== signature) {
+      cached = { item, signature, records: [], message: item.attachmentIds.length ? 'Loading attachments…' : '' };
+      knowledgeAttachmentCache.set(key, cached);
+      readOwnerAttachments(owner).then(records => { cached.records = records; cached.message = ''; }).catch(error => { console.error(error); cached.message = 'Attachments are unavailable in this browser.'; }).finally(() => {
+        if (knowledgeAttachmentCache.get(key) === cached && state && currentRoute().type === type && currentRoute().id === id) renderMain();
+      });
+    }
+    let html = pageHeader(item.title, `${knowledgeLabel(type)} · ${getArea(item.areaId)?.name || 'No area'}`, { add: false, actionHtml: `<button class="btn btn-secondary" type="button" data-action="edit-knowledge" data-owner-type="${type}" data-owner-id="${esc(id)}"><i class="ph ph-pencil-simple"></i> Edit</button>` });
+    html += `<section class="section"><div class="knowledge-body">${esc(type === 'note' ? item.body : item.description) || '<span class="area-empty-copy">No text yet.</span>'}</div></section><section class="section"><div class="section-header"><h2 class="section-label">Links</h2><span class="section-count">${item.linkUrls.length}</span></div><div class="area-object-list">${knowledgeLinks(item.linkUrls) || '<p class="area-empty-copy">No links.</p>'}</div></section>`;
+    if (type === 'resource') for (const [field, label, collection, route] of [['relatedTaskIds', 'Tasks', 'tasks', null], ['relatedProjectIds', 'Projects', 'projects', 'project'], ['relatedGoalIds', 'Goals', 'goals', 'goal'], ['relatedHabitIds', 'Habits', 'habits', 'habit']]) {
+      const related = state[collection].filter(candidate => item[field].includes(candidate.id));
+      html += `<section class="section"><div class="section-header"><h2 class="section-label">Related ${label}</h2><span class="section-count">${related.length}</span></div><div class="area-object-list">${related.map(candidate => `<button class="area-object" type="button" ${route ? `data-route="${route}/${esc(candidate.id)}"` : `data-action="open-task" data-task-id="${esc(candidate.id)}"`}>${esc(candidate.title || candidate.name)}</button>`).join('') || '<p class="area-empty-copy">No relations.</p>'}</div></section>`;
+    }
+    return html + `<section class="section"><div class="section-header"><h2 class="section-label">Attachments</h2><span class="section-count">${item.attachmentIds.length}</span></div>${cached.message ? `<p class="attachment-message" role="status">${esc(cached.message)}</p>` : ''}<div class="attachment-list">${cached.records.map(renderAttachmentRow).join('')}</div></section><button class="danger-link" type="button" data-action="delete-knowledge" data-owner-type="${type}" data-owner-id="${esc(id)}"><i class="ph ph-trash"></i> Delete ${type}</button>`;
   }
 
   function goalProgressLabel(goal) {
@@ -1354,6 +1415,64 @@
     renderModal();
   }
 
+  function openKnowledgeModal(type, id = null, areaId = null) {
+    if (!['note', 'resource'].includes(type)) return;
+    const owner = id && attachmentOwner({ ownerType: type, ownerId: id });
+    if (id && !owner) return;
+    closePopover(); flushTextSave();
+    const item = owner?.item;
+    modalState = { type: 'knowledge', ownerType: type, ownerId: id, source: item || null, returnFocus: goalFocusTarget(), error: '', attachmentRecords: [], attachmentMessage: '', pendingFiles: [],
+      draft: { title: item?.title || '', text: (type === 'note' ? item?.body : item?.description) || '', areaId: item?.areaId || areaId || null, linkUrls: [...(item?.linkUrls || [])], linkDraft: '',
+        relatedTaskIds: [...(item?.relatedTaskIds || [])], relatedProjectIds: [...(item?.relatedProjectIds || [])], relatedGoalIds: [...(item?.relatedGoalIds || [])], relatedHabitIds: [...(item?.relatedHabitIds || [])] } };
+    renderModal(); requestAnimationFrame(() => $('#knowledge-title')?.focus());
+    if (id) loadOwnerAttachments({ ownerType: type, ownerId: id });
+  }
+
+  function readKnowledgeDraft() {
+    if (modalState?.type !== 'knowledge') return;
+    const d = modalState.draft;
+    d.title = $('#knowledge-title')?.value ?? d.title;
+    d.text = $('#knowledge-text')?.value ?? d.text;
+    d.areaId = $('#knowledge-area')?.value || null;
+    d.linkDraft = $('#knowledge-link')?.value ?? d.linkDraft;
+    if (modalState.ownerType === 'resource') for (const field of ['relatedTaskIds', 'relatedProjectIds', 'relatedGoalIds', 'relatedHabitIds'])
+      d[field] = $$(`[data-knowledge-relation="${field}"]:checked`).map(input => input.value);
+  }
+
+  function addKnowledgeLink() {
+    readKnowledgeDraft();
+    const d = modalState.draft, value = d.linkDraft.trim();
+    if (!value || d.linkUrls.includes(value)) { modalState.error = value ? 'This link has already been added.' : 'Enter a link before adding it.'; renderModal(); requestAnimationFrame(() => $('#knowledge-link')?.focus()); return false; }
+    d.linkUrls.push(value); d.linkDraft = ''; modalState.error = '';
+    renderModal(); requestAnimationFrame(() => $('#knowledge-link')?.focus()); return true;
+  }
+
+  async function saveKnowledge() {
+    if (!state || undoHold || modalState?.type !== 'knowledge' || modalState.busy) return;
+    readKnowledgeDraft();
+    const dialog = modalState, type = dialog.ownerType, d = dialog.draft;
+    if (!d.title.trim()) { dialog.error = `${knowledgeLabel(type)} needs a title.`; renderModal(); return; }
+    if (d.linkDraft.trim() && !addKnowledgeLink()) return;
+    if (d.areaId && !getArea(d.areaId)) { dialog.error = 'The selected Area no longer exists.'; renderModal(); return; }
+    if (dialog.ownerId && attachmentOwner({ ownerType: type, ownerId: dialog.ownerId })?.item !== dialog.source) { dialog.error = 'The item changed. Reopen it before saving.'; renderModal(); return; }
+    const ts = nowIso(), item = dialog.source || { id: uid(type), createdAt: ts, attachmentIds: [] }, previous = copyTemplate(item);
+    Object.assign(item, { title: d.title.trim(), areaId: d.areaId, linkUrls: [...d.linkUrls], updatedAt: ts, [type === 'note' ? 'body' : 'description']: d.text });
+    if (type === 'resource') for (const [field, collection] of [['relatedTaskIds', 'tasks'], ['relatedProjectIds', 'projects'], ['relatedGoalIds', 'goals'], ['relatedHabitIds', 'habits']]) {
+      if (d[field].some(id => !state[collection].some(candidate => candidate.id === id))) { Object.assign(item, previous); dialog.error = 'A related item changed. Reopen this Resource before saving.'; renderModal(); return; }
+      item[field] = [...d[field]];
+    }
+    if (!dialog.source) state[knowledgeCollection(type)].push(item);
+    if (!saveState()) {
+      if (dialog.source) Object.assign(item, previous); else state[knowledgeCollection(type)].splice(state[knowledgeCollection(type)].indexOf(item), 1);
+      dialog.error = 'Changes could not be saved locally. Try again.'; renderModal(); return;
+    }
+    dialog.busy = true;
+    dialog.ownerId = item.id; dialog.source = item;
+    const fileMessage = dialog.pendingFiles.length ? await addAttachments({ ownerType: type, ownerId: item.id }, dialog.pendingFiles) : '';
+    if (modalState === dialog) { closeModal(); navigate(type + '/' + item.id); }
+    if (fileMessage) setToastMessage(fileMessage);
+  }
+
   function openGoalRemindersModal(goalId) {
     const previous = modalState?.type === 'goal' ? modalState : null;
     if (previous) readGoalDraft();
@@ -1401,6 +1520,7 @@
     else if (modalState.type === 'tag') root.innerHTML = renderTagModal();
     else if (modalState.type === 'area') root.innerHTML = renderAreaModal();
     else if (modalState.type === 'area-linked') root.innerHTML = renderAreaLinkedModal();
+    else if (modalState.type === 'knowledge') root.innerHTML = renderKnowledgeModal();
     else if (modalState.type === 'goal') root.innerHTML = renderGoalModal();
     else if (modalState.type === 'goal-source') root.innerHTML = renderGoalSourceModal();
     else if (modalState.type === 'habit') root.innerHTML = renderHabitModal();
@@ -1723,7 +1843,7 @@
         <button class="property-row" type="button" data-action="task-repeat-picker" data-task-id="${esc(task.id)}"><span class="property-key">Repeat</span><span class="property-value">${esc(recurrenceLabel(task.recurrence))}</span></button>
       </div>
       <div class="detail-section"><div class="detail-heading"><span>Subtasks</span><span>${completedCount} / ${task.subtasks.length}</span></div><div class="subtask-list" data-subtask-list="${esc(task.id)}">${[...task.subtasks].sort((a,b)=>clampOrder(a.order)-clampOrder(b.order)).map(s => subtaskRow(task, s)).join('')}</div><div class="add-subtask-input"><span></span><input id="detail-subtask" class="input" type="text" placeholder="Add subtask..." data-task-id="${esc(task.id)}" /></div></div>
-      <div class="detail-section attachments-section"><div class="detail-heading"><span>Attachments</span><span>${(task.attachmentIds || []).length} / ${MAX_ATTACHMENTS_PER_TASK}</span></div><label class="attachment-drop-zone" data-task-id="${esc(task.id)}"><i class="ph ph-paperclip"></i><span><strong>Drop files here</strong><small>or choose files · max 10 MB each</small></span><span class="btn btn-secondary attachment-add-button">Add attachment</span><input id="attachment-input" type="file" multiple hidden data-task-id="${esc(task.id)}" /></label>${modalState.attachmentMessage ? `<div class="attachment-message" role="status">${esc(modalState.attachmentMessage)}</div>` : ''}<div class="attachment-list">${(modalState.attachmentRecords || []).map(renderAttachmentRow).join('')}</div></div>
+      ${renderAttachmentsSection({ ownerType: 'task', ownerId: task.id })}
       <div class="detail-section" style="padding-bottom:0"><button class="danger-link" type="button" data-action="delete-task" data-task-id="${esc(task.id)}"><i class="ph ph-trash"></i> Delete task</button></div>
     </div>`);
   }
@@ -1745,50 +1865,97 @@
     return `<div class="attachment-row" data-attachment-id="${esc(record.id)}"><i class="ph ph-file attachment-file-icon"></i><div class="attachment-main"><strong title="${esc(record.fileName)}">${esc(record.fileName)}</strong><small>${esc(fileTypeLabel(record))} · ${esc(formatBytes(record.size))}</small></div><button class="btn-icon" type="button" data-action="attachment-menu" data-attachment-id="${esc(record.id)}" aria-label="Attachment actions"><i class="ph ph-dots-three"></i></button></div>`;
   }
 
+  function renderAttachmentsSection(owner) {
+    const item = attachmentOwner(owner)?.item;
+    const count = item ? item.attachmentIds.length : modalState.pendingFiles.length;
+    const attrs = `data-owner-type="${esc(owner.ownerType)}" data-owner-id="${esc(owner.ownerId || '')}"${owner.ownerType === 'task' ? ` data-task-id="${esc(owner.ownerId)}"` : ''}`;
+    return `<div class="detail-section attachments-section"><div class="detail-heading"><span>Attachments</span><span>${count} / ${MAX_ATTACHMENTS_PER_TASK}</span></div><label class="attachment-drop-zone" ${attrs}><i class="ph ph-paperclip"></i><span><strong>Drop files here</strong><small>or choose files · max 10 MB each</small></span><span class="btn btn-secondary attachment-add-button">Add attachment</span><input id="attachment-input" type="file" multiple hidden ${attrs}></label>${modalState.attachmentMessage ? `<div class="attachment-message" role="status">${esc(modalState.attachmentMessage)}</div>` : ''}<div class="attachment-list">${(modalState.attachmentRecords || []).map(renderAttachmentRow).join('')}</div></div>`;
+  }
+
+  async function readOwnerAttachments(owner) {
+    const records = await Attachments.getMany(owner.item.attachmentIds || []);
+    const scoped = { tasks: [], notes: [], resources: [], [owner.type === 'task' ? 'tasks' : knowledgeCollection(owner.type)]: [owner.item] };
+    TodoStorage.verifyAttachmentReferences(scoped, records);
+    return records.filter(record => TodoStorage.attachmentBelongsTo(record, owner) && !record.pendingDeleteUntil);
+  }
+
+  function attachmentModalMatches(owner) {
+    return owner.type === 'task' ? modalState?.type === 'task' && modalState.taskId === owner.item.id : modalState?.type === 'knowledge' && modalState.ownerType === owner.type && modalState.ownerId === owner.item.id;
+  }
+
   async function loadTaskAttachments(taskId) {
+    return loadOwnerAttachments({ ownerType: 'task', ownerId: taskId });
+  }
+
+  async function loadOwnerAttachments(descriptor) {
     if (!Attachments) return;
-    const task = getTask(taskId); if (!task) return;
+    const owner = attachmentOwner(descriptor), source = state; if (!owner) return;
     try {
-      const records = await Attachments.getMany(task.attachmentIds || []);
-      if (modalState?.type === 'task' && modalState.taskId === taskId) { modalState.attachmentRecords = records.filter(r => !r.pendingDeleteUntil); renderModal(); }
+      const records = await readOwnerAttachments(owner);
+      if (source === state && attachmentOwner(descriptor)?.item === owner.item && attachmentModalMatches(owner)) { modalState.attachmentRecords = records; renderModal(); }
     } catch (error) {
       console.error(error);
-      if (modalState?.type === 'task' && modalState.taskId === taskId) { modalState.attachmentMessage = 'Attachments are unavailable in this browser.'; renderModal(); }
+      if (source === state && attachmentModalMatches(owner)) { modalState.attachmentMessage = 'Attachments are unavailable in this browser.'; renderModal(); }
     }
   }
 
-  async function addAttachments(taskId, files) {
-    const task = getTask(taskId); if (!task || !Attachments) return;
-    const incoming = [...(files || [])];
-    const remaining = Math.max(0, MAX_ATTACHMENTS_PER_TASK - (task.attachmentIds || []).length);
-    const valid = [];
+  async function addAttachments(descriptor, files) {
+    const owner = attachmentOwner(descriptor); if (!owner || !Attachments || undoHold) return;
+    const task = owner.item, source = state;
+    const { valid, tooLarge, countRejected } = selectAttachmentFiles(files, task.attachmentIds.length);
+    let added = 0, failed = 0;
+    for (const file of valid) {
+      const id = uid('att'); const ts = nowIso();
+      const identity = owner.type === 'task' ? { taskId: task.id } : { ownerType: owner.type, ownerId: task.id };
+      const record = { id, ...identity, fileName: file.name || 'attachment', mimeType: file.type || 'application/octet-stream', size: file.size, blob: file, createdAt: ts, updatedAt: ts, pendingDeleteUntil: null };
+      try {
+        if (source !== state || attachmentOwner({ ownerType: owner.type, ownerId: task.id })?.item !== task || undoHold || task.attachmentIds.length >= MAX_ATTACHMENTS_PER_TASK) throw new Error('Attachment owner changed. Reopen the item.');
+        await Attachments.put(record);
+        if (source !== state || attachmentOwner({ ownerType: owner.type, ownerId: task.id })?.item !== task || undoHold || task.attachmentIds.length >= MAX_ATTACHMENTS_PER_TASK) throw new Error('Attachment owner changed. Reopen the item.');
+        task.attachmentIds = [...(task.attachmentIds || []), id];
+        task.updatedAt = nowIso();
+        added++;
+      } catch (error) { failed++; console.error(error); }
+    }
+    if (source === state) saveState();
+    knowledgeAttachmentCache.delete(owner.type + ':' + task.id);
+    const parts = attachmentMessages(added, tooLarge, countRejected);
+    if (failed) parts.push('Attachments are unavailable in this browser.');
+    if (attachmentModalMatches(owner)) {
+      modalState.attachmentMessage = parts.join(' ');
+      await loadOwnerAttachments({ ownerType: owner.type, ownerId: task.id });
+    }
+    if (state) render();
+    return parts.join(' ');
+  }
+
+  function selectAttachmentFiles(files, count) {
+    const incoming = [...(files || [])], remaining = Math.max(0, MAX_ATTACHMENTS_PER_TASK - count), valid = [];
     let tooLarge = 0;
     for (const file of incoming) {
       if (file.size > MAX_ATTACHMENT_BYTES) { tooLarge++; continue; }
       if (valid.length < remaining) valid.push(file);
     }
-    const countRejected = Math.max(0, incoming.length - tooLarge - valid.length);
-    let added = 0;
-    for (const file of valid) {
-      const id = uid('att'); const ts = nowIso();
-      const record = { id, taskId, fileName: file.name || 'attachment', mimeType: file.type || 'application/octet-stream', size: file.size, blob: file, createdAt: ts, updatedAt: ts, pendingDeleteUntil: null };
-      try {
-        await Attachments.put(record);
-        task.attachmentIds = [...(task.attachmentIds || []), id];
-        task.updatedAt = nowIso();
-        added++;
-      } catch (error) { console.error(error); }
+    return { valid, tooLarge, countRejected: Math.max(0, incoming.length - tooLarge - valid.length) };
+  }
+
+  function attachmentMessages(added, tooLarge, countRejected) {
+    const parts = [];
+    if (added) parts.push(`${added} ${added === 1 ? 'file' : 'files'} added.`);
+    if (tooLarge) parts.push(`${tooLarge} ${tooLarge === 1 ? 'file is' : 'files are'} larger than 10 MB.`);
+    if (countRejected) parts.push(`${countRejected} couldn't be added because the limit is 10.`);
+    return parts;
+  }
+
+  function receiveAttachmentFiles(dataset, files) {
+    if (modalState?.type === 'knowledge') readKnowledgeDraft();
+    if (modalState?.type === 'knowledge' && !dataset.ownerId) {
+      const { valid, tooLarge, countRejected } = selectAttachmentFiles(files, modalState.pendingFiles.length);
+      modalState.pendingFiles.push(...valid);
+      modalState.attachmentMessage = attachmentMessages(valid.length, tooLarge, countRejected).join(' ');
+      renderModal(); return;
     }
-    saveState();
-    if (modalState?.type === 'task' && modalState.taskId === taskId) {
-      const parts = [];
-      if (added) parts.push(`${added} ${added === 1 ? 'file' : 'files'} added.`);
-      if (tooLarge) parts.push(`${tooLarge} ${tooLarge === 1 ? 'file is' : 'files are'} larger than 10 MB.`);
-      if (countRejected) parts.push(`${countRejected} couldn't be added because the limit is 10.`);
-      modalState.attachmentMessage = parts.join(' ');
-      await loadTaskAttachments(taskId);
-    }
-    render();
+    addAttachments({ ownerType: dataset.ownerType || 'task', ownerId: dataset.ownerId || dataset.taskId }, files);
   }
 
   function openAttachmentMenu(anchor, attachmentId) {
@@ -1862,6 +2029,12 @@
   function renderAreaLinkedModal() {
     const label = modalState.kind === 'goal' ? 'Goal' : 'Habit';
     return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">New ${label}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="Close"><i class="ph ph-x"></i></button></div><label class="field-label" for="area-linked-name">Name</label><input id="area-linked-name" class="input ${modalState.error ? 'is-error' : ''}" type="text" maxlength="100" value="${esc(modalState.draft.name)}" placeholder="${label} name" />${modalState.error ? `<div class="validation">${esc(modalState.error)}</div>` : ''}<div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">Cancel</button><button class="btn btn-primary" type="button" data-action="save-area-linked">Create ${label.toLowerCase()}</button></div></div></div>`, 'quick');
+  }
+
+  function renderKnowledgeModal() {
+    const type = modalState.ownerType, d = modalState.draft;
+    const relations = type === 'resource' ? [['relatedTaskIds', 'Tasks', 'tasks'], ['relatedProjectIds', 'Projects', 'projects'], ['relatedGoalIds', 'Goals', 'goals'], ['relatedHabitIds', 'Habits', 'habits']].map(([field, label, collection]) => `<details><summary class="field-label">Related ${label} · ${d[field].length}</summary><div class="form-stack">${state[collection].map(item => `<label><input type="checkbox" data-knowledge-relation="${field}" value="${esc(item.id)}" ${d[field].includes(item.id) ? 'checked' : ''}> ${esc(item.title || item.name)}</label>`).join('') || '<p class="area-empty-copy">No items.</p>'}</div></details>`).join('') : '';
+    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">${modalState.ownerId ? 'Edit' : 'New'} ${type}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="Close"><i class="ph ph-x"></i></button></div><div class="form-stack"><label class="field-label">Title<input id="knowledge-title" class="input" maxlength="120" value="${esc(d.title)}"></label><label class="field-label">Area<select id="knowledge-area" class="input"><option value="">No area</option>${state.areas.filter(area => area.status === 'active' || area.id === d.areaId).map(area => `<option value="${esc(area.id)}" ${area.id === d.areaId ? 'selected' : ''}>${esc(area.name)}</option>`).join('')}</select></label><label class="field-label">${type === 'note' ? 'Body' : 'Description'}<textarea id="knowledge-text" class="input" rows="6">${esc(d.text)}</textarea></label><div class="field-label">Links</div>${d.linkUrls.map((url, index) => `<div class="attachment-row"><span class="attachment-main knowledge-link">${esc(url)}</span><button class="btn-icon" type="button" data-action="remove-knowledge-link" data-link-index="${index}" aria-label="Remove link"><i class="ph ph-x"></i></button></div>`).join('')}<label class="field-label" for="knowledge-link">Add link</label><input id="knowledge-link" class="input" type="text" value="${esc(d.linkDraft)}" placeholder="https://…"><button class="btn btn-secondary" type="button" data-action="add-knowledge-link">Add link</button>${relations}${renderAttachmentsSection({ ownerType: type, ownerId: modalState.ownerId })}${!modalState.ownerId && modalState.pendingFiles.length ? `<p class="area-empty-copy">${modalState.pendingFiles.map(file => esc(file.name)).join(' · ')} · files are added when you save.</p>` : ''}${modalState.error ? `<p class="validation" role="alert">${esc(modalState.error)}</p>` : ''}</div><div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">Cancel</button><button class="btn btn-primary" type="button" data-action="save-knowledge" ${modalState.busy ? 'disabled' : ''}>${modalState.ownerId ? 'Save changes' : 'Create ' + type}</button></div></div></div>`, 'quick');
   }
 
   function renderGoalModal() {
@@ -2436,14 +2609,14 @@
   }
 
   const DELETE_COLLECTIONS = { task: 'tasks', project: 'projects', tag: 'tags', area: 'areas',
-    goal: 'goals', habit: 'habits', template: 'templates', 'saved-view': 'savedViews' };
+    goal: 'goals', habit: 'habits', note: 'notes', resource: 'resources', template: 'templates', 'saved-view': 'savedViews' };
 
   function locateDeleteEntity(type, identity) {
     const id = typeof identity === 'object' && identity ? identity.id : identity;
     if (type === 'clear-completed') return { entity: state, array: state.tasks };
     if (type === 'attachment') {
-      const owners = state.tasks.filter(task => (task.attachmentIds || []).includes(id));
-      return owners.length === 1 ? { entity: owners[0], parent: owners[0], array: owners[0].attachmentIds, id } : null;
+      const owners = TodoStorage.attachmentOwners(state).filter(owner => (owner.item.attachmentIds || []).includes(id));
+      return owners.length === 1 ? { entity: owners[0].item, parent: owners[0].item, ownerType: owners[0].type, collection: owners[0].type === 'task' ? 'tasks' : knowledgeCollection(owners[0].type), array: owners[0].item.attachmentIds, id } : null;
     }
     const collection = type === 'subtask' ? 'tasks' : type === 'milestone' ? 'goals' : DELETE_COLLECTIONS[type];
     const parent = identity?.parentId ? state[collection]?.find(item => item.id === identity.parentId) : null;
@@ -2468,8 +2641,10 @@
       area: 'Linked objects will remain. Their Area assignments will be removed.',
       goal: 'Projects, tasks and habits will remain. Their Goal links, milestones and Goal history will be removed.',
       habit: 'Its check-ins, history and reminders will be removed. Goals will remain.',
+      note: 'This Note and its attachment references will be removed. Undo restores them.',
+      resource: 'This Resource, its relations and attachment references will be removed. Undo restores them.',
       milestone: 'This milestone will be removed from its Goal.',
-      attachment: 'This attachment will be removed from its task.',
+      attachment: 'This attachment will be removed from its owner.',
       template: 'Items created from this template will remain.',
       'saved-view': 'Matching items will remain.',
       'clear-completed': `${state.tasks.filter(task => task.isCompleted).length} completed tasks and their attachments will be removed. Undo restores them.`
@@ -2489,7 +2664,7 @@
             if (modalState !== dialog) throw new Error('Delete cancelled.');
             await applyDeleteSnapshot(snapshot);
             closeModal(); render();
-            const fallback = { project: 'today', area: 'areas', goal: 'goals', habit: 'habits', 'saved-view': 'saved-views' }[type];
+            const fallback = { project: 'today', area: 'areas', goal: 'goals', habit: 'habits', note: 'notes', resource: 'resources', 'saved-view': 'saved-views' }[type];
             if (fallback && currentRoute().id === (typeof identity === 'object' ? identity.id : identity)) navigate(fallback);
             setUndo(`${label} deleted`, () => restoreDeleteSnapshot(snapshot), () => finalizeDeleteSnapshot(snapshot), snapshot);
           } catch (error) {
@@ -2540,18 +2715,20 @@
     if (type === 'tag') for (const task of state.tasks) arrayEffect('tasks', task, 'tagIds', id => id === identity);
     if (type === 'goal') for (const collection of ['tasks', 'projects', 'habits'])
       for (const owner of state[collection]) arrayEffect(collection, owner, 'goalIds', id => id === identity);
-    if (type === 'area') for (const collection of ['tasks', 'projects', 'goals', 'habits'])
+    if (type === 'area') for (const collection of ['tasks', 'projects', 'goals', 'habits', 'notes', 'resources'])
       for (const owner of state[collection]) if (owner.areaId === identity)
         snapshot.effects.push({ collection, owner, field: 'areaId', scalar: true, before: owner.areaId, after: null });
     if (type === 'attachment') {
       snapshot.attachmentOwner = located.parent;
-      arrayEffect('tasks', located.parent, 'attachmentIds', id => id === identity);
+      snapshot.attachmentOwnerType = located.ownerType;
+      snapshot.attachmentOwnerCollection = located.collection;
+      arrayEffect(located.collection, located.parent, 'attachmentIds', id => id === identity);
     }
-    const attachmentIds = type === 'attachment' ? [identity] : snapshot.entries.filter(entry => removedTasks.has(entry.entity.id)).flatMap(entry => entry.entity.attachmentIds || []);
+    const attachmentIds = type === 'attachment' ? [identity] : snapshot.entries.filter(entry => ['tasks', 'notes', 'resources'].includes(entry.collection) && !entry.field).flatMap(entry => entry.entity.attachmentIds || []);
     snapshot.attachments = await Attachments.getMany(attachmentIds);
     for (const id of attachmentIds) {
-      const record = snapshot.attachments.find(record => record.id === id), owner = state.tasks.find(task => (task.attachmentIds || []).includes(id));
-      if (!record || !owner || record.taskId !== owner.id || record.pendingDeleteUntil) throw new Error('Attachment owner or stored file changed.');
+      const record = snapshot.attachments.find(record => record.id === id), owners = TodoStorage.attachmentOwners(state).filter(owner => (owner.item.attachmentIds || []).includes(id));
+      if (!record || owners.length !== 1 || !TodoStorage.attachmentBelongsTo(record, owners[0]) || record.pendingDeleteUntil) throw new Error('Attachment owner or stored file changed.');
     }
     if (type === 'habit') snapshot.habitLogs = await TodoStorage.habitLogs.listByHabit(identity);
     if (type === 'goal') snapshot.goalHistory = await TodoStorage.goalHistory.listByGoal(identity);
@@ -2573,7 +2750,7 @@
       || (effect.link && !(effect.owner.projectLinks || []).includes(effect.link))) throw new Error('A linked owner changed.');
     if (compareBefore) for (const effect of snapshot.effects)
       if (JSON.stringify((effect.link || effect.owner)[effect.field] || (effect.scalar ? null : [])) !== JSON.stringify(effect.before)) throw new Error('A linked assignment changed.');
-    if (snapshot.attachmentOwner && !state.tasks.includes(snapshot.attachmentOwner)) throw new Error('Attachment owner changed.');
+    if (snapshot.attachmentOwner && !state[snapshot.attachmentOwnerCollection].includes(snapshot.attachmentOwner)) throw new Error('Attachment owner changed.');
   }
 
   function inverseArray(current, before, removed) {
@@ -2681,7 +2858,8 @@
         const expected = [];
         for (const original of snapshot.attachments) {
           const actual = await Attachments.get(original.id);
-          const owner = getTask(original.taskId);
+          const owners = TodoStorage.attachmentOwners(state).filter(owner => owner.item.attachmentIds.includes(original.id));
+          const owner = owners.length === 1 && TodoStorage.attachmentBelongsTo(original, owners[0]) ? owners[0].item : null;
           const normalized = actual && { ...actual, pendingDeleteUntil: original.pendingDeleteUntil, updatedAt: original.updatedAt };
           if (normalized) { if (Object.hasOwn(original, 'pendingDeleteToken')) normalized.pendingDeleteToken = original.pendingDeleteToken; else delete normalized.pendingDeleteToken; }
           if (!owner || !(owner.attachmentIds || []).includes(original.id) || !actual
@@ -2722,7 +2900,7 @@
         && !snapshot.entries.some(parent => parent.collection === 'projects' && parent.entity.id === entry.entity.projectId)
         && !state.projects.includes(entry.projectParent)) throw new Error('The Task Project parent changed.');
     }
-    if (snapshot.attachmentOwner && !state.tasks.includes(snapshot.attachmentOwner)) throw new Error('Attachment owner changed.');
+    if (snapshot.attachmentOwner && !state[snapshot.attachmentOwnerCollection].includes(snapshot.attachmentOwner)) throw new Error('Attachment owner changed.');
     if (snapshot.attachmentOwner && snapshot.attachmentOwner.attachmentIds?.includes(snapshot.identity)) throw new Error('The attachment ID is now in use.');
     for (const effect of snapshot.effects) if (!state[effect.collection].includes(effect.owner)
       || (effect.link && !effect.owner.projectLinks?.includes(effect.link))) throw new Error('A linked owner changed.');
@@ -2773,6 +2951,7 @@
     if (snapshot.type === 'habit') await refreshHabitMetrics();
     render();
     if (modalState?.type === 'task') await loadTaskAttachments(modalState.taskId);
+    else if (modalState?.type === 'knowledge' && modalState.ownerId) await loadOwnerAttachments({ ownerType: modalState.ownerType, ownerId: modalState.ownerId });
   }
 
   async function reapplyDeleteRecords(snapshot) {
@@ -2843,7 +3022,7 @@
           effect.owner = state[effect.collection].find(item => item.id === effect.owner.id);
           if (effect.link) effect.link = effect.owner?.projectLinks?.find(link => link.projectId === effect.link.projectId);
         }
-        if (snapshot.attachmentOwner) snapshot.attachmentOwner = getTask(snapshot.attachmentOwner.id);
+        if (snapshot.attachmentOwner) snapshot.attachmentOwner = state[snapshot.attachmentOwnerCollection].find(item => item.id === snapshot.attachmentOwner.id);
       }
       undoHold = null;
       undoState = token.visible && undoWork.has(token.visible) && performance.now() < token.visible.deadline ? token.visible : null;
@@ -3848,6 +4027,12 @@
     else if (action === 'area-new-project') openProjectModal(null, { areaId: el.dataset.areaId });
     else if (action === 'area-new-goal') openGoalModal(null, { areaId: el.dataset.areaId });
     else if (action === 'area-new-habit') openAreaLinkedModal('habit', el.dataset.areaId);
+    else if (action === 'new-knowledge') openKnowledgeModal(el.dataset.ownerType, null, el.dataset.areaId);
+    else if (action === 'edit-knowledge') openKnowledgeModal(el.dataset.ownerType, el.dataset.ownerId);
+    else if (action === 'save-knowledge') saveKnowledge();
+    else if (action === 'add-knowledge-link') addKnowledgeLink();
+    else if (action === 'remove-knowledge-link') { readKnowledgeDraft(); modalState.draft.linkUrls.splice(Number(el.dataset.linkIndex), 1); modalState.error = ''; renderModal(); }
+    else if (action === 'delete-knowledge') requestDeleteEntity(el.dataset.ownerType, el.dataset.ownerId);
     else if (action === 'select-area-color') { modalState.draft.color = el.dataset.color; renderModal(); }
     else if (action === 'select-area-icon') { modalState.draft.icon = el.dataset.icon; renderModal(); }
     else if (action === 'save-area') saveAreaModal();
@@ -3988,6 +4173,7 @@
 
   function handleInput(event) {
     if (globalOperation) return;
+    if (modalState?.type === 'knowledge' && event.target.id.startsWith('knowledge-')) readKnowledgeDraft();
     if (goalPropertyEditor && event.target.id === 'goal-detail-' + goalPropertyEditor.field) goalPropertyEditor.value = event.target.value;
     if (habitPropertyEditor && event.target.id === 'habit-detail-' + habitPropertyEditor.field) habitPropertyEditor.value = event.target.value;
     if (['goal', 'goal-source'].includes(modalState?.type) && event.target.id.startsWith('goal-')) readGoalDraft();
@@ -4011,6 +4197,7 @@
 
   function handleChange(event) {
     if (globalOperation) return;
+    if (modalState?.type === 'knowledge' && (event.target.id.startsWith('knowledge-') || event.target.dataset.knowledgeRelation)) readKnowledgeDraft();
     if (goalPropertyEditor && event.target.id === 'goal-detail-' + goalPropertyEditor.field) goalPropertyEditor.value = event.target.value;
     if (habitPropertyEditor && event.target.id === 'habit-detail-' + habitPropertyEditor.field) habitPropertyEditor.value = event.target.value;
     if (['goal','goal-source'].includes(modalState?.type) && ['goal-progress-mode','goal-progress-type'].includes(event.target.id)) {
@@ -4031,7 +4218,7 @@
     if(modalState?.type==='template' && event.target.dataset.templateField?.endsWith('goalIds')){readTemplateDraft();renderModal();return;}
     if (event.target.matches('[data-calendar-visibility]')) { state.ui.calendarVisibility = { tasks: true, habits: true, goals: true, milestones: true, ...(state.ui.calendarVisibility || {}), [event.target.dataset.calendarVisibility]: event.target.checked }; saveAndRender(); return; }
     if (event.target.matches('[data-task-time]')) { updateTask(event.target.dataset.taskId, { [event.target.dataset.taskTime]: Core.normalizeTime(event.target.value) }, false); render(); return; }
-    if (event.target.id === 'attachment-input') { addAttachments(event.target.dataset.taskId, event.target.files); event.target.value=''; return; }
+    if (event.target.id === 'attachment-input') { receiveAttachmentFiles(event.target.dataset, [...event.target.files]); event.target.value=''; return; }
     if (event.target.id === 'backup-import-input') { const file=event.target.files?.[0]; event.target.value=''; if(file) inspectImportBackup(file); return; }
     if (event.target.id === 'completed-project-filter') {
       state.ui.completedProjectFilter = event.target.value || '';
@@ -4113,6 +4300,7 @@
     if (modalState?.type === 'quick' && target?.id === 'quick-title' && event.key === 'Enter') {
       event.preventDefault(); createTask(event.shiftKey); return;
     }
+    if (modalState?.type === 'knowledge' && target?.id === 'knowledge-link' && event.key === 'Enter') { event.preventDefault(); addKnowledgeLink(); return; }
 
     if (modalState?.type === 'quick' && target?.id === 'quick-subtask' && event.key === 'Enter') {
       event.preventDefault(); syncQuickDraftFromDom(); const title = target.value.trim(); if (!title) { target.blur(); return; }
@@ -4171,7 +4359,7 @@
 
   function handleDrop(event) {
     const dropZone = event.target.closest?.('.attachment-drop-zone');
-    if (dropZone && event.dataTransfer?.files?.length) { event.preventDefault(); dropZone.classList.remove('is-dragover'); addAttachments(dropZone.dataset.taskId, event.dataTransfer.files); return; }
+    if (dropZone && event.dataTransfer?.files?.length) { event.preventDefault(); dropZone.classList.remove('is-dragover'); receiveAttachmentFiles(dropZone.dataset, [...event.dataTransfer.files]); return; }
     if (!dragState) return;
     event.preventDefault();
     if (dragState.type.startsWith('calendar-')) {

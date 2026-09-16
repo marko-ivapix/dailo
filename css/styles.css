@@ -641,3 +641,6 @@ button.area-object:hover { background: var(--surface-interactive); }
 .template-row { display:grid; gap:12px; padding:12px 0; border-bottom:1px solid var(--border-default); }
 .template-choice { display:block; margin:10px 0; width:100%; text-align:left; }
 @media (max-width:700px) { .habit-metric-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } .habit-history-row { grid-template-columns:90px minmax(0,1fr); } .habit-history-row .btn { grid-column:2; justify-self:start; } .habit-frequency-fields { grid-template-columns:1fr; } }
+/* Knowledge detail uses the incumbent section, list and form controls. */
+.knowledge-body { white-space: pre-wrap; overflow-wrap: anywhere; }
+.knowledge-link { min-width: 0; overflow-wrap: anywhere; }
