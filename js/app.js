@@ -57,6 +57,17 @@
     });
   }
 
+  function setMobileQuickAddOpen(open) {
+    const root = $('#mobile-quick-add');
+    const toggle = $('#mobile-quick-add-toggle');
+    const menu = $('#mobile-quick-add-menu');
+    if (!root || !toggle || !menu) return;
+    root.classList.toggle('is-open', open);
+    toggle.setAttribute('aria-expanded', String(open));
+    toggle.setAttribute('aria-label', open ? 'Close quick add menu' : 'Open quick add menu');
+    menu.hidden = !open;
+  }
+
   // Goal panels retain a logical trigger because rendering replaces its node.
   function goalFocusTarget(element = document.activeElement) {
     if (!(element instanceof HTMLElement)) return null;
@@ -3038,6 +3049,9 @@
       Promise.resolve(globalRecoveryNotice?.retry()).catch(error => globalNotice(`Retry failed: ${error.message}. Recovery copy retained. Retry again.`, globalRecoveryNotice.retry)); return;
     }
     if (globalOperation && !event.target.closest('#modal-root [data-action="confirm-action"], #modal-root [data-action="close-modal"]')) return;
+    const mobileQuickAdd = event.target.closest('#mobile-quick-add');
+    if (!mobileQuickAdd) setMobileQuickAddOpen(false);
+
     const routeEl = event.target.closest('[data-route]');
     if (routeEl) { event.preventDefault(); navigate(routeEl.dataset.route); return; }
 
@@ -3066,6 +3080,11 @@
       return;
     }
     const action = el.dataset.action;
+    if (action === 'toggle-mobile-quick-add') { setMobileQuickAddOpen(el.getAttribute('aria-expanded') !== 'true'); return; }
+    if (el.closest('#mobile-quick-add-menu')) {
+      setMobileQuickAddOpen(false);
+      $('#mobile-quick-add-toggle')?.focus();
+    }
     if (callDomainHook('handleAction', action, event) !== undefined) return;
     if(action==='recurrence-scope'){applyRecurrenceScope(el.dataset.scope);return;}
     if(action==='from-template')openTemplatePicker();
@@ -3263,6 +3282,7 @@
     }
 
     if (event.key === 'Escape') {
+      if ($('#mobile-quick-add-toggle')?.getAttribute('aria-expanded') === 'true') { event.preventDefault(); setMobileQuickAddOpen(false); $('#mobile-quick-add-toggle')?.focus(); return; }
       if (popoverEl) { event.preventDefault(); closePopover(); return; }
       if (modalState?.type === 'task' && typing) {
         event.preventDefault();

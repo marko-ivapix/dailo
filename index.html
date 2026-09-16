@@ -19,6 +19,16 @@
     <aside id="sidebar" class="sidebar" aria-label="Primary navigation"></aside>
     <main id="main" class="main" tabindex="-1"></main>
   </div>
+  <div id="mobile-quick-add" class="mobile-quick-add">
+    <div id="mobile-quick-add-menu" class="mobile-quick-add-menu" hidden>
+      <button class="mobile-quick-add-option" type="button" data-action="quick-add"><span>Task</span><i class="ph ph-check-square-offset" aria-hidden="true"></i></button>
+      <button class="mobile-quick-add-option" type="button" data-action="new-goal"><span>Goal</span><i class="ph ph-target" aria-hidden="true"></i></button>
+      <button class="mobile-quick-add-option" type="button" data-action="new-habit"><span>Habit</span><i class="ph ph-repeat" aria-hidden="true"></i></button>
+      <button class="mobile-quick-add-option" type="button" data-action="new-knowledge" data-owner-type="note"><span>Note / Resource</span><i class="ph ph-note" aria-hidden="true"></i></button>
+      <button class="mobile-quick-add-option" type="button" data-action="new-project"><span>Project</span><i class="ph ph-folder" aria-hidden="true"></i></button>
+    </div>
+    <button id="mobile-quick-add-toggle" class="mobile-quick-add-toggle" type="button" data-action="toggle-mobile-quick-add" aria-label="Open quick add menu" aria-expanded="false" aria-controls="mobile-quick-add-menu"><i class="ph ph-plus" aria-hidden="true"></i></button>
+  </div>
   <div id="modal-root"></div>
   <div id="toast-root" class="toast-root" aria-live="assertive" aria-atomic="true"></div>
   <script src="vendor/jszip.min.js"></script>
