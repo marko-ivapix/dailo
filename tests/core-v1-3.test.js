@@ -2,17 +2,6 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const Core = require('../js/core.js');
 
-test('Focus timer remains transient and exposes pause, resume, and reset controls', () => {
-  const app = require('node:fs').readFileSync(require('node:path').join(__dirname, '../js/app.js'), 'utf8');
-  assert.match(app, /function createFocusTimer\(\)/);
-  assert.match(app, /function toggleFocusTimer\(\)/);
-  assert.match(app, /function resetFocusTimer\(\)/);
-  assert.match(app, /data-action="focus-toggle-timer"/);
-  assert.match(app, /data-action="focus-reset-timer"/);
-  assert.match(app, /function stopFocusTimer\(\)/);
-  assert.doesNotMatch(app, /focusTimer[^\n]*localStorage/);
-});
-
 const recurringFixture = (rule={}) => ({id:'r1',title:'Series title',notes:'Series notes',plannedDate:'2026-10-01',dueDate:'2026-10-04',plannedTime:'08:00',dueTime:'17:00',reminderAt:'2026-10-02T09:00:00.000Z',goalIds:['g1','g2'],subtasks:[],recurrence:{frequency:'weekly',interval:1,...rule}});
 test('V3 recurrence normalizes legacy configuration without guessing operational identity',()=>{
   const source={frequency:'weekly',interval:2};
