@@ -319,6 +319,25 @@
       .find(key => Object.hasOwn(input, key) && !Array.isArray(input[key]));
   }
 
+  function invalidExplicitV3Field(input) {
+    if (Array.isArray(input.tasks)) {
+      for (const task of input.tasks) {
+        if (!task || typeof task !== 'object') continue;
+        if (Object.hasOwn(task, 'goalIds') && !Array.isArray(task.goalIds)) return 'invalid-task-goal-ids';
+        if (Object.hasOwn(task, 'plannedTime') && task.plannedTime !== null && normalizeTime(task.plannedTime) !== task.plannedTime) return 'invalid-task-planned-time';
+        if (Object.hasOwn(task, 'dueTime') && task.dueTime !== null && normalizeTime(task.dueTime) !== task.dueTime) return 'invalid-task-due-time';
+      }
+    }
+    if (Array.isArray(input.projects)) {
+      for (const project of input.projects) {
+        if (!project || typeof project !== 'object') continue;
+        if (Object.hasOwn(project, 'goalIds') && !Array.isArray(project.goalIds)) return 'invalid-project-goal-ids';
+        if (Object.hasOwn(project, 'isArchived') && typeof project.isArchived !== 'boolean') return 'invalid-project-is-archived';
+      }
+    }
+    return null;
+  }
+
   function objectIdsAreValid(items) {
     return items.every(item => item && typeof item === 'object' && typeof item.id === 'string' && item.id.trim());
   }
@@ -341,12 +360,15 @@
     if (!objectIdsAreValid(state.savedViews)) return { ok: false, reason: 'invalid-saved-view' };
 
     for (const task of state.tasks) {
-      if (!String(task.title || '').trim() || !Array.isArray(task.goalIds)
-        || task.plannedTime !== null && normalizeTime(task.plannedTime) !== task.plannedTime
-        || task.dueTime !== null && normalizeTime(task.dueTime) !== task.dueTime) return { ok: false, reason: 'invalid-task' };
+      if (!String(task.title || '').trim()) return { ok: false, reason: 'invalid-task' };
+      if (!Array.isArray(task.goalIds)) return { ok: false, reason: 'invalid-task-goal-ids' };
+      if (task.plannedTime !== null && normalizeTime(task.plannedTime) !== task.plannedTime) return { ok: false, reason: 'invalid-task-planned-time' };
+      if (task.dueTime !== null && normalizeTime(task.dueTime) !== task.dueTime) return { ok: false, reason: 'invalid-task-due-time' };
     }
     for (const project of state.projects) {
-      if (!String(project.name || '').trim() || !Array.isArray(project.goalIds)) return { ok: false, reason: 'invalid-project' };
+      if (!String(project.name || '').trim()) return { ok: false, reason: 'invalid-project' };
+      if (!Array.isArray(project.goalIds)) return { ok: false, reason: 'invalid-project-goal-ids' };
+      if (typeof project.isArchived !== 'boolean') return { ok: false, reason: 'invalid-project-is-archived' };
     }
 
     const projectIds = new Set(state.projects.map(project => project.id));
@@ -371,6 +393,8 @@
 
     const malformedCollection = input.version === 3 ? invalidV3Collection(input) : null;
     if (malformedCollection) return { ok: false, reason: `invalid-${malformedCollection}` };
+    const malformedField = input.version === 3 ? invalidExplicitV3Field(input) : null;
+    if (malformedField) return { ok: false, reason: malformedField };
 
     const base = input.version === 3
       ? { ok: true, state: JSON.parse(JSON.stringify(input)), migrated: false }

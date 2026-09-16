@@ -88,7 +88,7 @@
     let manifest;
     try { manifest = JSON.parse(await dataEntry.async('string')); } catch (_) { throw new Error('Invalid data.json'); }
     if (manifest.backupVersion !== BACKUP_VERSION) throw new Error('Unsupported backup version');
-    const migration = root.TodoCore?.migrateStateV2(manifest.data);
+    const migration = root.TodoCore?.migrateStateV3(manifest.data);
     if (!migration?.ok) throw new Error('Invalid app data');
     const state = migration.state;
     const attachments = Array.isArray(manifest.attachments) ? manifest.attachments : [];

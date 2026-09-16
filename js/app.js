@@ -7,7 +7,7 @@
   const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
   const MAX_ATTACHMENTS_PER_TASK = 10;
   const STORAGE_KEY = 'todoAppData';
-  const VERSION = 2;
+  const VERSION = 3;
   const PROJECT_COLORS = ['#5362FF', '#30CBAD', '#A879FF', '#4CC9F0', '#F5B942', '#FF8A5B', '#F06A8A', '#8FD14F'];
   const DATE_FMT = new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
   const SHORT_DATE_FMT = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' });
@@ -89,6 +89,11 @@
       tasks: [],
       projects: [],
       tags: [],
+      areas: [],
+      goals: [],
+      habits: [],
+      templates: [],
+      savedViews: [],
       settings: { weekStartsOn: 'monday' },
       ui: {
         sidebarCollapsed: false,
@@ -106,17 +111,17 @@
     const state = createEmptyState();
     const ts = nowIso();
     const projects = [
-      { id: 'project_client', name: 'Client Website', color: PROJECT_COLORS[0], order: 0, createdAt: ts, updatedAt: ts },
-      { id: 'project_portfolio', name: 'Portfolio', color: PROJECT_COLORS[2], order: 1, createdAt: ts, updatedAt: ts },
-      { id: 'project_personal', name: 'Personal', color: PROJECT_COLORS[1], order: 2, createdAt: ts, updatedAt: ts },
+      { id: 'project_client', name: 'Client Website', color: PROJECT_COLORS[0], order: 0, areaId: null, goalIds: [], isArchived: false, createdAt: ts, updatedAt: ts },
+      { id: 'project_portfolio', name: 'Portfolio', color: PROJECT_COLORS[2], order: 1, areaId: null, goalIds: [], isArchived: false, createdAt: ts, updatedAt: ts },
+      { id: 'project_personal', name: 'Personal', color: PROJECT_COLORS[1], order: 2, areaId: null, goalIds: [], isArchived: false, createdAt: ts, updatedAt: ts },
     ];
     const mkTask = (id, title, extras = {}) => ({
       id,
       title,
       notes: '',
-      projectId: null,
-      plannedDate: null,
-      dueDate: null,
+      projectId: null, areaId: null, goalIds: [],
+      plannedDate: null, plannedTime: null,
+      dueDate: null, dueTime: null,
       reminderAt: null,
       reminderFiredAt: null,
       recurrence: null,
@@ -159,7 +164,7 @@
   }
 
   function normalizeState(input) {
-    const migrated = Core.migrateStateV2(input);
+    const migrated = Core.migrateStateV3(input);
     if (!migrated.ok) throw new Error(migrated.reason || 'invalid-state');
     const next = migrated.state;
     next.settings = next.settings || { weekStartsOn: 'monday' };
@@ -202,7 +207,7 @@
         return;
       }
       const parsed = JSON.parse(raw);
-      const migration = Core.migrateStateV2(parsed);
+      const migration = Core.migrateStateV3(parsed);
       if (!migration.ok) {
         recovery = migration.reason;
         state = null;
@@ -1908,7 +1913,16 @@
     window.addEventListener('hashchange', () => { closePopover(); closeModal(); render(); });
     window.addEventListener('storage', event => {
       if (event.key !== STORAGE_KEY || !event.newValue) return;
-      try { const parsed = JSON.parse(event.newValue); const migrated = Core.migrateStateV2(parsed); if (migrated.ok) { state = normalizeState(migrated.state); recovery = null; render(); } } catch (_) { /* keep current tab data */ }
+      try {
+        const parsed = JSON.parse(event.newValue);
+        const migrated = Core.migrateStateV3(parsed);
+        if (migrated.ok) {
+          state = normalizeState(migrated.state);
+          if (migrated.migrated) saveState();
+          recovery = null;
+          render();
+        }
+      } catch (_) { /* keep current tab data */ }
     });
     window.addEventListener('pagehide', () => { flushTaskDraft(); flushTextSave(); saveState(); });
     window.addEventListener('resize', closePopover);

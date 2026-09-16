@@ -233,7 +233,7 @@ def main():
         page.wait_for_timeout(20)
         assert page.evaluate("document.activeElement?.dataset?.action === 'reset-app'"), 'Focus did not return to modal trigger'
 
-        # Legacy v1 state migrates in-app to v2 without losing v1.1 fields.
+        # Legacy v1 state migrates in-app to v3 without losing V1/V1.2 fields.
         legacy = {
             'version': 1,
             'tasks': [{
@@ -251,16 +251,23 @@ def main():
         page2 = browser.new_page(viewport={"width": 1440, "height": 1000})
         boot(page2, legacy)
         migrated = page2.evaluate("window.TodoApp.state")
-        assert migrated['version'] == 2
+        assert migrated['version'] == 3
         assert migrated['tags'] == []
         assert migrated['tasks'][0]['priority'] == 'none'
         assert migrated['tasks'][0]['tagIds'] == []
         assert migrated['tasks'][0]['attachmentIds'] == []
+        assert migrated['tasks'][0]['goalIds'] == []
+        assert migrated['tasks'][0]['plannedTime'] is None
+        assert migrated['tasks'][0]['dueTime'] is None
         assert migrated['tasks'][0]['recurrence']['frequency'] == 'weekly'
         assert migrated['projects'][0]['isArchived'] is True
+        assert migrated['projects'][0]['goalIds'] == []
+        assert migrated['areas'] == []
+        assert migrated['goals'] == []
+        assert migrated['habits'] == []
         assert migrated['ui']['completedPeriod'] == 7
         persisted = page2.evaluate("JSON.parse(localStorage.getItem('todoAppData'))")
-        assert persisted['version'] == 2
+        assert persisted['version'] == 3
 
         browser.close()
 

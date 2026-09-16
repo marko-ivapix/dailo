@@ -268,7 +268,7 @@ def main():
         assert page_reset.evaluate("TodoApp.state.tags.length") == 0
         assert page_reset.evaluate("TodoAttachments.listAll().then(x=>x.length)") == 0
         persisted = page_reset.evaluate("JSON.parse(localStorage.getItem('todoAppData'))")
-        assert persisted['version'] == 2 and persisted['tasks'] == []
+        assert persisted['version'] == 3 and persisted['tasks'] == []
 
         browser.close()
 

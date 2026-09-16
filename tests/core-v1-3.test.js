@@ -54,6 +54,69 @@ test('migrateStateV3 rejects malformed v3 collections without resetting them', (
   assert.deepEqual(state, original);
 });
 
+test('migrateStateV3 rejects malformed explicit v3 task fields without mutation', () => {
+  const state = v2State({
+    version: 3, areas: [], goals: [], habits: [], templates: [], savedViews: [],
+    tasks: [{ ...v2State().tasks[0], areaId: null, goalIds: 'bad-goals', plannedTime: '9:30', dueTime: null }],
+    projects: [{ ...v2State().projects[0], areaId: null, goalIds: [] }],
+  });
+  const original = structuredClone(state);
+
+  assert.deepEqual(Core.migrateStateV3(state), { ok: false, reason: 'invalid-task-goal-ids' });
+  assert.deepEqual(state, original);
+});
+
+test('migrateStateV3 rejects malformed explicit v3 task times without mutation', () => {
+  const state = v2State({
+    version: 3, areas: [], goals: [], habits: [], templates: [], savedViews: [],
+    tasks: [{ ...v2State().tasks[0], areaId: null, goalIds: [], plannedTime: '9:30', dueTime: null }],
+    projects: [{ ...v2State().projects[0], areaId: null, goalIds: [] }],
+  });
+  const original = structuredClone(state);
+
+  assert.deepEqual(Core.migrateStateV3(state), { ok: false, reason: 'invalid-task-planned-time' });
+  assert.deepEqual(state, original);
+});
+
+test('migrateStateV3 rejects malformed explicit v3 project fields without mutation', () => {
+  const state = v2State({
+    version: 3, areas: [], goals: [], habits: [], templates: [], savedViews: [],
+    tasks: [{ ...v2State().tasks[0], areaId: null, goalIds: [], plannedTime: null, dueTime: null }],
+    projects: [{ ...v2State().projects[0], areaId: null, goalIds: 'bad-goals', isArchived: false }],
+  });
+  const original = structuredClone(state);
+
+  assert.deepEqual(Core.migrateStateV3(state), { ok: false, reason: 'invalid-project-goal-ids' });
+  assert.deepEqual(state, original);
+});
+
+test('migrateStateV3 rejects malformed explicit v3 project archive state without mutation', () => {
+  const state = v2State({
+    version: 3, areas: [], goals: [], habits: [], templates: [], savedViews: [],
+    tasks: [{ ...v2State().tasks[0], areaId: null, goalIds: [], plannedTime: null, dueTime: null }],
+    projects: [{ ...v2State().projects[0], areaId: null, goalIds: [], isArchived: 'yes' }],
+  });
+  const original = structuredClone(state);
+
+  assert.deepEqual(Core.migrateStateV3(state), { ok: false, reason: 'invalid-project-is-archived' });
+  assert.deepEqual(state, original);
+});
+
+test('migrateStateV3 preserves legacy project archive booleans', () => {
+  const v2 = v2State({
+    projects: [
+      { id: 'active', name: 'Active', color: '#5362FF', order: 0, isArchived: false },
+      { id: 'archived', name: 'Archived', color: '#5362FF', order: 1, isArchived: true },
+    ],
+    tasks: [],
+  });
+
+  const result = Core.migrateStateV3(v2);
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.state.projects.map(project => project.isArchived), [false, true]);
+});
+
 test('validateStateV3 rejects tasks that override their project area', () => {
   const state = v2State({
     version: 3,
