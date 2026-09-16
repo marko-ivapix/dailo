@@ -476,7 +476,14 @@
 
   function renderTemplates() {
     if (!TemplatesUI) return emptyState('Templates unavailable', 'Reload the prototype to load the Templates interface.');
-    return TemplatesUI.renderTemplates(state.templates || [], activeTemplateType);
+    return TemplatesUI.renderTemplates({
+      state,
+      templates: state.templates || [],
+      activeTemplateType,
+      Core,
+      navigate,
+      render,
+    });
   }
 
   function renderArchivedProjects() {

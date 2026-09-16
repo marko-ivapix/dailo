@@ -85,8 +85,9 @@
     </article>`;
   }
 
-  function renderTemplates(templates, activeType = 'task') {
-    const items = Array.isArray(templates) ? templates : [];
+  function renderTemplates(ctx = {}) {
+    const items = Array.isArray(ctx.templates) ? ctx.templates : (Array.isArray(ctx.state?.templates) ? ctx.state.templates : []);
+    const activeType = ctx.activeTemplateType || ctx.templateType || 'task';
     const type = TYPES.some(item => item.id === activeType) ? activeType : 'task';
     const counts = Object.fromEntries(TYPES.map(item => [item.id, items.filter(template => template.type === item.id).length]));
     const visible = items.filter(template => template.type === type);
