@@ -350,6 +350,7 @@ select:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .quick-extra { margin-top: 16px; display: grid; gap: 16px; }
 
 .field-label { display: block; margin-bottom: 7px; color: var(--text-secondary); font-size: 12px; font-weight: 600; letter-spacing: .03em; }
+.form-hint { margin: -2px 0 0; color: var(--text-muted); font-size: 12px; line-height: 1.45; }
 .textarea { width: 100%; min-height: 90px; resize: vertical; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); background: var(--surface-interactive); color: var(--text-secondary); padding: 12px; outline: 0; }
 .textarea:hover { border-color: var(--border-default); }
 .textarea:focus { border-color: var(--primary-focus); box-shadow: var(--focus-ring); }
