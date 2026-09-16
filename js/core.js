@@ -291,6 +291,115 @@
     };
   }
 
+  function normalizeTime(value) {
+    if (typeof value !== 'string' || !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value)) return null;
+    return value;
+  }
+
+  function combineDateTime(date, time) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date || '')) || !normalizeTime(time)) return null;
+    const parsed = parseDateOnly(date);
+    if (!parsed || dateOnly(parsed) !== date) return null;
+    return `${date}T${time}:00`;
+  }
+
+  function effectiveTaskArea(task, projects) {
+    if (!task || typeof task !== 'object') return null;
+    if (!task.projectId) return task.areaId || null;
+    const project = (projects || []).find(item => item && item.id === task.projectId);
+    return project && project.areaId ? project.areaId : null;
+  }
+
+  function collectionIsValid(state, key) {
+    return Array.isArray(state[key]);
+  }
+
+  function invalidV3Collection(input) {
+    return ['areas', 'goals', 'habits', 'templates', 'savedViews']
+      .find(key => Object.hasOwn(input, key) && !Array.isArray(input[key]));
+  }
+
+  function objectIdsAreValid(items) {
+    return items.every(item => item && typeof item === 'object' && typeof item.id === 'string' && item.id.trim());
+  }
+
+  function validateStateV3(state, migrated = false) {
+    if (!state || typeof state !== 'object' || state.version !== 3) return { ok: false, reason: 'unsupported-version' };
+    const collections = ['tasks', 'projects', 'tags', 'areas', 'goals', 'habits', 'templates', 'savedViews'];
+    for (const key of collections) {
+      if (!collectionIsValid(state, key)) return { ok: false, reason: `invalid-${key}` };
+    }
+    if (!state.settings || typeof state.settings !== 'object' || Array.isArray(state.settings)
+      || !state.ui || typeof state.ui !== 'object' || Array.isArray(state.ui)) return { ok: false, reason: 'invalid-state' };
+    if (!objectIdsAreValid(state.tasks)) return { ok: false, reason: 'invalid-task' };
+    if (!objectIdsAreValid(state.projects)) return { ok: false, reason: 'invalid-project' };
+    if (!objectIdsAreValid(state.tags)) return { ok: false, reason: 'invalid-tag' };
+    if (!objectIdsAreValid(state.areas)) return { ok: false, reason: 'invalid-area' };
+    if (!objectIdsAreValid(state.goals)) return { ok: false, reason: 'invalid-goal' };
+    if (!objectIdsAreValid(state.habits)) return { ok: false, reason: 'invalid-habit' };
+    if (!objectIdsAreValid(state.templates)) return { ok: false, reason: 'invalid-template' };
+    if (!objectIdsAreValid(state.savedViews)) return { ok: false, reason: 'invalid-saved-view' };
+
+    for (const task of state.tasks) {
+      if (!String(task.title || '').trim() || !Array.isArray(task.goalIds)
+        || task.plannedTime !== null && normalizeTime(task.plannedTime) !== task.plannedTime
+        || task.dueTime !== null && normalizeTime(task.dueTime) !== task.dueTime) return { ok: false, reason: 'invalid-task' };
+    }
+    for (const project of state.projects) {
+      if (!String(project.name || '').trim() || !Array.isArray(project.goalIds)) return { ok: false, reason: 'invalid-project' };
+    }
+
+    const projectIds = new Set(state.projects.map(project => project.id));
+    const areaIds = new Set(state.areas.map(area => area.id));
+    const goalIds = new Set(state.goals.map(goal => goal.id));
+    for (const task of state.tasks) {
+      if (task.projectId && !projectIds.has(task.projectId)) return { ok: false, reason: 'missing-task-project' };
+      if (task.projectId && task.areaId) return { ok: false, reason: 'task-area-project-conflict' };
+      if (task.areaId && !areaIds.has(task.areaId)) return { ok: false, reason: 'missing-task-area' };
+      if (task.goalIds.some(goalId => !goalIds.has(goalId))) return { ok: false, reason: 'missing-task-goal' };
+    }
+    for (const project of state.projects) {
+      if (project.areaId && !areaIds.has(project.areaId)) return { ok: false, reason: 'missing-project-area' };
+      if (project.goalIds.some(goalId => !goalIds.has(goalId))) return { ok: false, reason: 'missing-project-goal' };
+    }
+    return { ok: true, state, migrated: Boolean(migrated) };
+  }
+
+  function migrateStateV3(input) {
+    if (!input || typeof input !== 'object') return { ok: false, reason: 'invalid-state' };
+    if (![1, 2, 3].includes(input.version)) return { ok: false, reason: 'unsupported-version' };
+
+    const malformedCollection = input.version === 3 ? invalidV3Collection(input) : null;
+    if (malformedCollection) return { ok: false, reason: `invalid-${malformedCollection}` };
+
+    const base = input.version === 3
+      ? { ok: true, state: JSON.parse(JSON.stringify(input)), migrated: false }
+      : migrateStateV2(input);
+    if (!base.ok) return base;
+
+    const state = base.state;
+    state.version = 3;
+    state.areas = Array.isArray(state.areas) ? state.areas : [];
+    state.goals = Array.isArray(state.goals) ? state.goals : [];
+    state.habits = Array.isArray(state.habits) ? state.habits : [];
+    state.templates = Array.isArray(state.templates) ? state.templates : [];
+    state.savedViews = Array.isArray(state.savedViews) ? state.savedViews : [];
+    state.tasks = state.tasks.map(task => ({
+      ...task,
+      areaId: task.areaId || null,
+      goalIds: Array.isArray(task.goalIds) ? task.goalIds : [],
+      plannedTime: normalizeTime(task.plannedTime),
+      dueTime: normalizeTime(task.dueTime),
+    }));
+    state.projects = state.projects.map(project => ({
+      ...project,
+      areaId: project.areaId || null,
+      goalIds: Array.isArray(project.goalIds) ? project.goalIds : [],
+      isArchived: Boolean(project.isArchived),
+    }));
+    return validateStateV3(state, input.version !== 3);
+  }
+
   function migrateStateV2(input) {
     if (!input || typeof input !== 'object') return { ok: false, reason: 'invalid-state' };
     if (input.version !== 1 && input.version !== 2) return { ok: false, reason: 'unsupported-version' };
@@ -343,6 +452,11 @@
     searchItems,
     validateState,
     migrateStateV2,
+    migrateStateV3,
+    validateStateV3,
+    effectiveTaskArea,
+    normalizeTime,
+    combineDateTime,
     normalizeTagName,
     validateTagName,
     tasksForTag,
