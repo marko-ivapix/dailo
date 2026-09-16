@@ -570,10 +570,10 @@
       </section>
       <section class="settings-card">
         <h2>Data</h2>
-        <div class="settings-row"><div class="settings-label"><strong>Export backup</strong><span>Download tasks, projects, tags, settings and attachment files in one ZIP.</span></div><button class="btn btn-secondary" type="button" data-action="export-backup">Export backup</button></div>
-        <div class="settings-row"><div class="settings-label"><strong>Import backup</strong><span>Replace all current app data from a previously exported ZIP backup.</span></div><div><button class="btn btn-secondary" type="button" data-action="import-backup">Import backup</button><input id="backup-import-input" type="file" accept=".zip,application/zip" hidden /></div></div>
+        <div class="settings-row"><div class="settings-label"><strong>Export backup</strong><span>Download a portable ZIP with your local data and attachment files.</span></div><button class="btn btn-secondary" type="button" data-action="export-backup"><i class="ph ph-download-simple"></i>Export ZIP</button></div>
+        <div class="settings-row"><div class="settings-label"><strong>Import backup</strong><span>Validate a ZIP first, then replace current data only after you confirm.</span></div><div><button class="btn btn-secondary" type="button" data-action="import-backup"><i class="ph ph-upload-simple"></i>Import ZIP</button><input id="backup-import-input" type="file" accept=".zip,application/zip" hidden /></div></div>
         <div class="settings-row"><div class="settings-label"><strong>Clear completed tasks</strong><span>Permanently delete all completed tasks and their attachments.</span></div><button class="btn btn-secondary" type="button" data-action="clear-completed">Clear</button></div>
-        <div class="settings-row"><div class="settings-label"><strong>Reset app data</strong><span>Delete tasks, projects, tags, attachments and preferences stored by this prototype.</span></div><button class="btn btn-ghost" type="button" data-action="reset-app" style="color:var(--danger)">Reset</button></div>
+        <div class="settings-row"><div class="settings-label"><strong>Reset app data</strong><span>Download a safety ZIP, then permanently clear this prototype's local data.</span></div><button class="btn btn-ghost" type="button" data-action="reset-app" style="color:var(--danger)">Reset</button></div>
       </section>`;
   }
 
@@ -613,7 +613,7 @@
 
   function renderRecovery() {
     const unsupported = recovery === 'unsupported-version';
-    return `<div class="recovery"><div class="recovery-card"><h1>${unsupported ? 'This data is from a newer version.' : "We couldn't load your local data."}</h1><p>${unsupported ? "The prototype can't safely read this saved format." : 'Your saved data appears to be invalid. Nothing has been overwritten.'}</p><div class="recovery-actions"><button class="btn btn-secondary" type="button" data-action="retry-load">Retry</button><button class="btn btn-danger" type="button" data-action="recovery-reset">Reset local data</button></div></div></div>`;
+    return `<div class="recovery"><div class="recovery-card"><h1>${unsupported ? 'This data is from a newer version.' : "We couldn't load your local data."}</h1><p>${unsupported ? "The prototype can't safely read this saved format." : 'Your saved data appears to be invalid. Nothing has been overwritten.'}</p><p>Retry after updating the prototype or restoring a compatible ZIP. Reset is available only if you choose to permanently discard this unreadable local data.</p><div class="recovery-actions"><button class="btn btn-secondary" type="button" data-action="retry-load">Retry</button><button class="btn btn-danger" type="button" data-action="recovery-reset">Reset local data</button></div></div></div>`;
   }
 
   function openQuickAdd(context = {}) {
@@ -700,7 +700,7 @@
     else if (modalState.type === 'confirm') root.innerHTML = renderConfirmModal();
     else if (modalState.type === 'duplicate') root.innerHTML = renderDuplicateModal();
     else if (modalState.type === 'import-backup') root.innerHTML = renderImportBackupModal();
-    if (modalState?.type === 'confirm') requestAnimationFrame(() => root.querySelector('.modal button, .modal [href], .modal input, .modal select, .modal textarea, .modal [tabindex]:not([tabindex="-1"])')?.focus());
+    if (modalState?.type === 'confirm' || modalState?.type === 'import-backup') requestAnimationFrame(() => root.querySelector('#confirm-action-text, #backup-confirmation')?.focus() || root.querySelector('.modal button, .modal [href], .modal input, .modal select, .modal textarea, .modal [tabindex]:not([tabindex="-1"])')?.focus());
   }
 
   function modalFrame(content, cls = '') {
@@ -914,11 +914,15 @@
     const sum = v.summary;
     let date = sum.exportedAt;
     try { date = new Intl.DateTimeFormat(undefined, { dateStyle:'medium', timeStyle:'short' }).format(new Date(sum.exportedAt)); } catch (_) {}
-    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="dialog-title">Restore backup?</h2><button class="btn-icon" type="button" data-action="close-modal"><i class="ph ph-x"></i></button></div><p class="dialog-copy">Backup created ${esc(date)}</p><div class="backup-summary"><div><span>Tasks</span><strong>${sum.tasks}</strong></div><div><span>Projects</span><strong>${sum.projects}</strong></div><div><span>Tags</span><strong>${sum.tags}</strong></div><div><span>Attachments</span><strong>${sum.attachments} · ${esc(formatBytes(sum.totalSize))}</strong></div></div><div class="backup-warning"><i class="ph ph-warning"></i>This will replace all current app data. Restore has no Undo.</div><div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">Cancel</button><button class="btn btn-danger" type="button" data-action="restore-backup">Restore backup</button></div></div></div>`, 'small-modal');
+    const confirmed = modalState.confirmText === 'RESTORE';
+    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="dialog-title">Restore backup?</h2><button class="btn-icon" type="button" data-action="close-modal"><i class="ph ph-x"></i></button></div><p class="dialog-copy">Backup created ${esc(date)}</p><div class="backup-summary"><div><span>Tasks</span><strong>${sum.tasks}</strong></div><div><span>Projects</span><strong>${sum.projects}</strong></div><div><span>Tags</span><strong>${sum.tags}</strong></div><div><span>Attachments</span><strong>${sum.attachments} · ${esc(formatBytes(sum.totalSize))}</strong></div></div><div class="backup-warning"><i class="ph ph-shield-warning"></i><span>Your current data will download as a safety ZIP and stay recoverable while the replacement is verified. Restore has no Undo.</span></div><label class="field-label" for="backup-confirmation">Type RESTORE to replace current data</label><input id="backup-confirmation" class="input" type="text" autocomplete="off" spellcheck="false" value="${esc(modalState.confirmText || '')}" /><div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">Cancel</button><button class="btn btn-danger" type="button" data-action="restore-backup" ${confirmed ? '' : 'disabled'}>Restore backup</button></div></div></div>`, 'small-modal');
   }
 
   function renderConfirmModal() {
-    return modalFrame(`<div class="modal-inner"><div class="modal-header"><div><h2 class="modal-title">${esc(modalState.title)}</h2>${modalState.message ? `<p class="page-subtitle" style="margin-top:10px;max-width:380px">${esc(modalState.message)}</p>` : ''}</div><button class="btn-icon" type="button" data-action="close-modal"><i class="ph ph-x"></i></button></div><div class="modal-footer" style="border:0;padding-top:0"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">Cancel</button><button class="btn btn-danger" type="button" data-action="confirm-action">${esc(modalState.confirmLabel || 'Delete')}</button></div></div></div>`, 'confirm-modal');
+    const requiresText = Boolean(modalState.confirmTextRequired);
+    const confirmed = !requiresText || modalState.confirmText === modalState.confirmTextRequired;
+    const confirmation = requiresText ? `<label class="field-label" for="confirm-action-text">Type ${esc(modalState.confirmTextRequired)} to continue</label><input id="confirm-action-text" class="input" type="text" autocomplete="off" spellcheck="false" value="${esc(modalState.confirmText || '')}" />` : '';
+    return modalFrame(`<div class="modal-inner"><div class="modal-header"><div><h2 class="modal-title">${esc(modalState.title)}</h2>${modalState.message ? `<p class="page-subtitle" style="margin-top:10px;max-width:380px">${esc(modalState.message)}</p>` : ''}</div><button class="btn-icon" type="button" data-action="close-modal"><i class="ph ph-x"></i></button></div>${confirmation}<div class="modal-footer" style="border:0;padding-top:0"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">Cancel</button><button class="btn btn-danger" type="button" data-action="confirm-action" ${confirmed ? '' : 'disabled'}>${esc(modalState.confirmLabel || 'Delete')}</button></div></div></div>`, 'confirm-modal');
   }
 
   function nextProjectColor() {
@@ -1483,10 +1487,20 @@
     setToastMessage('Preparing backup...');
     try {
       const blob = await Backup.exportBackup(state, Attachments, nowIso());
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = `todo-backup-${Core.dateOnly()}.zip`; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url), 1000);
+      downloadBackup(blob, `todo-backup-${Core.dateOnly()}.zip`);
       setToastMessage('Backup exported');
     } catch (error) { console.error(error); setToastMessage('Backup could not be created'); }
+  }
+
+  function downloadBackup(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  async function createSafetyBackup(label) {
+    if (!Backup || !Attachments) throw new Error('Backup is unavailable in this browser');
+    const blob = await Backup.exportBackup(state, Attachments, nowIso());
+    downloadBackup(blob, `todo-safety-${label}-${Core.dateOnly()}.zip`);
   }
 
   function chooseImportBackup() {
@@ -1504,9 +1518,11 @@
   }
 
   async function restoreImportedBackup() {
-    if (modalState?.type !== 'import-backup') return;
+    if (modalState?.type !== 'import-backup' || modalState.confirmText !== 'RESTORE') return;
     const validated = modalState.validated;
     try {
+      setToastMessage('Creating safety backup...');
+      await createSafetyBackup('before-restore');
       await Backup.restoreBackup(validated, {
         attachmentApi: Attachments,
         readState: async () => state,
@@ -1528,9 +1544,31 @@
   }
 
   function resetApp() {
-    openConfirm({ title: 'Reset all app data?', message: 'All tasks, projects, tags, attachments and settings stored by this prototype will be deleted. This cannot be undone.', confirmLabel: 'Reset app', onConfirm: async () => {
+    openConfirm({ title: 'Reset all app data?', message: 'A safety ZIP will download first. The app then clears local tasks, projects, tags, attachments and preferences. This cannot be undone.', confirmLabel: 'Reset app', confirmTextRequired: 'RESET', onConfirm: async () => {
+      if (!Backup || !Attachments) { setToastMessage('Reset is unavailable because a safety backup cannot be created'); return; }
+      const previousState = JSON.parse(JSON.stringify(state));
+      let previousAttachments;
+      try {
+        setToastMessage('Creating safety backup...');
+        await createSafetyBackup('before-reset');
+        previousAttachments = await Attachments.listAll();
+        await Attachments.clearAll();
+        state = createEmptyState(); recovery = null;
+        if (!saveState()) throw new Error('Could not save reset state');
+        closeModal(); location.hash = '#today'; render(); setToastMessage('App data reset');
+      } catch (error) {
+        console.error(error);
+        try { if (previousAttachments) await Attachments.replaceAll(previousAttachments); } catch (_) {}
+        state = previousState; saveState();
+        setToastMessage('Reset failed. Existing data was kept.');
+      }
+    } });
+  }
+
+  function resetUnreadableLocalData() {
+    openConfirm({ title: 'Reset unreadable local data?', message: 'This data cannot be exported because it cannot be read. Type RESET to permanently clear it and start fresh.', confirmLabel: 'Reset local data', confirmTextRequired: 'RESET', onConfirm: async () => {
       try { if (Attachments) await Attachments.clearAll(); } catch (error) { console.error(error); setToastMessage('Attachments could not be cleared'); return; }
-      state = createEmptyState(); recovery = null; localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); closeModal(); location.hash = '#today'; render();
+      localStorage.removeItem(STORAGE_KEY); recovery = null; state = createEmptyState(); saveState(); closeModal(); location.hash = '#today'; render();
     } });
   }
 
@@ -1639,7 +1677,7 @@
     else if (action === 'save-tag') saveTagModal();
     else if (action === 'save-project') saveProjectModal();
     else if (action === 'restore-project') restoreProject(el.dataset.projectId);
-    else if (action === 'confirm-action') { const fn = modalState.onConfirm; if (typeof fn === 'function') fn(); }
+    else if (action === 'confirm-action') { if (modalState.confirmTextRequired && modalState.confirmText !== modalState.confirmTextRequired) return; const fn = modalState.onConfirm; if (typeof fn === 'function') fn(); }
     else if (action === 'undo') doUndo();
     else if (action === 'enable-notifications') enableBrowserNotifications();
     else if (action === 'export-backup') exportBackupAction();
@@ -1648,7 +1686,7 @@
     else if (action === 'clear-completed') clearCompleted();
     else if (action === 'reset-app') resetApp();
     else if (action === 'retry-load') { loadState(); render(); }
-    else if (action === 'recovery-reset') { if(Attachments) Attachments.clearAll().catch(console.error); localStorage.removeItem(STORAGE_KEY); recovery = null; state = createEmptyState(); saveState(); location.hash = '#today'; render(); }
+    else if (action === 'recovery-reset') resetUnreadableLocalData();
   }
 
   function handlePopoverAction(button) {
@@ -1702,6 +1740,18 @@
   }
 
   function handleInput(event) {
+    if (modalState?.type === 'confirm' && event.target.id === 'confirm-action-text') {
+      modalState.confirmText = event.target.value;
+      const button = $('#modal-root [data-action="confirm-action"]');
+      if (button) button.disabled = modalState.confirmText !== modalState.confirmTextRequired;
+      return;
+    }
+    if (modalState?.type === 'import-backup' && event.target.id === 'backup-confirmation') {
+      modalState.confirmText = event.target.value;
+      const button = $('#modal-root [data-action="restore-backup"]');
+      if (button) button.disabled = modalState.confirmText !== 'RESTORE';
+      return;
+    }
     if (modalState?.type === 'quick') {
       if (event.target.id === 'quick-title') { modalState.draft.title = event.target.value; modalState.error = ''; if (!modalState.draft.explicitPlan) { const parsed=Core.parseQuickPlanPhrase(event.target.value, Core.dateOnly()); modalState.draft.parsedPlanDate=parsed.plannedDate; const b=document.querySelector('[data-action="quick-plan-picker"]'); if(b) b.innerHTML=`<i class="ph ph-calendar-check"></i>${parsed.plannedDate ? esc(relativeDateLabel(parsed.plannedDate)) : 'Plan for'}`; } }
       else if (event.target.id === 'quick-notes') modalState.draft.notes = event.target.value;
