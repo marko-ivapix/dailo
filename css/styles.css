@@ -321,6 +321,10 @@ select:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .focus-kicker { margin: 0 0 5px; color: var(--primary-focus); font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
 .focus-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; color: var(--text-muted); font-size: 13px; }
 .focus-meta > span { display: inline-flex; align-items: center; gap: 6px; }
+.focus-timer { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; margin-top: 22px; padding: 16px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); background: var(--surface-interactive); }
+.focus-timer-label { color: var(--text-muted); font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+.focus-timer strong { color: var(--text-primary); font-family: var(--font-display); font-size: 28px; font-variant-numeric: tabular-nums; letter-spacing: .03em; }
+.focus-timer-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
 .focus-notes { margin: 22px 0 0; color: var(--text-secondary); line-height: 1.55; white-space: pre-wrap; }
 .focus-subtasks { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--border-subtle); }
 .focus-subtasks .subtask-row { grid-template-columns: 24px minmax(0, 1fr); }

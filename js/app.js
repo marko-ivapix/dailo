@@ -27,6 +27,7 @@
   let globalOperation = null;
   let globalRecoveryNotice = null;
   let modalState = null;
+  let focusTimerInterval = null;
   let popoverEl = null;
   let undoState = null;
   const undoWork = new Set();
@@ -978,6 +979,7 @@
   function openTaskDetail(taskId) {
     const task = getTask(taskId);
     if (!task) return;
+    if (modalState?.type === 'focus') stopFocusTimer();
     captureModalReturnFocus();
     closePopover();
     modalState = { type: 'task', taskId, titleDraft: task.title, notesDraft: task.notes || '', error: '', attachmentRecords: [], attachmentMessage: '' };
@@ -991,26 +993,85 @@
     return [...sections.overdue, ...sections.today];
   }
 
+  function createFocusTimer() {
+    return { elapsedMs: 0, startedAt: Date.now(), isRunning: true };
+  }
+
+  function focusElapsedMs(timer = modalState?.timer) {
+    if (!timer) return 0;
+    return timer.elapsedMs + (timer.isRunning ? Date.now() - timer.startedAt : 0);
+  }
+
+  function formatFocusElapsed(elapsedMs) {
+    const seconds = Math.floor(elapsedMs / 1000);
+    const minutes = Math.floor(seconds / 60);
+    return `${String(minutes).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+  }
+
+  function refreshFocusTimer() {
+    if (modalState?.type !== 'focus') return;
+    const timer = modalState.timer;
+    const elapsed = $('#focus-elapsed');
+    const toggle = $('[data-action="focus-toggle-timer"]');
+    if (elapsed) elapsed.textContent = formatFocusElapsed(focusElapsedMs(timer));
+    if (toggle) toggle.textContent = timer.isRunning ? 'Pause' : 'Resume';
+  }
+
+  function startFocusTimer() {
+    clearInterval(focusTimerInterval);
+    focusTimerInterval = window.setInterval(refreshFocusTimer, 1000);
+  }
+
+  function stopFocusTimer() {
+    clearInterval(focusTimerInterval);
+    focusTimerInterval = null;
+  }
+
+  function toggleFocusTimer() {
+    const timer = modalState?.type === 'focus' ? modalState.timer : null;
+    if (!timer) return;
+    if (timer.isRunning) {
+      timer.elapsedMs = focusElapsedMs(timer);
+      timer.isRunning = false;
+    } else {
+      timer.startedAt = Date.now();
+      timer.isRunning = true;
+    }
+    refreshFocusTimer();
+  }
+
+  function resetFocusTimer() {
+    const timer = modalState?.type === 'focus' ? modalState.timer : null;
+    if (!timer) return;
+    timer.elapsedMs = 0;
+    if (timer.isRunning) timer.startedAt = Date.now();
+    refreshFocusTimer();
+  }
+
   function openFocusMode(taskId = null) {
     const task = taskId ? getTask(taskId) : focusableTasks()[0];
     if (!task || task.isCompleted) { setToastMessage('No open overdue or Today tasks to focus on'); return; }
     captureModalReturnFocus();
     closePopover();
-    modalState = { type: 'focus', taskId: task.id };
+    modalState = { type: 'focus', taskId: task.id, timer: createFocusTimer() };
     renderModal();
+    startFocusTimer();
     requestAnimationFrame(() => $('[data-action="focus-complete"]')?.focus());
   }
 
   function focusNextTask(currentTaskId = modalState?.taskId) {
+    stopFocusTimer();
     const tasks = focusableTasks();
     if (!tasks.length) { closeModal(); setToastMessage('All overdue and Today tasks are complete'); return; }
     const currentIndex = tasks.findIndex(task => task.id === currentTaskId);
-    modalState = { type: 'focus', taskId: (tasks[currentIndex + 1] || tasks[0]).id };
+    modalState = { type: 'focus', taskId: (tasks[currentIndex + 1] || tasks[0]).id, timer: createFocusTimer() };
     renderModal();
+    startFocusTimer();
     requestAnimationFrame(() => $('[data-action="focus-complete"]')?.focus());
   }
 
   function completeFocusTask(taskId) {
+    stopFocusTimer();
     toggleComplete(taskId);
     focusNextTask(taskId);
   }
@@ -1097,6 +1158,7 @@
   }
 
   function closeModal() {
+    if (modalState?.type === 'focus') stopFocusTimer();
     if (modalState?.previous?.type === 'goal' || (modalState?.previous && ['calendar-value', 'calendar-progress'].includes(modalState.type))) {
       const target = modalState.returnFocus; modalState = modalState.previous; renderModal(); restoreGoalFocus(target); return;
     }
@@ -1145,7 +1207,7 @@
     const task = getTask(modalState.taskId);
     if (!task || task.isCompleted) {
       const next = focusableTasks()[0];
-      if (next) { modalState = { type: 'focus', taskId: next.id }; return renderFocusModal(); }
+      if (next) { modalState = { type: 'focus', taskId: next.id, timer: createFocusTimer() }; startFocusTimer(); return renderFocusModal(); }
       return modalFrame('<div class="modal-inner focus-modal"><div class="modal-header"><div><p class="focus-kicker">Focus mode</p><h2 class="modal-title">Nothing left to focus on</h2></div></div><div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-primary" type="button" data-action="close-modal">Exit</button></div></div></div>', 'focus-modal');
     }
     const today = Core.dateOnly();
@@ -1160,6 +1222,7 @@
     return modalFrame(`<div class="modal-inner focus-modal">
       <div class="modal-header"><div><p class="focus-kicker">Focus mode</p><h2 class="modal-title">${esc(task.title)}</h2></div><button class="btn-icon" type="button" data-action="close-modal" aria-label="Exit focus mode"><i class="ph ph-x"></i></button></div>
       ${metadata.length ? `<div class="focus-meta">${metadata.join('<span class="separator">·</span>')}</div>` : ''}
+      <div class="focus-timer" aria-live="off"><span class="focus-timer-label">Elapsed</span><strong id="focus-elapsed">${formatFocusElapsed(focusElapsedMs())}</strong><div class="focus-timer-actions"><button class="btn btn-secondary" type="button" data-action="focus-toggle-timer">${modalState.timer?.isRunning ? 'Pause' : 'Resume'}</button><button class="btn btn-ghost" type="button" data-action="focus-reset-timer">Reset</button></div></div>
       ${task.notes ? `<p class="focus-notes">${esc(task.notes)}</p>` : ''}
       ${subtasks.length ? `<section class="focus-subtasks"><div class="detail-heading"><span>Subtasks</span><span>${completed} / ${subtasks.length}</span></div><div class="subtask-list">${subtasks.map(subtask => `<div class="subtask-row ${subtask.isCompleted ? 'is-completed' : ''}"><span class="complete-control ${subtask.isCompleted ? 'is-completed' : ''}">${subtask.isCompleted ? '<i class="ph ph-check"></i>' : ''}</span><span class="subtask-title">${esc(subtask.title)}</span></div>`).join('')}</div></section>` : ''}
       <div class="modal-footer"><button class="btn btn-ghost" type="button" data-action="close-modal">Exit</button><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="focus-next" data-task-id="${esc(task.id)}">Next task</button><button class="btn btn-secondary" type="button" data-action="focus-open-details" data-task-id="${esc(task.id)}">Open details</button><button class="btn btn-secondary" type="button" data-action="focus-tomorrow" data-task-id="${esc(task.id)}">Tomorrow</button><button class="btn btn-primary" type="button" data-action="focus-complete" data-task-id="${esc(task.id)}"><i class="ph ph-check"></i> Complete</button></div></div>
@@ -3165,6 +3228,8 @@
     else if (action === 'open-task') openTaskDetail(el.dataset.taskId);
     else if (action === 'open-focus') openFocusMode();
     else if (action === 'focus-complete') completeFocusTask(el.dataset.taskId);
+    else if (action === 'focus-toggle-timer') toggleFocusTimer();
+    else if (action === 'focus-reset-timer') resetFocusTimer();
     else if (action === 'focus-tomorrow') { moveTaskToTomorrow(el.dataset.taskId); if (modalState?.type === 'focus') focusNextTask(el.dataset.taskId); }
     else if (action === 'focus-open-details') openTaskDetail(el.dataset.taskId);
     else if (action === 'focus-next') focusNextTask(el.dataset.taskId);
