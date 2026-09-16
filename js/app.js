@@ -30,6 +30,7 @@
   let dragState = null;
   let modalReturnFocus = null;
   let calendarReturnDate = null;
+  const calendarHabitQueues = new Map();
 
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -615,12 +616,23 @@
     saveAndRender();
   }
 
-  async function calendarHabitAction(el, mode) {
+  function calendarHabitAction(el, mode) {
     const id = el.dataset.habitId; const date = el.dataset.date;
-    const existing = state.habitLogCache?.[id]?.find(log => log.date === date);
-    const value = mode === 'add' ? Number(existing?.value || 0) + Number(el.dataset.value) : null;
-    await setHabitLog(id, date, mode === 'check' && existing?.status === 'done' ? 'missed' : 'done', value);
-    if (modalState?.type === 'calendar-day') renderModal();
+    const increment = Number(el.dataset.value);
+    const key = JSON.stringify([id, date]);
+    const previous = calendarHabitQueues.get(key) || Promise.resolve();
+    // Read the refreshed total only when this accepted activation starts.
+    // A failed predecessor must release later activations, not poison them.
+    const operation = previous.catch(() => {}).then(async () => {
+      const existing = state.habitLogCache?.[id]?.find(log => log.date === date);
+      const value = mode === 'add' ? Number(existing?.value || 0) + increment : null;
+      await setHabitLog(id, date, mode === 'check' && existing?.status === 'done' ? 'missed' : 'done', value);
+      if (modalState?.type === 'calendar-day' && modalState.date === date) renderModal();
+    });
+    calendarHabitQueues.set(key, operation);
+    const release = () => { if (calendarHabitQueues.get(key) === operation) calendarHabitQueues.delete(key); };
+    operation.then(release, release);
+    return operation;
   }
 
   function openCalendarValue(habitId, date) {

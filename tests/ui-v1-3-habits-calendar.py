@@ -97,6 +97,7 @@ def native_calendar(browser):
             {'id': 'habit-check', 'name': 'Wednesday check', 'status': 'active', 'frequencyType': 'weekdays', 'weekdays': [3], 'trackingType': 'checkbox', 'startDate': '2026-10-01'},
             {'id': 'habit-numeric', 'name': 'Thursday numeric', 'status': 'active', 'frequencyType': 'weekdays', 'weekdays': [4], 'trackingType': 'numeric', 'targetValue': 2, 'quickValues': [0.5], 'startDate': '2026-10-01'},
             {'id': 'weekly-native', 'name': 'Weekly native', 'status': 'active', 'frequencyType': 'timesPerWeek', 'timesPerWeek': 2, 'trackingType': 'checkbox', 'startDate': '2026-10-26'},
+            {'id': 'habit-burst', 'name': 'Native burst', 'status': 'active', 'frequencyType': 'weekdays', 'weekdays': [5], 'trackingType': 'numeric', 'targetValue': 2, 'quickValues': [0.5], 'startDate': '2026-10-30', 'endType': 'successfulPeriods', 'successfulPeriodsTarget': 1},
             {'id': 'habit-paused', 'name': 'Paused invisible', 'status': 'paused', 'frequencyType': 'daily', 'trackingType': 'checkbox', 'startDate': '2026-10-01'},
             {'id': 'habit-archived', 'name': 'Archived invisible', 'status': 'archived', 'frequencyType': 'daily', 'trackingType': 'checkbox', 'startDate': '2026-10-01'},
         ]
@@ -314,6 +315,97 @@ def native_calendar(browser):
         assert future.locator('[data-action="calendar-habit-edit"]').is_disabled()
         assert page.evaluate('async () => await TodoApp.setHabitLog("habit-numeric", "2028-02-03", "done", 2)') is False
         page.keyboard.press('Escape')
+        # Hold the first write before the real native store, accepting another
+        # ordinary UI activation while the cache still contains zero.
+        page.evaluate('TodoApp.state.ui.calendarDate = "2026-10-30"; TodoApp.render()')
+        d = detail('2026-10-30')
+        page.evaluate('''() => {
+          const nativePut = TodoStorage.habitLogs.put.bind(TodoStorage.habitLogs);
+          window.__burst = { calls: 0, committed: 0, held: false };
+          const gate = new Promise(resolve => window.__burst.release = resolve);
+          TodoStorage.habitLogs.put = async record => {
+            if (record.habitId !== 'habit-burst') return nativePut(record);
+            window.__burst.calls++;
+            if (window.__burst.calls === 1) { window.__burst.held = true; await gate; }
+            const result = await nativePut(record); window.__burst.committed++; return result;
+          };
+        }''')
+        add = item('habit-burst', d).locator('[data-action="calendar-habit-add"]')
+        add.click()
+        page.wait_for_function('window.__burst.held')
+        add.click()
+        page.evaluate('window.__burst.release()')
+        page.wait_for_function('window.__burst.committed === 2')
+        total = page.evaluate('async () => (await TodoStorage.habitLogs.listByHabit("habit-burst"))[0].value')
+        assert total == 1, f'two accepted +0.5 activations stored {total}, expected 1'
+        page.keyboard.press('Escape')
+        page.reload(wait_until='domcontentloaded')
+        ready()
+        assert page.evaluate('async () => (await TodoStorage.habitLogs.listByHabit("habit-burst"))[0].value') == 1
+        # A rejected first operation must not poison the queued retry. Failed
+        # writes do not increment; the next accepted click still increments.
+        d = detail('2026-10-30')
+        page.evaluate('''() => {
+          const nativePut = TodoStorage.habitLogs.put.bind(TodoStorage.habitLogs);
+          window.__retry = { calls: 0, committed: 0, held: false, failed: false };
+          const gate = new Promise(resolve => window.__retry.release = resolve);
+          TodoStorage.habitLogs.put = async record => {
+            if (record.habitId !== 'habit-burst') return nativePut(record);
+            window.__retry.calls++;
+            if (window.__retry.calls === 1) { window.__retry.held = true; await gate; window.__retry.failed = true; throw new Error('Expected Calendar write failure'); }
+            const result = await nativePut(record); window.__retry.committed++; return result;
+          };
+        }''')
+        add = item('habit-burst', d).locator('[data-action="calendar-habit-add"]')
+        add.click()
+        page.wait_for_function('window.__retry.held')
+        add.click()
+        page.evaluate('window.__retry.release()')
+        page.wait_for_function('window.__retry.failed && window.__retry.committed === 1')
+        page.wait_for_function('TodoApp.state.habitLogCache["habit-burst"]?.[0].value === 1.5')
+        page.keyboard.press('Escape')
+        page.reload(wait_until='domcontentloaded')
+        ready()
+        assert page.evaluate('async () => (await TodoStorage.habitLogs.listByHabit("habit-burst"))[0].value') == 1.5
+        # Crossing a decision boundary while accepted adds remain queued must
+        # keep the existing decision overlay, not reopen Day Detail over it.
+        def decision_burst(habit_id, date, heading):
+            d = detail(date)
+            page.evaluate('''id => {
+              const nativePut = TodoStorage.habitLogs.put.bind(TodoStorage.habitLogs);
+              window.__decisionBurst = { calls: 0, committed: 0, held: false, restore: () => { TodoStorage.habitLogs.put = nativePut; } };
+              const gate = new Promise(resolve => window.__decisionBurst.release = resolve);
+              TodoStorage.habitLogs.put = async record => {
+                if (record.habitId !== id) return nativePut(record);
+                window.__decisionBurst.calls++;
+                if (window.__decisionBurst.calls === 1) { window.__decisionBurst.held = true; await gate; }
+                const result = await nativePut(record); window.__decisionBurst.committed++; return result;
+              };
+            }''', habit_id)
+            add = item(habit_id, d).locator('[data-action="calendar-habit-add"]')
+            add.click()
+            page.wait_for_function('window.__decisionBurst.held')
+            add.click()
+            page.evaluate('window.__decisionBurst.release()')
+            page.wait_for_function('window.__decisionBurst.committed === 2')
+            page.wait_for_function('id => TodoApp.state.habitLogCache[id]?.[0].value === 2.5', arg=habit_id)
+            assert page.locator('.modal-title').inner_text() == heading
+            assert page.evaluate('async id => (await TodoStorage.habitLogs.listByHabit(id))[0].value', habit_id) == 2.5
+            page.evaluate('window.__decisionBurst.restore()')
+        d = detail('2026-10-29')
+        item('habit-numeric', d).locator('[data-action="calendar-habit-edit"]').click()
+        page.fill('#calendar-habit-value', '1.5')
+        page.click('[data-action="calendar-save-habit-value"]')
+        page.wait_for_function('TodoApp.state.habitLogCache["habit-numeric"]?.[0].value === 1.5')
+        page.keyboard.press('Escape')
+        decision_burst('habit-numeric', '2026-10-29', 'Goal reached')
+        page.get_by_role('button', name='Keep active', exact=True).click()
+        decision_burst('habit-burst', '2026-10-30', 'Habit finished')
+        page.click('[data-action="continue-habit"]')
+        page.reload(wait_until='domcontentloaded')
+        ready()
+        for habit_id in ['habit-numeric', 'habit-burst']:
+            assert page.evaluate('async id => (await TodoStorage.habitLogs.listByHabit(id))[0].value', habit_id) == 2.5
         # Native prior-week logs survive the same date-boundary refresh and reload.
         page.evaluate('''async () => { await TodoApp.setHabitLog('weekly-native','2026-10-27','done'); await TodoApp.setHabitLog('weekly-native','2026-10-28','done'); window.__TODO_TEST_SET_NOW__('2026-11-02T12:00:00'); await TodoApp.refreshHabitDateBoundary(); }''')
         assert page.evaluate('TodoApp.state.habitMetrics["weekly-native"].currentPeriodCount') == 0
@@ -325,6 +417,7 @@ def native_calendar(browser):
         assert page.evaluate('async () => (await TodoStorage.habitLogs.listByHabit("weekly-native")).length') == 2
         assert errors == [], errors
         print('PASS: 18 Calendar acceptance scenarios, independent time editor, future Habit guard, native Habit/Goal history reload, native weekly history retained')
+        print('PASS: native quick-add burst accumulates, failure releases queued retry, Goal/Habit decisions preserved, resulting totals survive reload')
     finally:
         try:
             if context:
@@ -471,6 +564,7 @@ def main():
             page.click('[data-action="toggle-habit-more"]')
             page.fill('#habit-quick-values', '0.5,1')
             page.click('[data-action="save-habit"]')
+            page.wait_for_function("TodoApp.state.habits.some(h => h.name === 'Water') && document.querySelector('.habit-detail-card')")
             numeric_id = page.evaluate("TodoApp.state.habits.find(h => h.name === 'Water').id")
             page.click('[data-action="habit-quick-add"][data-value="0.5"]')
             page.wait_for_timeout(20)
@@ -534,6 +628,7 @@ def main():
             page.click('[data-action="toggle-habit-more"]')
             page.fill('#habit-start-date', '2026-10-27')
             page.click('[data-action="save-habit"]')
+            page.wait_for_function("TodoApp.state.habits.some(h => h.name === 'Protein') && document.querySelector('.habit-detail-card')")
             protein_id = page.evaluate("TodoApp.state.habits.find(h => h.name === 'Protein').id")
             writes = [page.evaluate("async ([id, n]) => await TodoApp.setHabitLog(id, TodoCore.addDays(TodoCore.dateOnly(), -n), 'done', 2)", [protein_id, offset]) for offset in range(5)]
             assert writes == [True] * 5, writes
