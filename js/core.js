@@ -5,6 +5,32 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   const pad = n => String(n).padStart(2, '0');
 
+  function applySavedView(view, state, today = dateOnly()) {
+    if (!['tasks','goals','habits'].includes(view?.type)) return [];
+    const f = view.filters || {};
+    const has = key => f[key] !== undefined && f[key] !== null && f[key] !== '';
+    for (const [key, collection] of [['areaId','areas'],['projectId','projects'],['tagId','tags']]) {
+      if (has(key) && (key === 'areaId' || view.type === 'tasks') && !(state[collection] || []).some(x=>x.id===f[key])) return [];
+    }
+    const same = (item,key) => !has(key) || item[key] === f[key];
+    return (state[view.type] || []).filter(item => {
+      if (has('areaId') && (view.type === 'tasks' ? effectiveTaskArea(item,state.projects) : item.areaId) !== f.areaId) return false;
+      if (view.type === 'tasks') return same(item,'projectId') && same(item,'priority') && same(item,'plannedDate') && same(item,'dueDate') && (!has('tagId') || (item.tagIds || []).includes(f.tagId)) && (!has('completion') || f.completion === 'open' && !item.isCompleted || f.completion === 'completed' && !!item.isCompleted);
+      if (view.type === 'goals') return same(item,'status') && same(item,'targetDate');
+      return same(item,'status') && same(item,'trackingType') && same(item,'frequencyType');
+    });
+  }
+
+  function normalizeShortcut(value) {
+    if (typeof value !== 'string' || !value.trim()) return null;
+    const parts=value.split('+').map(p=>p.trim().toLowerCase());
+    const aliases={ctrl:'Ctrl/Cmd',control:'Ctrl/Cmd',cmd:'Ctrl/Cmd',meta:'Ctrl/Cmd','ctrl/cmd':'Ctrl/Cmd',alt:'Alt',shift:'Shift'};
+    const modifiers=new Set(), keys=[];
+    for(const part of parts) { if(aliases[part])modifiers.add(aliases[part]); else keys.push(part); }
+    if(keys.length!==1 || !/^[a-z0-9/]$/.test(keys[0]))return null;
+    return [...['Ctrl/Cmd','Alt','Shift'].filter(m=>modifiers.has(m)),keys[0].toUpperCase()].join('+');
+  }
+
   function dateOnly(date = new Date()) {
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
   }
@@ -850,6 +876,8 @@
     migrateStateV3,
     validateStateV3,
     effectiveTaskArea,
+    applySavedView,
+    normalizeShortcut,
     normalizeTime,
     combineDateTime,
     normalizeTagName,

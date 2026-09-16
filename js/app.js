@@ -14,6 +14,9 @@
   const DATE_FMT = new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
   const SHORT_DATE_FMT = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' });
   const WEEKDAY_FMT = new Intl.DateTimeFormat(undefined, { weekday: 'long' });
+  const SHORTCUT_DEFAULTS = { newTask:'N', search:'Ctrl/Cmd+F', today:'T', inbox:'I', upcoming:'U', calendar:'C', goals:'G', habits:'H', templates:'Shift+T' };
+  const SHORTCUT_LABELS = {newTask:'New task',search:'Search',today:'Today',inbox:'Inbox',upcoming:'Upcoming',calendar:'Calendar',goals:'Goals',habits:'Habits',templates:'Templates'};
+  let shortcutError = '';
   const DATE_TIME_FMT = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 
   let state = null;
@@ -25,6 +28,8 @@
   let popoverEl = null;
   let undoState = null;
   let undoTimer = null;
+  let toastMessage = null;
+  let toastMessageTimer = null;
   let textSaveTimer = null;
   let lastToday = Core.dateOnly();
   let dragState = null;
@@ -100,9 +105,10 @@
       habits: [],
       templates: [],
       savedViews: [],
-      settings: { weekStartsOn: 'monday' },
+      settings: { weekStartsOn: 'monday', shortcuts: { ...SHORTCUT_DEFAULTS } },
       ui: {
         sidebarCollapsed: false,
+        sidebarSections: {},
         suggestionsExpanded: false,
         todayCompletedExpanded: false,
         projectCompletedExpanded: {},
@@ -177,6 +183,8 @@
     const next = migrated.state;
     next.settings = next.settings || { weekStartsOn: 'monday' };
     next.ui = next.ui || {};
+    next.ui.sidebarSections = next.ui.sidebarSections || {};
+    next.settings.shortcuts = Object.fromEntries(Object.entries(SHORTCUT_DEFAULTS).map(([key,value])=>[key,Object.hasOwn(next.settings.shortcuts || {},key) ? Core.normalizeShortcut(next.settings.shortcuts[key]) : value]));
     next.ui.sidebarCollapsed = Boolean(next.ui.sidebarCollapsed);
     next.ui.suggestionsExpanded = Boolean(next.ui.suggestionsExpanded);
     next.ui.todayCompletedExpanded = Boolean(next.ui.todayCompletedExpanded);
@@ -370,7 +378,8 @@
 
   function currentRoute() {
     const hash = location.hash.replace(/^#/, '') || 'today';
-    if (['today', 'inbox', 'upcoming', 'calendar', 'anytime', 'tags', 'areas', 'goals', 'habits', 'templates', 'archived', 'completed', 'settings'].includes(hash)) return { type: hash };
+    if (['today', 'inbox', 'upcoming', 'calendar', 'anytime', 'tags', 'areas', 'goals', 'habits', 'templates', 'projects', 'saved-views', 'archived', 'completed', 'settings'].includes(hash)) return { type: hash };
+    if (hash.startsWith('saved-view/')) return {type:'saved-view',id:decodeURIComponent(hash.slice('saved-view/'.length))};
     if (hash.startsWith('project/')) {
       const id = decodeURIComponent(hash.slice('project/'.length));
       if (getProject(id)) return { type: 'project', id };
@@ -446,6 +455,9 @@
     const collapsed = state.ui.sidebarCollapsed;
     const projects = sortedProjects();
     const pinnedAreas = sortedAreas().filter(area => area.status === 'active' && area.isPinned);
+    const moduleRoute = {project:'projects',area:'areas',goal:'goals',habit:'habits','saved-view':'saved-views'}[route.type];
+    const link = (path,icon,label) => navItem(path,icon,label,route.type === path || moduleRoute === path || path.startsWith(route.type+'/') && route.id === path.split('/')[1]);
+    const group = (key,label,body) => `<section class="sidebar-section" data-sidebar-section="${key}"><button class="sidebar-section-title sidebar-section-toggle" type="button" data-action="toggle-sidebar-section" data-section="${key}" aria-expanded="${!state.ui.sidebarSections[key]}" aria-controls="sidebar-${key}" title="${label}"><span>${label}</span><i class="ph ${state.ui.sidebarSections[key]?'ph-caret-right':'ph-caret-down'}"></i></button><div class="sidebar-section-body" id="sidebar-${key}" ${state.ui.sidebarSections[key]?'hidden':''}>${body}</div></section>`;
     $('#sidebar').innerHTML = `
       <div class="sidebar-header">
         <div class="brand" title="To Do prototype">
@@ -465,8 +477,8 @@
           <div class="task-context-drop tomorrow-drop-target" data-drop-plan="tomorrow" aria-label="Drop task to plan for tomorrow"><i class="ph ph-arrow-bend-down-right"></i><span>Tomorrow</span></div>
         </nav>
 
-        <section class="sidebar-section">
-          <div class="sidebar-section-title">Projects</div>
+        ${group('work','WORK',`
+          ${link('projects','ph-folder','Projects')}
           <div class="projects-list" data-drop-context="projects">
             ${projects.map(project => `
               <button class="project-item ${route.type === 'project' && route.id === project.id ? 'is-active' : ''}" type="button" data-route="project/${esc(project.id)}" data-project-id="${esc(project.id)}" data-drop-project-id="${esc(project.id)}" draggable="true" title="${esc(project.name)}">
@@ -477,18 +489,12 @@
           <button class="sidebar-action sidebar-new-project" type="button" data-action="new-project" title="New project">
             <i class="ph ph-plus"></i><span>New project</span>
           </button>
-        </section>
-
-        <section class="sidebar-section sidebar-tags-section">
-          <div class="sidebar-section-title">Work</div>
-          <button class="sidebar-action ${route.type === 'areas' || route.type === 'area' ? 'is-active' : ''}" type="button" data-route="areas" title="Areas"><i class="ph ph-squares-four"></i><span>Areas</span></button>
-          <button class="sidebar-action ${route.type === 'goals' || route.type === 'goal' ? 'is-active' : ''}" type="button" data-route="goals" title="Goals"><i class="ph ph-target"></i><span>Goals</span></button>
-          <button class="sidebar-action ${route.type === 'habits' || route.type === 'habit' ? 'is-active' : ''}" type="button" data-route="habits" title="Habits"><i class="ph ph-repeat"></i><span>Habits</span></button>
-          <button class="sidebar-action ${route.type === 'templates' ? 'is-active' : ''}" type="button" data-route="templates" title="Templates"><i class="ph ph-copy"></i><span>Templates</span></button>
-          ${pinnedAreas.length ? `<div class="pinned-areas-list">${pinnedAreas.map(area => `<button class="sidebar-action pinned-area ${route.type === 'area' && route.id === area.id ? 'is-active' : ''}" type="button" data-route="area/${esc(area.id)}" title="${esc(area.name)}"><i class="ph ${esc(area.icon)}" style="color:${esc(area.color)}"></i><span>${esc(area.name)}</span></button>`).join('')}</div>` : ''}
-          <div class="sidebar-section-title sidebar-subsection-title">Tags</div>
-          <button class="sidebar-action ${route.type === 'tags' ? 'is-active' : ''}" type="button" data-route="tags" title="Tags"><i class="ph ph-tag"></i><span>Tags</span></button>
-        </section>
+          ${link('areas','ph-squares-four','Areas')}${link('tags','ph-tag','Tags')}`)}
+        ${group('progress','PROGRESS',link('goals','ph-target','Goals')+link('habits','ph-repeat','Habits'))}
+        ${group('tools','TOOLS',link('templates','ph-copy','Templates')+link('saved-views','ph-funnel','Saved Views'))}
+        ${group('pinned-areas','PINNED AREAS',`<div class="pinned-areas-list">${pinnedAreas.map(area => `<button class="sidebar-action pinned-area ${route.type === 'area' && route.id === area.id ? 'is-active' : ''}" type="button" data-route="area/${esc(area.id)}" title="${esc(area.name)}"><i class="ph ${esc(area.icon)}" style="color:${esc(area.color)}"></i><span>${esc(area.name)}</span></button>`).join('')}</div>`)}
+        ${group('pinned-views','PINNED VIEWS',state.savedViews.filter(v=>v.isPinned).map(v=>link('saved-view/'+esc(v.id),'ph-funnel',esc(v.name))).join(''))}
+        ${group('more','MORE',link('completed','ph-check-circle','Completed')+link('archived','ph-archive','Archived Projects')+link('settings','ph-gear','Settings'))}
 
         <div class="sidebar-footer">
           <button class="sidebar-action" type="button" data-action="open-search" title="Search">
@@ -513,6 +519,9 @@
     const warning = storageError ? `<div class="global-warning"><i class="ph ph-warning-circle"></i> Changes couldn't be saved locally. Refreshing may cause data loss.</div>` : '';
     let content = '';
     if (route.type === 'templates') content = renderTemplates();
+    else if (route.type === 'saved-views') content = renderSavedViews();
+    else if (route.type === 'saved-view') content = renderSavedView(route.id);
+    else if (route.type === 'projects') content = renderProjects();
     else if (route.type === 'today') content = renderToday();
     else if (route.type === 'inbox') content = renderInbox();
     else if (route.type === 'upcoming') content = renderUpcoming();
@@ -952,6 +961,13 @@
         </div>
       </section>
       <section class="settings-card">
+        <h2>Keyboard shortcuts</h2>
+        <p class="area-empty-copy">Use a letter or digit with optional Ctrl/Cmd, Alt and Shift. Leave disabled commands unassigned.</p>
+        ${shortcutError?`<p class="validation" role="alert">${esc(shortcutError)}</p>`:''}
+        ${Object.entries(SHORTCUT_LABELS).map(([key,label])=>`<div class="settings-row shortcut-row"><label class="settings-label" for="shortcut-${key}"><strong>${label}</strong></label><input class="input shortcut-input" id="shortcut-${key}" data-shortcut="${key}" aria-label="${label} shortcut" placeholder="Disabled" value="${esc(state.settings.shortcuts[key] || '')}" /><button class="btn btn-secondary" data-action="save-shortcut" data-command="${key}">Save</button><button class="btn btn-ghost" data-action="disable-shortcut" data-command="${key}">Disable</button></div>`).join('')}
+        <button class="btn btn-secondary" data-action="reset-shortcuts">Reset to defaults</button>
+      </section>
+      <section class="settings-card">
         <h2>Notifications</h2>
         <div class="settings-row"><div class="settings-label"><strong>Browser reminders</strong><span>In-app reminders always work while the prototype is open. Browser notifications are optional.</span></div><button class="btn btn-secondary" type="button" data-action="enable-notifications">${typeof Notification === 'undefined' ? 'Unavailable' : (Notification.permission === 'granted' ? 'Enabled' : Notification.permission === 'denied' ? 'Blocked' : 'Enable')}</button></div>
       </section>
@@ -1174,6 +1190,7 @@
     else if (modalState.type === 'import-backup') root.innerHTML = renderImportBackupModal();
     else if (modalState.type === 'template') root.innerHTML = renderTemplateModal();
     else if (modalState.type === 'template-picker') root.innerHTML = renderTemplatePicker();
+    else if (modalState.type === 'saved-view') root.innerHTML = renderSavedViewModal();
     if (['quick','project','habit','goal'].includes(modalState.type) && !modalState.taskId && !modalState.projectId && !modalState.habitId && !modalState.goalId) {
       $('.modal-inner',root)?.insertAdjacentHTML('afterbegin','<button class="btn btn-ghost" type="button" data-action="from-template"><i class="ph ph-copy"></i> From template</button>');
     }
@@ -1185,6 +1202,66 @@
   }
 
   const TEMPLATE_TYPES = ['task','project','habit','goal'];
+  const SAVED_VIEW_TYPES = ['tasks','goals','habits'];
+  const SAVED_FILTER_KEYS = {tasks:['areaId','projectId','tagId','priority','plannedDate','dueDate','completion'],goals:['areaId','status','targetDate'],habits:['areaId','status','trackingType','frequencyType']};
+  function renderProjects() {
+    return pageHeader('Projects','Active projects',{add:false,actionHtml:'<button class="btn btn-primary" data-action="new-project">New project</button>'}) + sortedProjects().map(p=>`<button class="sidebar-action" data-route="project/${esc(p.id)}"><i class="ph ph-folder"></i><span>${esc(p.name)}</span></button>`).join('');
+  }
+  function savedViewActions(view) {
+    return `<div class="modal-footer-actions">${[['edit-saved-view','ph-pencil-simple','Edit view'],['duplicate-saved-view','ph-copy','Duplicate view'],['pin-saved-view','ph-push-pin',view.isPinned?'Unpin view':'Pin view'],['delete-saved-view','ph-trash','Delete view']].map(([action,icon,label])=>`<button class="btn-icon" type="button" data-action="${action}" data-saved-view-id="${esc(view.id)}" aria-label="${label}" title="${label}"><i class="ph ${icon}"></i></button>`).join('')}</div>`;
+  }
+  function renderSavedViews() {
+    return pageHeader('Saved Views','Reusable filters for one object type.',{add:false,actionHtml:'<button class="btn btn-primary" data-action="new-saved-view"><i class="ph ph-plus"></i> New saved view</button>'}) + `<section class="section">${state.savedViews.length?state.savedViews.map(view=>`<article class="goal-row" data-saved-view-row="${esc(view.id)}"><button class="goal-open" type="button" data-route="saved-view/${esc(view.id)}"><strong>${esc(view.name)}</strong><small>${esc(templateLabel(view.type))}${view.isPinned?' · Pinned':''}</small></button>${savedViewActions(view)}</article>`).join(''):'<p class="area-empty-copy">No saved views yet. Create a filter you can return to.</p>'}</section>`;
+  }
+  function renderSavedView(id) {
+    const view=state.savedViews.find(v=>v.id===id);
+    if(!view)return pageHeader('Saved View not found','This view may have been deleted.',{add:false});
+    const today=Core.dateOnly(),rows=Core.applySavedView(view,state,today);
+    const renderRow=item=>view.type==='tasks'?taskRow(item,'saved-view'):view.type==='goals'?renderGoalRow(item):renderHabitRow(item,item.status==='active'?Core.habitStatusForDate(item,state.habitLogCache?.[item.id] || [],today,today):null);
+    return pageHeader(view.name,`${rows.length} ${view.type}`,{add:false,actionHtml:savedViewActions(view)}) + `<section class="section" data-saved-results="${esc(id)}">${rows.length?rows.map(renderRow).join(''):'<p class="area-empty-copy">No matching items. Adjust this view’s filters to change the results.</p>'}</section>`;
+  }
+  function openSavedViewModal(id=null) {
+    closePopover();modalReturnFocus=document.activeElement;
+    const view=state.savedViews.find(v=>v.id===id);
+    modalState={type:'saved-view',savedViewId:id,draft:view?copyTemplate(view):{name:'',type:'tasks',filters:{},isPinned:false},error:''};
+    renderModal();requestAnimationFrame(()=>$('#saved-view-name')?.focus());
+  }
+  function readSavedViewDraft() {
+    const draft=modalState.draft;draft.name=$('#saved-view-name').value;draft.isPinned=$('#saved-view-pinned').checked;
+    draft.filters=Object.fromEntries($$('[data-saved-filter]').filter(e=>e.value).map(e=>[e.dataset.savedFilter,e.value]));
+  }
+  function renderSavedViewModal() {
+    const {draft,error}=modalState;
+    const choices={areaId:state.areas.map(a=>[a.id,a.name]),projectId:state.projects.map(p=>[p.id,p.name]),tagId:state.tags.map(t=>[t.id,t.name]),priority:['none','low','medium','high'].map(v=>[v,templateLabel(v)]),completion:[['open','Open'],['completed','Completed']],status:(draft.type==='goals'?['active','paused','completed','archived']:['active','paused','archived']).map(v=>[v,templateLabel(v)]),trackingType:[['checkbox','Checkbox'],['numeric','Numeric']],frequencyType:[['daily','Daily'],['weekdays','Selected weekdays'],['timesPerWeek','X times per week'],['everyNDays','Every N days']]};
+    const labels={areaId:'Area',projectId:'Project',tagId:'Tag',priority:'Priority',completion:'Completion',plannedDate:'Planned date (exact day)',dueDate:'Due date (exact day)',targetDate:'Target date (exact day)',status:'Status',trackingType:'Tracking',frequencyType:'Frequency'};
+    const fields=SAVED_FILTER_KEYS[draft.type].map(key=>{
+      let opts=choices[key];const value=draft.filters[key] || '';
+      if(opts && value && !opts.some(([v])=>v===value))opts=[...opts,[value,'Missing reference']];
+      return `<label class="field-label">${labels[key]}${opts?`<select class="input" data-saved-filter="${key}"><option value="">Any</option>${opts.map(([v,label])=>`<option value="${esc(v)}" ${v===value?'selected':''}>${esc(label)}</option>`).join('')}</select>`:`<input class="input" type="date" data-saved-filter="${key}" value="${esc(value)}" />`}</label>`;
+    }).join('');
+    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">${modalState.savedViewId?'Edit':'New'} saved view</h2><button class="btn-icon" data-action="close-modal" aria-label="Close"><i class="ph ph-x"></i></button></div><label class="field-label" for="saved-view-name">Name</label><input class="input" id="saved-view-name" value="${esc(draft.name)}" /><label class="field-label" for="saved-view-type">Object type</label><select class="input" id="saved-view-type">${SAVED_VIEW_TYPES.map(v=>`<option value="${v}" ${v===draft.type?'selected':''}>${templateLabel(v)}</option>`).join('')}</select><div class="template-fields">${fields}</div><label class="field-label"><input id="saved-view-pinned" type="checkbox" ${draft.isPinned?'checked':''} /> Pin to sidebar</label>${error?`<p class="validation" role="alert">${esc(error)}</p>`:''}<div class="modal-footer"><button class="btn btn-ghost" data-action="close-modal">Cancel</button><button class="btn btn-primary" data-action="save-saved-view">Save view</button></div></div>`,'quick');
+  }
+  function saveSavedView() {
+    readSavedViewDraft();const draft=modalState.draft;
+    if(!draft.name.trim()){modalState.error='Give this view a name.';renderModal();return;}
+    const existing=state.savedViews.find(v=>v.id===modalState.savedViewId);
+    const view={...draft,name:draft.name.trim(),id:existing?.id || uid('view'),createdAt:existing?.createdAt || nowIso(),updatedAt:nowIso()};
+    if(existing)state.savedViews.splice(state.savedViews.indexOf(existing),1,view);else state.savedViews.push(view);
+    saveState();closeModal();render();
+  }
+  function deleteSavedView(id) {
+    const index=state.savedViews.findIndex(v=>v.id===id);if(index<0)return;
+    const snapshot=copyTemplate(state.savedViews[index]);
+    openConfirm({title:`Delete “${snapshot.name}”?`,message:'Matching items will remain.',confirmLabel:'Delete view',onConfirm:()=>{state.savedViews=state.savedViews.filter(v=>v.id!==id);saveState();closeModal();render();setUndo('Saved view deleted',()=>{if(!state.savedViews.some(v=>v.id===id))state.savedViews.splice(Math.min(index,state.savedViews.length),0,snapshot);saveAndRender();});}});
+  }
+  function saveShortcut(command) {
+    const raw=$(`[data-shortcut="${command}"]`).value,value=Core.normalizeShortcut(raw);
+    shortcutError='';
+    if(!value)shortcutError='Use a letter or digit with optional Ctrl/Cmd, Alt and Shift, or choose Disable.';
+    else {const conflict=Object.keys(SHORTCUT_DEFAULTS).find(key=>key!==command && Core.normalizeShortcut(state.settings.shortcuts[key])===value);if(conflict)shortcutError=`Already assigned to ${SHORTCUT_LABELS[conflict]}. Choose another shortcut.`;}
+    if(shortcutError){render();return;}
+    state.settings.shortcuts[command]=value;saveAndRender();
+  }
   const copyTemplate = value => JSON.parse(JSON.stringify(value));
   const templateLabel = type => type[0].toUpperCase() + type.slice(1);
   function renderTemplates() {
@@ -1826,7 +1903,7 @@
 
   function openMoreMenu(anchor) {
     const route = currentRoute();
-    const html = `<button class="popover-option ${route.type === 'anytime' ? 'is-selected' : ''}" type="button" data-route="anytime"><i class="ph ph-infinity"></i>Anytime</button><button class="popover-option ${route.type === 'archived' ? 'is-selected' : ''}" type="button" data-route="archived"><i class="ph ph-archive"></i>Archived Projects</button><div class="popover-separator"></div><button class="popover-option ${route.type === 'completed' ? 'is-selected' : ''}" type="button" data-route="completed"><i class="ph ph-check-circle"></i>Completed</button><button class="popover-option ${route.type === 'settings' ? 'is-selected' : ''}" type="button" data-route="settings"><i class="ph ph-gear"></i>Settings</button>`;
+    const html = `<button class="popover-option ${route.type === 'anytime' ? 'is-selected' : ''}" type="button" data-route="anytime"><i class="ph ph-infinity"></i>Anytime</button><button class="popover-option ${route.type === 'archived' ? 'is-selected' : ''}" type="button" data-action="more-route" data-more-route="archived"><i class="ph ph-archive"></i>Archived Projects</button><div class="popover-separator"></div><button class="popover-option ${route.type === 'completed' ? 'is-selected' : ''}" type="button" data-action="more-route" data-more-route="completed"><i class="ph ph-check-circle"></i>Completed</button><button class="popover-option ${route.type === 'settings' ? 'is-selected' : ''}" type="button" data-action="more-route" data-more-route="settings"><i class="ph ph-gear"></i>Settings</button>`;
     openPopover(anchor, html, { type: 'more' });
   }
 
@@ -2061,8 +2138,9 @@
 
   function renderToast() {
     const root = $('#toast-root');
-    if (!undoState) { root.innerHTML = ''; return; }
-    root.innerHTML = `<div class="toast"><i class="ph-fill ph-check-circle toast-icon"></i><span class="toast-message">${esc(undoState.message)}</span><button class="toast-action" type="button" data-action="undo">Undo</button></div>`;
+    const undo = undoState ? `<div class="toast"><i class="ph-fill ph-check-circle toast-icon"></i><span class="toast-message">${esc(undoState.message)}</span><button class="toast-action" type="button" data-action="undo">Undo</button></div>` : '';
+    const info = toastMessage ? `<div class="toast"><i class="ph ph-info toast-icon" style="color:var(--info)"></i><span class="toast-message">${esc(toastMessage)}</span></div>` : '';
+    root.innerHTML = undo + info;
   }
 
   function doUndo() {
@@ -2709,9 +2787,15 @@
   }
 
   function setToastMessage(message) {
-    const root = $('#toast-root');
-    root.innerHTML = `<div class="toast"><i class="ph ph-info toast-icon" style="color:var(--info)"></i><span class="toast-message">${esc(message)}</span></div>`;
-    setTimeout(() => { if (!undoState) root.innerHTML = ''; }, 3000);
+    clearTimeout(toastMessageTimer);
+    toastMessage = message;
+    renderToast();
+    // Information has its own lifetime; it must never replace/finalize Undo.
+    toastMessageTimer = setTimeout(() => {
+      toastMessage = null;
+      toastMessageTimer = null;
+      renderToast();
+    }, 3000);
   }
 
   function showTaskProjectPicker(taskId, anchor) { openProjectPicker(anchor, { type: 'task', taskId }); }
@@ -2743,6 +2827,17 @@
     }
     const action = el.dataset.action;
     if(action==='from-template')openTemplatePicker();
+    else if(action==='new-saved-view')openSavedViewModal();
+    else if(action==='edit-saved-view')openSavedViewModal(el.dataset.savedViewId);
+    else if(action==='save-saved-view')saveSavedView();
+    else if(action==='delete-saved-view')deleteSavedView(el.dataset.savedViewId);
+    else if(action==='duplicate-saved-view'){const source=state.savedViews.find(v=>v.id===el.dataset.savedViewId);if(source){const view=copyTemplate(source);view.id=uid('view');view.name+=' copy';view.createdAt=view.updatedAt=nowIso();state.savedViews.push(view);saveAndRender();}}
+    else if(action==='pin-saved-view'){const view=state.savedViews.find(v=>v.id===el.dataset.savedViewId);if(view){view.isPinned=!view.isPinned;view.updatedAt=nowIso();saveAndRender();}}
+    else if(action==='toggle-sidebar-section'){const key=el.dataset.section;state.ui.sidebarSections[key]=!state.ui.sidebarSections[key];saveAndRender();}
+    else if(action==='save-shortcut')saveShortcut(el.dataset.command);
+    else if(action==='disable-shortcut'){state.settings.shortcuts[el.dataset.command]=null;shortcutError='';saveAndRender();}
+    else if(action==='reset-shortcuts'){state.settings.shortcuts={...SHORTCUT_DEFAULTS};shortcutError='';saveAndRender();}
+    else if(action==='more-route'){closePopover();navigate(el.dataset.moreRoute);}
     else if(action==='choose-template')chooseTemplate(el.dataset.templateId);
     else if(action==='template-picker-back'){modalState=modalState.previous;renderModal();}
     else if(action==='new-template')openTemplateModal();
@@ -2966,6 +3061,18 @@
   }
 
   function handleChange(event) {
+    if (modalState?.type === 'saved-view' && event.target.id === 'saved-view-type') {
+      readSavedViewDraft();
+      const draft = modalState.draft;
+      draft.type = event.target.value;
+      draft.filters = Object.fromEntries(Object.entries(draft.filters).filter(([key]) => SAVED_FILTER_KEYS[draft.type].includes(key)));
+      const statuses = draft.type === 'goals' ? ['active','paused','completed','archived'] : ['active','paused','archived'];
+      if (draft.filters.status && !statuses.includes(draft.filters.status)) delete draft.filters.status;
+      modalState.error = '';
+      renderModal();
+      $('#saved-view-type')?.focus();
+      return;
+    }
     if(modalState?.type==='template' && event.target.dataset.templateField?.endsWith('goalIds')){readTemplateDraft();renderModal();return;}
     if (event.target.matches('[data-calendar-visibility]')) { state.ui.calendarVisibility = { tasks: true, habits: true, goals: true, milestones: true, ...(state.ui.calendarVisibility || {}), [event.target.dataset.calendarVisibility]: event.target.checked }; saveAndRender(); return; }
     if (event.target.matches('[data-task-time]')) { updateTask(event.target.dataset.taskId, { [event.target.dataset.taskTime]: Core.normalizeTime(event.target.value) }, false); render(); return; }
@@ -2997,7 +3104,7 @@
 
   function handleKeydown(event) {
     const target = event.target;
-    const typing = target && (target.matches('input, textarea, select') || target.isContentEditable);
+    const typing = target && (target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"]') || target.isContentEditable);
 
     if (modalState && event.key === 'Tab') {
       const modal = $('#modal-root .modal');
@@ -3026,20 +3133,14 @@
       if (modalState) { event.preventDefault(); closeModal(); return; }
     }
 
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'f' && !typing) {
-      event.preventDefault(); openSearch(); return;
-    }
-
-    if (!typing && !modalState && !popoverEl && !event.ctrlKey && !event.metaKey && !event.altKey) {
-      const key = event.key.toLowerCase();
-      if (key === '/') { event.preventDefault(); openSearch(); return; }
-      if (key === 't') { event.preventDefault(); navigate('today'); return; }
-      if (key === 'i') { event.preventDefault(); navigate('inbox'); return; }
-      if (key === 'u') { event.preventDefault(); navigate('upcoming'); return; }
-    }
-
-    if (!typing && !event.ctrlKey && !event.metaKey && !event.altKey && event.key.toLowerCase() === 'n') {
-      event.preventDefault(); openQuickAdd(); return;
+    if (!typing && !modalState && !popoverEl && !event.repeat && !event.isComposing) {
+      // Alt/Option can turn a letter into a glyph (for example Y → ¥).
+      const physicalKey = /^Key[A-Z]$/.test(event.code || '') ? event.code.slice(3) : /^Digit[0-9]$/.test(event.code || '') ? event.code.slice(5) : event.key;
+      const combination=Core.normalizeShortcut([event.ctrlKey || event.metaKey?'Ctrl/Cmd':null,event.altKey?'Alt':null,event.shiftKey?'Shift':null,physicalKey].filter(Boolean).join('+'));
+      const command=Object.keys(SHORTCUT_DEFAULTS).find(key=>combination && state.settings.shortcuts[key]===combination);
+      if(command){event.preventDefault();if(command==='newTask')openQuickAdd();else if(command==='search')openSearch();else navigate(command);return;}
+      // Preserve the existing convenient Search alias, without bypassing suppression.
+      if(state.settings.shortcuts.search !== null && event.key==='/' && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey){event.preventDefault();openSearch();return;}
     }
 
     if (modalState?.type === 'quick' && target?.id === 'quick-title' && event.key === 'Enter') {

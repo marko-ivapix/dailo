@@ -138,20 +138,20 @@ Full plan: `docs/superpowers/plans/2026-09-16-todo-v1-3.md`
 
 ## Phase 9 — Saved Views/sidebar/shortcuts
 
-- [ ] Saved Views route.
-- [ ] Task filters.
-- [ ] Goal filters.
-- [ ] Habit filters.
-- [ ] Add/Edit/Delete/Duplicate.
-- [ ] Pin/unpin.
-- [ ] Final sidebar groups.
-- [ ] Collapsible group persistence.
-- [ ] Pinned Areas.
-- [ ] Pinned Views.
-- [ ] Default keyboard shortcuts.
-- [ ] Shortcut remapping.
-- [ ] Conflict validation.
-- [ ] Reset shortcut defaults.
+- [x] Saved Views route.
+- [x] Task filters.
+- [x] Goal filters.
+- [x] Habit filters.
+- [x] Add/Edit/Delete/Duplicate.
+- [x] Pin/unpin.
+- [x] Final sidebar groups.
+- [x] Collapsible group persistence.
+- [x] Pinned Areas.
+- [x] Pinned Views.
+- [x] Default keyboard shortcuts.
+- [x] Shortcut remapping.
+- [x] Conflict validation.
+- [x] Reset shortcut defaults.
 
 ## Phase 10 — Advanced recurring tasks
 

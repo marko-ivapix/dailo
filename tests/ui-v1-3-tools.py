@@ -1,12 +1,134 @@
-"""Templates: real static UI, disposable HTTP origin, native growing stores."""
+"""Tools: real static UI, disposable HTTP origin, native growing stores."""
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from threading import Thread
 from pathlib import Path
 import shutil
-from playwright.sync_api import sync_playwright
+import sys
+from playwright.sync_api import sync_playwright, expect
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def saved_views_and_shortcuts(page, ready, route, click, persisted):
+    seed={'version':3,'areas':[{'id':'work','name':'Work','status':'active','isPinned':True},{'id':'home','name':'Home','status':'active'}],'projects':[{'id':'work-p','name':'Work project','areaId':'work'},{'id':'home-p','name':'Home project','areaId':'home'}],'tags':[{'id':'focus','name':'Focus'}],'tasks':[],'goals':[],'habits':[],'templates':[],'savedViews':[],'settings':{},'ui':{}}
+    base={'priority':'high','tagIds':['focus'],'plannedDate':'2026-10-24','dueDate':'2026-10-25','isCompleted':False,'notes':'Notes','subtasks':[]}
+    seed['tasks']=[dict(base,id='direct',title='Direct work',projectId=None,areaId='work'),dict(base,id='inherited',title='Inherited work',projectId='work-p',areaId=None),dict(base,id='home-task',title='Home task',projectId='home-p',areaId=None),dict(base,id='done',title='Done task',projectId=None,areaId='work',isCompleted=True,completedAt='2026-10-24T09:00:00Z')]
+    seed['tasks'] += [dict(base,id='negative-'+k,title='Wrong '+k,areaId='work',projectId=None,**{k:v}) for k,v in [('priority','low'),('tagIds',[]),('plannedDate','2026-10-23'),('dueDate','2026-10-23')]]
+    seed['tasks'].append(dict(base,id='reminder-task',title='Reminder delivery',areaId='home',projectId=None,plannedDate=None,dueDate=None,reminderAt='2026-10-24T13:00:00Z'))
+    seed['tasks'] += [dict(base,id='date-'+str(i),title='Date '+str(i),areaId='home',projectId=None,plannedDate=d,dueDate=d) for i,d in enumerate(['2026-10-23','2026-10-24','2026-10-25',None])]
+    seed['goals']=[{'id':'g-match','title':'Work active goal','areaId':'work','status':'active','targetDate':'2026-10-24'},{'id':'g-paused','title':'Work paused goal','areaId':'work','status':'paused','targetDate':'2026-10-25'},{'id':'g-home','title':'Home goal','areaId':'home','status':'active','targetDate':'2026-10-24'}]
+    seed['habits']=[{'id':'h-match','name':'Work active habit','areaId':'work','status':'active','trackingType':'checkbox','frequencyType':'daily','startDate':'2026-10-01'},{'id':'h-paused','name':'Work paused habit','areaId':'work','status':'paused'},{'id':'h-home','name':'Home habit','areaId':'home','status':'active'}]
+    page.goto(page.url.replace('/index.html','/vendor/'))
+    page.evaluate('s=>localStorage.setItem("todoAppData",JSON.stringify(s))',seed)
+    page.goto(page.url.replace('/vendor/','/index.html'))
+    page.reload();ready();route('saved-views')
+    assert page.evaluate('TodoApp.state.areas.map(a=>a.id)')==['work','home']
+    assert page.locator('.page-title').inner_text()=='Saved Views'
+    def svfield(key,value):
+        control=page.locator('[data-saved-filter="'+key+'"]')
+        if control.evaluate('e=>e.tagName')=='SELECT':control.select_option(value)
+        else:control.fill(value)
+    def author(name,kind,filters,pin=False):
+        click('new-saved-view');page.fill('#saved-view-name',name);page.select_option('#saved-view-type',kind)
+        for key,value in filters.items():svfield(key,value)
+        if pin:page.check('#saved-view-pinned')
+        click('save-saved-view');persisted('.savedViews.some(v=>v.name==='+repr(name)+')')
+        return page.evaluate('n=>TodoApp.state.savedViews.find(v=>v.name===n).id',name)
+    def results(ident,kind,want):
+        route('saved-view/'+ident)
+        box=page.locator('[data-saved-results]')
+        selector={'tasks':'.task-row','goals':'.goal-row','habits':'.habit-row'}[kind]
+        assert box.locator(selector).count()==len(want),box.inner_text()
+        for title in want:assert title in box.inner_text()
+        for other in ['tasks','goals','habits']:
+            if other!=kind:assert box.locator({'tasks':'.task-row','goals':'.goal-row','habits':'.habit-row'}[other]).count()==0
+    task=author('Focus work','tasks',{'areaId':'work','tagId':'focus','priority':'high','completion':'open','plannedDate':'2026-10-24','dueDate':'2026-10-25'},True)
+    results(task,'tasks',['Direct work','Inherited work'])
+    # Consume normal row open/completion actions, not an alternate saved-result state.
+    page.locator('[data-saved-results] [data-action="open-task"]').first.click();assert page.locator('#detail-title').count()==1;page.keyboard.press('Escape');page.keyboard.press('Escape')
+    page.locator('[data-saved-results] [data-action="toggle-complete"]').first.click();persisted('.tasks.find(t=>t.id==="direct").isCompleted');assert page.locator('[data-saved-results] .task-row').count()==1
+    route('completed');page.locator('[data-action="toggle-complete"][data-task-id="direct"]').click();persisted('.tasks.find(t=>t.id==="direct").isCompleted===false')
+    route('saved-views');row=page.locator('[data-saved-view-row="'+task+'"]');row.locator('[data-action="edit-saved-view"]').click();svfield('projectId','work-p');click('save-saved-view');results(task,'tasks',['Inherited work'])
+    route('saved-views');row.locator('[data-action="duplicate-saved-view"]').click();copy=page.evaluate('TodoApp.state.savedViews.find(v=>v.name==="Focus work copy").id');copyrow=page.locator('[data-saved-view-row="'+copy+'"]')
+    assert page.evaluate('ids=>{const a=TodoApp.state.savedViews.find(v=>v.id===ids[0]),b=TodoApp.state.savedViews.find(v=>v.id===ids[1]);return a.type===b.type && a.isPinned===b.isPinned && JSON.stringify(a.filters)===JSON.stringify(b.filters) && a.filters!==b.filters}',[task,copy])
+    copyrow.locator('[data-action="edit-saved-view"]').click();page.fill('#saved-view-name','Independent copy');svfield('projectId','');svfield('areaId','home');click('save-saved-view');results(copy,'tasks',['Home task']);results(task,'tasks',['Inherited work'])
+    route('saved-views');copyrow.locator('[data-action="delete-saved-view"]').click();click('close-modal');assert copyrow.count()==1
+    copyrow.locator('[data-action="delete-saved-view"]').click();click('confirm-action');persisted('.savedViews.every(v=>v.id!=='+repr(copy)+')');click('undo');persisted('.savedViews.some(v=>v.id==='+repr(copy)+')');results(copy,'tasks',['Home task'])
+    route('saved-views');goal=author('Goal work','goals',{'areaId':'work','status':'active','targetDate':'2026-10-24'});results(goal,'goals',['Work active goal']);page.locator('[data-saved-results] [data-route="goal/g-match"]').click();expect(page.locator('.page-title')).to_have_text('Work active goal');assert page.locator('#sidebar [data-route="goals"].is-active').count()==1
+    route('saved-views');habit=author('Habit work','habits',{'areaId':'work','status':'active'});results(habit,'habits',['Work active habit']);page.locator('[data-saved-results] [data-action="habit-checkin"]').click();page.wait_for_function('TodoApp.state.habitLogCache["h-match"]?.some(l=>l.date==="2026-10-24" && l.status==="done")');page.locator('[data-saved-results] [data-route="habit/h-match"]').click();expect(page.locator('.page-title')).to_have_text('Work active habit')
+    route('saved-views');dateview=author('Exact date','tasks',{'areaId':'home','plannedDate':'2026-10-24','dueDate':'2026-10-24'});results(dateview,'tasks',['Date 1'])
+    route('saved-views');page.locator('[data-saved-view-row="'+dateview+'"] [data-action="edit-saved-view"]').click();page.select_option('#saved-view-type','goals');svfield('status','active');click('save-saved-view');assert page.evaluate('id=>TodoApp.state.savedViews.find(v=>v.id===id).filters',dateview)=={'areaId':'home','status':'active'}
+    page.locator('[data-saved-view-row="'+dateview+'"] [data-action="edit-saved-view"]').click();svfield('status','completed');page.select_option('#saved-view-type','habits');click('save-saved-view');assert page.evaluate('id=>TodoApp.state.savedViews.find(v=>v.id===id).filters',dateview)=={'areaId':'home'}
+    print('PASS: Saved Views task intersection/inheritance, exact dates, Goal/Habit filters, normal result actions, CRUD/confirmation/full Undo, duplicate independence and type cleanup (10 cases)')
+    sidebar=page.locator('#sidebar')
+    route('area/work');click('area-menu');page.locator('[data-pop-action="unpin-area"]').click();assert sidebar.locator('[data-route="area/work"]').count()==0;click('area-menu');page.locator('[data-pop-action="pin-area"]').click();persisted('.areas.find(a=>a.id==="work").isPinned')
+    assert sidebar.locator('[data-sidebar-section]').evaluate_all('es=>es.map(e=>e.dataset.sidebarSection)')==['work','progress','tools','pinned-areas','pinned-views','more']
+    assert sidebar.locator('.nav-group [data-route]').evaluate_all('es=>es.map(e=>e.dataset.route)')==['today','inbox','upcoming','calendar']
+    assert sidebar.locator('[data-sidebar-section="pinned-areas"] [data-route="area/work"]').count()==1
+    assert sidebar.locator('[data-sidebar-section="pinned-views"] [data-route="saved-view/'+task+'"]').count()==1
+    sections=['work','progress','tools','pinned-areas','pinned-views','more']
+    for section in sections:sidebar.locator('[data-action="toggle-sidebar-section"][data-section="'+section+'"]').click()
+    page.reload();ready()
+    for section in sections:assert not sidebar.locator('[data-sidebar-section="'+section+'"] .sidebar-section-body').is_visible()
+    sidebar.locator('[data-action="toggle-sidebar-section"][data-section="work"]').click();page.reload();ready();assert sidebar.locator('[data-sidebar-section="work"] .sidebar-section-body').is_visible()
+    route('saved-views');row.locator('[data-action="pin-saved-view"]').click();assert sidebar.locator('[data-route="saved-view/'+task+'"]').count()==0;row.locator('[data-action="pin-saved-view"]').click();persisted('.savedViews.find(v=>v.id==='+repr(task)+').isPinned')
+    print('PASS: ordered sidebar/daily links, independent pin/unpin, all six collapsed groups and expanded-state real reload (4 cases)')
+    for destination,title in [('anytime','Anytime'),('archived','Archived Projects'),('completed','Completed'),('settings','Settings')]:
+        click('more-menu')
+        page.locator('.popover [data-route="anytime"]' if destination=='anytime' else '.popover [data-more-route="'+destination+'"]').click()
+        expect(page.locator('.page-title')).to_have_text(title)
+    print('PASS: preserved More trigger and all four visible More/Anytime navigation paths (1 case)')
+    defaults={'newTask':'N','search':'Ctrl/Cmd+F','today':'T','inbox':'I','upcoming':'U','calendar':'C','goals':'G','habits':'H','templates':'Shift+T'}
+    for command,binding in defaults.items():
+        route('saved-views');page.locator('.page-title').click();page.keyboard.press('ControlOrMeta+F' if command=='search' else binding)
+        if command=='newTask':expect(page.locator('#quick-title')).to_be_focused();page.keyboard.press('Escape')
+        elif command=='search':expect(page.locator('#search-query')).to_be_focused();page.keyboard.press('Escape')
+        else:page.wait_for_function('v=>location.hash==="#"+v',arg=command);expect(page.locator('.page-title')).to_have_text(command.capitalize())
+    def shortcut(command,value):
+        page.locator('[data-shortcut="'+command+'"]').fill(value);page.locator('[data-action="save-shortcut"][data-command="'+command+'"]').click()
+    route('settings');shortcut('today','y+alt');assert page.locator('[data-shortcut="today"]').input_value()=='Alt+Y'
+    shortcut('inbox','ALT+y');assert page.locator('[role="alert"]').count()==1;assert page.evaluate('TodoApp.state.settings.shortcuts.inbox')=='I'
+    shortcut('inbox','meta+f');assert page.locator('[role="alert"]').count()==1;assert page.evaluate('TodoApp.state.settings.shortcuts.inbox')=='I'
+    page.locator('[data-action="disable-shortcut"][data-command="habits"]').click();persisted('.settings.shortcuts.habits===null');page.reload();ready();assert page.locator('[data-shortcut="today"]').input_value()=='Alt+Y';assert page.locator('[data-shortcut="habits"]').input_value()==''
+    route('inbox');page.locator('.page-title').click();page.keyboard.press('T');assert page.evaluate('location.hash')=='#inbox';page.keyboard.press('H');assert page.evaluate('location.hash')=='#inbox';page.keyboard.press('Alt+Y');page.wait_for_function('location.hash==="#today"')
+    route('inbox');page.locator('.page-title').dispatch_event('keydown',{'key':'¥','code':'KeyY','altKey':True,'bubbles':True});page.wait_for_function('location.hash==="#today"')
+    route('inbox');page.locator('.page-title').dispatch_event('keydown',{'key':'y','altKey':True,'bubbles':True});page.wait_for_function('location.hash==="#today"')
+    route('inbox');page.locator('.page-title').dispatch_event('keydown',{'key':'¥','code':'KeyY','altKey':True,'isComposing':True,'bubbles':True});assert page.evaluate('location.hash')=='#inbox'
+    route('settings');shortcut('today','Alt+8');route('inbox');page.locator('.page-title').dispatch_event('keydown',{'key':'∞','code':'Digit8','altKey':True,'bubbles':True});page.wait_for_function('location.hash==="#today"')
+    route('settings');page.locator('[data-action="disable-shortcut"][data-command="search"]').click();persisted('.settings.shortcuts.search===null');route('inbox');page.locator('.page-title').click();page.keyboard.press('/');assert page.locator('#search-query').count()==0;page.keyboard.press('ControlOrMeta+F');assert page.locator('#search-query').count()==0
+    route('settings');shortcut('today','/');shortcut('search','Ctrl/Cmd+F');shortcut('search','/');assert page.locator('[role="alert"]').count()==1;assert page.evaluate('TodoApp.state.settings.shortcuts.search')=='Ctrl/Cmd+F';route('inbox');page.locator('.page-title').click();page.keyboard.press('/');page.wait_for_function('location.hash==="#today"');assert page.locator('#search-query').count()==0
+    route('settings');click('reset-shortcuts');assert page.evaluate('TodoApp.state.settings.shortcuts')==defaults
+    route('inbox');page.locator('.page-title').click();page.keyboard.press('/');expect(page.locator('#search-query')).to_be_focused();page.keyboard.press('Escape')
+    route('inbox');page.locator('.page-title').click();page.keyboard.press('T');page.wait_for_function('location.hash==="#today"');page.keyboard.press('H');page.wait_for_function('location.hash==="#habits"');page.keyboard.press('Alt+Y');assert page.evaluate('location.hash')=='#habits'
+    print('PASS: nine actual defaults, portable alias conflict, remap/old key, disable/reset/reload, modified macOS code/fallback and disabled Search/slash ownership (19 cases)')
+    def blocked(selector):
+        control=page.locator(selector);control.focus();before=page.evaluate('location.hash');search_count=page.locator('#search-query').count();page.keyboard.press('T');page.keyboard.press('N');page.keyboard.press('C');page.keyboard.press('G');page.keyboard.press('Shift+T');page.keyboard.press('ControlOrMeta+F');assert page.evaluate('location.hash')==before,(selector,'route changed');assert page.locator('#quick-title').count()==0,(selector,'quick opened');assert page.locator('#search-query').count()==search_count,(selector,'search changed');assert control.evaluate('e=>e===document.activeElement'),(selector,page.evaluate('document.activeElement.outerHTML'))
+    route('settings');blocked('[data-shortcut="today"]')
+    route('saved-views');click('new-saved-view');expect(page.locator('#saved-view-name')).to_be_focused();blocked('#saved-view-name');blocked('#saved-view-type');page.fill('#saved-view-name','');click('save-saved-view');assert page.locator('[role="alert"]').count()==1;click('close-modal')
+    route('inbox');click('open-search');blocked('#search-query');page.keyboard.press('Escape')
+    route('saved-view/'+task);page.locator('[data-action="open-task"]').first.click();blocked('#detail-notes');blocked('#detail-title');page.keyboard.press('Escape');page.keyboard.press('Escape')
+    # Native contenteditable descendant guards the DOM contract; no app editor uses contenteditable today.
+    page.evaluate('()=>{let e=document.createElement("div");e.id="editable-probe";e.contentEditable="true";e.textContent="Editable";document.querySelector("#main").append(e)}');blocked('#editable-probe');page.locator('.page-title').click();page.keyboard.press('T');page.wait_for_function('location.hash==="#today"')
+    route('saved-views');page.locator('[data-action="new-saved-view"]').click();expect(page.locator('#saved-view-name')).to_be_focused();page.locator('[data-action="save-saved-view"]').focus();before=page.evaluate('location.hash');page.keyboard.press('H');assert page.evaluate('location.hash')==before;assert page.locator('#saved-view-name').count()==1;page.keyboard.press('Escape');expect(page.locator('[data-action="new-saved-view"]')).to_be_focused()
+    page.reload();ready();assert page.evaluate('TodoCore.validateStateV3(JSON.parse(localStorage.getItem("todoAppData"))).ok')
+    print('PASS: input/textarea/select/contenteditable/search/task editor/modal-button suppression and Escape focus return (8 cases)')
+    route('tags');click('tag-menu');page.locator('[data-pop-action="delete-tag"]').click();click('confirm-action');persisted('.tags.length===0');results(task,'tasks',[])
+    print('PASS: a deleted referenced filter target returns zero rendered results rather than broadening (1 case)')
+    route('saved-views')
+    page.clock.install(time='2026-10-24T12:00:00+02:00')
+    copyrow=page.locator('[data-saved-view-row="'+copy+'"]')
+    copyrow.locator('[data-action="delete-saved-view"]').click();click('confirm-action');persisted('.savedViews.every(v=>v.id!=='+repr(copy)+')')
+    page.clock.set_system_time('2026-10-24T15:01:00+02:00')
+    page.evaluate('TodoApp.checkReminders()')
+    assert page.locator('#toast-root').inner_text().find('Reminder: Reminder delivery')>=0
+    assert page.locator('[data-action="undo"]').count()==1
+    page.clock.run_for(3100)
+    assert page.locator('[data-action="undo"]').count()==1
+    click('undo');persisted('.savedViews.some(v=>v.id==='+repr(copy)+')')
+    # A subsequent normal deletion retains the original full 6500ms window.
+    copyrow.locator('[data-action="delete-saved-view"]').click();click('confirm-action');page.clock.run_for(6400);assert page.locator('[data-action="undo"]').count()==1;page.clock.run_for(101);assert page.locator('[data-action="undo"]').count()==0
+    print('PASS: actually due reminder stays perceivable with Undo, info timer does not shorten Undo, persisted restoration and original 6500ms expiry (2 cases)')
 
 
 def main():
@@ -36,6 +158,12 @@ def main():
                     errors = []
                     page.on('pageerror', lambda e: errors.append(str(e)))
                     url = f'http://127.0.0.1:{server.server_port}/index.html'
+                    page.goto(url)
+                    page.wait_for_function('window.TodoApp && TodoApp.ready')
+                    page.evaluate('TodoApp.ready')
+                    expect(page.locator('.page-title')).to_have_text('Today')
+                    assert page.locator('#sidebar [data-sidebar-section]').count()==6
+                    print('PASS: native empty-storage Today-first startup and six sidebar groups (1 case)')
                     page.goto(url.replace('/index.html', '/vendor/'))
                     seed = {'version': 3, 'tasks': [], 'projects': [], 'tags': [{'id':'tag','name':'Tag'}], 'areas':[{'id':'a','name':'Area','status':'active'}], 'goals':[], 'habits':[], 'templates':[], 'savedViews':[], 'settings':{'weekStartsOn':'monday'}, 'ui':{}}
                     seed['projects']=[{'id':'p','name':'Source project','areaId':'a','goalIds':['g'],'isArchived':False}]
@@ -62,9 +190,22 @@ def main():
                     def click(action):
                         page.locator(f'[data-action="{action}"]').first.click()
                     def field(path, value):
-                        page.locator(f'[data-template-field="{path}"]').fill(str(value))
+                        # The editor queues name autofocus; observe that queued frame
+                        # completing before keyboard-backed fill targets another field.
+                        page.evaluate('()=>new Promise(resolve=>requestAnimationFrame(resolve))')
+                        control=page.locator(f'[data-template-field="{path}"]')
+                        control.fill(str(value))
+                        assert control.input_value()==str(value)
                     def persisted(expr):
-                        page.wait_for_function('JSON.parse(localStorage.getItem("todoAppData"))'+expr)
+                        try:
+                            page.wait_for_function('JSON.parse(localStorage.getItem("todoAppData"))'+expr)
+                        except Exception:
+                            print('Persistence failure:',expr,page.evaluate('({route:location.hash,templates:TodoApp.state?.templates?.map(t=>({id:t.id,name:t.name})),toast:document.querySelector("#toast-root").innerText,modal:document.querySelector("#modal-root").innerText})'))
+                            raise
+                    if '--task10-only' in sys.argv:
+                        saved_views_and_shortcuts(page,ready,route,click,persisted)
+                        assert not errors, errors
+                        return
                     # All four real source menus save snapshots into type-specific editors.
                     for kind, entity_route, action, ident in [('task','completed','task-menu','t'),('project','project/p','project-menu','p'),('habit','habit/h','habit-menu','h'),('goal','goal/g','goal-menu','g')]:
                         route(entity_route)
@@ -165,6 +306,8 @@ def main():
                     page.reload();ready();assert page.evaluate('TodoCore.validateStateV3(JSON.parse(localStorage.getItem("todoAppData"))).ok')
                     assert not errors, errors
                     print('PASS: all-type CRUD, nested draft Undo, missing references, DST wall time, relative rebasing and instance independence')
+                    saved_views_and_shortcuts(page,ready,route,click,persisted)
+                    assert not errors, errors
                 finally:
                     context.close()
             finally:

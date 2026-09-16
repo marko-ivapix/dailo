@@ -2,6 +2,47 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const Core = require('../js/core.js');
 
+test('saved view filters exactly one object type and intersects inherited area and all task predicates', () => {
+  const base={projectId:'p',areaId:null,priority:'high',tagIds:['tag'],plannedDate:'2026-09-16',dueDate:'2026-09-17',isCompleted:false};
+  const state={areas:[{id:'a1'},{id:'a2'}],projects:[{id:'p',areaId:'a1'},{id:'other',areaId:'a2'}],tags:[{id:'tag'}],tasks:[
+    {id:'match',...base},{id:'direct',...base,projectId:null,areaId:'a1'},
+    ...Object.entries({priority:'low',projectId:'other',tagIds:[],plannedDate:'2026-09-15',dueDate:'2026-09-16',isCompleted:true}).map(([key,value])=>({id:key,...base,[key]:value}))
+  ],goals:[{id:'not-task',areaId:'a1'}],habits:[{id:'not-task-either',areaId:'a1'}]};
+  const view={type:'tasks',filters:{areaId:'a1',priority:'high',completion:'open',tagId:'tag',plannedDate:'2026-09-16',dueDate:'2026-09-17'}};
+  assert.deepEqual(Core.applySavedView(view,state,'2026-09-16').map(x=>x.id),['match','direct']);
+  assert.equal(Core.applySavedView(view,state,'2026-09-16')[0],state.tasks[0]);
+  assert.deepEqual(Core.applySavedView({...view,filters:{...view.filters,projectId:'p'}},state,'2026-09-16').map(x=>x.id),['match']);
+  for(const key of ['areaId','projectId','tagId'])assert.deepEqual(Core.applySavedView({...view,filters:{[key]:'missing'}},state,'2026-09-16'),[]);
+  assert.deepEqual(Core.applySavedView({type:'mixed',filters:{}},state,'2026-09-16'),[]);
+});
+
+test('saved view date filters match exact local days and exclude before after and undated', () => {
+  const state={tasks:['2026-09-15','2026-09-16','2026-09-17',null].map((d,i)=>({id:String(i),plannedDate:d,dueDate:d})),goals:[],habits:[]};
+  for(const key of ['plannedDate','dueDate'])assert.deepEqual(Core.applySavedView({type:'tasks',filters:{[key]:'2026-09-16'}},state,'2026-09-16').map(x=>x.id),['1']);
+});
+
+test('saved goal view intersects area status and exact target date without mixing types', () => {
+  const base={areaId:'a1',status:'active',targetDate:'2026-09-16'};
+  const state={areas:[{id:'a1'}],tasks:[base],habits:[base],goals:[{id:'match',...base},...Object.entries({areaId:'a2',status:'paused',targetDate:'2026-09-17'}).map(([k,v])=>({id:k,...base,[k]:v})),{id:'before',...base,targetDate:'2026-09-15'},{id:'null',...base,targetDate:null}]};
+  assert.deepEqual(Core.applySavedView({type:'goals',filters:base},state,'2026-09-16').map(x=>x.id),['match']);
+  assert.deepEqual(Core.applySavedView({type:'goals',filters:{areaId:'missing'}},state,'2026-09-16'),[]);
+});
+
+test('saved habit view intersects area status and supported tracking and frequency metadata', () => {
+  const base={areaId:'a1',status:'active',trackingType:'numeric',frequencyType:'daily'};
+  const state={areas:[{id:'a1'}],tasks:[base],goals:[base],habits:[{id:'match',...base},...Object.entries({areaId:'a2',status:'paused',trackingType:'checkbox',frequencyType:'weekdays'}).map(([k,v])=>({id:k,...base,[k]:v}))]};
+  assert.deepEqual(Core.applySavedView({type:'habits',filters:base},state,'2026-09-16').map(x=>x.id),['match']);
+  assert.deepEqual(Core.applySavedView({type:'habits',filters:{areaId:'missing'}},state,'2026-09-16'),[]);
+});
+
+test('shortcut normalization treats portable aliases case and modifier order as one assignment', () => {
+  for(const value of ['Ctrl+f','Control+F','cmd+f','Meta+F','F+Ctrl/Cmd'])assert.equal(Core.normalizeShortcut(value),'Ctrl/Cmd+F');
+  assert.equal(Core.normalizeShortcut('y+alt+SHIFT'),'Alt+Shift+Y');
+  assert.equal(Core.normalizeShortcut(null),null);
+  assert.equal(Core.normalizeShortcut('Ctrl+Shift'),null);
+  assert.equal(Core.normalizeShortcut('Escape'),null);
+});
+
 test('task template offsets resolve from instantiation date', () => {
   const tpl = { type:'task', data:{ title:'Proposal', plannedOffsetDays:0, dueOffsetDays:3 } };
   const out = Core.instantiateTemplate(tpl, '2026-09-20', { taskId:'new-task' });
