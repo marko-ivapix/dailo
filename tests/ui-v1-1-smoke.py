@@ -81,7 +81,7 @@ def main():
         page.click('[data-action="task-repeat-picker"]')
         page.click('[data-pop-action="set-repeat"][data-frequency="weekly"]')
         repeat = page.evaluate(f"window.TodoApp.state.tasks.find(t => t.id === '{task_id}').recurrence")
-        assert repeat == {'frequency': 'weekly', 'interval': 1}
+        assert repeat == {'frequency': 'weekly', 'interval': 1, 'status':'active', 'endType':'never', 'endDate':None, 'endAfterOccurrences':None, 'occurrencesCreated':0, 'skipNext':False, 'seriesId':task_id}
         page.click('[data-action="close-modal"]')
 
         # Completing recurring task creates the next active occurrence.

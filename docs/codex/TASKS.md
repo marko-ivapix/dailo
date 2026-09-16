@@ -155,16 +155,16 @@ Full plan: `docs/superpowers/plans/2026-09-16-todo-v1-3.md`
 
 ## Phase 10 — Advanced recurring tasks
 
-- [ ] Pause recurrence.
-- [ ] Resume recurrence.
-- [ ] Skip next occurrence.
-- [ ] End recurrence.
-- [ ] End on date.
-- [ ] End after N occurrences.
-- [ ] Edit recurrence.
-- [ ] This occurrence scope.
-- [ ] This and future scope.
-- [ ] Verify previous occurrences unchanged.
+- [x] Pause recurrence.
+- [x] Resume recurrence.
+- [x] Skip next occurrence.
+- [x] End recurrence.
+- [x] End on date.
+- [x] End after N occurrences.
+- [x] Edit recurrence.
+- [x] This occurrence scope.
+- [x] This and future scope.
+- [x] Verify previous occurrences unchanged.
 
 ## Phase 11 — Universal deletion
 

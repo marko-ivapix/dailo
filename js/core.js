@@ -60,7 +60,8 @@
     let data;
     if (type === 'task') {
       data = pick(['title','notes','projectId','areaId','goalIds','tagIds','priority','plannedTime','dueTime']);
-      data.recurrence = entity.recurrence ? { frequency: entity.recurrence.frequency, interval: entity.recurrence.interval } : null;
+      const rule = normalizeRecurrenceV3(entity.recurrence);
+      data.recurrence = rule ? {frequency:rule.frequency,interval:rule.interval,endType:rule.endType,endAfterOccurrences:rule.endAfterOccurrences,endOffsetDays:templateOffset(rule.endDate,contextDate)} : null;
       data.plannedOffsetDays = templateOffset(entity.plannedDate, contextDate);
       data.dueOffsetDays = templateOffset(entity.dueDate, contextDate);
       data.subtasks = (entity.subtasks || []).map((s, order) => ({ title:s.title, order, isCompleted:false, completedAt:null }));
@@ -106,13 +107,15 @@
     const links = (key,values) => [...new Set((values || []).filter(id => live(key,id)))];
     const common = {createdAt:ts,updatedAt:ts};
     const configs=(d.goalLinkConfigs || []).filter(c=>(d.goalIds || []).includes(c.goalId) && live('goals',c.goalId));
-    const task = (data, taskId, projectId = live('projects',data.projectId)) => ({
-      ...common,id:taskId || makeId('task'),title:data.title || '',notes:data.notes || '',projectId,areaId:projectId ? null : live('areas',data.areaId),goalIds:links('goals',data.goalIds),tagIds:links('tags',data.tagIds),priority:data.priority || 'none',
+    const task = (data, taskId, projectId = live('projects',data.projectId)) => {
+      const id=taskId || makeId('task');
+      return {
+      ...common,id,title:data.title || '',notes:data.notes || '',projectId,areaId:projectId ? null : live('areas',data.areaId),goalIds:links('goals',data.goalIds),tagIds:links('tags',data.tagIds),priority:data.priority || 'none',
       plannedDate:resolve(data.plannedOffsetDays),dueDate:resolve(data.dueOffsetDays),plannedTime:normalizeTime(data.plannedTime),dueTime:normalizeTime(data.dueTime),
       reminderAt:resolve(data.reminderOffsetDays) && normalizeTime(data.reminderTime) ? combineDateTime(resolve(data.reminderOffsetDays), data.reminderTime) : null,reminderFiredAt:null,
-      recurrence:data.recurrence?.frequency ? {frequency:data.recurrence.frequency,interval:data.recurrence.interval || 1} : null,attachmentIds:[],isCompleted:false,completedAt:null,isInbox:!(projectId || resolve(data.plannedOffsetDays)),todayOrder:null,projectOrder:null,inboxOrder:null,
+      recurrence:freshRecurrence({...data.recurrence,endDate:resolve(data.recurrence?.endOffsetDays)},id),recurrenceBaseline:null,recurrenceSuccessorId:null,attachmentIds:[],isCompleted:false,completedAt:null,isInbox:!(projectId || resolve(data.plannedOffsetDays)),todayOrder:null,projectOrder:null,inboxOrder:null,
       subtasks:(data.subtasks || []).map((s,order)=>({id:makeId('sub'),title:s.title,order,isCompleted:false,completedAt:null})),
-    });
+    };};
     if (template.type === 'task') return {task:task(d,ids.taskId)};
     if (template.type === 'project') {
       const project = {...common,id:ids.projectId || makeId('project'),name:d.name || '',color:d.color || '#5362FF',areaId:live('areas',d.areaId),goalIds:links('goals',d.goalIds),isArchived:false,archivedAt:null,order:null};
@@ -278,6 +281,38 @@
     return { frequency, interval };
   }
 
+  function normalizeRecurrenceV3(value) {
+    const rule=normalizeRecurrence(value);if(!rule)return null;
+    const positive=value=>Number.isInteger(Number(value)) && Number(value)>0 ? Number(value) : null;
+    return {...rule,status:['active','paused','ended'].includes(value.status)?value.status:'active',endType:['never','date','afterOccurrences'].includes(value.endType)?value.endType:'never',endDate:typeof value.endDate==='string' && parseDateOnly(value.endDate) && dateOnly(parseDateOnly(value.endDate))===value.endDate ? value.endDate:null,endAfterOccurrences:positive(value.endAfterOccurrences),occurrencesCreated:Math.max(0,Math.floor(Number(value.occurrencesCreated)||0)),skipNext:value.skipNext===true,seriesId:typeof value.seriesId==='string' && value.seriesId.trim()?value.seriesId:null};
+  }
+  function freshRecurrence(value,id) {
+    const rule=normalizeRecurrenceV3(value);
+    return rule?{...rule,status:'active',occurrencesCreated:0,skipNext:false,seriesId:id}:null;
+  }
+  function shouldGenerateRecurrence(value,occurrenceDate) {
+    const rule=normalizeRecurrenceV3(value);
+    if(!rule || rule.status!=='active')return false;
+    if(rule.endType==='date' && (!rule.endDate || !occurrenceDate || occurrenceDate>rule.endDate))return false;
+    if(rule.endType==='afterOccurrences' && (!rule.endAfterOccurrences || rule.occurrencesCreated+1>=rule.endAfterOccurrences))return false;
+    return true;
+  }
+  function splitRecurrenceForFuture(task,changes,effectiveDate) {
+    const baseline=task.recurrenceBaseline;
+    const clone=templateCopy(task),rule=normalizeRecurrenceV3(changes.recurrence===undefined?(baseline || task).recurrence:changes.recurrence);
+    Object.assign(clone,templateCopy(changes));
+    clone.recurrence=rule?{...rule,seriesId:`${task.id}_branch_${effectiveDate}_${globalThis.crypto.randomUUID()}`}:null;
+    clone.recurrenceBaseline=baseline?{...templateCopy(baseline),...templateCopy(changes),recurrence:templateCopy(clone.recurrence)}:null;
+    if(clone.recurrenceBaseline) {
+      for(const key of ['plannedDate','dueDate'])if(changes[key] && task[key] && baseline[key])clone.recurrenceBaseline[key]=addDays(baseline[key],templateOffset(changes[key],task[key]));
+      if(changes.reminderAt && task.reminderAt && baseline.reminderAt) {
+        const after=new Date(changes.reminderAt),before=new Date(task.reminderAt),base=new Date(baseline.reminderAt);
+        clone.recurrenceBaseline.reminderAt=combineDateTime(addDays(dateOnly(base),templateOffset(dateOnly(after),dateOnly(before))),`${pad(after.getHours())}:${pad(after.getMinutes())}`);
+      }
+    }
+    return clone;
+  }
+
   function nextRecurrenceDate(value, recurrence) {
     const normalized = normalizeRecurrence(recurrence);
     const date = parseDateOnly(value);
@@ -314,27 +349,34 @@
   }
 
   function buildNextRecurringTask(task, nowIso, newId) {
-    const recurrence = normalizeRecurrence(task && task.recurrence);
+    const source=task?.recurrenceBaseline || task;
+    const recurrence = normalizeRecurrenceV3(source && source.recurrence);
     if (!task || !recurrence) return null;
     const now = new Date(nowIso);
     const nowDate = Number.isNaN(now.getTime()) ? dateOnly() : dateOnly(new Date(now.getFullYear(), now.getMonth(), now.getDate()));
-    let plannedDate = task.plannedDate ? nextRecurrenceDate(task.plannedDate, recurrence) : null;
-    const dueDate = task.dueDate ? nextRecurrenceDate(task.dueDate, recurrence) : null;
-    if (!plannedDate && !dueDate) plannedDate = nextRecurrenceDate(nowDate, recurrence);
+    const advance=value=>{let next=nextRecurrenceDate(value,recurrence);if(recurrence.skipNext)next=nextRecurrenceDate(next,recurrence);return next;};
+    let plannedDate = source.plannedDate ? advance(source.plannedDate) : null;
+    const dueDate = source.dueDate ? advance(source.dueDate) : null;
+    if (!plannedDate && !dueDate) plannedDate = advance(nowDate);
+    if(!shouldGenerateRecurrence(recurrence,plannedDate || dueDate))return null;
     const id = String(newId || `task_${Date.now().toString(36)}`);
+    let reminderAt=source.reminderAt?advanceIsoTimestamp(source.reminderAt,recurrence):null;
+    if(reminderAt && recurrence.skipNext)reminderAt=advanceIsoTimestamp(reminderAt,recurrence);
     return {
-      ...task,
+      ...templateCopy(source),
       id,
       plannedDate,
       dueDate,
-      reminderAt: task.reminderAt ? advanceIsoTimestamp(task.reminderAt, recurrence) : null,
+      reminderAt,
       reminderFiredAt: null,
-      recurrence,
+      recurrence:{...recurrence,seriesId:recurrence.seriesId || task.id,occurrencesCreated:recurrence.occurrencesCreated+1,skipNext:false},
+      recurrenceBaseline:null,
+      recurrenceSuccessorId:null,
       attachmentIds: [],
       isInbox: false,
       isCompleted: false,
       completedAt: null,
-      subtasks: (task.subtasks || []).map((subtask, index) => ({
+      subtasks: (source.subtasks || []).map((subtask, index) => ({
         ...subtask,
         id: `${id}_sub_${index}_${Math.random().toString(36).slice(2, 7)}`,
         isCompleted: false,
@@ -657,6 +699,9 @@
     return {
       ...task,
       id,
+      recurrence:freshRecurrence(task.recurrence,id),
+      recurrenceBaseline:null,
+      recurrenceSuccessorId:null,
       isCompleted: false,
       completedAt: null,
       attachmentIds: [],
@@ -798,13 +843,16 @@
     state.habits = Array.isArray(state.habits) ? state.habits : [];
     state.templates = Array.isArray(state.templates) ? state.templates : [];
     state.savedViews = Array.isArray(state.savedViews) ? state.savedViews : [];
-    state.tasks = state.tasks.map(task => ({
+    state.tasks = state.tasks.map(task => {
+      const recurrence=normalizeRecurrenceV3(task.recurrence);
+      return {
       ...task,
       areaId: task.areaId || null,
       goalIds: Array.isArray(task.goalIds) ? task.goalIds : [],
       plannedTime: normalizeTime(task.plannedTime),
       dueTime: normalizeTime(task.dueTime),
-    }));
+      recurrence:recurrence?{...recurrence,seriesId:recurrence.seriesId || task.id}:null,
+    };});
     state.projects = state.projects.map(project => ({
       ...project,
       areaId: project.areaId || null,
@@ -867,6 +915,9 @@
     deriveCalendarWeek,
     deriveCalendarMonthSummary,
     nextRecurrenceDate,
+    normalizeRecurrenceV3,
+    shouldGenerateRecurrence,
+    splitRecurrenceForFuture,
     buildNextRecurringTask,
     isReminderDue,
     filterCompleted,

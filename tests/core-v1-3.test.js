@@ -2,6 +2,58 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const Core = require('../js/core.js');
 
+const recurringFixture = (rule={}) => ({id:'r1',title:'Series title',notes:'Series notes',plannedDate:'2026-10-01',dueDate:'2026-10-04',plannedTime:'08:00',dueTime:'17:00',reminderAt:'2026-10-02T09:00:00.000Z',goalIds:['g1','g2'],subtasks:[],recurrence:{frequency:'weekly',interval:1,...rule}});
+test('V3 recurrence normalizes legacy configuration without guessing operational identity',()=>{
+  const source={frequency:'weekly',interval:2};
+  assert.deepEqual(Core.normalizeRecurrenceV3(source),{frequency:'weekly',interval:2,status:'active',endType:'never',endDate:null,endAfterOccurrences:null,occurrencesCreated:0,skipNext:false,seriesId:null});
+  assert.deepEqual(source,{frequency:'weekly',interval:2});
+  const state={version:3,tasks:[{...recurringFixture(),goalIds:[]},{...recurringFixture(),id:'unrelated',goalIds:[]}],projects:[],tags:[],areas:[],goals:[],habits:[],templates:[],savedViews:[],settings:{},ui:{}};
+  const migrated=Core.migrateStateV3(state).state;
+  assert.equal(migrated.tasks[0].recurrence.seriesId,'r1');assert.equal(migrated.tasks[1].recurrence.seriesId,'unrelated');
+  assert.equal(Core.migrateStateV3(migrated).state.tasks[0].recurrence.seriesId,'r1');
+});
+test('paused and ended recurrence create no successor',()=>{
+  for(const status of ['paused','ended'])assert.equal(Core.buildNextRecurringTask(recurringFixture({status}),'2026-10-01T12:00:00Z','r2'),null);
+});
+test('skip advances exactly an extra interval and consumes no created-count slot',()=>{
+  const source=recurringFixture({skipNext:true});
+  const next=Core.buildNextRecurringTask(source,'2026-10-01T12:00:00Z','r2');
+  assert.equal(next.plannedDate,'2026-10-15');assert.equal(next.dueDate,'2026-10-18');assert.equal(next.reminderAt,'2026-10-16T09:00:00.000Z');
+  assert.equal(next.recurrence.skipNext,false);assert.equal(next.recurrence.occurrencesCreated,1);assert.equal(next.recurrence.seriesId,'r1');
+  assert.equal(Core.buildNextRecurringTask(next,'2026-10-15T12:00:00Z','r3').plannedDate,'2026-10-22');assert.equal(source.recurrence.skipNext,true);
+});
+test('inclusive end date and total N including initial stop generation exactly at boundary',()=>{
+  const dateRule={frequency:'daily',interval:1,endType:'date',endDate:'2026-10-03'};
+  assert.equal(Core.shouldGenerateRecurrence(dateRule,'2026-10-03'),true);assert.equal(Core.shouldGenerateRecurrence(dateRule,'2026-10-04'),false);
+  for(const rule of [dateRule,{frequency:'daily',interval:1,endType:'afterOccurrences',endAfterOccurrences:3}]){
+    let current={...recurringFixture(rule),dueDate:null,reminderAt:null};const dates=[current.plannedDate];
+    for(let i=2;i<6;i++){const next=Core.buildNextRecurringTask(current,'2026-10-01T12:00:00Z','r'+i);if(!next)break;dates.push(next.plannedDate);current=next;}
+    assert.deepEqual(dates,['2026-10-01','2026-10-02','2026-10-03']);
+  }
+  assert.equal(Core.buildNextRecurringTask(recurringFixture({endType:'afterOccurrences',endAfterOccurrences:1}),'2026-10-01T12:00:00Z','r2'),null);
+});
+test('monthly skip uses two clamped calendar steps consistently for dates and reminder',()=>{
+  const next=Core.buildNextRecurringTask({...recurringFixture({frequency:'monthly',skipNext:true}),plannedDate:'2026-01-31',dueDate:null,reminderAt:'2026-01-31T09:00:00.000Z'},'2026-01-31T12:00:00Z','r2');
+  assert.equal(next.plannedDate,'2026-03-28');assert.equal(next.reminderAt,'2026-03-28T09:00:00.000Z');
+});
+test('future split is independent and occurrence-only generation uses original baseline',()=>{
+  const source=recurringFixture({seriesId:'series-A'});const snapshot=JSON.stringify(source);
+  const branch=Core.splitRecurrenceForFuture(source,{title:'Future',recurrence:{frequency:'daily',interval:2}},'2026-10-01');
+  assert.equal(branch.title,'Future');assert.equal(branch.plannedDate,'2026-10-01');assert.notEqual(branch.recurrence.seriesId,'series-A');assert.equal(JSON.stringify(source),snapshot);
+  const occurrence={...source,title:'Only me',plannedDate:'2026-10-06',recurrence:{...source.recurrence,frequency:'monthly'},recurrenceBaseline:JSON.parse(snapshot)};
+  const next=Core.buildNextRecurringTask(occurrence,'2026-10-01T12:00:00Z','r2');assert.equal(next.title,'Series title');assert.equal(next.plannedDate,'2026-10-08');assert.equal(next.recurrence.frequency,'weekly');assert.equal(next.recurrenceBaseline,null);
+  const mixed=Core.splitRecurrenceForFuture(occurrence,{title:'Future title'},'2026-10-01');
+  assert.equal(mixed.plannedDate,'2026-10-06');const mixedNext=Core.buildNextRecurringTask(mixed,'2026-10-01T12:00:00Z','mixed-next');assert.equal(mixedNext.title,'Future title');assert.equal(mixedNext.plannedDate,'2026-10-08');assert.equal(mixedNext.recurrence.frequency,'weekly');
+});
+test('duplicate and template instances reset recurrence runtime and preserve their different date policies',()=>{
+  const source=recurringFixture({status:'paused',endType:'date',endDate:'2026-10-29',occurrencesCreated:2,skipNext:true,seriesId:'old'});
+  const duplicate=Core.cloneTaskForDuplicate(source,'copy','2026-11-10T12:00:00Z');
+  assert.deepEqual(duplicate.recurrence,{frequency:'weekly',interval:1,status:'active',endType:'date',endDate:'2026-10-29',endAfterOccurrences:null,occurrencesCreated:0,skipNext:false,seriesId:'copy'});assert.equal(duplicate.plannedDate,'2026-10-01');
+  const template=Core.templateFromEntity('task',source,{},'2026-10-01');assert.equal(template.data.recurrence.endOffsetDays,28);assert.equal(template.data.recurrence.endDate,undefined);
+  const instance=Core.instantiateTemplate(template,'2026-11-10',{taskId:'instance'}).task;
+  assert.equal(instance.recurrence.endDate,'2026-12-08');assert.equal(instance.recurrence.status,'active');assert.equal(instance.recurrence.occurrencesCreated,0);assert.equal(instance.recurrence.skipNext,false);assert.equal(instance.recurrence.seriesId,'instance');assert.equal(instance.plannedDate,'2026-11-10');assert.equal(instance.dueDate,'2026-11-13');
+});
+
 test('saved view filters exactly one object type and intersects inherited area and all task predicates', () => {
   const base={projectId:'p',areaId:null,priority:'high',tagIds:['tag'],plannedDate:'2026-09-16',dueDate:'2026-09-17',isCompleted:false};
   const state={areas:[{id:'a1'},{id:'a2'}],projects:[{id:'p',areaId:'a1'},{id:'other',areaId:'a2'}],tags:[{id:'tag'}],tasks:[

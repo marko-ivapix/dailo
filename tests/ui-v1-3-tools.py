@@ -9,6 +9,88 @@ from playwright.sync_api import sync_playwright, expect
 
 ROOT = Path(__file__).resolve().parents[1]
 
+def recurrence_workflows(page,ready,route,click,persisted):
+    seed={'version':3,'tasks':[],'projects':[{'id':'p','name':'Project'}],'tags':[{'id':'tag','name':'Tag'}],'areas':[{'id':'a','name':'Area','status':'active'}],'goals':[{'id':'g1','title':'First goal','progressMode':'linkedTasks','taskIds':['r1']},{'id':'g2','title':'Second goal','progressMode':'linkedTasks','taskIds':['r1'],'projectLinks':[{'projectId':'p','contributionMode':'selectedTasks','selectedTaskIds':['r1']}]}],'habits':[],'templates':[],'savedViews':[],'settings':{},'ui':{}}
+    base={'title':'Recurring source','notes':'Original notes','projectId':'p','plannedDate':'2026-10-24','dueDate':'2026-10-27','plannedTime':'08:00','dueTime':'17:00','reminderAt':'2026-10-25T08:30:00+01:00','goalIds':['g1','g2'],'tagIds':[],'subtasks':[],'recurrence':{'frequency':'weekly','interval':1,'seriesId':'series-A'}}
+    def seed_tasks(tasks):
+        page.goto(page.url.split('/index.html')[0]+'/vendor/');data=dict(seed,tasks=tasks);page.evaluate('s=>localStorage.setItem("todoAppData",JSON.stringify(s))',data);page.goto(page.url.replace('/vendor/','/index.html'));ready();route('project/p')
+    def task(ident):return page.evaluate('id=>TodoApp.state.tasks.find(t=>t.id===id)',ident)
+    def open_task(ident):
+        item=task(ident);route('completed' if item['isCompleted'] else 'project/'+item['projectId'] if item['projectId'] else 'today');page.locator('[data-action="open-task"][data-task-id="'+ident+'"]').first.click();expect(page.locator('#detail-title')).to_have_value(task(ident)['title']);page.evaluate('()=>new Promise(resolve=>requestAnimationFrame(resolve))')
+    def scope(value):
+        expect(page.locator('[data-action="recurrence-scope"][data-scope="'+value+'"]')).to_be_visible();page.locator('[data-action="recurrence-scope"][data-scope="'+value+'"]').click()
+    def complete(ident):
+        if page.locator('#detail-title').count():page.keyboard.press('Escape')
+        route('project/p');page.locator('[data-action="toggle-complete"][data-task-id="'+ident+'"]').first.click();persisted('.tasks.find(t=>t.id==='+repr(ident)+').isCompleted')
+    def repeat(ident,action):
+        if not page.locator('#detail-title').count():open_task(ident)
+        click('task-repeat-picker');page.locator('[data-pop-action="'+action+'"]').click()
+    def menu(ident):
+        if page.locator('#detail-title').count():page.keyboard.press('Escape');page.keyboard.press('Escape')
+        page.locator('[data-action="task-menu"][data-task-id="'+ident+'"]').first.click()
+    def template_field(path,value):
+        page.evaluate('()=>new Promise(resolve=>requestAnimationFrame(resolve))');control=page.locator('[data-template-field="'+path+'"]');control.fill(value);expect(control).to_have_value(value)
+    seed_tasks([dict(base,id='r1',recurrence=None)]);open_task('r1');page.fill('#detail-title','Normal title');page.locator('#detail-notes').focus();expect(page.locator('#detail-notes')).to_be_focused();assert task('r1')['title']=='Normal title';page.fill('#detail-notes','Normal notes');assert task('r1')['notes']=='Normal notes';assert page.locator('[data-action="recurrence-scope"]').count()==0;page.keyboard.press('Escape');page.keyboard.press('Escape');expect(page.locator('#detail-title')).to_have_count(0)
+    seed_tasks([dict(base,id='r1')]);open_task('r1');page.fill('#detail-title','Only this title');page.locator('#detail-notes').focus();assert task('r1')['title']=='Recurring source';scope('occurrence');expect(page.locator('#detail-title')).to_have_value('Only this title')
+    page.fill('#detail-notes','Only these notes');assert task('r1')['notes']=='Original notes';page.locator('#detail-title').focus();scope('occurrence')
+    click('task-plan-picker');page.locator('[data-pop-action="set-plan"][data-date="2026-10-25"]').click();assert task('r1')['plannedDate']=='2026-10-24';scope('occurrence')
+    click('task-due-picker');page.locator('[data-pop-action="set-due"][data-date="2026-10-25"]').click();scope('occurrence')
+    page.locator('[data-task-time="plannedTime"]').fill('10:00');scope('occurrence')
+    page.locator('[data-task-time="dueTime"]').fill('19:00');scope('occurrence')
+    click('task-tags-picker');page.locator('[data-pop-action="toggle-tag"]').click();assert task('r1')['tagIds']==[];scope('occurrence')
+    click('task-priority-picker');page.locator('[data-pop-action="set-priority"][data-priority="high"]').click();scope('occurrence')
+    click('task-reminder-picker');page.locator('[data-pop-action="show-custom-reminder"]').click();page.fill('#custom-reminder-input','2026-10-26T14:00');page.locator('[data-pop-action="custom-reminder-apply"]').click();scope('occurrence')
+    page.fill('#detail-subtask','Only this child');page.keyboard.press('Enter');assert task('r1')['subtasks']==[];scope('occurrence')
+    click('task-repeat-picker');page.locator('[data-pop-action="set-repeat"][data-frequency="daily"]').click();scope('occurrence')
+    complete('r1');successors=page.evaluate('TodoApp.state.tasks.filter(t=>t.id!=="r1")');assert len(successors)==1;successor=successors[0];assert successor['title']=='Recurring source' and successor['notes']=='Original notes';assert successor['plannedDate']=='2026-10-31' and successor['dueDate']=='2026-11-03';assert successor['plannedTime']=='08:00' and successor['dueTime']=='17:00';assert successor['recurrence']['frequency']=='weekly'
+    assert successor['tagIds']==[] and successor['priority']=='none' and successor['subtasks']==[];assert page.evaluate('v=>[TodoCore.dateOnly(new Date(v)),new Date(v).getHours(),new Date(v).getMinutes()]',successor['reminderAt'])==['2026-11-01',8,30]
+    for goal in page.evaluate('TodoApp.state.goals'):assert successor['id'] in goal['taskIds']
+    assert page.evaluate('TodoApp.state.goals[1].projectLinks[0].selectedTaskIds')==['r1']
+    click('undo');persisted('.tasks.length===1');assert task('r1')['recurrence']['occurrencesCreated']==0;assert task('r1')['recurrenceSuccessorId'] is None;assert page.evaluate('TodoApp.state.goals.map(g=>g.taskIds)')==[['r1'],['r1']]
+    complete('r1');page.reload();ready();assert len(page.evaluate('TodoApp.state.tasks'))==2;next_id=page.evaluate('TodoApp.state.tasks.find(t=>t.id!=="r1").id');assert page.evaluate('id=>TodoApp.state.goals.every(g=>g.taskIds.includes(id))',next_id)
+    route('completed');page.locator('[data-action="toggle-complete"][data-task-id="r1"]').click();complete('r1');assert len(page.evaluate('TodoApp.state.tasks'))==2
+    print('PASS: ordinary focus/autosave plus recurring title/notes/date/independent-time/rule/tag/priority/reminder/subtask scope, NEW baseline successor, multiple Goal rebind/reload/Undo and reopen prevention (15 cases)')
+    siblings=[dict(base,id='r1'),dict(base,id='future',plannedDate='2026-10-31',dueDate='2026-11-03'),dict(base,id='past',plannedDate='2026-10-17'),dict(base,id='done',plannedDate='2026-11-07',isCompleted=True,completedAt='2026-10-24T08:00:00Z'),dict(base,id='other',recurrence={'frequency':'weekly','interval':1})]
+    seed_tasks(siblings);unchanged={id:task(id) for id in ['past','done','other']};open_task('r1');page.fill('#detail-title','Future title');page.locator('#detail-notes').focus();scope('future');assert task('future')['title']=='Future title';branch=task('r1')['recurrence']['seriesId'];assert branch!='series-A' and task('future')['recurrence']['seriesId']==branch
+    click('task-plan-picker');page.locator('[data-pop-action="set-plan"][data-date="2026-10-25"]').click();scope('future');assert task('future')['plannedDate']=='2026-11-01' and task('future')['dueDate']=='2026-11-03'
+    click('task-due-picker');page.locator('[data-pop-action="set-due"][data-date="2026-10-25"]').click();scope('future');assert task('future')['dueDate']=='2026-11-01' and task('future')['plannedDate']=='2026-11-01'
+    click('task-repeat-picker');page.locator('[data-pop-action="set-repeat"][data-frequency="daily"]').click();scope('future');assert task('future')['plannedDate']=='2026-11-01';assert task('future')['recurrence']['frequency']=='daily'
+    for id,value in unchanged.items():assert task(id)==value
+    page.reload();ready();assert task('other')['recurrence']['seriesId']=='other';assert task('r1')['recurrence']['seriesId']==task('future')['recurrence']['seriesId']
+    open_task('r1');page.fill('#detail-title','Canceled');page.locator('#detail-notes').focus();expect(page.locator('[data-action="recurrence-scope"]')).to_have_count(2);page.keyboard.press('Escape');assert task('r1')['title']=='Future title',task('r1')['title'];expect(page.locator('#detail-title')).to_be_focused();page.keyboard.press('Escape');page.keyboard.press('Escape');expect(page.locator('#detail-title')).to_have_count(0)
+    print('PASS: This and future pending-only branch, independent planned/due deltas, rule-only dates, legacy identity reload and scope Escape/focus (6 cases)')
+    seed_tasks([dict(base,id='r1',dueDate=None),dict(base,id='future',plannedDate='2026-10-31',dueDate=None,reminderAt=None)]);open_task('r1');click('task-due-picker');page.locator('[data-pop-action="set-due"][data-date="2026-10-25"]').click();scope('future');assert task('future')['dueDate']=='2026-11-01';assert task('future')['plannedDate']=='2026-10-31'
+    click('task-reminder-picker');page.locator('[data-pop-action="show-custom-reminder"]').click();page.fill('#custom-reminder-input','2026-10-26T14:00');page.locator('[data-pop-action="custom-reminder-apply"]').click();scope('future');assert page.evaluate('v=>[TodoCore.dateOnly(new Date(v)),new Date(v).getHours()]',task('future')['reminderAt'])==['2026-11-02',14]
+    seed_tasks([dict(base,id='r1')]);open_task('r1');click('task-repeat-picker');page.locator('[data-pop-action="set-repeat"][data-frequency=""]').click();scope('occurrence');assert task('r1')['recurrence'] is None;page.fill('#detail-title','Still just this');page.locator('#detail-notes').focus();scope('occurrence');complete('r1');assert page.evaluate('TodoApp.state.tasks.find(t=>!t.isCompleted).title')=='Recurring source';assert page.evaluate('TodoApp.state.tasks.find(t=>!t.isCompleted).plannedDate')=='2026-10-31'
+    seed_tasks([dict(base,id='r1')]);open_task('r1');page.fill('#detail-title','Occurrence only');page.locator('#detail-notes').focus();scope('occurrence');click('task-repeat-picker');page.locator('[data-pop-action="set-repeat"][data-frequency="daily"]').click();scope('occurrence');repeat('r1','pause-recurrence');complete('r1');assert len(page.evaluate('TodoApp.state.tasks'))==1;repeat('r1','resume-recurrence');resumed=page.evaluate('TodoApp.state.tasks.find(t=>!t.isCompleted)');assert resumed['title']=='Recurring source' and resumed['plannedDate']=='2026-10-31' and resumed['recurrence']['frequency']=='weekly'
+    seed_tasks([dict(base,id='r1')]);repeat('r1','pause-recurrence');complete('r1');assert len(page.evaluate('TodoApp.state.tasks'))==1;repeat('r1','resume-recurrence');assert len(page.evaluate('TodoApp.state.tasks'))==2;repeat('r1','pause-recurrence');repeat('r1','resume-recurrence');assert len(page.evaluate('TodoApp.state.tasks'))==2
+    seed_tasks([dict(base,id='r1')]);repeat('r1','pause-recurrence');repeat('r1','resume-recurrence');complete('r1');assert page.evaluate('TodoApp.state.tasks.find(t=>!t.isCompleted).plannedDate')=='2026-10-31'
+    seed_tasks([dict(base,id='r1')]);repeat('r1','skip-recurrence');complete('r1');next_id=page.evaluate('TodoApp.state.tasks.find(t=>t.id!=="r1").id');assert task(next_id)['plannedDate']=='2026-11-07';assert task(next_id)['recurrence']['skipNext'] is False;click('undo');assert task('r1')['recurrence']['skipNext'] is True and task('r1')['recurrence']['occurrencesCreated']==0;complete('r1');next_id=page.evaluate('TodoApp.state.tasks.find(t=>t.id!=="r1").id');complete(next_id);assert page.evaluate('TodoApp.state.tasks.find(t=>!t.isCompleted).plannedDate')=='2026-11-14'
+    seed_tasks([dict(base,id='r1')]);repeat('r1','end-recurrence');complete('r1');assert len(page.evaluate('TodoApp.state.tasks'))==1
+    seed_tasks([dict(base,id='r1'),dict(base,id='history',plannedDate='2026-10-17',isCompleted=True,completedAt='2026-10-20T08:00:00Z')]);history=task('history');complete('r1');live=page.evaluate('TodoApp.state.tasks.find(t=>!t.isCompleted).id');repeat('r1','pause-recurrence');assert task(live)['recurrence']['status']=='paused';assert task('history')==history;repeat('r1','resume-recurrence');assert task(live)['recurrence']['status']=='active';assert len(page.evaluate('TodoApp.state.tasks'))==3;repeat('r1','skip-recurrence');assert task(live)['recurrence']['skipNext'] is True and task('r1')['recurrence']['skipNext'] is False;complete(live);assert page.evaluate('TodoApp.state.tasks.find(t=>!t.isCompleted).plannedDate')=='2026-11-14'
+    live=page.evaluate('TodoApp.state.tasks.find(t=>!t.isCompleted).id');repeat('r1','end-recurrence');assert task(live)['recurrence']['status']=='ended';complete(live);assert page.evaluate('TodoApp.state.tasks.every(t=>t.isCompleted)');assert task('history')==history
+    for end_type,end_value in [('date','2026-10-26'),('afterOccurrences','3')]:
+        seed_tasks([dict(base,id='r1',dueDate=None,recurrence={'frequency':'daily','interval':1})]);repeat('r1','show-custom-repeat');page.fill('#repeat-interval','0');page.locator('[data-pop-action="custom-repeat-apply"]').click();assert page.locator('.popover [role="alert"]').count()==1;page.fill('#repeat-interval','1.5');page.locator('[data-pop-action="custom-repeat-apply"]').click();assert page.locator('.popover [role="alert"]').count()==1;page.fill('#repeat-interval','1');page.select_option('#repeat-end-type',end_type)
+        if end_type=='afterOccurrences':
+            for invalid in ['0','-1','1.5']:
+                page.fill('#repeat-end-count',invalid);page.locator('[data-pop-action="custom-repeat-apply"]').click();assert page.locator('.popover [role="alert"]').count()==1;assert task('r1')['recurrence']['endType']=='never'
+        page.fill('#repeat-end-date' if end_type=='date' else '#repeat-end-count',end_value);page.locator('[data-pop-action="custom-repeat-apply"]').click();scope('future')
+        for _ in range(3):ident=page.evaluate('TodoApp.state.tasks.find(t=>!t.isCompleted).id');complete(ident)
+        assert page.evaluate('TodoApp.state.tasks.map(t=>t.plannedDate)')==['2026-10-24','2026-10-25','2026-10-26'];assert page.evaluate('TodoApp.state.tasks.every(t=>t.isCompleted)')
+    print('PASS: open/terminal paused resume, skip live chain/runtime Undo, explicit end, inclusive end date/total N and ordinary positive-integer interval/count validation (10 cases)')
+    seed_tasks([dict(base,id='r1',projectId=None,areaId='a',tagIds=['tag'])]);open_task('r1');click('task-project-picker');page.locator('[data-pop-action="set-project"][data-project-id="p"]').click();assert task('r1')['projectId'] is None;scope('occurrence');page.keyboard.press('Escape');page.keyboard.press('Escape')
+    route('area/a');click('area-menu');page.locator('[data-pop-action="delete-area"]').click();click('confirm-action');persisted('.areas.length===0')
+    route('tags');click('tag-menu');page.locator('[data-pop-action="delete-tag"]').click();click('confirm-action');persisted('.tags.length===0')
+    route('goal/g1');click('goal-menu');page.locator('[data-pop-action="delete-goal"]').click();click('confirm-action');persisted('.goals.every(g=>g.id!=="g1")');complete('r1');next=page.evaluate('TodoApp.state.tasks.find(t=>!t.isCompleted)');assert next['projectId'] is None and next['areaId'] is None and next['tagIds']==[] and next['goalIds']==['g2'];assert page.evaluate('id=>TodoApp.state.goals[0].taskIds.includes(id)',next['id']);page.reload();ready();assert page.evaluate('TodoCore.validateStateV3(JSON.parse(localStorage.getItem("todoAppData"))).ok')
+    print('PASS: occurrence-only Project move survives Area/Tag/Goal deletion, new baseline successor prunes missing refs and retains valid Goal backrefs after reload (4 cases)')
+    seed_tasks([dict(base,id='r1',recurrence={'frequency':'weekly','interval':2,'status':'paused','endType':'date','endDate':'2026-11-21','occurrencesCreated':2,'skipNext':True,'seriesId':'old'})]);menu('r1');page.locator('[data-pop-action="task-duplicate"]').click();copy=page.evaluate('TodoApp.state.tasks.find(t=>t.id!=="r1")');assert copy['recurrence']['seriesId']==copy['id'];assert copy['recurrence']['status']=='active' and copy['recurrence']['occurrencesCreated']==0 and copy['recurrence']['skipNext'] is False;assert copy['recurrence']['endDate']=='2026-11-21'
+    for goal in page.evaluate('TodoApp.state.goals'):assert copy['id'] in goal['taskIds']
+    assert copy['plannedDate']=='2026-10-24' and copy['dueDate']=='2026-10-27';page.reload();ready();assert page.evaluate('id=>TodoApp.state.goals.every(g=>g.taskIds.includes(id))',copy['id']);menu('r1');page.locator('[data-pop-action="task-duplicate"]').click();second=page.evaluate('ids=>TodoApp.state.tasks.find(t=>!ids.includes(t.id)).id',['r1',copy['id']]);click('undo');assert page.evaluate('id=>TodoApp.state.goals.every(g=>JSON.stringify(g.taskIds)===JSON.stringify(["r1",id]))',copy['id']);assert page.evaluate('id=>TodoApp.state.tasks.every(t=>t.id!==id)',second)
+    menu('r1');page.locator('[data-pop-action="save-template"]').click();page.fill('#template-name','Recurring kit');click('save-template');route('templates');row=page.locator('[data-template-row]').filter(has_text='Recurring kit');row.locator('[data-action="edit-template"]').click();template_field('recurrence.interval','0');click('save-template');assert page.locator('[role="alert"]').count()==1;template_field('recurrence.interval','2');page.locator('[data-template-field="recurrence.endType"]').select_option('afterOccurrences');template_field('recurrence.endAfterOccurrences','1.5');click('save-template');assert page.locator('[role="alert"]').count()==1;template_field('recurrence.endAfterOccurrences','');page.locator('[data-template-field="recurrence.endType"]').select_option('date');click('save-template')
+    page.evaluate("__setNow('2026-11-10T12:00:00')");row.locator('[data-action="use-template"]').click();page.fill('#quick-title','New independent');click('create-task');instance=page.evaluate('TodoApp.state.tasks.find(t=>t.title==="New independent")');assert instance['recurrence']['endDate']=='2026-12-08';assert instance['recurrence']['seriesId']==instance['id'];assert instance['recurrence']['status']=='active' and instance['recurrence']['occurrencesCreated']==0 and instance['recurrence']['skipNext'] is False;assert task('r1')['recurrence']['status']=='paused'
+    page.reload();ready();assert page.evaluate('TodoCore.validateStateV3(JSON.parse(localStorage.getItem("todoAppData"))).ok')
+    print('PASS: duplicate Goal binding/Undo, fresh active identity/runtime, fixed duplicate versus relative template end dates, validation and native reload (5 cases)')
+
 
 def saved_views_and_shortcuts(page, ready, route, click, persisted):
     seed={'version':3,'areas':[{'id':'work','name':'Work','status':'active','isPinned':True},{'id':'home','name':'Home','status':'active'}],'projects':[{'id':'work-p','name':'Work project','areaId':'work'},{'id':'home-p','name':'Home project','areaId':'home'}],'tags':[{'id':'focus','name':'Focus'}],'tasks':[],'goals':[],'habits':[],'templates':[],'savedViews':[],'settings':{},'ui':{}}
@@ -164,6 +246,12 @@ def main():
                     expect(page.locator('.page-title')).to_have_text('Today')
                     assert page.locator('#sidebar [data-sidebar-section]').count()==6
                     print('PASS: native empty-storage Today-first startup and six sidebar groups (1 case)')
+                    if '--recurrence-only' in sys.argv:
+                        def ready():page.wait_for_function('window.TodoApp && TodoApp.ready');page.evaluate('TodoApp.ready')
+                        def route(value):page.evaluate('v=>location.hash="#"+v',value);page.wait_for_function('v=>location.hash==="#"+v',arg=value);expect(page.locator('.page-title')).to_have_text({'project/p':'Project','completed':'Completed','templates':'Templates','area/a':'Area','goal/g1':'First goal'}.get(value,value.capitalize()))
+                        def click(action):page.locator('[data-action="'+action+'"]').first.click()
+                        def persisted(expression):page.wait_for_function('JSON.parse(localStorage.getItem("todoAppData"))'+expression)
+                        recurrence_workflows(page,ready,route,click,persisted);assert not errors,errors;return
                     page.goto(url.replace('/index.html', '/vendor/'))
                     seed = {'version': 3, 'tasks': [], 'projects': [], 'tags': [{'id':'tag','name':'Tag'}], 'areas':[{'id':'a','name':'Area','status':'active'}], 'goals':[], 'habits':[], 'templates':[], 'savedViews':[], 'settings':{'weekStartsOn':'monday'}, 'ui':{}}
                     seed['projects']=[{'id':'p','name':'Source project','areaId':'a','goalIds':['g'],'isArchived':False}]
@@ -307,6 +395,13 @@ def main():
                     assert not errors, errors
                     print('PASS: all-type CRUD, nested draft Undo, missing references, DST wall time, relative rebasing and instance independence')
                     saved_views_and_shortcuts(page,ready,route,click,persisted)
+                    recurrence_context=browser.new_context(viewport={'width':1440,'height':1000},timezone_id='Europe/Belgrade')
+                    try:
+                        recurrence_context.add_init_script("""{const NativeDate=Date;let current=new NativeDate('2026-10-24T12:00:00').getTime();window.Date=class extends NativeDate{constructor(...a){super(...(a.length?a:[current]));}static now(){return current;}};window.__setNow=value=>{current=new NativeDate(value).getTime();};}""")
+                        page=recurrence_context.new_page();page.set_default_timeout(5000);page.on('pageerror',lambda e:errors.append(str(e)));page.goto(url);ready()
+                        recurrence_workflows(page,ready,route,click,persisted)
+                    finally:
+                        recurrence_context.close()
                     assert not errors, errors
                 finally:
                     context.close()

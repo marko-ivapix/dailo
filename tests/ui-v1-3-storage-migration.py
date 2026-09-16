@@ -220,7 +220,8 @@ class MigrationTests(unittest.TestCase):
         self.boot()
         self.assertEqual(self.page.evaluate('TodoApp.state.version'), 3)
         for key, value in original['tasks'][0].items():
-            self.assertEqual(self.page.evaluate('key => TodoApp.state.tasks[0][key]', key), value, key)
+            expected = dict(value, status='active', endType='never', endDate=None, endAfterOccurrences=None, occurrencesCreated=0, skipNext=False, seriesId='legacy-task') if key == 'recurrence' else value
+            self.assertEqual(self.page.evaluate('key => TodoApp.state.tasks[0][key]', key), expected, key)
         for collection in ['projects', 'tags']:
             for key, value in original[collection][0].items():
                 self.assertEqual(self.page.evaluate('([collection,key]) => TodoApp.state[collection][0][key]', [collection, key]), value, key)
@@ -359,7 +360,8 @@ class MigrationTests(unittest.TestCase):
         migrated = self.page.evaluate("JSON.parse(localStorage.getItem('todoAppData'))")
         original = json.loads(RAW)
         for key, value in original['tasks'][0].items():
-            self.assertEqual(migrated['tasks'][0][key], value, key)
+            expected = dict(value, status='active', endType='never', endDate=None, endAfterOccurrences=None, occurrencesCreated=0, skipNext=False, seriesId='legacy-task') if key == 'recurrence' else value
+            self.assertEqual(migrated['tasks'][0][key], expected, key)
         for key, value in original['projects'][0].items():
             self.assertEqual(migrated['projects'][0][key], value, key)
         self.assertEqual(migrated['tags'], original['tags'])

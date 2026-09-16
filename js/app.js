@@ -1150,9 +1150,10 @@
   }
 
   function closeModal() {
+    if(modalState?.type==='recurrence-scope'){cancelRecurrenceScope();return;}
     if(modalState?.type==='template-picker'){modalState=modalState.previous;renderModal();return;}
     if(modalState?.onCancel){const cancel=modalState.onCancel;cancel();return;}
-    flushTaskDraft();
+    if(flushTaskDraft(()=>closeModal()))return;
     const returnTarget = modalReturnFocus;
     const returnDate = calendarReturnDate;
     modalReturnFocus = null;
@@ -1191,10 +1192,11 @@
     else if (modalState.type === 'template') root.innerHTML = renderTemplateModal();
     else if (modalState.type === 'template-picker') root.innerHTML = renderTemplatePicker();
     else if (modalState.type === 'saved-view') root.innerHTML = renderSavedViewModal();
+    else if (modalState.type === 'recurrence-scope') root.innerHTML = renderRecurrenceScope();
     if (['quick','project','habit','goal'].includes(modalState.type) && !modalState.taskId && !modalState.projectId && !modalState.habitId && !modalState.goalId) {
       $('.modal-inner',root)?.insertAdjacentHTML('afterbegin','<button class="btn btn-ghost" type="button" data-action="from-template"><i class="ph ph-copy"></i> From template</button>');
     }
-    if (modalState?.type === 'confirm') requestAnimationFrame(() => root.querySelector('.modal button, .modal [href], .modal input, .modal select, .modal textarea, .modal [tabindex]:not([tabindex="-1"])')?.focus());
+    if (['confirm','recurrence-scope'].includes(modalState?.type)) requestAnimationFrame(() => root.querySelector('.modal button, .modal [href], .modal input, .modal select, .modal textarea, .modal [tabindex]:not([tabindex="-1"])')?.focus());
   }
 
   function modalFrame(content, cls = '') {
@@ -1297,6 +1299,7 @@
       html+=f('notes','Notes','notes')+f('projectId','Project','text',choices('projects'))+f('tagIds','Tags (select multiple)','ids',state.tags.map(t=>[t.id,t.name]))+f('priority','Priority','text',[['none','None'],['low','Low'],['medium','Medium'],['high','High']])+f('plannedOffsetDays','Planned day offset (blank = none)','number')+f('plannedTime','Planned time','time')+f('dueOffsetDays','Due day offset (blank = none)','number')+f('dueTime','Due time','time')+f('reminderOffsetDays','Reminder day offset (blank = none)','number')+f('reminderTime','Reminder local time','time');
       const recurrence=d.recurrence || {};
       html+=templateField(recurrence,'frequency','Repeat','text',[['','Does not repeat'],['daily','Daily'],['weekly','Weekly'],['monthly','Monthly']],`${prefix}recurrence.`)+templateField(recurrence,'interval','Repeat interval','number',null,`${prefix}recurrence.`);
+      html+=templateField(recurrence,'endType','Repeat end condition','text',[['never','Never'],['date','On relative date'],['afterOccurrences','After N occurrences']],`${prefix}recurrence.`)+templateField(recurrence,'endOffsetDays','Repeat end day offset','number',null,`${prefix}recurrence.`)+templateField(recurrence,'endAfterOccurrences','Repeat total occurrences','number',null,`${prefix}recurrence.`);
       html+=templateRows('subtasks',d.subtasks || [],prefix,'subtask');
     } else if(type==='project') html+=f('color','Color','color')+templateRows('tasks',d.tasks || [],prefix,'task');
     else if(type==='habit') {
@@ -1318,7 +1321,7 @@
   }
   function renderTemplateModal() {
     const d=modalState.draft;
-    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">${modalState.templateId?'Edit':'New'} ${templateLabel(d.type)} template</h2><button class="btn-icon" data-action="close-modal" aria-label="Close"><i class="ph ph-x"></i></button></div><div class="form-stack"><label class="field-label">Template name<input id="template-name" class="input" value="${esc(d.name)}"></label><p class="area-empty-copy">Day offsets are relative to the day you create an item. Use 0 for Today; negative values are allowed.</p>${templateFields(d.type,d.data)}${modalState.error?`<p class="validation">${esc(modalState.error)}</p>`:''}</div><div class="modal-footer"><span></span><button class="btn btn-primary" type="button" data-action="save-template">Save template</button></div></div>`,'quick');
+    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">${modalState.templateId?'Edit':'New'} ${templateLabel(d.type)} template</h2><button class="btn-icon" data-action="close-modal" aria-label="Close"><i class="ph ph-x"></i></button></div><div class="form-stack"><label class="field-label">Template name<input id="template-name" class="input" value="${esc(d.name)}"></label><p class="area-empty-copy">Day offsets are relative to the day you create an item. Use 0 for Today; negative values are allowed.</p>${templateFields(d.type,d.data)}${modalState.error?`<p class="validation" role="alert">${esc(modalState.error)}</p>`:''}</div><div class="modal-footer"><span></span><button class="btn btn-primary" type="button" data-action="save-template">Save template</button></div></div>`,'quick');
   }
   function templatePath(data,path,create=false) {
     const keys=path.split('.'),last=keys.pop();let parent=data;
@@ -1348,6 +1351,8 @@
   function templateDataProblem(type,d) {
     const relativeProblem = value => value && typeof value==='object' && Object.entries(value).some(([key,item])=>key.endsWith('OffsetDays') ? item!==null && !Number.isInteger(item) : typeof item==='object' && relativeProblem(item));
     if(relativeProblem(d))return 'Day offsets must be whole numbers.';
+    if(type==='task' && d.recurrence?.frequency && (!Number.isInteger(d.recurrence.interval) || d.recurrence.interval<1 || d.recurrence.endType==='afterOccurrences' && (!Number.isInteger(d.recurrence.endAfterOccurrences) || d.recurrence.endAfterOccurrences<1)))return 'Repeat interval and occurrence count must be positive whole numbers.';
+    if(type==='task' && d.recurrence?.frequency && d.recurrence.endType==='date' && !Number.isInteger(d.recurrence.endOffsetDays))return 'Provide a whole-number repeat end day offset.';
     if(type==='task' && (d.subtasks || []).some(s=>!String(s.title || '').trim())) return 'Subtasks need a title.';
     if(type==='project') {for(const t of d.tasks || []){if(!String(t.title || '').trim())return 'Predefined tasks need a title.';const error=templateDataProblem('task',t);if(error)return error;}}
     if(type==='goal' && (d.milestones || []).some(m=>!String(m.title || '').trim()))return 'Milestones need a title.';
@@ -1756,13 +1761,13 @@
       closePopover(); renderModal(); return;
     }
     const task = getTask(taskId); if (!task) return;
-    const ids = new Set(task.tagIds || []); ids.has(tagId) ? ids.delete(tagId) : ids.add(tagId); task.tagIds = [...ids]; task.updatedAt = nowIso(); saveState(); closePopover(); render(); renderModal();
+    const ids = new Set(task.tagIds || []); ids.has(tagId) ? ids.delete(tagId) : ids.add(tagId); closePopover();requestTaskEdit(taskId,{tagIds:[...ids]});
   }
 
   function setPriority(targetType, taskId, value) {
     const priority = ['none','low','medium','high'].includes(value) ? value : 'none';
     if (targetType === 'quick') { modalState.draft.priority = priority; closePopover(); renderModal(); return; }
-    const task = getTask(taskId); if (!task) return; task.priority = priority; task.updatedAt = nowIso(); saveState(); closePopover(); render(); renderModal();
+    const task = getTask(taskId); if (!task) return;closePopover();requestTaskEdit(taskId,{priority});
   }
 
   function inlineNewTag(button) {
@@ -1790,7 +1795,9 @@
     const current = task.recurrence;
     const attrs = `${target.taskId ? `data-task-id="${esc(target.taskId)}"` : ''} data-target-type="${target.type}"`;
     const option = (label, frequency) => `<button class="popover-option ${current?.frequency === frequency && Number(current?.interval || 1) === 1 ? 'is-selected' : ''}" type="button" data-pop-action="set-repeat" data-frequency="${frequency || ''}" data-interval="1" ${attrs}>${label}${current?.frequency === frequency && Number(current?.interval || 1) === 1 ? '<i class="ph ph-check spacer"></i>' : ''}</button>`;
-    const html = `<div class="popover-title">Repeat</div>${option('Does not repeat', '')}${option('Every day', 'daily')}${option('Every week', 'weekly')}${option('Every month', 'monthly')}<div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="show-custom-repeat" ${attrs}><i class="ph ph-sliders-horizontal"></i>Custom interval...</button>`;
+    const operational=taskRecurrence(task);
+    const management=operational && target.type!=='quick' ? `<div class="popover-separator"></div><p class="popover-empty">Controls apply to this and pending recurrence. Skip affects the next generated occurrence, not already-created tasks.</p><button class="popover-option" data-pop-action="${operational.status==='paused'?'resume-recurrence':'pause-recurrence'}" ${attrs}>${operational.status==='paused'?'Resume recurrence':'Pause recurrence'}</button><button class="popover-option" data-pop-action="skip-recurrence" ${attrs}>Skip next occurrence${operational.skipNext?' (scheduled)':''}</button><button class="popover-option" data-pop-action="end-recurrence" ${attrs}>End recurrence</button>`:'';
+    const html = `<div class="popover-title">Repeat</div>${option('Does not repeat', '')}${option('Every day', 'daily')}${option('Every week', 'weekly')}${option('Every month', 'monthly')}<div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="show-custom-repeat" ${attrs}><i class="ph ph-sliders-horizontal"></i>${current?'Edit recurrence / End on date / End after N occurrences':'Custom interval...'}</button>${management}`;
     openPopover(anchor, html, { type: 'repeat', target });
   }
 
@@ -1810,6 +1817,7 @@
     const source = targetType === 'quick' ? modalState.draft : getTask(taskId);
     const current = source?.recurrence || { frequency: 'weekly', interval: 2 };
     popoverEl.innerHTML = `<div class="popover-title">Custom repeat</div><div class="popover-inline-form"><label class="field-label" for="repeat-interval">Repeat every</label><div class="repeat-custom-row"><input id="repeat-interval" class="input" type="number" min="1" max="99" value="${Math.max(1, Number(current.interval) || 1)}" /><select id="repeat-frequency" class="input"><option value="daily" ${current.frequency === 'daily' ? 'selected' : ''}>days</option><option value="weekly" ${current.frequency === 'weekly' ? 'selected' : ''}>weeks</option><option value="monthly" ${current.frequency === 'monthly' ? 'selected' : ''}>months</option></select></div><div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn btn-ghost" type="button" data-pop-action="custom-repeat-cancel">Cancel</button><button class="btn btn-primary" type="button" data-pop-action="custom-repeat-apply" data-target-type="${targetType}" ${taskId ? `data-task-id="${esc(taskId)}"` : ''}>Apply</button></div></div>`;
+    $('.repeat-custom-row',popoverEl).insertAdjacentHTML('afterend',`<label class="field-label">End condition<select id="repeat-end-type" class="input"><option value="never" ${!current.endType || current.endType==='never'?'selected':''}>Never</option><option value="date" ${current.endType==='date'?'selected':''}>End on date</option><option value="afterOccurrences" ${current.endType==='afterOccurrences'?'selected':''}>End after N occurrences (including initial)</option></select></label><label class="field-label">End date<input id="repeat-end-date" class="input" type="date" value="${esc(current.endDate || '')}"></label><label class="field-label">Total occurrences<input id="repeat-end-count" class="input" type="number" min="1" step="1" value="${esc(current.endAfterOccurrences || '')}"></label><p class="validation" role="alert" id="repeat-error" hidden></p>`);
   }
 
   function setReminder(targetType, taskId, value) {
@@ -1820,21 +1828,18 @@
       closePopover(); renderModal(); return;
     }
     const task = getTask(taskId); if (!task) return;
-    task.reminderAt = reminderAt; task.reminderFiredAt = null; task.updatedAt = nowIso();
-    saveState(); closePopover(); render();
-    if (modalState?.type === 'task' && modalState.taskId === taskId) renderModal();
+    closePopover();requestTaskEdit(taskId,{reminderAt,reminderFiredAt:null});
   }
 
   function setRecurrence(targetType, taskId, recurrence) {
-    const value = recurrence && recurrence.frequency ? { frequency: recurrence.frequency, interval: Math.max(1, Number(recurrence.interval) || 1) } : null;
+    const source=targetType==='quick'?modalState.draft:getTask(taskId);
+    const value=Core.normalizeRecurrenceV3(recurrence?{...source?.recurrence,...recurrence}:null);
     if (targetType === 'quick') {
       modalState.draft.recurrence = value;
       closePopover(); renderModal(); return;
     }
     const task = getTask(taskId); if (!task) return;
-    task.recurrence = value; task.updatedAt = nowIso();
-    saveState(); closePopover(); render();
-    if (modalState?.type === 'task' && modalState.taskId === taskId) renderModal();
+    closePopover();requestTaskEdit(taskId,{recurrence:value?{...value,seriesId:value.seriesId || taskId}:null});
   }
 
   function dateOption(label, date, current, action, target) {
@@ -1950,11 +1955,106 @@
   }
 
   function updateTask(taskId, changes, rerender = true) {
+    const task=getTask(taskId);if(!task)return;
+    if(!taskRecurrence(task)){Object.assign(task,changes,{updatedAt:nowIso()});saveState();if(rerender)render();return;}
+    return requestTaskEdit(taskId,changes,()=>{if(rerender)render();});
+  }
+
+  function taskDraftChanges(task) {
+    if(modalState?.type!=='task' || modalState.taskId!==task.id)return {};
+    const title=String($('#detail-title')?.value ?? modalState.titleDraft ?? task.title).trim();
+    const notes=$('#detail-notes')?.value ?? modalState.notesDraft ?? task.notes;
+    return {...(title && title!==task.title?{title}:{}),...(notes!==task.notes?{notes}:{})};
+  }
+  function taskRecurrence(task) {return task?.recurrenceBaseline?.recurrence || task?.recurrence;}
+  function renderRecurrenceScope() {
+    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">Edit recurring task</h2><button class="btn-icon" data-action="close-modal" aria-label="Cancel"><i class="ph ph-x"></i></button></div><p class="dialog-copy">Apply these changes to this occurrence only, or this and pending future occurrences? Past and completed siblings stay unchanged.</p><div class="modal-footer"><button class="btn btn-secondary" data-action="recurrence-scope" data-scope="occurrence">This occurrence</button><button class="btn btn-primary" data-action="recurrence-scope" data-scope="future">This and future</button></div></div>`,'small-modal');
+  }
+  function cancelRecurrenceScope() {
+    const pending=modalState;if(pending?.type!=='recurrence-scope')return;
+    modalState=pending.previous;
+    if(modalState?.type==='task'){const task=getTask(pending.taskId);modalState.titleDraft=task.title;modalState.notesDraft=task.notes || '';}
+    renderModal();requestAnimationFrame(()=>$(pending.focusSelector || '#detail-title')?.focus());
+  }
+  function applyRecurrenceScope(scope) {
+    const pending=modalState;if(pending?.type!=='recurrence-scope')return;
+    const task=getTask(pending.taskId);if(!task){cancelRecurrenceScope();return;}
+    const changes=pending.changes;
+    if(scope==='occurrence') {
+      if(!task.recurrenceBaseline){task.recurrenceBaseline=copyTemplate(task);delete task.recurrenceBaseline.recurrenceBaseline;}
+      Object.assign(task,copyTemplate(changes),{updatedAt:nowIso()});
+    } else {
+      const original=copyTemplate(task),oldSeries=taskRecurrence(task)?.seriesId;
+      const effective=task.plannedDate || task.dueDate || Core.dateOnly();
+      const branch=Core.splitRecurrenceForFuture(task,changes,effective);
+      const dayDelta=(before,after)=>Math.round((Date.parse(after+'T12:00:00Z')-Date.parse(before+'T12:00:00Z'))/86400000);
+      for(const sibling of state.tasks) {
+        const date=sibling.plannedDate || sibling.dueDate;
+        if(sibling.id!==task.id && (!oldSeries || taskRecurrence(sibling)?.seriesId!==oldSeries || sibling.isCompleted || !date || date<effective || date<Core.dateOnly()))continue;
+        const scoped=copyTemplate(changes);
+        if(sibling.id!==task.id) {
+          for(const key of ['plannedDate','dueDate'])if(Object.hasOwn(changes,key) && changes[key])scoped[key]=Core.addDays(sibling[key] || date,dayDelta(original[key] && sibling[key]?original[key]:effective,changes[key]));
+          if(Object.hasOwn(changes,'reminderAt') && changes.reminderAt) {
+            const after=new Date(changes.reminderAt),both=original.reminderAt && sibling.reminderAt;
+            const before=both?Core.dateOnly(new Date(original.reminderAt)):effective,own=both?Core.dateOnly(new Date(sibling.reminderAt)):date;
+            scoped.reminderAt=Core.combineDateTime(Core.addDays(own,dayDelta(before,Core.dateOnly(after))),`${String(after.getHours()).padStart(2,'0')}:${String(after.getMinutes()).padStart(2,'0')}`);
+          }
+        }
+        const siblingBranch=sibling.id===task.id?branch:Core.splitRecurrenceForFuture(sibling,scoped,effective);
+        const rule=branch.recurrence?{...branch.recurrence,occurrencesCreated:taskRecurrence(sibling)?.occurrencesCreated || 0}:null;
+        if(siblingBranch.recurrenceBaseline)siblingBranch.recurrenceBaseline.recurrence=copyTemplate(rule);
+        Object.assign(sibling,scoped,{recurrence:rule,recurrenceBaseline:siblingBranch.recurrenceBaseline,updatedAt:nowIso()});
+      }
+    }
+    modalState=pending.previous;
+    if(modalState?.type==='task'){modalState.titleDraft=task.title;modalState.notesDraft=task.notes || '';}
+    saveState();render();renderModal();
+    pending.after?.();
+  }
+  function requestTaskEdit(taskId,changes,after=null) {
     const task = getTask(taskId);
-    if (!task) return;
-    Object.assign(task, changes, { updatedAt: nowIso() });
-    saveState();
-    if (rerender) render();
+    if (!task || modalState?.type==='recurrence-scope') return false;
+    changes={...taskDraftChanges(task),...changes};
+    changes=Object.fromEntries(Object.entries(changes).filter(([key,value])=>JSON.stringify(value)!==JSON.stringify(task[key])));
+    if(!Object.keys(changes).length){after?.();return false;}
+    if(taskRecurrence(task)) {
+      const focusSelector=document.activeElement?.id?`#${document.activeElement.id}`:'#detail-title';
+      closePopover();modalState={type:'recurrence-scope',taskId,changes:copyTemplate(changes),previous:modalState,after,focusSelector};renderModal();return true;
+    }
+    Object.assign(task,copyTemplate(changes),{updatedAt:nowIso()});
+    if(modalState?.type==='task'){modalState.titleDraft=task.title;modalState.notesDraft=task.notes || '';}
+    saveState();render();renderModal();after?.();return false;
+  }
+  function removeCloneGoalLinks(id) {
+    for(const goal of state.goals)goal.taskIds=(goal.taskIds || []).filter(taskId=>taskId!==id);
+  }
+  function generateRecurringSuccessor(task,ts) {
+    if(task.recurrenceSuccessorId)return null;
+    const next=Core.buildNextRecurringTask(task,ts,uid('task'));if(!next)return null;
+    next.projectId=getProject(next.projectId)?.id || null;
+    next.areaId=next.projectId?null:getArea(next.areaId)?.id || null;
+    next.goalIds=(next.goalIds || []).filter(id=>getGoal(id));
+    next.tagIds=(next.tagIds || []).filter(id=>getTag(id));
+    task.recurrenceSuccessorId=next.id;
+    const runtime={occurrencesCreated:next.recurrence.occurrencesCreated,skipNext:false};
+    if(task.recurrence)Object.assign(task.recurrence,runtime);
+    if(task.recurrenceBaseline?.recurrence)Object.assign(task.recurrenceBaseline.recurrence,runtime);
+    if(next.projectId)next.projectOrder=nextOrder(`project:${next.projectId}`);
+    if(next.plannedDate===Core.dateOnly())next.todayOrder=nextOrder('today');
+    state.tasks.push(next);syncTemplateEntityGoalLinks('task',next);return next.id;
+  }
+  function manageRecurrence(taskId,action) {
+    const task=getTask(taskId),rule=taskRecurrence(task);if(!rule)return;
+    const effective=task.plannedDate || task.dueDate || Core.dateOnly();
+    const pending=state.tasks.filter(sibling=>!sibling.isCompleted && taskRecurrence(sibling)?.seriesId===rule.seriesId && (sibling.id===taskId || (sibling.plannedDate || sibling.dueDate)>=effective && (sibling.plannedDate || sibling.dueDate)>=Core.dateOnly())).sort((a,b)=>(a.plannedDate || a.dueDate || '').localeCompare(b.plannedDate || b.dueDate || '') || a.id.localeCompare(b.id));
+    const update=action==='skip-recurrence'?{skipNext:true}:{status:action==='pause-recurrence'?'paused':action==='resume-recurrence'?'active':'ended'};
+    for(const item of action==='skip-recurrence'?[pending[0] || task]:[task,...pending.filter(s=>s.id!==taskId)]){
+      if(item.recurrence)Object.assign(item.recurrence,update);
+      if(item.recurrenceBaseline?.recurrence)Object.assign(item.recurrenceBaseline.recurrence,update);
+      item.updatedAt=nowIso();
+    }
+    if(action==='resume-recurrence' && task.isCompleted)generateRecurringSuccessor(task,nowIso());
+    task.updatedAt=nowIso();closePopover();saveState();render();renderModal();
   }
 
   function setProject(targetType, taskId, projectId) {
@@ -1968,12 +2068,7 @@
     }
     const task = getTask(taskId);
     if (!task) return;
-    task.projectId = projectId || null;
-    task.areaId = null;
-    if (projectId) task.isInbox = false;
-    task.updatedAt = nowIso();
-    saveState(); closePopover(); render();
-    if (modalState?.type === 'task' && modalState.taskId === taskId) renderModal();
+    closePopover();requestTaskEdit(taskId,{projectId:projectId || null,areaId:null,...(projectId?{isInbox:false}:{})});
   }
 
   function setPlan(targetType, taskId, date) {
@@ -1983,12 +2078,7 @@
       closePopover(); renderModal(); return;
     }
     const task = getTask(taskId); if (!task) return;
-    task.plannedDate = date || null;
-    if (date) task.isInbox = false;
-    task.updatedAt = nowIso();
-    saveState(); closePopover(); render();
-    if (modalState?.type === 'task' && modalState.taskId === taskId) renderModal();
-    if (modalState?.type === 'calendar-day') renderModal();
+    closePopover();requestTaskEdit(taskId,{plannedDate:date || null,...(date?{isInbox:false}:{})});
   }
 
   function setDue(targetType, taskId, date) {
@@ -1997,10 +2087,7 @@
       closePopover(); renderModal(); return;
     }
     const task = getTask(taskId); if (!task) return;
-    task.dueDate = date || null;
-    task.updatedAt = nowIso();
-    saveState(); closePopover(); render();
-    if (modalState?.type === 'task' && modalState.taskId === taskId) renderModal();
+    closePopover();requestTaskEdit(taskId,{dueDate:date || null});
   }
 
   function createTask(keepOpen = false) {
@@ -2026,6 +2113,7 @@
       inboxOrder: isInbox ? nextOrder('inbox', true) : null,
       createdAt: nowIso(), updatedAt: nowIso(),
     };
+    if(task.recurrence)task.recurrence={...Core.normalizeRecurrenceV3(task.recurrence),seriesId:task.id};
     state.tasks.push(task);
     if(modalState.templateInstance)syncTemplateEntityGoalLinks('task',task);
     saveState();
@@ -2059,7 +2147,7 @@
   function toggleComplete(taskId) {
     const task = getTask(taskId); if (!task) return;
     const goalProgressBefore = captureGoalProgress();
-    const previous = { isCompleted: task.isCompleted, completedAt: task.completedAt };
+    const previous = { isCompleted: task.isCompleted, completedAt: task.completedAt,recurrence:copyTemplate(task.recurrence || null),recurrenceBaseline:copyTemplate(task.recurrenceBaseline || null),recurrenceSuccessorId:task.recurrenceSuccessorId || null };
     if (task.isCompleted) {
       task.isCompleted = false; task.completedAt = null;
       task.updatedAt = nowIso(); saveState(); render(); if (modalState?.type === 'task') renderModal();
@@ -2067,21 +2155,12 @@
     }
     const completedAt = nowIso();
     task.isCompleted = true; task.completedAt = completedAt; task.updatedAt = completedAt;
-    let generatedId = null;
-    if (task.recurrence) {
-      const next = Core.buildNextRecurringTask(task, completedAt, uid('task'));
-      if (next) {
-        generatedId = next.id;
-        if (next.projectId) next.projectOrder = nextOrder(`project:${next.projectId}`);
-        if (next.plannedDate === Core.dateOnly()) next.todayOrder = nextOrder('today');
-        state.tasks.push(next);
-      }
-    }
+    const generatedId=taskRecurrence(task)?generateRecurringSuccessor(task,completedAt):null;
     saveState();
     setUndo('Task completed', () => {
       const current = getTask(taskId); if (!current) return;
-      current.isCompleted = previous.isCompleted; current.completedAt = previous.completedAt; current.updatedAt = nowIso();
-      if (generatedId) state.tasks = state.tasks.filter(item => item.id !== generatedId);
+      Object.assign(current,copyTemplate(previous),{updatedAt:nowIso()});
+      if (generatedId) {state.tasks = state.tasks.filter(item => item.id !== generatedId);removeCloneGoalLinks(generatedId);}
       saveState(); render();
     });
     render(); if (['task', 'calendar-day'].includes(modalState?.type)) renderModal(); evaluateGoalProgressChanges(goalProgressBefore);
@@ -2103,8 +2182,8 @@
         }
         copy.attachmentIds = createdIds;
       }
-      state.tasks.push(copy); saveState(); closeModal(); closePopover(); render();
-      setUndo('Task duplicated', async () => { state.tasks = state.tasks.filter(t=>t.id!==copy.id); if(createdIds.length) await Attachments.deleteMany(createdIds); saveState(); render(); });
+      state.tasks.push(copy);syncTemplateEntityGoalLinks('task',copy); saveState(); closeModal(); closePopover(); render();
+      setUndo('Task duplicated', async () => { state.tasks = state.tasks.filter(t=>t.id!==copy.id);removeCloneGoalLinks(copy.id); if(createdIds.length) await Attachments.deleteMany(createdIds); saveState(); render(); });
     } catch (error) {
       if (createdIds.length) await Attachments.deleteMany(createdIds);
       setToastMessage('Task could not be duplicated');
@@ -2160,6 +2239,7 @@
 
   function addTaskToToday(taskId) {
     const task = getTask(taskId); if (!task) return;
+    if(taskRecurrence(task)){requestTaskEdit(taskId,{plannedDate:Core.dateOnly(),isInbox:false,todayOrder:nextOrder('today')});return;}
     const prev = { plannedDate: task.plannedDate, isInbox: task.isInbox, todayOrder: task.todayOrder };
     task.plannedDate = Core.dateOnly(); task.isInbox = false; task.todayOrder = nextOrder('today'); task.updatedAt = nowIso(); saveState(); render();
     setUndo('Task moved to Today', () => { const t = getTask(taskId); if (!t) return; Object.assign(t, prev, { updatedAt: nowIso() }); saveState(); render(); });
@@ -2167,6 +2247,7 @@
 
   function moveTaskToTomorrow(taskId) {
     const task = getTask(taskId); if (!task) return;
+    if(taskRecurrence(task)){requestTaskEdit(taskId,{plannedDate:Core.addDays(Core.dateOnly(),1),isInbox:false,todayOrder:null});return;}
     const prev = { plannedDate: task.plannedDate, isInbox: task.isInbox, todayOrder: task.todayOrder };
     task.plannedDate = Core.addDays(Core.dateOnly(), 1); task.isInbox = false; task.todayOrder = null; task.updatedAt = nowIso();
     saveState(); render();
@@ -2644,6 +2725,7 @@
     input.className = 'input'; input.style.minHeight = '34px'; input.value = sub.title;
     title.replaceWith(input); input.focus(); input.select();
     const finish = save => {
+      if (save && input.value.trim() && taskRecurrence(task)) {requestTaskEdit(taskId,{subtasks:task.subtasks.map(s=>s.id===subtaskId?{...s,title:input.value.trim()}:s)});return;}
       if (save && input.value.trim()) { sub.title = input.value.trim(); task.updatedAt = nowIso(); saveState(); }
       renderModal(); render();
     };
@@ -2655,21 +2737,18 @@
     const title = String(value || '').trim(); if (!title) return;
     const task = getTask(taskId); if (!task) return;
     const orders = task.subtasks.map(s => s.order).filter(Number.isFinite);
+    if(taskRecurrence(task)){requestTaskEdit(taskId,{subtasks:[...task.subtasks,{id:uid('sub'),title,isCompleted:false,order:orders.length?Math.max(...orders)+1:0}]});return;}
     task.subtasks.push({ id: uid('sub'), title, isCompleted: false, order: orders.length ? Math.max(...orders) + 1 : 0 });
     task.updatedAt = nowIso(); saveState(); renderModal(); render();
     requestAnimationFrame(() => $('#detail-subtask')?.focus());
   }
 
-  function flushTaskDraft() {
+  function flushTaskDraft(after=null) {
     if (modalState?.type !== 'task') return;
     const task = getTask(modalState.taskId); if (!task) return;
-    const titleInput = $('#detail-title'); if (titleInput) modalState.titleDraft = titleInput.value;
-    const notes = $('#detail-notes'); if (notes) modalState.notesDraft = notes.value;
-    const title = String(modalState.titleDraft || '').trim();
-    if (title) task.title = title;
-    task.notes = modalState.notesDraft || '';
-    task.updatedAt = nowIso();
-    saveState();
+    const changes=taskDraftChanges(task);if(!Object.keys(changes).length)return false;
+    if(!taskRecurrence(task)){Object.assign(task,changes,{updatedAt:nowIso()});saveState();return false;}
+    return requestTaskEdit(task.id,changes,after);
   }
 
   async function exportBackupAction() {
@@ -2826,6 +2905,7 @@
       return;
     }
     const action = el.dataset.action;
+    if(action==='recurrence-scope'){applyRecurrenceScope(el.dataset.scope);return;}
     if(action==='from-template')openTemplatePicker();
     else if(action==='new-saved-view')openSavedViewModal();
     else if(action==='edit-saved-view')openSavedViewModal(el.dataset.savedViewId);
@@ -2987,7 +3067,12 @@
     else if (action === 'show-custom-repeat') showCustomRepeat(button);
     else if (action === 'custom-reminder-cancel' || action === 'custom-repeat-cancel') closePopover();
     else if (action === 'custom-reminder-apply') { const value = fromLocalDateTimeValue($('#custom-reminder-input', popoverEl)?.value); if (value) setReminder(button.dataset.targetType, button.dataset.taskId, value); }
-    else if (action === 'custom-repeat-apply') { const interval = Math.max(1, Number($('#repeat-interval', popoverEl)?.value) || 1); const frequency = $('#repeat-frequency', popoverEl)?.value || 'weekly'; setRecurrence(button.dataset.targetType, button.dataset.taskId, { frequency, interval }); }
+    else if (['pause-recurrence','resume-recurrence','skip-recurrence','end-recurrence'].includes(action)) manageRecurrence(button.dataset.taskId,action);
+    else if (action === 'custom-repeat-apply') {
+      const interval=Number($('#repeat-interval',popoverEl)?.value),frequency=$('#repeat-frequency',popoverEl)?.value || 'weekly',endType=$('#repeat-end-type',popoverEl)?.value || 'never',endDate=$('#repeat-end-date',popoverEl)?.value || null,endAfterOccurrences=Number($('#repeat-end-count',popoverEl)?.value) || null;
+      if(!Number.isInteger(interval) || interval<1 || endType==='afterOccurrences' && (!Number.isInteger(endAfterOccurrences) || endAfterOccurrences<1) || endType==='date' && !endDate){const error=$('#repeat-error',popoverEl);error.hidden=false;error.textContent='Provide a positive whole-number interval/count and a valid end date.';return;}
+      setRecurrence(button.dataset.targetType,button.dataset.taskId,{frequency,interval,endType,endDate,endAfterOccurrences});
+    }
     else if (action === 'show-custom-date') showCustomDate(button);
     else if (action === 'custom-date-cancel') closePopover();
     else if (action === 'custom-date-apply') { const value = $('#custom-date-input', popoverEl)?.value; if (!value) return; if (button.dataset.dateKind === 'plan') setPlan(button.dataset.targetType, button.dataset.taskId, value); else setDue(button.dataset.targetType, button.dataset.taskId, value); }
@@ -3050,7 +3135,7 @@
       const task = getTask(modalState.taskId);
       if (!task) return;
       if (event.target.id === 'detail-title') { modalState.titleDraft = event.target.value; modalState.error = ''; }
-      else if (event.target.id === 'detail-notes') { modalState.notesDraft = event.target.value; task.notes = event.target.value; task.updatedAt = nowIso(); scheduleTextSave(); }
+      else if (event.target.id === 'detail-notes') { modalState.notesDraft = event.target.value;if(!taskRecurrence(task)){task.notes=event.target.value;task.updatedAt=nowIso();scheduleTextSave();} }
     }
     if (modalState?.type === 'search' && event.target.id === 'search-query') {
       modalState.query = event.target.value;
@@ -3094,11 +3179,13 @@
   }
 
   function handleBlur(event) {
-    if (modalState?.type === 'task' && event.target.id === 'detail-title') {
+    if (modalState?.type === 'task' && ['detail-title','detail-notes'].includes(event.target.id)) {
       const task = getTask(modalState.taskId); if (!task) return;
+      if(event.target.id==='detail-notes'){if(taskRecurrence(task))requestTaskEdit(task.id,taskDraftChanges(task));return;}
       const title = String(event.target.value || '').trim();
       if (!title) { modalState.error = 'Task needs a title.'; modalState.titleDraft = task.title; renderModal(); return; }
-      task.title = title; modalState.titleDraft = title; task.updatedAt = nowIso(); saveState(); render();
+      if(!taskRecurrence(task)){task.title=title;modalState.titleDraft=title;task.updatedAt=nowIso();saveState();render();return;}
+      requestTaskEdit(task.id,{title});
     }
   }
 
@@ -3236,6 +3323,12 @@
 
   function moveTaskByDrop(taskId, target) {
     const task = getTask(taskId); if (!task || !target) return;
+    if(taskRecurrence(task)){
+      if(target.dataset.dropPlan==='today')requestTaskEdit(taskId,{plannedDate:Core.dateOnly(),isInbox:false,todayOrder:nextOrder('today')});
+      else if(target.dataset.dropPlan==='tomorrow')requestTaskEdit(taskId,{plannedDate:Core.addDays(Core.dateOnly(),1),isInbox:false,todayOrder:null});
+      else if(target.dataset.dropProjectId && getProject(target.dataset.dropProjectId))requestTaskEdit(taskId,{projectId:target.dataset.dropProjectId,areaId:null,isInbox:false,projectOrder:nextOrder(`project:${target.dataset.dropProjectId}`)});
+      return;
+    }
     const prev = { plannedDate: task.plannedDate, isInbox: task.isInbox, todayOrder: task.todayOrder, projectId: task.projectId, areaId: task.areaId, projectOrder: task.projectOrder };
     let message = '';
     if (target.dataset.dropPlan === 'today') {
