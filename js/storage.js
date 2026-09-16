@@ -301,32 +301,60 @@
   };
 
   // Atomically restore only captured user records, never clear a growing store.
-  async function restoreDeleteRecords(snapshot, expectedAttachments = null) {
-    const names = ['attachments', 'habitLogs', 'goalHistory'].filter(name => snapshot[name]?.length);
-    if (!names.length) return;
+  async function restoreDeleteRecords(snapshot, expectedAttachments = null, validate = null, expectedHistory = null) {
+    const names = ['attachments', 'habitLogs', 'goalHistory'].filter(name => snapshot[name]?.length || snapshot.deleteRecords?.[name]?.length);
+    if (!names.length) { validate?.(); return; }
     if (memoryMode()) {
+      const guards = [];
       if (expectedAttachments) {
-        const guards = [];
         for (const expected of expectedAttachments) {
           const actual = memoryStores.attachments.get(expected.id);
           if (!(await sameAttachmentRecord(actual, expected))) throw new Error('Retained attachment ownership changed.');
-          guards.push([expected.id, actual]);
+          guards.push(['attachments', expected.id, actual]);
         }
-        if (guards.some(([id, record]) => memoryStores.attachments.get(id) !== record)) throw new Error('Retained attachment ownership changed.');
       }
-      for (const name of names) for (const record of snapshot[name]) memoryStores[name].set(record.id, clone(record));
+      for (const name of names) {
+        for (const [id, expected] of expectedHistory?.[name] || []) {
+          const actual = memoryStores[name].get(id);
+          if (JSON.stringify(actual || null) !== JSON.stringify(expected)) throw new Error('Retained history ownership changed.');
+          guards.push([name, id, actual]);
+        }
+        for (const expected of snapshot.deleteRecords?.[name] || []) {
+          const actual = memoryStores[name].get(expected.id);
+          if (JSON.stringify(actual) !== JSON.stringify(expected)) throw new Error('Retained history ownership changed.');
+          guards.push([name, expected.id, actual]);
+        }
+      }
+      validate?.();
+      if (guards.some(([name, id, record]) => memoryStores[name].get(id) !== record)) throw new Error('Retained record ownership changed.');
+      for (const name of names) for (const record of snapshot[name] || []) memoryStores[name].set(record.id, clone(record));
+      for (const name of names) for (const record of snapshot.deleteRecords?.[name] || []) memoryStores[name].delete(record.id);
       return;
     }
     const db = await open(), tx = db.transaction(names, 'readwrite'), done = transactionDone(tx);
     done.catch(() => {});
     try {
-      for (const name of names) for (const record of snapshot[name]) {
+      for (const name of names) for (const record of snapshot[name] || []) {
         const store = tx.objectStore(name);
         if (name === 'attachments' && expectedAttachments) {
           const expected = expectedAttachments.find(item => item.id === record.id);
-          if (!expected || !(await mutateMatchingBlob(store, tx, expected, () => store.put(record)))) throw new Error('Retained attachment ownership changed.');
-        } else store.put(record);
+          if (!expected || !(await mutateMatchingBlob(store, tx, expected, () => { validate?.(); store.put(record); }))) throw new Error('Retained attachment ownership changed.');
+        } else if (expectedHistory?.[name]) {
+          const expected = expectedHistory[name].find(([id]) => id === record.id);
+          await new Promise((resolve, reject) => {
+            const read = store.get(record.id);
+            read.onerror = () => reject(read.error);
+            read.onsuccess = () => {
+              try {
+                if (!expected || JSON.stringify(read.result || null) !== JSON.stringify(expected[1])) throw new Error('Retained history ownership changed.');
+                validate?.(); store.put(record); resolve();
+              } catch (error) { try { tx.abort(); } catch (_) {} reject(error); }
+            };
+          });
+        } else { validate?.(); store.put(record); }
       }
+      for (const name of names) for (const record of snapshot.deleteRecords?.[name] || [])
+        if (!(await mutateMatchingBlob(tx.objectStore(name), tx, record, () => { validate?.(); tx.objectStore(name).delete(record.id); }))) throw new Error('Retained history ownership changed.');
     }
     catch (error) { try { tx.abort(); } catch (_) {} await done.catch(() => {}); throw error; }
     await done;

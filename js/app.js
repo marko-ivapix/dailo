@@ -2277,7 +2277,8 @@
       deadline: Date.now() + 6500, eligibilityDeadline: performance.now() + 6500, entries: [], effects: [], attachments: [], pendingAttachments: [], habitLogs: [], goalHistory: [], applied: false, restored: false, finalized: false };
     const capture = (collection, entity, parent = null, field = null) => {
       const array = field ? parent[field] : state[collection];
-      snapshot.entries.push({ collection, parent, field, source: entity, entity: copyTemplate(entity), index: array.indexOf(entity) });
+      snapshot.entries.push({ collection, parent, field, source: entity, entity: copyTemplate(entity), index: array.indexOf(entity),
+        projectParent: collection === 'tasks' && !field && entity.projectId ? getProject(entity.projectId) : null });
     };
     if (type === 'subtask' || type === 'milestone') capture(located.collection, located.entity, located.parent, located.field);
     else if (type === 'clear-completed') state.tasks.filter(task => task.isCompleted).forEach(task => capture('tasks', task));
@@ -2433,6 +2434,12 @@
     snapshot.recoveryBusy = true;
     const operation = (async () => {
       try {
+        if (snapshot.recoveryKind === 'undo') {
+          await restoreDeleteSnapshot(snapshot);
+          failedDeleteSnapshots.delete(snapshot);
+          renderToast(); setToastMessage('Undo recovery verified. Original item, files and history restored.');
+          return;
+        }
         validateDeleteSnapshot(snapshot, false);
         const expected = [];
         for (const original of snapshot.attachments) {
@@ -2469,19 +2476,62 @@
     return Attachments.sameRecord(actual, expected);
   }
 
-  async function restoreDeleteSnapshot(snapshot) {
-    if (snapshot.restored) return;
+  function validateRestoreMetadata(snapshot) {
     if (snapshot.source !== state || snapshot.generation !== undoGeneration) throw new Error('The data source changed.');
     for (const entry of snapshot.entries) {
       const array = deleteEntryArray(entry);
       if (!array || array.some(item => item.id === entry.entity.id)) throw new Error('The item ID or parent is now in use.');
+      if (entry.collection === 'tasks' && !entry.field && entry.entity.projectId
+        && !snapshot.entries.some(parent => parent.collection === 'projects' && parent.entity.id === entry.entity.projectId)
+        && !state.projects.includes(entry.projectParent)) throw new Error('The Task Project parent changed.');
     }
-    for (const expected of snapshot.pendingAttachments)
-      if (!(await sameStoredAttachment(await Attachments.get(expected.id), expected))) throw new Error('The retained file owner or bytes changed.');
     if (snapshot.attachmentOwner && !state.tasks.includes(snapshot.attachmentOwner)) throw new Error('Attachment owner changed.');
-    await TodoStorage.restoreDeleteRecords(snapshot, snapshot.pendingAttachments);
-    const rollback = mutateDeleteMetadata(snapshot, true);
-    if (!saveState()) { rollback(); await reapplyDeleteRecords(snapshot); throw new Error('Local metadata could not be saved.'); }
+    if (snapshot.attachmentOwner && snapshot.attachmentOwner.attachmentIds?.includes(snapshot.identity)) throw new Error('The attachment ID is now in use.');
+    for (const effect of snapshot.effects) if (!state[effect.collection].includes(effect.owner)
+      || (effect.link && !effect.owner.projectLinks?.includes(effect.link))) throw new Error('A linked owner changed.');
+  }
+
+  async function restoreDeleteSnapshot(snapshot) {
+    if (snapshot.restored) return;
+    const validate = () => validateRestoreMetadata(snapshot);
+    validate();
+    const expected = [], history = {};
+    for (const pending of snapshot.pendingAttachments) {
+      const actual = await Attachments.get(pending.id); validate();
+      let matches = await sameStoredAttachment(actual, pending); validate();
+      if (!matches && snapshot.recoveryKind === 'undo') {
+        matches = await sameStoredAttachment(actual, snapshot.attachments.find(record => record.id === pending.id)); validate();
+      }
+      if (!matches) throw new Error('Retained file ownership changed; owner or bytes no longer match.');
+      expected.push(actual);
+    }
+    for (const name of ['habitLogs','goalHistory']) {
+      history[name] = [];
+      for (const original of snapshot[name]) {
+        const actual = await TodoStorage[name].get(original.id); validate();
+        if (actual && (snapshot.recoveryKind !== 'undo' || JSON.stringify(actual) !== JSON.stringify(original))) throw new Error('Retained history ownership changed.');
+        history[name].push([original.id, actual || null]);
+      }
+    }
+    validate();
+    try {
+      await TodoStorage.restoreDeleteRecords(snapshot, expected, validate, history);
+      snapshot.undoNativePhase = 'originals-restored';
+      validate();
+      const rollback = mutateDeleteMetadata(snapshot, true);
+      if (!saveState()) { rollback(); throw new Error('Local metadata could not be saved.'); }
+    } catch (error) {
+      if (snapshot.undoNativePhase === 'originals-restored') {
+        try { await reapplyDeleteRecords(snapshot); }
+        catch (compensationError) {
+          snapshot.recoveryKind = 'undo';
+          snapshot.recoveryError = `Undo failed: ${error.message} Compensation failed: ${compensationError.message}`;
+          failedDeleteSnapshots.add(snapshot);
+          throw new Error(snapshot.recoveryError);
+        }
+      }
+      throw error;
+    }
     snapshot.restored = true;
     if (snapshot.type === 'habit') await refreshHabitMetrics();
     render();
@@ -2489,9 +2539,12 @@
   }
 
   async function reapplyDeleteRecords(snapshot) {
-    await TodoStorage.restoreDeleteRecords({ attachments: snapshot.pendingAttachments });
-    if (snapshot.habitLogs.length) await TodoStorage.habitLogs.deleteMany(snapshot.habitLogs.map(record => record.id));
-    if (snapshot.goalHistory.length) await TodoStorage.goalHistory.deleteMany(snapshot.goalHistory.map(record => record.id));
+    // Compensation is a single owned transaction, including growing-store deletes.
+    // Expected originals are the exact records written by the completed native Undo.
+    await TodoStorage.restoreDeleteRecords({ attachments: snapshot.pendingAttachments,
+      deleteRecords: { habitLogs: snapshot.habitLogs, goalHistory: snapshot.goalHistory } }, snapshot.attachments,
+      () => validateRestoreMetadata(snapshot));
+    snapshot.undoNativePhase = 'pending';
   }
 
   async function finalizeDeleteSnapshot(snapshot) {
@@ -2512,14 +2565,14 @@
     // Hold takes effect synchronously; callers MUST await its token before capture/export.
     async hold() {
       if (undoHold) throw new Error('Normal Undo is already held.');
-      if (failedDeleteSnapshots.size) throw new Error('Retry delete recovery before starting a global operation.');
+      if (failedDeleteSnapshots.size || [...undoWork].some(work => work.snapshot && work.failedUndoError)) throw new Error('Retry Undo or delete recovery before starting a global operation.');
       const token = { generation: undoGeneration, visible: undoState, source: state };
       undoHold = token; undoState = null;
       for (const work of undoWork) clearTimeout(work.timer);
       renderToast();
       try {
         await Promise.all([...deleteOperations, ...[...undoWork].map(work => work.busy).filter(Boolean)]);
-        if (failedDeleteSnapshots.size) throw new Error('Retry delete recovery before starting a global operation.');
+        if (failedDeleteSnapshots.size || [...undoWork].some(work => work.snapshot && work.failedUndoError)) throw new Error('Retry Undo or delete recovery before starting a global operation.');
         token.domain = undoDomain(); token.attachments = [];
         for (const work of undoWork) for (const record of work.snapshot?.pendingAttachments || [])
           token.attachments.push(await Attachments.get(record.id));
@@ -2545,7 +2598,10 @@
       for (const work of undoWork) if (work.snapshot) {
         const snapshot = work.snapshot;
         snapshot.source = state;
-        for (const entry of snapshot.entries) if (entry.parent) entry.parent = state[entry.collection].find(item => item.id === entry.parent.id);
+        for (const entry of snapshot.entries) {
+          if (entry.parent) entry.parent = state[entry.collection].find(item => item.id === entry.parent.id);
+          if (entry.collection === 'tasks' && !entry.field && entry.entity.projectId) entry.projectParent = getProject(entry.entity.projectId);
+        }
         for (const effect of snapshot.effects) {
           effect.owner = state[effect.collection].find(item => item.id === effect.owner.id);
           if (effect.link) effect.link = effect.owner?.projectLinks?.find(link => link.projectId === effect.link.projectId);
@@ -2571,9 +2627,21 @@
     work.timer = setTimeout(() => expireUndo(work), Math.max(0, work.deadline - performance.now()));
   }
 
+  function retainFailedUndo(work, error) {
+    const snapshot = work.snapshot;
+    snapshot.recoveryKind = 'undo';
+    snapshot.recoveryError ||= `Undo failed: ${error}`;
+    failedDeleteSnapshots.add(snapshot);
+    clearTimeout(work.timer);
+    if (undoState === work) undoState = null;
+    undoWork.delete(work);
+    renderToast();
+  }
+
   async function expireUndo(work) {
     if (undoHold || work.generation !== undoGeneration || work.busy) return;
     if (performance.now() < work.deadline) { armUndo(work); return; }
+    if (work.snapshot && work.failedUndoError) { retainFailedUndo(work, work.failedUndoError); return; }
     if (undoState === work) { undoState = null; renderToast(); }
     work.busy = Promise.resolve().then(() => work.finalizer?.());
     try {
@@ -2613,7 +2681,13 @@
       await work.busy;
       if (undoState === work) undoState = null;
       undoWork.delete(work); renderToast();
-    } catch (_) { setToastMessage('Undo failed. Your recovery snapshot is retained; retry Undo.'); }
+    } catch (error) {
+      work.failedUndoError = error.message;
+      if (work.snapshot && (failedDeleteSnapshots.has(work.snapshot) || performance.now() >= work.deadline)) {
+        retainFailedUndo(work, error.message);
+        setToastMessage('Undo failed. Snapshot retained; use Retry recovery.');
+      } else setToastMessage('Undo failed. Your recovery snapshot is retained; retry Undo.');
+    }
     finally { work.busy = null; if (undoWork.has(work)) armUndo(work); }
   }
 

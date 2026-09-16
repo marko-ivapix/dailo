@@ -519,6 +519,107 @@ def changed_project_scope(page):
     assert page.locator('[data-action="undo"]').count()==0
 
 
+def undo_metadata_boundary(page, boundary):
+    kind='subtask' if boundary=='parent' else 'task'
+    trigger(page,kind);confirmed(page)
+    pending=domain(page)
+    if boundary=='during-native':
+        page.evaluate('''()=>{const read=Blob.prototype.arrayBuffer;let calls=0;window.__started=false;
+          Blob.prototype.arrayBuffer=async function(){if(++calls===5){__started=true;await new Promise(resolve=>{window.__release=resolve;});}return read.call(this);};}''')
+    else:
+        install_undo_boundary(page,boundary)
+    click(page,'undo');page.wait_for_function('__started')
+    if boundary=='project-parent':
+        page.evaluate('''()=>{const i=TodoApp.state.projects.findIndex(p=>p.id==='p');TodoApp.state.projects[i]=JSON.parse(JSON.stringify(TodoApp.state.projects[i]));TodoApp.state.projects[i].name='Incoming project parent';}''')
+    elif boundary=='parent':
+        page.evaluate('''()=>{const i=TodoApp.state.tasks.findIndex(t=>t.id==='t');TodoApp.state.tasks[i]=JSON.parse(JSON.stringify(TodoApp.state.tasks[i]));TodoApp.state.tasks[i].notes='Incoming parent';}''')
+    elif boundary in ['before-native','after-native']:
+        page.evaluate('''async boundary=>{const s=JSON.parse(localStorage.getItem('todoAppData'));s.tasks.push({id:'t',title:'Incoming task',notes:'Do not change',subtasks:[],attachmentIds:[],goalIds:[],tagIds:[],isCompleted:false,isInbox:true});
+          const raw=JSON.stringify(s);localStorage.setItem('todoAppData',raw);window.dispatchEvent(new StorageEvent('storage',{key:'todoAppData',newValue:raw}));
+          if(boundary==='after-native'){const r=await TodoAttachments.get('f');await TodoAttachments.put({...r,blob:new Blob(['other\\x00bytes'],{type:r.blob.type})});}}''',boundary)
+        ready(page)
+    else:
+        page.evaluate('TodoApp.state.tasks.push({id:"t",title:"Occupied ID",subtasks:[],attachmentIds:[]})')
+    if boundary=='during-native':
+        expected=pending
+        expected['metadata']=page.evaluate("Object.fromEntries(['tasks','projects','tags','areas','goals','habits','templates','savedViews'].map(k=>[k,TodoApp.state[k]]))")
+    else: expected=domain(page)
+    page.evaluate('__release()')
+    page.wait_for_function('!document.querySelector("[data-action=undo]") || document.querySelector("#toast-root").textContent.includes("Undo failed")')
+    assert domain(page)==expected, 'Undo '+boundary+' boundary mutated changed metadata/source or native ownership'
+
+
+def install_undo_boundary(page,boundary):
+    page.evaluate('''boundary=>{const target=boundary==='read'?TodoAttachments:TodoStorage,key=boundary==='read'?'get':'restoreDeleteRecords',original=target[key];let waiting=true;window.__started=false;
+      target[key]=async(...args)=>{if(!waiting)return original.apply(target,args);waiting=false;
+        const result=boundary==='after-native'?await original.apply(target,args):undefined;
+        __started=true;await new Promise(resolve=>{window.__release=resolve;});
+        return boundary==='after-native'?result:original.apply(target,args);};}''',boundary)
+
+
+def undo_compensation_failure(page, replacement=False):
+    before=domain(page);trigger(page,'task');confirmed(page)
+    page.evaluate('''replacement=>{const restore=TodoStorage.restoreDeleteRecords,set=Storage.prototype.setItem;let calls=0;
+      window.__restoreFault=()=>{TodoStorage.restoreDeleteRecords=restore;Storage.prototype.setItem=set;};
+      Storage.prototype.setItem=function(key,value){if(key==='todoAppData')throw Error('Injected Undo metadata persistence failure');return set.call(this,key,value);};
+      TodoStorage.restoreDeleteRecords=async(...args)=>{calls++;if(calls===2){
+        if(!replacement)throw Error('Undo compensation unavailable');
+        const r=await TodoAttachments.get('f');await TodoAttachments.put({...r,blob:new Blob(['other\\x00bytes'],{type:r.blob.type})});
+      }return restore(...args);};}''',replacement)
+    click(page,'undo');page.wait_for_function('document.querySelector("#toast-root").textContent.includes("Undo failed")')
+    if replacement:
+        assert page.evaluate('async()=>(await TodoAttachments.get("f")).blob.text()')=='other\x00bytes', 'Undo compensation overwrote same-metadata different-byte replacement'
+    expect(page.locator('[data-action="retry-delete-recovery"]')).to_be_visible()
+    assert 'Local metadata could not be saved' in page.locator('#toast-root').inner_text()
+    if not replacement: assert 'Undo compensation unavailable' in page.locator('#toast-root').inner_text()
+    assert not page.evaluate('TodoApp.state.tasks.some(t=>t.id==="t")')
+    rejected=page.evaluate('''async()=>{try{await TodoApp.deleteLifecycle.hold();return false;}catch(_){return true;}}''')
+    assert rejected, 'partial failed Undo was allowed into global capture'
+    page.clock.run_for(7000);page.evaluate('__restoreFault()')
+    click(page,'retry-delete-recovery')
+    if replacement:
+        page.wait_for_function('document.querySelector("#toast-root").textContent.includes("ownership changed")')
+        assert page.evaluate('async()=>(await TodoAttachments.get("f")).blob.text()')=='other\x00bytes'
+        assert not page.evaluate('TodoApp.state.tasks.some(t=>t.id==="t")')
+    else:
+        page.wait_for_function('!document.querySelector("[data-action=retry-delete-recovery]")')
+        assert domain(page)==before, 'phase-aware Undo recovery failed to restore exact native originals/metadata'
+        page.evaluate('async()=>{const token=await TodoApp.deleteLifecycle.hold();TodoApp.deleteLifecycle.retire(token);}')
+        page.reload();ready(page);assert domain(page)==before
+
+
+def undo_failure_crosses_deadline(page):
+    before=domain(page);trigger(page,'habit');confirmed(page)
+    page.evaluate('''()=>{const restore=TodoStorage.restoreDeleteRecords;window.__started=false;window.__restoreFault=()=>{TodoStorage.restoreDeleteRecords=restore;};
+      TodoStorage.restoreDeleteRecords=async()=>{__started=true;await new Promise(resolve=>{window.__release=resolve;});throw Error('Accepted Undo native write unavailable');};}''')
+    click(page,'undo');page.wait_for_function('__started')
+    page.evaluate('''()=>{window.__holdSettled=false;window.__holdRejected=false;TodoApp.deleteLifecycle.hold().then(()=>{__holdSettled=true;},()=>{__holdRejected=true;__holdSettled=true;});}''')
+    assert not page.evaluate('__holdSettled')
+    page.clock.run_for(6501);page.evaluate('__release()');page.wait_for_function('__holdSettled')
+    assert page.evaluate('__holdRejected'), 'failed accepted Undo crossing deadline did not block global hold'
+    assert page.locator('[data-action="undo"]').count()==0, 'expired normal Undo was renewed'
+    expect(page.locator('[data-action="retry-delete-recovery"]')).to_be_visible()
+    page.evaluate('__restoreFault()');click(page,'retry-delete-recovery')
+    page.wait_for_function('!document.querySelector("[data-action=retry-delete-recovery]")')
+    assert domain(page)==before, 'failed accepted Undo lost native Habit logs after original deadline'
+
+
+def undo_failure_before_deadline(page):
+    before=domain(page);trigger(page,'habit');confirmed(page)
+    page.clock.run_for(6000)
+    page.evaluate('''()=>{const restore=TodoStorage.restoreDeleteRecords;window.__restoreFault=()=>{TodoStorage.restoreDeleteRecords=restore;};TodoStorage.restoreDeleteRecords=async()=>{throw Error('Accepted Undo write unavailable before expiry');};}''')
+    click(page,'undo');page.wait_for_function('document.querySelector("#toast-root").textContent.includes("Undo failed")')
+    assert page.locator('[data-action="undo"]').count()==1
+    assert page.evaluate('''async()=>{try{await TodoApp.deleteLifecycle.hold();return false;}catch(_){return true;}}'''), 'failed accepted Undo recovery escaped hold while still eligible'
+    page.clock.run_for(501)
+    assert page.locator('[data-action="undo"]').count()==0
+    expect(page.locator('[data-action="retry-delete-recovery"]')).to_be_visible()
+    assert page.evaluate('''async()=>{try{await TodoApp.deleteLifecycle.hold();return false;}catch(_){return true;}}''')
+    page.evaluate('__restoreFault()');click(page,'retry-delete-recovery')
+    page.wait_for_function('!document.querySelector("[data-action=retry-delete-recovery]")')
+    assert domain(page)==before, 'previous failed accepted Undo was discarded at original expiry'
+
+
 def main():
     class QuietHandler(SimpleHTTPRequestHandler):
         def log_message(self, *_args): pass
@@ -548,6 +649,9 @@ def main():
     cases += [('inflight-status-history',inflight_status_history)]
     cases += [('inflight-habit-status',lambda p:inflight_status_history(p,'habit'))]
     cases += [('changed-project-scope',changed_project_scope)]
+    cases += [('undo-boundary-'+b,lambda p,b=b:undo_metadata_boundary(p,b)) for b in ['read','before-native','during-native','after-native','parent','project-parent']]
+    cases += [('undo-compensation-failure',undo_compensation_failure),('undo-compensation-replacement',lambda p:undo_compensation_failure(p,True)),('undo-failure-deadline',undo_failure_crosses_deadline)]
+    cases += [('undo-failure-before-deadline',undo_failure_before_deadline)]
     failures=[]; count=0
     try:
         with sync_playwright() as p:
@@ -558,6 +662,9 @@ def main():
                     context=browser.new_context(viewport={'width':1440,'height':1000},timezone_id='Europe/Belgrade')
                     try:
                         page=context.new_page(); page.set_default_timeout(3500)
+                        # Native/action readiness stays strict; cold navigation also
+                        # waits for the page's external font/icon stylesheets.
+                        page.set_default_navigation_timeout(15000)
                         page.clock.install(time=__import__('datetime').datetime(2026,10,24,12))
                         errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
                         origin=f'http://127.0.0.1:{server.server_port}'
