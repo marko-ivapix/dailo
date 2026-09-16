@@ -24,7 +24,7 @@
       <div class="task-main" data-action="open-task" data-task-id="${ctx.esc(task.id)}" role="button" tabindex="0">
         <div class="task-title">${ctx.esc(task.title)}</div>
         ${combinedMeta ? `<div class="task-meta">${combinedMeta}</div>` : ''}
-        ${options.inbox ? `<div class="quick-actions"><button class="quick-chip" type="button" data-action="inbox-today" data-task-id="${ctx.esc(task.id)}">Today</button><button class="quick-chip" type="button" data-action="task-project-picker" data-task-id="${ctx.esc(task.id)}">Project</button><button class="quick-chip" type="button" data-action="task-due-picker" data-task-id="${ctx.esc(task.id)}">Date</button></div>` : ''}
+        ${options.inbox ? `<div class="quick-actions"><button class="quick-chip" type="button" data-action="inbox-today" data-task-id="${ctx.esc(task.id)}">Today</button><button class="quick-chip" type="button" data-action="inbox-tomorrow" data-task-id="${ctx.esc(task.id)}">Tomorrow</button><button class="quick-chip" type="button" data-action="inbox-anytime" data-task-id="${ctx.esc(task.id)}">Anytime</button><button class="quick-chip" type="button" data-action="task-project-picker" data-task-id="${ctx.esc(task.id)}">Project</button><button class="quick-chip" type="button" data-action="task-due-picker" data-task-id="${ctx.esc(task.id)}">Date</button></div>` : ''}
       </div>
       <div class="task-actions"><button class="btn-icon" type="button" data-action="task-menu" data-task-id="${ctx.esc(task.id)}" aria-label="Task actions"><i class="ph ph-dots-three"></i></button></div>
     </article>`;
