@@ -4,6 +4,7 @@ from playwright.sync_api import sync_playwright
 ROOT = Path(__file__).resolve().parents[1]
 CORE = (ROOT / 'js' / 'core.js').read_text()
 JSZIP = (ROOT / 'vendor' / 'jszip.min.js').read_text()
+STORAGE = (ROOT / 'js' / 'storage.js').read_text()
 ATTACHMENTS = (ROOT / 'js' / 'attachments.js').read_text()
 BACKUP = (ROOT / 'js' / 'backup.js').read_text()
 APP = (ROOT / 'js' / 'app.js').read_text()
@@ -40,6 +41,7 @@ def boot(page, seed=None):
     }''', seed)
     page.add_script_tag(content=JSZIP)
     page.add_script_tag(content=CORE)
+    page.add_script_tag(content=STORAGE)
     page.add_script_tag(content=ATTACHMENTS)
     page.add_script_tag(content=BACKUP)
     page.add_script_tag(content=APP)
