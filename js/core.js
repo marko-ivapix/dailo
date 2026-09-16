@@ -319,10 +319,15 @@
       .find(key => Object.hasOwn(input, key) && !Array.isArray(input[key]));
   }
 
+  function isNullableEntityId(value) {
+    return value === null || typeof value === 'string' && value.trim();
+  }
+
   function invalidExplicitV3Field(input) {
     if (Array.isArray(input.tasks)) {
       for (const task of input.tasks) {
         if (!task || typeof task !== 'object') continue;
+        if (Object.hasOwn(task, 'areaId') && !isNullableEntityId(task.areaId)) return 'invalid-task-area-id';
         if (Object.hasOwn(task, 'goalIds') && !Array.isArray(task.goalIds)) return 'invalid-task-goal-ids';
         if (Object.hasOwn(task, 'plannedTime') && task.plannedTime !== null && normalizeTime(task.plannedTime) !== task.plannedTime) return 'invalid-task-planned-time';
         if (Object.hasOwn(task, 'dueTime') && task.dueTime !== null && normalizeTime(task.dueTime) !== task.dueTime) return 'invalid-task-due-time';
@@ -331,6 +336,7 @@
     if (Array.isArray(input.projects)) {
       for (const project of input.projects) {
         if (!project || typeof project !== 'object') continue;
+        if (Object.hasOwn(project, 'areaId') && !isNullableEntityId(project.areaId)) return 'invalid-project-area-id';
         if (Object.hasOwn(project, 'goalIds') && !Array.isArray(project.goalIds)) return 'invalid-project-goal-ids';
         if (Object.hasOwn(project, 'isArchived') && typeof project.isArchived !== 'boolean') return 'invalid-project-is-archived';
       }
@@ -361,12 +367,14 @@
 
     for (const task of state.tasks) {
       if (!String(task.title || '').trim()) return { ok: false, reason: 'invalid-task' };
+      if (!isNullableEntityId(task.areaId)) return { ok: false, reason: 'invalid-task-area-id' };
       if (!Array.isArray(task.goalIds)) return { ok: false, reason: 'invalid-task-goal-ids' };
       if (task.plannedTime !== null && normalizeTime(task.plannedTime) !== task.plannedTime) return { ok: false, reason: 'invalid-task-planned-time' };
       if (task.dueTime !== null && normalizeTime(task.dueTime) !== task.dueTime) return { ok: false, reason: 'invalid-task-due-time' };
     }
     for (const project of state.projects) {
       if (!String(project.name || '').trim()) return { ok: false, reason: 'invalid-project' };
+      if (!isNullableEntityId(project.areaId)) return { ok: false, reason: 'invalid-project-area-id' };
       if (!Array.isArray(project.goalIds)) return { ok: false, reason: 'invalid-project-goal-ids' };
       if (typeof project.isArchived !== 'boolean') return { ok: false, reason: 'invalid-project-is-archived' };
     }
