@@ -94,14 +94,17 @@ Tasks continue to verify `record.taskId === task.id`; Note/Resource records veri
 ### Task 4: Add Goal horizons and the derived monthly view
 
 **Files:**
-- Modify: `js/app.js: Goal create/edit modal, renderGoals, renderGoal`
+- Create: `js/goals-ui.js`
+- Modify: `index.html`
+- Modify: `js/app.js: Goal adapter context and incumbent Goal extraction`
 - Modify: `css/styles.css` only if current tab/section primitives cannot render the new view
 
 **Interfaces:**
 - Consumes: Task 1 `goal.horizon` and existing Goal lifecycle/progress/Calendar/reminders.
-- Produces: horizon picker, Short/Mid/Long sections, and a view-only `By month` grouping.
+- Produces: a `goals` domain adapter, horizon picker, Short/Mid/Long sections, and a view-only `By month` grouping.
 
-- [ ] Add Short-term, Mid-term, and Long-term to Goal creation/property editing. Persist only normalized horizon; retain existing progress mode/type, target date, reminders, and history.
+- [ ] Load `js/goals-ui.js` after the existing domain registry and before `js/app.js`. Register an adapter using the existing handled/deferred hook contract; retain state, persistence, global overlay, Search, and event listener ownership in `app.js`.
+- [ ] Move existing Goal render/modal/action/input code into the adapter through an ephemeral app context, then add Short-term, Mid-term, and Long-term to Goal creation/property editing. Persist only normalized horizon; retain existing progress mode/type, target date, reminders, and history.
 - [ ] Add `By month` beside existing Goal views. Group visible Goals by target-date month and include an explicit `Undated` group; do not create duplicate records or artificial dates.
 - [ ] Keep Calendar, Today overdue/future behavior, completion prompt, links, and Search unchanged.
 - [ ] Inspect scoped diff, run `git diff --check`, manually create one dated and one undated Goal in the isolated preview, and commit scoped files.
@@ -109,15 +112,18 @@ Tasks continue to verify `record.taskId === task.id`; Note/Resource records veri
 ### Task 5: Add Habit routines and approved starter data
 
 **Files:**
-- Modify: `js/app.js: Habit create/edit, renderHabits, renderToday, starter-data action`
+- Create: `js/habits-ui.js`
+- Modify: `index.html`
+- Modify: `js/app.js: Habit adapter context and incumbent Habit extraction; starter-data action`
 - Modify: `css/styles.css` only for BDS section labels/list spacing
 - Modify: `README.md: prototype sample-data note`
 
 **Interfaces:**
 - Consumes: Task 1 `habit.routine` and current Habit schedule/check-in/reminder/lifecycle logic.
-- Produces: Morning/Daily/Night selection/grouping and a safe idempotent starter-data action.
+- Produces: a `habits` domain adapter, Morning/Daily/Night selection/grouping, and a safe idempotent starter-data action.
 
-- [ ] Add Routine picker to Habit create/edit. Group active Habits by routine on Habits; preserve Today schedule-first order and show only a compact routine label.
+- [ ] Load `js/habits-ui.js` after the existing domain registry and before `js/app.js`. Register an adapter using the existing handled/deferred hook contract; retain state, persistence, global overlay, Search, and event listener ownership in `app.js`.
+- [ ] Move existing Habit render/modal/action/input code into the adapter through an ephemeral app context, then add Routine picker to Habit create/edit. Group active Habits by routine on Habits; preserve Today schedule-first order and show only a compact routine label.
 - [ ] Add one `Add starter examples` action in Settings or an empty state. It creates only missing stable-marked items: Family & Friends, Work, Personal Growth, Home, Travel, Health, Career, Finance, plus approved Morning/Daily/Night Habits. It never overwrites or duplicates user edits.
 - [ ] Apply daily schedules to everyday items and `X times per week = 4` to training. Keep every inserted record editable.
 - [ ] Inspect scoped diff, run `git diff --check`, invoke starter action twice in the isolated preview to confirm idempotence, and commit scoped files.
