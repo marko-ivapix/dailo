@@ -1558,7 +1558,7 @@
     const task = getTask(taskId); if (!task) return;
     const today = Core.dateOnly();
     const todayAction = task.plannedDate === today ? '' : `<button class="popover-option" type="button" data-pop-action="task-add-today" data-task-id="${esc(taskId)}"><i class="ph ph-sun"></i>Add to Today</button>`;
-    const html = `${todayAction}<button class="popover-option" type="button" data-pop-action="task-move-tomorrow" data-task-id="${esc(taskId)}"><i class="ph ph-arrow-right"></i>Move to Tomorrow</button><button class="popover-option" type="button" data-pop-action="task-open-plan" data-task-id="${esc(taskId)}"><i class="ph ph-calendar-check"></i>Plan for...</button><button class="popover-option" type="button" data-pop-action="task-open-due" data-task-id="${esc(taskId)}"><i class="ph ph-flag"></i>Change due date</button><button class="popover-option" type="button" data-pop-action="task-open-project" data-task-id="${esc(taskId)}"><i class="ph ph-folder-simple"></i>Move to project</button><button class="popover-option" type="button" data-pop-action="task-duplicate" data-task-id="${esc(taskId)}"><i class="ph ph-copy"></i>Duplicate</button><div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="task-delete" data-task-id="${esc(taskId)}" style="color:var(--danger)"><i class="ph ph-trash"></i>Delete</button>`;
+    const html = `${todayAction}<button class="popover-option" type="button" data-pop-action="task-move-tomorrow" data-task-id="${esc(taskId)}"><i class="ph ph-arrow-right"></i>Move to Tomorrow</button><button class="popover-option" type="button" data-pop-action="task-move-anytime" data-task-id="${esc(taskId)}"><i class="ph ph-infinity"></i>Move to Anytime</button><button class="popover-option" type="button" data-pop-action="task-open-plan" data-task-id="${esc(taskId)}"><i class="ph ph-calendar-check"></i>Plan for...</button><button class="popover-option" type="button" data-pop-action="task-open-due" data-task-id="${esc(taskId)}"><i class="ph ph-flag"></i>Change due date</button><button class="popover-option" type="button" data-pop-action="task-open-project" data-task-id="${esc(taskId)}"><i class="ph ph-folder-simple"></i>Move to project</button><button class="popover-option" type="button" data-pop-action="task-duplicate" data-task-id="${esc(taskId)}"><i class="ph ph-copy"></i>Duplicate</button><div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="task-delete" data-task-id="${esc(taskId)}" style="color:var(--danger)"><i class="ph ph-trash"></i>Delete</button>`;
     openPopover(anchor, templateMenuEntry('task',taskId)+html, { type: 'task-menu', taskId });
   }
 
@@ -2453,6 +2453,15 @@
     setUndo('Task moved to Tomorrow', () => { const current = getTask(taskId); if (!current) return; Object.assign(current, prev, { updatedAt: nowIso() }); saveState(); render(); });
   }
 
+  function moveTaskToAnytime(taskId) {
+    const task = getTask(taskId); if (!task) return;
+    if(taskRecurrence(task)){requestTaskEdit(taskId,{plannedDate:null,isInbox:false,todayOrder:null});return;}
+    const prev = { plannedDate: task.plannedDate, isInbox: task.isInbox, todayOrder: task.todayOrder };
+    task.plannedDate = null; task.isInbox = false; task.todayOrder = null; task.updatedAt = nowIso();
+    saveState(); render();
+    setUndo('Task moved to Anytime', () => { const current = getTask(taskId); if (!current) return; Object.assign(current, prev, { updatedAt: nowIso() }); saveState(); render(); });
+  }
+
   function nextProjectOrder() {
     const orders = state.projects.map(p => p.order).filter(Number.isFinite);
     return orders.length ? Math.max(...orders) + 1 : 0;
@@ -3114,6 +3123,7 @@
     else if (action === 'toggle-today-completed') { state.ui.todayCompletedExpanded = !state.ui.todayCompletedExpanded; saveAndRender(); }
     else if (action === 'add-all-suggestions') addAllSuggestions();
     else if (action === 'inbox-today') addTaskToToday(el.dataset.taskId);
+    else if (action === 'inbox-anytime') moveTaskToAnytime(el.dataset.taskId);
     else if (action === 'task-project-picker') showTaskProjectPicker(el.dataset.taskId, el);
     else if (action === 'task-plan-picker') showTaskPlanPicker(el.dataset.taskId, el);
     else if (action === 'task-due-picker') showTaskDuePicker(el.dataset.taskId, el);
@@ -3194,6 +3204,7 @@
     }
     else if (action === 'task-add-today') { closePopover(); addTaskToToday(button.dataset.taskId); }
     else if (action === 'task-move-tomorrow') { closePopover(); moveTaskToTomorrow(button.dataset.taskId); }
+    else if (action === 'task-move-anytime') { closePopover(); moveTaskToAnytime(button.dataset.taskId); }
     else if (action === 'task-open-plan') { const taskId=button.dataset.taskId; closePopover(); const anchor=document.querySelector(`[data-action="task-menu"][data-task-id="${CSS.escape(taskId)}"]`) || button; openPlanPicker(anchor,{type:'task',taskId}); }
     else if (action === 'task-duplicate') startDuplicate(button.dataset.taskId);
     else if (action === 'attachment-open') openAttachment(button.dataset.attachmentId, false);
