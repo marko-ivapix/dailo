@@ -1,4 +1,4 @@
-# Dailo — HTML Prototype v1.5
+# Dailo — HTML Prototype v1.6
 
 Desktop-first, local-first functional prototype for a personal/freelancer task tracker. The product keeps a simple workflow:
 
@@ -17,7 +17,7 @@ python3 -m http.server 8080
 
 Then open `http://localhost:8080`.
 
-## V1.5 highlights
+## V1.6 highlights
 
 - Task duration, a three-task Today Focus queue, inline completion/planning and Daily Review.
 - Trailing Quick Add date/time phrases with explicit field values taking precedence.
@@ -43,7 +43,7 @@ Storage failures distinguish unsaved changes from an automatic snapshot failure 
 
 ### Verification status
 
-The final V1.5 review-fix check passed **146/146 Node tests**, including 8 new integration regressions for dashboard ordering, Calendar visibility, scheduling, reciprocal restore links and template round trips. All JavaScript syntax checks and the diff check passed. Both clean distributable ZIPs were rebuilt and checked for integrity and exact source-byte matching. Browser-path adapter tests passed **2/2**. Native browser/visual acceptance remains pending: isolated Chromium previously aborted with SIGABRT/EPERM and escalation was canceled; no browser launch was attempted in this fix round. Do not interpret Node results as native browser persistence verification. See `docs/superpowers/progress-v1-5.md` for the release gate.
+The V1.6 release verification is recorded in `docs/superpowers/progress-v1-6.md`. It includes the full Node suite, JavaScript syntax, Python AST, browser-path adapter, diff, and distributable-integrity checks. Native browser/visual acceptance remains pending: no browser was launched in this release verification, so automated results do not establish native browser persistence, visual, keyboard, or mobile acceptance.
 
 ## V1.4 foundation
 
@@ -180,7 +180,7 @@ The task context menu includes contextually appropriate actions for Today/Tomorr
 
 ## Storage architecture
 
-V1.5 retains the hybrid local storage model and schema V3 introduced in V1.3.
+V1.6 retains the hybrid local storage model and schema V3 introduced in V1.3.
 
 ### localStorage
 

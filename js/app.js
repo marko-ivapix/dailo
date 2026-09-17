@@ -3116,14 +3116,14 @@
   }
 
   function updateBackupStatus(patch, op = null) {
-    if (!state) return false;
+    if (!state || (op && (state !== op.source || compactState(state) !== op.stateText || localStorage.getItem(STORAGE_KEY) !== op.raw))) return false;
     state.settings ||= {};
     state.settings.backupStatus = { lastExport: null, lastImport: null, snapshotAvailable: false, validationResult: 'Not yet validated', ...(state.settings.backupStatus || {}), ...patch };
     try {
       const persisted = Core.normalizeState(state);
       delete persisted.habitLogCache; delete persisted.habitMetrics;
       localStorage.setItem(STORAGE_KEY, JSON.stringify(persisted));
-      if (op && globalOperation === op && state === op.source) { op.raw = localStorage.getItem(STORAGE_KEY); op.stateText = compactState(state); }
+      if (op && state === op.source) { op.raw = localStorage.getItem(STORAGE_KEY); op.stateText = compactState(state); }
       return true;
     } catch (error) { console.error(error); return false; }
   }
@@ -3153,7 +3153,7 @@
     await TodoStorage.recoverySnapshots.put({ ...snapshot, appData: structuredClone(state), rawAppData: localStorage.getItem(STORAGE_KEY) });
   }
 
-  async function abandonGlobalOperation(op, message = 'Operation canceled. Existing data was kept.') {
+  async function abandonGlobalOperation(op, message = 'Operation canceled. Existing data was kept.', statusPatch = null) {
     if (op.busy) return;
     op.busy = true;
     const returnFocus = modalReturnFocus;
@@ -3170,19 +3170,19 @@
     if (returnFocus?.isConnected) returnFocus.focus();
     if (cleanupError) {
       const retained = `Recovery copy retained: ${cleanupError.message}`;
-      updateBackupStatus({ snapshotAvailable: true, validationResult: retained });
+      updateBackupStatus({ snapshotAvailable: true, validationResult: retained }, op);
       globalNotice(`${message} Temporary backup cleanup failed: ${cleanupError.message}. Retry cleanup.`, async () => {
         try {
           await cleanupGlobalSnapshot(op);
-          updateBackupStatus({ snapshotAvailable: false, validationResult: 'Backup validation canceled; recovery copy removed' });
+          updateBackupStatus({ snapshotAvailable: false, validationResult: 'Backup validation canceled; recovery copy removed' }, op);
           globalRecoveryNotice = null; renderToast();
         } catch (error) {
-          updateBackupStatus({ snapshotAvailable: true, validationResult: `Recovery copy retained: ${error.message}` });
+          updateBackupStatus({ snapshotAvailable: true, validationResult: `Recovery copy retained: ${error.message}` }, op);
           throw error;
         }
       });
     } else {
-      updateBackupStatus({ snapshotAvailable: false, validationResult: 'Backup validation canceled; recovery copy removed' });
+      updateBackupStatus(statusPatch || { snapshotAvailable: false, validationResult: 'Backup validation canceled; recovery copy removed' }, op);
       setToastMessage(message);
     }
   }
@@ -3248,7 +3248,7 @@
       openConfirm({ title: reason === 'reset' ? 'Reset all app data?' : selection ? 'Restore selected entity?' : 'Restore backup?', message: 'A safety ZIP was downloaded and an internal recovery copy was created.' + summary,
         phrase: reason.toUpperCase(), confirmLabel: reason === 'reset' ? 'Reset app' : 'Restore backup',
         onConfirm: () => commitGlobalOperation(op), onCancel: () => abandonGlobalOperation(op) });
-    } catch (error) { await abandonGlobalOperation(op, `Safety preparation failed: ${error.message}. Nothing was replaced. Retry the operation.`); updateBackupStatus({ snapshotAvailable: false, validationResult: `Recovery preparation failed: ${error.message}` }); }
+    } catch (error) { await abandonGlobalOperation(op, `Safety preparation failed: ${error.message}. Nothing was replaced. Retry the operation.`, { snapshotAvailable: false, validationResult: `Recovery preparation failed: ${error.message}` }); }
   }
 
   async function verifyGlobalReplacement(op) {

@@ -5,7 +5,7 @@ ciljeva, navika, beleški i resursa. Osnovni tok je:
 
 **Capture → Organize → Plan → Complete**
 
-## V1.5 — implementirane dopune
+## V1.6 — implementirane dopune
 
 - Tasks imaju opciono trajanje, Today Focus red do tri zadatka i Daily Review. Quick Add prepoznaje završni datum/vreme; eksplicitno unete vrednosti imaju prednost.
 - Goals prikazuju health i doprinos povezanih stavki. Habits imaju minimum/ideal ciljeve i grace dane sa pregledom oporavka; numerički ciljevi podržavaju razlomljene vrednosti.
@@ -170,7 +170,9 @@ Zatim otvoriti `http://localhost:8080`.
 
 ## Trenutni status
 
-V1.5 prototip je upakovan u `Dailo-v1.5-distributable.zip`. Node suite ima
-146/146 prolaznih testova posle završnih ispravki I1–I6, uz 2/2 testa browser adaptera. JavaScript sintaksa, diff i integritet oba čista ZIP paketa provereni su, kao i poklapanje fajlova sa izvornim kodom.
-Browser/visual acceptance je dokumentovano odložena jer trenutno okruženje ne
-dozvoljava pokretanje izolovanog test browsera; lični Google Chrome nije otvaran.
+V1.6 prototip je upakovan u `Dailo-v1.6-distributable.zip`. Tačni rezultati
+Node, JavaScript sintakse, Python AST/browser adaptera, diff-a i ZIP integriteta
+zabeleženi su u `docs/superpowers/progress-v1-6.md`.
+Browser/visual acceptance je dokumentovano odložena; u ovoj release proveri nije
+pokrenut browser, pa automatizovani rezultati nisu potvrda native browser,
+vizuelnog, keyboard ili mobilnog ponašanja.

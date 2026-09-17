@@ -77,6 +77,42 @@ test('cancelled restore keeps recovery status available until cleanup retry succ
   assert.equal((await Storage.recoverySnapshots.listAll()).length, 0);
 });
 
+test('aborted restore preparation never overwrites a newer local workspace while recording status', async () => {
+  await Storage.clearAllForTests(); values.clear();
+  const current = Core.normalizeState({ version: 3, tasks: [{ id: 'task', title: 'Original' }], projects: [], tags: [], areas: [], goals: [], habits: [], notes: [], resources: [], templates: [], savedViews: [], settings: {}, ui: {} });
+  localStorage.setItem('todoAppData', JSON.stringify(current));
+  const payload = await Backup.exportBackupV3(current, { attachments: { getMany: async () => [] }, habitLogs: { listAll: async () => [] }, goalHistory: { listAll: async () => [] } }, '2026-09-17T10:00:00.000Z');
+  const app = recoveryApp(current);
+  const capture = Storage.captureUserData;
+  const newer = structuredClone(current);
+  newer.tasks[0].title = 'Newer task from another tab';
+  const newerRaw = JSON.stringify(newer);
+  let injected = false;
+  Storage.captureUserData = async () => {
+    const captured = await capture();
+    if (!injected) { injected = true; localStorage.setItem('todoAppData', newerRaw); }
+    return captured;
+  };
+  try { await app.begin(payload); } finally { Storage.captureUserData = capture; }
+  assert.equal(localStorage.getItem('todoAppData'), newerRaw);
+  assert.equal(JSON.parse(localStorage.getItem('todoAppData')).tasks[0].title, 'Newer task from another tab');
+  assert.match(app.ctx.message, /Nothing was replaced/);
+});
+
+test('invalid restore preparation keeps a physically retained recovery snapshot marked available', async () => {
+  await Storage.clearAllForTests(); values.clear();
+  const current = Core.normalizeState({ version: 3, tasks: [], projects: [], tags: [], areas: [], goals: [], habits: [], notes: [], resources: [], templates: [], savedViews: [], settings: {}, ui: {} });
+  localStorage.setItem('todoAppData', JSON.stringify(current));
+  const app = recoveryApp(current);
+  const remove = Storage.recoverySnapshots.deleteMany;
+  Storage.recoverySnapshots.deleteMany = async () => { throw new Error('cleanup denied'); };
+  try { await app.begin(new Blob(['not a backup'])); } finally { Storage.recoverySnapshots.deleteMany = remove; }
+  assert.equal((await Storage.recoverySnapshots.listAll()).length, 1);
+  assert.equal(app.ctx.state.settings.backupStatus.snapshotAvailable, true);
+  assert.match(app.ctx.state.settings.backupStatus.validationResult, /retained/i);
+  assert.match(app.ctx.globalRecoveryNotice.message, /cleanup/i);
+});
+
 test('failed restore rolls V1.6 data back without leaving partial metadata or history', async () => {
   await Storage.clearAllForTests();
   const original = Core.normalizeState({ version: 3, settings: { todayFocusFilter: 'open' }, tasks: [{ id: 'task', title: 'Original', plannedTime: '09:00' }], projects: [], tags: [], areas: [], goals: [{ id: 'goal', title: 'Goal' }], habits: [{ id: 'habit', name: 'Habit' }], notes: [{ id: 'note', title: 'Note', body: 'Before', createdAt: '2026-09-17T10:00:00.000Z', updatedAt: '2026-09-17T10:00:00.000Z', linkUrls: [], tagIds: [], attachmentIds: [] }], resources: [], templates: [], savedViews: [], ui: {} });
