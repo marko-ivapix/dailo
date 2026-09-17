@@ -51,6 +51,28 @@ test('Today focus strip exposes counts and a single Today capture action', () =>
   assert.match(app, /data-action="quick-add" data-today="true"/);
 });
 
+test('Today open count includes distinct overdue and suggested task records', () => {
+  const vm = require('node:vm');
+  const today = Core.dateOnly();
+  const tasks = [
+    { id: 'overdue', title: 'Overdue', dueDate: Core.addDays(today, -1) },
+    { id: 'planned', title: 'Planned', plannedDate: today },
+    { id: 'suggested', title: 'Due today', dueDate: today },
+  ];
+  const state = Core.normalizeState({ version: 3, tasks, projects: [], tags: [], areas: [], goals: [], habits: [], notes: [], resources: [], templates: [], savedViews: [], settings: { todayFocusStrip: true }, ui: {} });
+  const source = fs.readFileSync(require.resolve('../js/app.js'), 'utf8');
+  const renderToday = source.slice(source.indexOf('  function renderToday()'), source.indexOf('  function renderInbox()'));
+  const context = { state, Core, esc: String, getTask: id => tasks.find(task => task.id === id), pageHeader: () => '', formatPageToday: String, emptyState: () => '', taskRow: () => '' };
+  vm.createContext(context);
+  const html = vm.runInContext(`${renderToday}\nrenderToday()`, context);
+  assert.match(html, /data-today-open-count>3 open/);
+});
+
+test('Today focus strip respects its disabled dashboard setting', () => {
+  const app = fs.readFileSync(require.resolve('../js/app.js'), 'utf8');
+  assert.match(app, /state\.settings\.todayFocusStrip !== false/);
+});
+
 test('task rows retain existing handlers through compact affordance hooks', () => {
   const tasksUi = fs.readFileSync(require.resolve('../js/tasks-ui.js'), 'utf8');
   assert.match(tasksUi, /data-task-row-compact/);

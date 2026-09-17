@@ -862,7 +862,14 @@
       goalCount && `${goalCount} ${goalCount === 1 ? 'goal' : 'goals'}`,
       overdueCount && `${overdueCount} overdue`,
     ].filter(Boolean).join(' · ');
-    const openTodayCount = derivedSections.today.length;
+    const openTodayCount = (() => {
+      const taskIds = new Set();
+      for (const entry of [...derivedSections.overdue, ...derivedSections.today, ...derivedSections.suggestions]) {
+        const task = entry.task || entry;
+        if (task && !task.isCompleted) taskIds.add(task.id);
+      }
+      return taskIds.size;
+    })();
     const completedTodayCount = derivedSections.completed.length;
     const plannedMinutes = derivedSections.today.reduce((sum, task) => sum + (task.durationMinutes || 0), 0);
     let html = pageHeader('Today', '', { contextToday: true, add: false, actionHtml: `<button class="btn btn-secondary" type="button" data-action="dashboard-focus-toggle"><i class="ph ph-faders-horizontal"></i>${state.settings.dashboard?.focusedMode ? 'Full Today' : 'Focus View'}</button><button class="btn btn-secondary" type="button" data-action="open-focus"><i class="ph ph-crosshair"></i> Focus</button>` });
