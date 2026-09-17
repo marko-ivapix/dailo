@@ -3941,6 +3941,8 @@
 
   async function init() {
     attachEvents();
+    // Quick Add is an explicit disclosure: never restore it open on reload or route changes.
+    if (typeof setMobileQuickAddOpen === 'function') setMobileQuickAddOpen(false);
     await startReady();
     scheduleAutomaticSnapshot();
     if (!location.hash) location.hash = '#today';

@@ -759,6 +759,35 @@
     return { status: date < today ? 'missed' : 'pending', value: null, percent: 0 };
   }
 
+  function habitCompletionForDates(habit, logs, dates, today = dateOnly(), weekStartsOn = 'monday') {
+    const eligible = [...new Set((dates || []).filter(date => typeof date === 'string' && date && date <= today && habitScheduledOn(habit, date, { historical: true })))];
+    if (!eligible.length) return 0;
+    const statusFor = date => habitStatusForDate(habit, logs || [], date, today);
+    if (habit?.frequencyType === 'timesPerWeek') {
+      const target = Math.max(1, Math.floor(Number(habit.timesPerWeek) || 1));
+      const periods = new Map();
+      for (const date of eligible) {
+        const key = habitPeriodKey(habit, date, weekStartsOn);
+        if (!periods.has(key)) periods.set(key, []);
+        periods.get(key).push(date);
+      }
+      let score = 0;
+      for (const periodDates of periods.values()) {
+        const completed = periodDates.reduce((count, date) => {
+          const status = statusFor(date);
+          return count + (status.status === 'done' ? 1 : 0);
+        }, 0);
+        score += Math.min(target, completed) / target;
+      }
+      return Math.round((score / periods.size) * 100);
+    }
+    const score = eligible.reduce((sum, date) => {
+      const status = statusFor(date);
+      return sum + Math.max(0, Math.min(1, Number(status.percent || (status.status === 'done' ? 100 : 0)) / 100));
+    }, 0);
+    return Math.round((score / eligible.length) * 100);
+  }
+
   function habitScheduleDates(habit, today, weekStartsOn, logs = []) {
     const start = habit?.startDate && parseDateOnly(habit.startDate) ? habit.startDate : today;
     const recordedDates = new Set((logs || []).filter(log => log?.date >= start && log.date <= today).map(log => log.date));
@@ -1183,6 +1212,7 @@
     habitPeriodKey,
     numericHabitState,
     habitStatusForDate,
+    habitCompletionForDates,
     deriveHabitMetrics,
     habitReminderActive,
     tasksForTag,

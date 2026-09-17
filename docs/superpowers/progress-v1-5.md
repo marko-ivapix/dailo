@@ -21,6 +21,13 @@
 
 ## Deferred hardening
 
+## Post-release compactness/math fix — 2026-09-17
+
+- Habit dashboard percentages now count only eligible past scheduled units; `timesPerWeek` habits are scored against their weekly target instead of visible day cells. Added regression coverage for daily 7/17 and weekly target math.
+- Task properties disclosure is closed by default and toggles natively on its summary click. Task modal and global layout spacing were tightened for a denser workspace.
+- Mobile Quick Add is explicitly closed on initialization and `[hidden]` is enforced in CSS, so the action circles open and close only from the plus control. Habit day cells suppress stray fallback text.
+- Verification after the fix: **147 passed, 0 failed, 0 skipped**; JavaScript syntax, Python AST and `git diff --check` passed. The updated distributable ZIP was rebuilt and passed `unzip -t`.
+
 - Run the isolated Playwright/browser regression set in a permitted runtime before release-quality sign-off.
 - The prior isolated Chromium attempt aborted with SIGABRT/EPERM; the escalation request was canceled. No browser launch was attempted in this fix round. No native browser case is newly claimed as passing.
 - Complete visual/accessibility inspection in that same isolated browser runtime.

@@ -35,6 +35,8 @@ def main():
         completed_before = page.evaluate("TodoApp.state.tasks.filter(t => t.isCompleted && String(t.completedAt || '').slice(0, 10) === TodoCore.dateOnly()).length")
 
         page.click(f'[data-action="open-task"][data-task-id="{task_id}"]')
+        assert page.locator('.task-properties-disclosure').get_attribute('open') is None
+        page.locator('.task-properties-summary').click()
         expect(page.locator('#detail-duration-minutes')).to_be_visible()
         page.fill('#detail-duration-minutes', '45')
         page.locator('#detail-duration-minutes').press('Enter')

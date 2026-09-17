@@ -83,6 +83,18 @@ test('search includes completed tasks and project matches with sensible ranking'
   assert.deepEqual(result.projects.map(p => p.id), ['p1']);
 });
 
+test('habit completion uses only eligible past units and does not inflate daily or weekly percentages', () => {
+  const dates = Array.from({ length: 31 }, (_, index) => `2026-09-${String(index + 1).padStart(2, '0')}`);
+  const daily = { id: 'daily', trackingType: 'checkbox', frequencyType: 'daily', startDate: '2026-09-01' };
+  const dailyLogs = [1, 4, 7, 10, 15, 16, 17].map(day => ({ habitId: 'daily', date: `2026-09-${String(day).padStart(2, '0')}`, status: 'done' }));
+  assert.equal(Core.habitCompletionForDates(daily, dailyLogs, dates, '2026-09-17'), 41);
+
+  const weekly = { id: 'weekly', trackingType: 'checkbox', frequencyType: 'timesPerWeek', timesPerWeek: 4, startDate: '2026-09-01' };
+  const weeklyLogs = [1, 2, 3, 4].map(day => ({ habitId: 'weekly', date: `2026-09-${String(day).padStart(2, '0')}`, status: 'done' }));
+  assert.equal(Core.habitCompletionForDates(weekly, weeklyLogs, dates.slice(0, 6), '2026-09-17'), 100);
+  assert.equal(Core.habitCompletionForDates(weekly, weeklyLogs, dates, '2026-09-17'), 33);
+});
+
 test('validateState rejects unsupported future versions and invalid task titles', () => {
   assert.deepEqual(Core.validateState({ version: 3, tasks: [], projects: [], tags: [], settings: {}, ui: {} }), {
     ok: false,

@@ -52,7 +52,7 @@
       <div class="modal-header"><div class="modal-task-title-wrap"><button class="complete-control ${task.isCompleted ? 'is-completed' : ''}" type="button" data-action="toggle-complete" data-task-id="${esc(task.id)}">${task.isCompleted ? '<i class="ph ph-check"></i>' : ''}</button><input id="detail-title" class="modal-task-title" type="text" maxlength="500" value="${esc(modalState.titleDraft)}" aria-label="Task title" /></div><button class="btn-icon" type="button" data-action="close-modal" aria-label="Close"><i class="ph ph-x"></i></button></div>
       ${modalState.error ? `<div class="validation" style="margin:-8px 0 8px 36px">${esc(modalState.error)}</div>` : ''}
       <div class="detail-section"><textarea id="detail-notes" class="detail-notes" placeholder="Add notes...">${esc(modalState.notesDraft)}</textarea></div>
-      <details class="detail-section detail-properties task-properties-disclosure" open>
+      <details class="detail-section detail-properties task-properties-disclosure">
         <summary class="detail-heading task-properties-summary"><span>Task properties</span><i class="ph ph-caret-right task-properties-caret" aria-hidden="true"></i></summary>
         <div class="task-properties-content">
           <label class="property-row" for="detail-duration-minutes"><span class="property-key">Duration (minutes)</span><input id="detail-duration-minutes" class="input task-time-input" type="number" min="1" step="1" value="${esc(task.durationMinutes || '')}" data-task-duration data-task-id="${esc(task.id)}"></label>

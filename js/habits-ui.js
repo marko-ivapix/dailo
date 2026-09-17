@@ -163,17 +163,7 @@
   function trackerCompletion(ctx, habit, dates) {
     const logs = ctx.state.habitLogCache?.[habit.id] || [];
     const today = ctx.Core.dateOnly();
-    let scheduled = 0; let score = 0;
-    for (const entry of dates) {
-      if (!entry.valid || entry.future || !entry.date) continue;
-      const status = ctx.Core.habitStatusForDate(habit, logs, entry.date, today);
-      // Dates outside a habit's active window never count toward completion,
-      // including daily habits created after the first day of the month.
-      if (status.status === 'unscheduled') continue;
-      scheduled += 1;
-      score += Math.max(0, Math.min(1, Number(status.percent || (status.status === 'done' ? 100 : 0)) / 100));
-    }
-    return scheduled ? Math.round((score / scheduled) * 100) : 0;
+    return ctx.Core.habitCompletionForDates(habit, logs, dates.filter(entry => entry.valid && entry.date).map(entry => entry.date), today, ctx.state.settings.weekStartsOn || 'monday');
   }
 
   function renderHabitDashboard(ctx, habits) {
