@@ -17,6 +17,12 @@
     return Boolean(root && root.__TODO_TEST_MEMORY_DB__);
   }
 
+  // Metadata rules stay in TodoCore, while storage callers get one safe entry
+  // point before persisting V1.5-compatible state.
+  function normalizeState(state) {
+    return root.TodoCore?.normalizeState ? root.TodoCore.normalizeState(state) : state;
+  }
+
   function clone(record) {
     if (record === undefined || record === null) return null;
     if (typeof root.structuredClone === 'function') return root.structuredClone(record);
@@ -615,6 +621,7 @@
     DB_NAME,
     DB_VERSION,
     STORES: [...STORES],
+    normalizeState,
     open,
     attachments,
     habitLogs,

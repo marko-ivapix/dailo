@@ -127,6 +127,7 @@
       for (const key of ['reminderAt','reminderFiredAt','completedAt','createdAt','updatedAt']) if (task[key] != null
         && (typeof task[key] !== 'string' || !Number.isFinite(Date.parse(task[key])))) fail(key);
       for (const key of ['todayOrder','projectOrder','inboxOrder']) numberField(task,key,-Infinity);
+      if (task.durationMinutes != null && !positiveInteger(task.durationMinutes)) fail('durationMinutes');
       if (task.subtasks != null) {
         nested(task.subtasks,'subtasks');
         for (const sub of task.subtasks) {
@@ -151,6 +152,12 @@
         if (!Array.isArray(item[field]) || item[field].some(id => !name(id))) fail(field);
         refs(item, field, target);
       }
+      if (collection === 'resources') {
+        enumField(item, 'type', ['book', 'video', 'article', 'course', 'document', 'other']);
+        enumField(item, 'status', ['unread', 'reading', 'completed']);
+        for (const field of ['author', 'clip']) if (item[field] != null && typeof item[field] !== 'string') fail(field);
+        booleanField(item, 'favorite'); dateField(item, 'reviewedAt');
+      }
     }
     for (const item of [...state.tasks, ...state.projects, ...state.habits]) refs(item, 'goalIds', 'goals');
     for (const task of state.tasks) {
@@ -162,6 +169,7 @@
       enumField(goal,'horizon',['short','mid','long']);
       enumField(goal,'status',['active','paused','completed','archived']); enumField(goal,'progressMode',['manual','linkedTasks','linkedHabits']); enumField(goal,'progressType',['percentage','numeric']);
       numberField(goal,'currentValue');positiveField(goal,'targetValue');dateField(goal,'targetDate');refs(goal,'taskIds','tasks');
+      if (goal.unit != null && typeof goal.unit !== 'string') fail('Goal unit');
       if (goal.projectLinks != null) { if (!Array.isArray(goal.projectLinks) || new Set(goal.projectLinks.map(link=>link?.projectId)).size !== goal.projectLinks.length) fail('project links'); for (const link of goal.projectLinks) { if (!object(link) || !link.projectId || !['allTasks','selectedTasks'].includes(link.contributionMode)) fail('project link');ref(link.projectId,'projects');refs(link,'selectedTaskIds','tasks');if ((link.selectedTaskIds || []).some(id => state.tasks.find(task => task.id === id)?.projectId !== link.projectId)) fail('selected project Task'); } }
       if (goal.habitLinks != null) { if (!Array.isArray(goal.habitLinks) || new Set(goal.habitLinks.map(link=>link?.habitId)).size !== goal.habitLinks.length) fail('habit links');for (const link of goal.habitLinks) { if (!object(link) || !link.habitId || !['totalCheckins','streak','successfulPeriods','totalValue','currentStreak','longestStreak','completionRate'].includes(link.metric) || !(link.target > 0)) fail('habit link');ref(link.habitId,'habits');positiveField(link,'target'); } }
       if (goal.milestones != null) { nested(goal.milestones,'milestones');for (const item of goal.milestones) { if (!name(item.title)) fail('milestone');dateField(item,'date'); } }
@@ -172,6 +180,9 @@
       enumField(habit,'status',['active','paused','archived']);enumField(habit,'trackingType',['checkbox','numeric']);enumField(habit,'frequencyType',['daily','weekdays','timesPerWeek','everyNDays']);enumField(habit,'continuation',['automatic','askEachPeriod','onePeriod']);enumField(habit,'endType',['never','date','successfulPeriods']);
       for (const key of ['startDate','endDate']) dateField(habit,key);
       for (const key of ['targetValue','timesPerWeek','everyNDays','successfulPeriodsTarget']) positiveField(habit,key);
+      for (const key of ['minimumTarget','idealTarget']) if (habit[key] != null && !positiveInteger(habit[key])) fail(key);
+      if (habit.idealTarget != null && habit.minimumTarget != null && habit.idealTarget < habit.minimumTarget) fail('idealTarget');
+      if (habit.graceDays != null && (!Number.isInteger(habit.graceDays) || habit.graceDays < 0)) fail('graceDays');
       if (habit.trackingType === 'numeric' && !(habit.targetValue > 0)
         || habit.frequencyType === 'timesPerWeek' && (!positiveInteger(habit.timesPerWeek) || habit.timesPerWeek > 7)
         || habit.frequencyType === 'everyNDays' && !positiveInteger(habit.everyNDays)
@@ -202,6 +213,15 @@
       enumField(item.filters,'priority',['none','low','medium','high']);
       enumField(item.filters,'status',item.type==='goals'?['active','paused','completed','archived']:['active','paused','archived']);
       for (const key of ['plannedDate','dueDate','targetDate']) dateField(item.filters,key);
+    }
+    if (state.settings?.focusTaskIds != null) {
+      if (!Array.isArray(state.settings.focusTaskIds) || new Set(state.settings.focusTaskIds).size !== state.settings.focusTaskIds.length) fail('focusTaskIds');
+      state.settings.focusTaskIds.forEach(id => ref(id, 'tasks'));
+    }
+    if (state.settings?.dashboard != null) {
+      const dashboard = state.settings.dashboard;
+      if (!object(dashboard) || dashboard.focusedMode != null && typeof dashboard.focusedMode !== 'boolean') fail('dashboard');
+      for (const key of ['sectionOrder', 'pinnedSectionIds']) if (dashboard[key] != null && (!Array.isArray(dashboard[key]) || dashboard[key].some(value => !name(value)) || new Set(dashboard[key]).size !== dashboard[key].length)) fail('dashboard');
     }
     nested(logs,'Habit logs');nested(history,'Goal history');const days = new Set();
     for (const log of logs) { ref(log.habitId,'habits');if (!log.habitId || !date(log.date) || days.has(`${log.habitId}:${log.date}`) || !['done','skipped','missed'].includes(log.status)) fail('Habit log');days.add(`${log.habitId}:${log.date}`);numberField(log,'value'); }

@@ -506,6 +506,105 @@
     return Number.isFinite(number) ? number : 0;
   }
 
+  function positiveIntegerOrNull(value) {
+    const number = Number(value);
+    return Number.isInteger(number) && number > 0 ? number : null;
+  }
+
+  function normalizeState(input) {
+    const migration = migrateStateV3(input);
+    if (!migration.ok) throw new Error(migration.reason || 'invalid-state');
+    const state = migration.state;
+    const taskIds = new Set((state.tasks || []).map(task => task.id));
+    const focusTaskIds = [...new Set((state.settings?.focusTaskIds || [])
+      .filter(id => typeof id === 'string' && taskIds.has(id)))];
+    const dashboard = state.settings?.dashboard || {};
+    state.settings = {
+      ...(state.settings || {}),
+      focusTaskIds,
+      dashboard: {
+        focusedMode: dashboard.focusedMode === true,
+        sectionOrder: Array.isArray(dashboard.sectionOrder) ? [...new Set(dashboard.sectionOrder.filter(id => typeof id === 'string'))] : [],
+        pinnedSectionIds: Array.isArray(dashboard.pinnedSectionIds) ? [...new Set(dashboard.pinnedSectionIds.filter(id => typeof id === 'string'))] : [],
+      },
+    };
+    state.tasks = state.tasks.map(task => ({ ...task, durationMinutes: positiveIntegerOrNull(task.durationMinutes) }));
+    state.goals = state.goals.map(goal => ({
+      ...goal,
+      currentValue: Number.isFinite(Number(goal.currentValue)) ? Number(goal.currentValue) : 0,
+      targetValue: Number(goal.targetValue) > 0 && Number.isFinite(Number(goal.targetValue)) ? Number(goal.targetValue) : 100,
+      unit: typeof goal.unit === 'string' ? goal.unit : '',
+    }));
+    state.habits = state.habits.map(habit => ({
+      ...habit,
+      minimumTarget: positiveIntegerOrNull(habit.minimumTarget),
+      idealTarget: positiveIntegerOrNull(habit.idealTarget),
+      graceDays: Number.isInteger(Number(habit.graceDays)) && Number(habit.graceDays) >= 0 ? Number(habit.graceDays) : 0,
+    }));
+    state.resources = (state.resources || []).map(resource => ({
+      ...resource,
+      type: ['book', 'video', 'article', 'course', 'document', 'other'].includes(resource.type) ? resource.type : 'article',
+      status: ['unread', 'reading', 'completed'].includes(resource.status) ? resource.status : 'unread',
+      author: typeof resource.author === 'string' ? resource.author : '',
+      favorite: resource.favorite === true,
+      reviewedAt: typeof resource.reviewedAt === 'string' && parseDateOnly(resource.reviewedAt) && dateOnly(parseDateOnly(resource.reviewedAt)) === resource.reviewedAt ? resource.reviewedAt : null,
+      clip: typeof resource.clip === 'string' ? resource.clip : '',
+    }));
+    return state;
+  }
+
+  function selectFocusTasks(tasks, focusTaskIds, limit = 3) {
+    const openIds = new Set((tasks || []).filter(task => task && !task.isCompleted && typeof task.id === 'string').map(task => task.id));
+    const maximum = Math.max(0, Math.floor(Number(limit) || 0));
+    return [...new Set((focusTaskIds || []).filter(id => typeof id === 'string' && openIds.has(id)))].slice(0, maximum);
+  }
+
+  function goalProgressFraction(goal) {
+    if (!goal || goal.progressMode === 'linkedTasks' || goal.progressMode === 'linkedHabits') return null;
+    if (goal.progressType === 'numeric') {
+      const target = safeNumber(goal.targetValue);
+      return target > 0 ? safeNumber(goal.currentValue) / target : 0;
+    }
+    return safeNumber(goal.currentValue) / 100;
+  }
+
+  function getGoalHealth(goal, now = new Date()) {
+    if (!goal) return 'on-track';
+    const progress = goalProgressFraction(goal);
+    if (goal.status === 'completed' || progress !== null && progress >= 1) return 'complete';
+    const active = !goal.status || goal.status === 'active';
+    const timestamp = now instanceof Date ? now : new Date(now);
+    const today = Number.isNaN(timestamp.getTime()) ? dateOnly() : dateOnly(timestamp);
+    if (active && goal.targetDate && goal.targetDate < today) return 'overdue';
+    if (active && goal.targetDate && goal.targetDate <= addDays(today, 7) && (progress === null || progress < 0.75)) return 'at-risk';
+    return 'on-track';
+  }
+
+  function getHabitTargetStatus(habit, periodStats) {
+    const current = Math.max(0, safeNumber(periodStats?.currentPeriodCount ?? periodStats?.progressValue ?? periodStats?.count ?? periodStats));
+    const fallback = positiveIntegerOrNull(habit?.targetValue) || positiveIntegerOrNull(habit?.timesPerWeek) || 1;
+    const minimumTarget = positiveIntegerOrNull(habit?.minimumTarget) || fallback;
+    const idealTarget = Math.max(minimumTarget, positiveIntegerOrNull(habit?.idealTarget) || minimumTarget);
+    const minimumMet = current >= minimumTarget;
+    const idealMet = current >= idealTarget;
+    return { current, minimumTarget, idealTarget, minimumMet, idealMet, status: idealMet ? 'ideal' : minimumMet ? 'minimum' : 'below-minimum' };
+  }
+
+  function getTimedTaskBlocks(tasks, date) {
+    const blocks = (tasks || []).flatMap(task => {
+      const durationMinutes = positiveIntegerOrNull(task?.durationMinutes);
+      const time = normalizeTime(task?.plannedTime);
+      if (!task || task.isCompleted || task.plannedDate !== date || !time || !durationMinutes) return [];
+      const [hours, minutes] = time.split(':').map(Number);
+      const startMinutes = hours * 60 + minutes;
+      return [{ taskId: task.id, startMinutes, durationMinutes, endMinutes: startMinutes + durationMinutes }];
+    }).sort((a, b) => a.startMinutes - b.startMinutes || String(a.taskId).localeCompare(String(b.taskId)));
+    return blocks.map(block => ({
+      ...block,
+      conflict: blocks.some(other => other !== block && block.startMinutes < other.endMinutes && other.startMinutes < block.endMinutes),
+    }));
+  }
+
   function clampPercent(value) {
     return Math.max(0, Math.min(100, value));
   }
@@ -1017,6 +1116,11 @@
     validateTagName,
     validateAreaName,
     areaSummary,
+    normalizeState,
+    selectFocusTasks,
+    getGoalHealth,
+    getHabitTargetStatus,
+    getTimedTaskBlocks,
     computeGoalProgress,
     isGoalOverdue,
     goalReminderMoments,
