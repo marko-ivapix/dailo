@@ -9,6 +9,32 @@ global.__TODO_TEST_MEMORY_DB__ = true;
 const Storage = require('../js/storage.js');
 const Attachments = require('../js/attachments.js');
 
+function attachmentFile(name = 'only-source.png') {
+  const file = new Blob(['x'], { type: 'image/png' });
+  Object.defineProperty(file, 'name', { value: name });
+  return file;
+}
+
+function actualAddAttachments(state) {
+  const source = fs.readFileSync(require.resolve('../js/app.js'), 'utf8');
+  const start = source.indexOf('  async function addAttachments(');
+  const end = source.indexOf('  function receiveAttachmentFiles(', start);
+  let saveCalls = 0;
+  const sandbox = {
+    Attachments, state, undoHold: null, MAX_ATTACHMENTS_PER_TASK: 10, MAX_ATTACHMENT_BYTES: 10 * 1024 * 1024,
+    uid: prefix => `${prefix}-${Math.random().toString(36).slice(2)}`, nowIso: () => '2026-09-17T12:00:00Z',
+    knowledgeAttachmentCache: new Map(), saveState: () => { saveCalls++; return true; }, render() {}, console: { error() {} },
+    attachmentOwner(descriptor) {
+      const type = descriptor.ownerType || 'task', collection = type === 'note' ? 'notes' : type === 'resource' ? 'resources' : 'tasks';
+      const item = state[collection].find(entry => entry.id === descriptor.ownerId);
+      return item ? { type, item } : null;
+    },
+    attachmentModalMatches: () => false,
+  };
+  vm.runInNewContext(`${source.slice(start, end)}\nglobalThis.addAttachments = addAttachments;`, sandbox);
+  return { addAttachments: sandbox.addAttachments, saveCalls: () => saveCalls };
+}
+
 test('knowledge record needs a title/name and a link, image, or file', () => {
   assert.equal(Core.validateKnowledgeRecord({ type: 'note', title: '', linkUrls: [], attachmentIds: [] }).valid, false);
   assert.equal(Core.validateKnowledgeRecord({ type: 'note', title: 'Scratch', linkUrls: [], attachmentIds: [] }).valid, false);
@@ -83,6 +109,7 @@ test('new attachment-only Notes and Resources roll back when every upload fails'
       '#knowledge-title': { value: 'Upload only' }, '#knowledge-text': { value: '' }, '#knowledge-clip': { value: '' }, '#knowledge-favorite': { checked: false }, '#knowledge-area': { value: '' }, '#knowledge-link': { value: '' },
       '#knowledge-resource-type': { value: 'article' }, '#knowledge-resource-status': { value: 'unread' }, '#knowledge-author': { value: '' }, '#knowledge-reviewed-at': { value: '' },
     };
+    const actual = actualAddAttachments(state);
     const originalPut = Attachments.put;
     Attachments.put = async () => { throw new Error('Injected attachment storage failure'); };
     const context = {
@@ -90,13 +117,7 @@ test('new attachment-only Notes and Resources roll back when every upload fails'
       modalState: { type: 'knowledge', ownerType: type, ownerId: null, source: null, busy: false, pendingFiles: [{ name: 'only-source.png' }], draft: { title: 'Upload only', text: '', areaId: null, linkUrls: [], linkDraft: '', tagIds: [], favorite: false, clip: '', resourceType: 'article', resourceStatus: 'unread', author: '', reviewedAt: '', relatedTaskIds: [], relatedProjectIds: [], relatedGoalIds: [], relatedHabitIds: [] } },
       attachmentOwner: ({ ownerType, ownerId }) => { const item = state[ownerType === 'note' ? 'notes' : 'resources'].find(entry => entry.id === ownerId); return item ? { type: ownerType, item } : null; },
       renderModal() {}, getArea: () => null, nowIso: () => '2026-09-17T12:00:00Z', uid: () => `${type}-1`, copyTemplate: value => structuredClone(value),
-      $: selector => inputs[selector], $$: () => [], saveState: () => { saveCalls++; return true; }, addAttachments: async descriptor => {
-        assert.equal(descriptor.deferSave, true);
-        const owner = context.attachmentOwner(descriptor);
-        const result = await Attachments.putOwned({ id: `${type}-file`, ownerType: type, ownerId: owner.item.id, fileName: 'only-source.png', mimeType: 'image/png', size: 1, blob: new Blob(['x']), pendingDeleteUntil: null }, () => { if (!owner) throw new Error('Owner unavailable'); });
-        if (result.added) owner.item.attachmentIds.push(`${type}-file`);
-        return { added: result.added ? 1 : 0, message: result.added ? '1 file added.' : 'Attachments are unavailable in this browser.' };
-      },
+      $: selector => inputs[selector], $$: () => [], saveState: () => { saveCalls++; return true; }, addAttachments: actual.addAttachments,
       closeModal() { context.closed = true; }, navigate() { context.navigated = true; }, setToastMessage() {},
     };
     adapter.handleAction('save-knowledge', { target: { closest: () => ({ dataset: { ownerType: type } }) } }, context);
@@ -105,26 +126,40 @@ test('new attachment-only Notes and Resources roll back when every upload fails'
     assert.equal(saveCalls, 0, type);
     assert.equal(context.closed, undefined, type);
     assert.match(context.modalState.error, /could not be stored/i, type);
-    assert.equal(await Attachments.get(`${type}-file`), null, type);
+    assert.equal((await Attachments.listAll()).filter(record => record.ownerId === `${type}-1`).length, 0, type);
+    assert.equal(actual.saveCalls(), 0, type);
     Attachments.put = originalPut;
   }
 });
 
-test('attachment storage cleans a record written before ownership validation fails', async () => {
-  const record = { id: 'partial-file', ownerType: 'note', ownerId: 'n1', fileName: 'partial.png', mimeType: 'image/png', size: 1, blob: new Blob(['x']), pendingDeleteUntil: null };
-  const result = await Attachments.putOwned(record, () => { throw new Error('Owner changed'); });
+test('actual attachment helper cleans a post-write ownership failure and retains successful sources', async () => {
+  for (const type of ['note', 'resource']) {
+    const state = { tasks: [], notes: type === 'note' ? [{ id: 'n1', attachmentIds: [] }] : [], resources: type === 'resource' ? [{ id: 'r1', attachmentIds: [] }] : [] };
+    const actual = actualAddAttachments(state), owner = state[type === 'note' ? 'notes' : 'resources'][0];
+    const originalPut = Attachments.put;
+    Attachments.put = async record => { await originalPut(record); state[type === 'note' ? 'notes' : 'resources'] = []; return record; };
+    const partial = await actual.addAttachments({ ownerType: type, ownerId: owner.id }, [attachmentFile('partial.png')]);
+    assert.equal(partial.added, 0, type);
+    assert.equal((await Attachments.listAll()).filter(record => record.ownerId === owner.id).length, 0, type);
+    Attachments.put = originalPut;
 
-  assert.equal(result.added, false);
-  assert.equal(await Attachments.get(record.id), null);
+    state[type === 'note' ? 'notes' : 'resources'] = [owner];
+    const successful = await actual.addAttachments({ ownerType: type, ownerId: owner.id }, [attachmentFile('source.png')]);
+    assert.equal(successful.added, 1, type);
+    assert.equal(Core.validateKnowledgeRecord({ type, title: 'Upload source', linkUrls: [], attachmentIds: owner.attachmentIds }).valid, true, type);
+    await Attachments.deleteMany(owner.attachmentIds);
+  }
 });
 
-test('a successful stored upload remains a valid attachment-only Resource source', async () => {
-  const record = { id: 'resource-source-file', ownerType: 'resource', ownerId: 'r1', fileName: 'guide.pdf', mimeType: 'application/pdf', size: 1, blob: new Blob(['x']), pendingDeleteUntil: null };
-  const result = await Attachments.putOwned(record, () => {});
-  const resource = { type: 'resource', title: 'Guide', linkUrls: [], attachmentIds: result.added ? [record.id] : [] };
+test('actual attachment helper retains an existing valid source when an additional upload fails', async () => {
+  const state = { tasks: [], notes: [], resources: [{ id: 'r-existing', attachmentIds: ['already-valid'] }] };
+  const actual = actualAddAttachments(state), originalPut = Attachments.put;
+  Attachments.put = async () => { throw new Error('Injected additional upload failure'); };
 
-  assert.equal(result.added, true);
-  assert.equal(Core.validateKnowledgeRecord(resource).valid, true);
-  assert.equal((await Attachments.get(record.id)).ownerId, 'r1');
-  await Attachments.deleteMany([record.id]);
+  const result = await actual.addAttachments({ ownerType: 'resource', ownerId: 'r-existing' }, [attachmentFile('additional.png')]);
+
+  assert.equal(result.added, 0);
+  assert.deepEqual(state.resources[0].attachmentIds, ['already-valid']);
+  assert.equal(Core.validateKnowledgeRecord({ type: 'resource', title: 'Existing', linkUrls: [], attachmentIds: state.resources[0].attachmentIds }).valid, true);
+  Attachments.put = originalPut;
 });
