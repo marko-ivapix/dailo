@@ -86,11 +86,15 @@ def main():
         page.evaluate('''date => {
           const first = TodoApp.state.tasks.find(t => t.title === 'Finish homepage');
           const second = TodoApp.state.tasks.find(t => t.title === 'Buy groceries');
+          // The earlier Focus flow may have completed either shared fixture.
+          // Calendar's timed-plan assertions require independent open Tasks.
+          for (const task of [first, second]) { task.isCompleted = false; task.completedAt = null; }
           first.plannedDate = date; first.plannedTime = '09:00'; first.dueDate = date; first.dueTime = '11:00'; first.durationMinutes = 45;
           second.plannedDate = date; second.plannedTime = '09:30'; second.durationMinutes = 30;
           TodoApp.state.tasks.push({id:'all_day_v15', title:'All day preserved', plannedDate:date, plannedTime:null, dueDate:null, durationMinutes:null, isInbox:false, isCompleted:false, subtasks:[], tagIds:[], goalIds:[], attachmentIds:[]});
           location.hash = '#calendar'; TodoApp.render();
         }''', today)
+        assert page.evaluate("TodoApp.state.tasks.filter(t => ['task_homepage', 'task_groceries'].includes(t.id)).every(t => !t.isCompleted && t.completedAt === null)")
         assert page.locator('.calendar-timed-block').count() >= 2
         expect(page.locator('.calendar-timed-block', has_text='Finish homepage')).to_contain_text('09:00–09:45')
         timed_homepage = page.locator('.calendar-timed-block[data-calendar-item-id="task_homepage"]')

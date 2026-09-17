@@ -36,3 +36,7 @@ Both archives are **235,797 bytes**, byte-identical, and contain **30 files** ma
 SHA-256 (both): `a14fa3b17d283d1d090c9dcb5c00dfb44d128ce95f8bc0152de2f2750cf19d1c`.
 
 The report is excluded from the distributable, so recording its digest does not create a self-referential package checksum.
+
+## Minor browser-fixture follow-up
+
+Reset both shared Calendar Task fixtures to Open with a null completion timestamp before Calendar setup, because the preceding Focus flow can complete one of them. Added an explicit open-state assertion before timed-block assertions. Fresh verification remains 146/146 Node tests, 2/2 browser-adapter tests and 16/16 Python AST parses; diff check passed. No browser was launched. Only the excluded test file and this excluded report changed, so both packaged manifests/bytes and the digest above remain unchanged; no ZIP rebuild was needed.
