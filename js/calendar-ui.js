@@ -13,7 +13,7 @@
     const title = task?.title || habit?.name || milestone?.title || goal?.title;
     const completed = task ? task.isCompleted : milestone ? milestone.isCompleted : goal?.status === 'completed';
     const open = task ? `data-action="open-task" data-task-id="${ctx.esc(id)}"` : `data-route="${habit ? 'habit' : 'goal'}/${ctx.esc(habit ? id : goal.id)}"`;
-    const metadata = task ? [block ? `${minutesLabel(block.startMinutes)}–${minutesLabel(block.endMinutes)}` : entry.kind.includes('planned') ? `Plan${task.plannedTime ? ` · ${task.plannedTime}` : ''}` : '', entry.kind.includes('due') ? `Due${task.dueTime ? ` · ${task.dueTime}` : ''}` : '', block?.conflict ? 'Time conflict' : '', task.isCompleted ? 'Completed' : ''].filter(Boolean)
+    const metadata = task ? [block ? `${minutesLabel(block.startMinutes)}–${minutesLabel(block.endMinutes)}` : '', entry.kind.includes('planned') ? `Plan${task.plannedTime ? ` · ${task.plannedTime}` : ''}` : '', entry.kind.includes('due') ? `Due${task.dueTime ? ` · ${task.dueTime}` : ''}` : '', block?.conflict ? 'Time conflict' : '', task.isCompleted ? 'Completed' : ''].filter(Boolean)
       : habit ? [`Scheduled`, habit.trackingType === 'numeric' ? `${entry.status.value || 0} / ${habit.targetValue} ${habit.unit || ''}` : entry.status.status]
       : milestone ? ['Milestone', goal.title, milestone.isCompleted ? 'Completed' : 'Open'] : ['Goal target', ctx.goalProgressLabel(goal), ctx.goalStatusLabel(goal)];
     let actions = '';
@@ -31,7 +31,7 @@
     const byId = new Map((ctx.state.tasks || []).map(task => [task.id, task]));
     const blocks = ctx.Core.getTimedTaskBlocks(ctx.state.tasks, day.date);
     const blockedIds = new Set(blocks.map(block => block.taskId));
-    const planned = blocks.map(block => calendarItem(ctx, { type: 'task', task: byId.get(block.taskId), kind: 'planned', time: minutesLabel(block.startMinutes) }, false, day.date, block));
+    const planned = blocks.map(block => calendarItem(ctx, day.timed.find(entry => entry.type === 'task' && entry.task.id === block.taskId) || { type: 'task', task: byId.get(block.taskId), kind: 'planned', time: minutesLabel(block.startMinutes) }, false, day.date, block));
     const other = day.timed.filter(entry => entry.type !== 'task' || !blockedIds.has(entry.task.id)).map(entry => calendarItem(ctx, entry, false, day.date));
     return planned.concat(other).join('');
   }
@@ -77,7 +77,7 @@
     const blocks = Core.getTimedTaskBlocks(state.tasks, date);
     const blockedIds = new Set(blocks.map(block => block.taskId));
     const taskById = new Map((state.tasks || []).map(task => [task.id, task]));
-    const timed = blocks.map(block => calendarItem(ctx, { type: 'task', task: taskById.get(block.taskId), kind: 'planned', time: minutesLabel(block.startMinutes) }, true, date, block)).concat(day.timed.filter(entry => entry.type !== 'task' || !blockedIds.has(entry.task.id)).map(entry => calendarItem(ctx, entry, true, date))).join('');
+    const timed = blocks.map(block => calendarItem(ctx, day.timed.find(entry => entry.type === 'task' && entry.task.id === block.taskId) || { type: 'task', task: taskById.get(block.taskId), kind: 'planned', time: minutesLabel(block.startMinutes) }, true, date, block)).concat(day.timed.filter(entry => entry.type !== 'task' || !blockedIds.has(entry.task.id)).map(entry => calendarItem(ctx, entry, true, date))).join('');
     const conflicts = blocks.filter(block => block.conflict).map(block => `${minutesLabel(block.startMinutes)}–${minutesLabel(block.endMinutes)}`).filter((value, index, values) => values.indexOf(value) === index);
     const counts = { tasks: day.tasks.length, habits: day.habits.length, goals: day.goals.length, milestones: day.milestones.length };
     const total = calendarCountTotal(counts);

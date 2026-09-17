@@ -86,13 +86,16 @@ def main():
         page.evaluate('''date => {
           const first = TodoApp.state.tasks.find(t => t.title === 'Finish homepage');
           const second = TodoApp.state.tasks.find(t => t.title === 'Buy groceries');
-          first.plannedDate = date; first.plannedTime = '09:00'; first.durationMinutes = 45;
+          first.plannedDate = date; first.plannedTime = '09:00'; first.dueDate = date; first.dueTime = '11:00'; first.durationMinutes = 45;
           second.plannedDate = date; second.plannedTime = '09:30'; second.durationMinutes = 30;
           TodoApp.state.tasks.push({id:'all_day_v15', title:'All day preserved', plannedDate:date, plannedTime:null, dueDate:null, durationMinutes:null, isInbox:false, isCompleted:false, subtasks:[], tagIds:[], goalIds:[], attachmentIds:[]});
           location.hash = '#calendar'; TodoApp.render();
         }''', today)
         assert page.locator('[data-calendar-timed-block]').count() >= 2
         expect(page.locator('[data-calendar-timed-block]', has_text='Finish homepage')).to_contain_text('09:00–09:45')
+        timed_homepage = page.locator('[data-calendar-timed-block][data-calendar-item-id="task_homepage"]')
+        assert timed_homepage.count() == 1
+        expect(timed_homepage).to_contain_text('Due · 11:00')
         assert page.locator('[data-calendar-timed-block].has-conflict').count() >= 2
         assert page.locator('.calendar-all-day', has_text='All day preserved').count() == 1
         assert page.locator('[data-calendar-type="habit"][draggable="true"]').count() == 0
