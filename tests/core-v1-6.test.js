@@ -13,6 +13,7 @@ test('V1.6 settings defaults are additive and preserve existing values', () => {
     todayFocusFilter: 'all',
     todayFocusStrip: true,
     compactDensity: true,
+    todayVisibleSections: ['focus', 'review', 'actions'],
   });
   assert.deepEqual(source, { weekStartsOn: 'monday', customPreference: 'keep' });
 });
@@ -28,6 +29,7 @@ test('V1.6 migration preserves records, does not mutate input, and is idempotent
   assert.equal(once.state.settings.todayFocusFilter, 'all');
   assert.equal(once.state.settings.todayFocusStrip, true);
   assert.equal(once.state.settings.compactDensity, true);
+  assert.deepEqual(once.state.settings.todayVisibleSections, ['focus', 'review', 'actions']);
   assert.equal(once.state.settings.weekStartsOn, 1);
   assert.deepEqual(source, { version: 3, settings: {}, tasks: [{ id: 't1', title: 'Keep me' }], unknownRecords: [{ id: 'u1' }] });
   assert.deepEqual(twice.state, once.state);

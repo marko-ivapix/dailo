@@ -164,7 +164,7 @@
       resources: [],
       templates: [],
       savedViews: [],
-      settings: { weekStartsOn: 'monday', shortcuts: { ...SHORTCUT_DEFAULTS } },
+      settings: { ...Core.normalizeV16Settings({}), shortcuts: { ...SHORTCUT_DEFAULTS } },
       ui: {
         sidebarCollapsed: false,
         sidebarSections: {},
@@ -243,7 +243,7 @@
     const migrated = Core.migrateStateV3(input);
     if (!migrated.ok) throw new Error(migrated.reason || 'invalid-state');
     const next = Core.migrateStateV16(migrated.state).state;
-    next.settings = next.settings || { weekStartsOn: 'monday' };
+    next.settings = Core.normalizeV16Settings(next.settings);
     next.ui = next.ui || {};
     next.ui.sidebarSections = next.ui.sidebarSections || {};
     next.settings.shortcuts = Object.fromEntries(Object.entries(SHORTCUT_DEFAULTS).map(([key,value])=>[key,Object.hasOwn(next.settings.shortcuts || {},key) ? Core.normalizeShortcut(next.settings.shortcuts[key]) : value]));
@@ -583,7 +583,9 @@
       },
       saveShortcut,
       disableShortcut,
-      resetShortcuts
+      resetShortcuts,
+      savePersonalization,
+      resetPersonalization
     };
   }
 
@@ -743,6 +745,10 @@
   }
 
   function renderMain() {
+    const comfortable = state.settings.compactDensity === false;
+    document.documentElement.style.setProperty('--content-gutter', comfortable ? '24px' : '20px');
+    document.documentElement.style.setProperty('--control-height', comfortable ? '38px' : '32px');
+    document.documentElement.style.setProperty('--task-min-height', comfortable ? '52px' : '44px');
     const route = currentRoute();
     const main = $('#main');
     const warning = storageWarningHtml();
@@ -768,6 +774,8 @@
     const dashboard = state.settings.dashboard || {};
     const content = main.querySelector('.content'); if (!content) return;
     const cards = [...content.querySelectorAll(':scope > [data-dashboard-section]')];
+    const visible = new Set(state.settings.todayVisibleSections || ['focus', 'review', 'actions']);
+    cards.forEach(card => { card.hidden = !visible.has(card.dataset.dashboardSection); });
     const pins = new Set(dashboard.pinnedSectionIds || []);
     cards.forEach(card => card.classList.toggle('is-dashboard-pinned', pins.has(card.dataset.dashboardSection)));
     const rank = new Map((dashboard.sectionOrder || []).map((id, index) => [id, index]));
@@ -1338,6 +1346,18 @@
   }
   function disableShortcut(command) { state.settings.shortcuts[command]=null; shortcutError=''; saveAndRender(); }
   function resetShortcuts() { state.settings.shortcuts={...SHORTCUT_DEFAULTS}; shortcutError=''; saveAndRender(); }
+  function savePersonalization() {
+    state.settings = Core.normalizeV16Settings({
+      ...state.settings,
+      compactDensity: $('#preference-density')?.checked,
+      todayFocusFilter: $('#preference-today-filter')?.value,
+      weekStartsOn: $('#preference-week-start')?.value,
+      todayVisibleSections: $$('[data-preference-today-section]:checked').map(input => input.value),
+      todayFocusStrip: $('#preference-focus-strip')?.checked,
+    });
+    saveAndRender();
+  }
+  function resetPersonalization() { state.settings = Core.resetV16Settings(state.settings); saveAndRender(); }
   const copyTemplate = value => JSON.parse(JSON.stringify(value));
   const templateLabel = type => type[0].toUpperCase() + type.slice(1);
   function openTemplateEditorFromSource(type, id) {

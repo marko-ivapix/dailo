@@ -569,11 +569,17 @@
   function normalizeV16Settings(settings) {
     const source = settings && typeof settings === 'object' && !Array.isArray(settings) ? settings : {};
     const normalized = { ...source };
-    if (!Object.prototype.hasOwnProperty.call(source, 'todayFocusFilter')) normalized.todayFocusFilter = 'all';
-    if (!Object.prototype.hasOwnProperty.call(source, 'todayFocusStrip')) normalized.todayFocusStrip = true;
-    if (!Object.prototype.hasOwnProperty.call(source, 'compactDensity')) normalized.compactDensity = true;
+    normalized.todayFocusFilter = ['all', 'open', 'completed', 'important', 'dueToday'].includes(source.todayFocusFilter) ? source.todayFocusFilter : 'all';
+    normalized.todayFocusStrip = source.todayFocusStrip !== false;
+    normalized.compactDensity = source.compactDensity !== false;
+    const visible = Array.isArray(source.todayVisibleSections) ? source.todayVisibleSections : ['focus', 'review', 'actions'];
+    normalized.todayVisibleSections = ['focus', 'review', 'actions'].filter(section => visible.includes(section));
     if (!Object.prototype.hasOwnProperty.call(source, 'weekStartsOn')) normalized.weekStartsOn = 1;
     return normalized;
+  }
+
+  function resetV16Settings(settings) {
+    return { ...normalizeV16Settings(settings), todayFocusFilter: 'all', todayFocusStrip: true, compactDensity: true, todayVisibleSections: ['focus', 'review', 'actions'], weekStartsOn: 1 };
   }
 
   function migrateStateV16(input) {
@@ -1360,6 +1366,7 @@
     areaSummary,
     normalizeState,
     normalizeV16Settings,
+    resetV16Settings,
     migrateStateV16,
     selectFocusTasks,
     getGoalHealth,

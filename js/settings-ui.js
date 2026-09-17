@@ -23,6 +23,15 @@
         <button class="btn btn-secondary" data-action="reset-shortcuts">Reset to defaults</button>
       </section>
       <section class="settings-card">
+        <h2>Personalization</h2>
+        <div class="settings-row"><label class="settings-label" for="preference-density"><strong>Compact density</strong><span>Keep task rows and controls tight.</span></label><input id="preference-density" type="checkbox" ${state.settings.compactDensity !== false ? 'checked' : ''}></div>
+        <div class="settings-row"><label class="settings-label" for="preference-today-filter"><strong>Default Today filter</strong><span>Choose what Today shows when you return.</span></label><select class="input" id="preference-today-filter">${[['all', 'All'], ['open', 'Open'], ['completed', 'Completed'], ['important', 'Important'], ['dueToday', 'Due today']].map(([value, label]) => `<option value="${value}"${state.settings.todayFocusFilter === value ? ' selected' : ''}>${label}</option>`).join('')}</select></div>
+        <div class="settings-row"><label class="settings-label" for="preference-week-start"><strong>Week starts on</strong><span>Used by weekly views and habit periods.</span></label><select class="input" id="preference-week-start"><option value="monday"${state.settings.weekStartsOn !== 0 && state.settings.weekStartsOn !== 'sunday' ? ' selected' : ''}>Monday</option><option value="sunday"${state.settings.weekStartsOn === 0 || state.settings.weekStartsOn === 'sunday' ? ' selected' : ''}>Sunday</option></select></div>
+        <fieldset class="settings-row"><legend class="settings-label"><strong>Today cards</strong><span>Choose the dashboard cards you want to see.</span></legend>${[['focus', 'Daily focus'], ['review', 'Daily review'], ['actions', 'Daily actions']].map(([value, label]) => `<label><input type="checkbox" data-preference-today-section value="${value}" ${(state.settings.todayVisibleSections || []).includes(value) ? 'checked' : ''}> ${label}</label>`).join('')}</fieldset>
+        <div class="settings-row"><label class="settings-label" for="preference-focus-strip"><strong>Today summary</strong><span>Show the compact open, completed and planned summary.</span></label><input id="preference-focus-strip" type="checkbox" ${state.settings.todayFocusStrip !== false ? 'checked' : ''}></div>
+        <button class="btn btn-secondary" type="button" data-action="save-personalization">Save preferences</button> <button class="btn btn-ghost" type="button" data-action="reset-personalization">Reset personalization</button>
+      </section>
+      <section class="settings-card">
         <h2>Notifications</h2>
         <div class="settings-row"><div class="settings-label"><strong>Browser reminders</strong><span>In-app reminders always work while the prototype is open. Browser notifications are optional.</span></div><button class="btn btn-secondary" type="button" data-action="enable-notifications">${notificationButtonLabel()}</button></div>
       </section>
@@ -48,6 +57,8 @@
       if (action === 'save-shortcut') ctx.saveShortcut(element.dataset.command);
       else if (action === 'disable-shortcut') ctx.disableShortcut(element.dataset.command);
       else if (action === 'reset-shortcuts') ctx.resetShortcuts();
+      else if (action === 'save-personalization') ctx.savePersonalization();
+      else if (action === 'reset-personalization') ctx.resetPersonalization();
       else return false;
       return true;
     }
