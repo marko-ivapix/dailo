@@ -235,6 +235,15 @@
       if (!object(dashboard) || dashboard.focusedMode != null && typeof dashboard.focusedMode !== 'boolean') fail('dashboard');
       for (const key of ['sectionOrder', 'pinnedSectionIds']) if (dashboard[key] != null && (!Array.isArray(dashboard[key]) || dashboard[key].some(value => !name(value)) || new Set(dashboard[key]).size !== dashboard[key].length)) fail('dashboard');
     }
+    if (state.settings != null) {
+      if (!object(state.settings)) fail('settings');
+      enumField(state.settings, 'todayFocusFilter', ['all', 'open', 'completed', 'important', 'dueToday']);
+      for (const key of ['todayFocusStrip', 'compactDensity']) booleanField(state.settings, key);
+      if (state.settings.todayVisibleSections != null && (!Array.isArray(state.settings.todayVisibleSections)
+        || state.settings.todayVisibleSections.some(section => !['focus', 'review', 'actions'].includes(section))
+        || new Set(state.settings.todayVisibleSections).size !== state.settings.todayVisibleSections.length)) fail('todayVisibleSections');
+      if (state.settings.weekStartsOn != null && ![0, 1, 'monday', 'sunday'].includes(state.settings.weekStartsOn)) fail('weekStartsOn');
+    }
     nested(logs,'Habit logs');nested(history,'Goal history');const days = new Set();
     for (const log of logs) { ref(log.habitId,'habits');if (!log.habitId || !date(log.date) || days.has(`${log.habitId}:${log.date}`) || !['done','skipped','missed'].includes(log.status)) fail('Habit log');days.add(`${log.habitId}:${log.date}`);numberField(log,'value'); }
     for (const event of history) { ref(event.goalId,'goals');if (!event.goalId || !['created','progressChanged','statusChanged','targetDateChanged','projectLinked','projectUnlinked','manualProgress'].includes(event.type) || !object(event.data) || !Number.isFinite(Date.parse(event.createdAt))) fail('Goal history'); }
@@ -318,7 +327,7 @@
       attachmentRecords: records,
       habitLogs,
       goalHistory,
-      summary: { exportedAt: manifest.exportedAt, tasks: state.tasks.length, projects: state.projects.length, tags: state.tags.length, notes: state.notes.length, resources: state.resources.length, attachments: records.length, totalSize }
+      summary: { exportedAt: manifest.exportedAt, tasks: state.tasks.length, projects: state.projects.length, tags: state.tags.length, goals: state.goals.length, habits: state.habits.length, notes: state.notes.length, resources: state.resources.length, attachments: records.length, habitLogs: habitLogs.length, goalHistory: goalHistory.length, totalSize }
     };
   }
 
