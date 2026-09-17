@@ -28,6 +28,11 @@
 - Mobile Quick Add is explicitly closed on initialization and `[hidden]` is enforced in CSS, so the action circles open and close only from the plus control. Habit day cells suppress stray fallback text.
 - Verification after the fix: **147 passed, 0 failed, 0 skipped**; JavaScript syntax, Python AST and `git diff --check` passed. The updated distributable ZIP was rebuilt and passed `unzip -t`.
 
+## Whole-app compact density pass — 2026-09-17
+
+- Added a shared compact-density layer for desktop and mobile: smaller body/type scale, tighter rows and cards, shorter controls, reduced modal/popover padding, denser Calendar/sidebar/knowledge/settings surfaces, and a mobile override that keeps touch controls usable.
+- Added a regression check for the compact global tokens. Verification: **148 passed, 0 failed, 0 skipped**; JavaScript syntax, Python AST and `git diff --check` passed. Browser was intentionally not launched.
+
 - Run the isolated Playwright/browser regression set in a permitted runtime before release-quality sign-off.
 - The prior isolated Chromium attempt aborted with SIGABRT/EPERM; the escalation request was canceled. No browser launch was attempted in this fix round. No native browser case is newly claimed as passing.
 - Complete visual/accessibility inspection in that same isolated browser runtime.
