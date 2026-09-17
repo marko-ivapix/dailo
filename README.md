@@ -1,4 +1,4 @@
-# Dailo — HTML Prototype v1.4
+# Dailo — HTML Prototype v1.5
 
 Desktop-first, local-first functional prototype for a personal/freelancer task tracker. The product keeps a simple workflow:
 
@@ -11,13 +11,37 @@ Desktop-first, local-first functional prototype for a personal/freelancer task t
 This is a static HTML/CSS/vanilla JavaScript prototype. Serve the folder with a small local web server:
 
 ```bash
-cd todo-app-prototype-v1.2
+cd todo-app-prototype-v1.3
 python3 -m http.server 8080
 ```
 
 Then open `http://localhost:8080`.
 
-## V1.4 highlights
+## V1.5 highlights
+
+- Task duration, a three-task Today Focus queue, inline completion/planning and Daily Review.
+- Trailing Quick Add date/time phrases with explicit field values taking precedence.
+- Goal health and linked contributions; Habit minimum/ideal targets, grace-day recovery and rolling weekly/monthly insights. Numeric Habit targets can be fractional; weekly check-in targets remain whole counts.
+- Calendar task blocks use planned time plus duration and mark overlaps without introducing another event store.
+- Resource type, reading status, author and review date; separate Note/Resource clips, favorites and local filters.
+- Template variables/scheduled Task creation and Today section personalization.
+- Bounded local snapshots and selective recovery, described below. State schema remains V3 and earlier ZIP formats remain importable.
+
+### Local snapshots and selective recovery
+
+After successful saves, Dailo attempts an automatic snapshot after one idle second, at most once every five minutes. Startup also schedules a capture. It retains the five latest automatic copies, including normalized metadata, files, Habit logs and Goal history. Copies for interrupted operations are retained separately. These copies share the browser's storage quota and are not a substitute for an exported ZIP.
+
+Use **Settings → Data → Local snapshots** to choose one entity from a saved version. Its record and owned files/history replace that entity's current version; unrelated records remain current. Linked entities must already exist: missing dependencies stop the restore and must be recovered separately. Restoring an Area or Project does not implicitly restore its children or historical inbound links.
+
+Each selective restore downloads a safety ZIP, creates an internal recovery copy, and requires typing **RESTORE**. The same source checks, write verification and rollback used by full restore protect selective replacement. Snackbar Undo is available briefly while data remains unchanged after restore. If later edits make Undo unsafe, the operation refuses to overwrite them and retains its safety copy for another selective recovery. Full ZIP restore and Reset retain their existing typed **RESTORE**/**RESET** safeguards.
+
+Storage failures distinguish unsaved changes from an automatic snapshot failure and offer Retry. Reduced-motion preference suppresses animation/transition delays and reduces durations.
+
+### Verification status
+
+V1.5 has automated Node coverage for metadata, UI module behavior, migration, ZIP compatibility, snapshot retention and selective restore/Undo failure paths. The browser tests use disposable profiles; native browser/visual acceptance remains pending in environments that block the local test server or browser launch. Do not interpret Node results as native browser persistence verification.
+
+## V1.4 foundation
 
 V1.4 keeps the V1.3 data model and adds a faster daily-planning flow:
 
@@ -38,7 +62,7 @@ Space Grotesk, Geist and Phosphor icon styles are referenced from public CDNs. T
 
 **Notes** and **Resources** have dedicated sidebar lists and detail editors, with optional Area assignment, links, and attachments. Area Detail also shows their counts and contextual creation controls. Resources can link to Tasks, Projects, Goals, and Habits; deleting an Area clears its assignment without deleting these records. Goal create/edit includes Short-term, Mid-term, and Long-term horizons; **By month** groups Goals by target date, with undated Goals separate.
 
-These prototype additions received bounded source/diff inspection only: automated tests, runtime/syntax checks, browser interactions, and independent reviews were not run in the fast-prototype workflow. Reload persistence, attachment selection/deletion/Undo, ZIP round trips, failure recovery, and keyboard/focus behavior remain unverified at runtime.
+Automated Node checks now cover metadata editing, ownership, ZIP round trips and failure recovery for these additions. Native browser reload, attachment interactions and keyboard/focus acceptance still require the isolated browser pass described above.
 
 ### Prototype routines and starter examples
 

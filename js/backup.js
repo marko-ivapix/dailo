@@ -315,6 +315,48 @@
     };
   }
 
+  function prepareSelectiveRestore(current, snapshot, collection, id) {
+    const collections = ['tasks', 'projects', 'areas', 'tags', 'goals', 'habits', 'notes', 'resources', 'templates', 'savedViews'];
+    if (!collections.includes(collection)) throw new Error('Choose a supported entity type.');
+    const migration = root.TodoCore.migrateStateV3(snapshot.appData);
+    if (!migration.ok) throw new Error(`Snapshot validation failed: ${migration.reason}`);
+    validateDomain(migration.state, snapshot.habitLogs || [], snapshot.goalHistory || []);
+    const source = root.TodoCore.normalizeState(migration.state);
+    const record = source[collection].find(item => item.id === id);
+    if (!record) throw new Error('The selected entity is not in this snapshot.');
+    validateDomain(source, snapshot.habitLogs || [], snapshot.goalHistory || []);
+    root.TodoStorage.verifyAttachmentReferences(source, snapshot.attachments || []);
+    const next = structuredClone(current);
+    next.state = root.TodoCore.normalizeState(next.state);
+    const index = next.state[collection].findIndex(item => item.id === id);
+    if (index < 0) next.state[collection].push(structuredClone(record));
+    else next.state[collection][index] = structuredClone(record);
+    const ownerType = { tasks: 'task', notes: 'note', resources: 'resource' }[collection];
+    if (ownerType) {
+      const belongs = file => ownerType === 'task' ? file.taskId === id : file.ownerType === ownerType && file.ownerId === id;
+      const restored = (snapshot.attachments || []).filter(file => (record.attachmentIds || []).includes(file.id));
+      const retained = next.attachmentRecords.filter(file => !belongs(file));
+      if (restored.some(file => retained.some(other => other.id === file.id))) throw new Error('Attachment ownership changed. Restore cannot replace another entity\'s file.');
+      next.attachmentRecords = [...retained, ...structuredClone(restored)];
+    }
+    for (const [name, entityCollection, ownerField] of [['habitLogs', 'habits', 'habitId'], ['goalHistory', 'goals', 'goalId']]) {
+      if (collection !== entityCollection) continue;
+      const restored = (snapshot[name] || []).filter(entry => entry[ownerField] === id);
+      const retained = (next[name] || []).filter(entry => entry[ownerField] !== id);
+      if (restored.some(entry => retained.some(other => other.id === entry.id))) throw new Error('History ownership changed.');
+      next[name] = [...retained, ...structuredClone(restored)];
+    }
+    // Dependencies are deliberately not resurrected as extra entities. Missing
+    // references reject the candidate; users can restore those entities first.
+    const validation = root.TodoCore.validateStateV3(next.state);
+    if (!validation.ok) throw new Error(`Restore linked items first: ${validation.reason}`);
+    validateDomain(next.state, next.habitLogs || [], next.goalHistory || []);
+    root.TodoStorage.verifyAttachmentReferences(next.state, next.attachmentRecords);
+    const referencedIds = new Set(root.TodoStorage.attachmentOwners(next.state).flatMap(owner => owner.item.attachmentIds || []));
+    validateIds(next.state, next.attachmentRecords.filter(file => referencedIds.has(file.id)));
+    return next;
+  }
+
   async function restoreBackup(validated, { attachmentApi, readState, writeState }) {
     validated = structuredClone(validated);
     validateDomain(validated.state, validated.habitLogs || [], validated.goalHistory || []);
@@ -337,5 +379,5 @@
     }
   }
 
-  return { BACKUP_VERSION, exportBackup, inspectBackup, exportBackupV3, inspectBackupV3, restoreBackup, validateDomain, safeName };
+  return { BACKUP_VERSION, exportBackup, inspectBackup, exportBackupV3, inspectBackupV3, prepareSelectiveRestore, restoreBackup, validateDomain, safeName };
 });

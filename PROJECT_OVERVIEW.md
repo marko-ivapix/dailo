@@ -5,6 +5,19 @@ ciljeva, navika, beleški i resursa. Osnovni tok je:
 
 **Capture → Organize → Plan → Complete**
 
+## V1.5 — implementirane dopune
+
+- Tasks imaju opciono trajanje, Today Focus red do tri zadatka i Daily Review. Quick Add prepoznaje završni datum/vreme; eksplicitno unete vrednosti imaju prednost.
+- Goals prikazuju health i doprinos povezanih stavki. Habits imaju minimum/ideal ciljeve i grace dane sa pregledom oporavka; numerički ciljevi podržavaju razlomljene vrednosti.
+- Calendar blokovi koriste postojeći task, planirano vreme i trajanje, uz oznaku preklapanja.
+- Notes i Resources ostaju odvojeni. Podržani su isečci teksta, favoriti i lokalni filteri; Resources dodatno imaju tip, status čitanja, autora i datum poslednjeg pregleda.
+- Templates podržavaju promenljive i zakazano kreiranje zadataka; Today omogućava personalizaciju sekcija.
+- Čuva se najviše pet automatskih lokalnih kopija, najčešće jednom u pet minuta nakon čuvanja. Kopije sadrže metadata, fajlove, Habit logove i Goal istoriju. Kopije prekinutih operacija čuvaju se zasebno.
+- Settings → Data → Local snapshots vraća jednu izabranu stavku sa njenim fajlovima/istorijom. Povezane stavke moraju već postojati. Pre zamene nastaju sigurnosni ZIP i interna kopija, pa se zahteva unos RESTORE. Kratkotrajni Undo važi dok nije bilo novih izmena; neuspešna provera ne prepisuje novije podatke.
+- Jasno su odvojene greške čuvanja podataka od grešaka automatske kopije, uz Retry. Uvažava se reduced-motion podešavanje.
+
+Node testovi pokrivaju podatke, UI module, ZIP i selektivni recovery; izolovana provera u browseru ostaje zaseban korak kada okruženje dozvoljava pokretanje browsera/lokalnog servera. Pitanja za brainstorming ispod su ranije zabeležene ideje, a nisu potvrda da su sve navedene opcije u opsegu.
+
 ## 1. Today i Upcoming
 
 - **Today** prikazuje današnje zadatke, zakasnele stavke, zakazane navike,

@@ -547,8 +547,15 @@ select:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; scroll-behavior: auto !important; }
+  *, *::before, *::after { animation-duration: 1ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; transition-delay: 0ms !important; scroll-behavior: auto !important; }
 }
+
+.snapshot-group { padding: 14px 0; border-bottom: 1px solid var(--border-subtle); }
+.snapshot-group summary { cursor: pointer; padding: 8px 0; color: var(--text-secondary); }
+.snapshot-group > details { margin-left: 14px; }
+.snapshot-entity { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; }
+.snapshot-entity > span { overflow-wrap: anywhere; }
+.snapshot-entity .btn { flex-shrink: 0; }
 
 .btn:disabled,
 .btn[aria-disabled="true"] {

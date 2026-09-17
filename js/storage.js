@@ -582,6 +582,33 @@
     return snapshot;
   }
 
+  let automaticSnapshotWork = Promise.resolve();
+  function createAutomaticSnapshot(state, now = new Date()) {
+    const operation = automaticSnapshotWork.catch(() => {}).then(async () => {
+      const timestamp = new Date(now);
+      if (!Number.isFinite(timestamp.getTime())) throw new Error('Invalid snapshot date.');
+      const previous = (await recoverySnapshots.listAll()).filter(item => item.reason === 'automatic')
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      if (previous.length && timestamp.getTime() - Date.parse(previous[0].createdAt) < 300000) return null;
+      const id = await createRecoverySnapshot('automatic', state);
+      const snapshot = await recoverySnapshots.get(id);
+      try {
+        snapshot.appData = normalizeState(snapshot.appData);
+        root.TodoBackup.validateDomain(snapshot.appData, snapshot.habitLogs, snapshot.goalHistory);
+        verifyAttachmentReferences(snapshot.appData, snapshot.attachments);
+        snapshot.createdAt = timestamp.toISOString();
+        await recoverySnapshots.put(snapshot);
+      } catch (error) { await recoverySnapshots.deleteMany([id]); throw error; }
+      // Only automatic copies are eligible; interrupted operations retain their safety data.
+      const automatic = (await recoverySnapshots.listAll()).filter(item => item.reason === 'automatic')
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      await recoverySnapshots.deleteMany(automatic.slice(5).map(item => item.id));
+      return id;
+    });
+    automaticSnapshotWork = operation;
+    return operation;
+  }
+
   async function restoreRecoverySnapshot(snapshotId) {
     const snapshot = await recoverySnapshots.get(snapshotId);
     if (!snapshot) throw new Error('Recovery snapshot is unavailable.');
@@ -639,6 +666,7 @@
     sameUserData,
     replaceUserData,
     createRecoverySnapshot,
+    createAutomaticSnapshot,
     restoreRecoverySnapshot,
     verifyRecoverySnapshot,
     replaceAllValidatedBackup,

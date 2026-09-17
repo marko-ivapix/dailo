@@ -28,6 +28,7 @@
       </section>
       <section class="settings-card">
         <h2>Data</h2>
+        <div class="settings-row"><div class="settings-label"><strong>Local snapshots</strong><span>Five automatic copies, at most once every five minutes after saving. Restore one entity with its files and history.</span></div><button class="btn btn-secondary" type="button" data-action="open-local-snapshots">Browse snapshots</button></div>
         <div class="settings-row"><div class="settings-label"><strong>Export backup</strong><span>Download a portable ZIP with all local data, including Notes, Resources and files.</span></div><button class="btn btn-secondary" type="button" data-action="export-backup"><i class="ph ph-download-simple"></i> Export ZIP</button></div>
         <div class="settings-row"><div class="settings-label"><strong>Import backup</strong><span>Validate a ZIP first, then replace current data only after you confirm.</span></div><div><button class="btn btn-secondary" type="button" data-action="import-backup"><i class="ph ph-upload-simple"></i> Import ZIP</button><input id="backup-import-input" type="file" accept=".zip,application/zip" hidden /></div></div>
         <div class="settings-row"><div class="settings-label"><strong>Populate demo workspace</strong><span>Add missing editable examples across Areas, Projects, Tasks, Goals, Habits, Cleaning, Tags, Notes and Resources. Existing items and edits stay intact.</span></div><button class="btn btn-secondary" type="button" data-action="add-starter-examples">Populate workspace</button></div>

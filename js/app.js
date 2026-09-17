@@ -24,6 +24,8 @@
   let startupPromise = null;
   const startupQueue = [];
   let storageError = false;
+  let automaticSnapshotError = null;
+  let automaticSnapshotTimer = null;
   let globalOperation = null;
   let globalRecoveryNotice = null;
   let modalState = null;
@@ -432,6 +434,18 @@
     render();
   }
 
+  function scheduleAutomaticSnapshot() {
+    clearTimeout(automaticSnapshotTimer);
+    automaticSnapshotTimer = setTimeout(async () => {
+      automaticSnapshotTimer = null;
+      if (!state || recovery || globalOperation || undoHold) return;
+      const previousError = automaticSnapshotError;
+      try { await TodoStorage.createAutomaticSnapshot(state); automaticSnapshotError = null; }
+      catch (error) { automaticSnapshotError = error.message; }
+      if (state && !globalOperation && previousError !== automaticSnapshotError) render();
+    }, 1000);
+  }
+
   function saveState() {
     if (!state || globalOperation) return false;
     try {
@@ -440,6 +454,8 @@
       delete persisted.habitLogCache;
       delete persisted.habitMetrics;
       localStorage.setItem(STORAGE_KEY, JSON.stringify(persisted));
+      storageError = false;
+      scheduleAutomaticSnapshot();
       return true;
     } catch (error) {
       reportStorageFailure(error);
@@ -719,10 +735,16 @@
     </button>`;
   }
 
+  function storageWarningHtml() {
+    if (storageError) return `<div class="global-warning" role="alert">Changes couldn't be saved locally. Refreshing may cause data loss. <button class="btn btn-secondary" data-action="retry-save">Retry save</button></div>`;
+    if (automaticSnapshotError) return `<div class="global-warning" role="alert">Automatic snapshot failed: ${esc(automaticSnapshotError)}. Your last saved app data remains available. <button class="btn btn-secondary" data-action="retry-snapshot">Retry snapshot</button></div>`;
+    return '';
+  }
+
   function renderMain() {
     const route = currentRoute();
     const main = $('#main');
-    const warning = storageError ? `<div class="global-warning" role="alert"><i class="ph ph-warning-circle"></i> Changes couldn't be saved locally. Refreshing may cause data loss.</div>` : '';
+    const warning = storageWarningHtml();
     let content = callDomainHook('renderRoute', route);
     if (content === undefined) {
       if (route.type === 'today') content = renderToday();
@@ -1251,6 +1273,7 @@
     else if (modalState.type === 'duplicate') root.innerHTML = renderDuplicateModal();
     else if (modalState.type === 'focus') root.innerHTML = renderFocusModal();
     else if (modalState.type === 'import-backup') root.innerHTML = renderImportBackupModal();
+    else if (modalState.type === 'local-snapshots') root.innerHTML = renderLocalSnapshotsModal();
     else if (modalState.type === 'template-picker') root.innerHTML = renderTemplatePicker();
     else if (modalState.type === 'recurrence-scope') root.innerHTML = renderRecurrenceScope();
     if (['quick','project','habit','goal'].includes(modalState.type) && !modalState.taskId && !modalState.projectId && !modalState.habitId && !modalState.goalId) {
@@ -3015,6 +3038,27 @@
     return beginGlobalOperation('reset');
   }
 
+  async function openLocalSnapshots() {
+    captureModalReturnFocus(); closePopover();
+    const dialog = { type: 'local-snapshots', loading: true, snapshots: [], error: null };
+    modalState = dialog; renderModal();
+    try { dialog.snapshots = (await TodoStorage.recoverySnapshots.listAll()).filter(item => item.reason === 'automatic' || item.selective)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt)); }
+    catch (error) { dialog.error = `Snapshots could not be loaded: ${error.message}`; }
+    dialog.loading = false;
+    if (modalState === dialog) { renderModal(); requestAnimationFrame(() => $('#modal-root button')?.focus()); }
+  }
+
+  function renderLocalSnapshotsModal() {
+    const dialog = modalState;
+    const collections = { tasks: 'Tasks', projects: 'Projects', areas: 'Areas', tags: 'Tags', goals: 'Goals', habits: 'Habits', notes: 'Notes', resources: 'Resources', templates: 'Templates', savedViews: 'Saved Views' };
+    let body = dialog.loading ? '<p role="status">Loading local snapshots…</p>' : dialog.error ? `<p role="alert">${esc(dialog.error)}</p><button class="btn btn-secondary" data-action="open-local-snapshots">Retry</button>` : !dialog.snapshots.length ? '<p>No automatic snapshots yet. A snapshot is created after a successful save, at most once every five minutes.</p>' : dialog.snapshots.map(snapshot => `<details class="snapshot-group"><summary>${esc(new Date(snapshot.createdAt).toLocaleString())}${snapshot.selective ? ' · Before selective restore' : ''}</summary>${Object.entries(collections).map(([collection, label]) => {
+      const items = snapshot.appData?.[collection] || [];
+      return items.length ? `<details><summary>${label} · ${items.length}</summary>${items.map(item => `<div class="snapshot-entity"><span>${esc(item.title || item.name)}</span><button class="btn btn-secondary" type="button" data-action="restore-snapshot-entity" data-snapshot-id="${esc(snapshot.id)}" data-collection="${collection}" data-entity-id="${esc(item.id)}">Restore</button></div>`).join('')}</details>` : '';
+    }).join('')}</details>`).join('');
+    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">Local snapshots</h2><button class="btn-icon" data-action="close-modal" aria-label="Close"><i class="ph ph-x"></i></button></div><p class="area-empty-copy">Five recent automatic copies are kept on this device. Restore one entity and its files/history. Existing linked entities must still be present. A safety ZIP and typed RESTORE confirmation protect replacement.</p>${body}</div>`, 'quick');
+  }
+
   function downloadBackup(blob) {
     const url = URL.createObjectURL(blob), anchor = document.createElement('a');
     anchor.href = url; anchor.download = `todo-backup-${Core.dateOnly()}.zip`;
@@ -3067,12 +3111,38 @@
     else setToastMessage(message);
   }
 
-  async function beginGlobalOperation(reason, file = null) {
+  async function undoSelectiveRestore(op) {
+    if (!op.undoOperation) {
+      if (globalOperation || compactState(state) !== op.committedText || localStorage.getItem(STORAGE_KEY) !== op.committedRaw) {
+        op.keepRecovery = true;
+        throw new Error('Data changed after restore. Use Local snapshots to restore the desired entity; the safety copy is retained.');
+      }
+      op.undoOperation = { reason: 'restore', busy: true };
+    }
+    globalOperation = op.undoOperation;
+    op.keepRecovery = true;
+    try {
+      await markGlobalSnapshot(op, 'mutating');
+      const restored = await TodoStorage.restoreRecoverySnapshot(op.snapshotId);
+      await markGlobalSnapshot(op, 'rolled-back');
+      state = normalizeState(restored); recovery = null; globalOperation = null;
+      globalRecoveryNotice = null; render();
+    } catch (error) {
+      await markGlobalSnapshot(op, 'rollback-failed', { rollbackError: error.message }).catch(() => {});
+      globalNotice(`Undo recovery needs attention: ${error.message}. Safety copy retained.`, () => undoSelectiveRestore(op));
+      throw error;
+    }
+    try { await cleanupGlobalSnapshot(op); }
+    catch (error) { globalNotice(`Undo is verified. Safety-copy cleanup failed: ${error.message}. Retry cleanup.`, async () => { await cleanupGlobalSnapshot(op); globalRecoveryNotice = null; renderToast(); }); }
+    refreshHabitMetrics().then(render).catch(error => setToastMessage(error.message));
+  }
+
+  async function beginGlobalOperation(reason, file = null, selection = null) {
     if (globalOperation) return;
     await (startupPromise || Promise.resolve());
     if (!state || recovery) { globalNotice('Safety backup cannot represent this unreadable saved data. Nothing was changed. Use Retry after repairing or recovering the original local data.', () => startReady()); return; }
     flushTextSave();
-    const op = { reason, source: state, busy: false };
+    const op = { reason, source: state, busy: false, selective: selection };
     globalOperation = op;
     try {
       op.token = await deleteLifecycle.hold();
@@ -3088,12 +3158,15 @@
       const snapshot = await TodoStorage.recoverySnapshots.get(op.snapshotId);
       assertGlobalSource(op);
       if (snapshot.rawAppData !== op.raw || !(await TodoStorage.sameUserData(snapshot, op.payload))) throw new Error('Source changed during snapshot. Retry.');
-      op.validated = reason === 'restore' ? structuredClone(await Backup.inspectBackupV3(file))
+      op.validated = selection ? Backup.prepareSelectiveRestore({ state: JSON.parse(op.stateText), attachmentRecords: op.payload.attachments, habitLogs: op.payload.habitLogs, goalHistory: op.payload.goalHistory }, selection.snapshot, selection.collection, selection.id)
+        : reason === 'restore' ? structuredClone(await Backup.inspectBackupV3(file))
         : { state: createEmptyState(), attachmentRecords: [], habitLogs: [], goalHistory: [] };
       op.validated.state = JSON.parse(compactState(normalizeState(op.validated.state)));
       assertGlobalSource(op);
-      const summary = reason === 'restore' ? ` ${op.validated.state.tasks.length} tasks, ${op.validated.state.projects.length} projects, ${op.validated.state.goals.length} Goals, ${op.validated.state.habits.length} Habits, ${op.validated.state.notes.length} Notes, ${op.validated.state.resources.length} Resources, ${op.validated.attachmentRecords.length} files, ${op.validated.habitLogs.length} logs and ${op.validated.goalHistory.length} history events will be restored.` : '';
-      openConfirm({ title: reason === 'reset' ? 'Reset all app data?' : 'Restore backup?', message: 'A safety ZIP was downloaded and an internal recovery copy was created.' + summary,
+      if (selection) await markGlobalSnapshot(op, 'prepared', { selective: true });
+      const selectedItem = selection && op.validated.state[selection.collection].find(item => item.id === selection.id);
+      const summary = selection ? ` Restore “${selectedItem.title || selectedItem.name}” and its owned files/history. Other records stay current. Undo is available until further data changes.` : reason === 'restore' ? ` ${op.validated.state.tasks.length} tasks, ${op.validated.state.projects.length} projects, ${op.validated.state.goals.length} Goals, ${op.validated.state.habits.length} Habits, ${op.validated.state.notes.length} Notes, ${op.validated.state.resources.length} Resources, ${op.validated.attachmentRecords.length} files, ${op.validated.habitLogs.length} logs and ${op.validated.goalHistory.length} history events will be restored.` : '';
+      openConfirm({ title: reason === 'reset' ? 'Reset all app data?' : selection ? 'Restore selected entity?' : 'Restore backup?', message: 'A safety ZIP was downloaded and an internal recovery copy was created.' + summary,
         phrase: reason.toUpperCase(), confirmLabel: reason === 'reset' ? 'Reset app' : 'Restore backup',
         onConfirm: () => commitGlobalOperation(op), onCancel: () => abandonGlobalOperation(op) });
     } catch (error) { await abandonGlobalOperation(op, `Safety preparation failed: ${error.message}. Nothing was replaced. Retry the operation.`); }
@@ -3171,7 +3244,13 @@
       deleteLifecycle.retire(op.token);
       state = normalizeState(op.validated.state); recovery = null; modalState = null;
       globalOperation = phaseError ? op : null; renderModal(); location.hash = '#today'; render();
-      try { if (phaseError) throw phaseError; await cleanupGlobalSnapshot(op); setToastMessage(op.reason === 'reset' ? 'App data reset and verified.' : 'Backup restored and verified.'); }
+      try {
+        if (phaseError) throw phaseError;
+        if (op.selective) {
+          op.committedText = compactState(state); op.committedRaw = localStorage.getItem(STORAGE_KEY);
+          setUndo('Selected entity restored', () => undoSelectiveRestore(op), () => op.keepRecovery ? true : cleanupGlobalSnapshot(op));
+        } else { await cleanupGlobalSnapshot(op); setToastMessage(op.reason === 'reset' ? 'App data reset and verified.' : 'Backup restored and verified.'); }
+      }
       catch (error) { globalNotice(`New data is verified. Recovery copy cleanup failed: ${error.message}. Retry cleanup.`, async () => { await markGlobalSnapshot(op, 'committed'); await cleanupGlobalSnapshot(op); if (globalOperation === op) globalOperation = null; globalRecoveryNotice = null; renderToast(); }); }
       refreshHabitMetrics().then(render).catch(error => setToastMessage(`History display could not refresh: ${error.message}. Reload to retry.`));
     } catch (error) {
@@ -3383,6 +3462,13 @@
     else if (action === 'clear-completed') clearCompleted();
     else if (action === 'reset-app') resetApp();
     else if (action === 'retry-load') { startReady(); }
+    else if (action === 'retry-save') { saveAndRender(); }
+    else if (action === 'retry-snapshot') { scheduleAutomaticSnapshot(); }
+    else if (action === 'open-local-snapshots') { openLocalSnapshots(); }
+    else if (action === 'restore-snapshot-entity') {
+      const snapshot = modalState?.snapshots?.find(item => item.id === el.dataset.snapshotId);
+      if (snapshot) beginGlobalOperation('restore', null, { snapshot, collection: el.dataset.collection, id: el.dataset.entityId });
+    }
     else if (action === 'recovery-reset') resetApp();
   }
 
@@ -3846,6 +3932,7 @@
   async function init() {
     attachEvents();
     await startReady();
+    scheduleAutomaticSnapshot();
     if (!location.hash) location.hash = '#today';
     setInterval(() => {
       if (globalOperation) return;
