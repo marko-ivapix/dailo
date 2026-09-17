@@ -153,7 +153,7 @@
     for (const entry of dates) {
       if (!entry.valid || entry.future || !entry.date) continue;
       const status = ctx.Core.habitStatusForDate(habit, logs, entry.date, today);
-      if (status.status === 'unscheduled') continue;
+      if (status.status === 'unscheduled' && habit.frequencyType !== 'daily') continue;
       scheduled += 1;
       score += Math.max(0, Math.min(1, Number(status.percent || (status.status === 'done' ? 100 : 0)) / 100));
     }
@@ -162,7 +162,7 @@
 
   function renderHabitDashboard(ctx, habits) {
     const { Core, esc, habitMetrics } = ctx;
-    const dates = trackerDates(ctx); const today = dates[dates.length - 1].date;
+    const dates = trackerDates(ctx); const today = Core.dateOnly();
     const active = habits.filter(habit => habit.status === 'active');
     const todayDone = active.filter(habit => {
       const status = Core.habitStatusForDate(habit, ctx.state.habitLogCache?.[habit.id] || [], today, today);
@@ -184,10 +184,10 @@
       const cells = dates.map(entry => {
         const status = entry.valid ? Core.habitStatusForDate(habit, logs, entry.date, today) : { status: 'outside-month', percent: 0 };
         const percent = Math.round(Number(status.percent || (status.status === 'done' ? 100 : 0)));
-        const canToggle = Boolean(entry.valid && !entry.future && habit.status === 'active' && status.status !== 'unscheduled');
+        const canToggle = Boolean(entry.valid && !entry.future && habit.status === 'active');
         const nextStatus = status.status === 'done' ? 'missed' : 'done';
         const label = entry.valid ? `${habit.name} ${entry.date}: ${status.status}` : `${habit.name}: outside this month`;
-        return `<button class="habit-day-cell is-${esc(status.status)}${entry.future ? ' is-future' : ''}" type="button" ${canToggle ? `data-action="habit-grid-toggle" data-habit-id="${esc(habit.id)}" data-habit-date="${esc(entry.date)}"` : 'disabled'} style="--habit-cell-fill:${Math.max(0, Math.min(100, percent))}%" title="${esc(label)}" aria-label="${esc(label)}" aria-pressed="${status.status === 'done'}"><span class="sr-only">${esc(nextStatus)}</span></button>`;
+        return `<button class="habit-day-cell is-${esc(status.status)}${entry.future ? ' is-future' : ''}" type="button" ${canToggle ? `data-action="habit-grid-toggle" data-habit-id="${esc(habit.id)}" data-habit-date="${esc(entry.date)}"` : 'disabled'} style="--habit-cell-fill:${Math.max(0, Math.min(100, percent))}%" title="${esc(label)}" aria-label="${esc(label)}" aria-pressed="${status.status === 'done'}"></button>`;
       }).join('');
       return `<div class="habit-tracker-row"><button class="habit-tracker-name" type="button" data-route="habit/${esc(habit.id)}"><i class="ph ${ROUTINE_DETAILS[habit.routine || 'daily'].icon}"></i><span><strong>${esc(habit.name)}</strong><small>${esc(ROUTINES[habit.routine || 'daily'])}</small></span></button><div class="habit-tracker-cells">${cells}</div><strong class="habit-tracker-percent">${trackerCompletion(ctx, habit, dates)}%</strong></div>`;
     }).join('');
@@ -491,7 +491,7 @@
     else if (action === 'save-habit') saveHabitModal(ctx);
     else if (action === 'toggle-habit-more') { readHabitDraft(ctx); ctx.modalState.draft.moreOpen = !ctx.modalState.draft.moreOpen; renderModal(); requestAnimationFrame(() => $('[data-action="toggle-habit-more"]')?.focus()); }
     else if (action === 'habit-checkin') { const habit = getHabit(el.dataset.habitId); const existing = state.habitLogCache?.[habit?.id]?.find(log => log.date === Core.dateOnly()); setHabitLog(el.dataset.habitId, Core.dateOnly(), existing?.status === 'done' ? 'missed' : 'done'); }
-    else if (action === 'habit-grid-toggle') { const habit = getHabit(el.dataset.habitId); const date = el.dataset.habitDate; if (!habit || !date || date > Core.dateOnly() || habit.status !== 'active') return true; const existing = state.habitLogCache?.[habit.id]?.find(log => log.date === date); const done = existing?.status !== 'done'; const value = habit.trackingType === 'numeric' ? (done ? Number(habit.targetValue || 1) : 0) : null; setHabitLog(habit.id, date, done ? 'done' : 'missed', value); }
+    else if (action === 'habit-grid-toggle') { const habit = getHabit(el.dataset.habitId); const date = el.dataset.habitDate; if (!habit || !date || date > Core.dateOnly() || habit.status !== 'active') return true; const existing = state.habitLogCache?.[habit.id]?.find(log => log.date === date); const done = existing?.status !== 'done'; const value = habit.trackingType === 'numeric' ? (done ? Number(habit.targetValue || 1) : 0) : null; setHabitLog(habit.id, date, done ? 'done' : 'missed', value, { allowHistoricalBackfill: true }); }
     else if (action === 'habit-skip') setHabitLog(el.dataset.habitId, Core.dateOnly(), 'skipped');
     else if (action === 'habit-quick-add') { const habit = getHabit(el.dataset.habitId); const existing = state.habitLogCache?.[habit?.id]?.find(log => log.date === Core.dateOnly()); setHabitLog(el.dataset.habitId, Core.dateOnly(), 'done', Number(existing?.value || 0) + Number(el.dataset.value || 0)); }
     else if (action === 'save-habit-total') setHabitLog(el.dataset.habitId, Core.dateOnly(), 'done', Number($('#habit-direct-total')?.value || 0));

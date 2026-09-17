@@ -2748,12 +2748,13 @@
     habit.goalIds = [...selected];
   }
 
-  async function setHabitLog(habitId, date, requestedStatus = 'done', requestedValue = null) {
+  async function setHabitLog(habitId, date, requestedStatus = 'done', requestedValue = null, options = {}) {
     const habit = getHabit(habitId); const today = Core.dateOnly();
     const existing = (state.habitLogCache?.[habitId] || []).find(log => log.date === date);
     // Historical corrections remain valid after a pause/archive. Only today's
     // live check-in is controlled by the current lifecycle state.
-    if (!habit || !date || date > today || (date === today && habit.status !== 'active') || !(Core.habitScheduledOn(habit, date, { historical: true }) || existing)) return false;
+    const allowHistoricalBackfill = Boolean(options.allowHistoricalBackfill && date < today);
+    if (!habit || !date || date > today || (date === today && habit.status !== 'active') || !(Core.habitScheduledOn(habit, date, { historical: true }) || existing || allowHistoricalBackfill)) return false;
     const before = captureGoalProgress();
     let status = requestedStatus; let value = requestedValue;
     if (habit.trackingType === 'numeric') { const numeric = Core.numericHabitState(habit, requestedValue); status = numeric.status; value = numeric.value; }
