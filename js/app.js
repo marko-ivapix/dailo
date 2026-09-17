@@ -560,7 +560,7 @@
 
   function currentRoute() {
     const hash = location.hash.replace(/^#/, '') || 'today';
-    if (['today', 'inbox', 'upcoming', 'calendar', 'anytime', 'tags', 'areas', 'notes', 'resources', 'goals', 'habits', 'templates', 'projects', 'saved-views', 'archived', 'completed', 'settings'].includes(hash)) return { type: hash };
+    if (['today', 'inbox', 'upcoming', 'calendar', 'anytime', 'tags', 'areas', 'notes', 'resources', 'goals', 'habits', 'templates', 'projects', 'cleaning', 'saved-views', 'archived', 'completed', 'settings'].includes(hash)) return { type: hash };
     for (const type of ['note', 'resource']) if (hash.startsWith(type + '/')) {
       const id = decodeURIComponent(hash.slice(type.length + 1));
       return attachmentOwner({ ownerType: type, ownerId: id }) ? { type, id } : { type: knowledgeCollection(type) };
@@ -675,7 +675,7 @@
           <button class="sidebar-action sidebar-new-project" type="button" data-action="new-project" title="New project">
             <i class="ph ph-plus"></i><span>New project</span>
           </button>
-          ${link('areas','ph-squares-four','Areas')}${link('notes','ph-note','Notes')}${link('resources','ph-link','Resources')}${link('tags','ph-tag','Tags')}`)}
+          ${link('areas','ph-squares-four','Areas')}${link('notes','ph-note','Notes')}${link('resources','ph-link','Resources')}${link('tags','ph-tag','Tags')}${link('cleaning','ph-broom','Cleaning')}`)}
         ${group('progress','PROGRESS',link('goals','ph-target','Goals')+link('habits','ph-repeat','Habits'))}
         ${group('tools','TOOLS',link('templates','ph-copy','Templates')+link('saved-views','ph-funnel','Saved Views'))}
         ${group('pinned-areas','PINNED AREAS',`<div class="pinned-areas-list">${pinnedAreas.map(area => `<button class="sidebar-action pinned-area ${route.type === 'area' && route.id === area.id ? 'is-active' : ''}" type="button" data-route="area/${esc(area.id)}" title="${esc(area.name)}"><i class="ph ${esc(area.icon)}" style="color:${esc(area.color)}"></i><span>${esc(area.name)}</span></button>`).join('')}</div>`)}
