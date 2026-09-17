@@ -28,10 +28,10 @@
   }
 
   function timedEntries(ctx, day) {
-    const byId = new Map((ctx.state.tasks || []).map(task => [task.id, task]));
-    const blocks = ctx.Core.getTimedTaskBlocks(ctx.state.tasks, day.date);
+    const entries = new Map(day.tasks.map(entry => [entry.task.id, entry]));
+    const blocks = ctx.Core.getTimedTaskBlocks(day.tasks.map(entry => entry.task), day.date);
     const blockedIds = new Set(blocks.map(block => block.taskId));
-    const planned = blocks.map(block => calendarItem(ctx, day.timed.find(entry => entry.type === 'task' && entry.task.id === block.taskId) || { type: 'task', task: byId.get(block.taskId), kind: 'planned', time: minutesLabel(block.startMinutes) }, false, day.date, block));
+    const planned = blocks.map(block => calendarItem(ctx, entries.get(block.taskId), false, day.date, block));
     const other = day.timed.filter(entry => entry.type !== 'task' || !blockedIds.has(entry.task.id)).map(entry => calendarItem(ctx, entry, false, day.date));
     return planned.concat(other).join('');
   }
@@ -74,10 +74,10 @@
     const { modalState, state, Core, calendarLogs, formatDate, esc, modalFrame } = ctx;
     const date = modalState.date; const day = Core.deriveCalendarDay(state, calendarLogs(), date);
     const allDay = day.allDay.map(entry => calendarItem(ctx, entry, true, date)).join('');
-    const blocks = Core.getTimedTaskBlocks(state.tasks, date);
+    const blocks = Core.getTimedTaskBlocks(day.tasks.map(entry => entry.task), date);
     const blockedIds = new Set(blocks.map(block => block.taskId));
-    const taskById = new Map((state.tasks || []).map(task => [task.id, task]));
-    const timed = blocks.map(block => calendarItem(ctx, day.timed.find(entry => entry.type === 'task' && entry.task.id === block.taskId) || { type: 'task', task: taskById.get(block.taskId), kind: 'planned', time: minutesLabel(block.startMinutes) }, true, date, block)).concat(day.timed.filter(entry => entry.type !== 'task' || !blockedIds.has(entry.task.id)).map(entry => calendarItem(ctx, entry, true, date))).join('');
+    const entries = new Map(day.tasks.map(entry => [entry.task.id, entry]));
+    const timed = blocks.map(block => calendarItem(ctx, entries.get(block.taskId), true, date, block)).concat(day.timed.filter(entry => entry.type !== 'task' || !blockedIds.has(entry.task.id)).map(entry => calendarItem(ctx, entry, true, date))).join('');
     const conflicts = blocks.filter(block => block.conflict).map(block => `${minutesLabel(block.startMinutes)}–${minutesLabel(block.endMinutes)}`).filter((value, index, values) => values.indexOf(value) === index);
     const counts = { tasks: day.tasks.length, habits: day.habits.length, goals: day.goals.length, milestones: day.milestones.length };
     const total = calendarCountTotal(counts);

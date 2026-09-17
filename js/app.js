@@ -682,9 +682,9 @@
     const group = (key,label,body) => `<section class="sidebar-section" data-sidebar-section="${key}"><button class="sidebar-section-title sidebar-section-toggle" type="button" data-action="toggle-sidebar-section" data-section="${key}" aria-expanded="${!state.ui.sidebarSections[key]}" aria-controls="sidebar-${key}" title="${label}"><span>${label}</span><i class="ph ${state.ui.sidebarSections[key]?'ph-caret-right':'ph-caret-down'}"></i></button><div class="sidebar-section-body" id="sidebar-${key}" ${state.ui.sidebarSections[key]?'hidden':''}>${body}</div></section>`;
     $('#sidebar').innerHTML = `
       <div class="sidebar-header">
-        <div class="brand" title="To Do prototype">
+        <div class="brand" title="Dailo v1.5 prototype">
           <span class="brand-mark" aria-hidden="true"></span>
-          <span class="brand-name">To Do</span>
+          <span class="brand-name">Dailo</span>
         </div>
         <button class="btn-icon sidebar-collapse" type="button" data-action="toggle-sidebar" aria-label="${collapsed ? 'Expand sidebar' : 'Collapse sidebar'}" title="${collapsed ? 'Expand sidebar' : 'Collapse sidebar'}">
           <i class="ph ph-sidebar-simple"></i>
@@ -773,7 +773,7 @@
     const ordered = [...cards].sort((a, b) => Number(pins.has(b.dataset.dashboardSection)) - Number(pins.has(a.dataset.dashboardSection)) || (rank.get(a.dataset.dashboardSection) ?? 99) - (rank.get(b.dataset.dashboardSection) ?? 99));
     // Keep the page title and Today date/context ahead of customizable cards.
     const anchor = [...content.children].find(child => !child.matches('.page-header, [data-today-context], [data-dashboard-section]'));
-    for (const card of [...ordered].reverse()) content.insertBefore(card, anchor || null);
+    for (const card of ordered) content.insertBefore(card, anchor || null);
     content.classList.toggle('today-focus-view', dashboard.focusedMode === true);
   }
 
@@ -1222,7 +1222,7 @@
   }
 
   function habitDraft(habit = null, areaId = null) {
-    return { name: habit?.name || '', areaId: habit?.areaId || areaId || null, routine: habit?.routine || 'daily', goalIds: [...(habit?.goalIds || [])], trackingType: habit?.trackingType || 'checkbox', targetValue: habit?.targetValue ?? 1, unit: habit?.unit || '', quickValues: (habit?.quickValues || []).join(','), frequencyType: habit?.frequencyType || 'daily', weekdays: habit?.weekdays || [1, 2, 3, 4, 5], timesPerWeek: habit?.timesPerWeek || 4, everyNDays: habit?.everyNDays || 2, startDate: habit?.startDate || Core.dateOnly(), continuation: habit?.continuation || 'automatic', endType: habit?.endType || 'never', endDate: habit?.endDate || '', successfulPeriodsTarget: habit?.successfulPeriodsTarget || '', reminders: (habit?.reminders || []).map(item => ({ ...item })) };
+    return { name: habit?.name || '', areaId: habit?.areaId || areaId || null, routine: habit?.routine || 'daily', goalIds: [...(habit?.goalIds || [])], trackingType: habit?.trackingType || 'checkbox', targetValue: habit?.targetValue ?? 1, minimumTarget: habit?.minimumTarget ?? null, idealTarget: habit?.idealTarget ?? null, graceDays: habit?.graceDays ?? 0, unit: habit?.unit || '', quickValues: (habit?.quickValues || []).join(','), frequencyType: habit?.frequencyType || 'daily', weekdays: habit?.weekdays || [1, 2, 3, 4, 5], timesPerWeek: habit?.timesPerWeek || 4, everyNDays: habit?.everyNDays || 2, startDate: habit?.startDate || Core.dateOnly(), continuation: habit?.continuation || 'automatic', endType: habit?.endType || 'never', endDate: habit?.endDate || '', successfulPeriodsTarget: habit?.successfulPeriodsTarget || '', reminders: (habit?.reminders || []).map(item => ({ ...item })) };
   }
 
   function openHabitModal(habitId = null, context = {}) {
@@ -1339,7 +1339,9 @@
     const record = { ...copyTemplate(draft), name: draft.name.trim(), id: id || uid('template'), createdAt: existing?.createdAt || nowIso(), updatedAt: nowIso() };
     if (existing) state.templates.splice(state.templates.indexOf(existing), 1, record); else state.templates.push(record);
     modalState.savedTemplateId = record.id;
-    state.ui.templateType = draft.type; saveState(); closeModal(); render();
+    state.ui.templateType = draft.type;
+    if (saveState()) runScheduledTaskTemplates();
+    closeModal(); render();
     return record;
   }
 
@@ -1377,15 +1379,22 @@
     else modalState.draft=goalDraft(item);
     modalState.templateInstance=out;renderModal();
   }
-  function runScheduledTaskTemplates() {
-    const today = Core.dateOnly(); const tasks = Core.instantiateScheduledTaskTemplates(state, today, { makeId: uid, nowIso: nowIso() });
+  function runScheduledTaskTemplates({ duringStartup = false } = {}) {
+    if (!state || globalOperation || recovery || (startupPromise && !duringStartup)) return 0;
+    const today = Core.dateOnly();
+    const scheduled = { ...state, templates: copyTemplate(state.templates) };
+    const tasks = Core.instantiateScheduledTaskTemplates(scheduled, today, { makeId: uid, nowIso: nowIso() });
+    if (!tasks.length) return 0;
+    const before = { tasks: state.tasks, goals: state.goals, templates: state.templates };
+    state.tasks = [...state.tasks]; state.goals = copyTemplate(state.goals); state.templates = scheduled.templates;
     for (const task of tasks) {
       task.todayOrder = task.plannedDate === today ? nextOrder('today') : null;
       task.projectOrder = task.projectId ? nextOrder(`project:${task.projectId}`) : null;
       task.inboxOrder = task.isInbox ? nextOrder('inbox', true) : null;
       state.tasks.push(task);
+      syncTemplateEntityGoalLinks('task', task);
     }
-    if (tasks.length) saveState();
+    if (!saveState()) { Object.assign(state, before); return 0; }
     return tasks.length;
   }
   function templateMenuEntry(type,id) {
@@ -3383,7 +3392,7 @@
     if(action==='from-template')openTemplatePicker();
     else if (action === 'dashboard-focus-toggle') { state.settings.dashboard.focusedMode = !state.settings.dashboard.focusedMode; saveAndRender(); }
     else if (action === 'dashboard-pin') { const pins = new Set(state.settings.dashboard.pinnedSectionIds || []), id = el.dataset.dashboardSection; if (pins.has(id)) pins.delete(id); else pins.add(id); state.settings.dashboard.pinnedSectionIds = [...pins]; saveAndRender(); }
-    else if (action === 'dashboard-move') { const ids = ['focus', 'review', 'actions']; const order = [...new Set([...(state.settings.dashboard.sectionOrder || []), ...ids])].filter(id => ids.includes(id)); const from = order.indexOf(el.dataset.dashboardSection), to = Math.max(0, Math.min(order.length - 1, from + (el.dataset.direction === 'up' ? -1 : 1))); if (from !== to) [order[from], order[to]] = [order[to], order[from]]; state.settings.dashboard.sectionOrder = order; saveAndRender(); }
+    else if (action === 'dashboard-move') { const ids = ['focus', 'review', 'actions'], pins = new Set(state.settings.dashboard.pinnedSectionIds || []); const order = [...new Set([...(state.settings.dashboard.sectionOrder || []), ...ids])].filter(id => ids.includes(id)).sort((a, b) => Number(pins.has(b)) - Number(pins.has(a))); const from = order.indexOf(el.dataset.dashboardSection), to = from + (el.dataset.direction === 'up' ? -1 : 1); if (from >= 0 && to >= 0 && to < order.length && pins.has(order[from]) === pins.has(order[to])) [order[from], order[to]] = [order[to], order[from]]; state.settings.dashboard.sectionOrder = order; saveAndRender(); }
     else if(action==='toggle-sidebar-section'){const key=el.dataset.section;state.ui.sidebarSections[key]=!state.ui.sidebarSections[key];saveAndRender();}
     else if(action==='more-route'){closePopover();navigate(el.dataset.moreRoute);}
     else if(action==='choose-template')chooseTemplate(el.dataset.templateId);
@@ -3897,7 +3906,7 @@
           startupQueue.unshift(undefined);
           continue;
         }
-        runScheduledTaskTemplates();
+        runScheduledTaskTemplates({ duringStartup: true });
         render();
         checkReminders();
         if (Attachments && !undoHold) {
@@ -3936,7 +3945,8 @@
     scheduleAutomaticSnapshot();
     if (!location.hash) location.hash = '#today';
     setInterval(() => {
-      if (globalOperation) return;
+      if (globalOperation || startupPromise || recovery || !state) return;
+      if (runScheduledTaskTemplates()) render();
       const next = Core.dateOnly();
       if (next !== lastToday) {
         lastToday = next;

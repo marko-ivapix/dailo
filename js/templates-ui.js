@@ -39,12 +39,14 @@
     if (type !== 'goal') html += field('goalIds', 'Goal links (select multiple)', 'ids', state.goals.map(goal => [goal.id, goal.title]));
     if (type === 'task') {
       html += field('notes', 'Notes', 'notes') + field('projectId', 'Project', 'text', choices('projects')) + field('tagIds', 'Tags (select multiple)', 'ids', state.tags.map(tag => [tag.id, tag.name])) + field('priority', 'Priority', 'text', [['none', 'None'], ['low', 'Low'], ['medium', 'Medium'], ['high', 'High']]) + field('plannedOffsetDays', 'Planned day offset (blank = none)', 'number') + field('plannedTime', 'Planned time', 'time') + field('dueOffsetDays', 'Due day offset (blank = none)', 'number') + field('dueTime', 'Due time', 'time') + field('reminderOffsetDays', 'Reminder day offset (blank = none)', 'number') + field('reminderTime', 'Reminder local time', 'time') + field('scheduleEnabled', 'Create automatically on date', 'boolean') + field('scheduleDate', 'Automatic creation date', 'date');
+      html += field('durationMinutes', 'Duration in minutes (blank = none)', 'number');
       const recurrence = data.recurrence || {};
       html += templateField(ctx, recurrence, 'frequency', 'Repeat', 'text', [['', 'Does not repeat'], ['daily', 'Daily'], ['weekly', 'Weekly'], ['monthly', 'Monthly']], `${prefix}recurrence.`) + templateField(ctx, recurrence, 'interval', 'Repeat interval', 'number', null, `${prefix}recurrence.`);
       html += templateField(ctx, recurrence, 'endType', 'Repeat end condition', 'text', [['never', 'Never'], ['date', 'On relative date'], ['afterOccurrences', 'After N occurrences']], `${prefix}recurrence.`) + templateField(ctx, recurrence, 'endOffsetDays', 'Repeat end day offset', 'number', null, `${prefix}recurrence.`) + templateField(ctx, recurrence, 'endAfterOccurrences', 'Repeat total occurrences', 'number', null, `${prefix}recurrence.`);
       html += templateRows(ctx, 'subtasks', data.subtasks || [], prefix, 'subtask');
     } else if (type === 'project') html += field('color', 'Color', 'color') + templateRows(ctx, 'tasks', data.tasks || [], prefix, 'task');
     else if (type === 'habit') {
+      html += field('minimumTarget', 'Minimum target (blank = default)', 'number') + field('idealTarget', 'Ideal target (blank = default)', 'number') + field('graceDays', 'Grace days', 'number');
       html += field('trackingType', 'Tracking', 'text', [['checkbox', 'Checkbox'], ['numeric', 'Numeric']]) + field('targetValue', 'Target', 'number') + field('unit', 'Unit') + field('quickValues', 'Quick values (comma separated)', 'numbers') + field('frequencyType', 'Frequency', 'text', [['daily', 'Daily'], ['weekdays', 'Selected weekdays'], ['timesPerWeek', 'X times per week'], ['everyNDays', 'Every N days']]) + field('weekdays', 'Weekdays (0 = Sun, 1 = Mon … 6 = Sat)', 'numbers') + field('timesPerWeek', 'Times per week', 'number') + field('everyNDays', 'Every N days', 'number') + field('continuation', 'Continuation', 'text', [['automatic', 'Repeat automatically'], ['askEachPeriod', 'Ask each period'], ['onePeriod', 'One period only']]) + field('endType', 'End condition', 'text', [['never', 'Never'], ['date', 'On relative date'], ['successfulPeriods', 'After successful periods']]) + field('endOffsetDays', 'End day offset (blank = none)', 'number') + field('successfulPeriodsTarget', 'Successful periods', 'number') + templateRows(ctx, 'reminders', data.reminders || [], prefix, 'reminder');
     } else {
       html += field('progressMode', 'Progress source', 'text', [['manual', 'Manual'], ['linkedTasks', 'Linked tasks'], ['linkedHabits', 'Linked habits']]) + field('progressType', 'Progress type', 'text', [['percentage', 'Percentage'], ['numeric', 'Numeric target']]) + field('targetValue', 'Target value', 'number') + field('unit', 'Unit') + field('targetOffsetDays', 'Target day offset (blank = none)', 'number') + templateRows(ctx, 'milestones', data.milestones || [], prefix, 'milestone');
@@ -85,6 +87,13 @@
   }
 
   function templateDataProblem(type, data) {
+    if (type === 'task' && data.durationMinutes != null && (!Number.isInteger(data.durationMinutes) || data.durationMinutes <= 0)) return 'Duration must be a positive whole number of minutes.';
+    if (type === 'habit') {
+      const fractional = data.trackingType === 'numeric' && data.frequencyType !== 'timesPerWeek';
+      for (const key of ['minimumTarget', 'idealTarget']) if (data[key] != null && (!Number.isFinite(data[key]) || data[key] <= 0 || (!fractional && !Number.isInteger(data[key])))) return 'Habit targets must be positive numbers; count targets must be whole numbers.';
+      if (data.minimumTarget != null && data.idealTarget != null && data.idealTarget < data.minimumTarget) return 'Ideal target must be at least the minimum target.';
+      if (data.graceDays != null && (!Number.isInteger(data.graceDays) || data.graceDays < 0)) return 'Grace days must be zero or a positive whole number.';
+    }
     const relativeProblem = value => value && typeof value === 'object' && Object.entries(value).some(([key, item]) => key.endsWith('OffsetDays') ? item !== null && !Number.isInteger(item) : typeof item === 'object' && relativeProblem(item));
     if (relativeProblem(data)) return 'Day offsets must be whole numbers.';
     const schedule = String(data.scheduleDate || ''), parsedSchedule = /^\d{4}-\d{2}-\d{2}$/.test(schedule) ? new Date(`${schedule}T00:00:00Z`) : null;

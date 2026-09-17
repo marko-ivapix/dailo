@@ -27,11 +27,15 @@ Then open `http://localhost:8080`.
 - Template variables/scheduled Task creation and Today section personalization.
 - Bounded local snapshots and selective recovery, described below. State schema remains V3 and earlier ZIP formats remain importable.
 
+Scheduled Task templates are one-shot per configured date. They run after saving a due schedule, during ready startup, and on the open app's 30-second checks. Missed dates catch up once when the app is next ready; variables and relative dates use the scheduled day, not the catch-up day. They do not run while the app is closed. Failed saves remain eligible for retry without duplicate Tasks. Saving a different schedule date creates a new one-shot schedule.
+
+Today keeps its heading/date above personalized cards. Pinned cards appear first; Up/Down reorders within the pinned or unpinned group. Task/Project templates preserve Task duration, and Habit templates preserve minimum/ideal targets and grace days without execution history.
+
 ### Local snapshots and selective recovery
 
 After successful saves, Dailo attempts an automatic snapshot after one idle second, at most once every five minutes. Startup also schedules a capture. It retains the five latest automatic copies, including normalized metadata, files, Habit logs and Goal history. Copies for interrupted operations are retained separately. These copies share the browser's storage quota and are not a substitute for an exported ZIP.
 
-Use **Settings → Data → Local snapshots** to choose one entity from a saved version. Its record and owned files/history replace that entity's current version; unrelated records remain current. Task, Project and Habit restores also reconcile their reciprocal Goal links while preserving other Goal fields and contributions. Missing or incompatible saved contribution settings stop the restore. Linked entities must already exist: missing dependencies stop the restore and must be recovered separately. Restoring an Area or Project does not implicitly restore its children.
+Use **Settings → Data → Local snapshots** to choose one entity from a saved version. Its record and owned files/history replace that entity's current version; unrelated records remain current. Task, Project and Habit restores also reconcile their reciprocal Goal links while preserving other Goal fields and contributions. Restoring a Goal reconciles its membership on existing Tasks, Projects and Habits without replacing their other fields or Goal links. Missing or incompatible saved contribution settings stop the restore. Linked entities must already exist: missing dependencies stop the restore and must be recovered separately. Restoring an Area or Project does not implicitly restore its children.
 
 Each selective restore downloads a safety ZIP, creates an internal recovery copy, and requires typing **RESTORE**. The same source checks, write verification and rollback used by full restore protect selective replacement. Snackbar Undo is available briefly while data remains unchanged after restore. If later edits make Undo unsafe, the operation refuses to overwrite them and retains its safety copy for another selective recovery. Full ZIP restore and Reset retain their existing typed **RESTORE**/**RESET** safeguards.
 
@@ -39,7 +43,7 @@ Storage failures distinguish unsaved changes from an automatic snapshot failure 
 
 ### Verification status
 
-V1.5 has automated Node coverage for metadata, UI module behavior, migration, ZIP compatibility, snapshot retention and selective restore/Undo failure paths. The browser tests use disposable profiles; native browser/visual acceptance remains pending in environments that block the local test server or browser launch. Do not interpret Node results as native browser persistence verification.
+The final V1.5 review-fix check passed **146/146 Node tests**, including 8 new integration regressions for dashboard ordering, Calendar visibility, scheduling, reciprocal restore links and template round trips. All JavaScript syntax checks and the diff check passed. Both clean distributable ZIPs were rebuilt and checked for integrity and exact source-byte matching. Browser-path adapter tests passed **2/2**. Native browser/visual acceptance remains pending: isolated Chromium previously aborted with SIGABRT/EPERM and escalation was canceled; no browser launch was attempted in this fix round. Do not interpret Node results as native browser persistence verification. See `docs/superpowers/progress-v1-5.md` for the release gate.
 
 ## V1.4 foundation
 
@@ -176,7 +180,7 @@ The task context menu includes contextually appropriate actions for Today/Tomorr
 
 ## Storage architecture
 
-V1.2 uses a hybrid local storage model.
+V1.5 retains the hybrid local storage model and schema V3 introduced in V1.3.
 
 ### localStorage
 
@@ -189,10 +193,10 @@ todoAppData
 Schema version:
 
 ```text
-version: 2
+version: 3
 ```
 
-Stores task/project/tag/settings/UI metadata. V1.1 `version: 1` state is migrated to v2 on load with these new defaults:
+Stores compact Task/Project/Area/Goal/Habit/Note/Resource/Template/Saved View/tag/settings/UI metadata. Supported V1/V2 states migrate to V3 without changing existing IDs. The earlier V1-to-V2 migration added these defaults, which are retained:
 
 ```js
 tags = []
@@ -208,16 +212,19 @@ Existing reminders, recurrence, archived projects, completed history, manual ord
 Database:
 
 ```text
-todoAppAttachments
+todoAppDB
 ```
 
-Object store:
+Object stores (database version 1, distinct from metadata schema V3):
 
 ```text
 attachments
+habitLogs
+goalHistory
+recoverySnapshots
 ```
 
-Each attachment record contains its ID, task ownership, file metadata, Blob, timestamps and optional pending-delete timestamp.
+Each attachment record contains its ID, Task/Note/Resource ownership, file metadata, Blob, timestamps and optional pending-delete timestamp. The legacy V1.2 `todoAppAttachments` database is copied non-destructively into the shared attachment store during migration.
 
 ## Backup and restore
 
@@ -282,7 +289,7 @@ python3 -m venv .venv
 Then run:
 
 ```bash
-node --test tests/core.test.js
+node --test tests/*.test.js
 .venv/bin/python tests/test_browser_path_adapter.py
 .venv/bin/python tests/run-browser-regressions.py
 .venv/bin/python tests/ui-v1-3-storage-migration.py
@@ -307,7 +314,7 @@ Goal creation keeps milestones, reminders and source-specific links under More. 
 - bulk actions
 - tag-aware / priority-aware Search changes
 - hourly time-block grid
-- time estimates / time tracking
+- elapsed-time tracking (optional planned Task duration is supported)
 - comments / collaboration
 - accounts / backend / cloud sync
 - AI planning

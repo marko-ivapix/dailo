@@ -200,6 +200,13 @@
     }
     const templateData = data => {
       if (!object(data)) fail('Template data');
+      if (data.durationMinutes != null && !positiveInteger(data.durationMinutes)) fail('Template durationMinutes');
+      for (const key of ['minimumTarget','idealTarget']) {
+        if (data.trackingType === 'numeric' && data.frequencyType !== 'timesPerWeek') positiveField(data,key);
+        else if (data[key] != null && !positiveInteger(data[key])) fail('Template ' + key);
+      }
+      if (data.minimumTarget != null && data.idealTarget != null && data.idealTarget < data.minimumTarget) fail('Template idealTarget');
+      if (data.graceDays != null && (!Number.isInteger(data.graceDays) || data.graceDays < 0)) fail('Template graceDays');
       for (const key of ['goalIds','tagIds']) if (data[key] != null && (!Array.isArray(data[key]) || data[key].some(id => !name(id)))) fail(`Template ${key}`);
       for (const key of ['projectId','areaId','goalId']) if (data[key] != null && !name(data[key])) fail(`Template ${key}`);
       for (const key of ['plannedOffsetDays','dueOffsetDays','reminderOffsetDays','targetOffsetDays','endOffsetDays','dateOffsetDays']) if (data[key] != null && !Number.isInteger(data[key])) fail(`Template ${key}`);
@@ -331,6 +338,17 @@
     const index = next.state[collection].findIndex(item => item.id === id);
     if (index < 0) next.state[collection].push(structuredClone(record));
     else next.state[collection][index] = structuredClone(record);
+    if (collection === 'goals') {
+      for (const [owners, field, ownerField] of [['tasks', 'taskIds', null], ['projects', 'projectLinks', 'projectId'], ['habits', 'habitLinks', 'habitId']]) {
+        const linked = new Set((record[field] || []).map(link => ownerField ? link[ownerField] : link));
+        for (const owner of next.state[owners]) {
+          if (!linked.has(owner.id) && !(owner.goalIds || []).includes(id)) continue;
+          const goalIds = new Set(owner.goalIds || []);
+          if (linked.has(owner.id)) goalIds.add(id); else goalIds.delete(id);
+          owner.goalIds = [...goalIds];
+        }
+      }
+    }
     const goalLink = { tasks: ['taskIds', null], projects: ['projectLinks', 'projectId'], habits: ['habitLinks', 'habitId'] }[collection];
     if (goalLink) {
       const [field, ownerField] = goalLink;

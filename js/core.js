@@ -68,7 +68,7 @@
     const pick = keys => Object.fromEntries(keys.filter(key => entity[key] !== undefined).map(key => [key, templateCopy(entity[key])]));
     let data;
     if (type === 'task') {
-      data = pick(['title','notes','projectId','areaId','goalIds','tagIds','priority','plannedTime','dueTime']);
+      data = pick(['title','notes','projectId','areaId','goalIds','tagIds','priority','plannedTime','dueTime','durationMinutes']);
       const rule = normalizeRecurrenceV3(entity.recurrence);
       data.recurrence = rule ? {frequency:rule.frequency,interval:rule.interval,endType:rule.endType,endAfterOccurrences:rule.endAfterOccurrences,endOffsetDays:templateOffset(rule.endDate,contextDate)} : null;
       data.plannedOffsetDays = templateOffset(entity.plannedDate, contextDate);
@@ -90,7 +90,7 @@
         return link ? [{goalId,contributionMode:link.contributionMode,selectedTaskIndices:children.map((t,index)=>(link.selectedTaskIds || []).includes(t.id)?index:null).filter(index=>index!==null)}] : [];
       });
     } else if (type === 'habit') {
-      data = pick(['name','areaId','goalIds','trackingType','targetValue','unit','quickValues','frequencyType','weekdays','timesPerWeek','everyNDays','continuation','endType','successfulPeriodsTarget']);
+      data = pick(['name','areaId','goalIds','trackingType','targetValue','minimumTarget','idealTarget','graceDays','unit','quickValues','frequencyType','weekdays','timesPerWeek','everyNDays','continuation','endType','successfulPeriodsTarget']);
       data.endOffsetDays = templateOffset(entity.endDate, contextDate);
       data.reminders = (entity.reminders || []).map(r => ({time:r.time,enabled:r.enabled !== false}));
       data.goalLinkConfigs=(data.goalIds || []).flatMap(goalId=>{
@@ -120,7 +120,7 @@
       const id=taskId || makeId('task');
       return {
       ...common,id,title:data.title || '',notes:data.notes || '',projectId,areaId:projectId ? null : live('areas',data.areaId),goalIds:links('goals',data.goalIds),tagIds:links('tags',data.tagIds),priority:data.priority || 'none',
-      plannedDate:resolve(data.plannedOffsetDays),dueDate:resolve(data.dueOffsetDays),plannedTime:normalizeTime(data.plannedTime),dueTime:normalizeTime(data.dueTime),
+      plannedDate:resolve(data.plannedOffsetDays),dueDate:resolve(data.dueOffsetDays),plannedTime:normalizeTime(data.plannedTime),dueTime:normalizeTime(data.dueTime),durationMinutes:positiveIntegerOrNull(data.durationMinutes),
       reminderAt:resolve(data.reminderOffsetDays) && normalizeTime(data.reminderTime) ? combineDateTime(resolve(data.reminderOffsetDays), data.reminderTime) : null,reminderFiredAt:null,
       recurrence:freshRecurrence({...data.recurrence,endDate:resolve(data.recurrence?.endOffsetDays)},id),recurrenceBaseline:null,recurrenceSuccessorId:null,attachmentIds:[],isCompleted:false,completedAt:null,isInbox:!(projectId || resolve(data.plannedOffsetDays)),todayOrder:null,projectOrder:null,inboxOrder:null,
       subtasks:(data.subtasks || []).map((s,order)=>({id:makeId('sub'),title:s.title,order,isCompleted:false,completedAt:null})),
@@ -131,7 +131,7 @@
       const tasks=(d.tasks || []).map(child=>task(child,null,project.id));
       return {project,tasks,goalLinks:configs.map(c=>({goalId:c.goalId,contributionMode:c.contributionMode,selectedTaskIds:[...new Set((c.selectedTaskIndices || []).filter(i=>Number.isInteger(i) && tasks[i]).map(i=>tasks[i].id))]}))};
     }
-    if (template.type === 'habit') return {habit:{...common,id:ids.habitId || makeId('habit'),name:d.name || '',areaId:live('areas',d.areaId),goalIds:links('goals',d.goalIds),status:'active',trackingType:d.trackingType || 'checkbox',targetValue:d.targetValue ?? 1,unit:d.unit || '',quickValues:d.quickValues || [],frequencyType:d.frequencyType || 'daily',weekdays:d.weekdays || [1,2,3,4,5],timesPerWeek:d.timesPerWeek || 4,everyNDays:d.everyNDays || 2,startDate:contextDate,continuation:d.continuation || 'automatic',endType:d.endType || 'never',endDate:resolve(d.endOffsetDays),successfulPeriodsTarget:d.successfulPeriodsTarget || null,reminders:(d.reminders || []).map(r=>({id:makeId('habit-reminder'),time:r.time,enabled:r.enabled !== false})),reminderFiredMoments:[],pauseIntervals:[],pauseStartedAt:null},goalLinks:configs.map(c=>({goalId:c.goalId,metric:c.metric,target:c.target}))};
+    if (template.type === 'habit') return {habit:{...common,id:ids.habitId || makeId('habit'),name:d.name || '',areaId:live('areas',d.areaId),goalIds:links('goals',d.goalIds),status:'active',trackingType:d.trackingType || 'checkbox',targetValue:d.targetValue ?? 1,minimumTarget:habitTargetOrNull(d,d.minimumTarget),idealTarget:habitTargetOrNull(d,d.idealTarget),graceDays:Number.isInteger(d.graceDays) && d.graceDays >= 0 ? d.graceDays : 0,unit:d.unit || '',quickValues:d.quickValues || [],frequencyType:d.frequencyType || 'daily',weekdays:d.weekdays || [1,2,3,4,5],timesPerWeek:d.timesPerWeek || 4,everyNDays:d.everyNDays || 2,startDate:contextDate,continuation:d.continuation || 'automatic',endType:d.endType || 'never',endDate:resolve(d.endOffsetDays),successfulPeriodsTarget:d.successfulPeriodsTarget || null,reminders:(d.reminders || []).map(r=>({id:makeId('habit-reminder'),time:r.time,enabled:r.enabled !== false})),reminderFiredMoments:[],pauseIntervals:[],pauseStartedAt:null},goalLinks:configs.map(c=>({goalId:c.goalId,metric:c.metric,target:c.target}))};
     if (template.type === 'goal') return {goal:{...common,id:ids.goalId || makeId('goal'),title:d.title || '',areaId:live('areas',d.areaId),status:'active',progressMode:d.progressMode || 'manual',progressType:d.progressType || 'percentage',currentValue:0,targetValue:d.targetValue ?? 100,unit:d.unit || '',targetDate:resolve(d.targetOffsetDays),projectLinks:[],taskIds:[],habitLinks:[],completedAt:null,reminderFiredMoments:[],reminders:d.reminders || {},milestones:(d.milestones || []).map((m,order)=>({id:makeId('milestone'),title:m.title,date:resolve(m.dateOffsetDays),order,isCompleted:false,completedAt:null}))}};
     throw new Error('Unsupported template type');
   }
@@ -139,10 +139,12 @@
     const created = [];
     for (const template of state?.templates || []) {
       const data = template.type === 'task' ? template.data || {} : null;
-      if (!data?.scheduleEnabled || data.scheduleDate !== today || data.scheduleGeneratedOn === today) continue;
-      const task = instantiateTemplate(template, today, { ...ids, state }).task;
+      // One-shot catch-up: run missed dates once, anchored to their scheduled
+      // day. The marker identifies that schedule, not the later execution day.
+      if (!data?.scheduleEnabled || !data.scheduleDate || data.scheduleDate > today || data.scheduleGeneratedOn === data.scheduleDate) continue;
+      const task = instantiateTemplate(template, data.scheduleDate, { ...ids, state }).task;
       if (!task?.title) continue;
-      created.push(task); data.scheduleGeneratedOn = today;
+      created.push(task); data.scheduleGeneratedOn = data.scheduleDate;
     }
     return created;
   }

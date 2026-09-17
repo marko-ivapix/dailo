@@ -91,19 +91,19 @@ def main():
           TodoApp.state.tasks.push({id:'all_day_v15', title:'All day preserved', plannedDate:date, plannedTime:null, dueDate:null, durationMinutes:null, isInbox:false, isCompleted:false, subtasks:[], tagIds:[], goalIds:[], attachmentIds:[]});
           location.hash = '#calendar'; TodoApp.render();
         }''', today)
-        assert page.locator('[data-calendar-timed-block]').count() >= 2
-        expect(page.locator('[data-calendar-timed-block]', has_text='Finish homepage')).to_contain_text('09:00–09:45')
-        timed_homepage = page.locator('[data-calendar-timed-block][data-calendar-item-id="task_homepage"]')
+        assert page.locator('.calendar-timed-block').count() >= 2
+        expect(page.locator('.calendar-timed-block', has_text='Finish homepage')).to_contain_text('09:00–09:45')
+        timed_homepage = page.locator('.calendar-timed-block[data-calendar-item-id="task_homepage"]')
         assert timed_homepage.count() == 1
         expect(timed_homepage).to_contain_text('Due · 11:00')
-        assert page.locator('[data-calendar-timed-block].has-conflict').count() >= 2
+        assert page.locator('.calendar-timed-block.has-conflict').count() >= 2
         assert page.locator('.calendar-all-day', has_text='All day preserved').count() == 1
         assert page.locator('[data-calendar-type="habit"][draggable="true"]').count() == 0
 
         # Dropping a Task onto a timed block edits only its plan moment, not duration.
         page.evaluate('''() => {
-          const source = document.querySelector('[data-calendar-timed-block][data-calendar-item-id="task_homepage"]');
-          const target = document.querySelector('[data-calendar-timed-block][data-calendar-item-id="task_groceries"]');
+          const source = document.querySelector('.calendar-timed-block[data-calendar-item-id="task_homepage"]');
+          const target = document.querySelector('.calendar-timed-block[data-calendar-item-id="task_groceries"]');
           const transfer = new DataTransfer();
           source.dispatchEvent(new DragEvent('dragstart', {bubbles:true, dataTransfer:transfer}));
           target.dispatchEvent(new DragEvent('drop', {bubbles:true, dataTransfer:transfer}));
@@ -115,7 +115,7 @@ def main():
         expect(page.locator('.calendar-conflict-note')).to_be_visible()
         page.keyboard.press('Escape')
         page.click('[data-action="calendar-view"][data-view="month"]')
-        assert page.locator('[data-calendar-timed-block]').count() == 0
+        assert page.locator('.calendar-timed-block').count() == 0
         browser.close()
 
 

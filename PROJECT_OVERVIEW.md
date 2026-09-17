@@ -11,7 +11,7 @@ ciljeva, navika, beleški i resursa. Osnovni tok je:
 - Goals prikazuju health i doprinos povezanih stavki. Habits imaju minimum/ideal ciljeve i grace dane sa pregledom oporavka; numerički ciljevi podržavaju razlomljene vrednosti.
 - Calendar blokovi koriste postojeći task, planirano vreme i trajanje, uz oznaku preklapanja.
 - Notes i Resources ostaju odvojeni. Podržani su isečci teksta, favoriti i lokalni filteri; Resources dodatno imaju tip, status čitanja, autora i datum poslednjeg pregleda.
-- Templates podržavaju promenljive i zakazano kreiranje zadataka; Today omogućava personalizaciju sekcija.
+- Templates podržavaju promenljive i jednokratno zakazano kreiranje zadataka. Provera radi posle čuvanja dospelog rasporeda, pri pokretanju i na 30 sekundi dok je aplikacija otvorena. Propušten datum izvršava se jednom pri sledećoj spremnoj proveri; datumi/promenljive ostaju vezani za prvobitno zakazani dan. Task trajanje i Habit minimum/ideal/grace podešavanja čuvaju se u template-u bez istorije izvršavanja. Today zadržava naslov/datum na vrhu, zatim pinovane sekcije; Up/Down menja red unutar iste grupe.
 - Čuva se najviše pet automatskih lokalnih kopija, najčešće jednom u pet minuta nakon čuvanja. Kopije sadrže metadata, fajlove, Habit logove i Goal istoriju. Kopije prekinutih operacija čuvaju se zasebno.
 - Settings → Data → Local snapshots vraća jednu izabranu stavku sa njenim fajlovima/istorijom. Povezane stavke moraju već postojati. Pre zamene nastaju sigurnosni ZIP i interna kopija, pa se zahteva unos RESTORE. Kratkotrajni Undo važi dok nije bilo novih izmena; neuspešna provera ne prepisuje novije podatke.
 - Jasno su odvojene greške čuvanja podataka od grešaka automatske kopije, uz Retry. Uvažava se reduced-motion podešavanje.
@@ -171,6 +171,6 @@ Zatim otvoriti `http://localhost:8080`.
 ## Trenutni status
 
 V1.5 prototip je upakovan u `Dailo-v1.5-distributable.zip`. Node suite ima
-138/138 prolaznih testova, JavaScript sintaksa i ZIP integritet su provereni.
+146/146 prolaznih testova posle završnih ispravki I1–I6, uz 2/2 testa browser adaptera. JavaScript sintaksa, diff i integritet oba čista ZIP paketa provereni su, kao i poklapanje fajlova sa izvornim kodom.
 Browser/visual acceptance je dokumentovano odložena jer trenutno okruženje ne
 dozvoljava pokretanje izolovanog test browsera; lični Google Chrome nije otvaran.
