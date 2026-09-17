@@ -255,7 +255,8 @@
     next.ui.areaTab = ['all', 'active', 'archived'].includes(next.ui.areaTab) ? next.ui.areaTab : 'all';
     next.ui.calendarView = next.ui.calendarView === 'month' ? 'month' : 'week';
     next.ui.calendarVisibility = Object.fromEntries(['tasks', 'habits', 'goals', 'milestones'].map(type => [type, next.ui.calendarVisibility?.[type] !== false]));
-    next.ui.habitTrackerMonth = /^\d{4}-\d{2}$/.test(next.ui.habitTrackerMonth || '') ? next.ui.habitTrackerMonth : Core.dateOnly().slice(0, 7);
+    const habitMonth = String(next.ui.habitTrackerMonth || '');
+    next.ui.habitTrackerMonth = /^\d{4}-\d{2}$/.test(habitMonth) && Core.parseDateOnly(`${habitMonth}-01`) ? habitMonth : Core.dateOnly().slice(0, 7);
     next.tags = (next.tags || []).map((tag, i) => ({
       ...tag,
       id: tag.id || uid('tag'),
