@@ -284,14 +284,21 @@
     return Number.isFinite(timestamp) ? new Date(timestamp).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : 'Unknown time';
   }
 
+  function goalHistoryRange(ctx, value) {
+    const end = ctx.Core.dateOnly();
+    return value === 'month' ? { start: `${end.slice(0, 7)}-01`, end } : { start: ctx.Core.addDays(end, -6), end };
+  }
+
   function renderGoalHistoryModal(ctx) {
     const { esc, getGoal, modalFrame, modalState } = ctx;
     const goal = getGoal(modalState.goalId);
     const events = Array.isArray(modalState.events) ? [...modalState.events].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)) : null;
-    const snapshots = goal && events ? ctx.Core.goalProgressHistory(goal, { goalHistory: events }) : [];
-    const snapshotCards = snapshots.length ? `<div class="goal-history-cards">${snapshots.map(snapshot => `<article><strong>${esc(Math.round(snapshot.percent))}%</strong><small>${esc(goalHistoryDate(ctx, snapshot.date))}</small></article>`).join('')}</div>` : '';
+    const range = modalState.historyRange === 'month' ? 'month' : 'week';
+    const snapshots = goal && events ? ctx.Core.goalProgressHistory(goal, { goalHistory: events }, goalHistoryRange(ctx, range)) : [];
+    const snapshotCards = snapshots.length ? `<div class="goal-history-cards">${snapshots.map(snapshot => `<article><strong>${esc(Math.round(snapshot.percent))}%</strong><small>${esc(goalHistoryDate(ctx, snapshot.date))}</small></article>`).join('')}</div>` : `<p class="area-empty-copy" data-goal-history-empty>No progress snapshots in this ${range}.</p>`;
+    const rangeControl = `<label class="field-label" for="goal-history-range">History range<select id="goal-history-range" class="input" data-goal-history-range><option value="week" ${range === 'week' ? 'selected' : ''}>Week</option><option value="month" ${range === 'month' ? 'selected' : ''}>Month</option></select></label>`;
     const body = !goal ? '<p class="area-empty-copy">This Goal is no longer available.</p>' : modalState.error ? `<p class="validation" role="alert">${esc(modalState.error)}</p>` : !events ? '<p class="area-empty-copy">Loading history…</p>' : !events.length ? '<p class="area-empty-copy">No significant changes have been recorded yet.</p>' : `${snapshotCards}<div class="form-stack">${events.map(event => `<article class="goal-property"><span class="field-label">${esc(goalHistoryEventLabel(event.type))}</span><strong>${esc(goalHistorySummary(ctx, event))}</strong><small>${esc(goalHistoryTimestamp(event))}</small></article>`).join('')}</div>`;
-    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">Goal history</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="Close"><i class="ph ph-x"></i></button></div>${body}<div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">Close</button></div></div></div>`, 'quick');
+    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">Goal history</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="Close"><i class="ph ph-x"></i></button></div>${rangeControl}${body}<div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">Close</button></div></div></div>`, 'quick');
   }
 
   function openGoalMenu(ctx, anchor, goalId) {
@@ -479,6 +486,10 @@
       return false;
     }
     if (!['input', 'change'].includes(event.type)) return false;
+    if (event.type === 'change' && ctx.modalState?.type === 'goal-history' && target.id === 'goal-history-range') {
+      ctx.modalState.historyRange = target.value === 'month' ? 'month' : 'week';
+      renderModal(); return true;
+    }
     if (ctx.goalPropertyEditor && target.id === 'goal-detail-' + ctx.goalPropertyEditor.field) {
       ctx.goalPropertyEditor.value = target.value; return true;
     }

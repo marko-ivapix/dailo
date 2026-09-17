@@ -31,3 +31,35 @@ test('goal history projection sorts progress snapshots without mutating records'
   ]);
   assert.deepEqual(state.goalHistory, before);
 });
+
+test('goal history keeps same-day snapshots in timestamp order and honors its selected range', () => {
+  const state = { goalHistory: [
+    { id: 'a-later', goalId: 'g1', type: 'progressChanged', createdAt: '2026-09-17T18:00:00Z', data: { to: 80 } },
+    { id: 'z-earlier', goalId: 'g1', type: 'progressChanged', createdAt: '2026-09-17T08:00:00Z', data: { to: 40 } },
+    { id: 'prior', goalId: 'g1', type: 'progressChanged', createdAt: '2026-09-10T08:00:00Z', data: { to: 20 } },
+  ] };
+
+  assert.deepEqual(Core.goalProgressHistory({ id: 'g1' }, state, { start: '2026-09-17', end: '2026-09-17' }).map(snapshot => snapshot.id), ['z-earlier', 'a-later']);
+});
+
+test('Goal history modal exposes an accessible Week or Month range control', () => {
+  const fs = require('node:fs');
+  const vm = require('node:vm');
+  const adapters = {};
+  const window = { TodoDomainModules: { register: adapter => { adapters[adapter.name] = adapter; } } };
+  vm.runInNewContext(fs.readFileSync(require.resolve('../js/goals-ui.js'), 'utf8'), { window, requestAnimationFrame: fn => fn() });
+  const goal = { id: 'g1', title: 'Goal' };
+  let renders = 0;
+  const ctx = {
+    Core: { ...Core, dateOnly: () => '2026-09-17' }, esc: String, getGoal: () => goal, getProject: () => null,
+    modalFrame: value => value, modalState: { type: 'goal-history', goalId: 'g1', events: [{ id: 'old', goalId: 'g1', type: 'progressChanged', createdAt: '2026-08-01T08:00:00Z', data: { to: 10 } }] },
+    renderModal: () => { renders++; }, $: () => null,
+  };
+
+  const html = adapters.goals.renderRoute({ type: 'modal', modalType: 'goal-history' }, ctx);
+  assert.match(html, /<label[^>]*for="goal-history-range"[^>]*>History range/);
+  assert.match(html, /data-goal-history-empty>No progress snapshots in this week\./);
+  assert.equal(adapters.goals.handleInput({ type: 'change', target: { id: 'goal-history-range', value: 'month' } }, ctx), true);
+  assert.equal(ctx.modalState.historyRange, 'month');
+  assert.equal(renders, 1);
+});

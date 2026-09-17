@@ -748,16 +748,19 @@
     const source = Array.isArray(state?.goalHistory) ? state.goalHistory : Array.isArray(goal?.history) ? goal.history : [];
     const start = typeof range === 'string' ? range : range?.start;
     const end = typeof range === 'string' ? undefined : range?.end;
-    return source.filter(event => {
+    return [...source].filter(event => {
       const date = String(event?.createdAt || '').slice(0, 10);
       return event?.goalId === goal?.id && ['progressChanged', 'manualProgress'].includes(event.type) && date
         && (!start || date >= start) && (!end || date <= end);
+    }).sort((a, b) => {
+      const left = Date.parse(a.createdAt), right = Date.parse(b.createdAt);
+      return (Number.isFinite(left) ? left : 0) - (Number.isFinite(right) ? right : 0) || String(a.id).localeCompare(String(b.id));
     }).map(event => ({
       id: event.id,
       date: String(event.createdAt).slice(0, 10),
       percent: clampPercent(safeNumber(event.data?.to ?? event.data?.value ?? event.data?.percent)),
       type: event.type,
-    })).sort((a, b) => a.date.localeCompare(b.date) || String(a.id).localeCompare(String(b.id)));
+    }));
   }
 
   function isGoalOverdue(goal, today) {
