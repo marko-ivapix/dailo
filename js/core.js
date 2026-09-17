@@ -539,10 +539,29 @@
     return Number.isFinite(number) && number > 0 && (fractional || Number.isInteger(number)) ? number : null;
   }
 
+  function normalizeV16Settings(settings) {
+    const source = settings && typeof settings === 'object' && !Array.isArray(settings) ? settings : {};
+    const normalized = { ...source };
+    if (!Object.prototype.hasOwnProperty.call(source, 'todayFocusFilter')) normalized.todayFocusFilter = 'all';
+    if (!Object.prototype.hasOwnProperty.call(source, 'todayFocusStrip')) normalized.todayFocusStrip = true;
+    if (!Object.prototype.hasOwnProperty.call(source, 'compactDensity')) normalized.compactDensity = true;
+    if (!Object.prototype.hasOwnProperty.call(source, 'weekStartsOn')) normalized.weekStartsOn = 1;
+    return normalized;
+  }
+
+  function migrateStateV16(input) {
+    if (!input || typeof input !== 'object' || Array.isArray(input)) return { state: input, changed: false, warnings: ['invalid-state'] };
+    const state = JSON.parse(JSON.stringify(input));
+    const before = state.settings && typeof state.settings === 'object' && !Array.isArray(state.settings) ? state.settings : {};
+    state.settings = normalizeV16Settings(before);
+    const changed = Object.keys(state.settings).some(key => !Object.prototype.hasOwnProperty.call(before, key));
+    return { state, changed, warnings: [] };
+  }
+
   function normalizeState(input) {
     const migration = migrateStateV3(input);
     if (!migration.ok) throw new Error(migration.reason || 'invalid-state');
-    const state = migration.state;
+    const state = migrateStateV16(migration.state).state;
     const focusTaskIds = selectFocusTasks(state.tasks, state.settings?.focusTaskIds);
     const dashboard = state.settings?.dashboard || {};
     state.settings = {
@@ -1199,6 +1218,8 @@
     validateAreaName,
     areaSummary,
     normalizeState,
+    normalizeV16Settings,
+    migrateStateV16,
     selectFocusTasks,
     getGoalHealth,
     getHabitTargetStatus,

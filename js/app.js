@@ -242,7 +242,7 @@
   function normalizeState(input) {
     const migrated = Core.migrateStateV3(input);
     if (!migrated.ok) throw new Error(migrated.reason || 'invalid-state');
-    const next = migrated.state;
+    const next = Core.migrateStateV16(migrated.state).state;
     next.settings = next.settings || { weekStartsOn: 'monday' };
     next.ui = next.ui || {};
     next.ui.sidebarSections = next.ui.sidebarSections || {};
@@ -404,7 +404,8 @@
       }
       let committedSource = sourceAtStart;
       const focusSelectionChanged = JSON.stringify(parsed.settings?.focusTaskIds) !== JSON.stringify(prepared.settings.focusTaskIds);
-      if (migration.migrated || focusSelectionChanged) {
+      const v16SettingsChanged = JSON.stringify(parsed.settings || {}) !== JSON.stringify(prepared.settings || {});
+      if (migration.migrated || focusSelectionChanged || v16SettingsChanged) {
         const persisted = { ...prepared };
         delete persisted.habitLogCache;
         delete persisted.habitMetrics;
