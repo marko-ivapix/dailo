@@ -170,6 +170,7 @@ Zatim otvoriti `http://localhost:8080`.
 
 ## Trenutni status
 
-V1.4 prototip je upakovan u `Dailo-v1.4-distributable.zip`. Node suite ima
-88/88 prolaznih testova, JavaScript sintaksa je proverena, a izolovani
-browser/migration/safety testovi su prošli.
+V1.5 prototip je upakovan u `Dailo-v1.5-distributable.zip`. Node suite ima
+138/138 prolaznih testova, JavaScript sintaksa i ZIP integritet su provereni.
+Browser/visual acceptance je dokumentovano odložena jer trenutno okruženje ne
+dozvoljava pokretanje izolovanog test browsera; lični Google Chrome nije otvaran.
