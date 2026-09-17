@@ -9,9 +9,9 @@
     const ui = state.ui || (state.ui = {});
     ui.cleaningCompletedExpanded ||= {};
     const allRooms = roomProjects(state);
-    const selectedRoom = ui.cleaningRoomFilter || 'all';
-    const rooms = selectedRoom === 'all' ? allRooms : allRooms.filter(room => room.id === selectedRoom);
-    if (selectedRoom !== 'all' && !rooms.length) ui.cleaningRoomFilter = 'all';
+    let selectedRoom = ui.cleaningRoomFilter || 'all';
+    let rooms = selectedRoom === 'all' ? allRooms : allRooms.filter(room => room.id === selectedRoom);
+    if (selectedRoom !== 'all' && !rooms.length) { selectedRoom = 'all'; rooms = allRooms; ui.cleaningRoomFilter = 'all'; }
     const roomOptions = `<label class="cleaning-filter"><span>Room</span><select class="input" data-cleaning-room-filter><option value="all">All rooms</option>${allRooms.map(room => `<option value="${esc(room.id)}" ${room.id === selectedRoom ? 'selected' : ''}>${esc(room.name)}</option>`).join('')}</select></label>`;
     const today = Core.dateOnly();
     const taskMeta = task => {
