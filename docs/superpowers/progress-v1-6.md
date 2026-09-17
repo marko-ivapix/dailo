@@ -43,3 +43,11 @@ Evidence:
 - Native browser acceptance was not run. No browser was launched for this task; this environment's browser runtime remains unavailable for release-quality visual/accessibility sign-off.
 - Packaging policy preserved from V1.5: include runtime files, `CLAUDE.md`, README/overview, CSS, JavaScript, vendor assets, browser-test requirements, and user-relevant `docs/codex`, `docs/claude` and progress-ledger Markdown. Exclude Git metadata, tests, virtual environments/caches, plans/specs/review logs, nested ZIPs, and unsafe paths.
 - V1.6 distributable: `/Users/marko.radicevic/Documents/Dailo simple/Dailo-v1.6-distributable.zip` contains **40 regular files**; `unzip -t` and the package exclusion check passed. SHA-256: `ca9320071006c9f443633f2633da3d0aebc570dd7549ed40157452936e6856b0`. The packaged ledger uses an explicit post-build marker; this source ledger records the final artifact hash without a self-referential checksum.
+
+## Post-release mobile UI design pass — Inbox and compact modal system
+
+- Inbox now supports compact All / Tasks / Goals / Habits / Notes / Resources filters, captured-item grouping, task triage actions, mixed-record removal without deletion, preserved task `inboxOrder`, and a sidebar count derived from all active Inbox records. Global Search remains unchanged.
+- Task editing now keeps title, notes and essential chips visible while `Task properties`, `Schedule`, and `Links & notes` remain closed until clicked. Quick Add retains the supported item-type menu and uses compact mobile sheets with 44px primary touch targets.
+- Compact visual pass tightened Today, Inbox, Areas, Goals, Habits, Notes, Resources, Cleaning, popovers and modal spacing without changing data logic or entity semantics.
+- New focused tests: `tests/inbox-v1-6.test.js` and `tests/modal-ux-v1-6.test.js`; compact-layout coverage now includes mobile completion-column alignment and font-token validation.
+- Verification: focused UI set **9/9 passed**; full Node suite **203/203 passed**; all JavaScript syntax checks passed; `git diff --check` passed. Native browser interaction tests were not run because this pass intentionally avoided launching a browser.

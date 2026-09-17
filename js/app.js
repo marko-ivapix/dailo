@@ -16,6 +16,7 @@
   const WEEKDAY_FMT = new Intl.DateTimeFormat(undefined, { weekday: 'long' });
   const SHORTCUT_DEFAULTS = { newTask:'N', search:'Ctrl/Cmd+F', today:'T', inbox:'I', upcoming:'U', calendar:'C', goals:'G', habits:'H', templates:'Shift+T' };
   const SHORTCUT_LABELS = {newTask:'New task',search:'Search',today:'Today',inbox:'Inbox',upcoming:'Upcoming',calendar:'Calendar',goals:'Goals',habits:'Habits',templates:'Templates'};
+  const INBOX_FILTERS = [['all', 'All'], ['tasks', 'Tasks'], ['goals', 'Goals'], ['habits', 'Habits'], ['notes', 'Notes'], ['resources', 'Resources']];
   let shortcutError = '';
   const DATE_TIME_FMT = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 
@@ -173,6 +174,7 @@
         projectCompletedExpanded: {},
         completedProjectFilter: '',
         completedPeriod: 0,
+        inboxFilter: 'all',
         calendarView: 'week',
         calendarVisibility: { tasks: true, habits: true, goals: true, milestones: true },
         habitTrackerMonth: Core.dateOnly().slice(0, 7),
@@ -253,6 +255,7 @@
     next.ui.projectCompletedExpanded = next.ui.projectCompletedExpanded || {};
     next.ui.completedProjectFilter = next.ui.completedProjectFilter || '';
     next.ui.completedPeriod = Number(next.ui.completedPeriod) || 0;
+    next.ui.inboxFilter = INBOX_FILTERS.some(([value]) => value === next.ui.inboxFilter) ? next.ui.inboxFilter : 'all';
     next.ui.selectedTagId = next.ui.selectedTagId || '';
     next.ui.areaTab = ['all', 'active', 'archived'].includes(next.ui.areaTab) ? next.ui.areaTab : 'all';
     next.ui.calendarView = next.ui.calendarView === 'month' ? 'month' : 'week';
@@ -662,6 +665,60 @@
     return state.tasks.filter(Core.isInboxActive).sort((a, b) => clampOrder(a.inboxOrder) - clampOrder(b.inboxOrder) || b.createdAt.localeCompare(a.createdAt));
   }
 
+  // Inbox remains task-first. Other entity types are opt-in via isInbox so the
+  // filters can grow without turning every unassigned object into a capture.
+  function inboxRecordsForState(source, filter = 'all') {
+    const tasks = (source.tasks || []).filter(Core.isInboxActive).sort((a, b) => clampOrder(a.inboxOrder) - clampOrder(b.inboxOrder) || String(b.createdAt || '').localeCompare(String(a.createdAt || ''))).map(item => ({ type: 'task', item }));
+    const records = {
+      goals: (source.goals || []).filter(item => item.isInbox === true && item.status !== 'archived').map(item => ({ type: 'goal', item })),
+      habits: (source.habits || []).filter(item => item.isInbox === true && item.status !== 'archived').map(item => ({ type: 'habit', item })),
+      notes: (source.notes || []).filter(item => item.isInbox === true).map(item => ({ type: 'note', item })),
+      resources: (source.resources || []).filter(item => item.isInbox === true).map(item => ({ type: 'resource', item })),
+    };
+    if (filter === 'tasks') return tasks;
+    if (records[filter]) return records[filter];
+    // Keep the user's Inbox order for tasks; other opt-in records follow them.
+    return [...tasks, ...records.goals, ...records.habits, ...records.notes, ...records.resources];
+  }
+
+  function activeInboxRecords(filter = 'all') {
+    return inboxRecordsForState(state, filter);
+  }
+
+  function removeInboxRecordFromState(source, type, id, timestamp) {
+    const collection = type === 'note' ? 'notes' : type === 'resource' ? 'resources' : `${type}s`;
+    const item = source?.[collection]?.find(candidate => candidate.id === id);
+    if (!item || item.isInbox !== true) return false;
+    item.isInbox = false;
+    item.updatedAt = timestamp;
+    return true;
+  }
+
+  function removeInboxRecord(type, id) {
+    if (!removeInboxRecordFromState(state, type, id, nowIso())) return;
+    saveAndRender();
+    setToastMessage('Item removed from Inbox.');
+  }
+
+  function inboxGroupForDate(value, today = Core.dateOnly()) {
+    const date = String(value || '').slice(0, 10);
+    if (date === today) return 'Today';
+    if (date === Core.addDays(today, -1)) return 'Yesterday';
+    const parsed = Core.parseDateOnly(today);
+    const mondayOffset = (parsed.getUTCDay() + 6) % 7;
+    const startOfWeek = Core.addDays(today, -mondayOffset);
+    if (date >= startOfWeek && date <= today) return 'This week';
+    return 'Earlier';
+  }
+
+  function renderInboxRecord(record) {
+    if (record.type === 'task') return taskRow(record.item, 'inbox', { draggable: true, inbox: true });
+    const item = record.item;
+    const label = record.type[0].toUpperCase() + record.type.slice(1);
+    const title = item.title || item.name || label;
+    return `<article class="inbox-mixed-row" data-inbox-type="${esc(record.type)}" data-inbox-id="${esc(item.id)}"><button class="inbox-mixed-open" type="button" data-route="${esc(record.type)}/${esc(item.id)}"><span class="inbox-mixed-icon"><i class="ph ${record.type === 'goal' ? 'ph-target' : record.type === 'habit' ? 'ph-repeat' : record.type === 'note' ? 'ph-note' : 'ph-link'}"></i></span><span><strong>${esc(title)}</strong><small>${esc(label)} · Needs organizing</small></span></button><span class="inbox-mixed-actions"><button class="quick-chip" type="button" data-action="inbox-remove" data-inbox-type="${esc(record.type)}" data-inbox-id="${esc(item.id)}">Remove</button><button class="btn-icon" type="button" data-route="${esc(record.type)}/${esc(item.id)}" aria-label="Open ${esc(label)}"><i class="ph ph-arrow-up-right"></i></button></span></article>`;
+  }
+
   function projectTasks(projectId, completed = false) {
     return state.tasks
       .filter(t => t.projectId === projectId && Boolean(t.isCompleted) === completed)
@@ -686,7 +743,7 @@
 
   function renderSidebar() {
     const route = currentRoute();
-    const inboxCount = activeInboxTasks().length;
+    const inboxCount = activeInboxRecords('all').length;
     const collapsed = state.ui.sidebarCollapsed;
     const projects = sortedProjects();
     const pinnedAreas = sortedAreas().filter(area => area.status === 'active' && area.isPinned);
@@ -934,10 +991,24 @@
   }
 
   function renderInbox() {
-    const tasks = activeInboxTasks();
-    let html = pageHeader('Inbox', `${tasks.length} ${tasks.length === 1 ? 'task' : 'tasks'} waiting to be organized`, {});
-    if (!tasks.length) return html + emptyState('Inbox zero.', 'Everything has been organized.');
-    html += `<div class="task-list" data-list-context="inbox">${tasks.map(t => taskRow(t, 'inbox', { draggable: true, inbox: true })).join('')}</div>`;
+    const filter = INBOX_FILTERS.some(([value]) => value === state.ui.inboxFilter) ? state.ui.inboxFilter : 'all';
+    const records = activeInboxRecords(filter);
+    const counts = Object.fromEntries(INBOX_FILTERS.map(([value]) => [value, activeInboxRecords(value).length]));
+    let html = pageHeader('Inbox', `${records.length} ${records.length === 1 ? 'item' : 'items'} waiting to be organized`, {});
+    html += `<section class="inbox-toolbar" aria-label="Inbox filters"><div class="inbox-filter-tabs" role="tablist" aria-label="Filter Inbox">${INBOX_FILTERS.map(([value, label]) => `<button class="inbox-filter-tab ${filter === value ? 'is-active' : ''}" type="button" role="tab" aria-selected="${filter === value}" data-action="inbox-filter" data-inbox-filter="${value}">${label}<span class="inbox-filter-count">${counts[value]}</span></button>`).join('')}</div><p class="inbox-triage-hint"><i class="ph ph-sparkle"></i> Process one item at a time: plan it, assign it or keep it in Anytime.</p></section>`;
+    if (!records.length) return html + emptyState(filter === 'all' ? 'Inbox zero.' : `No ${INBOX_FILTERS.find(([value]) => value === filter)?.[1].toLowerCase()} in Inbox.`, filter === 'all' ? 'Everything has been organized.' : 'New items of this type will appear here when captured for Inbox.', 'Add task', 'quick-add');
+    const groups = new Map();
+    for (const record of records) {
+      const group = inboxGroupForDate(record.item.createdAt);
+      if (!groups.has(group)) groups.set(group, []);
+      groups.get(group).push(record);
+    }
+    const order = ['Today', 'Yesterday', 'This week', 'Earlier'];
+    for (const label of order) {
+      const items = groups.get(label);
+      if (!items?.length) continue;
+      html += `<section class="inbox-group" aria-labelledby="inbox-group-${label.replace(/ /g, '-').toLowerCase()}"><div class="inbox-group-label" id="inbox-group-${label.replace(/ /g, '-').toLowerCase()}"><strong>${label}</strong><span>${items.length}</span></div><div class="inbox-group-items">${items.map(renderInboxRecord).join('')}</div></section>`;
+    }
     return html;
   }
 
@@ -1314,8 +1385,10 @@
     if (['goal', 'goal-source', 'goal-links', 'goal-reminders', 'goal-history', 'milestone', 'habit-settings'].includes(modalState?.type)) requestAnimationFrame(() => ([...root.querySelectorAll('input, select, textarea')].find(el => el.offsetParent !== null) || root.querySelector('.modal-footer [data-action="close-modal"]'))?.focus());
   }
 
-  function modalFrame(content, cls = '') {
-    return `<div class="modal-backdrop" data-action="modal-backdrop"><section class="modal ${cls}" role="dialog" aria-modal="true">${content}</section></div>`;
+  function modalFrame(content, cls = '', dialogAttrs = '') {
+    const frameClass = cls ? ` modal-backdrop-${cls}` : '';
+    const accessibleName = dialogAttrs || 'aria-label="Dailo dialog"';
+    return `<div class="modal-backdrop${frameClass}" data-action="modal-backdrop"><section class="modal ${cls}" role="dialog" aria-modal="true" ${accessibleName}>${content}</section></div>`;
   }
 
   function renderFocusModal() {
@@ -3531,7 +3604,10 @@
     else if (action === 'toggle-suggestions') { state.ui.suggestionsExpanded = !state.ui.suggestionsExpanded; saveAndRender(); }
     else if (action === 'toggle-today-completed') { state.ui.todayCompletedExpanded = !state.ui.todayCompletedExpanded; saveAndRender(); }
     else if (action === 'add-all-suggestions') addAllSuggestions();
+    else if (action === 'inbox-filter') { state.ui.inboxFilter = INBOX_FILTERS.some(([value]) => value === el.dataset.inboxFilter) ? el.dataset.inboxFilter : 'all'; saveAndRender(); }
+    else if (action === 'inbox-remove') removeInboxRecord(el.dataset.inboxType, el.dataset.inboxId);
     else if (action === 'inbox-today') addTaskToToday(el.dataset.taskId);
+    else if (action === 'inbox-tomorrow') moveTaskToTomorrow(el.dataset.taskId);
     else if (action === 'inbox-anytime') moveTaskToAnytime(el.dataset.taskId);
     else if (action === 'task-project-picker') showTaskProjectPicker(el.dataset.taskId, el);
     else if (action === 'task-plan-picker') showTaskPlanPicker(el.dataset.taskId, el);
@@ -3547,7 +3623,15 @@
     else if (action === 'quick-repeat-picker') openRepeatPicker(el, { type: 'quick' });
     else if (action === 'quick-tags-picker') openTagPicker(el, { type: 'quick' });
     else if (action === 'quick-priority-picker') openPriorityPicker(el, { type: 'quick' });
-    else if (action === 'toggle-quick-more') { syncQuickDraftFromDom(); modalState.draft.moreOpen = !modalState.draft.moreOpen; renderModal(); requestAnimationFrame(()=>$('#quick-title')?.focus()); }
+    else if (action === 'toggle-quick-more') {
+      syncQuickDraftFromDom();
+      modalState.draft.moreOpen = !modalState.draft.moreOpen;
+      renderModal();
+      requestAnimationFrame(() => {
+        const target = modalState.draft.moreOpen ? ($('#quick-notes') || $('#quick-planned-time')) : $('[data-action="toggle-quick-more"]');
+        target?.focus();
+      });
+    }
     else if (action === 'create-task') createTask(false);
     else if (action === 'close-modal') closeModal();
     else if (action === 'modal-backdrop' && event.target === el) closeModal();
