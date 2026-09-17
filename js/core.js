@@ -135,6 +135,17 @@
     if (template.type === 'goal') return {goal:{...common,id:ids.goalId || makeId('goal'),title:d.title || '',areaId:live('areas',d.areaId),status:'active',progressMode:d.progressMode || 'manual',progressType:d.progressType || 'percentage',currentValue:0,targetValue:d.targetValue ?? 100,unit:d.unit || '',targetDate:resolve(d.targetOffsetDays),projectLinks:[],taskIds:[],habitLinks:[],completedAt:null,reminderFiredMoments:[],reminders:d.reminders || {},milestones:(d.milestones || []).map((m,order)=>({id:makeId('milestone'),title:m.title,date:resolve(m.dateOffsetDays),order,isCompleted:false,completedAt:null}))}};
     throw new Error('Unsupported template type');
   }
+  function instantiateScheduledTaskTemplates(state, today, ids = {}) {
+    const created = [];
+    for (const template of state?.templates || []) {
+      const data = template.type === 'task' ? template.data || {} : null;
+      if (!data?.scheduleEnabled || data.scheduleDate !== today || data.scheduleGeneratedOn === today) continue;
+      const task = instantiateTemplate(template, today, { ...ids, state }).task;
+      if (!task?.title) continue;
+      created.push(task); data.scheduleGeneratedOn = today;
+    }
+    return created;
+  }
 
   function isCompleted(task) {
     return Boolean(task && task.isCompleted);
@@ -1124,6 +1135,7 @@
     templateFromEntity,
     resolveTemplateVariables,
     instantiateTemplate,
+    instantiateScheduledTaskTemplates,
     isOverdue,
     isInboxActive,
     deriveTodaySections,

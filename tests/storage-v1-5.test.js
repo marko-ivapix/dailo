@@ -57,6 +57,16 @@ test('scheduled Task templates normalize blank and impossible dates safely', () 
   assert.equal(Storage.normalizeState(state).templates[0].data.scheduleEnabled, false);
 });
 
+test('scheduled Task template creates once and records its generated day', () => {
+  const state = stateWithV15Fields();
+  state.templates = [{ id: 'template', name: 'Daily', type: 'task', data: { title: 'Generated {{date}}', scheduleEnabled: true, scheduleDate: '2026-09-17', scheduleGeneratedOn: null } }];
+  const ids = { state, makeId: prefix => `${prefix}_generated`, nowIso: '2026-09-17T00:00:00.000Z' };
+  const first = global.TodoCore.instantiateScheduledTaskTemplates(state, '2026-09-17', ids);
+  assert.equal(first.length, 1); assert.equal(first[0].title, 'Generated 2026-09-17');
+  assert.equal(state.templates[0].data.scheduleGeneratedOn, '2026-09-17');
+  assert.deepEqual(global.TodoCore.instantiateScheduledTaskTemplates(state, '2026-09-17', ids), []);
+});
+
 test('normalization reconciles inverted Habit targets before backup validation', () => {
   const state = stateWithV15Fields();
   state.habits[0].minimumTarget = 4;

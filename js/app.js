@@ -1354,23 +1354,15 @@
     modalState.templateInstance=out;renderModal();
   }
   function runScheduledTaskTemplates() {
-    const today = Core.dateOnly(); let created = 0;
-    for (const template of state.templates || []) {
-      const data = template.type === 'task' ? template.data || {} : null;
-      if (!data?.scheduleEnabled || data.scheduleDate !== today || data.scheduleGeneratedOn === today) continue;
-      const out = Core.instantiateTemplate(template, today, { state, makeId: uid, nowIso: nowIso() });
-      const task = out.task;
-      if (!task?.title) continue;
+    const today = Core.dateOnly(); const tasks = Core.instantiateScheduledTaskTemplates(state, today, { makeId: uid, nowIso: nowIso() });
+    for (const task of tasks) {
       task.todayOrder = task.plannedDate === today ? nextOrder('today') : null;
       task.projectOrder = task.projectId ? nextOrder(`project:${task.projectId}`) : null;
       task.inboxOrder = task.isInbox ? nextOrder('inbox', true) : null;
       state.tasks.push(task);
-      data.scheduleGeneratedOn = today;
-      template.updatedAt = nowIso();
-      created += 1;
     }
-    if (created) saveState();
-    return created;
+    if (tasks.length) saveState();
+    return tasks.length;
   }
   function templateMenuEntry(type,id) {
     return `<button class="popover-option" type="button" data-pop-action="save-template" data-template-source-type="${type}" data-template-source-id="${esc(id)}"><i class="ph ph-copy"></i>Save as template</button>`;

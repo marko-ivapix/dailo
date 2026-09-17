@@ -87,6 +87,8 @@
   function templateDataProblem(type, data) {
     const relativeProblem = value => value && typeof value === 'object' && Object.entries(value).some(([key, item]) => key.endsWith('OffsetDays') ? item !== null && !Number.isInteger(item) : typeof item === 'object' && relativeProblem(item));
     if (relativeProblem(data)) return 'Day offsets must be whole numbers.';
+    const schedule = String(data.scheduleDate || ''), parsedSchedule = /^\d{4}-\d{2}-\d{2}$/.test(schedule) ? new Date(`${schedule}T00:00:00Z`) : null;
+    if (type === 'task' && data.scheduleEnabled && (!parsedSchedule || Number.isNaN(parsedSchedule.getTime()) || parsedSchedule.toISOString().slice(0, 10) !== schedule)) return 'Automatic creation needs a valid date.';
     if (type === 'task' && data.recurrence?.frequency && (!Number.isInteger(data.recurrence.interval) || data.recurrence.interval < 1 || data.recurrence.endType === 'afterOccurrences' && (!Number.isInteger(data.recurrence.endAfterOccurrences) || data.recurrence.endAfterOccurrences < 1))) return 'Repeat interval and occurrence count must be positive whole numbers.';
     if (type === 'task' && data.recurrence?.frequency && data.recurrence.endType === 'date' && !Number.isInteger(data.recurrence.endOffsetDays)) return 'Provide a whole-number repeat end day offset.';
     if (type === 'task' && (data.subtasks || []).some(subtask => !String(subtask.title || '').trim())) return 'Subtasks need a title.';
