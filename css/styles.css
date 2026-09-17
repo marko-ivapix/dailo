@@ -551,8 +551,63 @@ select:focus-visible { outline: none; box-shadow: var(--focus-ring); }
   .content { margin-left: 0; }
 }
 
-.mobile-quick-add { display: none; }
+.mobile-quick-add {
+  position: fixed;
+  right: max(24px, env(safe-area-inset-right));
+  bottom: max(24px, env(safe-area-inset-bottom));
+  z-index: 90;
+  display: grid;
+  justify-items: end;
+  gap: 10px;
+}
+.mobile-quick-add-menu { display: grid; justify-items: end; gap: 6px; }
 .mobile-quick-add-menu[hidden] { display: none !important; }
+.mobile-quick-add-option {
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  display: inline-flex;
+  flex-direction: row-reverse;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+  font: 500 13px/1 var(--font-ui);
+  cursor: pointer;
+}
+.mobile-quick-add-option span {
+  padding: 7px 9px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--surface-card-dark);
+  box-shadow: 0 8px 20px rgba(0,0,0,.28);
+}
+.mobile-quick-add-option i,
+.mobile-quick-add-toggle {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+}
+.mobile-quick-add-option i {
+  border: 1px solid var(--border-default);
+  background: var(--surface-card-dark);
+  color: var(--primary-focus);
+  font-size: 20px;
+  box-shadow: 0 8px 20px rgba(0,0,0,.28);
+}
+.mobile-quick-add-toggle {
+  border: 0;
+  background: var(--primary);
+  color: #fff;
+  font-size: 23px;
+  cursor: pointer;
+  box-shadow: 0 10px 24px rgba(0,0,0,.3);
+}
+.mobile-quick-add-toggle i { transition: transform var(--motion-fast) var(--ease-standard); }
+.mobile-quick-add.is-open .mobile-quick-add-toggle i { transform: rotate(45deg); }
+.mobile-quick-add-option:focus-visible,
+.mobile-quick-add-toggle:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
 @media (max-width: 700px) {
   :root { --content-gutter: 16px; }
@@ -577,17 +632,7 @@ select:focus-visible { outline: none; box-shadow: var(--focus-ring); }
   .toast-root { left: 12px; right: 12px; bottom: 12px; }
   .toast { min-width: 0; max-width: none; }
 
-  .mobile-quick-add { position: fixed; right: max(16px, env(safe-area-inset-right)); bottom: max(16px, env(safe-area-inset-bottom)); z-index: 90; display: grid; justify-items: end; gap: 12px; }
-  .mobile-quick-add-menu { display: grid; justify-items: end; gap: 6px; }
-  .mobile-quick-add-menu[hidden] { display: none !important; }
-  .mobile-quick-add-option { border: 0; background: transparent; color: var(--text-primary); display: inline-flex; flex-direction: row-reverse; align-items: center; gap: 10px; padding: 0; font: 500 14px/1 var(--font-ui); cursor: pointer; }
-  .mobile-quick-add-option span { padding: 6px 8px; border: 1px solid var(--border-default); border-radius: var(--radius-sm); background: var(--surface-card-dark); box-shadow: 0 8px 20px rgba(0,0,0,.28); }
-  .mobile-quick-add-option i, .mobile-quick-add-toggle { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 50%; }
-  .mobile-quick-add-option i { border: 1px solid var(--border-default); background: var(--surface-card-dark); color: var(--primary-focus); font-size: 21px; box-shadow: 0 8px 20px rgba(0,0,0,.28); }
-  .mobile-quick-add-toggle { border: 0; background: var(--primary); color: #fff; font-size: 24px; cursor: pointer; box-shadow: 0 10px 24px rgba(0,0,0,.3); }
-  .mobile-quick-add-toggle i { transition: transform var(--motion-fast) var(--ease-standard); }
-  .mobile-quick-add.is-open .mobile-quick-add-toggle i { transform: rotate(45deg); }
-  .mobile-quick-add-option:focus-visible, .mobile-quick-add-toggle:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+  .mobile-quick-add { right: max(16px, env(safe-area-inset-right)); bottom: max(16px, env(safe-area-inset-bottom)); gap: 12px; }
 
   /* Capture and task editing feel like compact bottom sheets on phones. */
   .modal-backdrop-quick,

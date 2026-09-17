@@ -59,3 +59,10 @@ Evidence:
 - Added regression coverage for Quick Add wiring and the reported Europe/Belgrade midnight/Monday cases.
 - Fresh whole-branch review approved the fixes with no critical or important findings.
 - Final verification: full Node suite **205/205 passed**, **45** JavaScript files passed syntax checks, and `git diff --check` passed. No browser was opened.
+
+## Responsive Quick Add parity — mobile preview and desktop
+
+- Fixed the floating Quick Add being hidden outside the narrow `700px` breakpoint. The same circular action menu is now visible on desktop and wider mobile/tablet previews.
+- Preserved the reference composition: circular action icons, labels aligned to the right of the icons, compact spacing, keyboard focus ring, and 44px touch targets. Narrow phones only receive tighter offsets and typography.
+- Added a regression check that prevents the root Quick Add from being reintroduced with `display: none` and confirms the shared desktop/mobile composition.
+- Verification after the responsive fix: full Node suite **206/206 passed**, all JavaScript syntax checks passed, and `git diff --check` passed. No browser was opened.

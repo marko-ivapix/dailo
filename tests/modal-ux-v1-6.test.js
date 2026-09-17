@@ -32,3 +32,10 @@ test('mobile quick add offers all supported item types and modal sheets have mob
   assert.match(css, /\.modal-backdrop-quick/);
   assert.match(css, /\.mobile-quick-add-option i, \.mobile-quick-add-toggle \{ width: 44px; height: 44px; \}/);
 });
+
+test('Quick Add stays visible on desktop and keeps the same floating menu composition', () => {
+  assert.match(css, /\.mobile-quick-add \{[\s\S]*?position: fixed;[\s\S]*?display: grid;/);
+  assert.doesNotMatch(css, /\.mobile-quick-add \{ display: none; \}/);
+  assert.match(css, /\.mobile-quick-add-menu \{ display: grid; justify-items: end;/);
+  assert.match(css, /\.mobile-quick-add-option \{[\s\S]*?flex-direction: row-reverse;/);
+});
