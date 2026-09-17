@@ -1,6 +1,6 @@
-# To Do — HTML Prototype v1.2
+# Dailo — HTML Prototype v1.4
 
-Desktop-first functional prototype for a personal/freelancer task tracker. The product keeps a simple workflow:
+Desktop-first, local-first functional prototype for a personal/freelancer task tracker. The product keeps a simple workflow:
 
 **Capture → Organize → Plan → Complete**
 
@@ -16,6 +16,19 @@ python3 -m http.server 8080
 ```
 
 Then open `http://localhost:8080`.
+
+## V1.4 highlights
+
+V1.4 keeps the V1.3 data model and adds a faster daily-planning flow:
+
+- Today and Upcoming surface overdue work, scheduled Habits, active Goals and dated Milestones with quick move/snooze actions.
+- Task Properties expose Important, Urgent and Focus controls while preserving planned/due dates, reminders, recurrence, links and attachments.
+- Calendar Week/Month/Day Detail share the same state as Tasks, Goals and Habits, including planned/due times and same-time conflict hints.
+- Goal detail shows linked work and milestone progress; the Habit dashboard supports month navigation, historical check-ins, streaks and trend summaries.
+- Notes and Resources stay separate and support Areas, tags, relationships and attachments.
+- Mobile controls use larger touch targets, a compact Quick Add flow, keyboard-safe focus states and disabled future Habit cells.
+
+V1.4 does not change global Search, add bulk actions, or introduce a backend. Existing V1.3/V3 state and ZIP backups remain readable; no persisted schema bump was needed.
 
 Space Grotesk, Geist and Phosphor icon styles are referenced from public CDNs. The application itself has no backend or account requirement.
 
@@ -49,7 +62,7 @@ The action is explicit and adds only missing examples. Stable markers prevent re
 - Recurring tasks: daily, weekly, monthly and custom interval
 - Delete/complete/move/archive Undo where applicable
 
-### V1.2 — Tags
+### V1.2/V1.3 — Tags
 
 Tags are global reusable objects, not per-task strings.
 
@@ -66,7 +79,7 @@ Tags are global reusable objects, not per-task strings.
 
 Task metadata stores only `tagIds[]`.
 
-### V1.2 — Priority
+### V1.2/V1.3 — Priority
 
 Supported values:
 
@@ -83,7 +96,7 @@ The list UI uses a small flag indicator:
 - Low — muted info tone
 - None — no indicator
 
-### V1.2 — Attachments
+### V1.2/V1.3 — Attachments
 
 Attachments are real local files stored as Blobs in IndexedDB.
 
@@ -103,7 +116,7 @@ Binary files never enter localStorage.
 
 Notes and Resources use the same attachment store and limits (10 files per owner). Existing Task attachment IDs and ownership remain unchanged. This build exports ZIP backup version 3 with knowledge files and still imports valid versions 1/2/3; older builds limited to backup version 2 cannot import newly exported version 3 ZIPs.
 
-### V1.2 — Duplicate task
+### V1.2/V1.3 — Duplicate task
 
 Duplicate copies task metadata and creates independent subtask IDs.
 
@@ -115,7 +128,7 @@ Cancel | Without files | Copy files
 
 `Copy files` creates independent attachment records with new IDs and new task ownership. A failed multi-file copy rolls back partial attachment copies and does not create a half-finished duplicate task.
 
-### V1.2 — Faster planning
+### V1.2/V1.3 — Faster planning
 
 Natural-language Quick Add recognizes only deterministic trailing planning phrases:
 
@@ -269,7 +282,7 @@ Goal creation keeps milestones, reminders and source-specific links under More. 
 
 - bulk actions
 - tag-aware / priority-aware Search changes
-- calendar view
+- hourly time-block grid
 - time estimates / time tracking
 - comments / collaboration
 - accounts / backend / cloud sync

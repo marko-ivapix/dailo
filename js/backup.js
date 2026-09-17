@@ -7,7 +7,7 @@
 
   const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
   const MAX_ATTACHMENTS_PER_OWNER = 10;
-  // V1.3's ZIP format is version 2.  The app/schema version is tracked
+  // V1.3/V1.4 share the ZIP format. The app/schema version is tracked
   // separately in the manifest data (`data.version === 3`).
   const BACKUP_VERSION = 2;
 
@@ -122,6 +122,7 @@
       enumField(task,'priority',['none','low','medium','high']);
       booleanField(task,'isCompleted');booleanField(task,'isInbox');recurrence(task.recurrence);
       for (const key of ['plannedDate','dueDate']) dateField(task,key);
+      booleanField(task,'isImportant'); booleanField(task,'isUrgent');
       for (const key of ['plannedTime','dueTime']) if (task[key] != null && root.TodoCore.normalizeTime(task[key]) !== task[key]) fail(key);
       for (const key of ['reminderAt','reminderFiredAt','completedAt','createdAt','updatedAt']) if (task[key] != null
         && (typeof task[key] !== 'string' || !Number.isFinite(Date.parse(task[key])))) fail(key);
@@ -143,6 +144,7 @@
         if (typeof item[field] !== 'string') fail(`${collection} ${field}`);
       if (item.areaId != null && !name(item.areaId)) fail(`${collection} Area`);
       if (!Array.isArray(item.linkUrls) || item.linkUrls.some(url => typeof url !== 'string')) fail(`${collection} links`);
+      refs(item, 'tagIds', 'tags');
       if (!Array.isArray(item.attachmentIds) || item.attachmentIds.some(id => !name(id))
         || new Set(item.attachmentIds).size !== item.attachmentIds.length) fail(`${collection} attachments`);
       if (collection === 'resources') for (const [field, target] of Object.entries({ relatedTaskIds: 'tasks', relatedProjectIds: 'projects', relatedGoalIds: 'goals', relatedHabitIds: 'habits' })) {
