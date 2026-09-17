@@ -182,7 +182,9 @@ test('Selective restore rolls back metadata and native records when the commit w
   localStorage.setItem = (key, value) => { if (fail) { fail = false; throw new Error('quota denied'); } write(key, value); };
   try { app.input.value = 'RESTORE'; await app.commit(); }
   finally { localStorage.setItem = write; }
-  assert.equal(localStorage.getItem('todoAppData'), before);
+  const restored = JSON.parse(localStorage.getItem('todoAppData'));
+  assert.equal(restored.tasks[0].title, 'Current version');
+  assert.equal(restored.settings.backupStatus.validationResult, 'Import failed; original data restored and verified');
   assert.equal(app.ctx.state.tasks[0].title, 'Current version');
   assert.equal(app.ctx.globalOperation, null);
   assert.match(app.ctx.message, /restored and verified/);

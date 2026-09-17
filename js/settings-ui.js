@@ -3,6 +3,8 @@
 
   function renderSettings(ctx) {
     const { state, pageHeader, shortcutLabels, shortcutError, notificationButtonLabel, esc } = ctx;
+    const backupStatus = state.settings.backupStatus || {};
+    const statusTime = value => value || 'Never';
     return `${pageHeader('Settings', 'Prototype preferences and local data', { add: false })}
       <section class="settings-card">
         <h2>General</h2>
@@ -37,6 +39,7 @@
       </section>
       <section class="settings-card">
         <h2>Data</h2>
+        <div class="settings-row"><div class="settings-label"><strong>Backup status</strong><span>Last export: ${esc(statusTime(backupStatus.lastExport))}<br>Last import: ${esc(statusTime(backupStatus.lastImport))}<br>Recovery snapshot: ${backupStatus.snapshotAvailable ? 'Available' : 'None pending'}<br>Validation: ${esc(backupStatus.validationResult || 'Not yet validated')}</span></div></div>
         <div class="settings-row"><div class="settings-label"><strong>Local snapshots</strong><span>Five automatic copies, at most once every five minutes after saving. Restore one entity with its files and history.</span></div><button class="btn btn-secondary" type="button" data-action="open-local-snapshots">Browse snapshots</button></div>
         <div class="settings-row"><div class="settings-label"><strong>Export backup</strong><span>Download a portable ZIP with all local data, including Notes, Resources and files.</span></div><button class="btn btn-secondary" type="button" data-action="export-backup"><i class="ph ph-download-simple"></i> Export ZIP</button></div>
         <div class="settings-row"><div class="settings-label"><strong>Import backup</strong><span>Validate a ZIP first, then replace current data only after you confirm.</span></div><div><button class="btn btn-secondary" type="button" data-action="import-backup"><i class="ph ph-upload-simple"></i> Import ZIP</button><input id="backup-import-input" type="file" accept=".zip,application/zip" hidden /></div></div>

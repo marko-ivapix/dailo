@@ -1294,7 +1294,6 @@
     else if (modalState.type === 'confirm') root.innerHTML = renderConfirmModal();
     else if (modalState.type === 'duplicate') root.innerHTML = renderDuplicateModal();
     else if (modalState.type === 'focus') root.innerHTML = renderFocusModal();
-    else if (modalState.type === 'import-backup') root.innerHTML = renderImportBackupModal();
     else if (modalState.type === 'local-snapshots') root.innerHTML = renderLocalSnapshotsModal();
     else if (modalState.type === 'template-picker') root.innerHTML = renderTemplatePicker();
     else if (modalState.type === 'recurrence-scope') root.innerHTML = renderRecurrenceScope();
@@ -1665,14 +1664,6 @@
     const task = getTask(modalState.taskId); if (!task) return '';
     const count = (task.attachmentIds || []).length;
     return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="dialog-title">Duplicate task</h2><button class="btn-icon" type="button" data-action="close-modal"><i class="ph ph-x"></i></button></div><p class="dialog-copy">This task has ${count} ${count === 1 ? 'attachment' : 'attachments'}. Copy attachments too?</p><div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">Cancel</button><button class="btn btn-secondary" type="button" data-action="duplicate-without-files" data-task-id="${esc(task.id)}">Without files</button><button class="btn btn-primary" type="button" data-action="duplicate-with-files" data-task-id="${esc(task.id)}">Copy files</button></div></div></div>`, 'small-modal');
-  }
-
-  function renderImportBackupModal() {
-    const v = modalState.validated;
-    const sum = v.summary;
-    let date = sum.exportedAt;
-    try { date = new Intl.DateTimeFormat(undefined, { dateStyle:'medium', timeStyle:'short' }).format(new Date(sum.exportedAt)); } catch (_) {}
-    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="dialog-title">Restore backup?</h2><button class="btn-icon" type="button" data-action="close-modal"><i class="ph ph-x"></i></button></div><p class="dialog-copy">Backup created ${esc(date)}</p><div class="backup-summary"><div><span>Tasks</span><strong>${sum.tasks}</strong></div><div><span>Projects</span><strong>${sum.projects}</strong></div><div><span>Tags</span><strong>${sum.tags}</strong></div><div><span>Goals</span><strong>${sum.goals || 0}</strong></div><div><span>Habits</span><strong>${sum.habits || 0}</strong></div><div><span>Notes</span><strong>${sum.notes || 0}</strong></div><div><span>Resources</span><strong>${sum.resources || 0}</strong></div><div><span>Habit logs</span><strong>${sum.habitLogs || 0}</strong></div><div><span>Goal history</span><strong>${sum.goalHistory || 0}</strong></div><div><span>Attachments</span><strong>${sum.attachments} · ${esc(formatBytes(sum.totalSize))}</strong></div></div><div class="backup-warning"><i class="ph ph-warning"></i>This will replace all current app data. Restore has no Undo.</div><div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">Cancel</button><button class="btn btn-danger" type="button" data-action="restore-backup">Restore backup</button></div></div></div>`, 'small-modal');
   }
 
   function renderConfirmModal() {
@@ -3057,13 +3048,14 @@
   }
 
   async function exportBackupAction() {
-    if (!Backup || !Attachments) { setToastMessage('Backup is unavailable in this browser'); return; }
+    if (!Backup || !Attachments) { updateBackupStatus({ snapshotAvailable: false, validationResult: 'Export failed: backup is unavailable' }); setToastMessage('Backup is unavailable in this browser'); return; }
     setToastMessage('Preparing backup...');
     try {
       const blob = await Backup.exportBackupV3(state, TodoStorage, nowIso());
       downloadBackup(blob);
+      updateBackupStatus({ lastExport: nowIso(), snapshotAvailable: false, validationResult: 'Export verified' });
       setToastMessage('Backup exported');
-    } catch (error) { console.error(error); setToastMessage('Backup could not be created'); }
+    } catch (error) { console.error(error); updateBackupStatus({ snapshotAvailable: false, validationResult: `Export failed: ${error.message}` }); setToastMessage('Backup could not be created'); }
   }
 
   function chooseImportBackup() {
@@ -3119,6 +3111,19 @@
     return JSON.stringify(copy);
   }
 
+  function updateBackupStatus(patch, op = null) {
+    if (!state) return false;
+    state.settings ||= {};
+    state.settings.backupStatus = { lastExport: null, lastImport: null, snapshotAvailable: false, validationResult: 'Not yet validated', ...(state.settings.backupStatus || {}), ...patch };
+    try {
+      const persisted = Core.normalizeState(state);
+      delete persisted.habitLogCache; delete persisted.habitMetrics;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(persisted));
+      if (op && globalOperation === op && state === op.source) { op.raw = localStorage.getItem(STORAGE_KEY); op.stateText = compactState(state); }
+      return true;
+    } catch (error) { console.error(error); return false; }
+  }
+
   function assertGlobalSource(op) {
     if (globalOperation !== op || state !== op.source || compactState(state) !== op.stateText || localStorage.getItem(STORAGE_KEY) !== op.raw)
       throw new Error('Source changed. Cancel and retry with a fresh safety backup.');
@@ -3136,6 +3141,12 @@
     const snapshot = await TodoStorage.recoverySnapshots.get(op.snapshotId);
     if (!snapshot) throw new Error('Recovery copy is missing.');
     await TodoStorage.recoverySnapshots.put({ ...snapshot, ...details, phase });
+  }
+
+  async function syncGlobalSnapshotStatus(op) {
+    const snapshot = await TodoStorage.recoverySnapshots.get(op.snapshotId);
+    if (!snapshot) throw new Error('Recovery copy is missing.');
+    await TodoStorage.recoverySnapshots.put({ ...snapshot, appData: structuredClone(state), rawAppData: localStorage.getItem(STORAGE_KEY) });
   }
 
   async function abandonGlobalOperation(op, message = 'Operation canceled. Existing data was kept.') {
@@ -3211,13 +3222,16 @@
         : { state: createEmptyState(), attachmentRecords: [], habitLogs: [], goalHistory: [] };
       op.validated.state = JSON.parse(compactState(normalizeState(op.validated.state)));
       assertGlobalSource(op);
+      updateBackupStatus({ snapshotAvailable: true, validationResult: reason === 'restore' ? 'Backup validated and recovery copy ready' : 'Recovery copy ready' }, op);
+      await syncGlobalSnapshotStatus(op);
+      assertGlobalSource(op);
       if (selection) await markGlobalSnapshot(op, 'prepared', { selective: true });
       const selectedItem = selection && op.validated.state[selection.collection].find(item => item.id === selection.id);
       const summary = selection ? ` Restore “${selectedItem.title || selectedItem.name}” and its owned files/history. Other records stay current. Undo is available until further data changes.` : reason === 'restore' ? ` ${op.validated.state.tasks.length} tasks, ${op.validated.state.projects.length} projects, ${op.validated.state.goals.length} Goals, ${op.validated.state.habits.length} Habits, ${op.validated.state.notes.length} Notes, ${op.validated.state.resources.length} Resources, ${op.validated.attachmentRecords.length} files, ${op.validated.habitLogs.length} logs and ${op.validated.goalHistory.length} history events will be restored.` : '';
       openConfirm({ title: reason === 'reset' ? 'Reset all app data?' : selection ? 'Restore selected entity?' : 'Restore backup?', message: 'A safety ZIP was downloaded and an internal recovery copy was created.' + summary,
         phrase: reason.toUpperCase(), confirmLabel: reason === 'reset' ? 'Reset app' : 'Restore backup',
         onConfirm: () => commitGlobalOperation(op), onCancel: () => abandonGlobalOperation(op) });
-    } catch (error) { await abandonGlobalOperation(op, `Safety preparation failed: ${error.message}. Nothing was replaced. Retry the operation.`); }
+    } catch (error) { await abandonGlobalOperation(op, `Safety preparation failed: ${error.message}. Nothing was replaced. Retry the operation.`); updateBackupStatus({ snapshotAvailable: false, validationResult: `Recovery preparation failed: ${error.message}` }); }
   }
 
   async function verifyGlobalReplacement(op) {
@@ -3251,7 +3265,12 @@
         throw new Error('Recovery ownership changed during final Undo resume. Resolve the source and retry recovery.');
       globalRecoveryNotice = null;
       globalOperation = null; modalState = null; renderModal(); render();
-      try { await cleanupGlobalSnapshot(op); setToastMessage(`${cause.message}. Original data was restored and verified.`); }
+      updateBackupStatus({ snapshotAvailable: true, validationResult: `${op.reason === 'restore' ? 'Import' : 'Reset'} failed; original data restored and verified` });
+      try {
+        await cleanupGlobalSnapshot(op);
+        updateBackupStatus({ snapshotAvailable: false, validationResult: `${op.reason === 'restore' ? 'Import' : 'Reset'} failed; original data restored and verified` });
+        setToastMessage(`${cause.message}. Original data was restored and verified.`);
+      }
       catch (cleanupError) { globalNotice(`${cause.message}. Original data was restored. Cleanup failed: ${cleanupError.message}. Retry cleanup.`, async () => { await cleanupGlobalSnapshot(op); globalRecoveryNotice = null; renderToast(); }); }
     } catch (rollbackError) {
       // Resume may already have released its token. Re-hold the remaining work
@@ -3263,6 +3282,7 @@
       op.busy = false; modalState = null; renderModal();
       try { await markGlobalSnapshot(op, 'rollback-failed', { operationError: cause.message, rollbackError: rollbackError.message }); }
       catch (_) { /* The original full recovery payload remains; mutating phase is already durable. */ }
+      updateBackupStatus({ snapshotAvailable: true, validationResult: `${op.reason === 'restore' ? 'Import' : 'Reset'} failed; recovery is required` });
       globalNotice(`Operation failed: ${cause.message}. Recovery also failed: ${rollbackError.message}. The recovery snapshot is retained. Retry recovery.`, () => rollbackGlobalOperation(op, cause));
     } finally { op.recovering = false; }
   }
@@ -3297,9 +3317,13 @@
         if (op.selective) {
           op.committedText = compactState(state); op.committedRaw = localStorage.getItem(STORAGE_KEY);
           setUndo('Selected entity restored', () => undoSelectiveRestore(op), () => op.keepRecovery ? true : cleanupGlobalSnapshot(op));
-        } else { await cleanupGlobalSnapshot(op); setToastMessage(op.reason === 'reset' ? 'App data reset and verified.' : 'Backup restored and verified.'); }
+        } else {
+          await cleanupGlobalSnapshot(op);
+          updateBackupStatus({ lastImport: op.reason === 'restore' ? nowIso() : state.settings.backupStatus?.lastImport || null, snapshotAvailable: false, validationResult: op.reason === 'restore' ? 'Import restored and verified' : 'Reset verified' });
+          setToastMessage(op.reason === 'reset' ? 'App data reset and verified.' : 'Backup restored and verified.');
+        }
       }
-      catch (error) { globalNotice(`New data is verified. Recovery copy cleanup failed: ${error.message}. Retry cleanup.`, async () => { await markGlobalSnapshot(op, 'committed'); await cleanupGlobalSnapshot(op); if (globalOperation === op) globalOperation = null; globalRecoveryNotice = null; renderToast(); }); }
+      catch (error) { updateBackupStatus({ snapshotAvailable: true, validationResult: `Replacement verified; recovery cleanup failed: ${error.message}` }); globalNotice(`New data is verified. Recovery copy cleanup failed: ${error.message}. Retry cleanup.`, async () => { await markGlobalSnapshot(op, 'committed'); await cleanupGlobalSnapshot(op); updateBackupStatus({ lastImport: op.reason === 'restore' ? nowIso() : state.settings.backupStatus?.lastImport || null, snapshotAvailable: false, validationResult: op.reason === 'restore' ? 'Import restored and verified' : 'Reset verified' }); if (globalOperation === op) globalOperation = null; globalRecoveryNotice = null; renderToast(); }); }
       refreshHabitMetrics().then(render).catch(error => setToastMessage(`History display could not refresh: ${error.message}. Reload to retry.`));
     } catch (error) {
       op.busy = false;
