@@ -1,0 +1,47 @@
+# Dailo feature inventory
+
+Inspected 2026-09-17 against current V1.6 source, tests and release ledger. **Implemented** means code exists. **Automated coverage** means relevant assertions exist; some UI assertions inspect source strings rather than drive a browser. **Manual-pending** means native-browser acceptance remains outstanding. Nothing here converts prototype behavior into production/backend verification.
+
+## Implemented features and evidence
+
+| Surface | Implemented behavior | Automated coverage / source |
+| --- | --- | --- |
+| Capture and Tasks | Lightweight Quick Add, trailing deterministic date/time parsing with explicit fields taking precedence; tags/priority; separate planned/due date/time; optional duration; one-level subtasks, notes/files; duplicate with optional independent file copies; context moves/manual order; completion/Undo; controlled recurrence | `js/tasks-ui.js`, `js/app.js`, `js/core.js`; `core*.test.js`, `quick-add-v1-5.test.js`, `tasks-today*.test.js`, attachment/storage tests |
+| Today | Overdue/planned/Suggestions/completed sections; scheduled Habits, Goals and milestones; three-open-Task Focus queue; inline completion/planning; Daily Review; All/Open/Completed/Important/Due today filters; setting-gated count strip; section visibility/order/pinning | `js/app.js`, `js/tasks-ui.js`; `tasks-today-v1-5.test.js`, `tasks-today-v1-6.test.js`, `settings-v1-6.test.js` |
+| Inbox/Upcoming/Anytime/Completed | Canonical Task projections; future groups also expose Active Goals, eligible milestones and next scheduled Habits; completed-history filters | `js/core.js`, `js/app.js`; Core and Today/integration suites |
+| Projects/Areas/Tags | Flat Project Tasks, optional Area inheritance, archive/restore; Area pin/contextual creation/counts/knowledge; reusable colored tags and reference-safe deletion | `js/projects-ui.js`, `js/areas-ui.js`, `js/app.js`; `core-v1-3.test.js`, `storage-v1-3.test.js`; Python browser suites exist but release browser acceptance is pending |
+| Goals | Manual/linked Tasks/linked Habits progress; reciprocal multi-links, Project all/selected contributions; lifecycle and explicit 100% decision; horizon, target date, reminders, milestones; linked-work summary/health; Week/Month history | `js/goals-ui.js`, `js/core.js`; `core-v1-3.test.js`, `core-v1-5.test.js`, `goals-v1-6.test.js`, backup/recovery tests |
+| Habits | Checkbox/numeric, Daily/weekdays/X per week/every N days; minimum/ideal fractional numeric targets, whole weekly counts, grace recovery; historical edits/future lock; routines; pause/archive/continuation/end conditions; reminders/snooze; heatmap/streaks and schedule-aware rolling analytics | `js/habits-ui.js`, `js/core.js`; `core-v1-3.test.js`, `core-v1-5.test.js`, `habits-v1-6.test.js`, integration/backup suites |
+| Calendar | Week/Month/Day Detail, visibility controls, contextual creation, merged same-day planned+due metadata, planned-time/duration blocks and overlaps; Task date/time drag preserves deadline; quick Task/Habit/Goal/milestone actions | `js/calendar-ui.js`, `js/core.js`, `js/app.js`; `calendar-v1-6.test.js`, Core timed-block tests, static/UI tests |
+| Notes and Resources | Separate lists/editors; Name plus valid URL/image/file required for new saves; optional Area/tags, attachments, clips/favorites/local filters; Resource type/reading status/author/review date and entity links; source-atomic upload failure rollback | `js/knowledge.js`, `js/core.js`, attachment pipeline; `knowledge-v1-5.test.js`, `knowledge-v1-6.test.js`, backup/recovery suites |
+| Templates | Task/Project/Habit/Goal snapshot CRUD/duplicate/instantiate/save-from-entity; relative dates/fresh IDs/history reset; variables; one-shot scheduled Task creation and ready-app catch-up; missing link pruning | `js/templates-ui.js`, `js/core.js`, `js/app.js`; `templates-v1-6.test.js`, `core-v1-3.test.js`, `final-integration-v1-5.test.js` |
+| Saved Views/Search | Typed Tasks/Goals/Habits filter lists and sidebar pinning; global Search retains Task title/notes and Project names, including completed Tasks, and original ranking | `js/saved-views-ui.js`, `js/core.js`; `core-v1-3.test.js` and baseline Core tests |
+| Settings/navigation | Persisted sidebar groups/pins, custom shortcuts/conflict validation/reset, editable-field shortcut suppression; compact/default density, Today defaults/strip/sections, week start and reversible personalization; reduced motion | `js/settings-ui.js`, `js/app.js`, CSS; `settings-v1-6.test.js`, `compact-layout-v1-5.test.js`, `compact-layout-v1-6.test.js` |
+| Delete/Undo | Confirmation → Delete → Snackbar Undo; linked/history/file snapshots; deferred pending-attachment cleanup; Clear Completed Undo | `js/app.js`, `js/storage.js`, `js/attachments.js`; Core/storage/recovery/integration suites |
+| Export/full restore/reset | V3 state payload in ZIP `backupVersion: 2`; valid backup versions 1/2 import; entities/files/Habit logs/Goal history/preferences; validation before Replace All; safety ZIP/internal copy/typed confirmation; verified write and rollback; status/retained-copy cleanup Retry | `js/backup.js`, `js/storage.js`, `js/app.js`; `backup-v1-6.test.js`, `backup-status-v1-6.test.js`, `recovery-v1-6.test.js` |
+| Local recovery | Five bounded automatic snapshots, idle/rate-limited capture after successful save/startup; selective entity replacement, owned files/history and reciprocal links; dependency validation; typed RESTORE and safety copies; Undo guards against later edits | `js/storage.js`, `js/backup.js`, `js/app.js`; `recovery-v1-5.test.js`, `recovery-ui-v1-5.test.js`, integration tests |
+| Starter examples | Explicit Settings action adds missing editable sample Areas/Habits with stable markers and no copied history; routines group active Habits | `js/habits-ui.js`; underlying sample/routine assertions in Core suites; repeat/reload interaction still manual-pending |
+
+## Verification status
+
+The release record `docs/superpowers/progress-v1-6.md` reports **195 Node tests passing**, syntax checks for 44 JavaScript files, AST parsing for the release's Python test files, two browser-path-adapter unittest checks, clean diff and distributable-integrity checks. The current recursive AST pass covers **19 Python files**. Its requested pytest invocation could not run because pytest was unavailable; the adapter's unittest entry point was used. Those are recorded release results; this inventory itself does not re-run or certify them.
+
+Native-browser acceptance was not run for the V1.6 release. Python Playwright suites are available as optional developer/CI harnesses; their presence is not evidence of execution. User-owned-browser manual checks remain necessary for reload/real IndexedDB persistence, file chooser/download/open, delete/Undo timing, restore/reset/snapshot interactions, drag/drop, overlays/Escape/focus traps/return focus, shortcuts while editing, mobile controls/swipes/touch, layout and assistive-technology behavior. No isolated browser or personal Chrome session is launched by this documentation task.
+
+CDN fonts/icons remain external visual dependencies. Scheduled templates/reminders only execute when the ready app is open; they are not server jobs. Local snapshots share browser quota and cannot replace an external ZIP backup.
+
+## Deferred or intentionally excluded
+
+Accounts/authentication, backend/cloud sync, collaboration/comments/team workspaces, server-delivered notifications, AI planning, integrations, bulk selection/actions, global Search redesign/tag/priority-aware ranking, full hourly Calendar grid or separate event store, elapsed-time tracking, nested/sub-Goals, weighted Goal contributions, and inline image/PDF attachment previews remain outside the implemented prototype. Native mobile clients and production guarantees are not supplied by this static web build.
+
+## Documentation drift to resolve before using older summaries as instructions
+
+1. `AGENTS.md`, `docs/codex/PRODUCT_BRIEF.md`, `V1_3_SCOPE.md`, `TASKS.md` and `ACCEPTANCE.md` describe the V1.3 baseline. Preserve historical semantics, but add a current-version entry point and explicit precedence for V1.4–V1.6 changes.
+2. The older brief/scope excludes Habits from Upcoming; current `deriveUpcomingV3` adds the next scheduled Habit within 14 days and milestone projections. Update current product guidance accordingly.
+3. The older Calendar brief says no duration/time-block rectangles. Current planned-time/duration blocks are implemented. Week/Month and Day Detail remain; this is not a standalone hourly grid.
+4. V1.3 requires Goal dragging, whereas current Calendar UI exposes only Task drag. V1.6's non-draggable Goal direction matches the UI; make the supersession explicit.
+5. V1.6 spec header says awaiting written-spec review before implementation despite the completed release ledger. Update the status/history when authorized; do not treat that header as current completion evidence.
+6. README's short export tree shows only Task attachment paths, while current ZIP exports can include Note/Resource-owned files and histories as well. Its initial import/reset description should point to the fuller typed-confirmation/recovery contract rather than omit it.
+7. README mentions native Goal UX suite coverage while also declaring browser acceptance pending. Keep test availability distinct from freshly executed browser results.
+
+These are recommendations only; this handoff does not edit historical specifications or declare manual acceptance complete.

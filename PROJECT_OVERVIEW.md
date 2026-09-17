@@ -1,4 +1,6 @@
-# Dailo — pregled projekta za brainstorming
+# Dailo — pregled projekta i brainstorming
+
+> Current implementation: V1.6 prototype. For agent onboarding and verified source facts, read `CLAUDE.md` and `docs/claude/` first. The brainstorming questions below are ideas, not accepted requirements.
 
 Dailo je lokalna To-Do aplikacija za organizaciju zadataka, projekata, oblasti,
 ciljeva, navika, beleški i resursa. Osnovni tok je:
@@ -116,7 +118,20 @@ Notes i Resources su zasebne kolekcije, odvojene od Goals i Habits.
 **Za brainstorming:** da li dodati tip resursa, autora, datum pregleda,
 favorit, status "pročitano", preview slike, tekstualni clipping ili web import?
 
-## 8. Templates, Saved Views i shortcuts
+## 8. Cleaning workspace
+
+Cleaning koristi postojeće Projects i Tasks, bez nove persistence kolekcije.
+
+- Room Project dobija oznaku `isCleaningRoom`.
+- Chore je običan Task unutar tog Project-a.
+- Preseti mogu dodati prostorije i početne stavke poput usisavanja, brisanja
+  prašine i periodične provere bojlera.
+- Cleaning prikaz grupiše otvorene i završene chores po prostoriji.
+
+Detalji implementacije su u `js/cleaning-ui.js`, `js/projects-ui.js` i
+`docs/claude/FEATURES.md`.
+
+## 9. Templates, Saved Views i shortcuts
 
 - Templates postoje za Task, Project, Habit i Goal.
 - Mogu se sačuvati relativni datumi, ponavljanje i podrazumevane veze.
@@ -127,7 +142,7 @@ favorit, status "pročitano", preview slike, tekstualni clipping ili web import?
 **Za brainstorming:** da li dodati javne/privatne template kolekcije, template
 varijable, automatsko kreiranje po rasporedu ili deljenje Saved View-a?
 
-## 9. Quick Add i mobilni interfejs
+## 10. Quick Add i mobilni interfejs
 
 - Quick Add meni omogućava brzo dodavanje Task-a, Goal-a, Habit-a i drugih
   tipova.
@@ -138,7 +153,7 @@ varijable, automatsko kreiranje po rasporedu ili deljenje Saved View-a?
 **Za brainstorming:** da li dodati glasovni unos, predloge na osnovu teksta,
 quick-add komande poput `tomorrow`, skeniranje slike ili offline queue?
 
-## 10. Backup, recovery i Undo
+## 11. Backup, recovery i Undo
 
 - Podaci se mogu izvesti i uvesti kroz ZIP backup.
 - Backup uključuje metadata, V3 podatke, attachments, Habit logs i Goal history.

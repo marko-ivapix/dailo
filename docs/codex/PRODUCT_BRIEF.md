@@ -1,4 +1,6 @@
-# Product Brief — To Do App V1.3
+# Product Brief — To Do App V1.3 baseline
+
+> This document is the V1.3 product baseline. The current implementation extends it through V1.6. For current source facts, read `../../CLAUDE.md` and `../claude/FEATURES.md` first.
 
 ## Product purpose
 

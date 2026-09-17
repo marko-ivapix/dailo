@@ -1,0 +1,71 @@
+# Dailo domain model
+
+Current implementation reference, inspected 2026-09-17. This describes the static V1.6 prototype, not a backend contract or a claim of native-browser acceptance. Product intent remains **Capture → Organize → Plan → Complete**, with Today as the main working surface.
+
+## Canonical entities
+
+| Entity | Representation and responsibility | Lifecycle |
+| --- | --- | --- |
+| Task | One canonical record; title, notes, optional Project or standalone Area, Goal/tag IDs, planned/due dates and times, duration, reminders, recurrence, owned attachments and one-level subtasks | Open/Completed (`isCompleted`, `completedAt`); Inbox is capture metadata, not a third completion status |
+| Project | Flat container of Tasks, color/order, optional Area and multiple Goal IDs | Active/Archived (`isArchived`, `archivedAt`) |
+| Area | Optional life/work context with name, color, icon and sidebar pin | Active/Archived |
+| Goal | Desired result with optional Area, horizon, target date, progress configuration, Project/Task/Habit contributions, milestones and reminders | Active/Paused/Completed/Archived |
+| Habit | Recurring checkbox or numeric behavior, optional Area/Goal IDs/routine, schedule, targets, reminders and pause boundaries | Active/Paused/Archived |
+| Tag | Reusable named/color object; Tasks store `tagIds`, not tag-name copies | Add/Edit/Delete; names reject case-insensitive duplicates |
+| Note | Separate knowledge record with persisted `title`, description, links, attachments, optional Area/tags, clip and favorite | Add/Edit/Delete |
+| Resource | Separate knowledge record, additionally type, reading status, author, review date and links to Tasks/Projects/Goals/Habits | Add/Edit/Delete; reading status Unread/Reading/Completed is independent of Task completion |
+| Template | Detached typed creation snapshot with relative dates; Task/Project/Habit/Goal types | Add/Edit/Duplicate/Delete/Instantiate |
+| Saved View | Name/type/filter configuration and optional sidebar pin; targets exactly Tasks, Goals or Habits | Add/Edit/Duplicate/Delete/Pin/Unpin |
+
+Subtasks and milestones are embedded children with independent IDs and completion metadata. Attachments, Habit logs, Goal history and recovery snapshots have their own storage records; they are not extra Task instances or Calendar events.
+
+## Identity, ownership and relationships
+
+- Today, Inbox, Upcoming, Anytime, Completed, Project, Tag and Saved View lists project the same Tasks. Moving or completing a Task updates that record; a view must not create a second copy.
+- `plannedDate` means intended work day; `dueDate` means deadline. Their optional times are independent. `durationMinutes` is optional positive planned duration, not elapsed-time tracking.
+- A Task belongs to at most one Project. A Project Task stores no direct Area: `effectiveTaskArea` resolves its Project's Area. Standalone Tasks may have their own Area. Projects, Goals, Habits and knowledge records may have optional Area assignment.
+- Goal membership is reciprocal: Tasks/Projects/Habits carry Goal IDs; Goals carry `taskIds`, `projectLinks` or `habitLinks`. Creation/edit/delete/recovery code reconciles both sides. Avoid directly editing only one side.
+- A Goal Project link selects `allTasks` or `selectedTasks`. `goalTaskSet` unions Project contributions with direct Task links and deduplicates by Task ID. Subtasks do not add progress units. Linked Tasks have equal weight; Linked Habits average equally weighted metric/target ratios capped at 100% per contribution. Manual progress supports percentage or numeric current/target/unit.
+- Switching Goal progress source retains inactive relationships/manual values. Reaching 100% requests Keep active/Mark completed; it does not silently change lifecycle. Goal health is a derived label, not another lifecycle status.
+- Deleting an Area clears assignments without deleting children. Deleting tags clears references without deleting Tasks. Knowledge deletion preserves unrelated linked objects. Full entity deletion and Undo must retain relevant links, files and histories.
+- Attachments belong to exactly one Task, Note or Resource. Binary Blobs stay in IndexedDB. Limits are 10 MB/file and 10 files/owner; duplication with copied files creates independent IDs and ownership.
+
+## Schedules and histories
+
+Tasks recur daily/weekly/monthly/custom interval. V3 recurrence includes active/paused/ended status, series identity, next-skip flag, date/count limits and successor tracking. Completion drives successor creation. Pause/end prevent generation; Skip advances one extra interval. Count limits include the initial occurrence; date limits are inclusive. This-occurrence edits and this-and-future splits preserve completed history and original recurrence baselines.
+
+Habits schedule Daily, Selected weekdays, X times per week or Every N days from `startDate`. Continuation is automatic/ask each period/one period; end conditions are never/date/successful-period count. Habit logs represent a dated Done/Skipped/Missed state and optional numeric value. Past/current scheduled dates are editable; future check-ins are unavailable. Historical projections honor pause intervals while retaining existing pause-boundary logs as evidence.
+
+Weekly targets are whole check-in counts, reset per configured week, and count additional successful check-ins in statistics. Numeric per-period targets may be fractional. Minimum/ideal targets and grace days describe achievement/recovery; they do not rewrite recorded logs or streaks. Metrics use scheduled units rather than all visible heatmap cells; weekly analytics include complete weeks crossing month boundaries. Multiple reminders and snooze are local in-app behavior; weekly reminders stop after target achievement while the Habit stays visible in Today.
+
+Goal history is stored separately and projected in chronological progress snapshots with Week/Month ranges. Milestones optionally carry dates, completion and ordering; they are not nested Goals.
+
+## Derived working surfaces
+
+Today derives overdue Tasks, manually planned Today Tasks, Suggestions and completed-today Tasks. Suggestions prioritize due today, missed plan, due tomorrow and due soon; priority metadata does not change this order. It also derives scheduled Habits, overdue milestones, overdue Active Goals and Active Goals due today. The current overdue-milestone derivation traverses all Goals, not only Active ones. Task filters All/Open/Completed/Important/Due today are presentation-only. The Focus queue holds up to three existing open Task IDs; Daily Review and focus-strip counts derive actual records.
+
+Upcoming groups Tasks by earliest relevant future planned/due date. Current implementation also includes future Active Goals, dated incomplete milestones within its horizon for eligible Goals, and each Active Habit's next scheduled date within 14 days. This differs from the older V1.3 brief's no-Habits-in-Upcoming statement.
+
+Calendar has Week/Month and a Day Detail overlay, not a separate event store or a standalone hourly grid. A Task's same-day planned+due entry is merged; different dates project separate entries. Current date projection retains completed Tasks and dated Goals/milestones regardless lifecycle; scheduled Habit eligibility uses schedule rules. Visibility flags apply to all projections. Planned-time blocks preserve deadline metadata; duration determines intervals/overlap hints. Month cells show counts. Only Tasks currently expose Calendar drag; dropping changes planned date and supplied planned time, preserving due fields. Day Detail provides quick actions and contextual creation.
+
+## Templates and filtered lists
+
+Templates snapshot supported configuration through `templateFromEntity`; instantiation assigns fresh identity, timestamps, subtasks/milestones/reminders as needed, resets completion/history and excludes files. Dates are day offsets resolved against the context date. Project templates create a new Project and new Tasks; selected Goal contribution indexes map to new Task IDs. Task/Project/Habit templates prune references to missing live entities. Goal templates create empty relationships, zero progress and incomplete milestones. Habit templates exclude check-in/pause history. `{{date}}`, `{{today}}`, `{{tomorrow}}` resolve against the instantiation date.
+
+Scheduled Task templates are one-shot per configured date, with `scheduleGeneratedOn` as the marker. Startup, save and ready-app 30-second checks catch up due schedules once; relative dates/variables use the scheduled date. The app cannot run schedules while closed. Failed saves remain retryable without keeping a duplicate instance.
+
+Saved Views filter one collection. Task filters include Project, effective Area, tag, priority, planned date, due date and completion; Goal filters include Area/status/target date; Habit Core filters include Area/status/tracking/frequency. Missing referenced filter entities produce an empty result. Saved Views remain separate from unchanged global Search.
+
+## Persistence and recovery boundaries
+
+Metadata uses localStorage `todoAppData`, schema `version: 3`. IndexedDB `todoAppDB` database version 1 stores `attachments`, `habitLogs`, `goalHistory`, `recoverySnapshots`; database version and state schema are distinct. Supported V1/V2 metadata migrate to V3 while retaining IDs. V1.6 settings/default migration is additive and idempotent. Invalid state follows recovery/error paths, never a silent reset.
+
+Normal deletion uses Confirmation → Delete → brief Snackbar Undo, with deferred file/history destruction as needed. Clear Completed retains an Undo snapshot. Full ZIP Restore/Reset require a downloaded safety ZIP, internal recovery copy, typed RESTORE/RESET, source validation, verified replacement and rollback on failure. The current ZIP format is `backupVersion: 2` carrying the V3 state payload and knowledge attachments; valid backup versions 1/2 are importable. This does not imply an older app can import newer exports.
+
+Automatic snapshots run after successful saves/startup, idle for one second, no more than once per five minutes, retaining five automatic copies separately from interrupted-operation safety copies. Selective recovery replaces one entity and its owned files/history, reconciles reciprocal Goal links and preserves unrelated records. Dependencies must already exist; Area/Project recovery does not recover children implicitly. Source changes or incompatible/missing contribution configuration stop replacement. Selective Undo refuses to overwrite later edits and retains safety data. Browser quota is shared; snapshots are not exported backups.
+
+## Evidence and limits
+
+Implementation: `js/core.js`, `js/app.js`, `js/domain-modules.js`, `js/*-ui.js`, `js/knowledge.js`, `js/storage.js`, `js/attachments.js`, `js/backup.js`. Regression evidence: `tests/core*.test.js`, `tests/tasks-today*.test.js`, `tests/goals-v1-6.test.js`, `tests/habits-v1-6.test.js`, `tests/calendar-v1-6.test.js`, `tests/templates-v1-6.test.js`, `tests/knowledge*.test.js`, `tests/backup*.test.js`, `tests/recovery*.test.js`. The V1.6 progress ledger records 195 passing Node tests; that is historical release evidence, not a new run performed for this document.
+
+Native-browser persistence, file interactions, visuals, keyboard/focus, responsive/mobile and accessibility acceptance remain manual-pending. No backend, authentication, cloud sync, collaboration, server reminders, AI planning, integrations, bulk actions, Search redesign, nested Goals, weighted contributions, elapsed-time tracking or inline attachment preview is implemented by this model.

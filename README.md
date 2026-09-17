@@ -25,6 +25,7 @@ Then open `http://localhost:8080`.
 - Calendar task blocks use planned time plus duration and mark overlaps without introducing another event store.
 - Resource type, reading status, author and review date; separate Note/Resource clips, favorites and local filters.
 - Template variables/scheduled Task creation and Today section personalization.
+- Cleaning workspace with room Projects (`isCleaningRoom`) and ordinary chore Tasks, including room presets and recurring maintenance examples.
 - Bounded local snapshots and selective recovery, described below. State schema remains V3 and earlier ZIP formats remain importable.
 
 Scheduled Task templates are one-shot per configured date. They run after saving a due schedule, during ready startup, and on the open app's 30-second checks. Missed dates catch up once when the app is next ready; variables and relative dates use the scheduled day, not the catch-up day. They do not run while the app is closed. Failed saves remain eligible for retry without duplicate Tasks. Saving a different schedule date creates a new one-shot schedule.
@@ -142,7 +143,7 @@ Attachments are real local files stored as Blobs in IndexedDB.
 
 Binary files never enter localStorage.
 
-Notes and Resources use the same attachment store and limits (10 files per owner). Existing Task attachment IDs and ownership remain unchanged. This build exports ZIP backup version 3 with knowledge files and still imports valid versions 1/2/3; older builds limited to backup version 2 cannot import newly exported version 3 ZIPs.
+Notes and Resources use the same attachment store and limits (10 files per owner). Existing Task attachment IDs and ownership remain unchanged. The current implementation exports ZIP `backupVersion: 2` with knowledge files and accepts valid backup versions 1 and 2. The `exportBackupV3` function name refers to the V3 state schema, not ZIP format 3.
 
 ### V1.2/V1.3 — Duplicate task
 
