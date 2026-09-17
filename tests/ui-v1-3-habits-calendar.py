@@ -165,9 +165,10 @@ def native_calendar(browser):
         assert page.evaluate('TodoApp.state.tasks.find(t => t.id === "task-plan-due").plannedTime') == '09:00'
         assert item('task-plan-due', cell('2026-10-30')).count() == 1
         assert all(time in item('task-plan-due').inner_text() for time in ['09:00', '17:00'])
+        assert item('goal-target', cell('2026-10-29')).get_attribute('draggable') != 'true'
+        goal_target = page.evaluate('TodoApp.state.goals.find(g => g.id === "goal-target")')
         drag('goal-target', '2026-10-29', '2026-10-30')
-        page.wait_for_function('TodoApp.state.goals.find(g => g.id === "goal-target").targetDate === "2026-10-30"')
-        assert item('goal-target', cell('2026-10-30')).count() == 1
+        assert page.evaluate('TodoApp.state.goals.find(g => g.id === "goal-target")') == goal_target
         assert item('habit-check').get_attribute('draggable') != 'true'
         schedule = page.evaluate('TodoApp.state.habits.find(h => h.id === "habit-check")')
         drag('habit-check', '2026-10-28', '2026-10-30')

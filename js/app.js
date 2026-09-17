@@ -3767,7 +3767,7 @@
     if (dropZone && event.dataTransfer?.types?.includes('Files')) { event.preventDefault(); dropZone.classList.add('is-dragover'); return; }
     if (!dragState) return;
     const calendarTarget = event.target.closest('[data-calendar-time], [data-calendar-date]');
-    if (calendarTarget && ['calendar-task', 'calendar-goal'].includes(dragState.type)) { event.preventDefault(); calendarTarget.classList.add('is-drop-target'); return; }
+    if (calendarTarget && ['calendar-task'].includes(dragState.type)) { event.preventDefault(); calendarTarget.classList.add('is-drop-target'); return; }
     if (dragState.type.startsWith('calendar-')) return;
     if (dragState.type === 'project') {
       const target = event.target.closest('.project-item[draggable="true"]'); if (!target || target.dataset.projectId === dragState.id) return; event.preventDefault(); return;
@@ -3798,13 +3798,6 @@
         const date = target.closest('[data-calendar-date]')?.dataset.calendarDate;
         const time = Core.normalizeTime(target.dataset.calendarTime);
         if (Core.parseDateOnly(date) && dragState.type === 'calendar-task') updateTask(dragState.id, { plannedDate: date, ...(time ? { plannedTime: time } : {}) });
-        else if (Core.parseDateOnly(date) && dragState.type === 'calendar-goal') {
-          const goal = getGoal(dragState.id);
-          if (goal && goal.targetDate !== date) {
-            const from = goal.targetDate; goal.targetDate = date; goal.updatedAt = nowIso();
-            putGoalHistory(goal.id, 'targetDateChanged', { from, to: date }); saveAndRender();
-          }
-        }
       }
     } else if (dragState.type === 'project') {
       const target = event.target.closest('.project-item[draggable="true"]'); if (target) reorderProjects(dragState.id, target.dataset.projectId);

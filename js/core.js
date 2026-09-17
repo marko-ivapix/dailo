@@ -326,6 +326,16 @@
     });
   }
 
+  function calendarTimeBlocks(state, date) {
+    if (!parseDateOnly(date) || state?.ui?.calendarVisibility?.tasks === false) return [];
+    return (state?.tasks || []).flatMap(task => {
+      const plannedTime = normalizeTime(task?.plannedTime);
+      if (!task || task.plannedDate !== date || !plannedTime) return [];
+      const dueToday = task.dueDate === date;
+      return [{ type: 'task', task, kind: dueToday ? 'planned+due' : 'planned', time: plannedTime }];
+    }).sort((a, b) => a.time.localeCompare(b.time) || String(a.task.id).localeCompare(String(b.task.id)));
+  }
+
 
 
   function deriveAnytime(tasks) {
@@ -1295,6 +1305,7 @@
     deriveCalendarDay,
     deriveCalendarWeek,
     deriveCalendarMonthSummary,
+    calendarTimeBlocks,
     nextRecurrenceDate,
     normalizeRecurrenceV3,
     shouldGenerateRecurrence,

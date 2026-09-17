@@ -24,14 +24,14 @@
     }
     if (detail && goal && !milestone) actions = `<button class="quick-chip" type="button" data-action="calendar-goal-progress" data-goal-id="${ctx.esc(id)}">Update progress</button>`;
     if (detail && milestone) actions = `<button class="quick-chip" type="button" data-action="toggle-milestone" data-goal-id="${ctx.esc(goal.id)}" data-milestone-id="${ctx.esc(id)}">${milestone.isCompleted ? 'Reopen' : 'Complete'}</button>`;
-    return `<article class="calendar-item calendar-${entry.type} ${block ? 'calendar-timed-block' : ''} ${block?.conflict ? 'has-conflict' : ''} ${completed ? 'is-completed' : ''} ${detail ? 'calendar-item--detail' : ''}" data-calendar-item-id="${ctx.esc(id)}" data-calendar-type="${entry.type}" ${block ? `data-calendar-time="${minutesLabel(block.startMinutes)}"` : ''} ${!detail && (task || (!milestone && goal)) ? `draggable="true" data-calendar-drag="${entry.type}"` : ''}><button class="calendar-item-open" type="button" ${open}><span class="calendar-item-type">${entry.type === 'task' ? 'Task' : entry.type === 'habit' ? 'Habit' : entry.type === 'milestone' ? 'Milestone' : 'Goal'}</span><strong>${ctx.esc(title)}</strong><span class="calendar-item-meta">${metadata.map(value => `<span>${ctx.esc(value)}</span>`).join('')}</span></button>${detail ? `<div class="calendar-quick-actions">${actions}<button class="quick-chip" type="button" ${open}>${milestone ? 'Open Goal' : 'Open'}</button></div>` : ''}</article>`;
+    return `<article class="calendar-item calendar-${entry.type} ${block ? 'calendar-timed-block' : ''} ${block?.conflict ? 'has-conflict' : ''} ${completed ? 'is-completed' : ''} ${detail ? 'calendar-item--detail' : ''}" data-calendar-item-id="${ctx.esc(id)}" data-calendar-type="${entry.type}" ${block ? `data-calendar-time="${minutesLabel(block.startMinutes)}"` : ''} ${!detail && task ? 'draggable="true" data-calendar-drag="task"' : ''}><button class="calendar-item-open" type="button" ${open}><span class="calendar-item-type">${entry.type === 'task' ? 'Task' : entry.type === 'habit' ? 'Habit' : entry.type === 'milestone' ? 'Milestone' : 'Goal'}</span><strong>${ctx.esc(title)}</strong><span class="calendar-item-meta">${metadata.map(value => `<span>${ctx.esc(value)}</span>`).join('')}</span></button>${detail ? `<div class="calendar-quick-actions">${actions}<button class="quick-chip" type="button" ${open}>${milestone ? 'Open Goal' : 'Open'}</button></div>` : ''}</article>`;
   }
 
   function timedEntries(ctx, day) {
-    const entries = new Map(day.tasks.map(entry => [entry.task.id, entry]));
-    const blocks = ctx.Core.getTimedTaskBlocks(day.tasks.map(entry => entry.task), day.date);
-    const blockedIds = new Set(blocks.map(block => block.taskId));
-    const planned = blocks.map(block => calendarItem(ctx, entries.get(block.taskId), false, day.date, block));
+    const blocksByTaskId = new Map(ctx.Core.getTimedTaskBlocks(day.tasks.map(entry => entry.task), day.date).map(block => [block.taskId, block]));
+    const timeBlocks = ctx.Core.calendarTimeBlocks(ctx.state, day.date);
+    const blockedIds = new Set(timeBlocks.map(entry => entry.task.id));
+    const planned = timeBlocks.map(entry => calendarItem(ctx, entry, false, day.date, blocksByTaskId.get(entry.task.id)));
     const other = day.timed.filter(entry => entry.type !== 'task' || !blockedIds.has(entry.task.id)).map(entry => calendarItem(ctx, entry, false, day.date));
     return planned.concat(other).join('');
   }
@@ -74,11 +74,11 @@
     const { modalState, state, Core, calendarLogs, formatDate, esc, modalFrame } = ctx;
     const date = modalState.date; const day = Core.deriveCalendarDay(state, calendarLogs(), date);
     const allDay = day.allDay.map(entry => calendarItem(ctx, entry, true, date)).join('');
-    const blocks = Core.getTimedTaskBlocks(day.tasks.map(entry => entry.task), date);
-    const blockedIds = new Set(blocks.map(block => block.taskId));
-    const entries = new Map(day.tasks.map(entry => [entry.task.id, entry]));
-    const timed = blocks.map(block => calendarItem(ctx, entries.get(block.taskId), true, date, block)).concat(day.timed.filter(entry => entry.type !== 'task' || !blockedIds.has(entry.task.id)).map(entry => calendarItem(ctx, entry, true, date))).join('');
-    const conflicts = blocks.filter(block => block.conflict).map(block => `${minutesLabel(block.startMinutes)}–${minutesLabel(block.endMinutes)}`).filter((value, index, values) => values.indexOf(value) === index);
+    const blocksByTaskId = new Map(Core.getTimedTaskBlocks(day.tasks.map(entry => entry.task), date).map(block => [block.taskId, block]));
+    const timeBlocks = Core.calendarTimeBlocks(state, date);
+    const blockedIds = new Set(timeBlocks.map(entry => entry.task.id));
+    const timed = timeBlocks.map(entry => calendarItem(ctx, entry, true, date, blocksByTaskId.get(entry.task.id))).concat(day.timed.filter(entry => entry.type !== 'task' || !blockedIds.has(entry.task.id)).map(entry => calendarItem(ctx, entry, true, date))).join('');
+    const conflicts = [...blocksByTaskId.values()].filter(block => block.conflict).map(block => `${minutesLabel(block.startMinutes)}–${minutesLabel(block.endMinutes)}`).filter((value, index, values) => values.indexOf(value) === index);
     const counts = { tasks: day.tasks.length, habits: day.habits.length, goals: day.goals.length, milestones: day.milestones.length };
     const total = calendarCountTotal(counts);
     return modalFrame(`<div class="modal-inner calendar-day-detail" data-detail-date="${date}"><div class="modal-header"><h2 class="modal-title">Day Detail · ${date}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="Close"><i class="ph ph-x"></i></button></div><p class="page-subtitle">${esc(formatDate(date, 'full'))}</p>${total ? `<div class="calendar-detail-summary"><strong>${total} planned</strong><span>${calendarCounts(counts)}</span></div>` : ''}${conflicts.length ? `<p class="calendar-conflict-note" role="status"><i class="ph ph-warning"></i> Time overlap: ${esc(conflicts.join(', '))}</p>` : ''}<div class="calendar-detail-items">${timed ? `<section class="calendar-detail-section"><h3>Timed plan · ${day.timed.length}</h3>${timed}</section>` : ''}${allDay ? `<section class="calendar-detail-section"><h3>All day · ${day.allDay.length}</h3>${allDay}</section>` : ''}${!allDay && !timed ? '<p class="area-empty-copy">No visible items for this date.</p>' : ''}</div><div class="calendar-creation">${['task', 'goal', 'habit'].map(type => `<button class="btn btn-secondary" type="button" data-action="calendar-new-${type}" data-date="${date}"><i class="ph ph-plus"></i> ${type[0].toUpperCase() + type.slice(1)}</button>`).join('')}</div></div>`);
