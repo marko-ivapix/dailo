@@ -362,14 +362,19 @@
         globalNotice(`An interrupted operation needs recovery. ${interrupted.operationError || ''} ${interrupted.rollbackError || ''} Recovery copy retained. Retry recovery.`, () => rollbackGlobalOperation(op, new Error(interrupted.operationError || 'Interrupted operation')));
         return;
       }
-      if (retained.length) {
-        updateBackupStatus({ snapshotAvailable: true, validationResult: 'Recovery copy retained; cleanup is required' });
+      function finishLoadedState(loadedSource) {
+        if (!retained.length) return loadedSource;
+        // Status belongs to the validated state just loaded, including when
+        // cleanup finishes asynchronously after another tab has changed it.
+        const statusSource = { ...captureStatusSource(), raw: loadedSource };
+        updateBackupStatus({ snapshotAvailable: true, validationResult: 'Recovery copy retained; cleanup is required' }, statusSource);
         globalNotice('A temporary recovery copy remains after a completed or canceled operation. Retry cleanup.', async () => {
           await TodoStorage.recoverySnapshots.deleteMany(retained.map(item => item.id));
-          updateBackupStatus({ snapshotAvailable: false, validationResult: 'Recovery copy removed' });
+          updateBackupStatus({ snapshotAvailable: false, validationResult: 'Recovery copy removed' }, statusSource);
           if (globalOperation?.reason === 'cleanup') globalOperation = null;
           globalRecoveryNotice = null; renderToast();
         });
+        return statusSource.raw;
       }
       preparingStorage = false;
       const sourceAtStart = localStorage.getItem(STORAGE_KEY);
@@ -388,7 +393,7 @@
         recovery = null;
         state = normalizeState(createSampleState());
         saveState();
-        return localStorage.getItem(STORAGE_KEY);
+        return finishLoadedState(localStorage.getItem(STORAGE_KEY));
       }
       const parsed = JSON.parse(raw);
       const migration = Core.migrateStateV3(parsed);
@@ -425,7 +430,7 @@
       }
       recovery = null;
       state = prepared;
-      return committedSource;
+      return finishLoadedState(committedSource);
     } catch (error) {
       console.error(error);
       recovery = preparingStorage ? 'migration-error' : error && error.message === 'unsupported-version' ? 'unsupported-version' : 'corrupted-data';

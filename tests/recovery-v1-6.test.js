@@ -30,6 +30,53 @@ function recoveryApp(state) {
   return { ctx, input, begin: file => ctx.beginGlobalOperation('restore', file), commit: () => ctx.commitGlobalOperation(ctx.globalOperation) };
 }
 
+function startupRecoveryApp() {
+  const source = fs.readFileSync(require.resolve('../js/app.js'), 'utf8');
+  const load = source.slice(source.indexOf('  async function loadState('), source.indexOf('  function reportStorageFailure('));
+  const status = source.slice(source.indexOf('  function compactState('), source.indexOf('  function assertGlobalSource('));
+  const ctx = { state: null, Core, TodoStorage: Storage, localStorage, STORAGE_KEY: 'todoAppData',
+    recovery: null, globalOperation: null, globalRecoveryNotice: null, normalizeState: Core.normalizeState,
+    globalNotice(message, retry) { ctx.globalRecoveryNotice = { message, retry }; }, renderToast() {},
+    console, saveState() { localStorage.setItem('todoAppData', JSON.stringify(ctx.state)); } };
+  vm.createContext(ctx); vm.runInContext(`${status}\n${load}`, ctx);
+  return ctx;
+}
+
+test('startup reports a retained recovery snapshot after valid state has loaded', async () => {
+  await Storage.clearAllForTests(); values.clear();
+  const current = Core.normalizeState({ version: 3, tasks: [{ id: 'task', title: 'Original' }], projects: [], tags: [], settings: {}, ui: {} });
+  localStorage.setItem('todoAppData', JSON.stringify(current));
+  await Storage.recoverySnapshots.put({ id: 'retained', reason: 'restore', phase: 'committed' });
+  const app = startupRecoveryApp();
+
+  const raw = await app.loadState();
+
+  assert.equal(app.recovery, null);
+  assert.equal(app.state.settings.backupStatus.snapshotAvailable, true);
+  assert.equal(JSON.parse(localStorage.getItem('todoAppData')).settings.backupStatus.snapshotAvailable, true);
+  assert.equal(raw, localStorage.getItem('todoAppData'), 'startup returns the persisted source including its status');
+  await app.globalRecoveryNotice.retry();
+  assert.equal(app.state.settings.backupStatus.snapshotAvailable, false);
+  assert.equal((await Storage.recoverySnapshots.listAll()).length, 0);
+});
+
+test('startup recovery cleanup never overwrites a newer workspace written during deletion', async () => {
+  await Storage.clearAllForTests(); values.clear();
+  const current = Core.normalizeState({ version: 3, tasks: [{ id: 'task', title: 'Original' }], projects: [], tags: [], settings: {}, ui: {} });
+  localStorage.setItem('todoAppData', JSON.stringify(current));
+  await Storage.recoverySnapshots.put({ id: 'retained', reason: 'reset', phase: 'committed' });
+  const app = startupRecoveryApp();
+  await app.loadState();
+  const newer = structuredClone(current); newer.tasks[0].title = 'NEWER DURING STARTUP CLEANUP';
+  const newerRaw = JSON.stringify(newer);
+  const remove = Storage.recoverySnapshots.deleteMany;
+  Storage.recoverySnapshots.deleteMany = async ids => { await remove(ids); localStorage.setItem('todoAppData', newerRaw); };
+  try { await app.globalRecoveryNotice.retry(); } finally { Storage.recoverySnapshots.deleteMany = remove; }
+
+  assert.equal(localStorage.getItem('todoAppData'), newerRaw);
+  assert.equal((await Storage.recoverySnapshots.listAll()).length, 0);
+});
+
 test('live restore confirmation lists V1.6 counts and keeps typed RESTORE safety copies through rollback', async () => {
   await Storage.clearAllForTests(); values.clear();
   const current = Core.normalizeState({ version: 3, tasks: [], projects: [], tags: [], areas: [], goals: [], habits: [], notes: [], resources: [], templates: [], savedViews: [], settings: {}, ui: {} });
