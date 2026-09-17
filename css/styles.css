@@ -224,6 +224,7 @@ select:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .calendar-day-detail .page-subtitle { margin: 0 0 20px; }
 .calendar-detail-summary { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin: -6px 0 18px; padding: 10px 12px; border: 1px solid var(--border-subtle); background: var(--surface-interactive); }
 .calendar-detail-summary > strong { font-size: 13px; white-space: nowrap; }
+.calendar-conflict-note { display:flex; align-items:center; gap:7px; margin:-8px 0 18px; padding:9px 11px; border:1px solid color-mix(in srgb, var(--warning) 45%, var(--border-subtle)); border-radius:var(--radius-sm); background:rgba(245,185,66,.08); color:var(--warning); font-size:12px; }
 .calendar-detail-items { max-height: 55vh; overflow-y: auto; margin-bottom: 24px; }
 .calendar-detail-section { display: grid; gap: 8px; margin-bottom: 18px; }
 .calendar-detail-section > h3 { margin: 0; padding-bottom: 6px; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
