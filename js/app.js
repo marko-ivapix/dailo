@@ -362,11 +362,15 @@
         globalNotice(`An interrupted operation needs recovery. ${interrupted.operationError || ''} ${interrupted.rollbackError || ''} Recovery copy retained. Retry recovery.`, () => rollbackGlobalOperation(op, new Error(interrupted.operationError || 'Interrupted operation')));
         return;
       }
-      if (retained.length) globalNotice('A temporary recovery copy remains after a completed or canceled operation. Retry cleanup.', async () => {
-        await TodoStorage.recoverySnapshots.deleteMany(retained.map(item => item.id));
-        if (globalOperation?.reason === 'cleanup') globalOperation = null;
-        globalRecoveryNotice = null; renderToast();
-      });
+      if (retained.length) {
+        updateBackupStatus({ snapshotAvailable: true, validationResult: 'Recovery copy retained; cleanup is required' });
+        globalNotice('A temporary recovery copy remains after a completed or canceled operation. Retry cleanup.', async () => {
+          await TodoStorage.recoverySnapshots.deleteMany(retained.map(item => item.id));
+          updateBackupStatus({ snapshotAvailable: false, validationResult: 'Recovery copy removed' });
+          if (globalOperation?.reason === 'cleanup') globalOperation = null;
+          globalRecoveryNotice = null; renderToast();
+        });
+      }
       preparingStorage = false;
       const sourceAtStart = localStorage.getItem(STORAGE_KEY);
       // Real events must still identify the current source. Synthetic events deliberately
@@ -3164,10 +3168,23 @@
     try { await cleanupGlobalSnapshot(op); } catch (error) { cleanupError = error; }
     globalOperation = null;
     if (returnFocus?.isConnected) returnFocus.focus();
-    if (cleanupError) globalNotice(`${message} Temporary backup cleanup failed: ${cleanupError.message}. Retry cleanup.`, async () => {
-      await cleanupGlobalSnapshot(op); globalRecoveryNotice = null; renderToast();
-    });
-    else setToastMessage(message);
+    if (cleanupError) {
+      const retained = `Recovery copy retained: ${cleanupError.message}`;
+      updateBackupStatus({ snapshotAvailable: true, validationResult: retained });
+      globalNotice(`${message} Temporary backup cleanup failed: ${cleanupError.message}. Retry cleanup.`, async () => {
+        try {
+          await cleanupGlobalSnapshot(op);
+          updateBackupStatus({ snapshotAvailable: false, validationResult: 'Backup validation canceled; recovery copy removed' });
+          globalRecoveryNotice = null; renderToast();
+        } catch (error) {
+          updateBackupStatus({ snapshotAvailable: true, validationResult: `Recovery copy retained: ${error.message}` });
+          throw error;
+        }
+      });
+    } else {
+      updateBackupStatus({ snapshotAvailable: false, validationResult: 'Backup validation canceled; recovery copy removed' });
+      setToastMessage(message);
+    }
   }
 
   async function undoSelectiveRestore(op) {

@@ -55,6 +55,28 @@ test('live restore confirmation lists V1.6 counts and keeps typed RESTORE safety
   assert.equal(app.ctx.state.settings.backupStatus.validationResult, 'Import failed; original data restored and verified');
 });
 
+test('cancelled restore keeps recovery status available until cleanup retry succeeds', async () => {
+  await Storage.clearAllForTests(); values.clear();
+  const current = Core.normalizeState({ version: 3, tasks: [], projects: [], tags: [], areas: [], goals: [], habits: [], notes: [], resources: [], templates: [], savedViews: [], settings: {}, ui: {} });
+  localStorage.setItem('todoAppData', JSON.stringify(current));
+  const payload = await Backup.exportBackupV3(current, { attachments: { getMany: async () => [] }, habitLogs: { listAll: async () => [] }, goalHistory: { listAll: async () => [] } }, '2026-09-17T10:00:00.000Z');
+  const app = recoveryApp(current);
+  await app.begin(payload);
+  const remove = Storage.recoverySnapshots.deleteMany;
+  let fail = true;
+  Storage.recoverySnapshots.deleteMany = async ids => { if (fail) throw new Error('cleanup denied'); return remove(ids); };
+  try {
+    await app.ctx.confirm.onCancel();
+    assert.equal(app.ctx.state.settings.backupStatus.snapshotAvailable, true);
+    assert.match(app.ctx.state.settings.backupStatus.validationResult, /retained/i);
+    fail = false;
+    await app.ctx.globalRecoveryNotice.retry();
+  } finally { Storage.recoverySnapshots.deleteMany = remove; }
+  assert.equal(app.ctx.state.settings.backupStatus.snapshotAvailable, false);
+  assert.match(app.ctx.state.settings.backupStatus.validationResult, /canceled.*removed/i);
+  assert.equal((await Storage.recoverySnapshots.listAll()).length, 0);
+});
+
 test('failed restore rolls V1.6 data back without leaving partial metadata or history', async () => {
   await Storage.clearAllForTests();
   const original = Core.normalizeState({ version: 3, settings: { todayFocusFilter: 'open' }, tasks: [{ id: 'task', title: 'Original', plannedTime: '09:00' }], projects: [], tags: [], areas: [], goals: [{ id: 'goal', title: 'Goal' }], habits: [{ id: 'habit', name: 'Habit' }], notes: [{ id: 'note', title: 'Note', body: 'Before', createdAt: '2026-09-17T10:00:00.000Z', updatedAt: '2026-09-17T10:00:00.000Z', linkUrls: [], tagIds: [], attachmentIds: [] }], resources: [], templates: [], savedViews: [], ui: {} });
