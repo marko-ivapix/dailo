@@ -1,5 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
 const Core = require('../js/core.js');
 
 test('Today filters are presentation-only and preserve section identity', () => {
@@ -11,4 +12,33 @@ test('Today filters are presentation-only and preserve section identity', () => 
   assert.deepEqual(Core.filterTodayTasks(sections, 'important').overdue.map(task => task.id), ['o']);
   assert.deepEqual(Core.filterTodayTasks(sections, 'completed').completed.map(task => task.id), ['c']);
   assert.deepEqual(sections.today.map(task => task.id), ['d']);
+});
+
+test('Today filters use an explicit projection date without mutating rows or arrays', () => {
+  const sections = {
+    overdue: [{ id: 'overdue', isCompleted: false, isImportant: true, dueDate: '2026-09-16' }],
+    today: [
+      { id: 'open', isCompleted: false, plannedDate: '2026-09-17' },
+      { id: 'due', isCompleted: false, isImportant: true, dueDate: '2026-09-17' },
+    ],
+    completed: [{ id: 'done', isCompleted: true, isImportant: true, completedAt: '2026-09-17T08:00:00Z', dueDate: '2026-09-17' }],
+    suggestions: [{ task: { id: 'suggested-due', isCompleted: false, dueDate: '2026-09-17' }, reason: 'due-today' }],
+  };
+  const snapshot = structuredClone(sections);
+  const ids = (filter, key) => Core.filterTodayTasks(sections, filter, '2026-09-17')[key].map(entry => (entry.task || entry).id);
+
+  assert.deepEqual(ids('all', 'today'), ['open', 'due']);
+  assert.deepEqual(ids('open', 'completed'), []);
+  assert.deepEqual(ids('completed', 'completed'), ['done']);
+  assert.deepEqual(ids('important', 'today'), ['due']);
+  assert.deepEqual(ids('dueToday', 'today'), ['due']);
+  assert.deepEqual(ids('dueToday', 'suggestions'), ['suggested-due']);
+  assert.deepEqual(Core.filterTodayTasks(sections, 'dueToday', '2026-09-18').today, []);
+  assert.deepEqual(sections, snapshot);
+  for (const key of ['overdue', 'today', 'completed', 'suggestions']) assert.notEqual(Core.filterTodayTasks(sections, 'all', '2026-09-17')[key], sections[key]);
+});
+
+test('Today filter uses the shared compact select styling', () => {
+  const app = fs.readFileSync(require.resolve('../js/app.js'), 'utf8');
+  assert.match(app, /<select class="filter-select" data-today-filter/);
 });

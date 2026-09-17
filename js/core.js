@@ -247,14 +247,14 @@
     };
   }
 
-  function filterTodayTasks(sections, filter) {
+  function filterTodayTasks(sections, filter, today = dateOnly()) {
     const activeFilter = ['all', 'open', 'completed', 'important', 'dueToday'].includes(filter) ? filter : 'all';
     const matches = task => {
       if (activeFilter === 'all') return true;
       if (activeFilter === 'open') return !task.isCompleted;
       if (activeFilter === 'completed') return Boolean(task.isCompleted);
       if (activeFilter === 'important') return Boolean(task.isImportant) && !task.isCompleted;
-      return task.dueDate === dateOnly() && !task.isCompleted;
+      return task.dueDate === today && !task.isCompleted;
     };
     const result = { ...sections };
     for (const key of ['overdue', 'today', 'completed', 'suggestions']) {
