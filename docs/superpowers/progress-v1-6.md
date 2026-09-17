@@ -51,3 +51,11 @@ Evidence:
 - Compact visual pass tightened Today, Inbox, Areas, Goals, Habits, Notes, Resources, Cleaning, popovers and modal spacing without changing data logic or entity semantics.
 - New focused tests: `tests/inbox-v1-6.test.js` and `tests/modal-ux-v1-6.test.js`; compact-layout coverage now includes mobile completion-column alignment and font-token validation.
 - Verification: focused UI set **9/9 passed**; full Node suite **203/203 passed**; all JavaScript syntax checks passed; `git diff --check` passed. Native browser interaction tests were not run because this pass intentionally avoided launching a browser.
+
+## Follow-up review fixes — Quick Add Inbox intent and local date grouping
+
+- Quick Add now marks newly created Goals, Habits, Notes and Resources with `isInbox: true`; ordinary dedicated creation flows and edits keep their existing behavior.
+- Inbox grouping converts timestamp captures through the user's local calendar date and uses the local weekday for Monday-based week boundaries.
+- Added regression coverage for Quick Add wiring and the reported Europe/Belgrade midnight/Monday cases.
+- Fresh whole-branch review approved the fixes with no critical or important findings.
+- Final verification: full Node suite **205/205 passed**, **45** JavaScript files passed syntax checks, and `git diff --check` passed. No browser was opened.
