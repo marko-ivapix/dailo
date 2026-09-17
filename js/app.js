@@ -1491,7 +1491,9 @@
 
   async function readOwnerAttachments(owner) {
     const records = await Attachments.getMany(owner.item.attachmentIds || []);
-    const scoped = { tasks: [], notes: [], resources: [], [owner.type === 'task' ? 'tasks' : knowledgeCollection(owner.type)]: [owner.item] };
+    const scoped = owner.type === 'task'
+      ? { tasks: [owner.item], notes: [], resources: [] }
+      : TodoStorage.knowledgeAttachmentSnapshot({ ...owner.item, type: owner.type });
     TodoStorage.verifyAttachmentReferences(scoped, records);
     return records.filter(record => TodoStorage.attachmentBelongsTo(record, owner) && !record.pendingDeleteUntil);
   }

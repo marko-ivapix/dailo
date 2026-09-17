@@ -221,6 +221,12 @@
     ];
   }
 
+  function knowledgeAttachmentSnapshot(record) {
+    if (!record || !['note', 'resource'].includes(record.type) || typeof record.id !== 'string' || !record.id.trim())
+      throw new Error('Invalid knowledge attachment owner');
+    return { tasks: [], notes: record.type === 'note' ? [record] : [], resources: record.type === 'resource' ? [record] : [] };
+  }
+
   function attachmentBelongsTo(record, owner) {
     return Boolean(record && (owner.type === 'task'
       ? record.taskId === owner.item.id && (record.ownerType == null || record.ownerType === 'task')
@@ -657,6 +663,7 @@
     restoreDeleteRecords,
     sameAttachmentRecord,
     attachmentOwners,
+    knowledgeAttachmentSnapshot,
     attachmentBelongsTo,
     verifyAttachmentReferences,
     migrateLegacyAttachments,

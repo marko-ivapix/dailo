@@ -1057,6 +1057,36 @@
     return `${date}T${time}:00`;
   }
 
+  function normalizeKnowledgeUrl(value) {
+    const source = typeof value === 'string' ? value.trim() : '';
+    if (!source) return null;
+    const candidate = /^[a-z][a-z\d+.-]*:/i.test(source) ? source : `https://${source}`;
+    try {
+      const url = new URL(candidate);
+      if (!['http:', 'https:', 'mailto:'].includes(url.protocol)) return null;
+      return (url.protocol !== 'mailto:' && url.pathname === '/' && !url.search && !url.hash) ? url.href.slice(0, -1) : url.href;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function validateKnowledgeRecord(record) {
+    const source = record && typeof record === 'object' && !Array.isArray(record) ? record : {};
+    const type = source.type;
+    const errors = [];
+    if (!['note', 'resource'].includes(type)) errors.push('type');
+    const title = typeof source.title === 'string' ? source.title.trim() : '';
+    if (!title) errors.push('title');
+    const suppliedUrls = Array.isArray(source.linkUrls) ? source.linkUrls : [];
+    const linkUrls = [...new Set(suppliedUrls.map(normalizeKnowledgeUrl).filter(Boolean))];
+    if (!Array.isArray(source.linkUrls) || suppliedUrls.some(url => typeof url !== 'string' || url.trim() && !normalizeKnowledgeUrl(url))) errors.push('linkUrls');
+    const suppliedAttachments = Array.isArray(source.attachmentIds) ? source.attachmentIds : [];
+    const attachmentIds = [...new Set(suppliedAttachments.filter(id => typeof id === 'string' && id.trim()).map(id => id.trim()))];
+    if (!Array.isArray(source.attachmentIds) || suppliedAttachments.some(id => typeof id !== 'string' || !id.trim())) errors.push('attachmentIds');
+    if (!linkUrls.length && !attachmentIds.length) errors.push('source');
+    return { valid: !errors.length, errors, normalized: { ...source, type, title, linkUrls, attachmentIds } };
+  }
+
   function effectiveTaskArea(task, projects) {
     if (!task || typeof task !== 'object') return null;
     if (!task.projectId) return task.areaId || null;
@@ -1323,6 +1353,7 @@
     normalizeShortcut,
     normalizeTime,
     combineDateTime,
+    validateKnowledgeRecord,
     normalizeTagName,
     validateTagName,
     validateAreaName,
