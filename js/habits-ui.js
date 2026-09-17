@@ -135,7 +135,8 @@
 
   function trackerDates(ctx) {
     const today = ctx.Core.dateOnly();
-    const current = new Date(`${today}T12:00:00`); const year = current.getFullYear(); const month = current.getMonth();
+    const monthKey = /^\d{4}-\d{2}$/.test(ctx.state.ui.habitTrackerMonth || '') ? ctx.state.ui.habitTrackerMonth : today.slice(0, 7);
+    const current = new Date(`${monthKey}-01T12:00:00`); const year = current.getFullYear(); const month = current.getMonth();
     const monthName = current.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     return Array.from({ length: 31 }, (_, index) => {
@@ -144,6 +145,12 @@
       const parsed = valid ? new Date(`${date}T12:00:00`) : null;
       return { date, day, valid, future: Boolean(date && date > today), weekday: parsed ? parsed.toLocaleDateString(undefined, { weekday: 'short' }).slice(0, 2) : '', week: Math.floor(index / 7) + 1, monthName };
     });
+  }
+
+  function shiftMonth(monthKey, amount) {
+    const date = new Date(`${monthKey}-01T12:00:00`);
+    date.setMonth(date.getMonth() + amount);
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
   }
 
   function trackerCompletion(ctx, habit, dates) {
@@ -192,7 +199,9 @@
       return `<div class="habit-tracker-row"><button class="habit-tracker-name" type="button" data-route="habit/${esc(habit.id)}"><i class="ph ${ROUTINE_DETAILS[habit.routine || 'daily'].icon}"></i><span><strong>${esc(habit.name)}</strong><small>${esc(ROUTINES[habit.routine || 'daily'])}</small></span></button><div class="habit-tracker-cells">${cells}</div><strong class="habit-tracker-percent">${trackerCompletion(ctx, habit, dates)}%</strong></div>`;
     }).join('');
     const breakdown = active.map(habit => `<div class="habit-analysis-bar"><span>${esc(habit.name)}</span><div><i style="--habit-bar-width:${trackerCompletion(ctx, habit, dates)}%"></i></div><strong>${trackerCompletion(ctx, habit, dates)}%</strong></div>`).join('');
-    return `<section class="habit-dashboard"><div class="habit-dashboard-head"><div><h2>Consistency</h2><p>${esc(dates[0].monthName)} · click any past day to update it</p></div><div class="habit-dashboard-summary"><span><strong>${todayDone}/${active.length}</strong> today</span><span><strong>${average}%</strong> month average</span><span><strong>${bestStreak}</strong> day streak</span></div></div><div class="habit-dashboard-body"><div class="habit-tracker-scroll"><div class="habit-tracker-canvas"><div class="habit-tracker-weekbar"><span></span>${weeksHead}<span></span></div><div class="habit-tracker-daybar"><span>Habit</span>${daysHead}<span>%</span></div>${rows}</div></div><aside class="habit-analysis"><div class="habit-analysis-head"><h3>Analysis</h3><span>Month to date</span></div><div class="habit-trend" aria-label="Weekly habit completion">${weekBar}</div><dl class="habit-analysis-list"><div><dt>Active habits</dt><dd>${active.length}</dd></div><div><dt>Checked today</dt><dd>${todayDone}</dd></div><div><dt>Best current streak</dt><dd>${bestStreak} days</dd></div></dl><div class="habit-analysis-breakdown">${breakdown}</div></aside></div></section>`;
+    const monthKey = dates[0].date?.slice(0, 7) || ctx.state.ui.habitTrackerMonth;
+    const currentMonth = today.slice(0, 7);
+    return `<section class="habit-dashboard"><div class="habit-dashboard-head"><div><h2>Consistency</h2><p>${esc(dates[0].monthName)} · ${monthKey === currentMonth ? 'click any past day to update it' : monthKey < currentMonth ? 'historical month · click any day to update it' : 'future month · check-ins unlock as days arrive'}</p></div><div class="habit-dashboard-head-actions"><div class="habit-month-navigation" aria-label="Habit tracker month"><button class="btn-icon" type="button" data-action="habit-month-shift" data-month-shift="-1" aria-label="Previous month"><i class="ph ph-caret-left"></i></button><strong>${esc(dates[0].monthName)}</strong><button class="btn-icon" type="button" data-action="habit-month-shift" data-month-shift="1" aria-label="Next month"><i class="ph ph-caret-right"></i></button>${monthKey !== currentMonth ? '<button class="btn btn-ghost" type="button" data-action="habit-month-today">Today</button>' : ''}</div><div class="habit-dashboard-summary"><span><strong>${todayDone}/${active.length}</strong> today</span><span><strong>${average}%</strong> month average</span><span><strong>${bestStreak}</strong> day streak</span></div></div></div><div class="habit-dashboard-body"><div class="habit-tracker-scroll"><div class="habit-tracker-canvas"><div class="habit-tracker-weekbar"><span></span>${weeksHead}<span></span></div><div class="habit-tracker-daybar"><span>Habit</span>${daysHead}<span>%</span></div>${rows}</div></div><aside class="habit-analysis"><div class="habit-analysis-head"><h3>Analysis</h3><span>${esc(dates[0].monthName)}</span></div><div class="habit-trend" aria-label="Weekly habit completion">${weekBar}</div><dl class="habit-analysis-list"><div><dt>Active habits</dt><dd>${active.length}</dd></div><div><dt>Checked today</dt><dd>${todayDone}</dd></div><div><dt>Best current streak</dt><dd>${bestStreak} days</dd></div></dl><div class="habit-analysis-breakdown">${breakdown}</div></aside></div></section>`;
   }
 
   function renderHabits(ctx) {
@@ -478,6 +487,8 @@
     if (action === 'read-habit-draft') { readHabitDraft(ctx); return true; }
     if (action === 'add-starter-examples') { addStarterExamples(ctx); return true; }
     if (action === 'habit-tab') { state.ui.habitTab = event.target.closest('[data-habit-tab]').dataset.habitTab; saveAndRender(); return true; }
+    if (action === 'habit-month-shift') { const monthShift = event.target.closest('[data-month-shift]')?.dataset.monthShift || 0; state.ui.habitTrackerMonth = shiftMonth(state.ui.habitTrackerMonth || Core.dateOnly().slice(0, 7), Number(monthShift)); saveAndRender(); return true; }
+    if (action === 'habit-month-today') { state.ui.habitTrackerMonth = Core.dateOnly().slice(0, 7); saveAndRender(); return true; }
     if (action === 'habit-property') { openHabitProperty(ctx, event.target.closest('[data-habit-property]')); return true; }
     const el = event?.target.closest('[data-action], [data-pop-action]');
     if (!el) return false;

@@ -173,6 +173,7 @@
         completedPeriod: 0,
         calendarView: 'week',
         calendarVisibility: { tasks: true, habits: true, goals: true, milestones: true },
+        habitTrackerMonth: Core.dateOnly().slice(0, 7),
       },
     };
   }
@@ -198,6 +199,8 @@
       recurrence: null,
       tagIds: [],
       priority: 'none',
+      isImportant: false,
+      isUrgent: false,
       attachmentIds: [],
       isInbox: false,
       isCompleted: false,
@@ -252,6 +255,7 @@
     next.ui.areaTab = ['all', 'active', 'archived'].includes(next.ui.areaTab) ? next.ui.areaTab : 'all';
     next.ui.calendarView = next.ui.calendarView === 'month' ? 'month' : 'week';
     next.ui.calendarVisibility = Object.fromEntries(['tasks', 'habits', 'goals', 'milestones'].map(type => [type, next.ui.calendarVisibility?.[type] !== false]));
+    next.ui.habitTrackerMonth = /^\d{4}-\d{2}$/.test(next.ui.habitTrackerMonth || '') ? next.ui.habitTrackerMonth : Core.dateOnly().slice(0, 7);
     next.tags = (next.tags || []).map((tag, i) => ({
       ...tag,
       id: tag.id || uid('tag'),
@@ -263,10 +267,12 @@
     next.tasks = next.tasks.map(t => ({
       notes: '', projectId: null, plannedDate: null, dueDate: null, reminderAt: null,
       reminderFiredAt: null, recurrence: null, tagIds: [], priority: 'none', attachmentIds: [], isInbox: false,
-      isCompleted: false, completedAt: null, subtasks: [], todayOrder: null,
+      isImportant: false, isUrgent: false, isCompleted: false, completedAt: null, subtasks: [], todayOrder: null,
       projectOrder: null, inboxOrder: null, createdAt: nowIso(), updatedAt: nowIso(), ...t,
       tagIds: Array.isArray(t.tagIds) ? t.tagIds : [],
       priority: ['none', 'low', 'medium', 'high'].includes(t.priority) ? t.priority : 'none',
+      isImportant: Boolean(t.isImportant),
+      isUrgent: Boolean(t.isUrgent),
       attachmentIds: Array.isArray(t.attachmentIds) ? t.attachmentIds : [],
       subtasks: (t.subtasks || []).map((s, i) => ({ ...s, id: s.id || uid('sub'), title: s.title || '', isCompleted: Boolean(s.isCompleted), order: Number.isFinite(s.order) ? s.order : i })),
     }));
@@ -903,14 +909,33 @@
 
   function renderUpcoming() {
     const today = Core.dateOnly();
-    const groups = Core.deriveUpcomingV3(state, today);
+    const baseGroups = Core.deriveUpcomingV3(state, today);
+    const groupsByDate = new Map(baseGroups.map(group => [group.date, { ...group, items: [...group.items], goals: [...(group.goals || [])], habits: [], milestones: [] }]));
+    const ensureGroup = date => {
+      if (!groupsByDate.has(date)) groupsByDate.set(date, { date, items: [], goals: [], habits: [], milestones: [] });
+      return groupsByDate.get(date);
+    };
+    const habitLogs = Object.values(state.habitLogCache || {}).flat();
+    for (let offset = 1; offset <= 14; offset += 1) {
+      const date = Core.addDays(today, offset);
+      for (const habit of state.habits || []) {
+        if (habit.status === 'active' && Core.habitScheduledOn(habit, date)) ensureGroup(date).habits.push({ habit, status: Core.habitStatusForDate(habit, habitLogs, date, today) });
+      }
+    }
+    for (const goal of state.goals || []) {
+      if (goal.status !== 'active') continue;
+      for (const milestone of goal.milestones || []) {
+        if (milestone.date > today && milestone.date <= Core.addDays(today, 14) && !milestone.isCompleted) ensureGroup(milestone.date).milestones.push({ goal, milestone });
+      }
+    }
+    const groups = [...groupsByDate.values()].filter(group => group.items.length || group.goals.length || group.habits.length || group.milestones.length).sort((a, b) => a.date.localeCompare(b.date));
     let html = pageHeader('Upcoming', 'Planned work and upcoming deadlines', {});
     if (!groups.length) return html + emptyState('Nothing scheduled.', 'Tasks you plan or set a due date for will appear here.');
     for (const group of groups) {
       const d = parseLocalDate(group.date);
       const rel = relativeDateLabel(group.date, today);
       const dayName = [today, Core.addDays(today, 1)].includes(group.date) ? rel : WEEKDAY_FMT.format(d);
-      html += `<section class="upcoming-group"><div class="group-date"><strong>${esc(dayName)}</strong><span>${esc(formatDate(group.date))}</span></div>${group.items.length ? `<div class="task-list">${group.items.map(item => taskRow(item.task, 'upcoming', { upcomingReason: item.displayReason })).join('')}</div>` : ''}${group.goals.length ? `<div><h2 class="section-label">Goals</h2><div class="goal-list">${group.goals.map(renderGoalRow).join('')}</div></div>` : ''}</section>`;
+      html += `<section class="upcoming-group"><div class="group-date"><strong>${esc(dayName)}</strong><span>${esc(formatDate(group.date))}</span></div>${group.items.length ? `<div class="task-list">${group.items.map(item => taskRow(item.task, 'upcoming', { upcomingReason: item.displayReason })).join('')}</div>` : ''}${group.habits.length ? `<div class="upcoming-subgroup"><h2 class="section-label">Habits</h2><div class="habit-list">${group.habits.map(item => renderHabitRow(item.habit)).join('')}</div></div>` : ''}${group.goals.length ? `<div class="upcoming-subgroup"><h2 class="section-label">Goals</h2><div class="goal-list">${group.goals.map(renderGoalRow).join('')}</div></div>` : ''}${group.milestones.length ? `<div class="upcoming-subgroup"><h2 class="section-label">Milestones</h2><div class="milestone-list">${group.milestones.map(({ goal, milestone }) => `<div class="milestone-row"><button class="check-toggle" type="button" data-action="toggle-milestone" data-goal-id="${esc(goal.id)}" data-milestone-id="${esc(milestone.id)}" aria-label="Complete milestone"><i class="ph ph-circle"></i></button><span><strong>${esc(milestone.title)}</strong><small>${esc(goal.title)}</small></span></div>`).join('')}</div></div>` : ''}</section>`;
     }
     return html;
   }
@@ -1891,7 +1916,7 @@
       id: uid('task'), title, notes: d.notes || '', projectId: d.projectId || null, areaId: d.projectId ? null : (d.areaId || null), goalIds: [...(d.goalIds || [])], plannedTime: d.plannedTime || null, dueTime: d.dueTime || null,
       plannedDate: resolvedPlan || null, dueDate: d.dueDate || null,
       reminderAt: d.reminderAt || null, reminderFiredAt: null, recurrence: d.recurrence || null, tagIds: [...new Set([...(d.tagIds || []), ...parsed.tagIds])], priority: parsed.priority || d.priority || 'none', attachmentIds: [], isInbox,
-      isCompleted: false, completedAt: null,
+      isImportant: false, isUrgent: false, isCompleted: false, completedAt: null,
       subtasks: d.subtasks.map((s, i) => ({ ...s, order: i })),
       todayOrder: resolvedPlan === Core.dateOnly() ? nextOrder('today') : null,
       projectOrder: d.projectId ? nextOrder(`project:${d.projectId}`) : null,
@@ -3228,6 +3253,7 @@
     else if (action === 'quick-add') openQuickAdd({ projectId: el.dataset.projectId || null, areaId: el.dataset.areaId || null, today: el.dataset.today === 'true', anytime: el.dataset.anytime === 'true' });
     else if (action === 'open-task') openTaskDetail(el.dataset.taskId);
     else if (action === 'open-focus') openFocusMode();
+    else if (action === 'open-focus-task') openFocusMode(el.dataset.taskId);
     else if (action === 'focus-complete') completeFocusTask(el.dataset.taskId);
     else if (action === 'focus-toggle-timer') toggleFocusTimer();
     else if (action === 'focus-reset-timer') resetFocusTimer();
@@ -3369,6 +3395,7 @@
     if (globalOperation) return;
     if (callDomainHook('handleInput', event) !== undefined) return;
     if (event.target.matches('[data-task-time]')) { updateTask(event.target.dataset.taskId, { [event.target.dataset.taskTime]: Core.normalizeTime(event.target.value) }, false); render(); return; }
+    if (event.target.matches('[data-task-flag]')) { const task = getTask(event.target.dataset.taskId); const field = event.target.dataset.taskFlag; if (task && ['isImportant', 'isUrgent'].includes(field)) { task[field] = event.target.checked; task.updatedAt = nowIso(); saveState(); render(); } return; }
     if (['attachment-input', 'attachment-image-input'].includes(event.target.id)) { receiveAttachmentFiles(event.target.dataset, [...event.target.files]); event.target.value=''; return; }
     if (event.target.id === 'backup-import-input') { const file=event.target.files?.[0]; event.target.value=''; if(file) inspectImportBackup(file); return; }
     if (event.target.id === 'completed-project-filter') {
