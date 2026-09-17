@@ -34,7 +34,7 @@ Evidence:
 - Review follow-up: backup-status persistence now checks the operation's in-memory source, compact state, and raw localStorage identity before it writes. A stale restore preparation therefore leaves a newer workspace byte-for-byte intact. A second live regression confirms invalid import preparation retains `snapshotAvailable: true` when snapshot cleanup fails and a physical recovery copy remains.
 - Final review follow-up: export and rollback status paths now use their own captured source tokens, so another-tab writes during export or Undo resume remain byte-for-byte intact. Export derives retained recovery-copy availability from storage on both success and failure; rollback cleanup retry clears availability only after deletion succeeds.
 - Startup recovery follow-up: retained-copy status is reconciled only after a validated state is loaded; cleanup Retry captures a fresh status source after ordinary edits and still rejects concurrent-tab overwrites. Focused startup recovery checks now cover both cases.
-- Focused backup/recovery regression: **31 passed, 0 failed, 0 skipped**.
+- Focused backup/recovery regression: **33 passed, 0 failed, 0 skipped**.
 - Focused `recovery-v1-6` regression: **11 passed, 0 failed, 0 skipped**; the complete backup/recovery set remains green.
 - Full Node suite: `node --test tests/*.test.js` — **195 passed, 0 failed, 0 skipped**.
 - JavaScript syntax: `node --check` passed for **44** files under `js/`, `vendor/`, and `tests/`.
