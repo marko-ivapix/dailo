@@ -226,14 +226,34 @@
   }
 
   function deriveUpcomingV3(state, today) {
-    const groups = new Map(deriveUpcoming(state.tasks || [], today).map(group => [group.date, { ...group, goals: [] }]));
+    const groups = new Map(deriveUpcoming(state.tasks || [], today).map(group => [group.date, { ...group, goals: [], habits: [], milestones: [] }]));
+    const horizonEnd = addDays(today, 14);
+    const ensureGroup = date => {
+      if (!groups.has(date)) groups.set(date, { date, items: [], goals: [], habits: [], milestones: [] });
+      return groups.get(date);
+    };
     for (const goal of state.goals || []) {
       if (goal.status !== 'active' || !goal.targetDate || goal.targetDate <= today) continue;
-      if (!groups.has(goal.targetDate)) groups.set(goal.targetDate, { date: goal.targetDate, items: [], goals: [] });
-      groups.get(goal.targetDate).goals.push(goal);
+      ensureGroup(goal.targetDate).goals.push(goal);
+      for (const milestone of goal.milestones || []) {
+        if (!milestone?.date || milestone.date <= today || milestone.date > horizonEnd || milestone.isCompleted) continue;
+        ensureGroup(milestone.date).milestones.push({ goal, milestone });
+      }
+    }
+    for (const habit of state.habits || []) {
+      if (habit.status !== 'active') continue;
+      for (let offset = 1; offset <= 14; offset += 1) {
+        const date = addDays(today, offset);
+        if (!habitScheduledOn(habit, date)) continue;
+        ensureGroup(date).habits.push({ habit, date });
+        break;
+      }
     }
     return [...groups.values()].sort((a, b) => a.date.localeCompare(b.date)).map(group => ({
-      ...group, goals: group.goals.sort((a, b) => String(a.title).localeCompare(String(b.title))),
+      ...group,
+      goals: group.goals.sort((a, b) => String(a.title).localeCompare(String(b.title))),
+      habits: group.habits.sort((a, b) => String(a.habit.name || a.habit.title).localeCompare(String(b.habit.name || b.habit.title))),
+      milestones: group.milestones.sort((a, b) => String(a.milestone.title).localeCompare(String(b.milestone.title))),
     }));
   }
 

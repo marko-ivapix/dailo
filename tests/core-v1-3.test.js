@@ -312,9 +312,9 @@ test('today v3 keeps task sections and adds scheduled habits, overdue milestones
   assert.equal(JSON.stringify(state), before);
 });
 
-test('upcoming v3 preserves task groups and groups only future active goals without habits', () => {
-  const state = { tasks: [{ id: 'future', title: 'Future task', plannedDate: '2026-09-18', dueDate: '2026-09-19' }], habits: [{ id: 'habit', status: 'active', frequencyType: 'daily' }], goals: [
-    { id: 'g-future', title: 'Future goal', status: 'active', targetDate: '2026-09-18' },
+test('upcoming v3 groups future tasks, goals, habits, and milestones by next date', () => {
+  const state = { tasks: [{ id: 'future', title: 'Future task', plannedDate: '2026-09-18', dueDate: '2026-09-19' }], habits: [{ id: 'habit', name: 'Habit', status: 'active', frequencyType: 'daily', startDate: '2026-09-16' }], goals: [
+    { id: 'g-future', title: 'Future goal', status: 'active', targetDate: '2026-09-18', milestones: [{ id: 'm-future', title: 'Milestone', date: '2026-09-19', isCompleted: false }] },
     { id: 'g-only', title: 'Goal only', status: 'active', targetDate: '2026-09-17' },
     ...['paused','completed','archived'].map(status => ({ id: status, status, targetDate: '2026-09-20' })),
     { id: 'today', status: 'active', targetDate: '2026-09-16' },
@@ -322,11 +322,10 @@ test('upcoming v3 preserves task groups and groups only future active goals with
     { id: 'undated', status: 'active', targetDate: null },
   ] };
   const groups = Core.deriveUpcomingV3(state, '2026-09-16');
-  assert.deepEqual(groups.map(group => [group.date, group.items.map(item => item.task.id), group.goals.map(goal => goal.id)]), [
-    ['2026-09-17', [], ['g-only']], ['2026-09-18', ['future'], ['g-future']],
+  assert.deepEqual(groups.map(group => [group.date, group.items.map(item => item.task.id), group.goals.map(goal => goal.id), group.habits.map(item => item.habit.id), group.milestones.map(item => item.milestone.id)]), [
+    ['2026-09-17', [], ['g-only'], ['habit'], []], ['2026-09-18', ['future'], ['g-future'], [], []], ['2026-09-19', [], [], [], ['m-future']],
   ]);
   assert.deepEqual(groups[1].items, Core.deriveUpcoming(state.tasks, '2026-09-16')[0].items);
-  assert.equal(groups.some(group => group.habits), false);
 });
 
 test('today v3 derives numeric partial and completed status from transient logs', () => {
