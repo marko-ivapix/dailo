@@ -1519,7 +1519,7 @@
   }
 
   async function addAttachments(descriptor, files) {
-    const owner = attachmentOwner(descriptor); if (!owner || !Attachments || undoHold) return;
+    const owner = attachmentOwner(descriptor); if (!owner || !Attachments || undoHold) return { message: 'Attachments are unavailable in this browser.', added: 0, failed: 1 };
     const task = owner.item, source = state;
     const { valid, tooLarge, countRejected } = selectAttachmentFiles(files, task.attachmentIds.length);
     let added = 0, failed = 0;
@@ -1527,16 +1527,21 @@
       const id = uid('att'); const ts = nowIso();
       const identity = owner.type === 'task' ? { taskId: task.id } : { ownerType: owner.type, ownerId: task.id };
       const record = { id, ...identity, fileName: file.name || 'attachment', mimeType: file.type || 'application/octet-stream', size: file.size, blob: file, createdAt: ts, updatedAt: ts, pendingDeleteUntil: null };
+      let stored = false;
       try {
         if (source !== state || attachmentOwner({ ownerType: owner.type, ownerId: task.id })?.item !== task || undoHold || task.attachmentIds.length >= MAX_ATTACHMENTS_PER_TASK) throw new Error('Attachment owner changed. Reopen the item.');
         await Attachments.put(record);
+        stored = true;
         if (source !== state || attachmentOwner({ ownerType: owner.type, ownerId: task.id })?.item !== task || undoHold || task.attachmentIds.length >= MAX_ATTACHMENTS_PER_TASK) throw new Error('Attachment owner changed. Reopen the item.');
         task.attachmentIds = [...(task.attachmentIds || []), id];
         task.updatedAt = nowIso();
         added++;
-      } catch (error) { failed++; console.error(error); }
+      } catch (error) {
+        failed++; console.error(error);
+        if (stored) await Attachments.deleteMany([id]).catch(cleanupError => console.error(cleanupError));
+      }
     }
-    if (source === state) saveState();
+    if (source === state && !descriptor.deferSave) saveState();
     knowledgeAttachmentCache.delete(owner.type + ':' + task.id);
     const parts = attachmentMessages(added, tooLarge, countRejected);
     if (failed) parts.push('Attachments are unavailable in this browser.');
@@ -1545,7 +1550,7 @@
       await loadOwnerAttachments({ ownerType: owner.type, ownerId: task.id });
     }
     if (state) render();
-    return parts.join(' ');
+    return { message: parts.join(' '), added, failed };
   }
 
   function selectAttachmentFiles(files, count) {

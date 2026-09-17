@@ -68,3 +68,32 @@ test('Notes editor requires a Name plus a normalized link or an attachment', () 
   action('save-knowledge');
   assert.deepEqual(state.notes.map(note => ({ title: note.title, linkUrls: note.linkUrls })), [{ title: 'Scratch', linkUrls: ['https://example.com'] }]);
 });
+
+test('new attachment-only Notes and Resources roll back when every upload fails', async () => {
+  for (const type of ['note', 'resource']) {
+    let adapter;
+    vm.runInNewContext(fs.readFileSync(require.resolve('../js/knowledge.js'), 'utf8'), {
+      window: { TodoDomainModules: { register: value => { adapter = value; } } }, requestAnimationFrame: fn => fn(), URL,
+    });
+    const state = { notes: [], resources: [], areas: [], tags: [], tasks: [], projects: [], goals: [], habits: [], ui: {} };
+    let saveCalls = 0;
+    const inputs = {
+      '#knowledge-title': { value: 'Upload only' }, '#knowledge-text': { value: '' }, '#knowledge-clip': { value: '' }, '#knowledge-favorite': { checked: false }, '#knowledge-area': { value: '' }, '#knowledge-link': { value: '' },
+      '#knowledge-resource-type': { value: 'article' }, '#knowledge-resource-status': { value: 'unread' }, '#knowledge-author': { value: '' }, '#knowledge-reviewed-at': { value: '' },
+    };
+    const context = {
+      Core, state, undoHold: null, knowledgeCollection: value => value === 'note' ? 'notes' : 'resources',
+      modalState: { type: 'knowledge', ownerType: type, ownerId: null, source: null, busy: false, pendingFiles: [{ name: 'only-source.png' }], draft: { title: 'Upload only', text: '', areaId: null, linkUrls: [], linkDraft: '', tagIds: [], favorite: false, clip: '', resourceType: 'article', resourceStatus: 'unread', author: '', reviewedAt: '', relatedTaskIds: [], relatedProjectIds: [], relatedGoalIds: [], relatedHabitIds: [] } },
+      attachmentOwner: ({ ownerType, ownerId }) => { const item = state[ownerType === 'note' ? 'notes' : 'resources'].find(entry => entry.id === ownerId); return item ? { type: ownerType, item } : null; },
+      renderModal() {}, getArea: () => null, nowIso: () => '2026-09-17T12:00:00Z', uid: () => `${type}-1`, copyTemplate: value => structuredClone(value),
+      $: selector => inputs[selector], $$: () => [], saveState: () => { saveCalls++; return true; }, addAttachments: async descriptor => { assert.equal(descriptor.deferSave, true); return { added: 0, message: 'Attachments are unavailable in this browser.' }; },
+      closeModal() { context.closed = true; }, navigate() { context.navigated = true; }, setToastMessage() {},
+    };
+    adapter.handleAction('save-knowledge', { target: { closest: () => ({ dataset: { ownerType: type } }) } }, context);
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.equal(state[type === 'note' ? 'notes' : 'resources'].length, 0, type);
+    assert.equal(saveCalls, 0, type);
+    assert.equal(context.closed, undefined, type);
+    assert.match(context.modalState.error, /could not be stored/i, type);
+  }
+});

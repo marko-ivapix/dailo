@@ -153,6 +153,7 @@
       || d.reviewedAt && (!context.Core.parseDateOnly(d.reviewedAt) || context.Core.dateOnly(context.Core.parseDateOnly(d.reviewedAt)) !== d.reviewedAt))) {
       dialog.error = 'Choose a valid type, reading status and review date.'; renderModal(); return;
     }
+    const isNew = !dialog.source;
     const ts = nowIso(), item = dialog.source || { id: uid(type), createdAt: ts, attachmentIds: [] }, previous = copyTemplate(item);
     Object.assign(item, { title: checked.normalized.title, areaId: d.areaId, tagIds: [...new Set(d.tagIds || [])], linkUrls: checked.normalized.linkUrls, updatedAt: ts, [type === 'note' ? 'body' : 'description']: d.text });
     Object.assign(item, { favorite: Boolean(d.favorite), clip: d.clip || '' });
@@ -161,14 +162,28 @@
       if (d[field].some(id => !state[collection].some(candidate => candidate.id === id))) { Object.assign(item, previous); dialog.error = 'A related item changed. Reopen this Resource before saving.'; renderModal(); return; }
       item[field] = [...d[field]];
     }
-    if (!dialog.source) state[knowledgeCollection(type)].push(item);
-    if (!saveState()) {
+    const deferInitialSave = Boolean(isNew && !checked.normalized.linkUrls.length && dialog.pendingFiles.length);
+    if (isNew) state[knowledgeCollection(type)].push(item);
+    if (!deferInitialSave && !saveState()) {
       if (dialog.source) Object.assign(item, previous); else state[knowledgeCollection(type)].splice(state[knowledgeCollection(type)].indexOf(item), 1);
       dialog.error = 'Changes could not be saved locally. Try again.'; renderModal(); return;
     }
     dialog.busy = true;
     dialog.ownerId = item.id; dialog.source = item;
-    const fileMessage = dialog.pendingFiles.length ? await addAttachments({ ownerType: type, ownerId: item.id }, dialog.pendingFiles) : '';
+    const attachmentResult = dialog.pendingFiles.length ? await addAttachments({ ownerType: type, ownerId: item.id, deferSave: deferInitialSave }, dialog.pendingFiles) : null;
+    const fileMessage = typeof attachmentResult === 'string' ? attachmentResult : attachmentResult?.message || '';
+    if (isNew && !checked.normalized.linkUrls.length && dialog.pendingFiles.length && !attachmentResult?.added && !item.attachmentIds.length) {
+      state[knowledgeCollection(type)].splice(state[knowledgeCollection(type)].indexOf(item), 1);
+      dialog.ownerId = null; dialog.source = null; dialog.busy = false;
+      dialog.error = `Attachment upload failed. This ${knowledgeLabel(type)} could not be stored because it needs a URL, image, or attached file.`;
+      renderModal(); return;
+    }
+    if (deferInitialSave && !saveState()) {
+      state[knowledgeCollection(type)].splice(state[knowledgeCollection(type)].indexOf(item), 1);
+      dialog.ownerId = null; dialog.source = null; dialog.busy = false;
+      dialog.error = `This ${knowledgeLabel(type)} could not be stored locally. Try again.`;
+      renderModal(); return;
+    }
     if (context.modalState === dialog) { closeModal(); navigate(type + '/' + item.id); }
     if (fileMessage) setToastMessage(fileMessage);
   }
