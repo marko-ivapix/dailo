@@ -718,6 +718,32 @@ button.area-object:hover { background: var(--surface-interactive); }
 .goal-property .btn { justify-content:flex-start; text-align:start; overflow-wrap:anywhere; }
 .goal-property-editor { display:grid; gap:10px; max-width:480px; }
 .goal-property-editor .input { min-width:0; }
+.goal-dashboard { margin-top:22px; padding:18px; border:1px solid var(--border-subtle); border-radius:var(--radius-md); background:var(--surface-card-dark); }
+.goal-dashboard-head { display:flex; align-items:flex-start; justify-content:space-between; gap:18px; margin-bottom:18px; }
+.goal-dashboard-head h2 { margin:0; color:var(--text-primary); font:600 22px/1.1 var(--font-display); }
+.goal-dashboard-head p { margin:5px 0 0; color:var(--text-muted); font-size:12px; }
+.goal-dashboard-summary { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:8px 14px; color:var(--text-muted); font-size:12px; }
+.goal-dashboard-summary span { display:inline-flex; align-items:baseline; gap:5px; }
+.goal-dashboard-summary strong { color:var(--text-secondary); font-size:16px; font-variant-numeric:tabular-nums; }
+.goal-dashboard-summary .is-danger strong { color:var(--danger); }
+.goal-dashboard-body { display:grid; grid-template-columns:minmax(0,1fr) 220px; gap:20px; }
+.goal-dashboard-spotlights { display:grid; gap:6px; }
+.goal-dashboard-spotlight { display:grid; grid-template-columns:minmax(0,1fr) 40px; gap:4px 12px; padding:10px 8px; border:0; border-bottom:1px solid var(--border-subtle); background:transparent; color:inherit; text-align:left; cursor:pointer; }
+.goal-dashboard-spotlight:hover { background:var(--surface-interactive); }
+.goal-dashboard-spotlight > span { min-width:0; display:grid; gap:3px; }
+.goal-dashboard-spotlight strong { overflow:hidden; color:var(--text-secondary); text-overflow:ellipsis; white-space:nowrap; font-size:13px; font-weight:600; }
+.goal-dashboard-spotlight small { color:var(--text-muted); font-size:11px; }
+.goal-dashboard-spotlight > b { align-self:center; color:var(--primary-focus); font-size:13px; font-variant-numeric:tabular-nums; text-align:right; }
+.goal-dashboard-spotlight > i { grid-column:1 / -1; height:5px; overflow:hidden; border-radius:3px; background:var(--surface-interactive); }
+.goal-dashboard-spotlight > i > span { display:block; height:100%; border-radius:inherit; background:var(--primary-focus); }
+.goal-dashboard-analysis { padding-left:16px; border-left:1px solid var(--border-subtle); }
+.goal-dashboard-analysis h3 { margin:0 0 16px; color:var(--text-secondary); font-size:13px; font-weight:600; }
+.goal-dashboard-bars { display:grid; gap:12px; }
+.goal-dashboard-bar { display:grid; grid-template-columns:72px minmax(0,1fr) 20px; align-items:center; gap:8px; color:var(--text-muted); font-size:11px; }
+.goal-dashboard-bar > div { height:6px; overflow:hidden; border-radius:3px; background:var(--surface-interactive); }
+.goal-dashboard-bar i { display:block; width:var(--goal-bar-width); height:100%; border-radius:inherit; background:var(--accent); }
+.goal-dashboard-bar strong { color:var(--text-secondary); font-size:12px; font-variant-numeric:tabular-nums; text-align:right; }
+.goal-dashboard-analysis p { margin:18px 0 0; color:var(--text-muted); font-size:11px; line-height:1.45; }
 @media (max-width:700px) { .goal-property { grid-template-columns:1fr; gap:4px; } }
 .milestone-list { display:grid; gap:4px; }
 .milestone-row { min-height:50px; display:grid; grid-template-columns:32px minmax(0,1fr) 36px 36px; gap:8px; align-items:center; padding:6px; border-radius:var(--radius-sm); }
@@ -736,6 +762,8 @@ button.area-object:hover { background: var(--surface-interactive); }
 .goal-project-link { display:grid; gap:6px; padding:8px; border:1px solid var(--border-subtle); border-radius:var(--radius-sm); }
 .project-task-picker { display:grid; gap:5px; margin-left:24px; padding:8px; border-left:2px solid var(--primary-focus); background:var(--surface-interactive); }
 @media (max-width:700px) { .goal-form-grid { grid-template-columns:1fr; } .goal-progress-large { grid-template-columns:1fr; } }
+@media (max-width:850px) { .goal-dashboard-body { grid-template-columns:1fr; } .goal-dashboard-analysis { padding:16px 0 0; border-top:1px solid var(--border-subtle); border-left:0; } }
+@media (max-width:700px) { .goal-dashboard { padding:14px; } .goal-dashboard-head { display:grid; gap:12px; } .goal-dashboard-summary { justify-content:flex-start; } }
 
 /* V1.3 Habits */
 .habit-list { display:grid; gap:8px; }

@@ -32,6 +32,25 @@
     return `<article class="goal-row ${overdue ? 'is-overdue' : ''}" data-goal-id="${esc(goal.id)}"><button class="goal-open" type="button" data-route="goal/${esc(goal.id)}"><span class="goal-row-top"><strong>${esc(goal.title)}</strong><small class="goal-status goal-status--${esc(goal.status)} ${overdue ? 'is-overdue' : ''}">${esc(goalStatusLabel(goal))}</small></span><span class="goal-progress"><span style="width:${Math.max(0, Math.min(100, progress.percent))}%"></span></span><span class="goal-row-meta"><small class="goal-progress-label">${esc(goalProgressLabel(goal))}</small>${target}</span></button><button class="btn-icon" type="button" data-action="goal-menu" data-goal-id="${esc(goal.id)}" aria-label="Goal actions"><i class="ph ph-dots-three"></i></button></article>`;
   }
 
+  function renderGoalDashboard(ctx, goals) {
+    const { Core, esc, goalStatusLabel, goalProgressLabel } = ctx;
+    const active = goals.filter(goal => goal.status === 'active'); const today = Core.dateOnly();
+    const avg = active.length ? Math.round(active.reduce((sum, goal) => sum + Core.computeGoalProgress(goal, ctx.state, ctx.state.habitMetrics || {}).percent, 0) / active.length) : 0;
+    const dueSoon = active.filter(goal => goal.targetDate && goal.targetDate >= today && goal.targetDate <= Core.addDays(today, 7)).length;
+    const overdue = active.filter(goal => Core.isGoalOverdue(goal, today)).length;
+    const horizonBars = Object.entries(HORIZONS).map(([key, label]) => {
+      const count = active.filter(goal => normalizeHorizon(goal.horizon) === key).length;
+      const width = active.length ? Math.round((count / active.length) * 100) : 0;
+      return `<div class="goal-dashboard-bar"><span>${esc(label)}</span><div><i style="--goal-bar-width:${width}%"></i></div><strong>${count}</strong></div>`;
+    }).join('');
+    const spotlight = active.slice(0, 4).map(goal => {
+      const progress = Core.computeGoalProgress(goal, ctx.state, ctx.state.habitMetrics || {});
+      const milestoneDone = (goal.milestones || []).filter(milestone => milestone.isCompleted).length;
+      return `<button class="goal-dashboard-spotlight" type="button" data-route="goal/${esc(goal.id)}"><span><strong>${esc(goal.title)}</strong><small>${esc(goalProgressLabel(goal))} · ${milestoneDone}/${(goal.milestones || []).length} milestones</small></span><b>${Math.round(progress.percent)}%</b><i><span style="width:${Math.max(0, Math.min(100, progress.percent))}%"></span></i></button>`;
+    }).join('');
+    return `<section class="goal-dashboard"><div class="goal-dashboard-head"><div><h2>Goal pulse</h2><p>A quick view of what is moving and what needs attention.</p></div><div class="goal-dashboard-summary"><span><strong>${active.length}</strong> active</span><span><strong>${avg}%</strong> average</span><span class="${overdue ? 'is-danger' : ''}"><strong>${overdue}</strong> overdue</span><span><strong>${dueSoon}</strong> next 7 days</span></div></div><div class="goal-dashboard-body"><div class="goal-dashboard-spotlights">${spotlight || '<p class="area-empty-copy">No active goals to highlight.</p>'}</div><aside class="goal-dashboard-analysis"><h3>Horizons</h3><div class="goal-dashboard-bars">${horizonBars}</div><p>${esc(goalStatusLabel({ status: active.length ? 'active' : 'paused' }))} goals are grouped by short, mid and long-term direction.</p></aside></div></section>`;
+  }
+
   function renderGoals(ctx) {
     const { state, Core, pageHeader, emptyState } = ctx;
     const tab = ['active', 'all', 'archived', 'month'].includes(state.ui.goalTab) ? state.ui.goalTab : 'active';
@@ -54,6 +73,7 @@
       return html + renderGoalSection(ctx, 'Undated', undated, 'No undated active goals.', { icon: 'ph-calendar-x', copy: 'Active goals without a target date.', className: 'goal-group--undated' });
     }
     if (!goals.length) return html + emptyState('No goals here yet.', 'Create a goal to track a meaningful outcome.', 'New goal', 'new-goal');
+    if (tab === 'active') html += renderGoalDashboard(ctx, goals);
     return html + Object.entries(HORIZONS).map(([horizon, label]) => renderGoalSection(ctx, label, goals.filter(goal => normalizeHorizon(goal.horizon) === horizon), `No ${label.toLowerCase()} goals here.`, { ...HORIZON_DETAILS[horizon], className: `goal-group--${horizon}` })).join('');
   }
 
