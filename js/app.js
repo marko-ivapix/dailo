@@ -369,8 +369,9 @@
         const statusSource = { ...captureStatusSource(), raw: loadedSource };
         updateBackupStatus({ snapshotAvailable: true, validationResult: 'Recovery copy retained; cleanup is required' }, statusSource);
         globalNotice('A temporary recovery copy remains after a completed or canceled operation. Retry cleanup.', async () => {
+          const cleanupSource = captureStatusSource();
           await TodoStorage.recoverySnapshots.deleteMany(retained.map(item => item.id));
-          updateBackupStatus({ snapshotAvailable: false, validationResult: 'Recovery copy removed' }, statusSource);
+          updateBackupStatus({ snapshotAvailable: false, validationResult: 'Recovery copy removed' }, cleanupSource);
           if (globalOperation?.reason === 'cleanup') globalOperation = null;
           globalRecoveryNotice = null; renderToast();
         });

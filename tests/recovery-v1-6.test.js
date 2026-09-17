@@ -77,6 +77,25 @@ test('startup recovery cleanup never overwrites a newer workspace written during
   assert.equal((await Storage.recoverySnapshots.listAll()).length, 0);
 });
 
+test('startup recovery cleanup clears its status after a saved workspace edit', async () => {
+  await Storage.clearAllForTests(); values.clear();
+  const current = Core.normalizeState({ version: 3, tasks: [{ id: 'task', title: 'Original' }], projects: [], tags: [], settings: {}, ui: {} });
+  localStorage.setItem('todoAppData', JSON.stringify(current));
+  await Storage.recoverySnapshots.put({ id: 'retained', reason: 'restore', phase: 'committed' });
+  const app = startupRecoveryApp();
+  await app.loadState();
+
+  app.state.tasks[0].title = 'Edited after startup';
+  app.saveState();
+  await app.globalRecoveryNotice.retry();
+
+  const saved = JSON.parse(localStorage.getItem('todoAppData'));
+  assert.equal(saved.tasks[0].title, 'Edited after startup');
+  assert.equal(saved.settings.backupStatus.snapshotAvailable, false);
+  assert.equal(app.state.settings.backupStatus.snapshotAvailable, false);
+  assert.equal((await Storage.recoverySnapshots.listAll()).length, 0);
+});
+
 test('live restore confirmation lists V1.6 counts and keeps typed RESTORE safety copies through rollback', async () => {
   await Storage.clearAllForTests(); values.clear();
   const current = Core.normalizeState({ version: 3, tasks: [], projects: [], tags: [], areas: [], goals: [], habits: [], notes: [], resources: [], templates: [], savedViews: [], settings: {}, ui: {} });
