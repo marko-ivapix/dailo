@@ -51,3 +51,23 @@ test('backup validation rejects malformed V1.5 metadata', () => {
   state.tasks[0].durationMinutes = -1;
   assert.throws(() => Backup.validateDomain(state, [], []), /durationMinutes/);
 });
+
+test('Fractional numeric Habit targets survive ZIP round-trip and count targets stay whole', async () => {
+  await Storage.clearAllForTests();
+  const state = stateWithV15Fields();
+  Object.assign(state.habits[0], { trackingType: 'numeric', frequencyType: 'daily', targetValue: 2, minimumTarget: 0.5, idealTarget: 1 });
+  assert.doesNotThrow(() => Backup.validateDomain(state, [], []));
+  const zip = await Backup.exportBackupV3(state, Storage, '2026-09-17T12:00:00Z');
+  const restored = await Backup.inspectBackupV3(zip);
+  assert.equal(restored.state.habits[0].minimumTarget, 0.5);
+  assert.equal(restored.state.habits[0].idealTarget, 1);
+  for (const mode of [{ trackingType: 'checkbox', frequencyType: 'daily' }, { trackingType: 'numeric', frequencyType: 'timesPerWeek', timesPerWeek: 2 }]) {
+    Object.assign(state.habits[0], mode);
+    assert.throws(() => Backup.validateDomain(state, [], []), /minimumTarget/);
+  }
+  Object.assign(state.habits[0], { trackingType: 'numeric', frequencyType: 'daily' });
+  for (const invalid of [0, -0.5, Infinity, '0.5']) {
+    state.habits[0].minimumTarget = invalid;
+    assert.throws(() => Backup.validateDomain(state, [], []), /minimumTarget/);
+  }
+});

@@ -51,7 +51,7 @@ test('Goal numeric edits persist fractional current, target and unit without lif
   assert.equal(f.goal.status, 'active');
 });
 
-test('Habit minimum, ideal and grace controls save numbers and reject inverted or fractional targets', () => {
+test('Habit minimum, ideal and grace controls save numbers and reject inverted or invalid targets', () => {
   const f = fixture();
   for (const [field, value] of [['minimumTarget', '3'], ['idealTarget', '6'], ['graceDays', '2']]) {
     f.ctx.habitPropertyEditor = { habit: f.habit, field, value };
@@ -60,10 +60,31 @@ test('Habit minimum, ideal and grace controls save numbers and reject inverted o
   assert.equal(f.persisted().habits[0].minimumTarget, 3);
   assert.equal(f.persisted().habits[0].idealTarget, 6);
   assert.equal(f.persisted().habits[0].graceDays, 2);
-  for (const [field, value] of [['minimumTarget', '7'], ['idealTarget', '2'], ['graceDays', '-1'], ['minimumTarget', '1.5']]) {
+  for (const [field, value] of [['minimumTarget', '7'], ['idealTarget', '2'], ['graceDays', '-1'], ['minimumTarget', 'Infinity']]) {
     f.ctx.habitPropertyEditor = { habit: f.habit, field, value };
     f.adapters.habits.handleAction('save-habit-property', f.event, f.ctx);
     assert.ok(f.ctx.habitPropertyEditor.error);
+  }
+});
+
+test('Numeric Habit controls persist fractional targets while count-based Habits reject them', () => {
+  const f = fixture();
+  for (const [field, value] of [['minimumTarget', '0.5'], ['idealTarget', '1']]) {
+    f.ctx.habitPropertyEditor = { habit: f.habit, field, value };
+    f.adapters.habits.handleAction('save-habit-property', f.event, f.ctx);
+  }
+  assert.equal(f.habit.minimumTarget, 0.5, 'fractional input updates the numeric Habit');
+  assert.equal(f.persisted().habits[0].minimumTarget, 0.5);
+  assert.equal(f.persisted().habits[0].idealTarget, 1);
+  f.ctx.habitPropertyEditor = { habit: f.habit, field: 'minimumTarget', value: '0.5' };
+  assert.match(f.adapters.habits.renderRoute({ type: 'habit', id: 'h' }, f.ctx), /id="habit-detail-minimumTarget"[^>]*step="any"/);
+  for (const mode of [{ trackingType: 'checkbox', frequencyType: 'daily' }, { trackingType: 'numeric', frequencyType: 'timesPerWeek', timesPerWeek: 2 }]) {
+    Object.assign(f.habit, mode, { minimumTarget: 1, idealTarget: 2 });
+    for (const field of ['minimumTarget', 'idealTarget']) {
+      f.ctx.habitPropertyEditor = { habit: f.habit, field, value: '1.5' };
+      f.adapters.habits.handleAction('save-habit-property', f.event, f.ctx);
+      assert.ok(f.ctx.habitPropertyEditor.error);
+    }
   }
 });
 

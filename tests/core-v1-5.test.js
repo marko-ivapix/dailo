@@ -60,6 +60,22 @@ test('Habit target defaults preserve fractional numeric targets and weekly check
   assert.equal(weekly.status, 'ideal');
 });
 
+test('Numeric Habit custom targets survive normalization and calculate fractional achievement', () => {
+  const state = oldState();
+  state.habits = [{ id: 'h', name: 'Water', trackingType: 'numeric', frequencyType: 'daily', targetValue: 2, minimumTarget: 0.5, idealTarget: 1 }];
+  const habit = Core.normalizeState(state).habits[0];
+  assert.equal(habit.minimumTarget, 0.5);
+  assert.equal(habit.idealTarget, 1);
+  assert.equal(Core.getHabitTargetStatus(habit, 0.5).status, 'minimum');
+  assert.equal(Core.getHabitTargetStatus(habit, 1).status, 'ideal');
+  for (const mode of [{ trackingType: 'checkbox' }, { frequencyType: 'timesPerWeek', timesPerWeek: 2 }]) {
+    state.habits[0] = { ...habit, ...mode, minimumTarget: 0.5, idealTarget: 1.5 };
+    const normalized = Core.normalizeState(state).habits[0];
+    assert.equal(normalized.minimumTarget, null);
+    assert.equal(normalized.idealTarget, null);
+  }
+});
+
 test('getTimedTaskBlocks orders planned blocks and flags overlapping ranges', () => {
   const blocks = Core.getTimedTaskBlocks([
     { id: 'later', plannedDate: '2026-09-17', plannedTime: '10:00', durationMinutes: 30 },

@@ -28,3 +28,12 @@ Implementation complete; automated Node verification passed. Isolated browser pe
 - Browser visual and native persistence verification remains pending; Node tests exercise real UI module rendering/actions and the Core helpers but are not equivalent to browser reload verification.
 - Weekly/monthly cards are rolling 7/30-day summaries, counting periods whose last scheduled date falls within the window. Grace is informational and does not alter check-in success, recurrence, history or streak rules.
 - Search, bulk actions, lifecycle actions and historical/future-date mutation handlers were not changed.
+
+## Review fix — fractional numeric Habit targets
+
+- Numeric Habits outside the X-times-per-week schedule now accept positive finite fractional minimum/ideal targets, including 0.5/1.0, consistently in property inputs, save validation, Core normalization, achievement calculations and ZIP validation/import.
+- Checkbox and X-times-per-week minimum/ideal targets remain positive whole counts; grace days remain nonnegative whole days. Invalid values and inverted target pairs remain rejected by editors/backups.
+- RED: three focused regressions demonstrated that 0.5 was not saved by the editor, became null during normalization, and was rejected as `Invalid backup minimumTarget`.
+- GREEN: focused Core/UI/backup suite passed 19/19, including fractional ZIP round-trip and count-mode rejection cases.
+- Full Node suite passed 112/112; Core, Habit UI and backup syntax checks and `git diff --check` passed.
+- Browser and weekly/monthly wording items were not changed in this fix.

@@ -511,6 +511,12 @@
     return Number.isInteger(number) && number > 0 ? number : null;
   }
 
+  function habitTargetOrNull(habit, value) {
+    const number = Number(value);
+    const fractional = habit?.trackingType === 'numeric' && habit?.frequencyType !== 'timesPerWeek';
+    return Number.isFinite(number) && number > 0 && (fractional || Number.isInteger(number)) ? number : null;
+  }
+
   function normalizeState(input) {
     const migration = migrateStateV3(input);
     if (!migration.ok) throw new Error(migration.reason || 'invalid-state');
@@ -534,8 +540,8 @@
       unit: typeof goal.unit === 'string' ? goal.unit : '',
     }));
     state.habits = state.habits.map(habit => {
-      const minimumTarget = positiveIntegerOrNull(habit.minimumTarget);
-      const idealTarget = positiveIntegerOrNull(habit.idealTarget);
+      const minimumTarget = habitTargetOrNull(habit, habit.minimumTarget);
+      const idealTarget = habitTargetOrNull(habit, habit.idealTarget);
       return {
         ...habit,
         minimumTarget,
@@ -587,8 +593,8 @@
     const fallback = habit?.frequencyType === 'timesPerWeek'
       ? positiveIntegerOrNull(habit?.timesPerWeek) || 1
       : safeNumber(habit?.targetValue) > 0 ? safeNumber(habit.targetValue) : 1;
-    const minimumTarget = positiveIntegerOrNull(habit?.minimumTarget) || fallback;
-    const idealTarget = Math.max(minimumTarget, positiveIntegerOrNull(habit?.idealTarget) || minimumTarget);
+    const minimumTarget = habitTargetOrNull(habit, habit?.minimumTarget) || fallback;
+    const idealTarget = Math.max(minimumTarget, habitTargetOrNull(habit, habit?.idealTarget) || minimumTarget);
     const minimumMet = current >= minimumTarget;
     const idealMet = current >= idealTarget;
     return { current, minimumTarget, idealTarget, minimumMet, idealMet, status: idealMet ? 'ideal' : minimumMet ? 'minimum' : 'below-minimum' };
