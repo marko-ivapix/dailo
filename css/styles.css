@@ -909,6 +909,10 @@ button.area-object:hover { background: var(--surface-interactive); }
 /* Knowledge readability uses the incumbent section, list and form controls. */
 .knowledge-list { display: grid; gap: 8px; }
 .knowledge-row { min-height: 92px; }
+.knowledge-row-tags { display:inline-flex; flex-wrap:wrap; gap:4px; }
+.knowledge-row-tags em { border-left:2px solid var(--tag-color); padding-left:4px; color:var(--text-muted); font-style:normal; }
+.knowledge-tag-picker { display:flex; flex-wrap:wrap; gap:7px 12px; padding:8px 0 2px; }
+.knowledge-tag-picker label { display:inline-flex; align-items:center; gap:6px; color:var(--text-secondary); font-size:13px; }
 .knowledge-open { gap: 10px; }
 .knowledge-row-title { min-width: 0; display: flex; align-items: center; gap: 9px; }
 .knowledge-row-title > i { flex: 0 0 auto; color: var(--text-muted); font-size: 18px; }

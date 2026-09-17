@@ -286,7 +286,7 @@
       isPinned: Boolean(area.isPinned),
     }));
     for (const key of ['notes', 'resources']) next[key] = next[key].map(item => ({
-      ...item, createdAt: item.createdAt || nowIso(), updatedAt: item.updatedAt || nowIso(),
+      ...item, tagIds: Array.isArray(item.tagIds) ? [...new Set(item.tagIds.filter(id => typeof id === 'string'))] : [], createdAt: item.createdAt || nowIso(), updatedAt: item.updatedAt || nowIso(),
     }));
     next.goals = (next.goals || []).map(goal => ({
       title: '', areaId: null, horizon: 'short', status: 'active', progressMode: 'manual', progressType: 'percentage',
