@@ -802,6 +802,12 @@
     const original = String(rawTitle || '');
     const trimmed = original.trim();
     if (!trimmed) return { title: original, plannedDate: null };
+    const timed = trimmed.match(/^(.*?\S)\s+(?:at\s+)?(\d{2}:\d{2})$/i);
+    if (timed) {
+      const plannedTime = normalizeTime(timed[2]);
+      if (!plannedTime) return { title: original, plannedDate: null };
+      return { ...parseQuickPlanPhrase(timed[1], today), plannedTime };
+    }
     const match = trimmed.match(/^(.*\S)\s+(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)$/i);
     if (!match) return { title: original, plannedDate: null };
     const title = match[1].trim();

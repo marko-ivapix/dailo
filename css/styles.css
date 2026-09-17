@@ -943,3 +943,7 @@ button.area-object:hover { background: var(--surface-interactive); }
 .knowledge-attachment-message { margin: 4px 0 0; padding: 9px 10px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); background: var(--surface-interactive); }
 .knowledge-attachment-message.is-loading { color: var(--text-secondary); }
 .knowledge-attachment-message.is-error { border-color: rgba(240,82,82,.35); color: #FFB2B2; }
+/* Compact V1.5 daily focus and review surfaces. */
+.today-focus { border: 1px solid var(--border-subtle); padding: 16px; }
+.daily-review-stats { display: flex; flex-wrap: wrap; gap: 12px 24px; color: var(--text-secondary); font-size: 13px; }
+.task-actions [aria-pressed="true"] { color: var(--primary-focus); }
