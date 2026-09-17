@@ -558,6 +558,16 @@
         graceDays: Number.isInteger(Number(habit.graceDays)) && Number(habit.graceDays) >= 0 ? Number(habit.graceDays) : 0,
       };
     });
+    state.templates = (state.templates || []).map(template => {
+      const data = { ...(template.data || {}) };
+      if (template.type === 'task') {
+        const validDate = typeof data.scheduleDate === 'string' && parseDateOnly(data.scheduleDate) && dateOnly(parseDateOnly(data.scheduleDate)) === data.scheduleDate;
+        data.scheduleEnabled = data.scheduleEnabled === true && Boolean(validDate);
+        data.scheduleDate = validDate ? data.scheduleDate : null;
+        data.scheduleGeneratedOn = validDate && typeof data.scheduleGeneratedOn === 'string' && parseDateOnly(data.scheduleGeneratedOn) && dateOnly(parseDateOnly(data.scheduleGeneratedOn)) === data.scheduleGeneratedOn ? data.scheduleGeneratedOn : null;
+      }
+      return { ...template, data };
+    });
     state.notes = (state.notes || []).map(note => ({
       ...note, favorite: note.favorite === true, clip: typeof note.clip === 'string' ? note.clip : '',
     }));

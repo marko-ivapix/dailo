@@ -317,6 +317,16 @@
       trackingType: habit.trackingType === 'numeric' ? 'numeric' : 'checkbox',
       frequencyType: ['daily', 'weekdays', 'timesPerWeek', 'everyNDays'].includes(habit.frequencyType) ? habit.frequencyType : 'daily',
     }));
+    next.templates = (next.templates || []).map(template => {
+      const data = { ...(template.data || {}) };
+      if (template.type === 'task') {
+        const validDate = /^\d{4}-\d{2}-\d{2}$/.test(String(data.scheduleDate || '')) && Core.parseDateOnly(data.scheduleDate);
+        data.scheduleEnabled = data.scheduleEnabled === true && Boolean(validDate);
+        data.scheduleDate = validDate ? data.scheduleDate : null;
+        data.scheduleGeneratedOn = validDate && /^\d{4}-\d{2}-\d{2}$/.test(String(data.scheduleGeneratedOn || '')) ? data.scheduleGeneratedOn : null;
+      }
+      return { ...template, data };
+    });
     next.habitMetrics = next.habitMetrics || {};
     return Core.normalizeState(next);
   }
@@ -734,6 +744,8 @@
     const dashboard = state.settings.dashboard || {};
     const content = main.querySelector('.content'); if (!content) return;
     const cards = [...content.querySelectorAll(':scope > [data-dashboard-section]')];
+    const pins = new Set(dashboard.pinnedSectionIds || []);
+    cards.forEach(card => card.classList.toggle('is-dashboard-pinned', pins.has(card.dataset.dashboardSection)));
     const rank = new Map((dashboard.sectionOrder || []).map((id, index) => [id, index]));
     const ordered = [...cards].sort((a, b) => (rank.get(a.dataset.dashboardSection) ?? 99) - (rank.get(b.dataset.dashboardSection) ?? 99));
     const anchor = [...content.children].find(child => !child.dataset.dashboardSection);
@@ -829,7 +841,7 @@
     const focusTasks = focusIds.map(getTask);
     const plannedMinutes = sections.today.reduce((sum, task) => sum + (task.durationMinutes || 0), 0);
     const completedToday = state.tasks.filter(task => task.isCompleted && String(task.completedAt || '').slice(0, 10) === today);
-    const dashboardTools = id => `<span class="dashboard-tools"><button class="btn-icon" type="button" data-action="dashboard-move" data-dashboard-section="${id}" data-direction="up" aria-label="Move section up"><i class="ph ph-caret-up"></i></button><button class="btn-icon" type="button" data-action="dashboard-pin" data-dashboard-section="${id}" aria-label="Pin section"><i class="ph ph-push-pin"></i></button><button class="btn-icon" type="button" data-action="dashboard-move" data-dashboard-section="${id}" data-direction="down" aria-label="Move section down"><i class="ph ph-caret-down"></i></button></span>`;
+    const dashboardTools = id => `<span class="dashboard-tools"><button class="btn-icon" type="button" data-action="dashboard-move" data-dashboard-section="${id}" data-direction="up" aria-label="Move section up"><i class="ph ph-caret-up"></i></button><button class="btn-icon ${state.settings.dashboard?.pinnedSectionIds?.includes(id) ? 'is-active' : ''}" type="button" data-action="dashboard-pin" data-dashboard-section="${id}" aria-label="Pin section" aria-pressed="${state.settings.dashboard?.pinnedSectionIds?.includes(id) ? 'true' : 'false'}"><i class="ph ph-push-pin"></i></button><button class="btn-icon" type="button" data-action="dashboard-move" data-dashboard-section="${id}" data-direction="down" aria-label="Move section down"><i class="ph ph-caret-down"></i></button></span>`;
     html += `<section class="section today-focus" data-today-focus data-dashboard-section="focus" aria-labelledby="today-focus-heading"><div class="section-header"><h2 class="section-label" id="today-focus-heading">Daily focus</h2><span class="section-count">${focusTasks.length} / 3</span>${dashboardTools('focus')}</div>${focusTasks.length ? `<div class="task-list">${focusTasks.map(task => taskRow(task, 'focus')).join('')}</div>` : '<p class="area-empty-copy">Choose up to three open tasks using the focus button or Task properties.</p>'}</section>`;
     html += `<section class="section daily-review" data-daily-review data-dashboard-section="review" aria-labelledby="daily-review-heading"><div class="section-header"><h2 class="section-label" id="daily-review-heading">Daily review</h2>${dashboardTools('review')}</div><div class="daily-review-stats"><span data-daily-review-completed>${completedToday.length} completed today</span><span data-daily-review-open>${sections.today.length} unfinished planned tasks</span><span>${plannedMinutes} min planned remaining</span></div></section>`;
     html += `<section class="today-actions" data-today-actions="true" data-dashboard-section="actions" aria-labelledby="today-actions-heading"><div class="section-header"><h2 class="section-label" id="today-actions-heading">Daily actions</h2>${dashboardTools('actions')}</div><div class="today-actions-grid"><button class="today-action" type="button" data-route="inbox"><i class="ph ph-tray"></i><span>Inbox</span></button><button class="today-action" type="button" data-action="quick-add" data-today="true"><i class="ph ph-plus-circle"></i><span>Quick Add</span></button><button class="today-action" type="button" data-action="open-focus"><i class="ph ph-crosshair"></i><span>Focus</span></button><button class="today-action" type="button" data-route="calendar"><i class="ph ph-calendar"></i><span>Calendar</span></button><button class="today-action" type="button" data-action="add-starter-examples"><i class="ph ph-sparkle"></i><span>Populate workspace</span></button></div></section>`;
@@ -3793,7 +3805,6 @@
     try {
       while (startupQueue.length) {
         const loading = loadState(startupQueue.shift());
-        runScheduledTaskTemplates();
         render();
         const committedSource = await loading;
         render();
@@ -3806,6 +3817,7 @@
           startupQueue.unshift(undefined);
           continue;
         }
+        runScheduledTaskTemplates();
         render();
         checkReminders();
         if (Attachments && !undoHold) {
