@@ -716,6 +716,50 @@
     return { current, target: 100, percent: clampPercent(current) };
   }
 
+  function goalProgressSummary(goal, state = {}, habitMetrics = {}) {
+    const progress = computeGoalProgress(goal, state, habitMetrics);
+    const tasks = goalTaskSet(goal, state);
+    const habitLinks = (goal?.habitLinks || []).filter(link => link?.habitId);
+    const linkedTasks = {
+      total: tasks.length,
+      completed: tasks.filter(task => task.isCompleted).length,
+      open: tasks.filter(task => !task.isCompleted).length,
+    };
+    const linkedHabits = {
+      total: habitLinks.length,
+      complete: habitLinks.filter(link => {
+        const target = safeNumber(link.target);
+        return target > 0 && safeNumber(habitMetrics?.[link.habitId]?.[link.metric]) >= target;
+      }).length,
+      remaining: habitLinks.filter(link => {
+        const target = safeNumber(link.target);
+        return !(target > 0 && safeNumber(habitMetrics?.[link.habitId]?.[link.metric]) >= target);
+      }).length,
+    };
+    return {
+      ...progress,
+      remaining: Math.max(0, progress.target - progress.current),
+      linkedTasks,
+      linkedHabits,
+    };
+  }
+
+  function goalProgressHistory(goal, state = {}, range = {}) {
+    const source = Array.isArray(state?.goalHistory) ? state.goalHistory : Array.isArray(goal?.history) ? goal.history : [];
+    const start = typeof range === 'string' ? range : range?.start;
+    const end = typeof range === 'string' ? undefined : range?.end;
+    return source.filter(event => {
+      const date = String(event?.createdAt || '').slice(0, 10);
+      return event?.goalId === goal?.id && ['progressChanged', 'manualProgress'].includes(event.type) && date
+        && (!start || date >= start) && (!end || date <= end);
+    }).map(event => ({
+      id: event.id,
+      date: String(event.createdAt).slice(0, 10),
+      percent: clampPercent(safeNumber(event.data?.to ?? event.data?.value ?? event.data?.percent)),
+      type: event.type,
+    })).sort((a, b) => a.date.localeCompare(b.date) || String(a.id).localeCompare(String(b.id)));
+  }
+
   function isGoalOverdue(goal, today) {
     return Boolean(goal && goal.status === 'active' && goal.targetDate && goal.targetDate < today);
   }
@@ -1243,6 +1287,8 @@
     getHabitTargetStatus,
     getTimedTaskBlocks,
     computeGoalProgress,
+    goalProgressSummary,
+    goalProgressHistory,
     isGoalOverdue,
     goalReminderMoments,
     goalReminderDueMoments,

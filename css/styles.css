@@ -745,6 +745,13 @@ button.area-object:hover { background: var(--surface-interactive); }
 .goal-history-link { margin-left:auto; }
 .goal-progress-large { display:grid; grid-template-columns:86px minmax(0,1fr); align-items:center; gap:12px; }
 .goal-progress-large strong { color:var(--text-primary); font:600 24px/1 var(--font-display); }
+.goal-progress-history { padding:10px 12px; border:1px solid var(--border-subtle); border-radius:var(--radius-sm); color:var(--text-secondary); font-size:12px; }
+.goal-progress-history summary { cursor:pointer; color:var(--text-primary); font-weight:600; }
+.goal-progress-history p { margin:8px 0 0; }
+.goal-history-cards { display:flex; gap:8px; overflow-x:auto; padding-bottom:2px; }
+.goal-history-cards article { display:grid; gap:3px; min-width:88px; padding:10px; border:1px solid var(--border-subtle); border-radius:var(--radius-sm); background:var(--surface-card-dark); }
+.goal-history-cards strong { color:var(--text-primary); font:600 18px/1 var(--font-display); }
+.goal-history-cards small { color:var(--text-secondary); font-size:11px; }
 .goal-detail-actions { display:flex; gap:8px; flex-wrap:wrap; }
 .goal-properties { margin-block-end:24px; }
 .goal-property { display:grid; grid-template-columns:120px minmax(0,1fr); align-items:center; gap:12px; }
