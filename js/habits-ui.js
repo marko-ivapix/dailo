@@ -133,6 +133,58 @@
     return `<section class="section habit-group${groupClass}"><div class="section-header habit-group-header"><div class="habit-group-heading">${icon}<div><h2 class="section-label">${ctx.esc(label)}</h2>${copy}</div></div><span class="section-count">${habits.length}</span></div>${habits.length ? `<div class="habit-list">${habits.map(habit => renderHabitRow(ctx, habit)).join('')}</div>` : '<p class="area-empty-copy">No active habits in this routine.</p>'}</section>`;
   }
 
+  function trackerDates(ctx) {
+    const today = ctx.Core.dateOnly();
+    return Array.from({ length: 35 }, (_, index) => {
+      const date = ctx.Core.addDays(today, index - 34);
+      const parsed = new Date(`${date}T12:00:00`);
+      return { date, day: parsed.getDate(), weekday: parsed.toLocaleDateString(undefined, { weekday: 'short' }).slice(0, 2), week: Math.floor(index / 7) + 1 };
+    });
+  }
+
+  function trackerCompletion(ctx, habit, dates) {
+    const logs = ctx.state.habitLogCache?.[habit.id] || [];
+    let scheduled = 0; let score = 0;
+    for (const entry of dates) {
+      const status = ctx.Core.habitStatusForDate(habit, logs, entry.date, dates[dates.length - 1].date);
+      if (status.status === 'unscheduled') continue;
+      scheduled += 1;
+      score += Math.max(0, Math.min(1, Number(status.percent || (status.status === 'done' ? 100 : 0)) / 100));
+    }
+    return scheduled ? Math.round((score / scheduled) * 100) : 0;
+  }
+
+  function renderHabitDashboard(ctx, habits) {
+    const { Core, esc, habitMetrics } = ctx;
+    const dates = trackerDates(ctx); const today = dates[dates.length - 1].date;
+    const active = habits.filter(habit => habit.status === 'active');
+    const todayDone = active.filter(habit => {
+      const status = Core.habitStatusForDate(habit, ctx.state.habitLogCache?.[habit.id] || [], today, today);
+      return status.status === 'done';
+    }).length;
+    const completions = active.map(habit => trackerCompletion(ctx, habit, dates));
+    const average = completions.length ? Math.round(completions.reduce((sum, value) => sum + value, 0) / completions.length) : 0;
+    const bestStreak = active.reduce((best, habit) => Math.max(best, Number(habitMetrics(habit).currentStreak || 0)), 0);
+    const weeks = Array.from({ length: 5 }, (_, week) => {
+      const slice = dates.slice(week * 7, week * 7 + 7);
+      const values = active.map(habit => trackerCompletion(ctx, habit, slice));
+      return values.length ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length) : 0;
+    });
+    const weekBar = weeks.map((value, index) => `<div class="habit-trend-bar-wrap"><span class="habit-trend-value">${value}%</span><span class="habit-trend-bar" style="--habit-bar-height:${Math.max(6, value)}%" aria-label="Week ${index + 1}: ${value}%"></span><small>W${index + 1}</small></div>`).join('');
+    const weeksHead = Array.from({ length: 5 }, (_, index) => `<span style="grid-column:${2 + index * 7} / span 7">Week ${index + 1}</span>`).join('');
+    const daysHead = dates.map(entry => `<span title="${esc(entry.date)}">${entry.weekday}<b>${entry.day}</b></span>`).join('');
+    const rows = active.map(habit => {
+      const logs = ctx.state.habitLogCache?.[habit.id] || [];
+      const cells = dates.map(entry => {
+        const status = Core.habitStatusForDate(habit, logs, entry.date, today);
+        const percent = Math.round(Number(status.percent || (status.status === 'done' ? 100 : 0)));
+        return `<span class="habit-day-cell is-${esc(status.status)}" style="--habit-cell-fill:${Math.max(0, Math.min(100, percent))}%" title="${esc(entry.date)} · ${esc(status.status)}" aria-label="${esc(habit.name)} ${esc(entry.date)}: ${esc(status.status)}"></span>`;
+      }).join('');
+      return `<div class="habit-tracker-row"><button class="habit-tracker-name" type="button" data-route="habit/${esc(habit.id)}"><i class="ph ${ROUTINE_DETAILS[habit.routine || 'daily'].icon}"></i><span><strong>${esc(habit.name)}</strong><small>${esc(ROUTINES[habit.routine || 'daily'])}</small></span></button><div class="habit-tracker-cells">${cells}</div><strong class="habit-tracker-percent">${trackerCompletion(ctx, habit, dates)}%</strong></div>`;
+    }).join('');
+    return `<section class="habit-dashboard"><div class="habit-dashboard-head"><div><h2>Consistency</h2><p>Last five weeks across your active habits.</p></div><div class="habit-dashboard-summary"><span><strong>${todayDone}/${active.length}</strong> today</span><span><strong>${average}%</strong> average</span><span><strong>${bestStreak}</strong> day streak</span></div></div><div class="habit-dashboard-body"><div class="habit-tracker-scroll"><div class="habit-tracker-canvas"><div class="habit-tracker-weekbar"><span></span>${weeksHead}<span></span></div><div class="habit-tracker-daybar"><span>Habit</span>${daysHead}<span>%</span></div>${rows}</div></div><aside class="habit-analysis"><div class="habit-analysis-head"><h3>Analysis</h3><span>5 weeks</span></div><div class="habit-trend" aria-label="Weekly habit completion">${weekBar}</div><dl class="habit-analysis-list"><div><dt>Active habits</dt><dd>${active.length}</dd></div><div><dt>Checked today</dt><dd>${todayDone}</dd></div><div><dt>Best current streak</dt><dd>${bestStreak} days</dd></div></dl></aside></div></section>`;
+  }
+
   function renderHabits(ctx) {
     const { state, pageHeader, emptyState } = ctx;
     const tab = state.ui.habitTab || 'active';
@@ -141,6 +193,8 @@
     html += `<div class="area-tabs"><button type="button" data-habit-tab="active" class="${tab === 'active' ? 'is-active' : ''}">Active</button><button type="button" data-habit-tab="all" class="${tab === 'all' ? 'is-active' : ''}">All</button><button type="button" data-habit-tab="archived" class="${tab === 'archived' ? 'is-active' : ''}">Archived</button></div>`;
     if (!habits.length) return html + emptyState('No habits yet.', 'Track a repeatable behavior without turning it into a task.', 'New habit', 'new-habit');
     if (tab !== 'active') return html + `<div class="habit-list">${habits.map(habit => renderHabitRow(ctx, habit)).join('')}</div>`;
+    const activeHabits = habits.filter(habit => habit.status === 'active');
+    if (activeHabits.length) html += renderHabitDashboard(ctx, activeHabits);
     for (const [routine, label] of Object.entries(ROUTINES)) {
       html += renderHabitSection(ctx, label, habits.filter(habit => habit.status === 'active' && (habit.routine || 'daily') === routine), { ...ROUTINE_DETAILS[routine], className: `habit-group--${routine}` });
     }
