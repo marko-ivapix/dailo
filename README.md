@@ -276,13 +276,14 @@ Modal dialogs trap keyboard focus. Confirmation dialogs return focus to their tr
 
 ## Tests
 
-Run all current regression/integration checks. The browser command below uses a test-only adapter: on non-Linux hosts it redirects the unchanged V1.2 `/usr/bin/chromium` test launch path to Playwright's managed Chromium. It does not affect production code or direct execution of the original browser scripts.
+Run all current regression/integration checks. The browser commands below are optional developer/CI checks. This release verification does not launch an isolated Chromium and does not open or modify the user's personal Chrome; visual and interaction acceptance is intentionally user-owned.
 
-Install the pinned browser-test dependency and Chromium once in a worktree-local virtual environment:
+If you explicitly choose to run the historical browser harness in CI, install its pinned dependency in a worktree-local virtual environment:
 
 ```bash
 python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements-browser-tests.txt
+# CI-only: install the browser runtime used by the optional harness.
 .venv/bin/python -m playwright install chromium
 ```
 
@@ -305,7 +306,7 @@ node --check js/backup.js
 node --check js/app.js
 ```
 
-The V1.2 browser harness uses an in-memory test adapter enabled only by `window.__TODO_TEST_MEMORY_DB__`. The dedicated V1.3 storage-migration suite uses a temporary loopback server, a fresh managed Chromium context per test, and real IndexedDB. It verifies automatic non-destructive legacy Blob copying, schema/indexes, native Habit/date uniqueness, exact source-state preservation on failure, safety snapshots, Retry, reload, and partial V3 recovery. Contexts, browser and server are closed even on failure. Production defaults to real IndexedDB. `TodoApp.ready` can be awaited for startup migration and Habit hydration before interacting with the ready app.
+The optional browser harness uses an in-memory test adapter or a temporary loopback server with real IndexedDB. It is isolated CI tooling, not a production runtime requirement and not part of the user's Chrome session. Production defaults to real IndexedDB. `TodoApp.ready` can be awaited for startup migration and Habit hydration before interacting with the ready app.
 
 Goal creation keeps milestones, reminders and source-specific links under More. Nested editors change only the draft until Create/Save. Goal Detail offers inline title/Area/target/unit/date editors (Save or Enter to commit, Cancel or Escape to discard), dedicated progress-source/link/milestone/reminder panels, and a quick status menu. Switching progress source retains inactive relationships and manual values. The native Goal UX suite covers these controls, contextual/template dates, reciprocal links, cancellation, validation, focus, keyboard behavior and reload persistence.
 
