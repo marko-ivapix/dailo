@@ -6,7 +6,7 @@
 - Node suite: **138 passed, 0 failed** during final integration check.
 - Every `js/*.js` file passed `node --check`; `git diff --check` passed.
 - V1.1–V1.4 browser regressions and V1.5 browser coverage are intentionally not claimed here: this environment blocks the isolated browser runtime. Personal Chrome was never opened.
-- The V1.5 distributable ZIP is created from this worktree and checked with `unzip -t`.
+- The V1.5 distributable ZIP contains only `index.html`, README/overview, CSS, JavaScript, vendor assets, and user-relevant docs/requirements. It is written to both the worktree root and `/Users/marko.radicevic/Documents/Dailo simple/Dailo-v1.5-distributable.zip`, then checked with `unzip -t`.
 
 ## Deferred hardening
 
