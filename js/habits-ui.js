@@ -276,7 +276,7 @@
       ['daily', 'program-30-minutes', 'Program 30 minutes'], ['daily', 'read-learn-30-minutes', 'Read/learn 30 minutes'],
       ['night', 'beard-balm', 'Beard balm'], ['night', 'tomorrow-tasks', "Enter tomorrow's tasks"]
     ];
-    const addedAreas = [], addedHabits = [], addedProjects = [], addedTasks = [], addedGoals = [], addedNotes = [], addedResources = [];
+    const addedAreas = [], addedHabits = [], addedProjects = [], addedTasks = [], addedGoals = [], addedNotes = [], addedResources = [], addedTags = [];
     const timestamp = nowIso(), today = Core.dateOnly();
     const hasSampleOrName = (collection, sampleKey, name, field = 'name') => collection.some(item => item.sampleKey === sampleKey || normalizeName(item[field]) === normalizeName(name));
     const byName = (collection, name, field = 'name') => collection.find(item => normalizeName(item[field]) === normalizeName(name));
@@ -299,32 +299,69 @@
     const allAreas = [...state.areas, ...addedAreas];
     const workArea = byName(allAreas, 'Work');
     const healthArea = byName(allAreas, 'Health');
-    const projects = [
-      ['weekly-plan', 'Plan your week', workArea?.id || null],
-      ['health-baseline', 'Health baseline', healthArea?.id || null],
+    const homeArea = byName(allAreas, 'Home');
+    const travelArea = byName(allAreas, 'Travel');
+    const careerArea = byName(allAreas, 'Career');
+    const financeArea = byName(allAreas, 'Finance');
+    const personalGrowthArea = byName(allAreas, 'Personal Growth');
+    const familyArea = byName(allAreas, 'Family & Friends');
+    const tagSeeds = [
+      ['focus', 'Focus', '#4da3ff'], ['health', 'Health', '#6bd39b'], ['home', 'Home', '#f2b66d'],
+      ['review', 'Review', '#b69cff'], ['errands', 'Errands', '#f07b72'], ['planning', 'Planning', '#59c6c9']
     ];
-    for (const [key, name, areaId] of projects) {
+    for (const [key, name, color] of tagSeeds) {
+      const sampleKey = `${samplePrefix}:tag:${key}`;
+      if (hasSampleOrName(state.tags, sampleKey, name)) continue;
+      addedTags.push({ id: uid('tag'), sampleKey, name, color, createdAt: timestamp, updatedAt: timestamp });
+    }
+    const allTags = [...state.tags, ...addedTags];
+    const tagId = name => byName(allTags, name)?.id || null;
+    const projects = [
+      ['weekly-plan', 'Plan your week', workArea?.id || null, false],
+      ['health-baseline', 'Health baseline', healthArea?.id || null, false],
+      ['family-weekend', 'Family weekend', familyArea?.id || null, false],
+      ['home-reset', 'Home reset', homeArea?.id || null, false],
+      ['travel-planning', 'Travel planning', travelArea?.id || null, false],
+      ['career-portfolio', 'Career portfolio', careerArea?.id || null, false],
+      ['finance-review', 'Monthly finance review', financeArea?.id || null, false],
+      ['reading-path', 'Reading and learning path', personalGrowthArea?.id || null, false],
+      ['cleaning-living-room', 'Living Room', homeArea?.id || null, true],
+      ['cleaning-bathroom', 'Bathroom', homeArea?.id || null, true],
+      ['cleaning-kitchen', 'Kitchen', homeArea?.id || null, true],
+    ];
+    for (const [key, name, areaId, isCleaningRoom] of projects) {
       const sampleKey = `${samplePrefix}:project:${key}`;
       if (hasSampleOrName(state.projects, sampleKey, name)) continue;
-      addedProjects.push({ id: uid('project'), sampleKey, name, color: PROJECT_COLORS[addedProjects.length % PROJECT_COLORS.length], areaId, goalIds: [], order: state.projects.length + addedProjects.length, isArchived: false, archivedAt: null, createdAt: timestamp, updatedAt: timestamp });
+      addedProjects.push({ id: uid('project'), sampleKey, ...(isCleaningRoom ? { cleaningSampleKey: `cleaning:starter:${key.replace('cleaning-', '')}` } : {}), name, color: PROJECT_COLORS[addedProjects.length % PROJECT_COLORS.length], areaId, goalIds: [], order: state.projects.length + addedProjects.length, isArchived: false, archivedAt: null, isCleaningRoom, createdAt: timestamp, updatedAt: timestamp });
     }
     const allProjects = [...state.projects, ...addedProjects];
     const weeklyPlan = byName(allProjects, 'Plan your week');
     const tasks = [
-      ['today-priority', 'Choose today’s priority', { projectId: weeklyPlan?.id || null, plannedDate: today, todayOrder: 0 }],
-      ['overdue-follow-up', 'Follow up on an overdue commitment', { projectId: weeklyPlan?.id || null, dueDate: Core.addDays(today, -1) }],
-      ['due-soon-review', 'Review this week’s plan', { projectId: weeklyPlan?.id || null, dueDate: Core.addDays(today, 2) }],
+      ['today-priority', 'Choose today’s priority', { projectId: weeklyPlan?.id || null, plannedDate: today, todayOrder: 0, tagNames: ['Focus', 'Planning'] }],
+      ['overdue-follow-up', 'Follow up on an overdue commitment', { projectId: weeklyPlan?.id || null, dueDate: Core.addDays(today, -1), tagNames: ['Review'] }],
+      ['due-soon-review', 'Review this week’s plan', { projectId: weeklyPlan?.id || null, dueDate: Core.addDays(today, 2), tagNames: ['Review', 'Planning'] }],
+      ['family-dinner', 'Plan family dinner', { projectId: byName(allProjects, 'Family weekend')?.id || null, plannedDate: Core.addDays(today, 3), tagNames: ['Planning'] }],
+      ['book-doctor', 'Book annual health check', { projectId: byName(allProjects, 'Health baseline')?.id || null, dueDate: Core.addDays(today, 5), tagNames: ['Health'] }],
+      ['update-portfolio', 'Update portfolio homepage', { projectId: byName(allProjects, 'Career portfolio')?.id || null, plannedDate: Core.addDays(today, 1), tagNames: ['Focus'] }],
+      ['review-subscriptions', 'Review monthly subscriptions', { projectId: byName(allProjects, 'Monthly finance review')?.id || null, plannedDate: Core.addDays(today, 6), tagNames: ['Review'] }],
+      ['choose-destination', 'Choose a travel destination', { projectId: byName(allProjects, 'Travel planning')?.id || null, dueDate: Core.addDays(today, 10), tagNames: ['Planning'] }],
+      ['vacuum-living-room', 'Vacuum', { projectId: byName(allProjects, 'Living Room')?.id || null, plannedDate: today, dueDate: today, tagNames: ['Home'], cleaning: ['vacuum-living-room', 'weekly', 1] }],
+      ['dust-living-room', 'Dust surfaces', { projectId: byName(allProjects, 'Living Room')?.id || null, plannedDate: today, dueDate: today, tagNames: ['Home'], cleaning: ['dust-living-room', 'weekly', 1] }],
+      ['clean-bathroom', 'Clean bathroom', { projectId: byName(allProjects, 'Bathroom')?.id || null, plannedDate: today, dueDate: today, tagNames: ['Home'], cleaning: ['clean-bathroom', 'weekly', 1] }],
+      ['check-boiler', 'Check boiler', { projectId: byName(allProjects, 'Bathroom')?.id || null, plannedDate: today, dueDate: today, tagNames: ['Home', 'Review'], cleaning: ['check-boiler', 'monthly', 3] }],
+      ['wipe-counters', 'Wipe counters', { projectId: byName(allProjects, 'Kitchen')?.id || null, plannedDate: today, dueDate: today, tagNames: ['Home'], cleaning: ['wipe-counters', 'weekly', 1] }],
     ];
     for (const [key, title, extra] of tasks) {
       const sampleKey = `${samplePrefix}:task:${key}`;
       if (hasSampleOrName(state.tasks, sampleKey, title, 'title')) continue;
       const projectId = extra.projectId && allProjects.some(project => project.id === extra.projectId) ? extra.projectId : null;
-      addedTasks.push({ id: uid('task'), sampleKey, title, notes: '', projectId, areaId: projectId ? null : workArea?.id || null, goalIds: [], plannedDate: extra.plannedDate || null, plannedTime: null, dueDate: extra.dueDate || null, dueTime: null, reminderAt: null, reminderFiredAt: null, recurrence: null, tagIds: [], priority: 'none', attachmentIds: [], isInbox: !(projectId || extra.plannedDate), isCompleted: false, completedAt: null, subtasks: [], todayOrder: extra.todayOrder ?? null, projectOrder: projectId ? addedTasks.filter(task => task.projectId === projectId).length : null, inboxOrder: null, createdAt: timestamp, updatedAt: timestamp });
+      const id = uid('task'), cleaning = extra.cleaning;
+      addedTasks.push({ id, sampleKey, ...(cleaning ? { cleaningSampleKey: `cleaning:starter:${cleaning[0]}` } : {}), title, notes: '', projectId, areaId: projectId ? null : workArea?.id || null, goalIds: [], plannedDate: extra.plannedDate || null, plannedTime: null, dueDate: extra.dueDate || null, dueTime: null, reminderAt: null, reminderFiredAt: null, recurrence: cleaning ? Core.normalizeRecurrenceV3({ frequency: cleaning[1], interval: cleaning[2], endType: 'never', seriesId: id }) : null, tagIds: (extra.tagNames || []).map(tagId).filter(Boolean), priority: 'none', attachmentIds: [], isInbox: !(projectId || extra.plannedDate), isCompleted: false, completedAt: null, subtasks: [], todayOrder: extra.todayOrder ?? null, projectOrder: projectId ? addedTasks.filter(task => task.projectId === projectId).length : null, inboxOrder: null, createdAt: timestamp, updatedAt: timestamp });
     }
     const allHabits = [...state.habits, ...addedHabits];
-    const linkedProject = addedProjects[0];
-    const linkedTask = addedTasks.find(task => task.sampleKey === `${samplePrefix}:task:today-priority`);
-    const linkedHabit = addedHabits.find(habit => habit.sampleKey === 'area-routines-v1:habit:daily:program-30-minutes');
+    const linkedProject = byName(allProjects, 'Plan your week');
+    const linkedTask = [...state.tasks, ...addedTasks].find(task => task.sampleKey === `${samplePrefix}:task:today-priority`);
+    const linkedHabit = [...state.habits, ...addedHabits].find(habit => habit.sampleKey === 'area-routines-v1:habit:daily:program-30-minutes');
     const goalName = 'Build a sustainable weekly rhythm', goalKey = `${samplePrefix}:goal:weekly-rhythm`;
     if (!hasSampleOrName(state.goals, goalKey, goalName, 'title')) {
       const goal = { id: uid('goal'), sampleKey: goalKey, title: goalName, areaId: workArea?.id || null, horizon: 'short', status: 'active', progressMode: 'linkedTasks', progressType: 'percentage', currentValue: 0, targetValue: 100, unit: '', targetDate: Core.addDays(today, 14), projectLinks: linkedProject ? [{ projectId: linkedProject.id, contributionMode: 'allTasks', selectedTaskIds: [] }] : [], taskIds: linkedTask ? [linkedTask.id] : [], habitLinks: linkedHabit ? [{ habitId: linkedHabit.id, metric: 'totalCheckins', target: 7 }] : [], milestones: [], reminders: { sevenDaysBefore: false, threeDaysBefore: false, oneDayBefore: false, onTargetDate: false, time: '09:00' }, reminderFiredMoments: [], createdAt: timestamp, updatedAt: timestamp, completedAt: null };
@@ -334,13 +371,24 @@
       if (linkedHabit) linkedHabit.goalIds.push(goal.id);
     }
     const allGoals = [...state.goals, ...addedGoals];
+    const extraGoalSeeds = [
+      ['health-baseline', 'Complete my health baseline', healthArea?.id || null, 'mid', 'linkedTasks', byName(allProjects, 'Health baseline')],
+      ['travel-plan', 'Plan a restorative trip', travelArea?.id || null, 'long', 'manual', byName(allProjects, 'Travel planning')],
+    ];
+    for (const [key, title, areaId, horizon, progressMode, project] of extraGoalSeeds) {
+      const goalKey = `${samplePrefix}:goal:${key}`;
+      if (hasSampleOrName(state.goals, goalKey, title, 'title')) continue;
+      const goal = { id: uid('goal'), sampleKey: goalKey, title, areaId, horizon, status: 'active', progressMode, progressType: progressMode === 'manual' ? 'percentage' : 'linkedTasks', currentValue: 0, targetValue: 100, unit: '', targetDate: Core.addDays(today, horizon === 'long' ? 90 : 30), projectLinks: project ? [{ projectId: project.id, contributionMode: 'allTasks', selectedTaskIds: [] }] : [], taskIds: [], habitLinks: [], milestones: [], reminders: { sevenDaysBefore: false, threeDaysBefore: false, oneDayBefore: false, onTargetDate: false, time: '09:00' }, reminderFiredMoments: [], createdAt: timestamp, updatedAt: timestamp, completedAt: null };
+      addedGoals.push(goal);
+      if (project) project.goalIds = [...new Set([...(project.goalIds || []), goal.id])];
+    }
     const noteName = 'Weekly planning notes', noteKey = `${samplePrefix}:note:weekly-planning`;
     if (!hasSampleOrName(state.notes, noteKey, noteName, 'title')) addedNotes.push({ id: uid('note'), sampleKey: noteKey, title: noteName, body: 'Use this note to capture decisions, loose ends, and a short review for next week.', areaId: workArea?.id || null, linkUrls: [], attachmentIds: [], createdAt: timestamp, updatedAt: timestamp });
     const resourceName = 'Starter workspace guide', resourceKey = `${samplePrefix}:resource:workspace-guide`;
     const weeklyRhythmGoal = byName(allGoals, goalName, 'title');
     const programHabit = byName(allHabits, 'Program 30 minutes');
     if (!hasSampleOrName(state.resources, resourceKey, resourceName, 'title')) addedResources.push({ id: uid('resource'), sampleKey: resourceKey, title: resourceName, description: 'A lightweight reference connected to the starter workspace. Edit or delete it whenever you are ready.', areaId: workArea?.id || null, linkUrls: ['https://todoist.com/productivity-methods/weekly-planning'], attachmentIds: [], relatedTaskIds: linkedTask ? [linkedTask.id] : [], relatedProjectIds: weeklyPlan ? [weeklyPlan.id] : [], relatedGoalIds: weeklyRhythmGoal ? [weeklyRhythmGoal.id] : [], relatedHabitIds: programHabit ? [programHabit.id] : [], createdAt: timestamp, updatedAt: timestamp });
-    const additions = [[state.areas, addedAreas], [state.habits, addedHabits], [state.projects, addedProjects], [state.tasks, addedTasks], [state.goals, addedGoals], [state.notes, addedNotes], [state.resources, addedResources]];
+    const additions = [[state.areas, addedAreas], [state.tags, addedTags], [state.habits, addedHabits], [state.projects, addedProjects], [state.tasks, addedTasks], [state.goals, addedGoals], [state.notes, addedNotes], [state.resources, addedResources]];
     if (!additions.some(([, records]) => records.length)) { setToastMessage('Starter examples already present.'); return; }
     for (const [collection, records] of additions) collection.push(...records);
     if (!saveState()) {
@@ -353,7 +401,7 @@
     try {
       await refreshHabitMetrics();
       if (ctx.state !== state) return;
-      render(); setToastMessage(`Added ${addedAreas.length} Areas, ${addedProjects.length} Projects, ${addedTasks.length} Tasks, ${addedGoals.length} Goals, ${addedHabits.length} Habits, ${addedNotes.length} Notes and ${addedResources.length} Resources. All examples are editable.`);
+      render(); setToastMessage(`Added ${addedAreas.length} Areas, ${addedProjects.length} Projects, ${addedTasks.length} Tasks, ${addedGoals.length} Goals, ${addedHabits.length} Habits, ${addedTags.length} Tags, ${addedNotes.length} Notes and ${addedResources.length} Resources. All examples are editable.`);
     } catch (error) {
       console.error(error);
       if (ctx.state !== state) return;
