@@ -42,3 +42,20 @@ test('Today filter uses the shared compact select styling', () => {
   const app = fs.readFileSync(require.resolve('../js/app.js'), 'utf8');
   assert.match(app, /<select class="filter-select" data-today-filter/);
 });
+
+test('Today focus strip exposes counts and a single Today capture action', () => {
+  const app = fs.readFileSync(require.resolve('../js/app.js'), 'utf8');
+  assert.match(app, /data-today-focus-strip/);
+  assert.match(app, /data-today-open-count/);
+  assert.match(app, /data-today-completed-count/);
+  assert.match(app, /data-action="quick-add" data-today="true"/);
+});
+
+test('task rows retain existing handlers through compact affordance hooks', () => {
+  const tasksUi = fs.readFileSync(require.resolve('../js/tasks-ui.js'), 'utf8');
+  assert.match(tasksUi, /data-task-row-compact/);
+  assert.match(tasksUi, /data-task-compact-actions/);
+  assert.match(tasksUi, /data-action="toggle-focus-task"/);
+  assert.match(tasksUi, /data-action="task-plan-picker"/);
+  assert.match(tasksUi, /data-action="task-menu"/);
+});
