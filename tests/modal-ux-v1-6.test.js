@@ -39,3 +39,11 @@ test('Quick Add stays visible on desktop and keeps the same floating menu compos
   assert.match(css, /\.mobile-quick-add-menu \{ display: grid; justify-items: end;/);
   assert.match(css, /\.mobile-quick-add-option \{[\s\S]*?flex-direction: row-reverse;/);
 });
+
+test('mobile navigation provides the primary destinations at the bottom', () => {
+  assert.match(html, /id="mobile-bottom-nav" class="mobile-bottom-nav"/);
+  for (const route of ['today', 'inbox', 'calendar', 'goals', 'habits']) assert.match(html, new RegExp(`data-route="${route}"`));
+  assert.match(css, /\.mobile-bottom-nav \{ display: none; \}/);
+  assert.match(css, /@media \(max-width: 1023px\) \{[\s\S]*?\.mobile-bottom-nav \{[\s\S]*?position: fixed;[\s\S]*?display: grid;/);
+  assert.match(app, /function renderMobileBottomNav\(\)/);
+});

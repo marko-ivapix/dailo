@@ -549,6 +549,57 @@ select:focus-visible { outline: none; box-shadow: var(--focus-ring); }
   .sidebar-scroll { padding-inline: 10px; }
   .nav-item, .project-item, .sidebar-action { justify-content: center; padding-inline: 0; }
   .content { margin-left: 0; }
+  .main { padding-bottom: 88px; }
+
+  .mobile-bottom-nav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 80;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    min-height: 64px;
+    padding: 6px max(8px, env(safe-area-inset-left)) max(6px, env(safe-area-inset-bottom));
+    border-top: 1px solid var(--border-subtle);
+    background: rgba(16, 20, 28, .97);
+    box-shadow: 0 -8px 24px rgba(0,0,0,.22);
+  }
+  .mobile-bottom-nav[hidden] { display: none !important; }
+  .mobile-bottom-nav-item {
+    position: relative;
+    min-width: 0;
+    min-height: 52px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-muted);
+    display: grid;
+    place-items: center;
+    align-content: center;
+    gap: 3px;
+    padding: 5px 3px;
+    font: 500 11px/1.1 var(--font-ui);
+    cursor: pointer;
+  }
+  .mobile-bottom-nav-item i { font-size: 20px; line-height: 1; }
+  .mobile-bottom-nav-item.is-active { color: var(--text-primary); background: var(--surface-interactive); border-color: var(--border-default); }
+  .mobile-bottom-nav-item.is-active i { color: var(--primary-focus); }
+  .mobile-bottom-nav-item:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+  .mobile-bottom-nav-badge {
+    position: absolute;
+    top: 3px;
+    right: calc(50% - 23px);
+    min-width: 15px;
+    height: 15px;
+    padding: 0 4px;
+    border-radius: var(--radius-pill);
+    background: var(--primary);
+    color: #fff;
+    font: 600 9px/15px var(--font-ui);
+    text-align: center;
+  }
+  .mobile-bottom-nav-badge[hidden] { display: none; }
 }
 
 .mobile-quick-add {
@@ -608,6 +659,8 @@ select:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .mobile-quick-add.is-open .mobile-quick-add-toggle i { transform: rotate(45deg); }
 .mobile-quick-add-option:focus-visible,
 .mobile-quick-add-toggle:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+.mobile-bottom-nav { display: none; }
 
 @media (max-width: 700px) {
   :root { --content-gutter: 16px; }
@@ -1397,7 +1450,7 @@ body { font-size: 14px; line-height: 1.4; }
   .subtask-row > .complete-control.is-completed::before { border-color: var(--accent); background: var(--accent); }
   .task-row > .complete-control i,
   .subtask-row > .complete-control i { position: relative; z-index: 1; font-size: 12px; }
-  .main { padding: 14px var(--content-gutter) 32px; }
+  .main { padding: 14px var(--content-gutter) 88px; }
   .page-header { margin-bottom: 12px; padding-bottom: 8px; gap: 10px; }
   .page-title { font-size: 21px; }
   .page-actions { gap: 5px; }
@@ -1419,7 +1472,7 @@ body { font-size: 14px; line-height: 1.4; }
   .modal-backdrop-small-modal .modal,
   .modal-backdrop-task-detail-modal .modal { max-height: min(84vh, 680px); }
   .modal-backdrop-task-detail-modal .modal { max-height: min(88vh, 720px); }
-  .mobile-quick-add { right: max(12px, env(safe-area-inset-right)); bottom: max(12px, env(safe-area-inset-bottom)); gap: 9px; }
+  .mobile-quick-add { right: max(12px, env(safe-area-inset-right)); bottom: calc(70px + env(safe-area-inset-bottom)); gap: 9px; }
   .mobile-quick-add-menu { gap: 4px; }
   .mobile-quick-add-option { gap: 7px; font-size: 12px; }
   .mobile-quick-add-option span { padding: 5px 7px; }

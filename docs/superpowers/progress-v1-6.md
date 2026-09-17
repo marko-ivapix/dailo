@@ -66,3 +66,10 @@ Evidence:
 - Preserved the reference composition: circular action icons, labels aligned to the right of the icons, compact spacing, keyboard focus ring, and 44px touch targets. Narrow phones only receive tighter offsets and typography.
 - Added a regression check that prevents the root Quick Add from being reintroduced with `display: none` and confirms the shared desktop/mobile composition.
 - Verification after the responsive fix: full Node suite **206/206 passed**, all JavaScript syntax checks passed, and `git diff --check` passed. No browser was opened.
+
+## Mobile bottom navigation — primary route parity
+
+- Added a persistent bottom navigation bar for phone, tablet and mobile preview widths with Today, Inbox, Calendar, Goals and Habits destinations.
+- Active route state and the Inbox count are rendered from the same state used by the desktop sidebar; recovery mode hides the bar safely.
+- Quick Add now sits above the bottom bar on narrow screens, and main content receives enough bottom padding to avoid overlap.
+- Verification: full Node suite **207/207 passed**, all JavaScript syntax checks passed, and `git diff --check` passed. No browser was opened.

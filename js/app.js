@@ -739,11 +739,31 @@
       app.classList.remove('is-collapsed');
       $('#sidebar').innerHTML = '';
       $('#main').innerHTML = renderRecovery();
+      renderMobileBottomNav();
       return;
     }
     app.classList.toggle('is-collapsed', Boolean(state.ui.sidebarCollapsed));
     renderSidebar();
     renderMain();
+    renderMobileBottomNav();
+  }
+
+  function renderMobileBottomNav() {
+    const nav = $('#mobile-bottom-nav');
+    if (!nav) return;
+    nav.hidden = Boolean(recovery);
+    if (recovery || !state) return;
+    const route = currentRoute();
+    const moduleRoute = { goal: 'goals', habit: 'habits' }[route.type] || route.type;
+    nav.querySelectorAll('[data-route]').forEach(button => {
+      const active = button.dataset.route === moduleRoute;
+      button.classList.toggle('is-active', active);
+      if (active) button.setAttribute('aria-current', 'page');
+      else button.removeAttribute('aria-current');
+    });
+    const badge = $('#mobile-inbox-badge');
+    const count = activeInboxRecords('all').length;
+    if (badge) { badge.textContent = count > 99 ? '99+' : String(count); badge.hidden = count === 0; }
   }
 
   function renderSidebar() {
