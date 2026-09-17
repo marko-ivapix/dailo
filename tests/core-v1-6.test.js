@@ -22,6 +22,7 @@ test('V1.6 migration preserves records, does not mutate input, and is idempotent
   const once = Core.migrateStateV16(source);
   const twice = Core.migrateStateV16(once.state);
 
+  assert.equal(once.changed, true);
   assert.equal(once.state.tasks[0].title, 'Keep me');
   assert.deepEqual(once.state.unknownRecords, [{ id: 'u1' }]);
   assert.equal(once.state.settings.todayFocusFilter, 'all');
