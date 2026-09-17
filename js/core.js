@@ -535,12 +535,16 @@
       targetValue: Number(goal.targetValue) > 0 && Number.isFinite(Number(goal.targetValue)) ? Number(goal.targetValue) : 100,
       unit: typeof goal.unit === 'string' ? goal.unit : '',
     }));
-    state.habits = state.habits.map(habit => ({
-      ...habit,
-      minimumTarget: positiveIntegerOrNull(habit.minimumTarget),
-      idealTarget: positiveIntegerOrNull(habit.idealTarget),
-      graceDays: Number.isInteger(Number(habit.graceDays)) && Number(habit.graceDays) >= 0 ? Number(habit.graceDays) : 0,
-    }));
+    state.habits = state.habits.map(habit => {
+      const minimumTarget = positiveIntegerOrNull(habit.minimumTarget);
+      const idealTarget = positiveIntegerOrNull(habit.idealTarget);
+      return {
+        ...habit,
+        minimumTarget,
+        idealTarget: idealTarget && minimumTarget ? Math.max(minimumTarget, idealTarget) : idealTarget,
+        graceDays: Number.isInteger(Number(habit.graceDays)) && Number(habit.graceDays) >= 0 ? Number(habit.graceDays) : 0,
+      };
+    });
     state.resources = (state.resources || []).map(resource => ({
       ...resource,
       type: ['book', 'video', 'article', 'course', 'document', 'other'].includes(resource.type) ? resource.type : 'article',

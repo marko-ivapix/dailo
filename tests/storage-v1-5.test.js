@@ -36,6 +36,16 @@ test('storage exposes the shared safe state normalizer to persistence callers', 
   assert.deepEqual(Storage.normalizeState(state).settings.focusTaskIds, []);
 });
 
+test('normalization reconciles inverted Habit targets before backup validation', () => {
+  const state = stateWithV15Fields();
+  state.habits[0].minimumTarget = 4;
+  state.habits[0].idealTarget = 2;
+  const normalized = global.TodoCore.normalizeState(state);
+  assert.equal(normalized.habits[0].minimumTarget, 4);
+  assert.equal(normalized.habits[0].idealTarget, 4);
+  assert.doesNotThrow(() => Backup.validateDomain(normalized, [], []));
+});
+
 test('backup validation rejects malformed V1.5 metadata', () => {
   const state = stateWithV15Fields();
   state.tasks[0].durationMinutes = -1;
