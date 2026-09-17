@@ -3612,7 +3612,7 @@
     const dropZone = event.target.closest?.('.attachment-drop-zone');
     if (dropZone && event.dataTransfer?.types?.includes('Files')) { event.preventDefault(); dropZone.classList.add('is-dragover'); return; }
     if (!dragState) return;
-    const calendarTarget = event.target.closest('[data-calendar-date]');
+    const calendarTarget = event.target.closest('[data-calendar-time], [data-calendar-date]');
     if (calendarTarget && ['calendar-task', 'calendar-goal'].includes(dragState.type)) { event.preventDefault(); calendarTarget.classList.add('is-drop-target'); return; }
     if (dragState.type.startsWith('calendar-')) return;
     if (dragState.type === 'project') {
@@ -3639,10 +3639,11 @@
     if (!dragState) return;
     event.preventDefault();
     if (dragState.type.startsWith('calendar-')) {
-      const target = event.target.closest('[data-calendar-date]');
+      const target = event.target.closest('[data-calendar-time], [data-calendar-date]');
       if (target) {
-        const date = target.dataset.calendarDate;
-        if (Core.parseDateOnly(date) && dragState.type === 'calendar-task') updateTask(dragState.id, { plannedDate: date });
+        const date = target.closest('[data-calendar-date]')?.dataset.calendarDate;
+        const time = Core.normalizeTime(target.dataset.calendarTime);
+        if (Core.parseDateOnly(date) && dragState.type === 'calendar-task') updateTask(dragState.id, { plannedDate: date, ...(time ? { plannedTime: time } : {}) });
         else if (Core.parseDateOnly(date) && dragState.type === 'calendar-goal') {
           const goal = getGoal(dragState.id);
           if (goal && goal.targetDate !== date) {

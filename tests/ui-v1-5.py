@@ -79,6 +79,40 @@ def main():
         page.locator('#quick-planned-time').press('Tab')
         page.click('[data-action="create-task"]')
         assert page.evaluate("TodoApp.state.tasks.find(t => t.title === 'Explicit time').plannedTime") == '14:00'
+
+        # Calendar derives timed blocks from Tasks. It does not turn an all-day
+        # task into a timed event or make Habits draggable.
+        today = page.evaluate('TodoCore.dateOnly()')
+        page.evaluate('''date => {
+          const first = TodoApp.state.tasks.find(t => t.title === 'Finish homepage');
+          const second = TodoApp.state.tasks.find(t => t.title === 'Buy groceries');
+          first.plannedDate = date; first.plannedTime = '09:00'; first.durationMinutes = 45;
+          second.plannedDate = date; second.plannedTime = '09:30'; second.durationMinutes = 30;
+          TodoApp.state.tasks.push({id:'all_day_v15', title:'All day preserved', plannedDate:date, plannedTime:null, dueDate:null, durationMinutes:null, isInbox:false, isCompleted:false, subtasks:[], tagIds:[], goalIds:[], attachmentIds:[]});
+          location.hash = '#calendar'; TodoApp.render();
+        }''', today)
+        assert page.locator('[data-calendar-timed-block]').count() >= 2
+        expect(page.locator('[data-calendar-timed-block]', has_text='Finish homepage')).to_contain_text('09:00–09:45')
+        assert page.locator('[data-calendar-timed-block].has-conflict').count() >= 2
+        assert page.locator('.calendar-all-day', has_text='All day preserved').count() == 1
+        assert page.locator('[data-calendar-type="habit"][draggable="true"]').count() == 0
+
+        # Dropping a Task onto a timed block edits only its plan moment, not duration.
+        page.evaluate('''() => {
+          const source = document.querySelector('[data-calendar-timed-block][data-calendar-item-id="task_homepage"]');
+          const target = document.querySelector('[data-calendar-timed-block][data-calendar-item-id="task_groceries"]');
+          const transfer = new DataTransfer();
+          source.dispatchEvent(new DragEvent('dragstart', {bubbles:true, dataTransfer:transfer}));
+          target.dispatchEvent(new DragEvent('drop', {bubbles:true, dataTransfer:transfer}));
+        }''')
+        moved = page.evaluate("TodoApp.state.tasks.find(t => t.id === 'task_homepage')")
+        assert moved['plannedDate'] == today and moved['plannedTime'] == '09:30' and moved['durationMinutes'] == 45
+
+        page.click(f'[data-calendar-date="{today}"] .calendar-day-heading')
+        expect(page.locator('.calendar-conflict-note')).to_be_visible()
+        page.keyboard.press('Escape')
+        page.click('[data-action="calendar-view"][data-view="month"]')
+        assert page.locator('[data-calendar-timed-block]').count() == 0
         browser.close()
 
 

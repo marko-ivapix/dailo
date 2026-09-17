@@ -90,3 +90,14 @@ test('getTimedTaskBlocks orders planned blocks and flags overlapping ranges', ()
     { taskId: 'later', startMinutes: 600, durationMinutes: 30, endMinutes: 630, conflict: true },
   ]);
 });
+
+test('getTimedTaskBlocks leaves all-day, completed, and other-day Tasks out of the time grid', () => {
+  assert.deepEqual(Core.getTimedTaskBlocks([
+    { id: 'all-day', plannedDate: '2026-09-17' },
+    { id: 'done', plannedDate: '2026-09-17', plannedTime: '09:00', durationMinutes: 30, isCompleted: true },
+    { id: 'other-day', plannedDate: '2026-09-18', plannedTime: '09:00', durationMinutes: 30 },
+    { id: 'valid', plannedDate: '2026-09-17', plannedTime: '23:45', durationMinutes: 30 },
+  ], '2026-09-17'), [
+    { taskId: 'valid', startMinutes: 1425, durationMinutes: 30, endMinutes: 1455, conflict: false },
+  ]);
+});

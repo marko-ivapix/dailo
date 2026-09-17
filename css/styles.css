@@ -208,6 +208,9 @@ select:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .calendar-day.is-selected, .calendar-month-day.is-selected { background: var(--surface-interactive); }
 .calendar-day.is-drop-target, .calendar-month-day.is-drop-target { outline: 2px solid var(--primary-focus); outline-offset: -2px; }
 .calendar-item.is-dragging { opacity: .5; }
+.calendar-timed-block { border-left: 3px solid var(--primary-focus); }
+.calendar-timed-block.has-conflict { border-left-color: var(--warning); background: color-mix(in srgb, var(--warning) 8%, var(--surface-interactive)); }
+.calendar-timed-block.has-conflict .calendar-item-meta span:first-child { color: var(--warning); border-color: color-mix(in srgb, var(--warning) 45%, var(--border-subtle)); }
 .calendar-month { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 1px; background: var(--border-subtle); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); overflow: hidden; }
 .calendar-weekday { background: var(--bg-primary); padding: 12px; text-align: center; }
 .calendar-month-day, .calendar-month-blank { background: var(--surface-card-dark); min-height: 110px; border: 0; padding: 14px; text-align: left; }
