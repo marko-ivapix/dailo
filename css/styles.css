@@ -947,3 +947,13 @@ button.area-object:hover { background: var(--surface-interactive); }
 .today-focus { border: 1px solid var(--border-subtle); padding: 16px; }
 .daily-review-stats { display: flex; flex-wrap: wrap; gap: 12px 24px; color: var(--text-secondary); font-size: 13px; }
 .task-actions [aria-pressed="true"] { color: var(--primary-focus); }
+/* Goal and Habit insights share the existing compact detail-card rhythm. */
+.insight-card { padding: 18px 20px; margin-bottom: 16px; border: 1px solid var(--border-subtle); background: var(--surface-card-dark); border-radius: var(--radius-md); }
+.insight-card h2, .insight-card h3 { margin: 0 0 10px; font-size: 14px; font-weight: 600; }
+.insight-card p { margin: 8px 0 0; font-size: 13px; line-height: 1.5; color: var(--text-secondary); }
+.insight-card > strong { font-size: 17px; }
+.insight-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+[data-goal-health="at-risk"] > strong { color: var(--warning); }
+[data-goal-health="overdue"] > strong { color: var(--danger); }
+[data-goal-health="complete"] > strong, [data-habit-target-status="ideal"] > strong { color: var(--success); }
+@media (max-width: 640px) { .insight-grid { grid-template-columns: 1fr; gap: 0; } }

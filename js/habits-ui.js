@@ -31,7 +31,13 @@
     const editor = ctx.habitPropertyEditor;
     if (!editor || getHabit(editor.habit.id) !== editor.habit) { cancelHabitProperty(ctx); return; }
     const { habit, field } = editor; editor.value = $('#habit-detail-' + field)?.value ?? editor.value;
-    const value = field === 'targetValue' ? Number(editor.value) : field === 'areaId' ? editor.value || null : field === 'quickValues' ? String(editor.value).split(',').map(item => Number(item.trim())).filter(item => Number.isFinite(item) && item > 0) : String(editor.value).trim();
+    const targetField = ['minimumTarget', 'idealTarget'].includes(field);
+    const value = targetField ? (String(editor.value).trim() === '' ? null : Number(editor.value)) : ['targetValue', 'graceDays'].includes(field) ? Number(editor.value) : field === 'areaId' ? editor.value || null : field === 'quickValues' ? String(editor.value).split(',').map(item => Number(item.trim())).filter(item => Number.isFinite(item) && item > 0) : String(editor.value).trim();
+    const invalidTarget = targetField && value !== null && (!Number.isInteger(value) || value <= 0);
+    const minimum = field === 'minimumTarget' ? value : habit.minimumTarget;
+    const ideal = field === 'idealTarget' ? value : habit.idealTarget;
+    const targetError = invalidTarget ? 'Enter a whole number above zero, or leave blank.' : field === 'graceDays' && (!Number.isInteger(value) || value < 0) ? 'Enter zero or more whole days.' : targetField && minimum && ideal && minimum > ideal ? 'Ideal target must be at least the minimum target.' : '';
+    if (targetError) { editor.error = targetError; render(); requestAnimationFrame(() => $('#habit-detail-' + field)?.focus()); return; }
     const hasHistory = (state.habitLogCache?.[habit.id] || []).length > 0;
     const error = field === 'name' && !value ? 'Habit needs a name.' : field === 'targetValue' && habit.trackingType === 'numeric' && (!Number.isFinite(value) || value <= 0) ? 'Numeric habits need a target above zero.' : field === 'trackingType' && value !== habit.trackingType && hasHistory ? 'Tracking cannot change while this Habit has history.' : '';
     if (error) { editor.error = error; render(); requestAnimationFrame(() => $('#habit-detail-' + field)?.focus()); return; }
@@ -237,6 +243,31 @@
     return `<p class="area-empty-copy">${esc(current.toLocaleDateString(undefined, { month: 'long', year: 'numeric' }))}</p><div class="habit-heatmap" aria-label="Monthly heatmap">${dates.map(date => { const status = Core.habitStatusForDate(habit, logs, date, today); return `<span class="heatmap-day is-${esc(status.status)}" style="--heat-intensity:${Math.max(0, Math.min(1, Number(status.percent || 0) / 100))}" title="${esc(date)}"></span>`; }).join('')}</div>`;
   }
 
+  function renderHabitInsights(ctx, habit, metrics) {
+    const { Core, esc } = ctx;
+    const today = Core.dateOnly();
+    const target = Core.getHabitTargetStatus(habit, metrics);
+    const periods = (metrics.periods || []).filter(period => period.key <= today);
+    const currentIndex = periods.findIndex(period => period.isCurrent);
+    let missedDays = 0;
+    for (let i = currentIndex - 1; i >= 0; i--) {
+      const period = periods[i];
+      if (period.skipped || Core.getHabitTargetStatus(habit, { currentPeriodCount: period.progressValue }).minimumMet) break;
+      missedDays += period.dates.length;
+    }
+    const graceDays = Math.max(0, Number(habit.graceDays) || 0);
+    const recovery = missedDays ? `${target.minimumMet ? 'Recovered after' : 'Resume after'} ${missedDays} missed day${missedDays === 1 ? '' : 's'}. ${missedDays <= graceDays ? `Within your ${graceDays}-day grace allowance.` : `Beyond your ${graceDays}-day grace allowance; start again today.`}` : 'No recent missed period to recover from.';
+    const summary = (label, days, key) => {
+      const since = Core.addDays(today, 1 - days);
+      const included = periods.filter(period => period.dates.at(-1) >= since);
+      const statuses = included.map(period => Core.getHabitTargetStatus(habit, { currentPeriodCount: period.progressValue }));
+      const minimum = statuses.filter(status => status.minimumMet).length;
+      const ideal = statuses.filter(status => status.idealMet).length;
+      return `<section class="insight-card" data-habit-insight="${key}"><h3>${label}</h3><strong>${minimum} minimum · ${ideal} ideal</strong><p>${included.length} scheduled periods in the last ${days} days, through today.</p></section>`;
+    };
+    return `<section class="habit-insights" data-habit-insights><div class="insight-card" data-habit-target-status="${target.status}"><h2>Target progress</h2><strong>${esc(target.current)} / ${esc(target.minimumTarget)} minimum · ${esc(target.idealTarget)} ideal</strong><p>${target.idealMet ? 'Ideal target met' : target.minimumMet ? 'Minimum target met' : 'Working toward minimum'}</p><p data-habit-recovery>${esc(recovery)}</p></div><div class="insight-grid">${summary('Weekly insight', 7, 'week')}${summary('Monthly insight', 30, 'month')}</div></section>`;
+  }
+
   function renderHabit(ctx, habitId) {
     const { getHabit, habitMetrics, state, Core, pageHeader, esc } = ctx;
     const habit = getHabit(habitId); if (!habit) return renderHabits(ctx);
@@ -245,6 +276,8 @@
     const todayLog = logs.find(log => log.date === today);
     const history = [...logs].sort((a, b) => String(b.date).localeCompare(String(a.date)));
     let html = pageHeader(habit.name, `${habitFrequencyLabel(ctx, habit)} · ${habit.status}`, { add: false, actionHtml: `<button class="btn btn-secondary" type="button" data-action="edit-habit" data-habit-id="${esc(habit.id)}"><i class="ph ph-pencil-simple"></i> Edit</button><button class="btn-icon" type="button" data-action="habit-menu" data-habit-id="${esc(habit.id)}" aria-label="Habit actions"><i class="ph ph-dots-three"></i></button>` });
+    html += `<div class="form-stack goal-properties habit-target-properties">${[['minimumTarget', 'Minimum target'], ['idealTarget', 'Ideal target'], ['graceDays', 'Grace days']].map(([field, label]) => renderHabitProperty(ctx, habit, field, label)).join('')}<p class="area-empty-copy">Targets apply to each scheduled period${habit.frequencyType === 'timesPerWeek' ? ' (completed check-ins per week)' : habit.trackingType === 'numeric' ? ` (${esc(habit.unit || 'units')})` : ' (check-ins)'}. Grace describes recovery; recorded check-ins and streaks stay unchanged.</p></div>`;
+    html += renderHabitInsights(ctx, habit, metrics);
     html += `<div class="form-stack goal-properties habit-properties">${[['name','Name'],['areaId','Area'],['routine','Routine'],['trackingType','Tracking'],['targetValue','Target value'],['unit','Unit'],['quickValues','Quick values']].map(([field,label]) => renderHabitProperty(ctx, habit, field, label)).join('')}<div class="goal-detail-actions"><button class="btn btn-secondary" type="button" data-action="edit-habit-settings" data-habit-id="${esc(habit.id)}" data-habit-panel="frequency">Frequency</button><button class="btn btn-secondary" type="button" data-action="edit-habit-settings" data-habit-id="${esc(habit.id)}" data-habit-panel="reminders">Reminders</button><button class="btn btn-secondary" type="button" data-action="edit-habit-settings" data-habit-id="${esc(habit.id)}" data-habit-panel="continuation">Continuation</button><button class="btn btn-secondary" type="button" data-action="edit-habit-settings" data-habit-id="${esc(habit.id)}" data-habit-panel="end">End condition</button><button class="btn btn-secondary" type="button" data-action="edit-habit-settings" data-habit-id="${esc(habit.id)}" data-habit-panel="goals">Linked Goals</button></div></div>`;
     html += `<section class="habit-detail-card"><div class="habit-detail-context"><span class="habit-status habit-status--${esc(habit.status)}">${esc(habit.status)}</span><span>${esc(habitFrequencyLabel(ctx, habit))}</span><span>Today: ${esc(todayStatus.status)}</span></div><div class="habit-summary"><strong>${esc(habitProgressLabel(ctx, habit, metrics))}</strong><span>Current period</span></div><div class="habit-metric-grid"><div><strong>${metrics.currentStreak}</strong><span>Current streak</span></div><div><strong>${metrics.longestStreak}</strong><span>Longest streak</span></div><div><strong>${metrics.totalCheckins}</strong><span>Total check-ins</span></div><div><strong>${Math.round(metrics.completionRate)}%</strong><span>Completion rate</span></div></div>${habit.status === 'active' ? (habit.trackingType === 'numeric' ? `<div class="habit-checkin-controls">${(habit.quickValues || []).map(value => `<button class="btn btn-secondary" type="button" data-action="habit-quick-add" data-habit-id="${esc(habit.id)}" data-value="${esc(value)}">+${esc(value)}</button>`).join('')}<label class="field-label">Daily total<input id="habit-direct-total" class="input" type="number" step="any" value="${esc(todayLog?.value || 0)}" /></label><button class="btn btn-primary" type="button" data-action="save-habit-total" data-habit-id="${esc(habit.id)}">Save total</button></div>` : `<div class="habit-checkin-controls"><button class="btn btn-primary" type="button" data-action="habit-checkin" data-habit-id="${esc(habit.id)}">${todayStatus.status === 'done' ? 'Mark not done' : 'Check in'}</button><button class="btn btn-ghost" type="button" data-action="habit-skip" data-habit-id="${esc(habit.id)}">Skip today</button></div>`) : '<p class="area-empty-copy">Paused and archived habits preserve history but cannot be checked in.</p>'}</section>`;
     html += `<section class="section"><div class="section-header"><h2 class="section-label">Monthly heatmap</h2></div>${heatmapHtml(ctx, habit, logs)}</section>`;
@@ -257,8 +290,9 @@
     const { getArea, state, esc } = ctx;
     const editor = ctx.habitPropertyEditor?.habit === habit && ctx.habitPropertyEditor.field === field ? ctx.habitPropertyEditor : null;
     const value = field === 'routine' ? ROUTINES[habit.routine || 'daily'] : field === 'areaId' ? getArea(habit.areaId)?.name || 'No area' : field === 'quickValues' ? (habit.quickValues || []).join(', ') : habit[field] ?? '';
-    if (!editor) return `<div class="goal-property"><span class="field-label">${label}</span><button class="btn btn-ghost" type="button" data-habit-property="${field}" data-habit-id="${esc(habit.id)}">${esc(value || (field === 'unit' || field === 'quickValues' ? 'Not set' : 'No area'))}</button></div>`;
+    if (!editor) return `<div class="goal-property"><span class="field-label">${label}</span><button class="btn btn-ghost" type="button" data-habit-property="${field}" data-habit-id="${esc(habit.id)}">${esc(value === 0 ? 0 : value || (field === 'areaId' ? 'No area' : 'Not set'))}</button></div>`;
     const id = 'habit-detail-' + field;
+    if (['minimumTarget', 'idealTarget', 'graceDays'].includes(field)) return `<div class="goal-property-editor"><label class="field-label" for="${id}">${label}</label><input id="${id}" class="input" type="number" min="${field === 'graceDays' ? 0 : 1}" step="1" value="${esc(editor.value)}" ${editor.error ? 'aria-invalid="true" aria-describedby="habit-property-error"' : ''}>${editor.error ? `<p id="habit-property-error" class="validation" role="alert">${esc(editor.error)}</p>` : ''}<div class="goal-detail-actions"><button class="btn btn-secondary" type="button" data-action="save-habit-property">Save ${label.toLowerCase()}</button><button class="btn btn-ghost" type="button" data-action="cancel-habit-property">Cancel</button></div></div>`;
     const input = field === 'routine' ? `<select id="${id}" class="input">${routineOptions(editor.value)}</select>` : field === 'areaId' ? `<select id="${id}" class="input"><option value="">No area</option>${state.areas.filter(a => a.status === 'active' || a.id === habit.areaId).map(a => `<option value="${esc(a.id)}" ${a.id === editor.value ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select>` : field === 'trackingType' ? `<select id="${id}" class="input"><option value="checkbox" ${editor.value === 'checkbox' ? 'selected' : ''}>Checkbox</option><option value="numeric" ${editor.value === 'numeric' ? 'selected' : ''}>Numeric</option></select>` : `<input id="${id}" class="input" type="${field === 'targetValue' ? 'number' : 'text'}" ${field === 'targetValue' ? 'step="any"' : field === 'name' ? 'maxlength="120"' : ''} value="${esc(editor.value)}" ${editor.error ? 'aria-invalid="true" aria-describedby="habit-property-error"' : ''}>`;
     return `<div class="goal-property-editor"><label class="field-label" for="${id}">${label}</label>${input}${editor.error ? `<p id="habit-property-error" class="validation" role="alert">${esc(editor.error)}</p>` : ''}<div class="goal-detail-actions"><button class="btn btn-secondary" type="button" data-action="save-habit-property">Save ${label.toLowerCase()}</button><button class="btn btn-ghost" type="button" data-action="cancel-habit-property">Cancel</button></div></div>`;
   }

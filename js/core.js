@@ -584,7 +584,9 @@
 
   function getHabitTargetStatus(habit, periodStats) {
     const current = Math.max(0, safeNumber(periodStats?.currentPeriodCount ?? periodStats?.progressValue ?? periodStats?.count ?? periodStats));
-    const fallback = positiveIntegerOrNull(habit?.targetValue) || positiveIntegerOrNull(habit?.timesPerWeek) || 1;
+    const fallback = habit?.frequencyType === 'timesPerWeek'
+      ? positiveIntegerOrNull(habit?.timesPerWeek) || 1
+      : safeNumber(habit?.targetValue) > 0 ? safeNumber(habit.targetValue) : 1;
     const minimumTarget = positiveIntegerOrNull(habit?.minimumTarget) || fallback;
     const idealTarget = Math.max(minimumTarget, positiveIntegerOrNull(habit?.idealTarget) || minimumTarget);
     const minimumMet = current >= minimumTarget;

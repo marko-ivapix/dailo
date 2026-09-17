@@ -53,6 +53,13 @@ test('getHabitTargetStatus reports progress against both minimum and ideal targe
   assert.deepEqual(Core.getHabitTargetStatus(habit, { currentPeriodCount: 4 }), { current: 4, minimumTarget: 2, idealTarget: 4, minimumMet: true, idealMet: true, status: 'ideal' });
 });
 
+test('Habit target defaults preserve fractional numeric targets and weekly check-in units', () => {
+  assert.equal(Core.getHabitTargetStatus({ trackingType: 'numeric', targetValue: 0.5 }, { currentPeriodCount: 0.5 }).status, 'ideal');
+  const weekly = Core.getHabitTargetStatus({ trackingType: 'numeric', targetValue: 10, frequencyType: 'timesPerWeek', timesPerWeek: 2 }, { currentPeriodCount: 2 });
+  assert.equal(weekly.minimumTarget, 2);
+  assert.equal(weekly.status, 'ideal');
+});
+
 test('getTimedTaskBlocks orders planned blocks and flags overlapping ranges', () => {
   const blocks = Core.getTimedTaskBlocks([
     { id: 'later', plannedDate: '2026-09-17', plannedTime: '10:00', durationMinutes: 30 },
