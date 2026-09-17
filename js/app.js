@@ -771,7 +771,8 @@
     cards.forEach(card => card.classList.toggle('is-dashboard-pinned', pins.has(card.dataset.dashboardSection)));
     const rank = new Map((dashboard.sectionOrder || []).map((id, index) => [id, index]));
     const ordered = [...cards].sort((a, b) => Number(pins.has(b.dataset.dashboardSection)) - Number(pins.has(a.dataset.dashboardSection)) || (rank.get(a.dataset.dashboardSection) ?? 99) - (rank.get(b.dataset.dashboardSection) ?? 99));
-    const anchor = [...content.children].find(child => !child.dataset.dashboardSection);
+    // Keep the page title and Today date/context ahead of customizable cards.
+    const anchor = [...content.children].find(child => !child.matches('.page-header, [data-today-context], [data-dashboard-section]'));
     for (const card of [...ordered].reverse()) content.insertBefore(card, anchor || null);
     content.classList.toggle('today-focus-view', dashboard.focusedMode === true);
   }
