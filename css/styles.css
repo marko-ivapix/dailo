@@ -849,6 +849,13 @@ button.area-object:hover { background: var(--surface-interactive); }
 .habit-dashboard-summary { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:8px 16px; color:var(--text-muted); font-size:12px; }
 .habit-dashboard-summary span { display:inline-flex; align-items:baseline; gap:5px; }
 .habit-dashboard-summary strong { color:var(--text-secondary); font-size:16px; font-variant-numeric:tabular-nums; }
+.habit-dashboard-legend { display:flex; flex-wrap:wrap; gap:7px 14px; margin:-4px 0 14px; color:var(--text-muted); font-size:11px; }
+.habit-dashboard-legend span { display:inline-flex; align-items:center; gap:6px; }
+.habit-legend-swatch { width:10px; height:10px; display:inline-block; border:1px solid var(--border-subtle); border-radius:3px; background:var(--surface-interactive); }
+.habit-legend-swatch.is-done { border-color:rgba(107,211,155,.55); background:var(--success); }
+.habit-legend-swatch.is-missed { border-color:rgba(240,123,114,.55); background:var(--danger); }
+.habit-legend-swatch.is-skipped { border-color:rgba(242,182,109,.5); background:var(--warning); }
+.habit-legend-swatch.is-future { opacity:.35; }
 .habit-dashboard-body { display:grid; grid-template-columns:minmax(0,1fr) 190px; gap:18px; align-items:stretch; }
 .habit-tracker-scroll { min-width:0; overflow-x:auto; padding-bottom:4px; }
 .habit-tracker-canvas { min-width:860px; }
