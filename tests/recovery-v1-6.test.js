@@ -13,9 +13,9 @@ global.localStorage = { getItem: key => values.get(key) ?? null, setItem: (key, 
 
 function recoveryApp(state) {
   const source = fs.readFileSync(require.resolve('../js/app.js'), 'utf8');
-  const code = source.slice(source.indexOf('  function compactState('), source.indexOf('  async function enableBrowserNotifications('));
+  const code = source.slice(source.indexOf('  async function exportBackupAction('), source.indexOf('  async function enableBrowserNotifications('));
   const input = { value: '' };
-  const ctx = { state, Core, TodoStorage: Storage, Backup, localStorage, STORAGE_KEY: 'todoAppData', structuredClone,
+  const ctx = { state, Core, TodoStorage: Storage, Backup, Attachments: {}, localStorage, STORAGE_KEY: 'todoAppData', structuredClone,
     globalOperation: null, globalRecoveryNotice: null, recovery: null, startupPromise: null, modalState: null, modalReturnFocus: null,
     undoHold: null, undoGeneration: 0, undoState: null, undoWork: new Set(),
     normalizeState: Core.normalizeState, nowIso: () => '2026-09-17T12:00:00.000Z', flushTextSave() {},
@@ -26,6 +26,7 @@ function recoveryApp(state) {
     refreshHabitMetrics: async () => {}, $: () => input,
   };
   vm.createContext(ctx); vm.runInContext(code, ctx);
+  ctx.downloadBackup = blob => { ctx.download = blob; };
   return { ctx, input, begin: file => ctx.beginGlobalOperation('restore', file), commit: () => ctx.commitGlobalOperation(ctx.globalOperation) };
 }
 
@@ -38,6 +39,7 @@ test('live restore confirmation lists V1.6 counts and keeps typed RESTORE safety
   const app = recoveryApp(current);
 
   await app.begin(payload);
+  assert.ok(app.ctx.confirm, app.ctx.message);
   assert.equal(app.ctx.confirm.phrase, 'RESTORE');
   for (const value of ['1 tasks', '1 projects', '1 Goals', '1 Habits', '1 Notes', '1 Resources', '1 logs', '1 history events']) assert.match(app.ctx.confirm.message, new RegExp(value));
   assert.ok(app.ctx.download);
@@ -111,6 +113,59 @@ test('invalid restore preparation keeps a physically retained recovery snapshot 
   assert.equal(app.ctx.state.settings.backupStatus.snapshotAvailable, true);
   assert.match(app.ctx.state.settings.backupStatus.validationResult, /retained/i);
   assert.match(app.ctx.globalRecoveryNotice.message, /cleanup/i);
+});
+
+test('export status never overwrites a newer local workspace', async () => {
+  await Storage.clearAllForTests(); values.clear();
+  const current = Core.normalizeState({ version: 3, tasks: [{ id: 'task', title: 'Original' }], projects: [], tags: [], areas: [], goals: [], habits: [], notes: [], resources: [], templates: [], savedViews: [], settings: {}, ui: {} });
+  localStorage.setItem('todoAppData', JSON.stringify(current));
+  const app = recoveryApp(current);
+  const exportBackup = Backup.exportBackupV3;
+  const newer = structuredClone(current);
+  newer.tasks[0].title = 'NEWER DURING EXPORT';
+  const newerRaw = JSON.stringify(newer);
+  Backup.exportBackupV3 = async () => { localStorage.setItem('todoAppData', newerRaw); return new Blob(['backup']); };
+  try { await app.ctx.exportBackupAction(); } finally { Backup.exportBackupV3 = exportBackup; }
+  assert.equal(localStorage.getItem('todoAppData'), newerRaw);
+  assert.equal(JSON.parse(localStorage.getItem('todoAppData')).tasks[0].title, 'NEWER DURING EXPORT');
+});
+
+test('export keeps a retained recovery snapshot available after both success and failure', async () => {
+  await Storage.clearAllForTests(); values.clear();
+  const current = Core.normalizeState({ version: 3, tasks: [], projects: [], tags: [], areas: [], goals: [], habits: [], notes: [], resources: [], templates: [], savedViews: [], settings: {}, ui: {} });
+  localStorage.setItem('todoAppData', JSON.stringify(current));
+  const payload = await Backup.exportBackupV3(current, { attachments: { getMany: async () => [] }, habitLogs: { listAll: async () => [] }, goalHistory: { listAll: async () => [] } }, '2026-09-17T10:00:00.000Z');
+  const app = recoveryApp(current);
+  const remove = Storage.recoverySnapshots.deleteMany;
+  Storage.recoverySnapshots.deleteMany = async () => { throw new Error('cleanup denied'); };
+  try { await app.begin(payload); await app.ctx.confirm.onCancel(); } finally { Storage.recoverySnapshots.deleteMany = remove; }
+  await app.ctx.exportBackupAction();
+  assert.equal(app.ctx.state.settings.backupStatus.snapshotAvailable, true);
+  const exportBackup = Backup.exportBackupV3;
+  Backup.exportBackupV3 = async () => { throw new Error('export denied'); };
+  try { await app.ctx.exportBackupAction(); } finally { Backup.exportBackupV3 = exportBackup; }
+  assert.equal(app.ctx.state.settings.backupStatus.snapshotAvailable, true);
+  assert.equal((await Storage.recoverySnapshots.listAll()).length, 1);
+});
+
+test('rollback status never overwrites a newer workspace written during Undo resume', async () => {
+  await Storage.clearAllForTests(); values.clear();
+  const current = Core.normalizeState({ version: 3, tasks: [{ id: 'task', title: 'Original' }], projects: [], tags: [], areas: [], goals: [], habits: [], notes: [], resources: [], templates: [], savedViews: [], settings: {}, ui: {} });
+  localStorage.setItem('todoAppData', JSON.stringify(current));
+  const payload = await Backup.exportBackupV3(current, { attachments: { getMany: async () => [] }, habitLogs: { listAll: async () => [] }, goalHistory: { listAll: async () => [] } }, '2026-09-17T10:00:00.000Z');
+  const app = recoveryApp(current);
+  await app.begin(payload);
+  const replace = Storage.replaceAllValidatedBackup;
+  const resume = app.ctx.deleteLifecycle.resume;
+  const newer = structuredClone(current);
+  newer.tasks[0].title = 'NEWER DURING ROLLBACK';
+  const newerRaw = JSON.stringify(newer);
+  Storage.replaceAllValidatedBackup = async (_validated, _original, guard) => { guard.onCommit(); throw new Error('replacement denied'); };
+  app.ctx.deleteLifecycle.resume = async () => { localStorage.setItem('todoAppData', newerRaw); };
+  app.input.value = 'RESTORE';
+  try { await app.commit(); } finally { Storage.replaceAllValidatedBackup = replace; app.ctx.deleteLifecycle.resume = resume; }
+  assert.equal(localStorage.getItem('todoAppData'), newerRaw);
+  assert.equal(JSON.parse(localStorage.getItem('todoAppData')).tasks[0].title, 'NEWER DURING ROLLBACK');
 });
 
 test('failed restore rolls V1.6 data back without leaving partial metadata or history', async () => {

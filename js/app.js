@@ -3052,14 +3052,16 @@
   }
 
   async function exportBackupAction() {
-    if (!Backup || !Attachments) { updateBackupStatus({ snapshotAvailable: false, validationResult: 'Export failed: backup is unavailable' }); setToastMessage('Backup is unavailable in this browser'); return; }
+    const source = captureStatusSource();
+    const snapshotAvailable = await hasRetainedRecoverySnapshot(source?.source?.settings?.backupStatus?.snapshotAvailable === true);
+    if (!Backup || !Attachments) { updateBackupStatus({ snapshotAvailable, validationResult: 'Export failed: backup is unavailable' }, source); setToastMessage('Backup is unavailable in this browser'); return; }
     setToastMessage('Preparing backup...');
     try {
       const blob = await Backup.exportBackupV3(state, TodoStorage, nowIso());
       downloadBackup(blob);
-      updateBackupStatus({ lastExport: nowIso(), snapshotAvailable: false, validationResult: 'Export verified' });
+      updateBackupStatus({ lastExport: nowIso(), snapshotAvailable: await hasRetainedRecoverySnapshot(snapshotAvailable), validationResult: 'Export verified' }, source);
       setToastMessage('Backup exported');
-    } catch (error) { console.error(error); updateBackupStatus({ snapshotAvailable: false, validationResult: `Export failed: ${error.message}` }); setToastMessage('Backup could not be created'); }
+    } catch (error) { console.error(error); updateBackupStatus({ snapshotAvailable: await hasRetainedRecoverySnapshot(snapshotAvailable), validationResult: `Export failed: ${error.message}` }, source); setToastMessage('Backup could not be created'); }
   }
 
   function chooseImportBackup() {
@@ -3113,6 +3115,15 @@
   function compactState(value) {
     const copy = { ...value }; delete copy.habitLogCache; delete copy.habitMetrics;
     return JSON.stringify(copy);
+  }
+
+  function captureStatusSource() {
+    return state ? { source: state, stateText: compactState(state), raw: localStorage.getItem(STORAGE_KEY) } : null;
+  }
+
+  async function hasRetainedRecoverySnapshot(fallback = false) {
+    try { return (await TodoStorage.recoverySnapshots.listAll()).some(snapshot => ['reset', 'restore'].includes(snapshot.reason)); }
+    catch (_) { return fallback; }
   }
 
   function updateBackupStatus(patch, op = null) {
@@ -3264,6 +3275,7 @@
   async function rollbackGlobalOperation(op, cause) {
     if (op.recovering) return;
     op.recovering = true;
+    let statusSource = captureStatusSource();
     try {
       const source = state, sourceText = compactState(state);
       const restored = await TodoStorage.restoreRecoverySnapshot(op.snapshotId);
@@ -3274,6 +3286,7 @@
       if (globalOperation !== op || state !== source || compactState(state) !== sourceText) throw new Error('Recovery source changed during verification. Retry recovery.');
       state = normalizeState(restored); recovery = null;
       const resumedSource = state, resumedText = compactState(state);
+      statusSource = captureStatusSource();
       if (op.token) await deleteLifecycle.resume(op.token);
       // Resume also awaits Blob reads and already-due finalizers. Those may
       // legitimately remove expired files, but cannot change metadata ownership.
@@ -3282,13 +3295,13 @@
         throw new Error('Recovery ownership changed during final Undo resume. Resolve the source and retry recovery.');
       globalRecoveryNotice = null;
       globalOperation = null; modalState = null; renderModal(); render();
-      updateBackupStatus({ snapshotAvailable: true, validationResult: `${op.reason === 'restore' ? 'Import' : 'Reset'} failed; original data restored and verified` });
+      updateBackupStatus({ snapshotAvailable: true, validationResult: `${op.reason === 'restore' ? 'Import' : 'Reset'} failed; original data restored and verified` }, statusSource);
       try {
         await cleanupGlobalSnapshot(op);
-        updateBackupStatus({ snapshotAvailable: false, validationResult: `${op.reason === 'restore' ? 'Import' : 'Reset'} failed; original data restored and verified` });
+        updateBackupStatus({ snapshotAvailable: false, validationResult: `${op.reason === 'restore' ? 'Import' : 'Reset'} failed; original data restored and verified` }, statusSource);
         setToastMessage(`${cause.message}. Original data was restored and verified.`);
       }
-      catch (cleanupError) { globalNotice(`${cause.message}. Original data was restored. Cleanup failed: ${cleanupError.message}. Retry cleanup.`, async () => { await cleanupGlobalSnapshot(op); globalRecoveryNotice = null; renderToast(); }); }
+      catch (cleanupError) { globalNotice(`${cause.message}. Original data was restored. Cleanup failed: ${cleanupError.message}. Retry cleanup.`, async () => { await cleanupGlobalSnapshot(op); updateBackupStatus({ snapshotAvailable: false, validationResult: `${op.reason === 'restore' ? 'Import' : 'Reset'} failed; original data restored and verified` }, statusSource); globalRecoveryNotice = null; renderToast(); }); }
     } catch (rollbackError) {
       // Resume may already have released its token. Re-hold the remaining work
       // synchronously before any bookkeeping await, keeping its original deadlines.
@@ -3299,7 +3312,7 @@
       op.busy = false; modalState = null; renderModal();
       try { await markGlobalSnapshot(op, 'rollback-failed', { operationError: cause.message, rollbackError: rollbackError.message }); }
       catch (_) { /* The original full recovery payload remains; mutating phase is already durable. */ }
-      updateBackupStatus({ snapshotAvailable: true, validationResult: `${op.reason === 'restore' ? 'Import' : 'Reset'} failed; recovery is required` });
+      updateBackupStatus({ snapshotAvailable: true, validationResult: `${op.reason === 'restore' ? 'Import' : 'Reset'} failed; recovery is required` }, statusSource);
       globalNotice(`Operation failed: ${cause.message}. Recovery also failed: ${rollbackError.message}. The recovery snapshot is retained. Retry recovery.`, () => rollbackGlobalOperation(op, cause));
     } finally { op.recovering = false; }
   }
@@ -3328,6 +3341,7 @@
       await verifyGlobalReplacement(op);
       deleteLifecycle.retire(op.token);
       state = normalizeState(op.validated.state); recovery = null; modalState = null;
+      const committedSource = captureStatusSource();
       globalOperation = phaseError ? op : null; renderModal(); location.hash = '#today'; render();
       try {
         if (phaseError) throw phaseError;
@@ -3336,11 +3350,11 @@
           setUndo('Selected entity restored', () => undoSelectiveRestore(op), () => op.keepRecovery ? true : cleanupGlobalSnapshot(op));
         } else {
           await cleanupGlobalSnapshot(op);
-          updateBackupStatus({ lastImport: op.reason === 'restore' ? nowIso() : state.settings.backupStatus?.lastImport || null, snapshotAvailable: false, validationResult: op.reason === 'restore' ? 'Import restored and verified' : 'Reset verified' });
+          updateBackupStatus({ lastImport: op.reason === 'restore' ? nowIso() : state.settings.backupStatus?.lastImport || null, snapshotAvailable: false, validationResult: op.reason === 'restore' ? 'Import restored and verified' : 'Reset verified' }, committedSource);
           setToastMessage(op.reason === 'reset' ? 'App data reset and verified.' : 'Backup restored and verified.');
         }
       }
-      catch (error) { updateBackupStatus({ snapshotAvailable: true, validationResult: `Replacement verified; recovery cleanup failed: ${error.message}` }); globalNotice(`New data is verified. Recovery copy cleanup failed: ${error.message}. Retry cleanup.`, async () => { await markGlobalSnapshot(op, 'committed'); await cleanupGlobalSnapshot(op); updateBackupStatus({ lastImport: op.reason === 'restore' ? nowIso() : state.settings.backupStatus?.lastImport || null, snapshotAvailable: false, validationResult: op.reason === 'restore' ? 'Import restored and verified' : 'Reset verified' }); if (globalOperation === op) globalOperation = null; globalRecoveryNotice = null; renderToast(); }); }
+      catch (error) { updateBackupStatus({ snapshotAvailable: true, validationResult: `Replacement verified; recovery cleanup failed: ${error.message}` }, committedSource); globalNotice(`New data is verified. Recovery copy cleanup failed: ${error.message}. Retry cleanup.`, async () => { await markGlobalSnapshot(op, 'committed'); await cleanupGlobalSnapshot(op); updateBackupStatus({ lastImport: op.reason === 'restore' ? nowIso() : state.settings.backupStatus?.lastImport || null, snapshotAvailable: false, validationResult: op.reason === 'restore' ? 'Import restored and verified' : 'Reset verified' }, committedSource); if (globalOperation === op) globalOperation = null; globalRecoveryNotice = null; renderToast(); }); }
       refreshHabitMetrics().then(render).catch(error => setToastMessage(`History display could not refresh: ${error.message}. Reload to retry.`));
     } catch (error) {
       op.busy = false;

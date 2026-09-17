@@ -66,7 +66,7 @@ Space Grotesk, Geist and Phosphor icon styles are referenced from public CDNs. T
 
 **Notes** and **Resources** have dedicated sidebar lists and detail editors, with optional Area assignment, links, and attachments. Area Detail also shows their counts and contextual creation controls. Resources can link to Tasks, Projects, Goals, and Habits; deleting an Area clears its assignment without deleting these records. Goal create/edit includes Short-term, Mid-term, and Long-term horizons; **By month** groups Goals by target date, with undated Goals separate.
 
-Automated Node checks now cover metadata editing, ownership, ZIP round trips and failure recovery for these additions. Native browser reload, attachment interactions and keyboard/focus acceptance still require the isolated browser pass described above.
+Automated Node checks now cover metadata editing, ownership, ZIP round trips and failure recovery for these additions. Native browser reload, attachment interactions and keyboard/focus acceptance remain a separate user-owned-browser acceptance check.
 
 ### Prototype routines and starter examples
 
