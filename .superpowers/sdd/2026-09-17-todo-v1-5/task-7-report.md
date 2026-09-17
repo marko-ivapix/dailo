@@ -28,6 +28,13 @@ Implementation complete with deterministic verification. Browser migration/safet
 ## Boundaries and remaining acceptance
 
 - Native IndexedDB/browser migration, complete browser safety suite, visual inspection and computed reduced-motion checks were not rerun because localhost/browser execution was previously blocked. In-memory test evidence is not equivalent to native-browser verification.
-- Selective recovery does not silently restore dependencies, children or historical inbound links. Missing referenced entities must be restored first. Area/Project restore affects that entity's record, not every historically linked entity.
+- Selective recovery does not silently restore dependencies or children. Missing referenced entities must be restored first. Task/Project/Habit restore reconciles only the selected entity's reciprocal links on existing Goals; Area/Project restore does not restore every historically linked child.
 - Undo is intentionally guarded against all subsequent saved metadata/native-data changes. If it becomes unsafe, use the retained safety copy for another selective restore.
 - Automatic copies use browser storage quota and run only while the app is open; portable exported ZIPs remain necessary for device/browser loss.
+
+## Important review fix — reciprocal Goal relationships
+
+- Restoring a Task, Project or Habit now adds/removes its corresponding Goal-owned links to match the restored entity's `goalIds`, without replacing current Goal metadata or unrelated contributions.
+- Project and Habit links recover the saved contribution mode/Task selection or metric/target. Missing saved reciprocal settings or selections incompatible with current Tasks reject before any writes; linked dependencies are never silently resurrected or moved.
+- RED: three focused regressions failed because restored membership was absent from Goal-owned links. GREEN: all three pass, proving both membership sides, computed Goal progress, preservation of unrelated Goal fields/current state, missing-setting rejection and incompatible Project selection rejection.
+- Fresh full verification: `node --test tests/*.test.js` passed **138/138**; focused recovery/UI coverage passed **14/14**. Syntax checks for app, backup, storage and settings UI plus `git diff --check` passed. Browser acceptance remains pending; no browser attempts were made for this fix.

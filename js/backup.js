@@ -331,6 +331,24 @@
     const index = next.state[collection].findIndex(item => item.id === id);
     if (index < 0) next.state[collection].push(structuredClone(record));
     else next.state[collection][index] = structuredClone(record);
+    const goalLink = { tasks: ['taskIds', null], projects: ['projectLinks', 'projectId'], habits: ['habitLinks', 'habitId'] }[collection];
+    if (goalLink) {
+      const [field, ownerField] = goalLink;
+      const belongs = link => ownerField ? link[ownerField] === id : link === id;
+      for (const goal of next.state.goals) {
+        const linked = (record.goalIds || []).includes(goal.id);
+        if (!linked && !(goal[field] || []).some(belongs)) continue;
+        // Only the selected entity's reciprocal link changes. Never replace the
+        // current Goal or invent Project/Habit contribution settings.
+        let restored = id;
+        if (linked && ownerField) {
+          restored = source.goals.find(item => item.id === goal.id)?.[field]?.find(belongs);
+          if (!restored) throw new Error('Cannot restore reciprocal Goal link: saved contribution settings are missing.');
+        }
+        goal[field] = (goal[field] || []).filter(link => !belongs(link));
+        if (linked) goal[field].push(structuredClone(restored));
+      }
+    }
     const ownerType = { tasks: 'task', notes: 'note', resources: 'resource' }[collection];
     if (ownerType) {
       const belongs = file => ownerType === 'task' ? file.taskId === id : file.ownerType === ownerType && file.ownerId === id;

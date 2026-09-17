@@ -74,6 +74,52 @@ test('Selective Task restore changes one entity and its owned file while preserv
   assert.equal(await current.attachmentRecords[0].blob.text(), 'new');
 });
 
+for (const [collection, linkField, ownerField] of [['tasks', 'taskIds', null], ['projects', 'projectLinks', 'projectId'], ['habits', 'habitLinks', 'habitId']]) {
+  test(`Selective ${collection} restore reconciles Goal membership and contribution without replacing Goal metadata`, () => {
+    const savedLink = collection === 'tasks' ? 'selected' : collection === 'projects'
+      ? { projectId: 'selected', contributionMode: 'selectedTasks', selectedTaskIds: ['done'] }
+      : { habitId: 'selected', metric: 'totalCheckins', target: 2 };
+    const unrelatedLink = collection === 'tasks' ? 'other' : collection === 'projects'
+      ? { projectId: 'other', contributionMode: 'allTasks', selectedTaskIds: [] }
+      : { habitId: 'other', metric: 'totalCheckins', target: 1 };
+    const source = fixture(); source.tasks = [];
+    source[collection] = [{ id: 'selected', title: 'Selected', name: 'Selected', goalIds: ['saved'], isCompleted: true }, { id: 'other', title: 'Other', name: 'Other', goalIds: ['saved'] }];
+    if (collection === 'projects') source.tasks = [{ id: 'done', title: 'Done', projectId: 'selected', isCompleted: true }, { id: 'open', title: 'Open', projectId: 'selected' }, { id: 'unrelated', title: 'Other', projectId: 'other' }];
+    source.goals = ['saved', 'newer'].map(id => ({ id, title: id, progressMode: collection === 'habits' ? 'linkedHabits' : 'linkedTasks', [linkField]: id === 'saved' ? [savedLink, unrelatedLink] : [] }));
+    const appData = Core.normalizeState(source);
+    const logs = collection === 'habits' ? [{ id: 'checkin', habitId: 'selected', date: '2026-09-17', status: 'done', value: null }] : [];
+    const snapshot = { appData, attachments: [], habitLogs: logs, goalHistory: [] };
+    const state = structuredClone(appData);
+    state[collection][0].goalIds = ['newer'];
+    state.goals[0][linkField] = [unrelatedLink]; state.goals[1][linkField] = [savedLink];
+    state.goals[0].title = 'Keep current title'; state.goals[0].targetValue = 73;
+    const current = { state, attachmentRecords: [], habitLogs: [], goalHistory: [] };
+    const before = structuredClone(current);
+    const candidate = Backup.prepareSelectiveRestore(current, snapshot, collection, 'selected');
+    assert.deepEqual(candidate.state[collection][0].goalIds, ['saved']);
+    assert.deepEqual(candidate.state.goals[0][linkField], [unrelatedLink, savedLink]);
+    assert.deepEqual(candidate.state.goals[1][linkField], []);
+    for (let i = 0; i < state.goals.length; i++) {
+      const { [linkField]: ignoredBefore, ...beforeFields } = state.goals[i];
+      const { [linkField]: ignoredAfter, ...afterFields } = candidate.state.goals[i];
+      assert.deepEqual(afterFields, beforeFields);
+    }
+    const metrics = collection === 'habits' ? Object.fromEntries(candidate.state.habits.map(habit => [habit.id, Core.deriveHabitMetrics(habit, candidate.habitLogs.filter(log => log.habitId === habit.id), '2026-09-17')])) : {};
+    assert.equal(Core.computeGoalProgress(candidate.state.goals[0], candidate.state, metrics).percent, collection === 'habits' ? 25 : 50);
+    assert.equal(Core.computeGoalProgress(candidate.state.goals[1], candidate.state, metrics).percent, 0);
+    assert.deepEqual(current, before, 'candidate preparation must not mutate live state');
+    if (collection === 'projects') {
+      const moved = structuredClone(current);
+      moved.state.tasks.find(task => task.id === 'done').projectId = 'other';
+      assert.throws(() => Backup.prepareSelectiveRestore(moved, snapshot, collection, 'selected'), /selected project Task/i, 'incompatible saved selection must reject instead of moving current Tasks');
+    }
+    if (ownerField) {
+      snapshot.appData.goals[0][linkField] = [unrelatedLink];
+      assert.throws(() => Backup.prepareSelectiveRestore(current, snapshot, collection, 'selected'), /reciprocal|contribution/i, 'missing saved contribution settings must reject');
+    }
+  });
+}
+
 test('Selective restore rejects missing dependencies and foreign file ownership before writes', async () => {
   const state = await seed();
   const snapshot = { appData: structuredClone(state), ...(await Storage.captureUserData()) };
