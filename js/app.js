@@ -723,10 +723,22 @@
       else content = renderToday();
     }
     main.innerHTML = `${warning}<div class="content ${route.type === 'calendar' ? 'calendar-content' : ''}">${content}</div>`;
+    if (route.type === 'today') applyTodayDashboard(main);
     if (createdGoalFocusId && route.type === 'goal' && route.id === createdGoalFocusId) {
       createdGoalFocusId = null;
       restoreGoalFocus(goalFocusTarget(main.querySelector('[data-goal-property="title"]')));
     }
+  }
+
+  function applyTodayDashboard(main) {
+    const dashboard = state.settings.dashboard || {};
+    const content = main.querySelector('.content'); if (!content) return;
+    const cards = [...content.querySelectorAll(':scope > [data-dashboard-section]')];
+    const rank = new Map((dashboard.sectionOrder || []).map((id, index) => [id, index]));
+    const ordered = [...cards].sort((a, b) => (rank.get(a.dataset.dashboardSection) ?? 99) - (rank.get(b.dataset.dashboardSection) ?? 99));
+    const anchor = [...content.children].find(child => !child.dataset.dashboardSection);
+    for (const card of [...ordered].reverse()) content.insertBefore(card, anchor || null);
+    content.classList.toggle('today-focus-view', dashboard.focusedMode === true);
   }
 
   function pageHeader(title, subtitle, options = {}) {
@@ -811,15 +823,16 @@
       goalCount && `${goalCount} ${goalCount === 1 ? 'goal' : 'goals'}`,
       overdueCount && `${overdueCount} overdue`,
     ].filter(Boolean).join(' · ');
-    let html = pageHeader('Today', '', { contextToday: true, actionHtml: '<button class="btn btn-secondary" type="button" data-action="open-focus"><i class="ph ph-crosshair"></i> Focus</button>' });
+    let html = pageHeader('Today', '', { contextToday: true, actionHtml: `<button class="btn btn-secondary" type="button" data-action="dashboard-focus-toggle"><i class="ph ph-faders-horizontal"></i>${state.settings.dashboard?.focusedMode ? 'Full Today' : 'Focus View'}</button><button class="btn btn-secondary" type="button" data-action="open-focus"><i class="ph ph-crosshair"></i> Focus</button>` });
     html += `<div class="today-context" data-today-context="true"><span class="today-context-date"><i class="ph ph-calendar-blank"></i>${esc(formatPageToday(today))}</span>${contextCounts ? `<span class="today-context-summary">${esc(contextCounts)}</span>` : ''}</div>`;
     const focusIds = Core.selectFocusTasks(state.tasks, state.settings.focusTaskIds);
     const focusTasks = focusIds.map(getTask);
     const plannedMinutes = sections.today.reduce((sum, task) => sum + (task.durationMinutes || 0), 0);
     const completedToday = state.tasks.filter(task => task.isCompleted && String(task.completedAt || '').slice(0, 10) === today);
-    html += `<section class="section today-focus" data-today-focus aria-labelledby="today-focus-heading"><div class="section-header"><h2 class="section-label" id="today-focus-heading">Daily focus</h2><span class="section-count">${focusTasks.length} / 3</span></div>${focusTasks.length ? `<div class="task-list">${focusTasks.map(task => taskRow(task, 'focus')).join('')}</div>` : '<p class="area-empty-copy">Choose up to three open tasks using the focus button or Task properties.</p>'}</section>`;
-    html += `<section class="section daily-review" data-daily-review aria-labelledby="daily-review-heading"><div class="section-header"><h2 class="section-label" id="daily-review-heading">Daily review</h2></div><div class="daily-review-stats"><span data-daily-review-completed>${completedToday.length} completed today</span><span data-daily-review-open>${sections.today.length} unfinished planned tasks</span><span>${plannedMinutes} min planned remaining</span></div></section>`;
-    html += `<section class="today-actions" data-today-actions="true" aria-labelledby="today-actions-heading"><div class="section-header"><h2 class="section-label" id="today-actions-heading">Daily actions</h2></div><div class="today-actions-grid"><button class="today-action" type="button" data-route="inbox"><i class="ph ph-tray"></i><span>Inbox</span></button><button class="today-action" type="button" data-action="quick-add" data-today="true"><i class="ph ph-plus-circle"></i><span>Quick Add</span></button><button class="today-action" type="button" data-action="open-focus"><i class="ph ph-crosshair"></i><span>Focus</span></button><button class="today-action" type="button" data-route="calendar"><i class="ph ph-calendar"></i><span>Calendar</span></button><button class="today-action" type="button" data-action="add-starter-examples"><i class="ph ph-sparkle"></i><span>Populate workspace</span></button></div></section>`;
+    const dashboardTools = id => `<span class="dashboard-tools"><button class="btn-icon" type="button" data-action="dashboard-move" data-dashboard-section="${id}" data-direction="up" aria-label="Move section up"><i class="ph ph-caret-up"></i></button><button class="btn-icon" type="button" data-action="dashboard-pin" data-dashboard-section="${id}" aria-label="Pin section"><i class="ph ph-push-pin"></i></button><button class="btn-icon" type="button" data-action="dashboard-move" data-dashboard-section="${id}" data-direction="down" aria-label="Move section down"><i class="ph ph-caret-down"></i></button></span>`;
+    html += `<section class="section today-focus" data-today-focus data-dashboard-section="focus" aria-labelledby="today-focus-heading"><div class="section-header"><h2 class="section-label" id="today-focus-heading">Daily focus</h2><span class="section-count">${focusTasks.length} / 3</span>${dashboardTools('focus')}</div>${focusTasks.length ? `<div class="task-list">${focusTasks.map(task => taskRow(task, 'focus')).join('')}</div>` : '<p class="area-empty-copy">Choose up to three open tasks using the focus button or Task properties.</p>'}</section>`;
+    html += `<section class="section daily-review" data-daily-review data-dashboard-section="review" aria-labelledby="daily-review-heading"><div class="section-header"><h2 class="section-label" id="daily-review-heading">Daily review</h2>${dashboardTools('review')}</div><div class="daily-review-stats"><span data-daily-review-completed>${completedToday.length} completed today</span><span data-daily-review-open>${sections.today.length} unfinished planned tasks</span><span>${plannedMinutes} min planned remaining</span></div></section>`;
+    html += `<section class="today-actions" data-today-actions="true" data-dashboard-section="actions" aria-labelledby="today-actions-heading"><div class="section-header"><h2 class="section-label" id="today-actions-heading">Daily actions</h2>${dashboardTools('actions')}</div><div class="today-actions-grid"><button class="today-action" type="button" data-route="inbox"><i class="ph ph-tray"></i><span>Inbox</span></button><button class="today-action" type="button" data-action="quick-add" data-today="true"><i class="ph ph-plus-circle"></i><span>Quick Add</span></button><button class="today-action" type="button" data-action="open-focus"><i class="ph ph-crosshair"></i><span>Focus</span></button><button class="today-action" type="button" data-route="calendar"><i class="ph ph-calendar"></i><span>Calendar</span></button><button class="today-action" type="button" data-action="add-starter-examples"><i class="ph ph-sparkle"></i><span>Populate workspace</span></button></div></section>`;
 
     if (sections.overdue.length) {
       html += `<section class="section today-section today-section--overdue" data-today-section="overdue-tasks"><div class="section-header"><h2 class="section-label danger">Overdue Tasks</h2><span class="section-count">${sections.overdue.length}</span></div><div class="task-list">${sections.overdue.map(t => taskRow(t, 'today', { overdue: true })).join('')}</div></section>`;
@@ -1326,6 +1339,25 @@
     else if(template.type==='habit')modalState.draft=habitDraft(item);
     else modalState.draft=goalDraft(item);
     modalState.templateInstance=out;renderModal();
+  }
+  function runScheduledTaskTemplates() {
+    const today = Core.dateOnly(); let created = 0;
+    for (const template of state.templates || []) {
+      const data = template.type === 'task' ? template.data || {} : null;
+      if (!data?.scheduleEnabled || data.scheduleDate !== today || data.scheduleGeneratedOn === today) continue;
+      const out = Core.instantiateTemplate(template, today, { state, makeId: uid, nowIso: nowIso() });
+      const task = out.task;
+      if (!task?.title) continue;
+      task.todayOrder = task.plannedDate === today ? nextOrder('today') : null;
+      task.projectOrder = task.projectId ? nextOrder(`project:${task.projectId}`) : null;
+      task.inboxOrder = task.isInbox ? nextOrder('inbox', true) : null;
+      state.tasks.push(task);
+      data.scheduleGeneratedOn = today;
+      template.updatedAt = nowIso();
+      created += 1;
+    }
+    if (created) saveState();
+    return created;
   }
   function templateMenuEntry(type,id) {
     return `<button class="popover-option" type="button" data-pop-action="save-template" data-template-source-type="${type}" data-template-source-id="${esc(id)}"><i class="ph ph-copy"></i>Save as template</button>`;
@@ -3264,6 +3296,9 @@
     if (callDomainHook('handleAction', action, event) !== undefined) return;
     if(action==='recurrence-scope'){applyRecurrenceScope(el.dataset.scope);return;}
     if(action==='from-template')openTemplatePicker();
+    else if (action === 'dashboard-focus-toggle') { state.settings.dashboard.focusedMode = !state.settings.dashboard.focusedMode; saveAndRender(); }
+    else if (action === 'dashboard-pin') { const pins = new Set(state.settings.dashboard.pinnedSectionIds || []), id = el.dataset.dashboardSection; if (pins.has(id)) pins.delete(id); else pins.add(id); state.settings.dashboard.pinnedSectionIds = [...pins]; saveAndRender(); }
+    else if (action === 'dashboard-move') { const ids = ['focus', 'review', 'actions']; const order = [...new Set([...(state.settings.dashboard.sectionOrder || []), ...ids])].filter(id => ids.includes(id)); const from = order.indexOf(el.dataset.dashboardSection), to = Math.max(0, Math.min(order.length - 1, from + (el.dataset.direction === 'up' ? -1 : 1))); if (from !== to) [order[from], order[to]] = [order[to], order[from]]; state.settings.dashboard.sectionOrder = order; saveAndRender(); }
     else if(action==='toggle-sidebar-section'){const key=el.dataset.section;state.ui.sidebarSections[key]=!state.ui.sidebarSections[key];saveAndRender();}
     else if(action==='more-route'){closePopover();navigate(el.dataset.moreRoute);}
     else if(action==='choose-template')chooseTemplate(el.dataset.templateId);
@@ -3758,6 +3793,7 @@
     try {
       while (startupQueue.length) {
         const loading = loadState(startupQueue.shift());
+        runScheduledTaskTemplates();
         render();
         const committedSource = await loading;
         render();

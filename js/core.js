@@ -50,6 +50,15 @@
   }
 
   const templateCopy = value => JSON.parse(JSON.stringify(value));
+  function resolveTemplateVariables(value, contextDate) {
+    const date = parseDateOnly(contextDate) ? contextDate : dateOnly();
+    const replacements = { date, today: date, tomorrow: addDays(date, 1) };
+    const replace = text => String(text).replace(/\{\{(date|today|tomorrow)\}\}/gi, (_, key) => replacements[key.toLowerCase()]);
+    if (typeof value === 'string') return replace(value);
+    if (Array.isArray(value)) return value.map(item => resolveTemplateVariables(item, date));
+    if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, resolveTemplateVariables(item, date)]));
+    return value;
+  }
   function templateOffset(value, anchor) {
     if (!value) return null;
     const a = parseDateOnly(anchor), b = parseDateOnly(value);
@@ -99,7 +108,7 @@
   }
 
   function instantiateTemplate(template, contextDate, ids = {}) {
-    const d = templateCopy(template.data || {});
+    const d = resolveTemplateVariables(templateCopy(template.data || {}), contextDate);
     const makeId = ids.makeId || (prefix => `${prefix}_${globalThis.crypto.randomUUID()}`);
     const ts = ids.nowIso || new Date().toISOString();
     const resolve = offset => Number.isInteger(offset) ? addDays(contextDate,offset) : null;
@@ -1103,6 +1112,7 @@
     parseDateOnly,
     addDays,
     templateFromEntity,
+    resolveTemplateVariables,
     instantiateTemplate,
     isOverdue,
     isInboxActive,

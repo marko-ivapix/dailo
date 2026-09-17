@@ -37,6 +37,16 @@ test('storage exposes the shared safe state normalizer to persistence callers', 
   assert.deepEqual(Storage.normalizeState(state).settings.focusTaskIds, []);
 });
 
+test('template variables and dashboard preferences survive normalized persistence', () => {
+  const state = stateWithV15Fields();
+  state.templates = [{ id: 'template', name: 'Daily', type: 'task', data: { title: 'Plan {{date}}', notes: 'Tomorrow: {{tomorrow}}', scheduleEnabled: true, scheduleDate: '2026-09-18' } }];
+  const normalized = Storage.normalizeState(state);
+  const made = global.TodoCore.instantiateTemplate(normalized.templates[0], '2026-09-17', { state: normalized, makeId: prefix => `${prefix}_id`, nowIso: '2026-09-17T00:00:00.000Z' });
+  assert.equal(made.task.title, 'Plan 2026-09-17');
+  assert.equal(made.task.notes, 'Tomorrow: 2026-09-18');
+  assert.deepEqual(normalized.settings.dashboard, { focusedMode: true, sectionOrder: ['focus'], pinnedSectionIds: ['focus'] });
+});
+
 test('normalization reconciles inverted Habit targets before backup validation', () => {
   const state = stateWithV15Fields();
   state.habits[0].minimumTarget = 4;
