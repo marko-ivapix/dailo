@@ -8,12 +8,24 @@
   const storage = root.TodoStorage;
   if (!storage || !storage.attachments) throw new Error('TodoStorage must load before TodoAttachments');
 
-  return {
+  const api = {
     DB_NAME: storage.DB_NAME,
     open: storage.open,
     async put(record) {
       await storage.attachments.put(record);
       return record;
+    },
+    async putOwned(record, validate) {
+      let stored = false;
+      try {
+        await api.put(record);
+        stored = true;
+        validate?.();
+        return { added: true, error: null };
+      } catch (error) {
+        if (stored) await api.deleteMany([record.id]).catch(cleanupError => console.error(cleanupError));
+        return { added: false, error };
+      }
     },
     get: storage.attachments.get.bind(storage.attachments),
     getMany: storage.attachments.getMany.bind(storage.attachments),
@@ -28,4 +40,5 @@
     clearAll: storage.attachments.clearAll.bind(storage.attachments),
     replaceAll: storage.attachments.replaceAll.bind(storage.attachments)
   };
+  return api;
 });

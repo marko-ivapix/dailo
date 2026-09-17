@@ -1527,19 +1527,17 @@
       const id = uid('att'); const ts = nowIso();
       const identity = owner.type === 'task' ? { taskId: task.id } : { ownerType: owner.type, ownerId: task.id };
       const record = { id, ...identity, fileName: file.name || 'attachment', mimeType: file.type || 'application/octet-stream', size: file.size, blob: file, createdAt: ts, updatedAt: ts, pendingDeleteUntil: null };
-      let stored = false;
       try {
         if (source !== state || attachmentOwner({ ownerType: owner.type, ownerId: task.id })?.item !== task || undoHold || task.attachmentIds.length >= MAX_ATTACHMENTS_PER_TASK) throw new Error('Attachment owner changed. Reopen the item.');
-        await Attachments.put(record);
-        stored = true;
-        if (source !== state || attachmentOwner({ ownerType: owner.type, ownerId: task.id })?.item !== task || undoHold || task.attachmentIds.length >= MAX_ATTACHMENTS_PER_TASK) throw new Error('Attachment owner changed. Reopen the item.');
+        const stored = await Attachments.putOwned(record, () => {
+          if (source !== state || attachmentOwner({ ownerType: owner.type, ownerId: task.id })?.item !== task || undoHold || task.attachmentIds.length >= MAX_ATTACHMENTS_PER_TASK)
+            throw new Error('Attachment owner changed. Reopen the item.');
+        });
+        if (!stored.added) throw stored.error || new Error('Attachment could not be stored.');
         task.attachmentIds = [...(task.attachmentIds || []), id];
         task.updatedAt = nowIso();
         added++;
-      } catch (error) {
-        failed++; console.error(error);
-        if (stored) await Attachments.deleteMany([id]).catch(cleanupError => console.error(cleanupError));
-      }
+      } catch (error) { failed++; console.error(error); }
     }
     if (source === state && !descriptor.deferSave) saveState();
     knowledgeAttachmentCache.delete(owner.type + ':' + task.id);
