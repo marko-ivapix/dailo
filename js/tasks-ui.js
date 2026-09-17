@@ -13,6 +13,8 @@
       else if (task.dueDate === today) cls = 'warning';
       meta.push(`<span class="${cls}">${ctx.esc(label)}</span>`);
     }
+    if (task.isImportant) meta.push('<span class="warning"><i class="ph ph-warning-circle"></i> Important</span>');
+    if (task.isUrgent) meta.push('<span class="danger"><i class="ph ph-lightning"></i> Urgent</span>');
     if (options.upcomingReason === 'planned' && task.plannedDate) meta.push(`<span>Planned ${ctx.esc(ctx.relativeDateLabel(task.plannedDate, today))}</span>`);
     if (options.suggestionReason === 'missed-plan') meta.push(`<span>Missed ${ctx.esc(ctx.relativeDateLabel(task.plannedDate, today))}</span>`);
     if (task.isCompleted && task.completedAt) meta.push(`<span class="success">Completed ${ctx.esc(ctx.relativeDateLabel(String(task.completedAt).slice(0,10), today))}</span>`);
