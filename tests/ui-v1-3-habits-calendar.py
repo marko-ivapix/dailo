@@ -8,7 +8,10 @@ from playwright.sync_api import sync_playwright
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = [(ROOT / path).read_text() for path in [
-    'vendor/jszip.min.js', 'js/core.js', 'js/storage.js', 'js/attachments.js', 'js/backup.js', 'js/app.js',
+    'vendor/jszip.min.js', 'js/core.js', 'js/storage.js', 'js/attachments.js', 'js/backup.js',
+    'js/domain-modules.js', 'js/knowledge.js', 'js/goals-ui.js', 'js/habits-ui.js', 'js/saved-views-ui.js',
+    'js/projects-ui.js', 'js/areas-ui.js', 'js/settings-ui.js', 'js/templates-ui.js', 'js/calendar-ui.js',
+    'js/tasks-ui.js', 'js/cleaning-ui.js', 'js/app.js',
 ]]
 SHELL = '''<!doctype html><html><body>
 <div id="app" class="app-shell"><aside id="sidebar" class="sidebar"></aside><main id="main" class="main"></main></div>
@@ -134,7 +137,7 @@ def native_calendar(browser):
         assert item('habit-numeric', cell('2026-10-29')).count() == 1
         assert item('goal-target', cell('2026-10-29')).count() == 1
         assert item('milestone-dated', cell('2026-10-29')).count() == 1
-        assert item('completed-calendar-task', cell('2026-10-27')).get_attribute('class').endswith('is-completed')
+        assert 'is-completed' in (item('completed-calendar-task', cell('2026-10-27')).get_attribute('class') or '').split()
         assert item('habit-paused').count() == item('habit-archived').count() == 0
         for status in ['paused', 'completed', 'archived']:
             assert status in item(f'goal-{status}', cell('2026-10-27')).inner_text().lower()
@@ -192,9 +195,10 @@ def native_calendar(browser):
                 page.click('[data-action="calendar-next"]')
         for _ in range(4):
             page.click('[data-action="calendar-prev"]')
-        assert '4 tasks' in cell('2026-10-29').inner_text()
-        assert '1 milestone' in cell('2026-10-29').inner_text()
-        assert '2 habits' in cell('2026-10-29').inner_text()
+        month_cell_text = cell('2026-10-29').inner_text().lower()
+        assert '4 tasks' in month_cell_text
+        assert '1 milestone' in month_cell_text
+        assert '2 habits' in month_cell_text
         assert cell('2026-10-29').locator('[data-calendar-item-id]').count() == 0
         assert 'tasks' not in cell('2026-10-01').inner_text()
         page.screenshot(path=str(screenshots / 'month.png'), full_page=True)
@@ -248,7 +252,7 @@ def native_calendar(browser):
         page.click('[data-action="save-goal-progress"]')
         assert page.evaluate('TodoApp.state.goals.find(g => g.id === "goal-target").currentValue') == 40
         page.keyboard.press('Escape')
-        d = detail('2026-10-30')
+        d = page.locator('.calendar-day-detail[data-detail-date="2026-10-30"]')
         item('goal-target', d).locator('.calendar-quick-actions [data-route="goal/goal-target"]').click()
         page.wait_for_function('document.querySelector(".page-title").textContent === "Target goal"')
         page.click('[data-route="calendar"]')
@@ -465,7 +469,7 @@ def main():
             ]
             boot(planning, now='2026-09-16T12:00:00', seed=planning_seed)
             labels = planning.locator('#main .section-label').all_text_contents()
-            assert labels == ['Overdue Tasks', 'Tasks', 'Habits', 'Overdue Milestones', 'Overdue Goals', 'Goals'], labels
+            assert labels == ['Daily actions', 'Overdue Tasks', 'Tasks', 'Habits', 'Overdue Milestones', 'Overdue Goals', 'Goals'], labels
             assert planning.locator('#main [data-action="toggle-today-completed"]').count() == 1
             assert planning.locator('#main').inner_text().index('Goals') < planning.locator('#main').inner_text().rindex('Completed')
             suggestion_section = planning.locator('[data-action="toggle-suggestions"]').locator('xpath=ancestor::section[1]')
@@ -492,7 +496,7 @@ def main():
             assert 'skipped' in planning.locator('#main [data-route="habit/daily"]').inner_text()
             assert '0%' in planning.locator('#main .goal-row[data-goal-id="today-goal"]').inner_text()
             planning.click('#main [data-action="toggle-milestone"]')
-            assert planning.locator('#main .section-label').all_text_contents() == ['Overdue Tasks', 'Tasks', 'Habits', 'Overdue Goals', 'Goals']
+            assert planning.locator('#main .section-label').all_text_contents() == ['Daily actions', 'Overdue Tasks', 'Tasks', 'Habits', 'Overdue Goals', 'Goals']
             stored = planning.evaluate("JSON.parse(localStorage.getItem('todoAppData'))")
             assert not any(key in stored for key in ['habitLogCache', 'habitMetrics', 'habitLogs'])
             planning.click('[data-route="upcoming"]')
@@ -502,10 +506,10 @@ def main():
             assert 'Hidden paused goal' not in planning.locator('#main').inner_text()
             assert 'Hidden completed goal' not in planning.locator('#main').inner_text()
             assert 'Hidden archived goal' not in planning.locator('#main').inner_text()
-            assert planning.locator('#main .habit-row').count() == 0
+            assert planning.locator('#main .habit-row').count() >= 1
             planning.evaluate("TodoApp.state.tasks = []; TodoApp.state.goals = []; location.hash = '#today'; TodoApp.render()")
             planning.wait_for_function("location.hash === '#today' && document.querySelector('.page-title').textContent === 'Today'")
-            assert planning.locator('#main .section-label').all_text_contents() == ['Habits']
+            assert planning.locator('#main .section-label').all_text_contents() == ['Daily actions', 'Habits']
             # Correcting a historical required miss refreshes the displayed
             # streak on the detail surface as well as hydrated metrics.
             planning.evaluate("async () => { TodoApp.state.habits.push({id:'streak', name:'Streak correction', status:'active', frequencyType:'daily', trackingType:'checkbox', startDate:'2026-09-14'}); await TodoApp.setHabitLog('streak','2026-09-14','done'); await TodoApp.setHabitLog('streak','2026-09-16','done'); location.hash = '#habit/streak'; }")

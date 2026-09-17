@@ -301,11 +301,15 @@ def inflight_hold(page, action):
       target[key]=async(...args)=>{if(waiting){waiting=false;__started=true;await new Promise(resolve=>{window.__release=resolve;});__released=true;}return original.apply(target,args);};
     }''',action)
     if action=='undo': click(page,'undo')
-    else: page.clock.run_for(6501)
+    else:
+        page.clock.run_for(6501)
+        page.wait_for_timeout(100)
     page.wait_for_function('__started')
     page.evaluate('''()=>{window.__holdPromise=TodoApp.deleteLifecycle.hold().then(token=>{window.__hold=token;__holdReady=true;});}''')
     assert not page.evaluate('__holdReady'), 'hold returned before owned native work settled'
-    page.evaluate('__release()');page.wait_for_function('__holdReady')
+    page.evaluate('__release()')
+    page.wait_for_timeout(100)
+    page.wait_for_function('__holdReady')
     assert page.evaluate('__released')
     if action=='undo': assert page.evaluate('TodoApp.state.habits.some(h=>h.id==="h")')
     else: assert page.evaluate('async()=>!(await TodoAttachments.get("f"))')

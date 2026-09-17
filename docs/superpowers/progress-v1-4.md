@@ -21,8 +21,16 @@
 - Automated Node suite: **88 passed, 0 failed**.
 - `git diff --check`: passed.
 - Distributable ZIP integrity: passed with no compressed-data errors.
+- Isolated browser regressions: V1.1/V1.2 regression runner passed.
+- Areas/Goals browser flow: passed.
+- Goals UX browser flow: **13/13 passed**.
+- Habits/Calendar browser flow: passed (Calendar acceptance, native history reload, quick-add burst, Today/Upcoming integration).
+- Migration browser flow: passed.
+- Native IndexedDB migration suite: **21/21 passed**.
+- Safety/delete/Undo/backup suite: **133/133 passed**.
+- Tools/templates/views/shortcuts/accessibility suite: passed.
 
 ## Deliberately deferred in fast mode
 
-- Browser interaction/regression scripts were not launched in this iteration, to avoid opening the user's personal Chrome and because the existing browser harness requires its isolated managed runtime.
+- Browser tests use only the isolated headless Playwright runtime; the user's personal Chrome was never opened.
 - Full independent review and production hardening remain a later pass, as agreed for the fast visible-prototype workflow.

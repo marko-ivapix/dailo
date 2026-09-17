@@ -10,6 +10,7 @@ STORAGE = (ROOT / 'js' / 'storage.js').read_text()
 ATTACHMENTS = (ROOT / 'js' / 'attachments.js').read_text()
 BACKUP = (ROOT / 'js' / 'backup.js').read_text()
 APP = (ROOT / 'js' / 'app.js').read_text()
+MODULES = [(ROOT / 'js' / name).read_text() for name in ('domain-modules.js', 'knowledge.js', 'goals-ui.js', 'habits-ui.js', 'saved-views-ui.js', 'projects-ui.js', 'areas-ui.js', 'settings-ui.js', 'templates-ui.js', 'calendar-ui.js', 'tasks-ui.js', 'cleaning-ui.js')]
 SHELL = '''<!doctype html><html><body>
 <div id="app" class="app-shell" aria-live="polite">
   <aside id="sidebar" class="sidebar" aria-label="Primary navigation"></aside>
@@ -52,7 +53,8 @@ def boot(page, seed):
     page.add_script_tag(content=STORAGE)
     page.add_script_tag(content=ATTACHMENTS)
     page.add_script_tag(content=BACKUP)
-    page.add_script_tag(content=APP)
+    for script in MODULES + [APP]:
+        page.add_script_tag(content=script)
     page.wait_for_selector('.page-title')
 
 

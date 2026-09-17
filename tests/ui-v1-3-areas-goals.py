@@ -10,6 +10,7 @@ STORAGE = (ROOT / 'js' / 'storage.js').read_text()
 ATTACHMENTS = (ROOT / 'js' / 'attachments.js').read_text()
 BACKUP = (ROOT / 'js' / 'backup.js').read_text()
 APP = (ROOT / 'js' / 'app.js').read_text()
+MODULES = [(ROOT / 'js' / name).read_text() for name in ('domain-modules.js', 'knowledge.js', 'goals-ui.js', 'habits-ui.js', 'saved-views-ui.js', 'projects-ui.js', 'areas-ui.js', 'settings-ui.js', 'templates-ui.js', 'calendar-ui.js', 'tasks-ui.js', 'cleaning-ui.js')]
 SHELL = '''<!doctype html><html><body>
 <div id="app" class="app-shell" aria-live="polite"><aside id="sidebar" class="sidebar"></aside><main id="main" class="main" tabindex="-1"></main></div>
 <div id="modal-root"></div><div id="toast-root" class="toast-root"></div>
@@ -45,7 +46,7 @@ def boot(page):
         removeItem: key => data.delete(key), clear: () => data.clear(),
       }, configurable: true });
     }''', seed_state())
-    for script in [JSZIP, CORE, STORAGE, ATTACHMENTS, BACKUP, APP]:
+    for script in [JSZIP, CORE, STORAGE, ATTACHMENTS, BACKUP, *MODULES, APP]:
         page.add_script_tag(content=script)
     page.wait_for_selector('.page-title')
 

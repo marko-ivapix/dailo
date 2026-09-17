@@ -233,7 +233,7 @@ def cancel_context(page):
     expect(page.locator('#goal-title')).to_have_value('Canceled parent')
     assert page.evaluate('TodoApp.state.goals.length') == 1
     page.click('[data-action="draft-goal-links"]'); page.check('[data-goal-link-project="p1"]'); page.click('[data-action="save-goal-links"]')
-    page.keyboard.press('Escape'); expect(page.locator('[data-action="new-goal"]')).to_be_focused()
+    page.keyboard.press('Escape'); expect(page.locator('.page-actions [data-action="new-goal"]')).to_be_focused()
     assert page.evaluate('TodoApp.state.projects.every(p=>p.goalIds.length===0)')
     page.click('[data-route="areas"]'); page.click('[data-route="area/a1"]'); page.click('[data-action="area-new-goal"]')
     expect(page.locator('#goal-area')).to_have_value('a1'); page.fill('#goal-title', 'Area goal')

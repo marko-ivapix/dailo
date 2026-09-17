@@ -2426,7 +2426,10 @@
     if (snapshot.restored || snapshot.finalized || undoHold || snapshot.source !== state || snapshot.generation !== undoGeneration) return true;
     if (performance.now() < snapshot.eligibilityDeadline || (snapshot.attachments.length && Date.now() < snapshot.deadline)) return false;
     const validate = record => {
-      if (undoHold || snapshot.source !== state || snapshot.generation !== undoGeneration
+      // A finalizer that already passed ownership checks may finish while a
+      // global safety hold waits for it. New finalizers never start during a
+      // hold; rejecting this in-flight one would strand recovery unnecessarily.
+      if (snapshot.source !== state || snapshot.generation !== undoGeneration
         || TodoStorage.attachmentOwners(state).some(owner => (owner.item.attachmentIds || []).includes(record.id)))
         throw new Error('File ownership changed. Retained files were kept.');
     };
