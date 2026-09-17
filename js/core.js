@@ -938,6 +938,39 @@
     };
   }
 
+  function habitAnalytics(habit, logs, options = {}) {
+    const today = options.today || dateOnly();
+    const weekStartsOn = options.weekStartsOn || 'monday';
+    const suppliedDates = [...new Set((options.dates || []).filter(date => typeof date === 'string' && date <= today))].sort();
+    const dates = suppliedDates.length ? suppliedDates : habitScheduleDates(habit, today, weekStartsOn, logs).flatMap(period => period.dates);
+    const eligible = dates.filter(date => habitScheduledOn(habit, date, { historical: true }));
+    const metrics = deriveHabitMetrics(habit, logs, today, weekStartsOn);
+    const statusFor = date => habitStatusForDate(habit, logs || [], date, today);
+    const weekly = new Map();
+    for (const date of eligible) {
+      const key = habitPeriodKey({ ...habit, frequencyType: 'timesPerWeek' }, date, weekStartsOn);
+      if (!weekly.has(key)) weekly.set(key, []);
+      weekly.get(key).push(date);
+    }
+    const target = Math.max(1, Math.floor(Number(habit?.timesPerWeek) || 1));
+    const weeklySeries = [...weekly.entries()].map(([key, periodDates]) => {
+      const completed = periodDates.filter(date => statusFor(date).status === 'done').length;
+      return { key, percent: Math.round(Math.min(target, completed) / target * 100), completed, target };
+    });
+    const monthlySeries = eligible.map(date => {
+      const state = statusFor(date);
+      return { date, percent: Math.round(Number(state.percent || (state.status === 'done' ? 100 : 0))), status: state.status };
+    });
+    return {
+      completionPercent: habitCompletionForDates(habit, logs, eligible, today, weekStartsOn),
+      checkedToday: statusFor(today).status === 'done',
+      currentStreak: metrics.currentStreak,
+      bestStreak: metrics.longestStreak,
+      weeklySeries,
+      monthlySeries,
+    };
+  }
+
   function habitReminderActive(habit, logs, now, weekStartsOn = 'monday') {
     if (!habit || habit.status !== 'active' || !(habit.reminders || []).some(reminder => reminder?.enabled && normalizeTime(reminder.time))) return false;
     const timestamp = new Date(now); if (Number.isNaN(timestamp.getTime())) return false;
@@ -1302,6 +1335,7 @@
     habitStatusForDate,
     habitCompletionForDates,
     deriveHabitMetrics,
+    habitAnalytics,
     habitReminderActive,
     tasksForTag,
     parseQuickPlanPhrase,
