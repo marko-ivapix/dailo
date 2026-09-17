@@ -549,6 +549,9 @@
         graceDays: Number.isInteger(Number(habit.graceDays)) && Number(habit.graceDays) >= 0 ? Number(habit.graceDays) : 0,
       };
     });
+    state.notes = (state.notes || []).map(note => ({
+      ...note, favorite: note.favorite === true, clip: typeof note.clip === 'string' ? note.clip : '',
+    }));
     state.resources = (state.resources || []).map(resource => ({
       ...resource,
       type: ['book', 'video', 'article', 'course', 'document', 'other'].includes(resource.type) ? resource.type : 'article',

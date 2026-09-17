@@ -141,6 +141,8 @@
     };
     for (const item of [...state.tasks, ...state.projects, ...state.goals, ...state.habits, ...state.notes, ...state.resources]) ref(item.areaId, 'areas');
     for (const collection of ['notes', 'resources']) for (const item of state[collection]) {
+      booleanField(item, 'favorite');
+      if (item.clip != null && typeof item.clip !== 'string') fail('clip');
       for (const field of [collection === 'notes' ? 'body' : 'description', 'createdAt', 'updatedAt'])
         if (typeof item[field] !== 'string') fail(`${collection} ${field}`);
       if (item.areaId != null && !name(item.areaId)) fail(`${collection} Area`);
@@ -155,8 +157,8 @@
       if (collection === 'resources') {
         enumField(item, 'type', ['book', 'video', 'article', 'course', 'document', 'other']);
         enumField(item, 'status', ['unread', 'reading', 'completed']);
-        for (const field of ['author', 'clip']) if (item[field] != null && typeof item[field] !== 'string') fail(field);
-        booleanField(item, 'favorite'); dateField(item, 'reviewedAt');
+        if (item.author != null && typeof item.author !== 'string') fail('author');
+        dateField(item, 'reviewedAt');
       }
     }
     for (const item of [...state.tasks, ...state.projects, ...state.habits]) refs(item, 'goalIds', 'goals');

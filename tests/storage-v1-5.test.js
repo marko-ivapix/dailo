@@ -28,6 +28,7 @@ test('V1.5 metadata survives backup validation and ZIP import', async () => {
   assert.equal(restored.state.goals[0].unit, 'km');
   assert.equal(restored.state.habits[0].idealTarget, 4);
   assert.equal(restored.state.resources[0].status, 'reading');
+  for (const field of ['type', 'status', 'author', 'favorite', 'reviewedAt', 'clip']) assert.equal(restored.state.resources[0][field], state.resources[0][field]);
 });
 
 test('storage exposes the shared safe state normalizer to persistence callers', () => {
@@ -50,6 +51,35 @@ test('backup validation rejects malformed V1.5 metadata', () => {
   const state = stateWithV15Fields();
   state.tasks[0].durationMinutes = -1;
   assert.throws(() => Backup.validateDomain(state, [], []), /durationMinutes/);
+});
+
+test('Old knowledge records receive safe defaults and Note clips/favorites round-trip separately', async () => {
+  await Storage.clearAllForTests();
+  const state = stateWithV15Fields();
+  state.notes = [{ id: 'note', title: 'Note', body: 'Body', areaId: null, tagIds: [], linkUrls: [], attachmentIds: [], createdAt: '', updatedAt: '' }];
+  for (const key of ['type', 'status', 'author', 'favorite', 'reviewedAt', 'clip']) delete state.resources[0][key];
+  const normalized = global.TodoCore.normalizeState(state);
+  assert.equal(normalized.notes[0].favorite, false); assert.equal(normalized.notes[0].clip, '');
+  assert.equal(normalized.resources[0].type, 'article'); assert.equal(normalized.resources[0].status, 'unread');
+  assert.equal(normalized.resources[0].author, ''); assert.equal(normalized.resources[0].reviewedAt, null);
+  normalized.notes[0].favorite = true; normalized.notes[0].clip = 'Note excerpt';
+  normalized.notes[0].attachmentIds = ['note-file']; normalized.resources[0].attachmentIds = ['resource-file'];
+  for (const [id, ownerType, ownerId] of [['note-file', 'note', 'note'], ['resource-file', 'resource', 'resource']]) {
+    await Storage.attachments.put({ id, ownerType, ownerId, fileName: id + '.txt', mimeType: 'text/plain', size: 4, blob: new Blob(['text'], { type: 'text/plain' }), pendingDeleteUntil: null });
+  }
+  const zip = await Backup.exportBackupV3(normalized, Storage, '2026-09-17T12:00:00Z');
+  const restored = await Backup.inspectBackupV3(zip);
+  assert.equal(restored.state.notes[0].clip, 'Note excerpt'); assert.equal(restored.state.notes[0].favorite, true);
+  assert.equal(restored.state.resources[0].clip, ''); assert.equal(restored.state.resources[0].favorite, false);
+  assert.deepEqual(restored.state.notes[0].attachmentIds, ['note-file']);
+  assert.deepEqual(restored.state.resources[0].attachmentIds, ['resource-file']);
+  for (const record of restored.attachmentRecords) {
+    assert.equal(record.ownerId, record.ownerType); assert.equal(await record.blob.text(), 'text');
+  }
+  for (const [key, value] of [['clip', 4], ['favorite', 'yes']]) {
+    const invalid = JSON.parse(JSON.stringify(normalized)); invalid.notes[0][key] = value;
+    assert.throws(() => Backup.validateDomain(invalid, [], []), new RegExp(key));
+  }
 });
 
 test('Fractional numeric Habit targets survive ZIP round-trip and count targets stay whole', async () => {
