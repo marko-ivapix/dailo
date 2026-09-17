@@ -172,6 +172,15 @@ select:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .calendar-visibility { margin-bottom: 24px; color: var(--text-muted); font-size: 13px; }
 .calendar-visibility label { display: inline-flex; align-items: center; gap: 6px; color: var(--text-secondary); cursor: pointer; }
 .calendar-visibility input { accent-color: var(--primary-focus); }
+.calendar-summary { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 16px; margin-bottom: 16px; padding: 10px 12px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); background: var(--surface-card-dark); }
+.calendar-summary > strong { color: var(--text-secondary); font-size: 13px; }
+.calendar-summary > div { display: flex; flex-wrap: wrap; gap: 6px; }
+.calendar-legend { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-left: auto; color: var(--text-muted); font-size: 11px; }
+.calendar-legend-dot { width: 7px; height: 7px; display: inline-block; border-radius: 50%; background: var(--border-strong); }
+.calendar-legend-dot--tasks { background: var(--primary-focus); }
+.calendar-legend-dot--habits { background: var(--success); }
+.calendar-legend-dot--goals { background: var(--info); }
+.calendar-legend-dot--milestones { background: var(--warning); }
 .calendar-scroll { overflow-x: auto; }
 .calendar-week { display: grid; grid-template-columns: repeat(7, minmax(125px, 1fr)); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); overflow: hidden; min-height: 540px; }
 .calendar-day { min-width: 0; background: var(--surface-card-dark); border-right: 1px solid var(--border-subtle); padding: 10px; }
@@ -224,6 +233,8 @@ select:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .calendar-quick-actions button:disabled { cursor: not-allowed; opacity: .5; }
 .task-time-input { width: 136px; color-scheme: dark; }
 @media (max-width: 800px) {
+  .calendar-summary { align-items: flex-start; }
+  .calendar-legend { width: 100%; margin-left: 0; }
   .calendar-week { min-width: 900px; }
   .calendar-month-day, .calendar-month-blank { padding: 8px; min-height: 92px; }
   .calendar-month .calendar-counts { font-size: 10px; }
