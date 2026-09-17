@@ -515,9 +515,7 @@
     const migration = migrateStateV3(input);
     if (!migration.ok) throw new Error(migration.reason || 'invalid-state');
     const state = migration.state;
-    const taskIds = new Set((state.tasks || []).map(task => task.id));
-    const focusTaskIds = [...new Set((state.settings?.focusTaskIds || [])
-      .filter(id => typeof id === 'string' && taskIds.has(id)))];
+    const focusTaskIds = selectFocusTasks(state.tasks, state.settings?.focusTaskIds);
     const dashboard = state.settings?.dashboard || {};
     state.settings = {
       ...(state.settings || {}),

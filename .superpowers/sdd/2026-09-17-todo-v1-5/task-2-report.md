@@ -14,3 +14,9 @@ Quick Add accepts valid trailing date/time phrases (`tomorrow 09:30`, `Monday at
 - Browser execution is **not verified**: system/bundled Python lack Playwright; repo `.venv/bin/python` has Playwright, but sandboxed headless Chromium aborts with `TargetClosedError` / `SIGABRT` at launch. An elevated launch request was interrupted before running. Root should run `PYTHONPATH=tests/browser_test_support .venv/bin/python tests/ui-v1-5.py` with an approved runtime.
 
 No personal browser or user profile was used.
+
+## Important review fixes
+
+- Shared normalization now persists at most three distinct existing open focus IDs in requested order. Loading and saving prune stale/completed/excess selections; save also reconciles the live focus IDs without replacing live entity objects.
+- Add another retains whether the opening date was an explicit date or the implicit Today default. Subsequent trailing tomorrow/time phrases parse correctly, and planned/due times plus explicit-time flags reset.
+- Both regressions were observed failing before fixes. Focused checks: **10 passed, 0 failed**. Full Node suite after fixes: **102 passed, 0 failed**. App/core syntax and diff checks passed.

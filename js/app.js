@@ -390,7 +390,8 @@
         throw new Error('Local data keeps changing in another tab; retry migration.');
       }
       let committedSource = sourceAtStart;
-      if (migration.migrated) {
+      const focusSelectionChanged = JSON.stringify(parsed.settings?.focusTaskIds) !== JSON.stringify(prepared.settings.focusTaskIds);
+      if (migration.migrated || focusSelectionChanged) {
         const persisted = { ...prepared };
         delete persisted.habitLogCache;
         delete persisted.habitMetrics;
@@ -424,6 +425,7 @@
     if (!state || globalOperation) return false;
     try {
       const persisted = Core.normalizeState(state);
+      state.settings.focusTaskIds = persisted.settings.focusTaskIds;
       delete persisted.habitLogCache;
       delete persisted.habitMetrics;
       localStorage.setItem(STORAGE_KEY, JSON.stringify(persisted));
@@ -992,6 +994,7 @@
       projectId: context.projectId || null,
       areaId: context.areaId || null,
       plannedDate: context.plannedDate || (context.today ? Core.dateOnly() : null),
+      explicitPlan: Boolean(context.plannedDate),
       processed: Boolean(context.anytime),
     };
     modalState = {
@@ -999,7 +1002,7 @@
       templateContext: context,
       defaults,
       draft: {
-        title: '', notes: '', projectId: defaults.projectId, areaId: defaults.areaId, plannedDate: defaults.plannedDate, parsedPlanDate: null, explicitPlan: Boolean(context.plannedDate),
+        title: '', notes: '', projectId: defaults.projectId, areaId: defaults.areaId, plannedDate: defaults.plannedDate, parsedPlanDate: null, explicitPlan: defaults.explicitPlan,
         dueDate: null, plannedTime: null, dueTime: null, explicitPlannedTime: false, reminderAt: null, reminderFiredAt: null, recurrence: null, tagIds: [], priority: 'none', subtasks: [], moreOpen: false,
       },
       error: '',
@@ -1937,7 +1940,7 @@
     saveState();
     if (keepOpen) {
       const defaults = modalState.defaults;
-      modalState = { type: 'quick', defaults, draft: { title: '', notes: '', projectId: defaults.projectId, areaId: defaults.areaId, plannedDate: defaults.plannedDate, parsedPlanDate: null, explicitPlan: Boolean(defaults.plannedDate), dueDate: null, reminderAt: null, reminderFiredAt: null, recurrence: null, tagIds: [], priority: 'none', subtasks: [], moreOpen: false }, error: '' };
+      modalState = { type: 'quick', defaults, draft: { title: '', notes: '', projectId: defaults.projectId, areaId: defaults.areaId, plannedDate: defaults.plannedDate, parsedPlanDate: null, explicitPlan: Boolean(defaults.explicitPlan), dueDate: null, plannedTime: null, dueTime: null, explicitPlannedTime: false, reminderAt: null, reminderFiredAt: null, recurrence: null, tagIds: [], priority: 'none', subtasks: [], moreOpen: false }, error: '' };
       render(); renderModal(); requestAnimationFrame(() => $('#quick-title')?.focus());
     } else {
       closeModal(); render();
