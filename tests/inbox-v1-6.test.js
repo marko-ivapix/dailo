@@ -3,12 +3,19 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 
+process.env.TZ = 'Europe/Belgrade';
+
 const app = fs.readFileSync(require.resolve('../js/app.js'), 'utf8');
 const tasksUi = fs.readFileSync(require.resolve('../js/tasks-ui.js'), 'utf8');
 
 function inboxHelpers(sourceStart, sourceEnd) {
   const context = {
-    Core: { isInboxActive: item => Boolean(item?.isInbox && !item.isCompleted) },
+    Core: {
+      isInboxActive: item => Boolean(item?.isInbox && !item.isCompleted),
+      dateOnly: date => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`,
+      parseDateOnly: value => { const [y, m, d] = value.split('-').map(Number); return new Date(y, m - 1, d); },
+      addDays: (value, amount) => { const date = context.Core.parseDateOnly(value); date.setDate(date.getDate() + amount); return context.Core.dateOnly(date); },
+    },
     clampOrder: value => Number.isFinite(value) ? value : 999999,
   };
   vm.createContext(context);
@@ -61,4 +68,21 @@ test('mixed Inbox records can be removed without deleting the entity', () => {
   assert.equal(source.goals[0].isInbox, false);
   assert.equal(source.goals[0].updatedAt, '2026-09-17T12:00:00Z');
   assert.equal(context.removeInboxRecordFromState(source, 'goal', 'goal-1', '2026-09-17T12:01:00Z'), false);
+});
+
+test('Quick Add makes new non-task records available in Inbox filters', () => {
+  assert.match(fs.readFileSync(require.resolve('../js/goals-ui.js'), 'utf8'), /isInbox: Boolean\(ctx\.modalState\.templateContext\?\.inbox\)/);
+  assert.match(fs.readFileSync(require.resolve('../js/habits-ui.js'), 'utf8'), /isInbox: Boolean\(ctx\.modalState\.templateContext\?\.inbox\)/);
+  assert.match(fs.readFileSync(require.resolve('../js/knowledge.js'), 'utf8'), /if \(isNew\) item\.isInbox = Boolean\(dialog\.inbox\)/);
+  assert.match(fs.readFileSync(require.resolve('../js/goals-ui.js'), 'utf8'), /closest\?\.\('#mobile-quick-add-menu'\)/);
+  assert.match(fs.readFileSync(require.resolve('../js/habits-ui.js'), 'utf8'), /closest\?\.\('#mobile-quick-add-menu'\)/);
+  assert.match(fs.readFileSync(require.resolve('../js/knowledge.js'), 'utf8'), /closest\?\.\('#mobile-quick-add-menu'\)/);
+});
+
+test('Inbox date grouping uses local timestamps and local week boundaries', () => {
+  const context = inboxHelpers('  function inboxGroupForDate', '  function renderInboxRecord');
+  assert.equal(context.inboxGroupForDate('2026-09-16T22:30:00Z', '2026-09-17'), 'Today');
+  assert.equal(context.inboxGroupForDate('2026-09-16', '2026-09-17'), 'Yesterday');
+  assert.equal(context.inboxGroupForDate('2026-09-14T12:00:00+02:00', '2026-09-17'), 'This week');
+  assert.equal(context.inboxGroupForDate('2026-09-10T12:00:00+02:00', '2026-09-17'), 'Earlier');
 });

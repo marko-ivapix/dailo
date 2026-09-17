@@ -370,7 +370,7 @@
     if (d.endType === 'successfulPeriods' && (!Number.isInteger(d.successfulPeriodsTarget) || d.successfulPeriodsTarget < 1)) { ctx.modalState.error = 'Successful periods must be a positive whole number.'; renderModal(); return; }
     const fields = { ...d, name: String(d.name).trim(), quickValues: d.quickValues, reminders: d.reminders, updatedAt: nowIso() };
     const existingId = ctx.modalState.habitId;
-    const habit = existingId ? getHabit(existingId) : { id: uid('habit'), goalIds: [], status: 'active', reminderFiredMoments: [], createdAt: nowIso() };
+    const habit = existingId ? getHabit(existingId) : { id: uid('habit'), goalIds: [], status: 'active', reminderFiredMoments: [], isInbox: Boolean(ctx.modalState.templateContext?.inbox), createdAt: nowIso() };
     Object.assign(habit, fields);
     const before=ctx.modalState.templateInstance?captureGoalProgress():null;
     syncHabitGoalLinks(habit, d.goalIds,ctx.modalState.templateInstance?.goalLinks);
@@ -542,7 +542,7 @@
     else if (action === 'save-habit-settings') saveHabitSettings(ctx);
     else if (action === 'save-habit-property') saveHabitProperty(ctx);
     else if (action === 'cancel-habit-property') cancelHabitProperty(ctx);
-    else if (action === 'new-habit') openHabitModal();
+    else if (action === 'new-habit') openHabitModal(null, { inbox: Boolean(event?.target?.closest?.('#mobile-quick-add-menu')) });
     else if (action === 'edit-habit') { closePopover(); openHabitModal(el.dataset.habitId); }
     else if (action === 'habit-menu') openHabitMenu(ctx, el, el.dataset.habitId);
     else if (action === 'save-habit') saveHabitModal(ctx);

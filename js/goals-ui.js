@@ -342,7 +342,7 @@
       ctx.modalState.savedGoalSource = goal;
       saveState(); closeModal(); render(); maybePromptGoalReached(goal, oldProgress);
     } else {
-      const goal = { ...(ctx.modalState.templateInstance?.goal || {}), id: uid('goal'), ...fields, title: d.title.trim(), createdAt: nowIso(), updatedAt: nowIso(), completedAt: null };
+      const goal = { ...(ctx.modalState.templateInstance?.goal || {}), id: uid('goal'), ...fields, title: d.title.trim(), isInbox: Boolean(ctx.modalState.templateContext?.inbox), createdAt: nowIso(), updatedAt: nowIso(), completedAt: null };
       ctx.modalState.savedGoalSource = goal;
       state.goals.push(goal); syncGoalLinks(goal, d.projectLinks, d.taskIds, d.habitLinks); putGoalHistory(goal.id, 'created'); saveState(); closeModal(); ctx.setCreatedGoalFocusId(goal.id); navigate(`goal/${goal.id}`);
     }
@@ -440,7 +440,7 @@
     const el = event?.target.closest('[data-action], [data-pop-action]');
     if (!el) return false;
     if (action === 'calendar-new-goal') ctx.openGoalModal(null, { targetDate: el.dataset.date });
-    else if (action === 'new-goal') ctx.openGoalModal();
+    else if (action === 'new-goal') ctx.openGoalModal(null, { inbox: Boolean(event?.target?.closest?.('#mobile-quick-add-menu')) });
     else if (action === 'toggle-goal-more') { readGoalDraft(ctx); ctx.modalState.draft.moreOpen = !ctx.modalState.draft.moreOpen; renderModal(); requestAnimationFrame(() => $('[data-action="toggle-goal-more"]')?.focus()); }
     else if (action === 'draft-goal-links') openGoalLinksModal(ctx);
     else if (action === 'draft-goal-reminders') openGoalRemindersModal(ctx);

@@ -83,14 +83,14 @@
     return html + `<section class="section knowledge-attachments-section"><div class="section-header"><h2 class="section-label">Attached files</h2><span class="section-count">${item.attachmentIds.length}</span></div>${attachmentMessage ? `<p class="attachment-message knowledge-attachment-message is-${cached.attachmentState}" role="status">${esc(attachmentMessage)}</p>` : ''}<div class="attachment-list">${cached.records.map(record => renderAttachmentRow(record, { ownerType: type, ownerId: id })).join('')}</div></section><button class="danger-link" type="button" data-action="delete-knowledge" data-owner-type="${type}" data-owner-id="${esc(id)}"><i class="ph ph-trash"></i> Delete ${type}</button>`;
   }
 
-  function openKnowledgeModal(context, type, id = null, areaId = null) {
+  function openKnowledgeModal(context, type, id = null, areaId = null, options = {}) {
     const { attachmentOwner, closePopover, flushTextSave, goalFocusTarget, renderModal, $, loadOwnerAttachments } = context;
     if (!['note', 'resource'].includes(type)) return;
     const owner = id && attachmentOwner({ ownerType: type, ownerId: id });
     if (id && !owner) return;
     closePopover(); flushTextSave();
     const item = owner?.item;
-    context.setModalState({ type: 'knowledge', ownerType: type, ownerId: id, source: item || null, returnFocus: goalFocusTarget(), error: '', attachmentRecords: [], attachmentMessage: '', pendingFiles: [],
+    context.setModalState({ type: 'knowledge', ownerType: type, ownerId: id, source: item || null, inbox: Boolean(options.inbox), returnFocus: goalFocusTarget(), error: '', attachmentRecords: [], attachmentMessage: '', pendingFiles: [],
       draft: { title: item?.title || '', text: (type === 'note' ? item?.body : item?.description) || '', areaId: item?.areaId || areaId || null, linkUrls: [...(item?.linkUrls || [])], linkDraft: '',
         tagIds: [...(item?.tagIds || [])],
         favorite: item?.favorite === true, clip: item?.clip || '',
@@ -156,6 +156,7 @@
     const isNew = !dialog.source;
     const ts = nowIso(), item = dialog.source || { id: uid(type), createdAt: ts, attachmentIds: [] }, previous = copyTemplate(item);
     Object.assign(item, { title: checked.normalized.title, areaId: d.areaId, tagIds: [...new Set(d.tagIds || [])], linkUrls: checked.normalized.linkUrls, updatedAt: ts, [type === 'note' ? 'body' : 'description']: d.text });
+    if (isNew) item.isInbox = Boolean(dialog.inbox);
     Object.assign(item, { favorite: Boolean(d.favorite), clip: d.clip || '' });
     if (type === 'resource') Object.assign(item, { type: d.resourceType, status: d.resourceStatus, author: d.author.trim(), reviewedAt: d.reviewedAt || null });
     if (type === 'resource') for (const [field, collection] of [['relatedTaskIds', 'tasks'], ['relatedProjectIds', 'projects'], ['relatedGoalIds', 'goals'], ['relatedHabitIds', 'habits']]) {
@@ -216,7 +217,7 @@
       if (action === 'read-knowledge-draft') { readKnowledgeDraft(context); return true; }
       const el = event?.target.closest('[data-action]');
       if (!el) return false;
-      if (action === 'new-knowledge') openKnowledgeModal(context, el.dataset.ownerType, null, el.dataset.areaId);
+      if (action === 'new-knowledge') openKnowledgeModal(context, el.dataset.ownerType, null, el.dataset.areaId, { inbox: Boolean(el.closest?.('#mobile-quick-add-menu')) });
       else if (action === 'edit-knowledge') openKnowledgeModal(context, el.dataset.ownerType, el.dataset.ownerId);
       else if (action === 'save-knowledge') saveKnowledge(context);
       else if (action === 'toggle-knowledge-favorite') {

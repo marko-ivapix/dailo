@@ -701,11 +701,16 @@
   }
 
   function inboxGroupForDate(value, today = Core.dateOnly()) {
-    const date = String(value || '').slice(0, 10);
+    const raw = String(value || '');
+    // Date-only values already represent a calendar day. Timestamps need to
+    // be converted through the user's local timezone before grouping.
+    const dateOnlyValue = /^\d{4}-\d{2}-\d{2}$/.test(raw);
+    const parsedValue = dateOnlyValue ? null : new Date(value);
+    const date = parsedValue && !Number.isNaN(parsedValue.getTime()) ? Core.dateOnly(parsedValue) : raw.slice(0, 10);
     if (date === today) return 'Today';
     if (date === Core.addDays(today, -1)) return 'Yesterday';
     const parsed = Core.parseDateOnly(today);
-    const mondayOffset = (parsed.getUTCDay() + 6) % 7;
+    const mondayOffset = (parsed.getDay() + 6) % 7;
     const startOfWeek = Core.addDays(today, -mondayOffset);
     if (date >= startOfWeek && date <= today) return 'This week';
     return 'Earlier';
