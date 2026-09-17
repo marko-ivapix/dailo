@@ -89,7 +89,7 @@ body {
 button, input, textarea, select { font: inherit; }
 button { color: inherit; }
 button, [role="button"], a { -webkit-tap-highlight-color: transparent; }
-button:focus-visible, input:focus-visible, textarea:focus-visible, [tabindex]:focus-visible {
+button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible, [tabindex]:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);
 }
