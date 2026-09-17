@@ -800,7 +800,7 @@ button.area-object:hover { background: var(--surface-interactive); }
 .habit-dashboard-body { display:grid; grid-template-columns:minmax(0,1fr) 190px; gap:18px; align-items:stretch; }
 .habit-tracker-scroll { min-width:0; overflow-x:auto; padding-bottom:4px; }
 .habit-tracker-canvas { min-width:860px; }
-.habit-tracker-weekbar, .habit-tracker-daybar, .habit-tracker-row { display:grid; grid-template-columns:minmax(156px,1fr) repeat(35,18px) 48px; align-items:center; column-gap:3px; }
+.habit-tracker-weekbar, .habit-tracker-daybar, .habit-tracker-row { display:grid; grid-template-columns:minmax(156px,1fr) repeat(31,18px) 48px; align-items:center; column-gap:3px; }
 .habit-tracker-weekbar { min-height:24px; color:var(--text-muted); font-size:10px; text-align:center; }
 .habit-tracker-weekbar span:not(:first-child):not(:last-child) { padding:4px 3px; border-radius:4px; background:var(--surface-interactive); color:var(--primary-focus); font-weight:700; letter-spacing:.04em; }
 .habit-tracker-daybar { min-height:35px; border-bottom:1px solid var(--border-subtle); color:var(--text-muted); font-size:9px; text-align:center; }
@@ -815,7 +815,7 @@ button.area-object:hover { background: var(--surface-interactive); }
 .habit-tracker-name span { min-width:0; display:grid; gap:2px; }
 .habit-tracker-name strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px; font-weight:600; }
 .habit-tracker-name small { color:var(--text-muted); font-size:10px; }
-.habit-tracker-cells { grid-column:2 / span 35; display:grid; grid-template-columns:repeat(35,18px); gap:3px; }
+.habit-tracker-cells { grid-column:2 / span 31; display:grid; grid-template-columns:repeat(31,18px); gap:3px; }
 .habit-day-cell { width:18px; height:18px; position:relative; overflow:hidden; border:1px solid var(--border-subtle); border-radius:4px; background:var(--surface-interactive); }
 .habit-day-cell::after { content:''; position:absolute; inset:0 auto 0 0; width:var(--habit-cell-fill); background:var(--primary-focus); opacity:.8; }
 .habit-day-cell.is-done { border-color:rgba(107,211,155,.55); }
@@ -825,6 +825,9 @@ button.area-object:hover { background: var(--surface-interactive); }
 .habit-day-cell.is-skipped { border-color:rgba(242,182,109,.5); }
 .habit-day-cell.is-skipped::after { background:var(--warning); opacity:.72; }
 .habit-day-cell.is-unscheduled { opacity:.32; }
+.habit-day-cell.is-future, .habit-day-cell.is-outside-month { cursor:not-allowed; opacity:.28; }
+.habit-day-cell:not(:disabled):hover { border-color:var(--primary-focus); transform:translateY(-1px); }
+.habit-day-cell:focus-visible { outline:2px solid var(--primary-focus); outline-offset:2px; }
 .habit-tracker-percent { color:var(--text-muted); font-size:11px; font-variant-numeric:tabular-nums; text-align:right; }
 .habit-analysis { min-width:0; padding-left:16px; border-left:1px solid var(--border-subtle); }
 .habit-analysis-head { display:flex; align-items:baseline; justify-content:space-between; gap:8px; }
@@ -839,6 +842,13 @@ button.area-object:hover { background: var(--surface-interactive); }
 .habit-analysis-list div { display:flex; align-items:baseline; justify-content:space-between; gap:8px; }
 .habit-analysis-list dt { color:var(--text-muted); font-size:11px; }
 .habit-analysis-list dd { margin:0; color:var(--text-secondary); font-size:12px; font-weight:600; font-variant-numeric:tabular-nums; }
+.habit-analysis-breakdown { display:grid; gap:8px; margin-top:16px; padding-top:14px; border-top:1px solid var(--border-subtle); }
+.habit-analysis-bar { display:grid; grid-template-columns:minmax(0,1fr) 56px 30px; align-items:center; gap:6px; color:var(--text-muted); font-size:10px; }
+.habit-analysis-bar > span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.habit-analysis-bar > div { height:6px; overflow:hidden; border-radius:3px; background:var(--surface-interactive); }
+.habit-analysis-bar i { display:block; width:var(--habit-bar-width); height:100%; border-radius:inherit; background:var(--accent); }
+.habit-analysis-bar strong { color:var(--text-secondary); font-size:10px; font-variant-numeric:tabular-nums; text-align:right; }
+.habit-tracker-daybar .is-outside-month { color:var(--text-muted); opacity:.35; }
 .template-rows { min-width:0; border:1px solid var(--border-default); border-radius:var(--radius-sm); padding:12px; }
 .template-rows legend { color:var(--text-secondary); font-size:13px; }
 .template-row { display:grid; gap:12px; padding:12px 0; border-bottom:1px solid var(--border-default); }

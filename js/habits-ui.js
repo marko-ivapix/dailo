@@ -135,18 +135,24 @@
 
   function trackerDates(ctx) {
     const today = ctx.Core.dateOnly();
-    return Array.from({ length: 35 }, (_, index) => {
-      const date = ctx.Core.addDays(today, index - 34);
-      const parsed = new Date(`${date}T12:00:00`);
-      return { date, day: parsed.getDate(), weekday: parsed.toLocaleDateString(undefined, { weekday: 'short' }).slice(0, 2), week: Math.floor(index / 7) + 1 };
+    const current = new Date(`${today}T12:00:00`); const year = current.getFullYear(); const month = current.getMonth();
+    const monthName = current.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    return Array.from({ length: 31 }, (_, index) => {
+      const day = index + 1; const valid = day <= daysInMonth;
+      const date = valid ? `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}` : null;
+      const parsed = valid ? new Date(`${date}T12:00:00`) : null;
+      return { date, day, valid, future: Boolean(date && date > today), weekday: parsed ? parsed.toLocaleDateString(undefined, { weekday: 'short' }).slice(0, 2) : '', week: Math.floor(index / 7) + 1, monthName };
     });
   }
 
   function trackerCompletion(ctx, habit, dates) {
     const logs = ctx.state.habitLogCache?.[habit.id] || [];
+    const today = ctx.Core.dateOnly();
     let scheduled = 0; let score = 0;
     for (const entry of dates) {
-      const status = ctx.Core.habitStatusForDate(habit, logs, entry.date, dates[dates.length - 1].date);
+      if (!entry.valid || entry.future || !entry.date) continue;
+      const status = ctx.Core.habitStatusForDate(habit, logs, entry.date, today);
       if (status.status === 'unscheduled') continue;
       scheduled += 1;
       score += Math.max(0, Math.min(1, Number(status.percent || (status.status === 'done' ? 100 : 0)) / 100));
@@ -171,18 +177,22 @@
       return values.length ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length) : 0;
     });
     const weekBar = weeks.map((value, index) => `<div class="habit-trend-bar-wrap"><span class="habit-trend-value">${value}%</span><span class="habit-trend-bar" style="--habit-bar-height:${Math.max(6, value)}%" aria-label="Week ${index + 1}: ${value}%"></span><small>W${index + 1}</small></div>`).join('');
-    const weeksHead = Array.from({ length: 5 }, (_, index) => `<span style="grid-column:${2 + index * 7} / span 7">Week ${index + 1}</span>`).join('');
-    const daysHead = dates.map(entry => `<span title="${esc(entry.date)}">${entry.weekday}<b>${entry.day}</b></span>`).join('');
+    const weeksHead = Array.from({ length: 5 }, (_, index) => `<span style="grid-column:${2 + index * 7} / span ${index === 4 ? 3 : 7}">Week ${index + 1}</span>`).join('');
+    const daysHead = dates.map(entry => `<span class="${entry.valid ? '' : 'is-outside-month'}" title="${esc(entry.date || 'Outside this month')}">${entry.valid ? entry.weekday : '—'}<b>${entry.day}</b></span>`).join('');
     const rows = active.map(habit => {
       const logs = ctx.state.habitLogCache?.[habit.id] || [];
       const cells = dates.map(entry => {
-        const status = Core.habitStatusForDate(habit, logs, entry.date, today);
+        const status = entry.valid ? Core.habitStatusForDate(habit, logs, entry.date, today) : { status: 'outside-month', percent: 0 };
         const percent = Math.round(Number(status.percent || (status.status === 'done' ? 100 : 0)));
-        return `<span class="habit-day-cell is-${esc(status.status)}" style="--habit-cell-fill:${Math.max(0, Math.min(100, percent))}%" title="${esc(entry.date)} · ${esc(status.status)}" aria-label="${esc(habit.name)} ${esc(entry.date)}: ${esc(status.status)}"></span>`;
+        const canToggle = Boolean(entry.valid && !entry.future && habit.status === 'active' && status.status !== 'unscheduled');
+        const nextStatus = status.status === 'done' ? 'missed' : 'done';
+        const label = entry.valid ? `${habit.name} ${entry.date}: ${status.status}` : `${habit.name}: outside this month`;
+        return `<button class="habit-day-cell is-${esc(status.status)}${entry.future ? ' is-future' : ''}" type="button" ${canToggle ? `data-action="habit-grid-toggle" data-habit-id="${esc(habit.id)}" data-habit-date="${esc(entry.date)}"` : 'disabled'} style="--habit-cell-fill:${Math.max(0, Math.min(100, percent))}%" title="${esc(label)}" aria-label="${esc(label)}" aria-pressed="${status.status === 'done'}"><span class="sr-only">${esc(nextStatus)}</span></button>`;
       }).join('');
       return `<div class="habit-tracker-row"><button class="habit-tracker-name" type="button" data-route="habit/${esc(habit.id)}"><i class="ph ${ROUTINE_DETAILS[habit.routine || 'daily'].icon}"></i><span><strong>${esc(habit.name)}</strong><small>${esc(ROUTINES[habit.routine || 'daily'])}</small></span></button><div class="habit-tracker-cells">${cells}</div><strong class="habit-tracker-percent">${trackerCompletion(ctx, habit, dates)}%</strong></div>`;
     }).join('');
-    return `<section class="habit-dashboard"><div class="habit-dashboard-head"><div><h2>Consistency</h2><p>Last five weeks across your active habits.</p></div><div class="habit-dashboard-summary"><span><strong>${todayDone}/${active.length}</strong> today</span><span><strong>${average}%</strong> average</span><span><strong>${bestStreak}</strong> day streak</span></div></div><div class="habit-dashboard-body"><div class="habit-tracker-scroll"><div class="habit-tracker-canvas"><div class="habit-tracker-weekbar"><span></span>${weeksHead}<span></span></div><div class="habit-tracker-daybar"><span>Habit</span>${daysHead}<span>%</span></div>${rows}</div></div><aside class="habit-analysis"><div class="habit-analysis-head"><h3>Analysis</h3><span>5 weeks</span></div><div class="habit-trend" aria-label="Weekly habit completion">${weekBar}</div><dl class="habit-analysis-list"><div><dt>Active habits</dt><dd>${active.length}</dd></div><div><dt>Checked today</dt><dd>${todayDone}</dd></div><div><dt>Best current streak</dt><dd>${bestStreak} days</dd></div></dl></aside></div></section>`;
+    const breakdown = active.map(habit => `<div class="habit-analysis-bar"><span>${esc(habit.name)}</span><div><i style="--habit-bar-width:${trackerCompletion(ctx, habit, dates)}%"></i></div><strong>${trackerCompletion(ctx, habit, dates)}%</strong></div>`).join('');
+    return `<section class="habit-dashboard"><div class="habit-dashboard-head"><div><h2>Consistency</h2><p>${esc(dates[0].monthName)} · click any past day to update it</p></div><div class="habit-dashboard-summary"><span><strong>${todayDone}/${active.length}</strong> today</span><span><strong>${average}%</strong> month average</span><span><strong>${bestStreak}</strong> day streak</span></div></div><div class="habit-dashboard-body"><div class="habit-tracker-scroll"><div class="habit-tracker-canvas"><div class="habit-tracker-weekbar"><span></span>${weeksHead}<span></span></div><div class="habit-tracker-daybar"><span>Habit</span>${daysHead}<span>%</span></div>${rows}</div></div><aside class="habit-analysis"><div class="habit-analysis-head"><h3>Analysis</h3><span>Month to date</span></div><div class="habit-trend" aria-label="Weekly habit completion">${weekBar}</div><dl class="habit-analysis-list"><div><dt>Active habits</dt><dd>${active.length}</dd></div><div><dt>Checked today</dt><dd>${todayDone}</dd></div><div><dt>Best current streak</dt><dd>${bestStreak} days</dd></div></dl><div class="habit-analysis-breakdown">${breakdown}</div></aside></div></section>`;
   }
 
   function renderHabits(ctx) {
@@ -481,6 +491,7 @@
     else if (action === 'save-habit') saveHabitModal(ctx);
     else if (action === 'toggle-habit-more') { readHabitDraft(ctx); ctx.modalState.draft.moreOpen = !ctx.modalState.draft.moreOpen; renderModal(); requestAnimationFrame(() => $('[data-action="toggle-habit-more"]')?.focus()); }
     else if (action === 'habit-checkin') { const habit = getHabit(el.dataset.habitId); const existing = state.habitLogCache?.[habit?.id]?.find(log => log.date === Core.dateOnly()); setHabitLog(el.dataset.habitId, Core.dateOnly(), existing?.status === 'done' ? 'missed' : 'done'); }
+    else if (action === 'habit-grid-toggle') { const habit = getHabit(el.dataset.habitId); const date = el.dataset.habitDate; if (!habit || !date || date > Core.dateOnly() || habit.status !== 'active') return true; const existing = state.habitLogCache?.[habit.id]?.find(log => log.date === date); const done = existing?.status !== 'done'; const value = habit.trackingType === 'numeric' ? (done ? Number(habit.targetValue || 1) : 0) : null; setHabitLog(habit.id, date, done ? 'done' : 'missed', value); }
     else if (action === 'habit-skip') setHabitLog(el.dataset.habitId, Core.dateOnly(), 'skipped');
     else if (action === 'habit-quick-add') { const habit = getHabit(el.dataset.habitId); const existing = state.habitLogCache?.[habit?.id]?.find(log => log.date === Core.dateOnly()); setHabitLog(el.dataset.habitId, Core.dateOnly(), 'done', Number(existing?.value || 0) + Number(el.dataset.value || 0)); }
     else if (action === 'save-habit-total') setHabitLog(el.dataset.habitId, Core.dateOnly(), 'done', Number($('#habit-direct-total')?.value || 0));
