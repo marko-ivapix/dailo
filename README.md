@@ -26,6 +26,8 @@ Then open `http://localhost:8080`.
 - Resource type, reading status, author and review date; separate Note/Resource clips, favorites and local filters.
 - Template variables/scheduled Task creation and Today section personalization.
 - Cleaning workspace with room Projects (`isCleaningRoom`) and ordinary chore Tasks, including room presets and recurring maintenance examples.
+- Responsive navigation parity: the compact circular Quick Add menu is available in mobile, tablet and desktop previews, while narrow screens also expose persistent bottom navigation for Today, Inbox, Calendar, Goals and Habits.
+- Inbox triage supports All / Tasks / Goals / Habits / Notes / Resources filters, captured-item grouping and non-destructive removal from Inbox.
 - Bounded local snapshots and selective recovery, described below. State schema remains V3 and earlier ZIP formats remain importable.
 
 Scheduled Task templates are one-shot per configured date. They run after saving a due schedule, during ready startup, and on the open app's 30-second checks. Missed dates catch up once when the app is next ready; variables and relative dates use the scheduled day, not the catch-up day. They do not run while the app is closed. Failed saves remain eligible for retry without duplicate Tasks. Saving a different schedule date creates a new one-shot schedule.
@@ -44,7 +46,7 @@ Storage failures distinguish unsaved changes from an automatic snapshot failure 
 
 ### Verification status
 
-The V1.6 release verification is recorded in `docs/superpowers/progress-v1-6.md`. It includes the full Node suite, JavaScript syntax, Python AST, browser-path adapter, diff, and distributable-integrity checks. Native browser/visual acceptance remains pending: no browser was launched in this release verification, so automated results do not establish native browser persistence, visual, keyboard, or mobile acceptance.
+The latest V1.6 verification is recorded in `docs/superpowers/progress-v1-6.md`: **207/207 Node tests passed**, **45 JavaScript files** passed syntax checks, and `git diff --check` passed. The distributable contains **40 regular files** and its ZIP integrity check passed. Native browser/visual acceptance remains pending: no browser was launched in this verification, so automated results do not establish native browser persistence, visual, keyboard, or mobile acceptance.
 
 ## V1.4 foundation
 
@@ -80,7 +82,7 @@ The action is explicit and adds only missing examples. Stable markers prevent re
 ### Core task workflow
 
 - Today with Overdue, manually planned tasks, rule-based Suggestions and Completed-today
-- Inbox capture and quick processing
+- Inbox capture and quick processing, with mixed-record filters for Tasks, Goals, Habits, Notes and Resources
 - Upcoming grouped by earliest relevant future planned/due date
 - Anytime for processed active tasks that are not planned for a date
 - Flat Projects with project colors, archive/restore and manual ordering

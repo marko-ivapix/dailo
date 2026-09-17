@@ -1,6 +1,6 @@
 # Dailo domain model
 
-Current implementation reference, inspected 2026-09-17. This describes the static V1.6 prototype, not a backend contract or a claim of native-browser acceptance. Product intent remains **Capture → Organize → Plan → Complete**, with Today as the main working surface.
+Current implementation reference, inspected 2026-09-18. This describes the static V1.6 prototype, not a backend contract or a claim of native-browser acceptance. Product intent remains **Capture → Organize → Plan → Complete**, with Today as the main working surface.
 
 ## Canonical entities
 
@@ -21,7 +21,7 @@ Subtasks and milestones are embedded children with independent IDs and completio
 
 ## Identity, ownership and relationships
 
-- Today, Inbox, Upcoming, Anytime, Completed, Project, Tag and Saved View lists project the same Tasks. Moving or completing a Task updates that record; a view must not create a second copy.
+- Today, Inbox, Upcoming, Anytime, Completed, Project, Tag and Saved View lists project the same Tasks. Inbox additionally exposes captured Goals, Habits, Notes and Resources through typed filters; removing a mixed record from Inbox only clears its Inbox marker. Moving or completing a Task updates that record; a view must not create a second copy.
 - `plannedDate` means intended work day; `dueDate` means deadline. Their optional times are independent. `durationMinutes` is optional positive planned duration, not elapsed-time tracking.
 - A Task belongs to at most one Project. A Project Task stores no direct Area: `effectiveTaskArea` resolves its Project's Area. Standalone Tasks may have their own Area. Projects, Goals, Habits and knowledge records may have optional Area assignment.
 - Goal membership is reciprocal: Tasks/Projects/Habits carry Goal IDs; Goals carry `taskIds`, `projectLinks` or `habitLinks`. Creation/edit/delete/recovery code reconciles both sides. Avoid directly editing only one side.
@@ -66,6 +66,6 @@ Automatic snapshots run after successful saves/startup, idle for one second, no 
 
 ## Evidence and limits
 
-Implementation: `js/core.js`, `js/app.js`, `js/domain-modules.js`, `js/*-ui.js`, `js/knowledge.js`, `js/storage.js`, `js/attachments.js`, `js/backup.js`. Regression evidence: `tests/core*.test.js`, `tests/tasks-today*.test.js`, `tests/goals-v1-6.test.js`, `tests/habits-v1-6.test.js`, `tests/calendar-v1-6.test.js`, `tests/templates-v1-6.test.js`, `tests/knowledge*.test.js`, `tests/backup*.test.js`, `tests/recovery*.test.js`. The V1.6 progress ledger records 195 passing Node tests; that is historical release evidence, not a new run performed for this document.
+Implementation: `js/core.js`, `js/app.js`, `js/domain-modules.js`, `js/*-ui.js`, `js/knowledge.js`, `js/storage.js`, `js/attachments.js`, `js/backup.js`. Regression evidence: `tests/core*.test.js`, `tests/tasks-today*.test.js`, `tests/goals-v1-6.test.js`, `tests/habits-v1-6.test.js`, `tests/calendar-v1-6.test.js`, `tests/templates-v1-6.test.js`, `tests/knowledge*.test.js`, `tests/backup*.test.js`, `tests/recovery*.test.js`, `tests/inbox-v1-6.test.js`. The latest V1.6 verification records 207 passing Node tests and 45 JavaScript files passing syntax checks; native-browser acceptance remains manual-pending.
 
 Native-browser persistence, file interactions, visuals, keyboard/focus, responsive/mobile and accessibility acceptance remain manual-pending. No backend, authentication, cloud sync, collaboration, server reminders, AI planning, integrations, bulk actions, Search redesign, nested Goals, weighted contributions, elapsed-time tracking or inline attachment preview is implemented by this model.

@@ -17,6 +17,8 @@ ciljeva, navika, beleški i resursa. Osnovni tok je:
 - Čuva se najviše pet automatskih lokalnih kopija, najčešće jednom u pet minuta nakon čuvanja. Kopije sadrže metadata, fajlove, Habit logove i Goal istoriju. Kopije prekinutih operacija čuvaju se zasebno.
 - Settings → Data → Local snapshots vraća jednu izabranu stavku sa njenim fajlovima/istorijom. Povezane stavke moraju već postojati. Pre zamene nastaju sigurnosni ZIP i interna kopija, pa se zahteva unos RESTORE. Kratkotrajni Undo važi dok nije bilo novih izmena; neuspešna provera ne prepisuje novije podatke.
 - Jasno su odvojene greške čuvanja podataka od grešaka automatske kopije, uz Retry. Uvažava se reduced-motion podešavanje.
+- Inbox sada ima All / Tasks / Goals / Habits / Notes / Resources filtere, grupisanje po datumu i uklanjanje iz Inbox-a bez brisanja zapisa.
+- Na mobilnim i tablet širinama postoji stalna donja navigacija za Today, Inbox, Calendar, Goals i Habits. Quick Add je plutajući kružni meni, sa istim rasporedom i na desktopu.
 
 Node testovi pokrivaju podatke, UI module, ZIP i selektivni recovery; izolovana provera u browseru ostaje zaseban korak kada okruženje dozvoljava pokretanje browsera/lokalnog servera. Pitanja za brainstorming ispod su ranije zabeležene ideje, a nisu potvrda da su sve navedene opcije u opsegu.
 
@@ -142,11 +144,14 @@ Detalji implementacije su u `js/cleaning-ui.js`, `js/projects-ui.js` i
 **Za brainstorming:** da li dodati javne/privatne template kolekcije, template
 varijable, automatsko kreiranje po rasporedu ili deljenje Saved View-a?
 
-## 10. Quick Add i mobilni interfejs
+## 10. Quick Add, navigacija i mobilni interfejs
 
 - Quick Add meni omogućava brzo dodavanje Task-a, Goal-a, Habit-a i drugih
   tipova.
-- Na mobilnom prikazu je plutajuće dugme sa plusom i većim touch targetima.
+- Na mobilnom, tablet i desktop prikazu je plutajuće dugme sa plusom; klik
+  otvara kružne akcije za pojedinačne tipove stavki.
+- Na užim ekranima je donja navigacija stalno dostupna i nalazi se ispred
+  sadržaja, dok je Quick Add pozicioniran iznad nje.
 - Task se može završiti swipe gestom udesno.
 - Focus stanje, tastatura i modalni prozori imaju pristupačne focus stilove.
 
@@ -185,9 +190,10 @@ Zatim otvoriti `http://localhost:8080`.
 
 ## Trenutni status
 
-V1.6 prototip je upakovan u `Dailo-v1.6-distributable.zip`. Tačni rezultati
-Node, JavaScript sintakse, Python AST/browser adaptera, diff-a i ZIP integriteta
-zabeleženi su u `docs/superpowers/progress-v1-6.md`.
+V1.6 prototip je upakovan u `Dailo-v1.6-distributable.zip`. Najnovija provera
+ima **207/207** uspešnih Node testova, **45** JavaScript fajlova bez syntax
+grešaka, čist `git diff --check` i ZIP od **40 regularnih fajlova**. Tačna
+evidencija je u `docs/superpowers/progress-v1-6.md`.
 Browser/visual acceptance je dokumentovano odložena; u ovoj release proveri nije
 pokrenut browser, pa automatizovani rezultati nisu potvrda native browser,
 vizuelnog, keyboard ili mobilnog ponašanja.

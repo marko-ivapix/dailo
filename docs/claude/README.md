@@ -1,6 +1,6 @@
 # Claude documentation index
 
-These files are the current implementation handoff for Claude and other agents. They are derived from the V1.6 source, tests and release evidence on 2026-09-17.
+These files are the current implementation handoff for Claude and other agents. They are derived from the V1.6 source, tests and release evidence on 2026-09-18.
 
 | File | Use it for |
 | --- | --- |

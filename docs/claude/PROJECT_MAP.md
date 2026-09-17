@@ -1,13 +1,13 @@
 # Current implementation project map
 
-This map describes the source inspected on 2026-09-17. It is an onboarding aid for Claude, not a replacement for `AGENTS.md`, the versioned specifications, or acceptance evidence. The directory name still says V1.3; README describes V1.6 functionality. Inspect source before making version or completion claims.
+This map describes the source inspected on 2026-09-18. It is an onboarding aid for Claude, not a replacement for `AGENTS.md`, the versioned specifications, or acceptance evidence. The directory name still says V1.3; README describes V1.6 functionality. Inspect source before making version or completion claims.
 
 ## Runtime files
 
 | File | Current responsibility |
 | --- | --- |
-| `index.html` | Static shell: sidebar, main content, mobile capture controls, modal and toast roots; loads styles and ordered classic scripts. |
-| `css/styles.css` | Shared application styling, tokens, component states, density, responsive rules and reduced-motion behavior. There is no component CSS build pipeline. |
+| `index.html` | Static shell: desktop sidebar, responsive mobile bottom navigation, main content, floating Quick Add/capture controls, modal and toast roots; loads styles and ordered classic scripts. |
+| `css/styles.css` | Shared application styling, tokens, component states, density, responsive rules for desktop/mobile/tablet navigation and Quick Add, plus reduced-motion behavior. There is no component CSS build pipeline. |
 | `vendor/jszip.min.js` | Vendored JSZip 3.10.1; supplies `JSZip` for local ZIP export/import. |
 | `js/core.js` | `TodoCore`: normalization, V3 migration/validation, task/date rules, derived views, Goal contributions, Habit schedules/metrics, templates and newer planning/insight calculations. Also exports CommonJS for Node tests. |
 | `js/storage.js` | `TodoStorage`: IndexedDB access, attachment ownership, legacy-file migration, Habit logs, Goal history, migration/recovery snapshots, validated data replacement and verification. Also supports CommonJS/test memory storage. |
@@ -25,7 +25,7 @@ This map describes the source inspected on 2026-09-17. It is an onboarding aid f
 | `js/calendar-ui.js` | Calendar adapter: Week/Month and date panels based on shared records; routes calendar quick actions to app helpers. |
 | `js/tasks-ui.js` | Tasks adapter: reusable task rows, Task detail modal and task-property input/action handlers. Today/Inbox/Upcoming screens are still in `app.js`. |
 | `js/cleaning-ui.js` | Cleaning adapter: room/chore screens, forms and explicit apartment/house presets. Rooms are Projects marked `isCleaningRoom`; chores are ordinary Tasks in those Projects. |
-| `js/app.js` | Composition root and central controller: state loading/saving, hash routes, sidebar, daily task screens, adapter context/dispatch, capture/Search, overlays, delegated events, reminders, recurring completion, Undo/delete lifecycle, backups/recovery and automatic/scheduled work. It remains a large controller; adapter extraction is partial. |
+| `js/app.js` | Composition root and central controller: state loading/saving, hash routes, desktop sidebar and mobile bottom navigation, daily task screens, adapter context/dispatch, capture/Search, responsive Quick Add, overlays, delegated events, reminders, recurring completion, Undo/delete lifecycle, backups/recovery and automatic/scheduled work. It remains a large controller; adapter extraction is partial. |
 
 ## Read paths for changes
 

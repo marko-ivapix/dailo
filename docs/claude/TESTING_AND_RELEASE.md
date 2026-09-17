@@ -24,10 +24,10 @@ Current V1.6 release evidence:
 
 | Check | Result |
 | --- | ---: |
-| Complete Node suite | **195 passed, 0 failed, 0 skipped** |
+| Complete Node suite | **207 passed, 0 failed, 0 skipped** |
 | Focused backup/recovery set | **33 passed, 0 failed, 0 skipped** |
 | Focused `recovery-v1-6` file | **11 passed, 0 failed, 0 skipped** |
-| JavaScript syntax | **44 files passed** |
+| JavaScript syntax | **45 files passed** |
 | Python AST parsing | **19 files passed** |
 | Browser-path adapter unittest | **2/2 passed** |
 | `git diff --check` | passed |
