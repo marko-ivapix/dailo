@@ -160,7 +160,9 @@
     for (const entry of dates) {
       if (!entry.valid || entry.future || !entry.date) continue;
       const status = ctx.Core.habitStatusForDate(habit, logs, entry.date, today);
-      if (status.status === 'unscheduled' && habit.frequencyType !== 'daily') continue;
+      // Dates outside a habit's active window never count toward completion,
+      // including daily habits created after the first day of the month.
+      if (status.status === 'unscheduled') continue;
       scheduled += 1;
       score += Math.max(0, Math.min(1, Number(status.percent || (status.status === 'done' ? 100 : 0)) / 100));
     }
