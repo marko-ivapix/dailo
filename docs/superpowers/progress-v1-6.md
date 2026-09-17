@@ -42,7 +42,7 @@ Evidence:
 - `git diff --check` passed.
 - Native browser acceptance was not run. No browser was launched for this task; this environment's browser runtime remains unavailable for release-quality visual/accessibility sign-off.
 - Packaging policy preserved from V1.5: include runtime files, `CLAUDE.md`, README/overview, CSS, JavaScript, vendor assets, browser-test requirements, and user-relevant `docs/codex`, `docs/claude` and progress-ledger Markdown. Exclude Git metadata, tests, virtual environments/caches, plans/specs/review logs, nested ZIPs, and unsafe paths.
-- V1.6 distributable: `/Users/marko.radicevic/Documents/Dailo simple/Dailo-v1.6-distributable.zip` contains **40 regular files**; `unzip -t` and the package exclusion check passed. SHA-256: `38c54d3c694ef40f8f775098c7e65c19f69b999867abd1b42a5e6352e5006641`. The packaged ledger uses an explicit post-build marker; this source ledger records the final artifact hash without a self-referential checksum.
+- V1.6 distributable: `/Users/marko.radicevic/Documents/Dailo simple/Dailo-v1.6-distributable.zip` contains **40 regular files**; `unzip -t` and the package exclusion check passed. SHA-256: `7e769af9a7b3317d37954ae9012c4c900b5f0e156e1d9bf56732122c92c9c30b`. The packaged ledger uses an explicit post-build marker; this source ledger records the final artifact hash without a self-referential checksum.
 
 ## Post-release mobile UI design pass — Inbox and compact modal system
 
