@@ -850,7 +850,9 @@
 
   function renderToday() {
     const today = Core.dateOnly();
-    const sections = Core.deriveTodayV3(state, Object.values(state.habitLogCache || {}).flat(), today);
+    const derivedSections = Core.deriveTodayV3(state, Object.values(state.habitLogCache || {}).flat(), today);
+    const todayFocusFilter = state.settings.todayFocusFilter || 'all';
+    const sections = Core.filterTodayTasks(derivedSections, todayFocusFilter);
     const total = sections.today.length;
     const goalCount = sections.goals.length + sections.overdueGoals.length;
     const overdueCount = sections.overdue.length + sections.overdueMilestones.length + sections.overdueGoals.length;
@@ -861,7 +863,7 @@
       overdueCount && `${overdueCount} overdue`,
     ].filter(Boolean).join(' · ');
     let html = pageHeader('Today', '', { contextToday: true, actionHtml: `<button class="btn btn-secondary" type="button" data-action="dashboard-focus-toggle"><i class="ph ph-faders-horizontal"></i>${state.settings.dashboard?.focusedMode ? 'Full Today' : 'Focus View'}</button><button class="btn btn-secondary" type="button" data-action="open-focus"><i class="ph ph-crosshair"></i> Focus</button>` });
-    html += `<div class="today-context" data-today-context="true"><span class="today-context-date"><i class="ph ph-calendar-blank"></i>${esc(formatPageToday(today))}</span>${contextCounts ? `<span class="today-context-summary">${esc(contextCounts)}</span>` : ''}</div>`;
+    html += `<div class="today-context" data-today-context="true"><span class="today-context-date"><i class="ph ph-calendar-blank"></i>${esc(formatPageToday(today))}</span>${contextCounts ? `<span class="today-context-summary">${esc(contextCounts)}</span>` : ''}<label class="today-filter">Show <select data-today-filter aria-label="Filter Today tasks">${[['all', 'All'], ['open', 'Open'], ['completed', 'Completed'], ['important', 'Important'], ['dueToday', 'Due today']].map(([value, label]) => `<option value="${value}"${todayFocusFilter === value ? ' selected' : ''}>${label}</option>`).join('')}</select></label></div>`;
     const focusIds = Core.selectFocusTasks(state.tasks, state.settings.focusTaskIds);
     const focusTasks = focusIds.map(getTask);
     const plannedMinutes = sections.today.reduce((sum, task) => sum + (task.durationMinutes || 0), 0);
@@ -3558,6 +3560,11 @@
 
   function handleChange(event) {
     if (globalOperation) return;
+    if (event.target.matches('[data-today-filter]')) {
+      state.settings.todayFocusFilter = ['all', 'open', 'completed', 'important', 'dueToday'].includes(event.target.value) ? event.target.value : 'all';
+      saveAndRender();
+      return;
+    }
     if (modalState?.type === 'quick' && ['quick-planned-time', 'quick-due-time'].includes(event.target.id)) {
       const planned = event.target.id === 'quick-planned-time';
       modalState.draft[planned ? 'plannedTime' : 'dueTime'] = Core.normalizeTime(event.target.value);

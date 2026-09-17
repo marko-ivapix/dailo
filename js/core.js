@@ -247,6 +247,23 @@
     };
   }
 
+  function filterTodayTasks(sections, filter) {
+    const activeFilter = ['all', 'open', 'completed', 'important', 'dueToday'].includes(filter) ? filter : 'all';
+    const matches = task => {
+      if (activeFilter === 'all') return true;
+      if (activeFilter === 'open') return !task.isCompleted;
+      if (activeFilter === 'completed') return Boolean(task.isCompleted);
+      if (activeFilter === 'important') return Boolean(task.isImportant) && !task.isCompleted;
+      return task.dueDate === dateOnly() && !task.isCompleted;
+    };
+    const result = { ...sections };
+    for (const key of ['overdue', 'today', 'completed', 'suggestions']) {
+      if (!Array.isArray(sections[key])) continue;
+      result[key] = sections[key].filter(entry => matches(entry.task || entry));
+    }
+    return result;
+  }
+
   function deriveUpcomingV3(state, today) {
     const groups = new Map(deriveUpcoming(state.tasks || [], today).map(group => [group.date, { ...group, goals: [], habits: [], milestones: [] }]));
     const horizonEnd = addDays(today, 14);
@@ -1190,6 +1207,7 @@
     isInboxActive,
     deriveTodaySections,
     deriveTodayV3,
+    filterTodayTasks,
     deriveAnytime,
     deriveUpcoming,
     deriveUpcomingV3,
