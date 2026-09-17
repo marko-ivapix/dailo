@@ -46,4 +46,9 @@ test('mobile navigation provides the primary destinations at the bottom', () => 
   assert.match(css, /\.mobile-bottom-nav \{ display: none; \}/);
   assert.match(css, /@media \(max-width: 1023px\) \{[\s\S]*?\.mobile-bottom-nav \{[\s\S]*?position: fixed;[\s\S]*?display: grid;/);
   assert.match(app, /function renderMobileBottomNav\(\)/);
+  const hiddenRule = css.indexOf('.mobile-bottom-nav { display: none; }');
+  const responsiveRule = css.indexOf('.mobile-bottom-nav {', hiddenRule + 1);
+  assert.ok(hiddenRule >= 0 && responsiveRule > hiddenRule, 'desktop hide rule must precede responsive display rule');
+  assert.match(css, /\.main \{ padding-bottom: calc\(88px \+ env\(safe-area-inset-bottom\)\); \}/);
+  assert.match(css, /\.mobile-quick-add \{ bottom: calc\(74px \+ env\(safe-area-inset-bottom\)\); \}/);
 });

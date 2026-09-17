@@ -540,6 +540,8 @@ select:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 @keyframes popover-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 @keyframes toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 
+.mobile-bottom-nav { display: none; }
+
 @media (max-width: 1023px) {
   :root { --content-gutter: 24px; }
   .app-shell { grid-template-columns: var(--sidebar-width-collapsed) minmax(0, 1fr); }
@@ -659,8 +661,6 @@ select:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .mobile-quick-add.is-open .mobile-quick-add-toggle i { transform: rotate(45deg); }
 .mobile-quick-add-option:focus-visible,
 .mobile-quick-add-toggle:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-
-.mobile-bottom-nav { display: none; }
 
 @media (max-width: 700px) {
   :root { --content-gutter: 16px; }
@@ -1438,6 +1438,14 @@ body { font-size: 14px; line-height: 1.4; }
 .toast { min-height: 42px; padding: 7px 9px; }
 .toast-message { font-size: 12px; }
 
+/* Keep fixed mobile navigation and Quick Add clear of content on tablets too.
+   This comes after the compact-density defaults so the offsets cannot be
+   overwritten by the later global rhythm rules. */
+@media (max-width: 1023px) {
+  .main { padding-bottom: calc(88px + env(safe-area-inset-bottom)); }
+  .mobile-quick-add { bottom: calc(74px + env(safe-area-inset-bottom)); }
+}
+
 @media (max-width: 700px) {
   /* 44px remains the minimum touch target even in compact mode. */
   .task-row > .complete-control,
@@ -1450,7 +1458,7 @@ body { font-size: 14px; line-height: 1.4; }
   .subtask-row > .complete-control.is-completed::before { border-color: var(--accent); background: var(--accent); }
   .task-row > .complete-control i,
   .subtask-row > .complete-control i { position: relative; z-index: 1; font-size: 12px; }
-  .main { padding: 14px var(--content-gutter) 88px; }
+  .main { padding: 14px var(--content-gutter) calc(88px + env(safe-area-inset-bottom)); }
   .page-header { margin-bottom: 12px; padding-bottom: 8px; gap: 10px; }
   .page-title { font-size: 21px; }
   .page-actions { gap: 5px; }
