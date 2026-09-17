@@ -320,7 +320,8 @@
     next.templates = (next.templates || []).map(template => {
       const data = { ...(template.data || {}) };
       if (template.type === 'task') {
-        const validDate = /^\d{4}-\d{2}-\d{2}$/.test(String(data.scheduleDate || '')) && Core.parseDateOnly(data.scheduleDate);
+        const parsedDate = /^\d{4}-\d{2}-\d{2}$/.test(String(data.scheduleDate || '')) && Core.parseDateOnly(data.scheduleDate);
+        const validDate = parsedDate && Core.dateOnly(parsedDate) === data.scheduleDate;
         data.scheduleEnabled = data.scheduleEnabled === true && Boolean(validDate);
         data.scheduleDate = validDate ? data.scheduleDate : null;
         data.scheduleGeneratedOn = validDate && /^\d{4}-\d{2}-\d{2}$/.test(String(data.scheduleGeneratedOn || '')) ? data.scheduleGeneratedOn : null;
@@ -747,7 +748,7 @@
     const pins = new Set(dashboard.pinnedSectionIds || []);
     cards.forEach(card => card.classList.toggle('is-dashboard-pinned', pins.has(card.dataset.dashboardSection)));
     const rank = new Map((dashboard.sectionOrder || []).map((id, index) => [id, index]));
-    const ordered = [...cards].sort((a, b) => (rank.get(a.dataset.dashboardSection) ?? 99) - (rank.get(b.dataset.dashboardSection) ?? 99));
+    const ordered = [...cards].sort((a, b) => Number(pins.has(b.dataset.dashboardSection)) - Number(pins.has(a.dataset.dashboardSection)) || (rank.get(a.dataset.dashboardSection) ?? 99) - (rank.get(b.dataset.dashboardSection) ?? 99));
     const anchor = [...content.children].find(child => !child.dataset.dashboardSection);
     for (const card of [...ordered].reverse()) content.insertBefore(card, anchor || null);
     content.classList.toggle('today-focus-view', dashboard.focusedMode === true);

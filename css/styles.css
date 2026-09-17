@@ -213,6 +213,8 @@ select:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .calendar-timed-block.has-conflict .calendar-item-meta span:first-child { color: var(--warning); border-color: color-mix(in srgb, var(--warning) 45%, var(--border-subtle)); }
 .dashboard-tools { margin-left:auto; display:inline-flex; gap:2px; }
 .dashboard-tools .btn-icon { width:28px; min-height:28px; }
+.is-dashboard-pinned { border-left:3px solid var(--primary-focus); }
+.is-dashboard-pinned .dashboard-tools [data-action="dashboard-pin"] { color:var(--primary-focus); background:var(--surface-interactive); }
 .today-focus-view > .today-section, .today-focus-view > .today-actions + .today-section { display:none; }
 .calendar-month { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 1px; background: var(--border-subtle); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); overflow: hidden; }
 .calendar-weekday { background: var(--bg-primary); padding: 12px; text-align: center; }

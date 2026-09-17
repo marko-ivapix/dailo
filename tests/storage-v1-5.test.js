@@ -47,12 +47,14 @@ test('template variables and dashboard preferences survive normalized persistenc
   assert.deepEqual(normalized.settings.dashboard, { focusedMode: true, sectionOrder: ['focus'], pinnedSectionIds: ['focus'] });
 });
 
-test('scheduled Task templates normalize invalid dates safely', () => {
+test('scheduled Task templates normalize blank and impossible dates safely', () => {
   const state = stateWithV15Fields();
   state.templates = [{ id: 'template', name: 'Daily', type: 'task', data: { title: 'Task', scheduleEnabled: true, scheduleDate: 'not-a-date' } }];
   const normalized = Storage.normalizeState(state);
   assert.equal(normalized.templates[0].data.scheduleEnabled, false);
   assert.equal(normalized.templates[0].data.scheduleDate, null);
+  state.templates[0].data.scheduleDate = '2026-02-31';
+  assert.equal(Storage.normalizeState(state).templates[0].data.scheduleEnabled, false);
 });
 
 test('normalization reconciles inverted Habit targets before backup validation', () => {
