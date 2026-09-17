@@ -40,6 +40,30 @@ test('weekly target analytics does not treat visible future cells as misses', ()
   assert.equal(analytics.monthlySeries.at(-1).date, '2026-09-17');
 });
 
+test('weekly target analytics includes the complete week at a visible month boundary', () => {
+  const analytics = Core.habitAnalytics({ id: 'h', frequencyType: 'timesPerWeek', timesPerWeek: 4, startDate: '2026-08-30' }, [
+    '2026-08-31', '2026-09-01', '2026-09-02', '2026-09-03',
+  ].map(date => ({ habitId: 'h', date, status: 'done' })), {
+    today: '2026-09-17',
+    dates: Array.from({ length: 30 }, (_, index) => `2026-09-${String(index + 1).padStart(2, '0')}`),
+  });
+
+  assert.deepEqual(analytics.weeklySeries[0], { key: '2026-08-31', percent: 100, completed: 4, target: 4 });
+  assert.equal(analytics.completionPercent, 33);
+  assert.equal(analytics.monthlySeries[0].date, '2026-09-01');
+});
+
+test('analytics retains recorded pre-today pause-boundary logs as historical evidence', () => {
+  const habit = { id: 'h', frequencyType: 'daily', startDate: '2026-09-14', pauseIntervals: [{ startDate: '2026-09-16' }] };
+  const logs = [{ habitId: 'h', date: '2026-09-14', status: 'done' }, { habitId: 'h', date: '2026-09-16', status: 'done' }];
+  const analytics = Core.habitAnalytics(habit, logs, { today: '2026-09-17', dates: ['2026-09-14', '2026-09-15', '2026-09-16', '2026-09-17'] });
+
+  assert.equal(analytics.completionPercent, 67);
+  assert.deepEqual(analytics.monthlySeries.map(point => [point.date, point.status]), [
+    ['2026-09-14', 'done'], ['2026-09-15', 'missed'], ['2026-09-16', 'done'],
+  ]);
+});
+
 test('habit detail renders a compact read-only analytics summary, chart, and heatmap', () => {
   const adapters = {};
   const window = { TodoDomainModules: { register: adapter => { adapters[adapter.name] = adapter; } } };

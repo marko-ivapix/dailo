@@ -843,7 +843,8 @@
   }
 
   function habitCompletionForDates(habit, logs, dates, today = dateOnly(), weekStartsOn = 'monday') {
-    const eligible = [...new Set((dates || []).filter(date => typeof date === 'string' && date && date <= today && habitScheduledOn(habit, date, { historical: true })))];
+    const recordedDates = new Set((logs || []).filter(log => log && log.date <= today && (!habit?.id || log.habitId === habit.id)).map(log => log.date));
+    const eligible = [...new Set((dates || []).filter(date => typeof date === 'string' && date && date <= today && (habitScheduledOn(habit, date, { historical: true }) || recordedDates.has(date))))];
     if (!eligible.length) return 0;
     const statusFor = date => habitStatusForDate(habit, logs || [], date, today);
     if (habit?.frequencyType === 'timesPerWeek') {
@@ -943,26 +944,26 @@
     const weekStartsOn = options.weekStartsOn || 'monday';
     const suppliedDates = [...new Set((options.dates || []).filter(date => typeof date === 'string' && date <= today))].sort();
     const dates = suppliedDates.length ? suppliedDates : habitScheduleDates(habit, today, weekStartsOn, logs).flatMap(period => period.dates);
-    const eligible = dates.filter(date => habitScheduledOn(habit, date, { historical: true }));
-    const metrics = deriveHabitMetrics(habit, logs, today, weekStartsOn);
+    const relevantLogs = (logs || []).filter(log => log && log.date <= today && (!habit?.id || log.habitId === habit.id));
+    const recordedDates = new Set(relevantLogs.map(log => log.date));
+    const eligible = dates.filter(date => habitScheduledOn(habit, date, { historical: true }) || recordedDates.has(date));
+    const metrics = deriveHabitMetrics(habit, relevantLogs, today, weekStartsOn);
     const statusFor = date => habitStatusForDate(habit, logs || [], date, today);
-    const weekly = new Map();
-    for (const date of eligible) {
-      const key = habitPeriodKey({ ...habit, frequencyType: 'timesPerWeek' }, date, weekStartsOn);
-      if (!weekly.has(key)) weekly.set(key, []);
-      weekly.get(key).push(date);
-    }
+    const visiblePeriodKeys = new Set(eligible.map(date => habitPeriodKey({ ...habit, frequencyType: 'timesPerWeek' }, date, weekStartsOn)));
     const target = Math.max(1, Math.floor(Number(habit?.timesPerWeek) || 1));
-    const weeklySeries = [...weekly.entries()].map(([key, periodDates]) => {
-      const completed = periodDates.filter(date => statusFor(date).status === 'done').length;
-      return { key, percent: Math.round(Math.min(target, completed) / target * 100), completed, target };
-    });
+    const visibleWeeklyPeriods = habitScheduleDates(habit, today, weekStartsOn, relevantLogs)
+      .filter(period => visiblePeriodKeys.has(period.key));
+    const weeklySeries = visibleWeeklyPeriods
+      .map(({ key, dates: periodDates }) => {
+        const completed = periodDates.filter(date => statusFor(date).status === 'done').length;
+        return { key, percent: Math.round(Math.min(target, completed) / target * 100), completed, target };
+      });
     const monthlySeries = eligible.map(date => {
       const state = statusFor(date);
       return { date, percent: Math.round(Number(state.percent || (state.status === 'done' ? 100 : 0))), status: state.status };
     });
     return {
-      completionPercent: habitCompletionForDates(habit, logs, eligible, today, weekStartsOn),
+      completionPercent: habitCompletionForDates(habit, logs, habit?.frequencyType === 'timesPerWeek' ? visibleWeeklyPeriods.flatMap(period => period.dates) : eligible, today, weekStartsOn),
       checkedToday: statusFor(today).status === 'done',
       currentStreak: metrics.currentStreak,
       bestStreak: metrics.longestStreak,
