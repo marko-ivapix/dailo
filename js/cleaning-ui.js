@@ -12,7 +12,31 @@
       const tasks = state.tasks.filter(task => task.projectId === room.id && !task.isCompleted).sort((a, b) => String(a.plannedDate || '9999').localeCompare(String(b.plannedDate || '9999')));
       return `<article class="cleaning-room-card"><div class="cleaning-room-head"><div><span class="cleaning-room-kicker"><i class="ph ph-house"></i> Home</span><h2>${esc(room.name)}</h2></div><button class="btn btn-secondary" type="button" data-action="new-cleaning-chore" data-project-id="${esc(room.id)}"><i class="ph ph-plus"></i> Add chore</button></div><div class="cleaning-chore-list">${tasks.length ? tasks.map(task => `<div class="cleaning-chore-row"><span class="cleaning-chore-title"><i class="ph ph-broom"></i>${esc(task.title)}</span><span class="cleaning-chore-meta">${task.plannedDate ? esc(relativeDateLabel(task.plannedDate)) : 'No date'} · ${esc(ctx.recurrenceLabel(task.recurrence))}</span><button class="btn-icon" type="button" data-action="open-task" data-task-id="${esc(task.id)}" aria-label="Open chore"><i class="ph ph-arrow-up-right"></i></button></div>`).join('') : '<p class="area-empty-copy">No open chores in this room.</p>'}</div></article>`;
     }).join('');
-    return pageHeader('Cleaning Schedule', 'Room-by-room chores and home maintenance.', { add: false, actionHtml: '<button class="btn btn-secondary" type="button" data-action="new-cleaning-room"><i class="ph ph-plus"></i> New room</button><button class="btn btn-primary" type="button" data-action="new-cleaning-chore"><i class="ph ph-broom"></i> Schedule chore</button>' }) + `<section class="cleaning-grid">${cards || '<div class="empty-state"><h3>No cleaning rooms yet.</h3><p>Create a room, then add recurring chores such as vacuuming or checking the boiler.</p><button class="btn btn-primary" type="button" data-action="new-cleaning-room"><i class="ph ph-plus"></i> Add first room</button></div>'}</section>`;
+    return pageHeader('Cleaning Schedule', 'Room-by-room chores and home maintenance.', { add: false, actionHtml: '<button class="btn btn-secondary" type="button" data-action="new-cleaning-room"><i class="ph ph-plus"></i> New room</button><button class="btn btn-primary" type="button" data-action="new-cleaning-chore"><i class="ph ph-broom"></i> Schedule chore</button>' }) + `<section class="cleaning-grid">${cards || '<div class="empty-state"><h3>No cleaning rooms yet.</h3><p>Create a room, then add recurring chores such as vacuuming or checking the boiler.</p><div class="modal-footer-actions" style="justify-content:center"><button class="btn btn-secondary" type="button" data-action="add-cleaning-examples"><i class="ph ph-sparkle"></i> Add examples</button><button class="btn btn-primary" type="button" data-action="new-cleaning-room"><i class="ph ph-plus"></i> Add first room</button></div></div>'}</section>`;
+  }
+
+  function addExamples(ctx) {
+    const now = ctx.nowIso(), today = ctx.Core.dateOnly();
+    let home = (ctx.state.areas || []).find(area => area.name.toLowerCase() === 'home');
+    if (!home) { home = { id: ctx.uid('area'), name: 'Home', color: '#4da3ff', icon: 'ph-house', status: 'active', isPinned: false, createdAt: now, updatedAt: now }; ctx.state.areas.push(home); }
+    const ensureRoom = (name, key) => {
+      let room = (ctx.state.projects || []).find(project => project.cleaningSampleKey === key);
+      if (!room) { room = { id: ctx.uid('project'), name, color: '#4da3ff', order: ctx.state.projects.length, areaId: home.id, goalIds: [], isArchived: false, isCleaningRoom: true, cleaningSampleKey: key, createdAt: now, updatedAt: now }; ctx.state.projects.push(room); }
+      return room;
+    };
+    const chores = [
+      ['living-room', 'Living Room', 'Vacuum', 'weekly', 1],
+      ['living-room', 'Living Room', 'Dust surfaces', 'weekly', 1],
+      ['bathroom', 'Bathroom', 'Clean bathroom', 'weekly', 1],
+      ['bathroom', 'Bathroom', 'Check boiler', 'monthly', 3],
+    ];
+    for (const [roomKey, roomName, chore, frequency, interval] of chores) {
+      const room = ensureRoom(roomName, `cleaning:${roomKey}`), key = `cleaning:${roomKey}:${chore.toLowerCase().replaceAll(' ', '-')}`;
+      if (ctx.state.tasks.some(task => task.cleaningSampleKey === key)) continue;
+      const id = ctx.uid('task');
+      ctx.state.tasks.push({ id, title: chore, notes: '', projectId: room.id, areaId: null, goalIds: [], plannedDate: today, plannedTime: null, dueDate: today, dueTime: null, reminderAt: null, reminderFiredAt: null, recurrence: ctx.Core.normalizeRecurrenceV3({ frequency, interval, endType: 'never', seriesId: id }), tagIds: [], priority: 'none', attachmentIds: [], isInbox: false, isCompleted: false, completedAt: null, subtasks: [], todayOrder: null, projectOrder: null, inboxOrder: null, cleaningSampleKey: key, createdAt: now, updatedAt: now });
+    }
+    ctx.saveState(); ctx.navigate('cleaning');
   }
 
   function renderModal(ctx) {
@@ -65,6 +89,7 @@
       else if (action === 'new-cleaning-chore') openModal(ctx, 'cleaning-chore', el.dataset.projectId || null);
       else if (action === 'save-cleaning-room') saveRoom(ctx);
       else if (action === 'save-cleaning-chore') saveChore(ctx);
+      else if (action === 'add-cleaning-examples') addExamples(ctx);
       else return false;
       return true;
     }
