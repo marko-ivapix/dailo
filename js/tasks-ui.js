@@ -35,10 +35,13 @@
   }
 
   function renderTaskModal(ctx) {
-    const { modalState, getTask, getProject, Core, esc, relativeDateLabel, tagSummary, priorityIcon, priorityLabel, formatReminder, recurrenceLabel, renderAttachmentsSection, clampOrder, modalFrame } = ctx;
+    const { modalState, getTask, getProject, getArea, state, Core, esc, relativeDateLabel, tagSummary, priorityIcon, priorityLabel, formatReminder, recurrenceLabel, renderAttachmentsSection, clampOrder, modalFrame } = ctx;
     const task = getTask(modalState.taskId);
     if (!task) return '';
     const project = getProject(task.projectId);
+    const projectArea = project ? getArea(project.areaId) : null;
+    const taskArea = projectArea || getArea(task.areaId);
+    const goalOptions = (state.goals || []).filter(goal => goal.status !== 'archived' || (task.goalIds || []).includes(goal.id));
     const completedCount = task.subtasks.filter(s => s.isCompleted).length;
     const today = Core.dateOnly();
     const dueClass = task.dueDate && !task.isCompleted && task.dueDate < today ? 'danger' : (task.dueDate === today ? 'warning' : '');
@@ -49,7 +52,7 @@
       <details class="detail-section detail-properties task-properties-disclosure" open>
         <summary class="detail-heading task-properties-summary"><span>Task properties</span><i class="ph ph-caret-right task-properties-caret" aria-hidden="true"></i></summary>
         <div class="task-properties-content">
-          <div class="task-property-group task-property-group--organization"><div class="task-property-group-label">Organization</div><button class="property-row" type="button" data-action="task-project-picker" data-task-id="${esc(task.id)}"><span class="property-key">Project</span><span class="property-value">${project ? `<span style="display:inline-flex;align-items:center;gap:7px"><span class="project-dot" style="--project-color:${esc(project.color)}"></span>${esc(project.name)}</span>` : 'No project'}</span></button><button class="property-row" type="button" data-action="task-tags-picker" data-task-id="${esc(task.id)}"><span class="property-key">Tags</span><span class="property-value">${tagSummary(task.tagIds) || 'No tags'}</span></button></div>
+          <div class="task-property-group task-property-group--organization"><div class="task-property-group-label">Organization</div><button class="property-row" type="button" data-action="task-project-picker" data-task-id="${esc(task.id)}"><span class="property-key">Project</span><span class="property-value">${project ? `<span style="display:inline-flex;align-items:center;gap:7px"><span class="project-dot" style="--project-color:${esc(project.color)}"></span>${esc(project.name)}</span>` : 'No project'}</span></button><label class="property-row" for="detail-area"><span class="property-key">Area</span>${project ? `<span class="property-value">${projectArea ? esc(projectArea.name) : 'Inherited from project'}</span>` : `<select id="detail-area" class="input task-property-select" data-task-area="${esc(task.id)}"><option value="">No area</option>${(state.areas || []).filter(area => area.status === 'active' || area.id === task.areaId).map(area => `<option value="${esc(area.id)}" ${area.id === task.areaId ? 'selected' : ''}>${esc(area.name)}</option>`).join('')}</select>`}</label><details class="task-goals-disclosure"><summary class="property-row"><span class="property-key">Goals</span><span class="property-value">${(task.goalIds || []).length ? `${task.goalIds.length} linked` : 'No goals'}</span></summary><div class="task-goal-options">${goalOptions.length ? goalOptions.map(goal => `<label><input type="checkbox" data-task-goal="${esc(task.id)}" value="${esc(goal.id)}" ${(task.goalIds || []).includes(goal.id) ? 'checked' : ''}>${esc(goal.title)}</label>`).join('') : '<span class="area-empty-copy">No Goals yet.</span>'}</div></details><button class="property-row" type="button" data-action="task-tags-picker" data-task-id="${esc(task.id)}"><span class="property-key">Tags</span><span class="property-value">${tagSummary(task.tagIds) || 'No tags'}</span></button></div>
           <div class="task-property-group task-property-group--schedule"><div class="task-property-group-label">Schedule</div><button class="property-row" type="button" data-action="task-plan-picker" data-task-id="${esc(task.id)}"><span class="property-key">Plan for</span><span class="property-value">${task.plannedDate ? esc(relativeDateLabel(task.plannedDate)) : 'Not planned'}</span></button><button class="property-row" type="button" data-action="task-due-picker" data-task-id="${esc(task.id)}"><span class="property-key">Due date</span><span class="property-value"><span class="${dueClass}">${task.dueDate ? esc(relativeDateLabel(task.dueDate)) : 'No due date'}</span></span></button><label class="property-row" for="detail-planned-time"><span class="property-key">Planned time</span><input id="detail-planned-time" class="input task-time-input" type="time" value="${esc(task.plannedTime || '')}" data-task-time="plannedTime" data-task-id="${esc(task.id)}"></label><label class="property-row" for="detail-due-time"><span class="property-key">Due time</span><input id="detail-due-time" class="input task-time-input" type="time" value="${esc(task.dueTime || '')}" data-task-time="dueTime" data-task-id="${esc(task.id)}"></label></div>
           <div class="task-property-group task-property-group--focus"><div class="task-property-group-label">Focus</div><button class="property-row" type="button" data-action="task-priority-picker" data-task-id="${esc(task.id)}"><span class="property-key">Priority</span><span class="property-value priority-value">${priorityIcon(task.priority)}${esc(priorityLabel(task.priority))}</span></button><button class="property-row" type="button" data-action="task-reminder-picker" data-task-id="${esc(task.id)}"><span class="property-key">Reminder</span><span class="property-value">${task.reminderAt ? esc(formatReminder(task.reminderAt)) : 'No reminder'}</span></button><button class="property-row" type="button" data-action="task-repeat-picker" data-task-id="${esc(task.id)}"><span class="property-key">Repeat</span><span class="property-value">${esc(recurrenceLabel(task.recurrence))}</span></button></div>
         </div>
@@ -67,6 +70,35 @@
     },
     renderRoute(route, ctx) {
       if (route.type === 'modal' && route.modalType === 'task') return renderTaskModal(ctx);
+    },
+    handleInput(event, ctx) {
+      if (ctx.modalState?.type !== 'task') return false;
+      const input = event.target;
+      if (input.matches('[data-task-area]') && event.type === 'change') {
+        const task = ctx.getTask(input.dataset.taskArea);
+        if (!task || task.projectId) return true;
+        task.areaId = input.value || null;
+        task.updatedAt = ctx.nowIso();
+        ctx.saveAndRender();
+        return true;
+      }
+      if (input.matches('[data-task-goal]') && event.type === 'change') {
+        const task = ctx.getTask(input.dataset.taskGoal);
+        if (!task) return true;
+        const selected = [...ctx.$$('[data-task-goal]:checked')].map(item => item.value);
+        const previous = new Set(task.goalIds || []);
+        task.goalIds = selected;
+        for (const goal of ctx.state.goals || []) {
+          const ids = new Set(goal.taskIds || []);
+          if (selected.includes(goal.id) && !ids.has(task.id)) ids.add(task.id);
+          else if (!selected.includes(goal.id) && previous.has(goal.id)) ids.delete(task.id);
+          goal.taskIds = [...ids];
+        }
+        task.updatedAt = ctx.nowIso();
+        ctx.saveAndRender();
+        return true;
+      }
+      return false;
     }
   });
 })();
