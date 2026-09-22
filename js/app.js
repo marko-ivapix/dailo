@@ -3151,17 +3151,31 @@
     // store. A stale tab must not leave a check-in behind when metadata save
     // is rejected.
     if (!saveState()) { habit.updatedAt = previousUpdatedAt; return null; }
+    const ownsCanonical = () => localStorage.getItem(STORAGE_KEY) === canonicalRaw;
+    if (!ownsCanonical()) {
+      habit.updatedAt = previousUpdatedAt;
+      reportStorageFailure(new Error('Canonical data changed in another tab; refresh before checking in.'));
+      return null;
+    }
     try {
       await TodoStorage.habitLogs.put(record);
+      if (!ownsCanonical()) throw new Error('Canonical data changed in another tab during Habit check-in.');
       await refreshHabitMetrics();
     } catch (error) {
       let rollbackError = null;
       try {
-        if (existing) await TodoStorage.habitLogs.put(existing);
-        else await TodoStorage.habitLogs.deleteMany([record.id]);
+        const current = await TodoStorage.habitLogs.get(record.id);
+        const stillOurRecord = current && ['id', 'habitId', 'date', 'status', 'value', 'createdAt', 'updatedAt']
+          .every(field => Object.is(current[field] ?? null, record[field] ?? null));
+        // Never replace a competing tab's newer log while cleaning up this
+        // failed write. Only undo the exact record inserted above.
+        if (stillOurRecord) {
+          if (existing) await TodoStorage.habitLogs.put(existing);
+          else await TodoStorage.habitLogs.deleteMany([record.id]);
+        }
       } catch (failure) { rollbackError = failure; }
       habit.updatedAt = previousUpdatedAt;
-      if (!saveState() && !rollbackError) rollbackError = new Error('Habit metadata rollback was rejected.');
+      if (ownsCanonical() && !saveState() && !rollbackError) rollbackError = new Error('Habit metadata rollback was rejected.');
       try { await refreshHabitMetrics(); } catch (failure) { rollbackError ||= failure; }
       reportStorageFailure(rollbackError ? new AggregateError([error, rollbackError], 'Habit check-in failed and rollback needs attention.') : error);
       return null;

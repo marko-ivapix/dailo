@@ -10,7 +10,7 @@ function functionSource(name, nextName) {
   return appSource.slice(appSource.indexOf(`  ${name}`), appSource.indexOf(`  ${nextName}`));
 }
 
-function habitApp({ saveResults = [true], refresh = async () => {} } = {}) {
+function habitApp({ saveResults = [true], refresh = async () => {}, afterSave = null, afterPut = null } = {}) {
   const habit = {
     id: 'habit', name: 'Habit', status: 'active', trackingType: 'checkbox',
     frequencyType: 'daily', startDate: '2026-09-01', updatedAt: 'before',
@@ -18,12 +18,14 @@ function habitApp({ saveResults = [true], refresh = async () => {} } = {}) {
   const records = new Map();
   const errors = [];
   let saves = 0;
+  let raw = 'owned';
   const ctx = {
     Core: { ...Core, dateOnly: () => '2026-09-22' },
     state: { habits: [habit], goals: [], settings: {}, habitLogCache: {} },
     TodoStorage: {
       habitLogs: {
-        async put(record) { records.set(record.id, structuredClone(record)); },
+        async put(record) { records.set(record.id, structuredClone(record)); await afterPut?.({ record, records, setRaw: value => { raw = value; } }); },
+        async get(id) { return structuredClone(records.get(id)); },
         async deleteMany(ids) { ids.forEach(id => records.delete(id)); },
       },
     },
@@ -32,10 +34,15 @@ function habitApp({ saveResults = [true], refresh = async () => {} } = {}) {
     evaluateGoalProgressChanges() {},
     evaluateHabitBoundaries: async () => {},
     refreshHabitMetrics: refresh,
-    saveState: () => saveResults[Math.min(saves++, saveResults.length - 1)],
+    saveState: () => {
+      const result = saveResults[Math.min(saves++, saveResults.length - 1)];
+      afterSave?.({ result, saves, setRaw: value => { raw = value; } });
+      return result;
+    },
     reportStorageFailure: error => errors.push(error),
     render() {},
     nowIso: () => '2026-09-22T12:00:00.000Z',
+    canonicalRaw: 'owned', localStorage: { getItem: () => raw }, STORAGE_KEY: 'todoAppData',
     structuredClone,
   };
   vm.createContext(ctx);
@@ -68,6 +75,32 @@ test('habit check-in rolls native log and metadata back when the native transact
   assert.equal(app.habit.updatedAt, 'before');
   assert.equal(app.saves, 2);
   assert.equal(app.errors.length, 1);
+});
+
+test('habit check-in stops before IndexedDB when another tab takes canonical ownership after pre-save', async () => {
+  const app = habitApp({ afterSave: ({ saves, setRaw }) => { if (saves === 1) setRaw('newer-tab'); } });
+
+  const result = await app.ctx.setHabitLog('habit', '2026-09-22');
+
+  assert.equal(result, null);
+  assert.equal(app.records.size, 0);
+  assert.equal(app.habit.updatedAt, 'before');
+});
+
+test('stale habit rollback never overwrites a newer competing native log', async () => {
+  const competing = { id: 'habit:2026-09-22', habitId: 'habit', date: '2026-09-22', status: 'missed', value: null, createdAt: 'competitor', updatedAt: 'competitor' };
+  const app = habitApp({
+    afterPut: async ({ record, records, setRaw }) => {
+      setRaw('newer-tab');
+      records.set(record.id, structuredClone(competing));
+    },
+  });
+
+  const result = await app.ctx.setHabitLog('habit', '2026-09-22');
+
+  assert.equal(result, null);
+  assert.deepEqual(app.records.get(competing.id), competing);
+  assert.equal(app.habit.updatedAt, 'before');
 });
 
 test('mobile More sheet suppresses global shortcuts behind its modal overlay', () => {
