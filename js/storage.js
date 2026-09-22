@@ -569,7 +569,7 @@
     await done;
   }
 
-  async function createRecoverySnapshot(reason, state, storage = null, options = {}) {
+  async function buildRecoverySnapshot(reason, state, storage = null, options = {}) {
     const source = storage || { captureUserData, sameUserData, recoverySnapshots };
     const rawAppData = root.localStorage.getItem('todoAppData'), appData = rawAppData === null ? null : JSON.parse(rawAppData);
     const stateText = JSON.stringify(state), payload = await source.captureUserData();
@@ -582,8 +582,13 @@
     const byteBudget = Number(options.maxBytes);
     if (Number.isFinite(byteBudget) && (byteBudget <= 0 || estimateSnapshotBytes(snapshot) > byteBudget))
       throw new Error(`Automatic snapshot budget exceeded (${byteBudget} bytes)`);
+    return { source, snapshot };
+  }
+
+  async function createRecoverySnapshot(reason, state, storage = null, options = {}) {
+    const { source, snapshot } = await buildRecoverySnapshot(reason, state, storage, options);
     await source.recoverySnapshots.put(snapshot);
-    return id;
+    return snapshot.id;
   }
 
   async function verifyRecoverySnapshot(snapshotId) {
@@ -617,16 +622,31 @@
       const previous = (await recoverySnapshots.listAll()).filter(item => item.reason === 'automatic')
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
       if (previous.length && timestamp.getTime() - Date.parse(previous[0].createdAt) < 300000) return null;
-      const id = await createRecoverySnapshot('automatic', state, null, { maxBytes: byteBudget });
-      const snapshot = await recoverySnapshots.get(id);
+      const prepared = await buildRecoverySnapshot('automatic', state, null, { maxBytes: byteBudget });
+      const snapshot = prepared.snapshot;
       try {
         snapshot.appData = normalizeState(snapshot.appData);
         root.TodoBackup.validateDomain(snapshot.appData, snapshot.habitLogs, snapshot.goalHistory);
         verifyAttachmentReferences(snapshot.appData, snapshot.attachments);
         snapshot.createdAt = timestamp.toISOString();
-        if (estimateSnapshotBytes(snapshot) > byteBudget) throw new Error(`Automatic snapshot budget exceeded (${byteBudget} bytes)`);
+        const candidateBytes = estimateSnapshotBytes(snapshot);
+        if (candidateBytes > byteBudget) throw new Error(`Automatic snapshot budget exceeded (${byteBudget} bytes)`);
+        // Make space before insertion so IndexedDB never temporarily exceeds
+        // the aggregate automatic-snapshot budget. Operation safety copies are
+        // excluded and therefore cannot be pruned here.
+        const currentAutomatic = (await recoverySnapshots.listAll()).filter(item => item.reason === 'automatic')
+          .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+        const removeBeforeInsert = [];
+        let usedBytes = candidateBytes;
+        let kept = 0;
+        for (const item of currentAutomatic) {
+          const itemBytes = estimateSnapshotBytes(item);
+          if (kept >= AUTOMATIC_SNAPSHOT_MAX_COUNT - 1 || usedBytes + itemBytes > byteBudget) removeBeforeInsert.push(item.id);
+          else { usedBytes += itemBytes; kept += 1; }
+        }
+        await recoverySnapshots.deleteMany(removeBeforeInsert);
         await recoverySnapshots.put(snapshot);
-      } catch (error) { await recoverySnapshots.deleteMany([id]); throw error; }
+      } catch (error) { await recoverySnapshots.deleteMany([snapshot.id]); throw error; }
       // Only automatic copies are eligible; interrupted operations retain their safety data.
       const automatic = (await recoverySnapshots.listAll()).filter(item => item.reason === 'automatic')
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
@@ -637,7 +657,7 @@
         if (!remove.includes(item.id) && usedBytes > byteBudget) { remove.push(item.id); usedBytes -= estimateSnapshotBytes(item); }
       }
       await recoverySnapshots.deleteMany([...new Set(remove)]);
-      return id;
+      return snapshot.id;
     });
     automaticSnapshotWork = operation;
     return operation;

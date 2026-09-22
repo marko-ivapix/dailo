@@ -36,7 +36,14 @@ async function zipWith(entries) {
 test('backup preflight rejects an archive over the ZIP entry limit before extraction', async () => {
   const limits = { maxZipEntries: 2 };
   const payload = await zipWith({ 'data.json': JSON.stringify(manifest()), 'extra-a': 'a', 'extra-b': 'b' });
-  await assert.rejects(() => Backup.inspectBackupV3(payload, { limits }), /ZIP entry limit/i);
+  const parsed = await JSZip.loadAsync(await payload.arrayBuffer());
+  const compressedData = Object.getPrototypeOf(parsed.file('data.json')._data);
+  const original = compressedData.getContentWorker;
+  let extracted = 0;
+  compressedData.getContentWorker = function (...args) { extracted += 1; return original.apply(this, args); };
+  try { await assert.rejects(() => Backup.inspectBackupV3(payload, { limits }), /ZIP entry limit/i); }
+  finally { compressedData.getContentWorker = original; }
+  assert.equal(extracted, 0, 'entry data must not inflate before central-directory limits pass');
 });
 
 test('backup preflight rejects declared attachment count and bytes before extraction', async () => {
@@ -64,6 +71,59 @@ test('automatic snapshots stay within a byte budget and preserve non-automatic r
   await assert.rejects(() => Storage.createAutomaticSnapshot(state, new Date('2026-09-22T10:00:00Z'), { maxBytes: 1 }), /snapshot budget/i);
   assert.ok(await Storage.recoverySnapshots.get('safety'));
   assert.equal((await Storage.recoverySnapshots.listAll()).filter(item => item.reason === 'automatic').length, 0);
+});
+
+test('automatic snapshots prune aggregate automatic bytes before inserting the new copy', async () => {
+  await Storage.clearAllForTests();
+  const state = baseState();
+  localStorage.setItem('todoAppData', JSON.stringify(state));
+  const old = {
+    id: 'automatic-old', reason: 'automatic', phase: 'prepared', createdAt: '2026-09-22T09:00:00.000Z',
+    rawAppData: JSON.stringify(state), appData: state, liveState: state,
+    attachments: [], habitLogs: [], goalHistory: [], padding: 'x'.repeat(2000),
+  };
+  const safety = { id: 'safety', reason: 'restore', phase: 'prepared', createdAt: '2026-09-22T09:01:00.000Z', padding: 'y'.repeat(2000) };
+  await Storage.recoverySnapshots.put(old);
+  await Storage.recoverySnapshots.put(safety);
+  const candidateLimit = 3000;
+  const originalPut = Storage.recoverySnapshots.put;
+  Storage.recoverySnapshots.put = async record => {
+    if (record.reason === 'automatic') {
+      const existingAutomaticBytes = (await Storage.recoverySnapshots.listAll())
+        .filter(item => item.reason === 'automatic' && item.id !== record.id)
+        .reduce((sum, item) => sum + Storage.estimateSnapshotBytes(item), 0);
+      assert.ok(existingAutomaticBytes + Storage.estimateSnapshotBytes(record) <= candidateLimit,
+        'aggregate automatic snapshot budget exceeded before insertion');
+    }
+    return originalPut(record);
+  };
+  try { await Storage.createAutomaticSnapshot(state, new Date('2026-09-22T10:00:00Z'), { maxBytes: candidateLimit }); }
+  finally { Storage.recoverySnapshots.put = originalPut; }
+  assert.ok(await Storage.recoverySnapshots.get('safety'), 'operation safety copy must not be pruned');
+  assert.equal(await Storage.recoverySnapshots.get('automatic-old'), null);
+});
+
+test('task, Goal and Habit timestamps share strict ISO validation while legacy knowledge dates may be empty', () => {
+  const valid = '2026-09-22T10:00:00.000Z';
+  const invalid = '2026-02-30T10:00:00.000Z';
+  const entities = [
+    ['tasks', { id: 'task', title: 'Task', areaId: null, goalIds: [], tagIds: [], attachmentIds: [], plannedTime: null, dueTime: null, createdAt: invalid, updatedAt: valid }],
+    ['goals', { id: 'goal', title: 'Goal', areaId: null, taskIds: [], projectLinks: [], habitLinks: [], createdAt: invalid, updatedAt: valid }],
+    ['habits', { id: 'habit', name: 'Habit', areaId: null, goalIds: [], createdAt: invalid, updatedAt: valid }],
+  ];
+  for (const [collection, entity] of entities) {
+    const candidate = { ...baseState(), [collection]: [entity] };
+    assert.throws(() => Backup.validateDomain(candidate, [], []), /timestamp/i, collection);
+    assert.equal(TodoCore.validEntityTimestamps(entity), false, collection);
+  }
+  assert.equal(TodoCore.isIsoTimestamp('2026-09-22T24:00:00.000Z'), false);
+  assert.equal(TodoCore.isIsoTimestamp(''), false);
+  const legacyKnowledge = {
+    ...baseState(),
+    notes: [{ id: 'note', title: 'Legacy', body: '', areaId: null, tagIds: [], linkUrls: [], attachmentIds: [], createdAt: '', updatedAt: '' }],
+  };
+  assert.doesNotThrow(() => Backup.validateDomain(legacyKnowledge, [], []));
+  assert.equal(TodoCore.migrateStateV3(legacyKnowledge).ok, true);
 });
 
 test('recovery-backed replacement preserves canonical data and attachments on injected failure', async () => {

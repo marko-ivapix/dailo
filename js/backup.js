@@ -124,8 +124,10 @@
     const ref = (value, collection) => { if (value != null && !ids[collection].has(value)) fail(`${collection} reference`); };
     const refs = (item, key, collection) => { if (item[key] != null) { if (!Array.isArray(item[key]) || new Set(item[key]).size !== item[key].length) fail(key); item[key].forEach(id => ref(id, collection)); } };
     const nested = (items, label) => { if (!Array.isArray(items) || items.some(item => !object(item) || !name(item.id)) || new Set(items.map(item => item.id)).size !== items.length) fail(label); };
+    const entityTimestamps = (item, label) => { if (!root.TodoCore.validEntityTimestamps(item)) fail(`${label} timestamp`); };
     const taskFields = (task, baseline = false) => {
       if (!object(task) || !name(task.title)) fail(baseline ? 'recurrence baseline' : 'task');
+      entityTimestamps(task, baseline ? 'recurrence baseline' : 'task');
       for (const key of ['notes']) if (task[key] != null && typeof task[key] !== 'string') fail(key);
       for (const key of ['id','projectId','areaId','recurrenceSuccessorId']) if (task[key] != null && !name(task[key])) fail(key);
       for (const key of ['goalIds','tagIds','attachmentIds']) if (task[key] != null
@@ -135,7 +137,7 @@
       for (const key of ['plannedDate','dueDate']) dateField(task,key);
       booleanField(task,'isImportant'); booleanField(task,'isUrgent');
       for (const key of ['plannedTime','dueTime']) if (task[key] != null && root.TodoCore.normalizeTime(task[key]) !== task[key]) fail(key);
-      for (const key of ['reminderAt','reminderFiredAt','completedAt','createdAt','updatedAt']) if (task[key] != null
+      for (const key of ['reminderAt','reminderFiredAt','completedAt']) if (task[key] != null
         && (typeof task[key] !== 'string' || !Number.isFinite(Date.parse(task[key])))) fail(key);
       for (const key of ['todayOrder','projectOrder','inboxOrder']) numberField(task,key,-Infinity);
       if (task.durationMinutes != null && !positiveInteger(task.durationMinutes)) fail('durationMinutes');
@@ -156,7 +158,8 @@
       if (item.clip != null && typeof item.clip !== 'string') fail('clip');
       for (const field of [collection === 'notes' ? 'body' : 'description', 'createdAt', 'updatedAt'])
         if (typeof item[field] !== 'string') fail(`${collection} ${field}`);
-      if (!root.TodoCore.isIsoTimestamp(item.createdAt) || !root.TodoCore.isIsoTimestamp(item.updatedAt)) fail(`${collection} timestamp`);
+      if (item.createdAt !== '' && !root.TodoCore.isIsoTimestamp(item.createdAt)
+        || item.updatedAt !== '' && !root.TodoCore.isIsoTimestamp(item.updatedAt)) fail(`${collection} timestamp`);
       if (item.areaId != null && !name(item.areaId)) fail(`${collection} Area`);
       if (!Array.isArray(item.linkUrls) || item.linkUrls.some(url => typeof url !== 'string')) fail(`${collection} links`);
       refs(item, 'tagIds', 'tags');
@@ -181,6 +184,7 @@
     for (const area of state.areas) enumField(area,'status',['active','archived']);
     for (const item of state.projects) for (const field of ['createdAt', 'updatedAt']) if (item[field] != null && item[field] !== '' && !root.TodoCore.isIsoTimestamp(item[field])) fail(`project ${field} timestamp`);
     for (const goal of state.goals) {
+      entityTimestamps(goal, 'Goal');
       enumField(goal,'horizon',['short','mid','long']);
       enumField(goal,'status',['active','paused','completed','archived']); enumField(goal,'progressMode',['manual','linkedTasks','linkedHabits']); enumField(goal,'progressType',['percentage','numeric']);
       numberField(goal,'currentValue');positiveField(goal,'targetValue');dateField(goal,'targetDate');refs(goal,'taskIds','tasks');
@@ -191,6 +195,7 @@
       if (goal.reminders != null && (!object(goal.reminders) || goal.reminders.time != null && root.TodoCore.normalizeTime(goal.reminders.time) !== goal.reminders.time)) fail('Goal reminders');
     }
     for (const habit of state.habits) {
+      entityTimestamps(habit, 'Habit');
       enumField(habit,'routine',['morning','daily','night']);
       enumField(habit,'status',['active','paused','archived']);enumField(habit,'trackingType',['checkbox','numeric']);enumField(habit,'frequencyType',['daily','weekdays','timesPerWeek','everyNDays']);enumField(habit,'continuation',['automatic','askEachPeriod','onePeriod']);enumField(habit,'endType',['never','date','successfulPeriods']);
       for (const key of ['startDate','endDate']) dateField(habit,key);
@@ -305,12 +310,24 @@
     const limits = limitOptions(options);
     const JSZip = requireZip();
     const input = await fileOrBlob;
-    const zip = await JSZip.loadAsync(input instanceof root.Blob ? await input.arrayBuffer() : input, { checkCRC32: true });
+    // JSZip's CRC option inflates every entry during load, before callers can
+    // inspect central-directory sizes. Keep loading metadata-only so preflight
+    // limits always run before any entry is decompressed.
+    const zip = await JSZip.loadAsync(input instanceof root.Blob ? await input.arrayBuffer() : input, { checkCRC32: false });
     const preflight = preflightZip(zip, limits);
     const dataEntry = zip.file('data.json');
     if (!dataEntry) throw new Error('Backup is missing data.json');
+    let extractedSize = 0;
     let manifest;
-    try { manifest = JSON.parse(await dataEntry.async('string')); } catch (_) { throw new Error('Invalid data.json'); }
+    try {
+      const dataBytes = await dataEntry.async('uint8array');
+      extractedSize += dataBytes.byteLength;
+      if (extractedSize > limits.maxDecompressedBytes) throw new Error(`Backup exceeds decompressed size limit (${limits.maxDecompressedBytes} bytes)`);
+      manifest = JSON.parse(new root.TextDecoder().decode(dataBytes));
+    } catch (error) {
+      if (/decompressed size limit/i.test(String(error?.message))) throw error;
+      throw new Error('Invalid data.json');
+    }
     if (!manifest || ![1, 2, BACKUP_VERSION].includes(manifest.backupVersion)) throw new Error('Unsupported backup version');
     if (manifest.backupVersion >= 2 && manifest.data?.version !== 3) throw new Error('Invalid V3 backup state');
     if (manifest.backupVersion >= 2) validateDomain(manifest.data, manifest.habitLogs, manifest.goalHistory);
@@ -335,7 +352,6 @@
     const records = [];
     let totalSize = 0;
     const paths = new Set();
-    let extractedSize = 0;
     for (const item of attachments) {
       const owner = owners.get(item.id), parts = typeof item.path === 'string' ? item.path.split('/') : [];
       // V1.2 packages (backupVersion 1) only knew about task attachments.

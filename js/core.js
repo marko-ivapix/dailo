@@ -1063,12 +1063,20 @@
   }
 
   function isIsoTimestamp(value) {
-    if (value === '') return true; // Legacy V3 knowledge records may be undated.
-    if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?(?:Z|[+-]\d{2}:?\d{2})$/.test(value)) return false;
-    const parts = value.match(/^(\d{4})-(\d{2})-(\d{2})T/);
+    if (typeof value !== 'string') return false;
+    const parts = value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{3})?(Z|[+-](\d{2}):?(\d{2}))$/);
+    if (!parts) return false;
     const year = Number(parts[1]), month = Number(parts[2]), day = Number(parts[3]);
+    const hour = Number(parts[4]), minute = Number(parts[5]), second = Number(parts[6]);
     if (month < 1 || month > 12 || day < 1 || day > new Date(Date.UTC(year, month, 0)).getUTCDate()) return false;
+    if (hour > 23 || minute > 59 || second > 59) return false;
+    if (parts[7] !== 'Z' && (Number(parts[8]) > 23 || Number(parts[9]) > 59)) return false;
     return Number.isFinite(Date.parse(value));
+  }
+
+  function validEntityTimestamps(item) {
+    return ['createdAt', 'updatedAt'].every(field => !Object.hasOwn(item || {}, field)
+      || typeof item[field] === 'string' && item[field] !== '' && isIsoTimestamp(item[field]));
   }
 
   function combineDateTime(date, time) {
@@ -1269,7 +1277,8 @@
           || typeof item.createdAt !== 'string' || typeof item.updatedAt !== 'string'
           || !isNullableEntityId(item.areaId) || !Array.isArray(item.linkUrls)
           || !entityIdArrayIsValid(item.attachmentIds)) return { ok: false, reason: `invalid-${key}` };
-        if (!isIsoTimestamp(item.createdAt) || !isIsoTimestamp(item.updatedAt)) return { ok: false, reason: `invalid-${key}-timestamp` };
+        if (item.createdAt !== '' && !isIsoTimestamp(item.createdAt)
+          || item.updatedAt !== '' && !isIsoTimestamp(item.updatedAt)) return { ok: false, reason: `invalid-${key}-timestamp` };
       }
     }
 
@@ -1442,6 +1451,7 @@
     combineDateTime,
     validateKnowledgeRecord,
     isIsoTimestamp,
+    validEntityTimestamps,
     validateGoalLinks,
     repairGoalLinks,
     normalizeTagName,
