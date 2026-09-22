@@ -43,6 +43,15 @@ test('mobile More sheet restores focus and tracks the current route', () => {
   assert.match(css, /\.mobile-more-backdrop[\s\S]*?position:\s*fixed/);
 });
 
+test('More sheet is available wherever the mobile bottom navigation is visible', () => {
+  assert.match(css, /@media \(max-width: 1023px\)[\s\S]*?\.mobile-more-backdrop[\s\S]*?display:\s*flex/);
+});
+
+test('More sheet traps Tab focus within its dialog', () => {
+  assert.match(app, /function trapMobileMoreFocus\(/);
+  assert.match(app, /if \(mobileMoreOpen && event\.key === 'Tab'[\s\S]*?trapMobileMoreFocus\(event\)/);
+});
+
 test('Calendar Week keeps visible day context on narrow viewports', () => {
   assert.match(calendar, /class="calendar-scroll"/);
   assert.match(calendar, /class="calendar-week"/);

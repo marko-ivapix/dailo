@@ -604,6 +604,35 @@ select:focus-visible { outline: none; box-shadow: var(--focus-ring); }
     text-align: center;
   }
   .mobile-bottom-nav-badge[hidden] { display: none; }
+  .mobile-more-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    align-items: flex-end;
+    padding: 12px;
+    background: rgba(5, 8, 14, .64);
+  }
+  .mobile-more-sheet {
+    width: 100%;
+    max-height: min(82vh, 680px);
+    overflow: auto;
+    padding: 14px;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    background: var(--surface-card-dark);
+    box-shadow: 0 -14px 40px rgba(0,0,0,.32);
+  }
+  .mobile-more-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .mobile-more-header h2 { margin: 0; font: 600 18px/1.2 var(--font-display); color: var(--text-primary); }
+  .mobile-more-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+  .mobile-more-route { min-height: 46px; display: flex; align-items: center; gap: 9px; padding: 8px 10px; border: 1px solid transparent; border-radius: var(--radius-sm); background: transparent; color: var(--text-secondary); text-align: left; cursor: pointer; }
+  .mobile-more-route:hover, .mobile-more-route.is-selected { border-color: var(--border-default); background: var(--surface-interactive); color: var(--text-primary); }
+  .mobile-more-route > i:first-child { width: 20px; color: var(--primary-focus); text-align: center; }
+  .mobile-more-check { margin-left: auto; color: var(--accent) !important; }
+  .calendar-scroll { overflow-x: auto; overscroll-behavior-x: contain; }
+  .calendar-week { min-width: 900px; }
+  .calendar-day-heading { position: sticky; top: 0; z-index: 1; min-height: 58px; }
 }
 
 .mobile-quick-add {
@@ -1489,33 +1518,4 @@ body { font-size: 14px; line-height: 1.4; }
   .mobile-quick-add-option i, .mobile-quick-add-toggle { width: 44px; height: 44px; }
   .mobile-quick-add-option i { font-size: 19px; }
   .mobile-quick-add-toggle { font-size: 22px; }
-  .mobile-more-backdrop {
-    position: fixed;
-    inset: 0;
-    z-index: 100;
-    display: flex;
-    align-items: flex-end;
-    padding: 12px;
-    background: rgba(5, 8, 14, .64);
-  }
-  .mobile-more-sheet {
-    width: 100%;
-    max-height: min(82vh, 680px);
-    overflow: auto;
-    padding: 14px;
-    border: 1px solid var(--border-default);
-    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-    background: var(--surface-card-dark);
-    box-shadow: 0 -14px 40px rgba(0,0,0,.32);
-  }
-  .mobile-more-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-  .mobile-more-header h2 { margin: 0; font: 600 18px/1.2 var(--font-display); color: var(--text-primary); }
-  .mobile-more-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
-  .mobile-more-route { min-height: 46px; display: flex; align-items: center; gap: 9px; padding: 8px 10px; border: 1px solid transparent; border-radius: var(--radius-sm); background: transparent; color: var(--text-secondary); text-align: left; cursor: pointer; }
-  .mobile-more-route:hover, .mobile-more-route.is-selected { border-color: var(--border-default); background: var(--surface-interactive); color: var(--text-primary); }
-  .mobile-more-route > i:first-child { width: 20px; color: var(--primary-focus); text-align: center; }
-  .mobile-more-check { margin-left: auto; color: var(--accent) !important; }
-  .calendar-scroll { overflow-x: auto; overscroll-behavior-x: contain; }
-  .calendar-week { min-width: 900px; }
-  .calendar-day-heading { position: sticky; top: 0; z-index: 1; min-height: 58px; }
 }

@@ -117,6 +117,18 @@
     requestAnimationFrame(() => returnFocus?.isConnected && returnFocus.focus());
   }
 
+  function trapMobileMoreFocus(event) {
+    const sheet = $('#mobile-more-sheet');
+    if (!sheet) return;
+    const focusable = [...sheet.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')].filter(element => element.offsetParent !== null);
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (!sheet.contains(document.activeElement)) { event.preventDefault(); (event.shiftKey ? last : first).focus(); return; }
+    if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    else if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+  }
+
   // Goal panels retain a logical trigger because rendering replaces its node.
   function goalFocusTarget(element = document.activeElement) {
     if (!(element instanceof HTMLElement)) return null;
@@ -3867,6 +3879,7 @@
 
   function handleKeydown(event) {
     if (globalOperation && !['Escape','Tab'].includes(event.key)) return;
+    if (mobileMoreOpen && event.key === 'Tab') { trapMobileMoreFocus(event); return; }
     const target = event.target;
     const typing = target && (target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"]') || target.isContentEditable);
     if (goalPropertyEditor && !modalState && !popoverEl && (event.key === 'Escape' || (event.key === 'Enter' && typing && !event.isComposing))) {
