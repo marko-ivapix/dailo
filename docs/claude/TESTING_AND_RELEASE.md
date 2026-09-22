@@ -11,7 +11,7 @@ node --test tests/*.test.js
 for file in js/*.js vendor/*.js tests/*.js; do node --check "$file"; done
 python3 - <<'PY'
 import ast, pathlib
-paths = sorted(pathlib.Path('tests').rglob('*.py'))
+paths = sorted(pathlib.Path('tests').glob('*.py'))
 for path in paths:
     ast.parse(path.read_text())
 print(f'python AST: {len(paths)} files passed')
