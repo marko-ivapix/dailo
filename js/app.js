@@ -55,6 +55,7 @@
   let taskSwipeState = null;
   let suppressTaskSwipeClick = false;
   let modalReturnFocus = null;
+  let popoverReturnFocus = null;
   let goalPropertyEditor = null;
   let habitPropertyEditor = null;
   let createdGoalFocusId = null;
@@ -1468,8 +1469,15 @@
 
   function modalFrame(content, cls = '', dialogAttrs = '') {
     const frameClass = cls ? ` modal-backdrop-${cls}` : '';
-    const accessibleName = dialogAttrs || 'aria-label="Dailo dialog"';
-    return `<div class="modal-backdrop${frameClass}" data-action="modal-backdrop"><section class="modal ${cls}" role="dialog" aria-modal="true" ${accessibleName}>${content}</section></div>`;
+    let dialogContent = content;
+    let accessibleName = dialogAttrs;
+    if (!accessibleName) {
+      if (/<h[12][^>]*>/.test(dialogContent)) {
+        dialogContent = dialogContent.replace(/<h[12](?![^>]*\bid=)([^>]*)>/, '<h2 id="dialog-title"$1>');
+        accessibleName = 'aria-labelledby="dialog-title"';
+      } else accessibleName = 'aria-label="Dailo dialog"';
+    }
+    return `<div class="modal-backdrop${frameClass}" data-action="modal-backdrop"><section class="modal ${cls}" role="dialog" aria-modal="true" ${accessibleName}>${dialogContent}</section></div>`;
   }
 
   function renderFocusModal() {
@@ -1630,7 +1638,7 @@
   }
 
   function quickDraftSubtaskRow(subtask) {
-    return `<div class="subtask-row"><button class="complete-control ${subtask.isCompleted ? 'is-completed' : ''}" type="button" data-action="quick-toggle-subtask" data-subtask-id="${esc(subtask.id)}">${subtask.isCompleted ? '<i class="ph ph-check"></i>' : ''}</button><span class="subtask-title">${esc(subtask.title)}</span><button class="btn-icon" type="button" data-action="quick-delete-subtask" data-subtask-id="${esc(subtask.id)}"><i class="ph ph-x"></i></button></div>`;
+    return `<div class="subtask-row"><button class="complete-control ${subtask.isCompleted ? 'is-completed' : ''}" type="button" data-action="quick-toggle-subtask" data-subtask-id="${esc(subtask.id)}" aria-label="${subtask.isCompleted ? 'Mark incomplete' : 'Complete'} subtask">${subtask.isCompleted ? '<i class="ph ph-check"></i>' : ''}</button><span class="subtask-title">${esc(subtask.title)}</span><button class="btn-icon" type="button" data-action="quick-delete-subtask" data-subtask-id="${esc(subtask.id)}" aria-label="Delete subtask"><i class="ph ph-x"></i></button></div>`;
   }
 
   function priorityLabel(value) {
@@ -1786,7 +1794,7 @@
   }
 
   function renderSearchModal() {
-    return modalFrame(`<div class="modal-inner"><div class="search-box"><i class="ph ph-magnifying-glass"></i><input id="search-query" class="search-input" type="search" autocomplete="off" placeholder="Search tasks and projects..." value="${esc(modalState.query || '')}" /><button class="btn-icon" type="button" data-action="close-modal"><i class="ph ph-x"></i></button></div><div id="search-results" class="search-results">${searchResultsHtml(modalState.query || '')}</div></div>`, 'search-modal');
+    return modalFrame(`<div class="modal-inner"><div class="search-box"><i class="ph ph-magnifying-glass"></i><input id="search-query" class="search-input" type="search" autocomplete="off" placeholder="Search tasks and projects..." value="${esc(modalState.query || '')}" /><button class="btn-icon" type="button" data-action="close-modal" aria-label="Close Search"><i class="ph ph-x"></i></button></div><div id="search-results" class="search-results">${searchResultsHtml(modalState.query || '')}</div></div>`, 'search-modal');
   }
 
   function searchResultsHtml(query) {
@@ -1827,11 +1835,11 @@
   function renderDuplicateModal() {
     const task = getTask(modalState.taskId); if (!task) return '';
     const count = (task.attachmentIds || []).length;
-    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="dialog-title">Duplicate task</h2><button class="btn-icon" type="button" data-action="close-modal"><i class="ph ph-x"></i></button></div><p class="dialog-copy">This task has ${count} ${count === 1 ? 'attachment' : 'attachments'}. Copy attachments too?</p><div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">Cancel</button><button class="btn btn-secondary" type="button" data-action="duplicate-without-files" data-task-id="${esc(task.id)}">Without files</button><button class="btn btn-primary" type="button" data-action="duplicate-with-files" data-task-id="${esc(task.id)}">Copy files</button></div></div></div>`, 'small-modal');
+    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="dialog-title">Duplicate task</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="Close Duplicate task"><i class="ph ph-x"></i></button></div><p class="dialog-copy">This task has ${count} ${count === 1 ? 'attachment' : 'attachments'}. Copy attachments too?</p><div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">Cancel</button><button class="btn btn-secondary" type="button" data-action="duplicate-without-files" data-task-id="${esc(task.id)}">Without files</button><button class="btn btn-primary" type="button" data-action="duplicate-with-files" data-task-id="${esc(task.id)}">Copy files</button></div></div></div>`, 'small-modal');
   }
 
   function renderConfirmModal() {
-    return modalFrame(`<div class="modal-inner"><div class="modal-header"><div><h2 class="modal-title">${esc(modalState.title)}</h2>${modalState.message ? `<p class="page-subtitle" style="margin-top:10px;max-width:380px">${esc(modalState.message)}</p>` : ''}</div><button class="btn-icon" type="button" data-action="close-modal"><i class="ph ph-x"></i></button></div>${modalState.phrase ? `<label>Type ${esc(modalState.phrase)} to continue<input id="global-confirm-phrase" class="input" autocomplete="off" /></label>` : ''}<div class="modal-footer" style="border:0;padding-top:0"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">Cancel</button><button class="btn btn-danger" type="button" data-action="confirm-action">${esc(modalState.confirmLabel || 'Delete')}</button></div></div></div>`, 'confirm-modal');
+    return modalFrame(`<div class="modal-inner"><div class="modal-header"><div><h2 class="modal-title">${esc(modalState.title)}</h2>${modalState.message ? `<p class="page-subtitle" style="margin-top:10px;max-width:380px">${esc(modalState.message)}</p>` : ''}</div><button class="btn-icon" type="button" data-action="close-modal" aria-label="Close dialog"><i class="ph ph-x"></i></button></div>${modalState.phrase ? `<label>Type ${esc(modalState.phrase)} to continue<input id="global-confirm-phrase" class="input" autocomplete="off" /></label>` : ''}<div class="modal-footer" style="border:0;padding-top:0"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">Cancel</button><button class="btn btn-danger" type="button" data-action="confirm-action">${esc(modalState.confirmLabel || 'Delete')}</button></div></div></div>`, 'confirm-modal');
   }
 
   function nextProjectColor() {
@@ -1999,6 +2007,14 @@
     el.className = 'popover';
     el.dataset.popoverType = meta.type || '';
     el.innerHTML = html;
+    el.setAttribute('role', 'dialog');
+    const title = el.querySelector('.popover-title');
+    if (title) {
+      title.id = title.id || `popover-title-${Date.now().toString(36)}`;
+      el.setAttribute('aria-labelledby', title.id);
+    } else el.setAttribute('aria-label', 'Menu');
+    popoverReturnFocus = anchor instanceof HTMLElement ? anchor : null;
+    el.returnFocus = popoverReturnFocus;
     document.body.appendChild(el);
     const width = el.offsetWidth || 300;
     const height = el.offsetHeight || 260;
@@ -2009,13 +2025,29 @@
     el.style.left = `${left}px`;
     el.style.top = `${top}px`;
     popoverEl = el;
+    popoverEl.setAttribute('role', 'dialog');
+    if (title) popoverEl.setAttribute('aria-labelledby', title.id);
+    requestAnimationFrame(() => el.querySelector('button, input, select, textarea, [tabindex]:not([tabindex="-1"])')?.focus());
   }
 
   function closePopover() {
     const target = popoverEl?.goalReturnFocus;
+    const returnFocus = popoverEl?.returnFocus || popoverReturnFocus;
     if (popoverEl) popoverEl.remove();
     popoverEl = null;
+    popoverReturnFocus = null;
     restoreGoalFocus(target);
+    if (!modalState && !target) requestAnimationFrame(() => returnFocus?.isConnected && returnFocus.focus());
+  }
+
+  function trapPopoverFocus(event) {
+    if (!popoverEl) return;
+    const focusable = [...popoverEl.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')].filter(el => el.offsetParent !== null || el === document.activeElement);
+    if (!focusable.length) return;
+    const first = focusable[0], last = focusable.at(-1);
+    if (!popoverEl.contains(document.activeElement)) { event.preventDefault(); (event.shiftKey ? last : first).focus(); return; }
+    if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    else if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
   }
 
   function showCustomDate(popButton) {
@@ -2826,6 +2858,8 @@
 
   function renderToast() {
     const root = $('#toast-root');
+    const status = $('#global-status');
+    if (status) status.textContent = toastMessage || globalRecoveryNotice?.message || '';
     const undo = undoState ? `<div class="toast"><i class="ph-fill ph-check-circle toast-icon"></i><span class="toast-message">${esc(undoState.message)}</span><button class="toast-action" type="button" data-action="undo">Undo</button></div>` : '';
     const info = toastMessage ? `<div class="toast"><i class="ph ph-info toast-icon" style="color:var(--info)"></i><span class="toast-message">${esc(toastMessage)}</span></div>` : '';
     const failed = [...failedDeleteSnapshots][0];
@@ -3881,6 +3915,7 @@
     if (globalOperation && !['Escape','Tab'].includes(event.key)) return;
     if (mobileMoreOpen && event.key === 'Tab') { trapMobileMoreFocus(event); return; }
     const target = event.target;
+    if (handleAreaTabKeydown(event)) return;
     const typing = target && (target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"]') || target.isContentEditable);
     if (goalPropertyEditor && !modalState && !popoverEl && (event.key === 'Escape' || (event.key === 'Enter' && typing && !event.isComposing))) {
       if (callDomainHook('handleInput', event) !== undefined) return;
@@ -3888,12 +3923,7 @@
     if (habitPropertyEditor && !modalState && !popoverEl && (event.key === 'Escape' || (event.key === 'Enter' && typing && !event.isComposing))) {
       if (callDomainHook('handleInput', event) !== undefined) return;
     }
-    if (popoverEl?.dataset.popoverType === 'goal-status' && event.key === 'Tab') {
-      const controls = [...popoverEl.querySelectorAll('button:not([disabled])')];
-      const first = controls[0], last = controls.at(-1);
-      if (!popoverEl.contains(document.activeElement) || (!event.shiftKey && document.activeElement === last) || (event.shiftKey && document.activeElement === first)) { event.preventDefault(); (event.shiftKey ? last : first)?.focus(); }
-      return;
-    }
+    if (popoverEl && event.key === 'Tab') { trapPopoverFocus(event); return; }
 
     if (modalState && event.key === 'Tab') {
       const modal = $('#modal-root .modal');
@@ -3946,6 +3976,18 @@
 
     if (modalState?.type === 'task' && ['detail-title', 'detail-duration-minutes'].includes(target?.id) && event.key === 'Enter') { event.preventDefault(); target.blur(); return; }
     if (modalState?.type === 'task' && target?.id === 'detail-subtask' && event.key === 'Enter') { event.preventDefault(); addDetailSubtask(target.dataset.taskId, target.value); return; }
+  }
+
+  function handleAreaTabKeydown(event) {
+    const areaTab = event.target?.closest?.('.area-tabs [role="tab"]');
+    if (!areaTab || !['ArrowRight', 'ArrowLeft'].includes(event.key)) return false;
+    const tabs = $$('.area-tabs [role="tab"]');
+    const index = tabs.indexOf(areaTab);
+    const next = tabs[(index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length];
+    event.preventDefault();
+    next?.focus();
+    next?.click();
+    return true;
   }
 
   function handleDblKeyActivation(event) {

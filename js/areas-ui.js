@@ -18,15 +18,14 @@
     const areas = all.filter(area => tab === 'all' || area.status === tab);
     const actions = '<button class="btn btn-primary" type="button" data-action="new-area"><i class="ph ph-plus"></i> New area</button>';
     let html = pageHeader('Areas', `${all.filter(area => area.status === 'active').length} active ${all.filter(area => area.status === 'active').length === 1 ? 'area' : 'areas'}`, { add: false, actionHtml: actions });
-    html += `<div class="area-tabs" role="tablist"><button type="button" data-tab="all" class="${tab === 'all' ? 'is-active' : ''}">All</button><button type="button" data-tab="active" class="${tab === 'active' ? 'is-active' : ''}">Active</button><button type="button" data-tab="archived" class="${tab === 'archived' ? 'is-active' : ''}">Archived</button></div>`;
-    if (!areas.length) return html + emptyState(tab === 'archived' ? 'No archived areas.' : 'No areas yet.', tab === 'archived' ? 'Archived areas can be restored here.' : 'Areas organize projects, standalone tasks, goals and habits.', tab === 'archived' ? '' : 'New area', tab === 'archived' ? '' : 'new-area');
-    html += `<div class="area-list">${areas.map(area => {
+    html += `<div class="area-tabs" role="tablist" aria-label="Area status"><button id="area-tab-all" type="button" role="tab" data-tab="all" aria-selected="${tab === 'all'}" aria-controls="areas-panel" tabindex="${tab === 'all' ? '0' : '-1'}" class="${tab === 'all' ? 'is-active' : ''}">All</button><button id="area-tab-active" type="button" role="tab" data-tab="active" aria-selected="${tab === 'active'}" aria-controls="areas-panel" tabindex="${tab === 'active' ? '0' : '-1'}" class="${tab === 'active' ? 'is-active' : ''}">Active</button><button id="area-tab-archived" type="button" role="tab" data-tab="archived" aria-selected="${tab === 'archived'}" aria-controls="areas-panel" tabindex="${tab === 'archived' ? '0' : '-1'}" class="${tab === 'archived' ? 'is-active' : ''}">Archived</button></div>`;
+    const areaPanel = areas.length ? `<div class="area-list">${areas.map(area => {
       const summary = Core.areaSummary(area.id, state);
       const notes = state.notes.filter(item => item.areaId === area.id).length;
       const resources = state.resources.filter(item => item.areaId === area.id).length;
       return `<article class="area-row" data-area-id="${esc(area.id)}"><button class="area-open" type="button" data-route="area/${esc(area.id)}">${areaIcon(ctx, area)}<span><strong>${esc(area.name)}</strong><small>${summary.projects} projects · ${summary.openTasks} open tasks · ${summary.activeGoals} active goals · ${summary.activeHabits} active habits · ${notes} notes · ${resources} resources</small></span></button><div class="area-row-actions">${area.isPinned && area.status === 'active' ? '<i class="ph ph-push-pin" aria-label="Pinned"></i>' : ''}<button class="btn-icon" type="button" data-action="area-menu" data-area-id="${esc(area.id)}" aria-label="Area actions"><i class="ph ph-dots-three"></i></button></div></article>`;
-    }).join('')}</div>`;
-    return html;
+    }).join('')}</div>` : emptyState(tab === 'archived' ? 'No archived areas.' : 'No areas yet.', tab === 'archived' ? 'Archived areas can be restored here.' : 'Areas organize projects, standalone tasks, goals and habits.', tab === 'archived' ? '' : 'New area', tab === 'archived' ? '' : 'new-area');
+    return `${html}<div id="areas-panel" role="tabpanel" aria-labelledby="area-tab-${tab}" tabindex="0">${areaPanel}</div>`;
   }
 
   function renderArea(ctx, areaId) {
