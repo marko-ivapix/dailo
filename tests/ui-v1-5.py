@@ -28,6 +28,8 @@ def boot(page):
       values.set('todoAppData', JSON.stringify({version: 3, tasks: [
         {id: 'task_homepage', title: 'Finish homepage', projectId: 'project_client', plannedDate: today, dueDate: '2026-11-03', notes: 'Finish responsive pass.', subtasks: [], isCompleted: false},
         {id: 'task_groceries', title: 'Buy groceries', projectId: 'project_personal', plannedDate: today, isCompleted: false},
+        {id: 'task_focus_three', title: 'Review weekly plan', plannedDate: today, isCompleted: false},
+        {id: 'task_focus_four', title: 'Prepare tomorrow', plannedDate: today, isCompleted: false},
       ], projects: [
         {id: 'project_client', name: 'Client Website', isArchived: false},
         {id: 'project_personal', name: 'Personal', isArchived: false},
