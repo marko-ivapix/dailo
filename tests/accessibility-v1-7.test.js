@@ -51,8 +51,9 @@ test('popover headings stay labelled after repeat and reminder content swaps', (
   assert.match(app, /setPopoverContent\(`<div class="popover-title">Reminder/);
   assert.match(app, /setPopoverContent\(`<div class="popover-title">Custom repeat/);
   assert.match(app, /setPopoverContent[\s\S]*?requestAnimationFrame\(\(\) => popoverEl\?\.querySelector\('input, select, textarea, button'\)\?\.focus\(\)\)/);
-  assert.match(app, /closePopover\(\)[\s\S]*?returnFocus\?\.element\?\.isConnected[\s\S]*?returnFocus\?\.selector && \$\(returnFocus\.selector\)/);
+  assert.match(app, /closePopover\(\)[\s\S]*?openerIsActive[\s\S]*?focusRoot\?\.querySelector\(returnFocus\.selector\)/);
   assert.match(app, /function popoverFocusTarget\(/);
   assert.match(app, /popoverReturnFocus = popoverFocusTarget\(anchor\)/);
-  assert.match(app, /returnFocus\?\.selector && \$\(returnFocus\.selector\)/);
+  assert.match(app, /const activeModal = \$\('#modal-root \.modal'\)/);
+  assert.match(app, /returnFocus\?\.modal[\s\S]*?activeModal \|\| document/);
 });

@@ -1914,7 +1914,7 @@
     const keys = ['action', 'popAction', 'taskId', 'targetType', 'dateKind', 'areaId', 'goalId', 'habitId', 'tagId'];
     const attrs = keys.filter(key => anchor.dataset[key] !== undefined)
       .map(key => `[data-${key.replace(/[A-Z]/g, c => '-' + c.toLowerCase())}="${CSS.escape(anchor.dataset[key])}"]`).join('');
-    return { element: anchor, selector: attrs || (anchor.id ? '#' + CSS.escape(anchor.id) : '') };
+    return { element: anchor, selector: attrs || (anchor.id ? '#' + CSS.escape(anchor.id) : ''), modalScoped: Boolean(anchor.closest('.modal')) };
   }
 
   function inlineNewTag(button) {
@@ -2058,7 +2058,13 @@
     popoverReturnFocus = null;
     restoreGoalFocus(target);
     if (!target) requestAnimationFrame(() => {
-      const focusTarget = returnFocus?.element?.isConnected ? returnFocus.element : returnFocus?.selector && $(returnFocus.selector);
+      const activeModal = $('#modal-root .modal');
+      const focusRoot = returnFocus?.modalScoped ? (activeModal || document) : document;
+      const opener = returnFocus?.element;
+      const openerIsActive = opener?.isConnected && (!returnFocus?.modalScoped || !activeModal || activeModal.contains(opener));
+      const candidate = openerIsActive ? opener : returnFocus?.selector && focusRoot?.querySelector(returnFocus.selector);
+      const visible = candidate && (candidate.offsetParent !== null || candidate.getClientRects?.().length);
+      const focusTarget = visible ? candidate : focusRoot?.querySelector('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])');
       focusTarget?.focus();
     });
   }
