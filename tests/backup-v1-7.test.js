@@ -122,5 +122,15 @@ test('legacy restore wrapper delegates to the recovery-backed transaction', asyn
   Storage.restoreValidatedBackup = async value => { delegated = value; };
   const validated = { state: baseState(), attachmentRecords: [], habitLogs: [], goalHistory: [] };
   try { await Backup.restoreBackup(validated); } finally { Storage.restoreValidatedBackup = original; }
-  assert.equal(delegated, validated);
+  assert.deepEqual(delegated, validated);
+});
+
+test('legacy restore wrapper validates before delegating', async () => {
+  const original = Storage.restoreValidatedBackup;
+  let delegated = false;
+  Storage.restoreValidatedBackup = async () => { delegated = true; };
+  const invalid = { state: { ...baseState(), tasks: [{ id: 'bad', title: '' }] }, attachmentRecords: [], habitLogs: [], goalHistory: [] };
+  try { await assert.rejects(() => Backup.restoreBackup(invalid), /task/i); }
+  finally { Storage.restoreValidatedBackup = original; }
+  assert.equal(delegated, false);
 });

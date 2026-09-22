@@ -444,17 +444,17 @@
   }
 
   async function restoreBackup(validated, options = {}) {
+    validated = structuredClone(validated);
+    validated.state = root.TodoCore.repairGoalLinks(validated.state);
+    validateDomain(validated.state, validated.habitLogs || [], validated.goalHistory || []);
+    validateIds(validated.state, validated.attachmentRecords);
+    root.TodoStorage.verifyAttachmentReferences(validated.state, validated.attachmentRecords);
     // Production callers use Storage.restoreValidatedBackup so restore always
     // follows the recovery-backed transaction. The injected adapter branch is
     // retained only for legacy integrations/tests that supply their own stores.
     const { attachmentApi, readState, writeState } = options;
     if (!attachmentApi && !readState && !writeState && root.TodoStorage.restoreValidatedBackup)
       return root.TodoStorage.restoreValidatedBackup(validated);
-    validated = structuredClone(validated);
-    validated.state = root.TodoCore.repairGoalLinks(validated.state);
-    validateDomain(validated.state, validated.habitLogs || [], validated.goalHistory || []);
-    validateIds(validated.state, validated.attachmentRecords);
-    root.TodoStorage.verifyAttachmentReferences(validated.state, validated.attachmentRecords);
     const oldState = deepClone(await readState());
     const oldAttachments = await attachmentApi.listAll();
     const oldLogs = await root.TodoStorage.habitLogs.listAll(), oldHistory = await root.TodoStorage.goalHistory.listAll();
