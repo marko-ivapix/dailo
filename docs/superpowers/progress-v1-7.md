@@ -1,7 +1,7 @@
 # Dailo V1.7 Progress Ledger
 
-**Baseline:** V1.6 `9655b4c`  
-**Spec:** `docs/superpowers/specs/2026-09-22-todo-v1-7-design.md`  
+**Baseline:** V1.6 `9655b4c`
+**Spec:** `docs/superpowers/specs/2026-09-22-todo-v1-7-design.md`
 **Plan:** `docs/superpowers/plans/2026-09-22-todo-v1-7.md`
 
 ## Status
