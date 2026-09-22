@@ -405,16 +405,21 @@
     const normalized = normalizeRecurrence(recurrence);
     const date = new Date(value);
     if (!normalized || Number.isNaN(date.getTime())) return null;
-    if (normalized.frequency === 'daily') date.setUTCDate(date.getUTCDate() + normalized.interval);
-    else if (normalized.frequency === 'weekly') date.setUTCDate(date.getUTCDate() + normalized.interval * 7);
+    const localHour = date.getHours(), localMinute = date.getMinutes(), localSecond = date.getSeconds(), localMs = date.getMilliseconds();
+    // Reminder timestamps represent a local wall-clock appointment. Advance
+    // calendar fields in local time so a DST offset change does not move the
+    // appointment from (for example) 09:30 to 08:30.
+    if (normalized.frequency === 'daily') date.setDate(date.getDate() + normalized.interval);
+    else if (normalized.frequency === 'weekly') date.setDate(date.getDate() + normalized.interval * 7);
     else {
-      const originalDay = date.getUTCDate();
-      const targetMonthIndex = date.getUTCMonth() + normalized.interval;
-      const targetYear = date.getUTCFullYear() + Math.floor(targetMonthIndex / 12);
+      const originalDay = date.getDate();
+      const targetMonthIndex = date.getMonth() + normalized.interval;
+      const targetYear = date.getFullYear() + Math.floor(targetMonthIndex / 12);
       const normalizedMonth = ((targetMonthIndex % 12) + 12) % 12;
-      const lastDay = new Date(Date.UTC(targetYear, normalizedMonth + 1, 0)).getUTCDate();
-      date.setUTCFullYear(targetYear, normalizedMonth, Math.min(originalDay, lastDay));
+      const lastDay = new Date(targetYear, normalizedMonth + 1, 0).getDate();
+      date.setFullYear(targetYear, normalizedMonth, Math.min(originalDay, lastDay));
     }
+    date.setHours(localHour, localMinute, localSecond, localMs);
     return date.toISOString();
   }
 
@@ -594,7 +599,8 @@
   function normalizeState(input) {
     const migration = migrateStateV3(input);
     if (!migration.ok) throw new Error(migration.reason || 'invalid-state');
-    const state = migrateStateV16(migration.state).state;
+    let state = migrateStateV16(migration.state).state;
+    state = repairGoalLinks(state);
     const focusTaskIds = selectFocusTasks(state.tasks, state.settings?.focusTaskIds);
     const dashboard = state.settings?.dashboard || {};
     state.settings = {
@@ -1056,6 +1062,15 @@
     return value;
   }
 
+  function isIsoTimestamp(value) {
+    if (value === '') return true; // Legacy V3 knowledge records may be undated.
+    if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?(?:Z|[+-]\d{2}:?\d{2})$/.test(value)) return false;
+    const parts = value.match(/^(\d{4})-(\d{2})-(\d{2})T/);
+    const year = Number(parts[1]), month = Number(parts[2]), day = Number(parts[3]);
+    if (month < 1 || month > 12 || day < 1 || day > new Date(Date.UTC(year, month, 0)).getUTCDate()) return false;
+    return Number.isFinite(Date.parse(value));
+  }
+
   function combineDateTime(date, time) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date || '')) || !normalizeTime(time)) return null;
     const parsed = parseDateOnly(date);
@@ -1115,6 +1130,65 @@
 
   function entityIdArrayIsValid(value) {
     return Array.isArray(value) && value.every(id => typeof id === 'string' && id.trim());
+  }
+
+  function validateGoalLinks(state) {
+    const goals = new Map((state.goals || []).map(goal => [goal.id, goal]));
+    const check = (owner, goalId, field, predicate) => {
+      const goal = goals.get(goalId);
+      return goal && predicate(goal) ? null : `invalid-goal-link-${field}`;
+    };
+    for (const collection of ['tasks', 'projects', 'habits']) for (const owner of state[collection] || []) {
+      for (const goalId of owner.goalIds || []) {
+        const field = collection === 'tasks' ? 'taskIds' : collection === 'projects' ? 'projectLinks' : 'habitLinks';
+        const reason = check(owner, goalId, field, goal => collection === 'tasks'
+          ? (goal.taskIds || []).includes(owner.id)
+          : collection === 'projects'
+            ? (goal.projectLinks || []).some(link => link?.projectId === owner.id)
+            : (goal.habitLinks || []).some(link => link?.habitId === owner.id));
+        if (reason) return reason;
+      }
+    }
+    for (const goal of state.goals || []) {
+      for (const taskId of goal.taskIds || []) {
+        const task = (state.tasks || []).find(item => item.id === taskId);
+        if (!task || !(task.goalIds || []).includes(goal.id)) return 'invalid-goal-link-taskIds';
+      }
+      for (const link of goal.projectLinks || []) {
+        const project = (state.projects || []).find(item => item.id === link?.projectId);
+        if (!project || !(project.goalIds || []).includes(goal.id)) return 'invalid-goal-link-projectLinks';
+      }
+      for (const link of goal.habitLinks || []) {
+        const habit = (state.habits || []).find(item => item.id === link?.habitId);
+        if (!habit || !(habit.goalIds || []).includes(goal.id)) return 'invalid-goal-link-habitLinks';
+      }
+    }
+    return null;
+  }
+
+  function duplicateEntityId(state) {
+    const seen = new Set();
+    for (const key of ['tasks', 'projects', 'tags', 'areas', 'goals', 'habits', 'notes', 'resources', 'templates', 'savedViews']) {
+      for (const item of state[key] || []) {
+        if (seen.has(item.id)) return item.id;
+        seen.add(item.id);
+      }
+    }
+    return null;
+  }
+
+  function repairGoalLinks(input, options = {}) {
+    const state = JSON.parse(JSON.stringify(input));
+    const warnings = [];
+    const goals = new Map((state.goals || []).map(goal => [goal.id, goal]));
+    for (const goal of state.goals || []) {
+      for (const taskId of goal.taskIds || []) { const item = (state.tasks || []).find(value => value.id === taskId); if (item && !(item.goalIds || []).includes(goal.id)) { item.goalIds = [...(item.goalIds || []), goal.id]; warnings.push(`goal:${goal.id}:task:${item.id}`); } }
+      for (const link of goal.projectLinks || []) { const item = (state.projects || []).find(value => value.id === link?.projectId); if (item && !(item.goalIds || []).includes(goal.id)) { item.goalIds = [...(item.goalIds || []), goal.id]; warnings.push(`goal:${goal.id}:project:${item.id}`); } }
+      for (const link of goal.habitLinks || []) { const item = (state.habits || []).find(value => value.id === link?.habitId); if (item && !(item.goalIds || []).includes(goal.id)) { item.goalIds = [...(item.goalIds || []), goal.id]; warnings.push(`goal:${goal.id}:habit:${item.id}`); } }
+    }
+    const error = validateGoalLinks(state);
+    if (error) throw new Error(`Goal-link repair required: ${error}`);
+    return options.report ? { state, warnings } : state;
   }
 
   function invalidExplicitV3Field(input) {
@@ -1179,6 +1253,7 @@
     if (!objectIdsAreValid(state.habits)) return { ok: false, reason: 'invalid-habit' };
     if (!objectIdsAreValid(state.templates)) return { ok: false, reason: 'invalid-template' };
     if (!objectIdsAreValid(state.savedViews)) return { ok: false, reason: 'invalid-saved-view' };
+    if (duplicateEntityId(state)) return { ok: false, reason: 'duplicate-id' };
     const malformedField = invalidExplicitV3Field(state);
     if (malformedField) return { ok: false, reason: malformedField };
     for (const key of ['notes', 'resources']) {
@@ -1189,6 +1264,7 @@
           || typeof item.createdAt !== 'string' || typeof item.updatedAt !== 'string'
           || !isNullableEntityId(item.areaId) || !Array.isArray(item.linkUrls)
           || !entityIdArrayIsValid(item.attachmentIds)) return { ok: false, reason: `invalid-${key}` };
+        if (!isIsoTimestamp(item.createdAt) || !isIsoTimestamp(item.updatedAt)) return { ok: false, reason: `invalid-${key}-timestamp` };
       }
     }
 
@@ -1360,6 +1436,9 @@
     normalizeTime,
     combineDateTime,
     validateKnowledgeRecord,
+    isIsoTimestamp,
+    validateGoalLinks,
+    repairGoalLinks,
     normalizeTagName,
     validateTagName,
     validateAreaName,

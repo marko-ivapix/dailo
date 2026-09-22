@@ -102,12 +102,14 @@
     // Pre-extension V3 ZIPs omitted both knowledge collections.
     state = { notes: [], resources: [], ...state };
     const ids = {};
+    const allIds = new Set();
     for (const collection of ['tasks','projects','tags','areas','goals','habits','notes','resources','templates','savedViews']) {
       if (!Array.isArray(state[collection])) fail(collection);
       ids[collection] = new Set();
       for (const item of state[collection]) {
-        if (!object(item) || !name(item.id) || ids[collection].has(item.id) || !name(item[['tasks','goals','notes','resources'].includes(collection) ? 'title' : 'name'])) fail(collection);
+        if (!object(item) || !name(item.id) || ids[collection].has(item.id) || allIds.has(item.id) || !name(item[['tasks','goals','notes','resources'].includes(collection) ? 'title' : 'name'])) fail(allIds.has(item.id) ? 'duplicate-id' : collection);
         ids[collection].add(item.id);
+        allIds.add(item.id);
       }
     }
     const ref = (value, collection) => { if (value != null && !ids[collection].has(value)) fail(`${collection} reference`); };
@@ -145,6 +147,7 @@
       if (item.clip != null && typeof item.clip !== 'string') fail('clip');
       for (const field of [collection === 'notes' ? 'body' : 'description', 'createdAt', 'updatedAt'])
         if (typeof item[field] !== 'string') fail(`${collection} ${field}`);
+      if (!root.TodoCore.isIsoTimestamp(item.createdAt) || !root.TodoCore.isIsoTimestamp(item.updatedAt)) fail(`${collection} timestamp`);
       if (item.areaId != null && !name(item.areaId)) fail(`${collection} Area`);
       if (!Array.isArray(item.linkUrls) || item.linkUrls.some(url => typeof url !== 'string')) fail(`${collection} links`);
       refs(item, 'tagIds', 'tags');
@@ -167,6 +170,7 @@
       taskFields(task);
     }
     for (const area of state.areas) enumField(area,'status',['active','archived']);
+    for (const item of state.projects) for (const field of ['createdAt', 'updatedAt']) if (item[field] != null && item[field] !== '' && !root.TodoCore.isIsoTimestamp(item[field])) fail(`project ${field} timestamp`);
     for (const goal of state.goals) {
       enumField(goal,'horizon',['short','mid','long']);
       enumField(goal,'status',['active','paused','completed','archived']); enumField(goal,'progressMode',['manual','linkedTasks','linkedHabits']); enumField(goal,'progressType',['percentage','numeric']);
@@ -246,7 +250,7 @@
     }
     nested(logs,'Habit logs');nested(history,'Goal history');const days = new Set();
     for (const log of logs) { ref(log.habitId,'habits');if (!log.habitId || !date(log.date) || days.has(`${log.habitId}:${log.date}`) || !['done','skipped','missed'].includes(log.status)) fail('Habit log');days.add(`${log.habitId}:${log.date}`);numberField(log,'value'); }
-    for (const event of history) { ref(event.goalId,'goals');if (!event.goalId || !['created','progressChanged','statusChanged','targetDateChanged','projectLinked','projectUnlinked','manualProgress'].includes(event.type) || !object(event.data) || !Number.isFinite(Date.parse(event.createdAt))) fail('Goal history'); }
+    for (const event of history) { ref(event.goalId,'goals');if (!event.goalId || !['created','progressChanged','statusChanged','targetDateChanged','projectLinked','projectUnlinked','manualProgress'].includes(event.type) || !object(event.data) || !root.TodoCore.isIsoTimestamp(event.createdAt)) fail('Goal history timestamp'); }
   }
 
   function validateIds(state, attachments) {
@@ -292,7 +296,10 @@
     validateIds(manifest.data, manifest.attachments);
     const migration = root.TodoCore?.migrateStateV3(manifest.data);
     if (!migration?.ok) throw new Error('Invalid app data');
-    const state = migration.state;
+    const repair = root.TodoCore.repairGoalLinks ? root.TodoCore.repairGoalLinks(migration.state, { report: true }) : { state: migration.state, warnings: [] };
+    const state = repair.state;
+    const goalLinkError = root.TodoCore.validateGoalLinks?.(state);
+    if (goalLinkError) throw new Error(`Invalid backup ${goalLinkError}`);
     const attachments = manifest.attachments;
     const habitLogs = manifest.backupVersion === 1 ? [] : manifest.habitLogs;
     const goalHistory = manifest.backupVersion === 1 ? [] : manifest.goalHistory;
@@ -327,7 +334,7 @@
       attachmentRecords: records,
       habitLogs,
       goalHistory,
-      summary: { exportedAt: manifest.exportedAt, tasks: state.tasks.length, projects: state.projects.length, tags: state.tags.length, goals: state.goals.length, habits: state.habits.length, notes: state.notes.length, resources: state.resources.length, attachments: records.length, habitLogs: habitLogs.length, goalHistory: goalHistory.length, totalSize }
+      summary: { exportedAt: manifest.exportedAt, tasks: state.tasks.length, projects: state.projects.length, tags: state.tags.length, goals: state.goals.length, habits: state.habits.length, notes: state.notes.length, resources: state.resources.length, attachments: records.length, habitLogs: habitLogs.length, goalHistory: goalHistory.length, totalSize, ...(repair.warnings.length ? { warnings: repair.warnings } : {}) }
     };
   }
 
@@ -337,7 +344,9 @@
     const migration = root.TodoCore.migrateStateV3(snapshot.appData);
     if (!migration.ok) throw new Error(`Snapshot validation failed: ${migration.reason}`);
     validateDomain(migration.state, snapshot.habitLogs || [], snapshot.goalHistory || []);
-    const source = root.TodoCore.normalizeState(migration.state);
+    let source;
+    try { source = root.TodoCore.normalizeState(migration.state); }
+    catch (error) { if (/Goal-link repair required/.test(error.message)) throw new Error('Cannot restore reciprocal Goal link: saved contribution settings are missing.'); throw error; }
     const record = source[collection].find(item => item.id === id);
     if (!record) throw new Error('The selected entity is not in this snapshot.');
     validateDomain(source, snapshot.habitLogs || [], snapshot.goalHistory || []);
@@ -404,6 +413,7 @@
 
   async function restoreBackup(validated, { attachmentApi, readState, writeState }) {
     validated = structuredClone(validated);
+    validated.state = root.TodoCore.repairGoalLinks(validated.state);
     validateDomain(validated.state, validated.habitLogs || [], validated.goalHistory || []);
     validateIds(validated.state, validated.attachmentRecords);
     root.TodoStorage.verifyAttachmentReferences(validated.state, validated.attachmentRecords);
