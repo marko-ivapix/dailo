@@ -7,6 +7,15 @@
 
   const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
   const MAX_ATTACHMENTS_PER_OWNER = 10;
+  // ZIP limits are intentionally conservative.  They protect the local-first
+  // app from malformed archives and decompression bombs before any replacement
+  // or IndexedDB write is attempted.  Callers may pass smaller limits in tests.
+  const LIMITS = Object.freeze({
+    maxZipEntries: 2000,
+    maxAttachments: 200,
+    maxAttachmentBytes: 50 * 1024 * 1024,
+    maxDecompressedBytes: 100 * 1024 * 1024,
+  });
   // V1.3/V1.4 share the ZIP format. The app/schema version is tracked
   // separately in the manifest data (`data.version === 3`).
   const BACKUP_VERSION = 2;
@@ -280,10 +289,24 @@
     return inspectBackupV3(fileOrBlob);
   }
 
-  async function inspectBackupV3(fileOrBlob) {
+  function limitOptions(options = {}) {
+    return { ...LIMITS, ...(options.limits || {}) };
+  }
+
+  function preflightZip(zip, limits) {
+    const entries = Object.values(zip.files || {});
+    if (entries.length > limits.maxZipEntries) throw new Error(`Backup exceeds ZIP entry limit (${limits.maxZipEntries})`);
+    const estimated = entries.reduce((total, entry) => total + Number(entry._data?.uncompressedSize || 0), 0);
+    if (estimated > limits.maxDecompressedBytes) throw new Error(`Backup exceeds decompressed size limit (${limits.maxDecompressedBytes} bytes)`);
+    return { entries, estimated };
+  }
+
+  async function inspectBackupV3(fileOrBlob, options = {}) {
+    const limits = limitOptions(options);
     const JSZip = requireZip();
     const input = await fileOrBlob;
     const zip = await JSZip.loadAsync(input instanceof root.Blob ? await input.arrayBuffer() : input, { checkCRC32: true });
+    const preflight = preflightZip(zip, limits);
     const dataEntry = zip.file('data.json');
     if (!dataEntry) throw new Error('Backup is missing data.json');
     let manifest;
@@ -292,6 +315,10 @@
     if (manifest.backupVersion >= 2 && manifest.data?.version !== 3) throw new Error('Invalid V3 backup state');
     if (manifest.backupVersion >= 2) validateDomain(manifest.data, manifest.habitLogs, manifest.goalHistory);
     if (!Array.isArray(manifest.attachments)) throw new Error('Invalid attachment manifest');
+    if (manifest.attachments.length > limits.maxAttachments) throw new Error(`Backup exceeds attachment count limit (${limits.maxAttachments})`);
+    const declaredAttachmentBytes = manifest.attachments.reduce((total, item) => total + Number(item?.size || 0), 0);
+    if (!Number.isFinite(declaredAttachmentBytes) || declaredAttachmentBytes > limits.maxAttachmentBytes)
+      throw new Error(`Backup exceeds attachment bytes limit (${limits.maxAttachmentBytes} bytes)`);
     // Check references before migration can normalize a malformed ID array.
     validateIds(manifest.data, manifest.attachments);
     const migration = root.TodoCore?.migrateStateV3(manifest.data);
@@ -308,6 +335,7 @@
     const records = [];
     let totalSize = 0;
     const paths = new Set();
+    let extractedSize = 0;
     for (const item of attachments) {
       const owner = owners.get(item.id), parts = typeof item.path === 'string' ? item.path.split('/') : [];
       // V1.2 packages (backupVersion 1) only knew about task attachments.
@@ -320,10 +348,14 @@
       const entry = zip.file(item.path);
       if (!entry) throw new Error(`Missing attachment file: ${item.fileName}`);
       if (entry.unsafeOriginalName && entry.unsafeOriginalName !== item.path) throw new Error(`Unsafe attachment file: ${item.fileName}`);
-      const blob = new root.Blob([await entry.async('uint8array')], { type: item.blobType ?? item.mimeType });
+      const bytes = await entry.async('uint8array');
+      extractedSize += bytes.byteLength;
+      if (extractedSize > limits.maxDecompressedBytes) throw new Error(`Backup exceeds decompressed size limit (${limits.maxDecompressedBytes} bytes)`);
+      const blob = new root.Blob([bytes], { type: item.blobType ?? item.mimeType });
       if (blob.size !== Number(item.size)) throw new Error(`Attachment size mismatch: ${item.fileName}`);
       if (blob.size > MAX_ATTACHMENT_BYTES) throw new Error(`Attachment exceeds 10 MB: ${item.fileName}`);
       totalSize += blob.size;
+      if (totalSize > limits.maxAttachmentBytes) throw new Error(`Backup exceeds attachment bytes limit (${limits.maxAttachmentBytes} bytes)`);
       const record = { ...item, blob }; delete record.path; delete record.blobType;
       records.push(record);
     }
@@ -434,5 +466,5 @@
     }
   }
 
-  return { BACKUP_VERSION, exportBackup, inspectBackup, exportBackupV3, inspectBackupV3, prepareSelectiveRestore, restoreBackup, validateDomain, safeName };
+  return { BACKUP_VERSION, LIMITS, exportBackup, inspectBackup, exportBackupV3, inspectBackupV3, prepareSelectiveRestore, restoreBackup, validateDomain, safeName };
 });

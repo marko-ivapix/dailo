@@ -8,6 +8,8 @@
   const DB_NAME = 'todoAppDB';
   const DB_VERSION = 1;
   const STORES = ['attachments', 'habitLogs', 'goalHistory', 'recoverySnapshots'];
+  const AUTOMATIC_SNAPSHOT_MAX_COUNT = 5;
+  const AUTOMATIC_SNAPSHOT_MAX_BYTES = 25 * 1024 * 1024;
   const LEGACY_ATTACHMENT_DB_NAME = 'todoAppAttachments';
   const ATTACHMENTS_STORE = 'attachments';
   let dbPromise = null;
@@ -588,11 +590,26 @@
     return snapshot;
   }
 
+  function estimateSnapshotBytes(value, seen = new Set()) {
+    if (value == null || typeof value === 'boolean' || typeof value === 'number') return 8;
+    if (typeof value === 'string') return value.length * 2;
+    if (typeof root.Blob !== 'undefined' && value instanceof root.Blob) return value.size;
+    if (typeof value !== 'object' || seen.has(value)) return 0;
+    seen.add(value);
+    const total = Array.isArray(value)
+      ? value.reduce((sum, item) => sum + estimateSnapshotBytes(item, seen), 0)
+      : Object.entries(value).reduce((sum, [key, item]) => sum + key.length * 2 + estimateSnapshotBytes(item, seen), 0);
+    seen.delete(value);
+    return total;
+  }
+
   let automaticSnapshotWork = Promise.resolve();
-  function createAutomaticSnapshot(state, now = new Date()) {
+  function createAutomaticSnapshot(state, now = new Date(), options = {}) {
     const operation = automaticSnapshotWork.catch(() => {}).then(async () => {
       const timestamp = new Date(now);
       if (!Number.isFinite(timestamp.getTime())) throw new Error('Invalid snapshot date.');
+      const byteBudget = Number.isFinite(options.maxBytes) ? options.maxBytes : AUTOMATIC_SNAPSHOT_MAX_BYTES;
+      if (byteBudget <= 0) throw new Error('Automatic snapshot budget must be positive.');
       const previous = (await recoverySnapshots.listAll()).filter(item => item.reason === 'automatic')
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
       if (previous.length && timestamp.getTime() - Date.parse(previous[0].createdAt) < 300000) return null;
@@ -603,12 +620,19 @@
         root.TodoBackup.validateDomain(snapshot.appData, snapshot.habitLogs, snapshot.goalHistory);
         verifyAttachmentReferences(snapshot.appData, snapshot.attachments);
         snapshot.createdAt = timestamp.toISOString();
+        if (estimateSnapshotBytes(snapshot) > byteBudget) throw new Error(`Automatic snapshot budget exceeded (${byteBudget} bytes)`);
         await recoverySnapshots.put(snapshot);
       } catch (error) { await recoverySnapshots.deleteMany([id]); throw error; }
       // Only automatic copies are eligible; interrupted operations retain their safety data.
       const automatic = (await recoverySnapshots.listAll()).filter(item => item.reason === 'automatic')
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-      await recoverySnapshots.deleteMany(automatic.slice(5).map(item => item.id));
+      const remove = automatic.slice(AUTOMATIC_SNAPSHOT_MAX_COUNT).map(item => item.id);
+      let usedBytes = automatic.reduce((total, item) => total + estimateSnapshotBytes(item), 0);
+      for (const item of automatic.slice(AUTOMATIC_SNAPSHOT_MAX_COUNT)) usedBytes -= estimateSnapshotBytes(item);
+      for (const item of automatic.slice().reverse()) {
+        if (!remove.includes(item.id) && usedBytes > byteBudget) { remove.push(item.id); usedBytes -= estimateSnapshotBytes(item); }
+      }
+      await recoverySnapshots.deleteMany([...new Set(remove)]);
       return id;
     });
     automaticSnapshotWork = operation;
@@ -640,10 +664,67 @@
   async function replaceAllValidatedBackup(validated, expected = null, validate = null) {
     const next = clone(validated);
     verifyAttachmentReferences(next.state, next.attachmentRecords);
-    await replaceUserData({ attachments: next.attachmentRecords, habitLogs: next.habitLogs, goalHistory: next.goalHistory }, expected, validate);
-    validate?.onCommit?.();
-    validate?.();
-    root.localStorage.setItem('todoAppData', JSON.stringify(next.state));
+    const before = await captureUserData();
+    const oldRaw = root.localStorage.getItem('todoAppData');
+    const nextRaw = JSON.stringify(next.state);
+    const validateFn = typeof validate === 'function' ? validate : validate?.validate;
+    const onCommit = typeof validate === 'function' ? validate.onCommit : validate?.onCommit;
+    try {
+      await replaceUserData({ attachments: next.attachmentRecords, habitLogs: next.habitLogs, goalHistory: next.goalHistory }, expected, validateFn);
+      onCommit?.();
+      validateFn?.();
+      root.localStorage.setItem('todoAppData', nextRaw);
+    } catch (error) {
+      const failures = [];
+      // Never overwrite a write that appeared after the replacement began.
+      // Roll back only when both canonical metadata and growing stores still
+      // describe either the old source or the exact replacement payload.
+      try {
+        const currentRaw = root.localStorage.getItem('todoAppData');
+        const currentData = await captureUserData();
+        const nextData = { attachments: next.attachmentRecords, habitLogs: next.habitLogs, goalHistory: next.goalHistory };
+        const currentIsOld = currentRaw === oldRaw && await sameUserData(currentData, before);
+        const currentIsNext = await sameUserData(currentData, nextData);
+        const safeInFlight = currentRaw === oldRaw && currentIsNext;
+        if (!currentIsOld && !(currentRaw === nextRaw && currentIsNext) && !safeInFlight)
+          throw new Error('Canonical or stored data changed during rollback; recovery remains available.');
+        if (currentIsNext) await replaceUserData(before, currentData);
+        if (currentRaw === oldRaw) {
+          if (oldRaw === null) root.localStorage.removeItem('todoAppData');
+          else root.localStorage.setItem('todoAppData', oldRaw);
+        } else if (root.localStorage.getItem('todoAppData') !== nextRaw) {
+          throw new Error('Canonical data changed during rollback; recovery remains available.');
+        } else if (oldRaw === null) root.localStorage.removeItem('todoAppData');
+        else root.localStorage.setItem('todoAppData', oldRaw);
+      } catch (failure) { failures.push(failure); }
+      if (failures.length) throw new AggregateError([error, ...failures], `Backup replacement failed: ${error.message}. Rollback failed.`);
+      throw error;
+    }
+  }
+
+  async function restoreValidatedBackup(validated, options = {}) {
+    const guard = options.validate || null;
+    const onCommit = typeof guard === 'function' ? guard.onCommit : guard?.onCommit;
+    const validate = function () { if (typeof guard === 'function') guard(); else guard?.validate?.(); };
+    validate.onCommit = () => {
+      onCommit?.();
+      if (options.failAfterNative) throw new Error('injected restore failure');
+    };
+    return replaceAllValidatedBackup(validated, options.expected || null, validate);
+  }
+
+  function writeCanonicalStateSync(nextState, expectedRaw) {
+    const before = root.localStorage.getItem('todoAppData');
+    if (expectedRaw !== undefined && before !== expectedRaw) throw new Error('Canonical data changed in another tab; refresh before saving.');
+    const persisted = normalizeState(nextState);
+    const raw = JSON.stringify(persisted);
+    if (root.localStorage.getItem('todoAppData') !== before) throw new Error('Canonical data changed in another tab; refresh before saving.');
+    root.localStorage.setItem('todoAppData', raw);
+    return raw;
+  }
+
+  async function writeCanonicalState(nextState, expectedRaw) {
+    return writeCanonicalStateSync(nextState, expectedRaw);
   }
 
   async function clearAllForTests() {
@@ -674,9 +755,15 @@
     replaceUserData,
     createRecoverySnapshot,
     createAutomaticSnapshot,
+    estimateSnapshotBytes,
+    AUTOMATIC_SNAPSHOT_MAX_COUNT,
+    AUTOMATIC_SNAPSHOT_MAX_BYTES,
     restoreRecoverySnapshot,
     verifyRecoverySnapshot,
     replaceAllValidatedBackup,
+    restoreValidatedBackup,
+    writeCanonicalStateSync,
+    writeCanonicalState,
     clearAllForTests
   };
 });

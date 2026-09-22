@@ -49,6 +49,8 @@
   let undoHold = null;
   let toastMessage = null;
   let toastMessageTimer = null;
+  let staleDataNotice = null;
+  let canonicalRaw = null;
   let textSaveTimer = null;
   let lastToday = Core.dateOnly();
   let dragState = null;
@@ -523,7 +525,18 @@
       state.settings.focusTaskIds = persisted.settings.focusTaskIds;
       delete persisted.habitLogCache;
       delete persisted.habitMetrics;
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(persisted));
+      const writer = typeof TodoStorage !== 'undefined' && (TodoStorage.writeCanonicalStateSync || TodoStorage.writeCanonicalState);
+      const expectedRaw = typeof canonicalRaw === 'undefined' ? null : canonicalRaw;
+      if (writer) canonicalRaw = writer(persisted, expectedRaw);
+      else {
+        const canRead = typeof localStorage.getItem === 'function';
+        const before = canRead ? localStorage.getItem(STORAGE_KEY) : null;
+        if (expectedRaw !== null && before !== expectedRaw) throw new Error('Canonical data changed in another tab; refresh before saving.');
+        const raw = JSON.stringify(persisted);
+        if (canRead && localStorage.getItem(STORAGE_KEY) !== before) throw new Error('Canonical data changed in another tab; refresh before saving.');
+        localStorage.setItem(STORAGE_KEY, raw);
+        if (typeof canonicalRaw !== 'undefined') canonicalRaw = raw;
+      }
       storageError = false;
       scheduleAutomaticSnapshot();
       return true;
@@ -2895,7 +2908,8 @@
     const failed = [...failedDeleteSnapshots][0];
     const recoveryNotice = failed && !undoHold ? `<div class="toast" role="alert"><i class="ph ph-warning toast-icon"></i><span class="toast-message">${esc(failed.recoveryError)} · Snapshot retained</span><button class="toast-action" type="button" data-action="retry-delete-recovery">Retry recovery</button></div>` : '';
     const globalNotice = globalRecoveryNotice ? `<div class="toast" role="alert"><span class="toast-message">${esc(globalRecoveryNotice.message)}</span><button class="toast-action" data-action="retry-global-recovery">Retry</button></div>` : '';
-    root.innerHTML = undo + info + recoveryNotice + globalNotice;
+    const staleNotice = staleDataNotice ? `<div class="toast" role="alert"><i class="ph ph-arrows-clockwise toast-icon"></i><span class="toast-message">This workspace changed in another tab. Refresh to load the latest data.</span><button class="toast-action" type="button" data-action="refresh-stale-data">Refresh</button></div>` : '';
+    root.innerHTML = undo + info + recoveryNotice + globalNotice + staleNotice;
   }
 
   async function doUndo() {
@@ -3358,6 +3372,7 @@
       const persisted = Core.normalizeState(state);
       delete persisted.habitLogCache; delete persisted.habitMetrics;
       localStorage.setItem(STORAGE_KEY, JSON.stringify(persisted));
+      canonicalRaw = localStorage.getItem(STORAGE_KEY);
       if (op && state === op.source) { op.raw = localStorage.getItem(STORAGE_KEY); op.stateText = compactState(state); }
       return true;
     } catch (error) { console.error(error); return false; }
@@ -3664,6 +3679,20 @@
   function showTaskRepeatPicker(taskId, anchor) { openRepeatPicker(anchor, { type: 'task', taskId }); }
 
   function handleClick(event) {
+    if (event.target.closest('[data-action="refresh-stale-data"]')) {
+      const notice = staleDataNotice;
+      staleDataNotice = null;
+      renderToast();
+      if (!notice) return;
+      const latest = localStorage.getItem(STORAGE_KEY);
+      if (latest !== notice.raw && latest !== notice.source) {
+        staleDataNotice = { raw: latest, source: latest };
+        renderToast();
+        return;
+      }
+      startReady({ raw: notice.raw, source: latest || notice.source, synthetic: true });
+      return;
+    }
     if (event.target.closest('[data-action="retry-global-recovery"]')) {
       Promise.resolve(globalRecoveryNotice?.retry()).catch(error => globalNotice(`Retry failed: ${error.message}. Recovery copy retained. Retry again.`, globalRecoveryNotice.retry)); return;
     }
@@ -4231,8 +4260,9 @@
       if (event.key !== STORAGE_KEY || !event.newValue) return;
       try {
         const source = localStorage.getItem(STORAGE_KEY);
-        if (Core.migrateStateV3(JSON.parse(event.newValue)).ok) {
-          startReady({ raw: event.newValue, source, synthetic: !event.isTrusted });
+        if (Core.migrateStateV3(JSON.parse(event.newValue)).ok && event.newValue !== canonicalRaw) {
+          staleDataNotice = { raw: event.newValue, source: canonicalRaw ?? source };
+          renderToast();
         }
       } catch (_) { /* keep current tab data for malformed external state */ }
     });
@@ -4258,6 +4288,7 @@
           startupQueue.unshift(undefined);
           continue;
         }
+        canonicalRaw = committedSource;
         runScheduledTaskTemplates({ duringStartup: true });
         render();
         checkReminders();
