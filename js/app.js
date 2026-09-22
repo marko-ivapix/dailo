@@ -1909,6 +1909,14 @@
     requestAnimationFrame(() => popoverEl?.querySelector('input, select, textarea, button')?.focus());
   }
 
+  function popoverFocusTarget(anchor) {
+    if (!(anchor instanceof HTMLElement)) return null;
+    const keys = ['action', 'popAction', 'taskId', 'targetType', 'dateKind', 'areaId', 'goalId', 'habitId', 'tagId'];
+    const attrs = keys.filter(key => anchor.dataset[key] !== undefined)
+      .map(key => `[data-${key.replace(/[A-Z]/g, c => '-' + c.toLowerCase())}="${CSS.escape(anchor.dataset[key])}"]`).join('');
+    return { element: anchor, selector: attrs || (anchor.id ? '#' + CSS.escape(anchor.id) : '') };
+  }
+
   function inlineNewTag(button) {
     const targetType = button.dataset.targetType; const taskId = button.dataset.taskId || ''; const color = PROJECT_COLORS[(state.tags || []).length % PROJECT_COLORS.length];
     if (!popoverEl) return;
@@ -2025,7 +2033,7 @@
       title.id = title.id || `popover-title-${Date.now().toString(36)}`;
       el.setAttribute('aria-labelledby', title.id);
     } else el.setAttribute('aria-label', 'Menu');
-    popoverReturnFocus = anchor instanceof HTMLElement ? anchor : null;
+    popoverReturnFocus = popoverFocusTarget(anchor);
     el.returnFocus = popoverReturnFocus;
     document.body.appendChild(el);
     const width = el.offsetWidth || 300;
@@ -2049,7 +2057,10 @@
     popoverEl = null;
     popoverReturnFocus = null;
     restoreGoalFocus(target);
-    if (!target) requestAnimationFrame(() => returnFocus?.isConnected && returnFocus.focus());
+    if (!target) requestAnimationFrame(() => {
+      const focusTarget = returnFocus?.element?.isConnected ? returnFocus.element : returnFocus?.selector && $(returnFocus.selector);
+      focusTarget?.focus();
+    });
   }
 
   function trapPopoverFocus(event) {
