@@ -1528,3 +1528,46 @@ body { font-size: 14px; line-height: 1.4; }
   .task-actions .btn-icon,
   .subtask-row .btn-icon { width: 44px; height: 44px; min-height: 44px; }
 }
+
+/* V1.7 targeted polish: denser mobile discovery without changing the visual system. */
+.v17-sticky-context {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--surface-card-dark);
+}
+.v17-empty-state {
+  min-height: 72px;
+  display: grid;
+  align-content: center;
+}
+.v17-knowledge-list { gap: 4px; }
+.v17-knowledge-list .knowledge-row { min-height: 66px; }
+.v17-area-list { gap: 4px; }
+.v17-area-list .area-row { min-height: 60px; }
+
+@media (max-width: 700px) {
+  .v17-mobile-filter {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+    gap: 6px;
+    padding: 6px;
+  }
+  .v17-mobile-filter .field-label { min-width: 0; gap: 3px; font-size: 10px; }
+  .v17-mobile-filter .input { min-width: 0; width: 100%; padding-inline: 7px; }
+  .v17-mobile-filter .btn { grid-column: 1 / -1; justify-self: start; min-height: 34px; }
+  .v17-knowledge-list .knowledge-row { min-height: 62px; }
+  .v17-knowledge-list .knowledge-row-meta { gap: 3px 8px; font-size: 10px; }
+  .v17-area-list .area-row { min-height: 54px; }
+  .v17-area-list .area-open { min-height: 52px; padding-block: 6px; }
+  .v17-day-detail .calendar-detail-items { max-height: 50vh; }
+  .v17-day-detail .calendar-creation {
+    position: sticky;
+    bottom: -1px;
+    z-index: 2;
+    padding-top: 8px;
+    background: var(--surface-card-dark);
+  }
+  .v17-day-detail .calendar-creation .btn { flex: 1 1 90px; }
+  .v17-sticky-context { border-color: var(--border-default); }
+}

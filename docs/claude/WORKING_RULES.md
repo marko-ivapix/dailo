@@ -3,9 +3,9 @@
 ## Before editing
 
 1. Read `CLAUDE.md` and `AGENTS.md`.
-2. Inspect the current source, relevant tests and the current V1.6 progress ledger.
+2. Inspect the current source, relevant tests and the current V1.7 progress ledger.
 3. Identify whether the requested behavior already exists in a different UI module or derived view.
-4. Preserve existing V1.2–V1.5 behavior unless the approved V1.6 design explicitly changes it.
+4. Preserve existing V1.2–V1.6 behavior unless the approved V1.7 design explicitly changes it.
 
 ## Product constraints
 

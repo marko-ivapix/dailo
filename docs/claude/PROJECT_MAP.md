@@ -1,6 +1,6 @@
 # Current implementation project map
 
-This map describes the source inspected on 2026-09-18. It is an onboarding aid for Claude, not a replacement for `AGENTS.md`, the versioned specifications, or acceptance evidence. The directory name still says V1.3; README describes V1.6 functionality. Inspect source before making version or completion claims.
+This map describes the source inspected on 2026-09-22. It is an onboarding aid for Claude, not a replacement for `AGENTS.md`, the versioned specifications, or acceptance evidence. The directory name still says V1.3; README describes V1.7 functionality. Inspect source before making version or completion claims.
 
 ## Runtime files
 
@@ -40,7 +40,7 @@ This map describes the source inspected on 2026-09-18. It is an onboarding aid f
 
 `tests/*.test.js` uses Node's built-in test runner. Some tests import pure modules; others evaluate selected app/controller code in VM contexts with test doubles or inspect source/CSS. Those checks do not establish real browser behavior. Files carry historical version suffixes and remain regression coverage, not independent applications.
 
-`tests/ui-*.py` contains browser scenarios. `tests/browser_test_support/` contains the test-only path adapter and `sitecustomize.py`; `tests/test_browser_path_adapter.py` checks the adapter. `tests/run-browser-regressions.py` runs the three listed older V1.1/V1.2 scenarios, not every browser scenario. Browser prerequisites are in `requirements-browser-tests.txt` and README. There is no root `package.json`; the Node suite is invoked directly with `node --test tests/*.test.js`.
+`tests/ui-*.py` contains browser scenarios. `tests/browser_test_support/` contains the test-only path adapter and `sitecustomize.py`; `tests/test_browser_path_adapter.py` checks the adapter. `tests/run-browser-regressions.py` enumerates maintained V1.1/V1.2/V1.3/V1.5/V1.6 groups and labels static versus manual-browser entries. Browser prerequisites are in `requirements-browser-tests.txt` and README. There is no root `package.json`; the Node suite is invoked directly with `node --test tests/*.test.js`.
 
 `README.md` explains running the prototype, features and verification limitations. `PROJECT_OVERVIEW.md` is a Serbian product overview with explicitly labeled brainstorming questions; those questions are not accepted requirements. `docs/codex/` holds product/scope/checklists; `docs/superpowers/` holds versioned specs, plans and progress evidence. Follow `AGENTS.md` precedence when changing behavior, and distinguish historical requirements from current implementation.
 

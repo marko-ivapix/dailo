@@ -19,7 +19,7 @@
     const actions = '<button class="btn btn-primary" type="button" data-action="new-area"><i class="ph ph-plus"></i> New area</button>';
     let html = pageHeader('Areas', `${all.filter(area => area.status === 'active').length} active ${all.filter(area => area.status === 'active').length === 1 ? 'area' : 'areas'}`, { add: false, actionHtml: actions });
     html += `<div class="area-tabs" role="tablist" aria-label="Area status"><button id="area-tab-all" type="button" role="tab" data-tab="all" aria-selected="${tab === 'all'}" aria-controls="areas-panel" tabindex="${tab === 'all' ? '0' : '-1'}" class="${tab === 'all' ? 'is-active' : ''}">All</button><button id="area-tab-active" type="button" role="tab" data-tab="active" aria-selected="${tab === 'active'}" aria-controls="areas-panel" tabindex="${tab === 'active' ? '0' : '-1'}" class="${tab === 'active' ? 'is-active' : ''}">Active</button><button id="area-tab-archived" type="button" role="tab" data-tab="archived" aria-selected="${tab === 'archived'}" aria-controls="areas-panel" tabindex="${tab === 'archived' ? '0' : '-1'}" class="${tab === 'archived' ? 'is-active' : ''}">Archived</button></div>`;
-    const areaPanel = areas.length ? `<div class="area-list">${areas.map(area => {
+    const areaPanel = areas.length ? `<div class="area-list v17-area-list">${areas.map(area => {
       const summary = Core.areaSummary(area.id, state);
       const notes = state.notes.filter(item => item.areaId === area.id).length;
       const resources = state.resources.filter(item => item.areaId === area.id).length;

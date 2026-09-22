@@ -43,7 +43,7 @@ Do not confuse these versions:
 7. Legacy attachment Blobs are copied into the shared store without deleting the original until the migration is safe.
 8. Invalid or unsupported data enters a recovery surface; it is not replaced with an empty app.
 
-V1.6 preferences are additive: Today filter, Today focus strip, compact density, week-start preference and personalization defaults are normalized without dropping existing records.
+V1.6/V1.7 preferences are additive: Today filter, Today focus strip, compact density, week-start preference and personalization defaults are normalized without dropping existing records. V1.7 also bounds snapshot/import work and surfaces stale-tab refresh instead of silently overwriting newer canonical data.
 
 ## Automatic local snapshots
 

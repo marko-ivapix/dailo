@@ -1,6 +1,6 @@
 # Dailo — pregled projekta i brainstorming
 
-> Current implementation: V1.6 prototype. For agent onboarding and verified source facts, read `CLAUDE.md` and `docs/claude/` first. The brainstorming questions below are ideas, not accepted requirements.
+> Current implementation: V1.7 stabilization prototype. For agent onboarding and verified source facts, read `CLAUDE.md` and `docs/claude/` first. The brainstorming questions below are ideas, not accepted requirements.
 
 Dailo je lokalna To-Do aplikacija za organizaciju zadataka, projekata, oblasti,
 ciljeva, navika, beleški i resursa. Osnovni tok je:
@@ -21,6 +21,17 @@ ciljeva, navika, beleški i resursa. Osnovni tok je:
 - Na mobilnim i tablet širinama postoji stalna donja navigacija za Today, Inbox, Calendar, Goals i Habits. Quick Add je plutajući kružni meni, sa istim rasporedom i na desktopu.
 
 Node testovi pokrivaju podatke, UI module, ZIP i selektivni recovery; izolovana provera u browseru ostaje zaseban korak kada okruženje dozvoljava pokretanje browsera/lokalnog servera. Pitanja za brainstorming ispod su ranije zabeležene ideje, a nisu potvrda da su sve navedene opcije u opsegu.
+
+## V1.7 — stabilizacija i ciljano poliranje
+
+- Donja navigacija na užim ekranima zadržava Today, Inbox, Calendar, Goals i Habits, a `More` otvara sve ostale rute bez promene hash navigacije.
+- Dijalozi i popoveri imaju imenovanje i dosledan fokus; Area tabovi koriste semantičke tabove, a primarne mobilne kontrole ostaju touch-safe.
+- Regresioni runner razdvaja statičke/automatizovane provere od scenarija koji zahtevaju user-owned browser. Pokriveni su reload, attachments, Delete → Undo, Reset/Restore, drag-and-drop, Escape/fokus, mobilna navigacija i kompaktni touch layout.
+- Validacija podataka i ZIP/recovery tokovi imaju recipročne Goal veze, timestamp/ID proveru, limite veličine i stale-tab zaštitu.
+- Ciljano je zbijen prikaz mobilnih filtera, Notes/Resources/Areas listi i Calendar Day Detail-a. Nema širokog redesign-a.
+- Globalni Search ostaje nepromenjen, a bulk selekcije i bulk akcije nisu dodate.
+
+V1.7 status i tačni brojevi provera vode se u `docs/superpowers/progress-v1-7.md`. Native browser provera je **manual-pending** dok ne bude izvršena u user-owned browseru; statičke i Node provere nisu zamena za vizuelnu ili stvarnu browser potvrdu.
 
 ## 1. Today i Upcoming
 
@@ -190,10 +201,7 @@ Zatim otvoriti `http://localhost:8080`.
 
 ## Trenutni status
 
-V1.6 prototip je upakovan u `Dailo-v1.6-distributable.zip`. Najnovija provera
-ima **207/207** uspešnih Node testova, **45** JavaScript fajlova bez syntax
-grešaka, čist `git diff --check` i ZIP od **40 regularnih fajlova**. Tačna
-evidencija je u `docs/superpowers/progress-v1-6.md`.
-Browser/visual acceptance je dokumentovano odložena; u ovoj release proveri nije
-pokrenut browser, pa automatizovani rezultati nisu potvrda native browser,
-vizuelnog, keyboard ili mobilnog ponašanja.
+V1.7 prototip se verifikuje prema `docs/superpowers/progress-v1-7.md`. Tačni
+brojevi Node, syntax, Python/static i ZIP provera upisuju se tek posle stvarnog
+pokretanja komandi; browser/visual acceptance ostaje **manual-pending** ako nije
+izvršena u user-owned browseru.

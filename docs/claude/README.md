@@ -1,6 +1,6 @@
 # Claude documentation index
 
-These files are the current implementation handoff for Claude and other agents. They are derived from the V1.6 source, tests and release evidence on 2026-09-18.
+These files are the current implementation handoff for Claude and other agents. They are derived from the V1.7 source, tests and release evidence on 2026-09-22.
 
 | File | Use it for |
 | --- | --- |
@@ -12,7 +12,7 @@ These files are the current implementation handoff for Claude and other agents. 
 | `TESTING_AND_RELEASE.md` | Commands, exact release counts, package and browser limits |
 | `WORKING_RULES.md` | Safe editing, scope, verification and documentation vocabulary |
 
-Start at the repository root [`CLAUDE.md`](../../CLAUDE.md), then read these guides before editing code. `AGENTS.md` remains the governing project policy. Versioned specs and plans remain authoritative for approved scope; current source/tests remain authoritative for what is actually implemented.
+Start at the repository root [`CLAUDE.md`](../../CLAUDE.md), then read these guides before editing code. `AGENTS.md` remains the governing project policy. The V1.7 spec, plan and progress ledger are the current release references. Versioned specs and plans remain authoritative for approved scope; current source/tests remain authoritative for what is actually implemented.
 
 Status labels used throughout:
 

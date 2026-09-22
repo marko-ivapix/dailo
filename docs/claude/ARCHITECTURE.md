@@ -1,6 +1,6 @@
 # Current implementation architecture
 
-This document records inspected implementation on 2026-09-17. It describes mechanisms present in source, not proof of functional, visual or native-browser acceptance. Read `AGENTS.md` and the applicable versioned spec before changing behavior.
+This document records inspected implementation on 2026-09-22. It describes mechanisms present in source, not proof of functional, visual or native-browser acceptance. Read `AGENTS.md` and the applicable versioned spec before changing behavior.
 
 ## Composition and module boundaries
 
@@ -39,7 +39,7 @@ Automatic captures are scheduled after one idle second, rate limited to five min
 
 Delegated listeners interpret `data-route`, `data-action`, property and contextual dataset attributes. Adapter action/input hooks get a chance to consume relevant events before controller fallback handlers. Shared listeners cover clicks, input/change/blur, keyboard, pointer swipe and drag/drop. Thus replacing content does not require attaching a listener to every new row. Overlay focus restoration tracks connected elements or logical dataset selectors because rendering can replace the original trigger node.
 
-Mutations typically update a shared record, save, and re-render affected surfaces; async operations additionally validate live source/ownership where implemented. `storage` events can queue another ready load for valid metadata from another tab; malformed external state is ignored. Source guards protect migration/global replacements from stale data. This is browser-local coordination, not a conflict-resolution or collaborative synchronization service.
+Mutations typically update a shared record, save, and re-render affected surfaces; async operations additionally validate live source/ownership where implemented. `storage` events can queue another ready load for valid metadata from another tab; malformed external state is ignored. Source guards protect migration/global replacements from stale data, and the current UI exposes a concise stale-data refresh path rather than overwriting newer canonical bytes. This is browser-local coordination, not a conflict-resolution or collaborative synchronization service.
 
 ## Derived views
 
