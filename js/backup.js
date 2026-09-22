@@ -250,7 +250,7 @@
     }
     nested(logs,'Habit logs');nested(history,'Goal history');const days = new Set();
     for (const log of logs) { ref(log.habitId,'habits');if (!log.habitId || !date(log.date) || days.has(`${log.habitId}:${log.date}`) || !['done','skipped','missed'].includes(log.status)) fail('Habit log');days.add(`${log.habitId}:${log.date}`);numberField(log,'value'); }
-    for (const event of history) { ref(event.goalId,'goals');if (!event.goalId || !['created','progressChanged','statusChanged','targetDateChanged','projectLinked','projectUnlinked','manualProgress'].includes(event.type) || !object(event.data) || !root.TodoCore.isIsoTimestamp(event.createdAt)) fail('Goal history timestamp'); }
+    for (const event of history) { ref(event.goalId,'goals');if (!event.goalId || !['created','progressChanged','statusChanged','targetDateChanged','projectLinked','projectUnlinked','manualProgress'].includes(event.type) || !object(event.data) || typeof event.createdAt !== 'string' || !event.createdAt || !root.TodoCore.isIsoTimestamp(event.createdAt)) fail('Goal history timestamp'); }
   }
 
   function validateIds(state, attachments) {
