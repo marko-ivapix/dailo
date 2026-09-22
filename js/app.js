@@ -3158,7 +3158,8 @@
       return null;
     }
     try {
-      await TodoStorage.habitLogs.put(record);
+      const putHabitLog = TodoStorage.habitLogs.putIfCurrent || TodoStorage.habitLogs.put;
+      await putHabitLog.call(TodoStorage.habitLogs, record, existing || null);
       if (!ownsCanonical()) throw new Error('Canonical data changed in another tab during Habit check-in.');
       await refreshHabitMetrics();
     } catch (error) {
