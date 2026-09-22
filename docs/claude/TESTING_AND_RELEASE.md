@@ -20,7 +20,7 @@ PY
 git diff --check
 ```
 
-Current V1.7 automated evidence (package and final checksum are recorded after Task 7):
+Current V1.7 automated evidence (verified 2026-09-22):
 
 | Check | Result |
 | --- | ---: |
@@ -29,6 +29,8 @@ Current V1.7 automated evidence (package and final checksum are recorded after T
 | Focused Task 6 polish file | **4 passed, 0 failed, 0 skipped** |
 | JavaScript syntax | **51 files passed** |
 | Python AST parsing | **19 files passed** |
+| Static browser contracts | **10/10 passed** |
+| Browser-regression registry contracts | **3/3 passed** |
 | Browser-path adapter unittest | **2/2 passed** |
 | `git diff --check` | passed |
 
@@ -49,12 +51,19 @@ No isolated Chromium was launched for the V1.7 release. The user's personal Chro
 Artifact:
 
 ```text
-V1.7 artifact path and SHA-256 are recorded after Task 7 packaging.
+Dailo-v1.7-distributable.zip
+SHA-256: recorded in the adjacent `Dailo-v1.7-distributable.zip.sha256` sidecar
+Archive entries: 51 files
+Archive validation: `unzip -t` passed with no errors.
 ```
 
 Release checks:
 
-Packaging remains pending until Task 7 completes; do not copy the historical V1.6 artifact or checksum into the V1.7 release record.
+The package is built from the verified working tree. It excludes tests, worktree metadata, virtual environments, caches, historical/nested ZIPs and review logs, while retaining the approved V1.7 spec, plan, progress ledger and current handoff documentation.
+
+## Acceptance checklist boundary
+
+`docs/codex/ACCEPTANCE.md` contains **126** historical human/browser checklist items; **0** are marked checked in the file. Automated source and Node evidence above does not turn those items green. Native browser acceptance remains **manual-pending** for the user-owned browser, including real reload/IndexedDB persistence, file chooser/download behavior, deletion Undo timing, reset/restore interaction, drag/drop, responsive layout, keyboard/focus traversal and mobile touch behavior.
 
 ## Honest status vocabulary
 
