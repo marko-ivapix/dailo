@@ -2,6 +2,7 @@
 
 import subprocess
 import sys
+import importlib.util
 from pathlib import Path
 
 
@@ -51,7 +52,8 @@ def test_dry_run_reports_script_context_without_launching_browser():
 
 
 def test_failure_context_names_group_and_scenario():
-    runner = RUNNER.read_text()
-    assert "scenario" in runner
-    assert "group" in runner
-    assert "print(f\"[{group['name']}] {scenario}: {script} failed" in runner
+    spec = importlib.util.spec_from_file_location('browser_runner', RUNNER)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    message = module._failure_message({'name': 'V1.2'}, {'path': 'ui-v1-2-lifecycle.py', 'scenarios': ('lifecycle',)}, 42)
+    assert message == '[V1.2] lifecycle: ui-v1-2-lifecycle.py failed (exit code 42)'
