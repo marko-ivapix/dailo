@@ -7,12 +7,31 @@ MODULES = ('domain-modules.js', 'knowledge.js', 'goals-ui.js', 'habits-ui.js', '
 SHELL = '<div id="app"><aside id="sidebar"></aside><main id="main"></main></div><div id="modal-root"></div><div id="toast-root"></div>'
 
 
+FIXED_NOW = '2026-10-31T20:00:00'
+
+
 def boot(page):
     page.set_content(SHELL)
-    page.evaluate("location.hash = '#today'")
+    page.evaluate('''fixedNow => {
+      const NativeDate = Date;
+      const current = new NativeDate(fixedNow).getTime();
+      window.Date = class TestDate extends NativeDate {
+        constructor(...args) { super(...(args.length ? args : [current])); }
+        static now() { return current; }
+      };
+      location.hash = '#today';
+    }''', FIXED_NOW)
     page.evaluate('''() => {
       window.__TODO_TEST_MEMORY_DB__ = true;
       const values = new Map();
+      const today = '2026-10-31';
+      values.set('todoAppData', JSON.stringify({version: 3, tasks: [
+        {id: 'task_homepage', title: 'Finish homepage', projectId: 'project_client', plannedDate: today, dueDate: '2026-11-03', notes: 'Finish responsive pass.', subtasks: [], isCompleted: false},
+        {id: 'task_groceries', title: 'Buy groceries', projectId: 'project_personal', plannedDate: today, isCompleted: false},
+      ], projects: [
+        {id: 'project_client', name: 'Client Website', isArchived: false},
+        {id: 'project_personal', name: 'Personal', isArchived: false},
+      ], tags: [], areas: [], goals: [], habits: [], notes: [], resources: [], templates: [], savedViews: [], settings: {}, ui: {}}));
       Object.defineProperty(window, 'localStorage', {configurable: true, value: {
         getItem: key => values.get(key) || null, setItem: (key, value) => values.set(key, String(value)),
         removeItem: key => values.delete(key), clear: () => values.clear()
@@ -86,8 +105,8 @@ def main():
         # task into a timed event or make Habits draggable.
         today = page.evaluate('TodoCore.dateOnly()')
         page.evaluate('''date => {
-          const first = TodoApp.state.tasks.find(t => t.title === 'Finish homepage');
-          const second = TodoApp.state.tasks.find(t => t.title === 'Buy groceries');
+          const first = TodoApp.state.tasks.find(t => t.id === 'task_homepage');
+          const second = TodoApp.state.tasks.find(t => t.id === 'task_groceries');
           // The earlier Focus flow may have completed either shared fixture.
           // Calendar's timed-plan assertions require independent open Tasks.
           for (const task of [first, second]) { task.isCompleted = false; task.completedAt = null; }

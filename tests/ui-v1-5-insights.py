@@ -3,10 +3,11 @@ from pathlib import Path
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from threading import Thread
-from datetime import date, timedelta
 from playwright.sync_api import sync_playwright, expect
 
 ROOT = Path(__file__).resolve().parents[1]
+FIXED_TODAY = '2026-10-31'
+FIXED_TOMORROW = '2026-11-01'
 
 
 def ready(page):
@@ -28,10 +29,16 @@ def main():
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
             page = browser.new_page(viewport={'width': 1440, 'height': 1000})
+            page.add_init_script(f'''(() => {{
+              const NativeDate = Date; const current = new NativeDate('{FIXED_TODAY}T12:00:00').getTime();
+              window.Date = class TestDate extends NativeDate {{
+                constructor(...args) {{ super(...(args.length ? args : [current])); }}
+                static now() {{ return current; }}
+              }};
+            }})();''')
             page.goto(f'http://127.0.0.1:{server.server_port}/')
             ready(page)
-            today = date.today().isoformat()
-            tomorrow = (date.today() + timedelta(days=1)).isoformat()
+            today, tomorrow = FIXED_TODAY, FIXED_TOMORROW
             page.evaluate('''({today, tomorrow}) => {
               const state = TodoApp.state;
               state.goals.push({id: 'insight-goal', title: 'Reading goal', status: 'active', progressMode: 'manual', progressType: 'numeric', currentValue: 0, targetValue: 10, unit: 'books', targetDate: tomorrow, taskIds: [], projectLinks: [], habitLinks: [], milestones: [], reminders: {}});

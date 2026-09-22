@@ -26,7 +26,7 @@ Task 4 evidence: 155/155 affected tests passed in final review. Core/backup reje
 
 Task 2 evidence: final review exercised nested and rerendered popover focus, duplicate background/modal selectors, hidden property fallback, Areas tab rerender focus, custom popover labels/initial focus, and no-op close behavior. Full suite: 224/224 passed; syntax and diff checks passed.
 
-Task 3 runner evidence: the standard registry now enumerates V1.1, V1.2, V1.3, V1.5, and V1.6 groups, with named coverage for reload persistence, attachments, Delete → Undo, Reset/Restore, drag-and-drop, modal focus/Escape, mobile navigation, and compact touch layout. `tests/run-browser-regressions.py --list` and `--dry-run` provide deterministic registry checks without launching a browser; native browser acceptance remains pending.
+Task 3 runner evidence: the standard registry now enumerates V1.1, V1.2, V1.3, V1.5, and V1.6 groups with scenario names matching the maintained scripts. V1.5 fixtures use a fixed clock and explicit IDs; V1.6 mobile/compact entries are static contracts with acceptance marked pending-manual. `tests/run-browser-regressions.py --list` and `--dry-run` provide deterministic registry checks without launching a browser; native browser acceptance remains pending.
 
 The V1.6 baseline remains 207/207 automated tests. After Tasks 1–4 and accessibility hardening, the current full Node suite is 224/224 passing. Native browser acceptance remains pending.
 

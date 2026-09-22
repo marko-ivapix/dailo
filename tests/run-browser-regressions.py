@@ -25,21 +25,21 @@ SCENARIO_GROUPS = (
         {'path': path, 'mode': 'manual', 'scenarios': scenarios} for path, scenarios in (
             ('ui-v1-3-areas-goals.py', ('areas/goals',)),
             ('ui-v1-3-goal-ux.py', ('goal UX',)),
-            ('ui-v1-3-habits-calendar.py', ('habits/calendar',)),
+            ('ui-v1-3-habits-calendar.py', ('habits/calendar', 'calendar drag-and-drop', 'reload persistence')),
             ('ui-v1-3-migration.py', ('migration',)),
             ('ui-v1-3-safety.py', ('delete -> undo', 'reset/restore')),
             ('ui-v1-3-storage-migration.py', ('reload persistence',)),
-            ('ui-v1-3-tools.py', ('attachments', 'modal focus/escape', 'drag-and-drop')),
+            ('ui-v1-3-tools.py', ('attachments', 'modal focus/escape', 'delete -> undo', 'reload persistence')),
         )
     )},
     {'name': 'V1.5', 'scripts': (
-        {'path': 'ui-v1-5.py', 'mode': 'manual', 'scenarios': ('reload persistence', 'attachments', 'delete -> undo')},
+        {'path': 'ui-v1-5.py', 'mode': 'manual', 'scenarios': ('Tasks/Today focus', 'Calendar time blocks', 'calendar drag-and-drop')},
         {'path': 'ui-v1-5-insights.py', 'mode': 'manual', 'scenarios': ('goal/habit insights',)},
     )},
     {'name': 'V1.6', 'scripts': (
         {'path': 'ui-v1-6-calendar.py', 'mode': 'static', 'scenarios': ('calendar drag-and-drop',)},
         {'path': 'ui-v1-6-knowledge.py', 'mode': 'static', 'scenarios': ('knowledge editor',)},
-        {'path': 'ui-v1-6-today.py', 'mode': 'static', 'scenarios': ('mobile navigation', 'compact touch layout', 'today focus')},
+        {'path': 'ui-v1-6-today.py', 'mode': 'static', 'acceptance': 'pending-manual', 'scenarios': ('mobile navigation', 'compact touch layout', 'today focus')},
     )},
 )
 
@@ -50,7 +50,8 @@ def _print_registry(dry_run=False):
     for group in SCENARIO_GROUPS:
         print(f"[{group['name']}]")
         for entry in group['scripts']:
-            print(f"  mode: {entry['mode']} | scenarios: {', '.join(entry['scenarios'])}")
+            acceptance = f" | acceptance: {entry['acceptance']}" if entry.get('acceptance') else ''
+            print(f"  mode: {entry['mode']}{acceptance} | scenarios: {', '.join(entry['scenarios'])}")
             print(f"  script: {entry['path']}")
 
 
