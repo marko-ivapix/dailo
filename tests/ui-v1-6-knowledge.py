@@ -31,3 +31,10 @@ def test_knowledge_attachment_reads_use_the_owner_snapshot_pipeline():
     storage = read('js/storage.js')
     assert 'TodoStorage.knowledgeAttachmentSnapshot({ ...owner.item, type: owner.type })' in app
     assert 'function knowledgeAttachmentSnapshot(record)' in storage
+
+
+if __name__ == '__main__':
+    test_knowledge_editor_uses_name_and_requires_a_source_for_both_views()
+    test_notes_and_resources_keep_separate_routes_and_shared_delete_undo_flow()
+    test_knowledge_attachment_reads_use_the_owner_snapshot_pipeline()
+    print('PASS: V1.6 knowledge static scenarios 3/3')

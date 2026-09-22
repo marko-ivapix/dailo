@@ -77,6 +77,19 @@ def main(argv=None):
     args = parser.parse_args(argv)
     if args.list or args.dry_run:
         _print_registry(dry_run=args.dry_run)
+        if args.dry_run:
+            static_entries = [
+                entry for group in SCENARIO_GROUPS for entry in group['scripts']
+                if entry['mode'] == 'static'
+            ]
+            environment = os.environ.copy()
+            for entry in static_entries:
+                subprocess.run(
+                    [sys.executable, str(STATIC_RUNNER), str(ROOT / 'tests' / entry['path'])],
+                    cwd=ROOT,
+                    env=environment,
+                    check=True,
+                )
         return 0
     environment = os.environ.copy()
     existing_path = environment.get('PYTHONPATH')

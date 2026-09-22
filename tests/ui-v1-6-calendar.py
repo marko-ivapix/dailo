@@ -22,3 +22,9 @@ def test_only_calendar_tasks_are_draggable_and_drag_updates_planned_fields():
     assert "['calendar-task'].includes(dragState.type)" in app
     assert "updateTask(dragState.id, { plannedDate: date, ...(time ? { plannedTime: time } : {}) })" in app
     assert "calendar-goal" not in app[app.index('function handleDragStart'):app.index('function cleanupDrag')]
+
+
+if __name__ == '__main__':
+    test_calendar_uses_the_planned_time_block_projection()
+    test_only_calendar_tasks_are_draggable_and_drag_updates_planned_fields()
+    print('PASS: V1.6 calendar static scenarios 2/2')
