@@ -2057,15 +2057,16 @@
     popoverEl = null;
     popoverReturnFocus = null;
     restoreGoalFocus(target);
-    if (!target) requestAnimationFrame(() => {
+    if (!target && returnFocus) requestAnimationFrame(() => {
       const activeModal = $('#modal-root .modal');
       const focusRoot = returnFocus?.modalScoped ? (activeModal || document) : document;
       const opener = returnFocus?.element;
       const openerIsActive = opener?.isConnected && (!returnFocus?.modalScoped || !activeModal || activeModal.contains(opener));
       const candidate = openerIsActive ? opener : returnFocus?.selector && focusRoot?.querySelector(returnFocus.selector);
       const visible = candidate && (candidate.offsetParent !== null || candidate.getClientRects?.().length);
-      const focusTarget = visible ? candidate : focusRoot?.querySelector('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])');
-      focusTarget?.focus();
+      const fallback = [...(focusRoot?.querySelectorAll('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])') || [])]
+        .find(element => element.offsetParent !== null || element.getClientRects?.().length);
+      (visible ? candidate : fallback)?.focus();
     });
   }
 
