@@ -1897,10 +1897,21 @@
     const task = getTask(taskId); if (!task) return;closePopover();requestTaskEdit(taskId,{priority});
   }
 
+  function setPopoverContent(html) {
+    if (!popoverEl) return;
+    popoverEl.innerHTML = html;
+    const title = popoverEl.querySelector('.popover-title');
+    if (title) {
+      title.id = title.id || `popover-title-${Date.now().toString(36)}`;
+      popoverEl.setAttribute('role', 'dialog');
+      popoverEl.setAttribute('aria-labelledby', title.id);
+    }
+  }
+
   function inlineNewTag(button) {
     const targetType = button.dataset.targetType; const taskId = button.dataset.taskId || ''; const color = PROJECT_COLORS[(state.tags || []).length % PROJECT_COLORS.length];
     if (!popoverEl) return;
-    popoverEl.innerHTML = `<div class="popover-title">New tag</div><div class="popover-inline-form"><input id="inline-tag-name" class="input" type="text" maxlength="80" placeholder="Tag name" /><div class="color-grid">${PROJECT_COLORS.map(c=>`<button class="color-swatch ${c===color?'is-selected':''}" type="button" data-pop-action="inline-select-tag-color" data-color="${c}" style="--swatch:${c}"></button>`).join('')}</div><div id="inline-tag-error" class="validation" hidden></div><div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn btn-ghost" type="button" data-pop-action="inline-tag-cancel">Cancel</button><button class="btn btn-primary" type="button" data-pop-action="inline-tag-create" data-target-type="${targetType}" ${taskId ? `data-task-id="${esc(taskId)}"` : ''} data-color="${color}">Create</button></div></div>`;
+    setPopoverContent(`<div class="popover-title">New tag</div><div class="popover-inline-form"><input id="inline-tag-name" class="input" type="text" maxlength="80" placeholder="Tag name" /><div class="color-grid">${PROJECT_COLORS.map(c=>`<button class="color-swatch ${c===color?'is-selected':''}" type="button" data-pop-action="inline-select-tag-color" data-color="${c}" style="--swatch:${c}"></button>`).join('')}</div><div id="inline-tag-error" class="validation" hidden></div><div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn btn-ghost" type="button" data-pop-action="inline-tag-cancel">Cancel</button><button class="btn btn-primary" type="button" data-pop-action="inline-tag-create" data-target-type="${targetType}" ${taskId ? `data-task-id="${esc(taskId)}"` : ''} data-color="${color}">Create</button></div></div>`);
     requestAnimationFrame(()=>$('#inline-tag-name',popoverEl)?.focus());
   }
 
@@ -1934,7 +1945,7 @@
     const taskId = button.dataset.taskId || '';
     const source = targetType === 'quick' ? modalState.draft : getTask(taskId);
     const value = toLocalDateTimeValue(source?.reminderAt || new Date(Date.now() + 60 * 60 * 1000).toISOString());
-    popoverEl.innerHTML = `<div class="popover-title">Reminder</div><div class="popover-inline-form"><input id="custom-reminder-input" class="date-native" type="datetime-local" value="${esc(value)}" /><div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn btn-ghost" type="button" data-pop-action="custom-reminder-cancel">Cancel</button><button class="btn btn-primary" type="button" data-pop-action="custom-reminder-apply" data-target-type="${targetType}" ${taskId ? `data-task-id="${esc(taskId)}"` : ''}>Apply</button></div></div>`;
+    setPopoverContent(`<div class="popover-title">Reminder</div><div class="popover-inline-form"><input id="custom-reminder-input" class="date-native" type="datetime-local" value="${esc(value)}" /><div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn btn-ghost" type="button" data-pop-action="custom-reminder-cancel">Cancel</button><button class="btn btn-primary" type="button" data-pop-action="custom-reminder-apply" data-target-type="${targetType}" ${taskId ? `data-task-id="${esc(taskId)}"` : ''}>Apply</button></div></div>`);
   }
 
   function showCustomRepeat(button) {
@@ -1943,7 +1954,7 @@
     const taskId = button.dataset.taskId || '';
     const source = targetType === 'quick' ? modalState.draft : getTask(taskId);
     const current = source?.recurrence || { frequency: 'weekly', interval: 2 };
-    popoverEl.innerHTML = `<div class="popover-title">Custom repeat</div><div class="popover-inline-form"><label class="field-label" for="repeat-interval">Repeat every</label><div class="repeat-custom-row"><input id="repeat-interval" class="input" type="number" min="1" max="99" value="${Math.max(1, Number(current.interval) || 1)}" /><select id="repeat-frequency" class="input"><option value="daily" ${current.frequency === 'daily' ? 'selected' : ''}>days</option><option value="weekly" ${current.frequency === 'weekly' ? 'selected' : ''}>weeks</option><option value="monthly" ${current.frequency === 'monthly' ? 'selected' : ''}>months</option></select></div><div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn btn-ghost" type="button" data-pop-action="custom-repeat-cancel">Cancel</button><button class="btn btn-primary" type="button" data-pop-action="custom-repeat-apply" data-target-type="${targetType}" ${taskId ? `data-task-id="${esc(taskId)}"` : ''}>Apply</button></div></div>`;
+    setPopoverContent(`<div class="popover-title">Custom repeat</div><div class="popover-inline-form"><label class="field-label" for="repeat-interval">Repeat every</label><div class="repeat-custom-row"><input id="repeat-interval" class="input" type="number" min="1" max="99" value="${Math.max(1, Number(current.interval) || 1)}" /><select id="repeat-frequency" class="input"><option value="daily" ${current.frequency === 'daily' ? 'selected' : ''}>days</option><option value="weekly" ${current.frequency === 'weekly' ? 'selected' : ''}>weeks</option><option value="monthly" ${current.frequency === 'monthly' ? 'selected' : ''}>months</option></select></div><div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn btn-ghost" type="button" data-pop-action="custom-repeat-cancel">Cancel</button><button class="btn btn-primary" type="button" data-pop-action="custom-repeat-apply" data-target-type="${targetType}" ${taskId ? `data-task-id="${esc(taskId)}"` : ''}>Apply</button></div></div>`);
     $('.repeat-custom-row',popoverEl).insertAdjacentHTML('afterend',`<label class="field-label">End condition<select id="repeat-end-type" class="input"><option value="never" ${!current.endType || current.endType==='never'?'selected':''}>Never</option><option value="date" ${current.endType==='date'?'selected':''}>End on date</option><option value="afterOccurrences" ${current.endType==='afterOccurrences'?'selected':''}>End after N occurrences (including initial)</option></select></label><label class="field-label">End date<input id="repeat-end-date" class="input" type="date" value="${esc(current.endDate || '')}"></label><label class="field-label">Total occurrences<input id="repeat-end-count" class="input" type="number" min="1" step="1" value="${esc(current.endAfterOccurrences || '')}"></label><p class="validation" role="alert" id="repeat-error" hidden></p>`);
   }
 
@@ -2037,7 +2048,7 @@
     popoverEl = null;
     popoverReturnFocus = null;
     restoreGoalFocus(target);
-    if (!modalState && !target) requestAnimationFrame(() => returnFocus?.isConnected && returnFocus.focus());
+    if (!target) requestAnimationFrame(() => returnFocus?.isConnected && returnFocus.focus());
   }
 
   function trapPopoverFocus(event) {
@@ -2055,7 +2066,7 @@
     const targetType = popButton.dataset.targetType;
     const taskId = popButton.dataset.taskId || '';
     if (!popoverEl) return;
-    popoverEl.innerHTML = `<div class="popover-title">${kind === 'plan' ? 'Plan for' : 'Due date'}</div><div class="popover-inline-form"><input id="custom-date-input" class="date-native" type="date" /><div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn btn-ghost" type="button" data-pop-action="custom-date-cancel">Cancel</button><button class="btn btn-primary" type="button" data-pop-action="custom-date-apply" data-date-kind="${kind}" data-target-type="${targetType}" ${taskId ? `data-task-id="${esc(taskId)}"` : ''}>Apply</button></div></div>`;
+    setPopoverContent(`<div class="popover-title">${kind === 'plan' ? 'Plan for' : 'Due date'}</div><div class="popover-inline-form"><input id="custom-date-input" class="date-native" type="date" /><div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn btn-ghost" type="button" data-pop-action="custom-date-cancel">Cancel</button><button class="btn btn-primary" type="button" data-pop-action="custom-date-apply" data-date-kind="${kind}" data-target-type="${targetType}" ${taskId ? `data-task-id="${esc(taskId)}"` : ''}>Apply</button></div></div>`);
     requestAnimationFrame(() => $('#custom-date-input', popoverEl)?.focus());
   }
 
@@ -2064,7 +2075,7 @@
     const taskId = button.dataset.taskId || '';
     if (!popoverEl) return;
     const color = nextProjectColor();
-    popoverEl.innerHTML = `<div class="popover-title">New project</div><div class="popover-inline-form"><input id="inline-project-name" class="input" type="text" maxlength="100" placeholder="Project name" /><div class="color-grid">${PROJECT_COLORS.map(c => `<button class="color-swatch ${c === color ? 'is-selected' : ''}" type="button" data-pop-action="inline-select-color" data-color="${c}" style="--swatch:${c}"></button>`).join('')}</div><div id="inline-project-error" class="validation" hidden>Project needs a name.</div><div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn btn-ghost" type="button" data-pop-action="inline-project-cancel">Cancel</button><button class="btn btn-primary" type="button" data-pop-action="inline-project-create" data-target-type="${targetType}" ${taskId ? `data-task-id="${esc(taskId)}"` : ''} data-color="${color}">Create</button></div></div>`;
+    setPopoverContent(`<div class="popover-title">New project</div><div class="popover-inline-form"><input id="inline-project-name" class="input" type="text" maxlength="100" placeholder="Project name" /><div class="color-grid">${PROJECT_COLORS.map(c => `<button class="color-swatch ${c === color ? 'is-selected' : ''}" type="button" data-pop-action="inline-select-color" data-color="${c}" style="--swatch:${c}"></button>`).join('')}</div><div id="inline-project-error" class="validation" hidden>Project needs a name.</div><div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn btn-ghost" type="button" data-pop-action="inline-project-cancel">Cancel</button><button class="btn btn-primary" type="button" data-pop-action="inline-project-create" data-target-type="${targetType}" ${taskId ? `data-task-id="${esc(taskId)}"` : ''} data-color="${color}">Create</button></div></div>`);
     requestAnimationFrame(() => $('#inline-project-name', popoverEl)?.focus());
   }
 
@@ -3987,6 +3998,7 @@
     event.preventDefault();
     next?.focus();
     next?.click();
+    requestAnimationFrame(() => $('.area-tabs [aria-selected="true"]')?.focus());
     return true;
   }
 

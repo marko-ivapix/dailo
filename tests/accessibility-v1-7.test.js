@@ -32,6 +32,7 @@ test('Areas tabs expose tab semantics, panel relationship, and arrow-key navigat
   assert.match(areas, /id="areas-panel"[\s\S]*role="tabpanel"/);
   assert.match(app, /function handleAreaTabKeydown\(/);
   assert.match(app, /ArrowRight|ArrowLeft/);
+  assert.match(app, /next\?\.click\(\);[\s\S]*?requestAnimationFrame\(\(\) => \$\('\.area-tabs \[aria-selected="true"\]'\)\?\.focus\(\)\)/);
 });
 
 test('aria-live is limited to status/toast output instead of the application shell', () => {
@@ -42,4 +43,12 @@ test('aria-live is limited to status/toast output instead of the application she
 
 test('primary compact mobile controls retain 44px touch targets', () => {
   assert.match(css, /@media \(max-width: 700px\)[\s\S]*?\.modal \.btn-icon,[\s\S]*?\.task-actions \.btn-icon,[\s\S]*?min-height: 44px/);
+  assert.match(css, /Keep primary compact actions touchable[\s\S]*?\.task-actions \.btn-icon,[\s\S]*?min-height: 44px/);
+});
+
+test('popover headings stay labelled after repeat and reminder content swaps', () => {
+  assert.match(app, /function setPopoverContent\(html\)/);
+  assert.match(app, /setPopoverContent\(`<div class="popover-title">Reminder/);
+  assert.match(app, /setPopoverContent\(`<div class="popover-title">Custom repeat/);
+  assert.match(app, /closePopover\(\)[\s\S]*?returnFocus\?\.isConnected && returnFocus\.focus\(\)/);
 });
