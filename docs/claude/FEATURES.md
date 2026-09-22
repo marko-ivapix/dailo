@@ -1,6 +1,6 @@
 # Dailo feature inventory
 
-Inspected 2026-09-18 against current V1.6 source, tests and release ledger. **Implemented** means code exists. **Automated coverage** means relevant assertions exist; some UI assertions inspect source strings rather than drive a browser. **Manual-pending** means native-browser acceptance remains outstanding. Nothing here converts prototype behavior into production/backend verification.
+Inspected 2026-09-22 against current V1.7 source, tests and release ledger. **Implemented** means code exists. **Automated coverage** means relevant assertions exist; some UI assertions inspect source strings rather than drive a browser. **Manual-pending** means native-browser acceptance remains outstanding. Nothing here converts prototype behavior into production/backend verification.
 
 ## Implemented features and evidence
 
@@ -24,9 +24,9 @@ Inspected 2026-09-18 against current V1.6 source, tests and release ledger. **Im
 
 ## Verification status
 
-The latest release record `docs/superpowers/progress-v1-6.md` reports **207 Node tests passing**, syntax checks for **45 JavaScript files**, AST parsing for the release's Python test files, two browser-path-adapter unittest checks, clean diff and distributable-integrity checks. The distributable contains **40 regular files**. The current recursive AST pass covers **19 Python files**. Its requested pytest invocation could not run because pytest was unavailable; the adapter's unittest entry point was used. Those are recorded release results; this inventory itself does not re-run or certify them.
+The latest release record `docs/superpowers/progress-v1-7.md` reports **238 Node tests passing**, syntax checks for **51 JavaScript files**, AST/static checks for the release's Python test files, browser-path-adapter checks, and clean diff evidence. The final distributable and checksum are produced in Task 7 after integration. `pytest` is not part of the verified command path; direct AST and unittest/static entry points are used. Those are recorded release results; this inventory itself does not re-run or certify them.
 
-Native-browser acceptance was not run for the V1.6 release. Python Playwright suites are available as optional developer/CI harnesses; their presence is not evidence of execution. User-owned-browser manual checks remain necessary for reload/real IndexedDB persistence, file chooser/download/open, delete/Undo timing, restore/reset/snapshot interactions, drag/drop, overlays/Escape/focus traps/return focus, shortcuts while editing, mobile controls/swipes/touch, layout and assistive-technology behavior. No isolated browser or personal Chrome session is launched by this documentation task.
+Native-browser acceptance was not run for the V1.7 release. Python Playwright suites are available as optional developer/CI harnesses; their presence is not evidence of execution. User-owned-browser manual checks remain necessary for reload/real IndexedDB persistence, file chooser/download/open, delete/Undo timing, restore/reset/snapshot interactions, drag/drop, overlays/Escape/focus traps/return focus, shortcuts while editing, mobile controls/swipes/touch, layout and assistive-technology behavior. No isolated browser or personal Chrome session is launched by this documentation task.
 
 CDN fonts/icons remain external visual dependencies. Scheduled templates/reminders only execute when the ready app is open; they are not server jobs. Local snapshots share browser quota and cannot replace an external ZIP backup.
 

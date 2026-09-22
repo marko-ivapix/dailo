@@ -20,14 +20,14 @@ PY
 git diff --check
 ```
 
-Current V1.6 release evidence:
+Current V1.7 automated evidence (package and final checksum are recorded after Task 7):
 
 | Check | Result |
 | --- | ---: |
-| Complete Node suite | **207 passed, 0 failed, 0 skipped** |
-| Focused backup/recovery set | **33 passed, 0 failed, 0 skipped** |
-| Focused `recovery-v1-6` file | **11 passed, 0 failed, 0 skipped** |
-| JavaScript syntax | **45 files passed** |
+| Complete Node suite | **238 passed, 0 failed, 0 skipped** |
+| Focused Task 5 backup/recovery set | **46 passed, 0 failed, 0 skipped** |
+| Focused Task 6 polish file | **4 passed, 0 failed, 0 skipped** |
+| JavaScript syntax | **51 files passed** |
 | Python AST parsing | **19 files passed** |
 | Browser-path adapter unittest | **2/2 passed** |
 | `git diff --check` | passed |
@@ -42,29 +42,19 @@ Node tests cover pure Core rules, migrations, storage/backup validation, Goal an
 
 ## Browser acceptance policy
 
-No isolated Chromium was launched for the V1.6 release. The user's personal Chrome was not opened or modified. Native browser acceptance remains **manual-pending**: real reload persistence, IndexedDB behavior, attachment chooser interactions, focus/keyboard behavior, responsive layout and mobile gestures must be checked in a user-owned browser when desired.
+No isolated Chromium was launched for the V1.7 release. The user's personal Chrome was not opened or modified. Native browser acceptance remains **manual-pending**: real reload persistence, IndexedDB behavior, attachment chooser interactions, focus/keyboard behavior, responsive layout and mobile gestures must be checked in a user-owned browser when desired.
 
 ## Distributable ZIP
 
 Artifact:
 
 ```text
-/Users/marko.radicevic/Documents/Dailo simple/Dailo-v1.6-distributable.zip
+V1.7 artifact path and SHA-256 are recorded after Task 7 packaging.
 ```
 
 Release checks:
 
-- 40 regular files, including `CLAUDE.md` and `docs/claude/` onboarding guides.
-- `unzip -t` passes with no compressed-data errors.
-- Runtime, CSS, vendor, README/overview and selected `docs/codex`/progress Markdown are included.
-- Tests, `.git`, virtual environments, caches, plans/specs/review logs, nested ZIPs and unsafe paths are excluded.
-- The packaged progress ledger contains an explicit post-build digest marker; the source ledger records the final SHA without a self-referential archive checksum.
-
-SHA-256:
-
-```text
-ca9320071006c9f443633f2633da3d0aebc570dd7549ed40157452936e6856b0
-```
+Packaging remains pending until Task 7 completes; do not copy the historical V1.6 artifact or checksum into the V1.7 release record.
 
 ## Honest status vocabulary
 

@@ -1,6 +1,6 @@
 # Dailo domain model
 
-Current implementation reference, inspected 2026-09-18. This describes the static V1.6 prototype, not a backend contract or a claim of native-browser acceptance. Product intent remains **Capture → Organize → Plan → Complete**, with Today as the main working surface.
+Current implementation reference, inspected 2026-09-22. This describes the static V1.7 stabilization prototype, not a backend contract or a claim of native-browser acceptance. Product intent remains **Capture → Organize → Plan → Complete**, with Today as the main working surface.
 
 ## Canonical entities
 
@@ -58,7 +58,7 @@ Saved Views filter one collection. Task filters include Project, effective Area,
 
 ## Persistence and recovery boundaries
 
-Metadata uses localStorage `todoAppData`, schema `version: 3`. IndexedDB `todoAppDB` database version 1 stores `attachments`, `habitLogs`, `goalHistory`, `recoverySnapshots`; database version and state schema are distinct. Supported V1/V2 metadata migrate to V3 while retaining IDs. V1.6 settings/default migration is additive and idempotent. Invalid state follows recovery/error paths, never a silent reset.
+Metadata uses localStorage `todoAppData`, schema `version: 3`. IndexedDB `todoAppDB` database version 1 stores `attachments`, `habitLogs`, `goalHistory`, `recoverySnapshots`; database version and state schema are distinct. Supported V1/V2 metadata migrate to V3 while retaining IDs. V1.6/V1.7 settings/default migrations are additive and idempotent. Invalid state follows recovery/error paths, never a silent reset.
 
 Normal deletion uses Confirmation → Delete → brief Snackbar Undo, with deferred file/history destruction as needed. Clear Completed retains an Undo snapshot. Full ZIP Restore/Reset require a downloaded safety ZIP, internal recovery copy, typed RESTORE/RESET, source validation, verified replacement and rollback on failure. The current ZIP format is `backupVersion: 2` carrying the V3 state payload and knowledge attachments; valid backup versions 1/2 are importable. This does not imply an older app can import newer exports.
 
@@ -66,6 +66,6 @@ Automatic snapshots run after successful saves/startup, idle for one second, no 
 
 ## Evidence and limits
 
-Implementation: `js/core.js`, `js/app.js`, `js/domain-modules.js`, `js/*-ui.js`, `js/knowledge.js`, `js/storage.js`, `js/attachments.js`, `js/backup.js`. Regression evidence: `tests/core*.test.js`, `tests/tasks-today*.test.js`, `tests/goals-v1-6.test.js`, `tests/habits-v1-6.test.js`, `tests/calendar-v1-6.test.js`, `tests/templates-v1-6.test.js`, `tests/knowledge*.test.js`, `tests/backup*.test.js`, `tests/recovery*.test.js`, `tests/inbox-v1-6.test.js`. The latest V1.6 verification records 207 passing Node tests and 45 JavaScript files passing syntax checks; native-browser acceptance remains manual-pending.
+Implementation: `js/core.js`, `js/app.js`, `js/domain-modules.js`, `js/*-ui.js`, `js/knowledge.js`, `js/storage.js`, `js/attachments.js`, `js/backup.js`. Regression evidence: `tests/core*.test.js`, `tests/tasks-today*.test.js`, `tests/goals-v1-6.test.js`, `tests/habits-v1-6.test.js`, `tests/calendar-v1-6.test.js`, `tests/templates-v1-6.test.js`, `tests/knowledge*.test.js`, `tests/backup*.test.js`, `tests/recovery*.test.js`, `tests/inbox-v1-6.test.js`, `tests/backup-v1-7.test.js`, `tests/v1-7-polish.test.js`. The V1.7 verification records 238 passing Node tests, 51 JavaScript files passing syntax checks, Python AST/static checks, and native-browser acceptance manual-pending.
 
 Native-browser persistence, file interactions, visuals, keyboard/focus, responsive/mobile and accessibility acceptance remain manual-pending. No backend, authentication, cloud sync, collaboration, server reminders, AI planning, integrations, bulk actions, Search redesign, nested Goals, weighted contributions, elapsed-time tracking or inline attachment preview is implemented by this model.
