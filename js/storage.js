@@ -334,6 +334,25 @@
 
   const habitLogs = {
     async put(record) { return putRecord('habitLogs', record, ['id', 'habitId', 'date'], 'habit log'); },
+    async putIfCurrent(record, expected) {
+      requireRecord(record, ['id', 'habitId', 'date'], 'habit log');
+      const expectedRecord = expected ?? null;
+      if (expectedRecord && expectedRecord.id !== record.id) throw new Error('Habit log expected record changed.');
+      const matches = actual => JSON.stringify(actual ?? null) === JSON.stringify(expectedRecord);
+      if (memoryMode()) {
+        if (!matches(memoryStores.habitLogs.get(record.id))) throw new Error('Habit log changed in another context.');
+        const duplicate = [...memoryStores.habitLogs.values()].find(item => item.id !== record.id && item.habitId === record.habitId && item.date === record.date);
+        if (duplicate) throw new Error('Habit log already exists for this habit and date');
+        memoryStores.habitLogs.set(record.id, clone(record));
+        return clone(record);
+      }
+      return withStore('habitLogs', 'readwrite', async store => {
+        const current = await requestPromise(store.get(record.id));
+        if (!matches(current)) throw new Error('Habit log changed in another context.');
+        await requestPromise(store.put(record));
+        return clone(record);
+      });
+    },
     async get(id) { return getRecord('habitLogs', id); },
     async getByHabitAndDate(habitId, date) {
       if (memoryMode()) return clone([...memoryStores.habitLogs.values()].find(record => record.habitId === habitId && record.date === date));
@@ -644,8 +663,7 @@
           if (kept >= AUTOMATIC_SNAPSHOT_MAX_COUNT - 1 || usedBytes + itemBytes > byteBudget) removeBeforeInsert.push(item.id);
           else { usedBytes += itemBytes; kept += 1; }
         }
-        await recoverySnapshots.deleteMany(removeBeforeInsert);
-        await recoverySnapshots.put(snapshot);
+        await replaceAutomaticSnapshots(removeBeforeInsert, snapshot);
       } catch (error) { await recoverySnapshots.deleteMany([snapshot.id]); throw error; }
       // Only automatic copies are eligible; interrupted operations retain their safety data.
       const automatic = (await recoverySnapshots.listAll()).filter(item => item.reason === 'automatic')
@@ -661,6 +679,26 @@
     });
     automaticSnapshotWork = operation;
     return operation;
+  }
+
+  async function replaceAutomaticSnapshots(removeIds, snapshot) {
+    const unique = [...new Set(removeIds || [])];
+    requireRecord(snapshot, ['id'], 'recovery snapshot');
+    if (memoryMode()) {
+      const removed = unique.map(id => memoryStores.recoverySnapshots.get(id)).filter(Boolean).map(clone);
+      unique.forEach(id => memoryStores.recoverySnapshots.delete(id));
+      try { await recoverySnapshots.put(snapshot); }
+      catch (error) {
+        removed.forEach(record => memoryStores.recoverySnapshots.set(record.id, clone(record)));
+        throw error;
+      }
+      return snapshot.id;
+    }
+    await withStore('recoverySnapshots', 'readwrite', store => {
+      unique.forEach(id => store.delete(id));
+      store.put(snapshot);
+    });
+    return snapshot.id;
   }
 
   async function restoreRecoverySnapshot(snapshotId) {

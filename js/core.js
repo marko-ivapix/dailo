@@ -1321,6 +1321,9 @@
       if (project.areaId && !areaIds.has(project.areaId)) return { ok: false, reason: 'missing-project-area' };
       if (project.goalIds.some(goalId => !goalIds.has(goalId))) return { ok: false, reason: 'missing-project-goal' };
     }
+    if (!migrated) for (const key of ['tasks', 'goals', 'habits']) {
+      if (state[key].some(item => !validEntityTimestamps(item))) return { ok: false, reason: `invalid-${key.slice(0, -1)}-timestamp` };
+    }
     return { ok: true, state, migrated: Boolean(migrated) };
   }
 

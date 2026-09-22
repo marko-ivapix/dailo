@@ -306,6 +306,64 @@
     return { entries, estimated };
   }
 
+  const CRC32_TABLE = (() => {
+    const table = new Uint32Array(256);
+    for (let index = 0; index < table.length; index += 1) {
+      let value = index;
+      for (let bit = 0; bit < 8; bit += 1) value = value & 1 ? 0xedb88320 ^ value >>> 1 : value >>> 1;
+      table[index] = value >>> 0;
+    }
+    return table;
+  })();
+
+  function updateCrc32(crc, bytes) {
+    let value = crc;
+    for (const byte of bytes) value = CRC32_TABLE[(value ^ byte) & 0xff] ^ value >>> 8;
+    return value >>> 0;
+  }
+
+  function readZipEntryBounded(entry, maxBytes, label) {
+    if (!Number.isFinite(maxBytes) || maxBytes < 0) return Promise.reject(new Error(`Backup exceeds decompressed size limit while reading ${label}`));
+    let stream;
+    try { stream = entry.internalStream('uint8array'); }
+    catch (error) { return Promise.reject(error); }
+    return new Promise((resolve, reject) => {
+      const chunks = [];
+      let size = 0, crc = 0xffffffff, settled = false;
+      const fail = error => {
+        if (settled) return;
+        settled = true;
+        try { stream.pause(); } catch (_) { /* stream already ended */ }
+        reject(error);
+      };
+      stream.on('data', chunk => {
+        if (settled) return;
+        const bytes = chunk instanceof Uint8Array ? chunk : new Uint8Array(chunk);
+        if (size + bytes.byteLength > maxBytes) {
+          fail(new Error(`Backup exceeds decompressed size limit while reading ${label}`));
+          return;
+        }
+        chunks.push(bytes); size += bytes.byteLength; crc = updateCrc32(crc, bytes);
+      });
+      stream.on('error', fail);
+      stream.on('end', () => {
+        if (settled) return;
+        const expected = entry._data?.crc32;
+        const actual = (crc ^ 0xffffffff) | 0;
+        if (!Number.isFinite(expected) || actual !== (Number(expected) | 0)) {
+          fail(new Error(`Corrupt ZIP entry (CRC32 mismatch): ${label}`));
+          return;
+        }
+        settled = true;
+        const output = new Uint8Array(size);
+        let offset = 0;
+        for (const chunk of chunks) { output.set(chunk, offset); offset += chunk.byteLength; }
+        resolve(output);
+      });
+      stream.resume();
+    });
+  }
+
   async function inspectBackupV3(fileOrBlob, options = {}) {
     const limits = limitOptions(options);
     const JSZip = requireZip();
@@ -320,12 +378,11 @@
     let extractedSize = 0;
     let manifest;
     try {
-      const dataBytes = await dataEntry.async('uint8array');
+      const dataBytes = await readZipEntryBounded(dataEntry, limits.maxDecompressedBytes - extractedSize, 'data.json');
       extractedSize += dataBytes.byteLength;
-      if (extractedSize > limits.maxDecompressedBytes) throw new Error(`Backup exceeds decompressed size limit (${limits.maxDecompressedBytes} bytes)`);
       manifest = JSON.parse(new root.TextDecoder().decode(dataBytes));
     } catch (error) {
-      if (/decompressed size limit/i.test(String(error?.message))) throw error;
+      if (/decompressed size limit|CRC32|corrupt/i.test(String(error?.message))) throw error;
       throw new Error('Invalid data.json');
     }
     if (!manifest || ![1, 2, BACKUP_VERSION].includes(manifest.backupVersion)) throw new Error('Unsupported backup version');
@@ -364,9 +421,8 @@
       const entry = zip.file(item.path);
       if (!entry) throw new Error(`Missing attachment file: ${item.fileName}`);
       if (entry.unsafeOriginalName && entry.unsafeOriginalName !== item.path) throw new Error(`Unsafe attachment file: ${item.fileName}`);
-      const bytes = await entry.async('uint8array');
+      const bytes = await readZipEntryBounded(entry, limits.maxDecompressedBytes - extractedSize, item.path);
       extractedSize += bytes.byteLength;
-      if (extractedSize > limits.maxDecompressedBytes) throw new Error(`Backup exceeds decompressed size limit (${limits.maxDecompressedBytes} bytes)`);
       const blob = new root.Blob([bytes], { type: item.blobType ?? item.mimeType });
       if (blob.size !== Number(item.size)) throw new Error(`Attachment size mismatch: ${item.fileName}`);
       if (blob.size > MAX_ATTACHMENT_BYTES) throw new Error(`Attachment exceeds 10 MB: ${item.fileName}`);

@@ -33,6 +33,17 @@ async function zipWith(entries) {
   return zip.generateAsync({ type: 'blob' });
 }
 
+async function withCorruptCentralCrc(blob) {
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  for (let index = 0; index <= bytes.length - 20; index += 1) {
+    if (bytes[index] === 0x50 && bytes[index + 1] === 0x4b && bytes[index + 2] === 0x01 && bytes[index + 3] === 0x02) {
+      bytes[index + 16] ^= 0xff;
+      return new Blob([bytes]);
+    }
+  }
+  throw new Error('Central ZIP entry not found');
+}
+
 test('backup preflight rejects an archive over the ZIP entry limit before extraction', async () => {
   const limits = { maxZipEntries: 2 };
   const payload = await zipWith({ 'data.json': JSON.stringify(manifest()), 'extra-a': 'a', 'extra-b': 'b' });
@@ -44,6 +55,18 @@ test('backup preflight rejects an archive over the ZIP entry limit before extrac
   try { await assert.rejects(() => Backup.inspectBackupV3(payload, { limits }), /ZIP entry limit/i); }
   finally { compressedData.getContentWorker = original; }
   assert.equal(extracted, 0, 'entry data must not inflate before central-directory limits pass');
+});
+
+test('backup streams bounded entries without ZipObject.async and verifies their CRC32', async () => {
+  const payload = await zipWith({ 'data.json': JSON.stringify(manifest()) });
+  const parsed = await JSZip.loadAsync(await payload.arrayBuffer());
+  const zipObject = Object.getPrototypeOf(parsed.file('data.json'));
+  const originalAsync = zipObject.async;
+  zipObject.async = () => { throw new Error('unbounded async extraction used'); };
+  try {
+    assert.equal((await Backup.inspectBackupV3(payload)).state.version, 3);
+    await assert.rejects(() => Backup.inspectBackupV3(withCorruptCentralCrc(payload)), /CRC|corrupt/i);
+  } finally { zipObject.async = originalAsync; }
 });
 
 test('backup preflight rejects declared attachment count and bytes before extraction', async () => {
@@ -103,6 +126,30 @@ test('automatic snapshots prune aggregate automatic bytes before inserting the n
   assert.equal(await Storage.recoverySnapshots.get('automatic-old'), null);
 });
 
+test('failed automatic snapshot insertion restores automatic copies pruned for its budget', async () => {
+  await Storage.clearAllForTests();
+  const state = baseState();
+  localStorage.setItem('todoAppData', JSON.stringify(state));
+  const old = {
+    id: 'automatic-old', reason: 'automatic', phase: 'prepared', createdAt: '2026-09-22T09:00:00.000Z',
+    rawAppData: JSON.stringify(state), appData: state, liveState: state,
+    attachments: [], habitLogs: [], goalHistory: [], padding: 'x'.repeat(2000),
+  };
+  const safety = { id: 'safety', reason: 'restore', phase: 'prepared', createdAt: '2026-09-22T09:01:00.000Z' };
+  await Storage.recoverySnapshots.put(old);
+  await Storage.recoverySnapshots.put(safety);
+  const originalPut = Storage.recoverySnapshots.put;
+  Storage.recoverySnapshots.put = async record => {
+    if (record.reason === 'automatic' && record.id !== old.id) throw new Error('injected candidate write failure');
+    return originalPut(record);
+  };
+  try {
+    await assert.rejects(() => Storage.createAutomaticSnapshot(state, new Date('2026-09-22T10:00:00Z'), { maxBytes: 3000 }), /injected candidate/i);
+  } finally { Storage.recoverySnapshots.put = originalPut; }
+  assert.deepEqual(await Storage.recoverySnapshots.get(old.id), old);
+  assert.ok(await Storage.recoverySnapshots.get(safety.id));
+});
+
 test('task, Goal and Habit timestamps share strict ISO validation while legacy knowledge dates may be empty', () => {
   const valid = '2026-09-22T10:00:00.000Z';
   const invalid = '2026-02-30T10:00:00.000Z';
@@ -115,6 +162,7 @@ test('task, Goal and Habit timestamps share strict ISO validation while legacy k
     const candidate = { ...baseState(), [collection]: [entity] };
     assert.throws(() => Backup.validateDomain(candidate, [], []), /timestamp/i, collection);
     assert.equal(TodoCore.validEntityTimestamps(entity), false, collection);
+    assert.match(TodoCore.migrateStateV3(candidate).reason, /timestamp/i, collection);
   }
   assert.equal(TodoCore.isIsoTimestamp('2026-09-22T24:00:00.000Z'), false);
   assert.equal(TodoCore.isIsoTimestamp(''), false);
@@ -124,6 +172,18 @@ test('task, Goal and Habit timestamps share strict ISO validation while legacy k
   };
   assert.doesNotThrow(() => Backup.validateDomain(legacyKnowledge, [], []));
   assert.equal(TodoCore.migrateStateV3(legacyKnowledge).ok, true);
+});
+
+test('Habit log compare-and-set refuses to overwrite a record changed after its read', async () => {
+  await Storage.clearAllForTests();
+  const original = { id: 'habit:2026-09-22', habitId: 'habit', date: '2026-09-22', status: 'done', value: null };
+  const foreign = { ...original, status: 'skipped' };
+  await Storage.habitLogs.put(original);
+  await Storage.habitLogs.put(foreign);
+  await assert.rejects(() => Storage.habitLogs.putIfCurrent({ ...original, status: 'missed' }, original), /changed|stale/i);
+  assert.deepEqual(await Storage.habitLogs.get(original.id), foreign);
+  await Storage.habitLogs.putIfCurrent({ ...foreign, status: 'missed' }, foreign);
+  assert.equal((await Storage.habitLogs.get(original.id)).status, 'missed');
 });
 
 test('recovery-backed replacement preserves canonical data and attachments on injected failure', async () => {
