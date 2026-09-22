@@ -10,7 +10,7 @@ function functionSource(name, nextName) {
   return appSource.slice(appSource.indexOf(`  ${name}`), appSource.indexOf(`  ${nextName}`));
 }
 
-function habitApp({ saveResults = [true], refresh = async () => {}, afterSave = null, afterPut = null } = {}) {
+function habitApp({ saveResults = [true], refresh = async () => {}, afterSave = null, afterPut = null, afterGet = null, beforeDelete = null } = {}) {
   const habit = {
     id: 'habit', name: 'Habit', status: 'active', trackingType: 'checkbox',
     frequencyType: 'daily', startDate: '2026-09-01', updatedAt: 'before',
@@ -25,7 +25,21 @@ function habitApp({ saveResults = [true], refresh = async () => {}, afterSave = 
     TodoStorage: {
       habitLogs: {
         async put(record) { records.set(record.id, structuredClone(record)); await afterPut?.({ record, records, setRaw: value => { raw = value; } }); },
-        async get(id) { return structuredClone(records.get(id)); },
+        async putIfCurrent(record, expected) {
+          assert.deepEqual(records.get(record.id) || null, expected || null);
+          records.set(record.id, structuredClone(record));
+          await afterPut?.({ record, records, setRaw: value => { raw = value; } });
+        },
+        async get(id) {
+          const result = structuredClone(records.get(id));
+          await afterGet?.({ id, records });
+          return result;
+        },
+        async deleteIfCurrent(id, expected) {
+          await beforeDelete?.({ id, expected, records });
+          if (JSON.stringify(records.get(id) || null) !== JSON.stringify(expected)) throw new Error('Habit log changed in another context.');
+          records.delete(id);
+        },
         async deleteMany(ids) { ids.forEach(id => records.delete(id)); },
       },
     },
@@ -94,6 +108,23 @@ test('stale habit rollback never overwrites a newer competing native log', async
       setRaw('newer-tab');
       records.set(record.id, structuredClone(competing));
     },
+  });
+
+  const result = await app.ctx.setHabitLog('habit', '2026-09-22');
+
+  assert.equal(result, null);
+  assert.deepEqual(app.records.get(competing.id), competing);
+  assert.equal(app.habit.updatedAt, 'before');
+});
+
+test('Habit rollback atomically preserves a competing log written between read and delete', async () => {
+  const competing = { id: 'habit:2026-09-22', habitId: 'habit', date: '2026-09-22', status: 'missed', value: null, createdAt: 'competitor', updatedAt: 'competitor' };
+  const installCompeting = ({ records }) => records.set(competing.id, structuredClone(competing));
+  let refreshCalls = 0;
+  const app = habitApp({
+    refresh: async () => { if (++refreshCalls === 1) throw new Error('metrics failed'); },
+    afterGet: installCompeting,
+    beforeDelete: installCompeting,
   });
 
   const result = await app.ctx.setHabitLog('habit', '2026-09-22');

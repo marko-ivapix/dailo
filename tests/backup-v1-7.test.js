@@ -184,6 +184,11 @@ test('Habit log compare-and-set refuses to overwrite a record changed after its 
   assert.deepEqual(await Storage.habitLogs.get(original.id), foreign);
   await Storage.habitLogs.putIfCurrent({ ...foreign, status: 'missed' }, foreign);
   assert.equal((await Storage.habitLogs.get(original.id)).status, 'missed');
+  const current = await Storage.habitLogs.get(original.id);
+  await assert.rejects(() => Storage.habitLogs.deleteIfCurrent(original.id, foreign), /changed|stale/i);
+  assert.deepEqual(await Storage.habitLogs.get(original.id), current);
+  await Storage.habitLogs.deleteIfCurrent(original.id, current);
+  assert.equal(await Storage.habitLogs.get(original.id), null);
 });
 
 test('recovery-backed replacement preserves canonical data and attachments on injected failure', async () => {
