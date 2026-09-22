@@ -3165,14 +3165,19 @@
     } catch (error) {
       let rollbackError = null;
       try {
-        const current = await TodoStorage.habitLogs.get(record.id);
-        const stillOurRecord = current && ['id', 'habitId', 'date', 'status', 'value', 'createdAt', 'updatedAt']
-          .every(field => Object.is(current[field] ?? null, record[field] ?? null));
-        // Never replace a competing tab's newer log while cleaning up this
-        // failed write. Only undo the exact record inserted above.
-        if (stillOurRecord) {
-          if (existing) await TodoStorage.habitLogs.put(existing);
-          else await TodoStorage.habitLogs.deleteMany([record.id]);
+        // Roll back with the same native compare-and-set used for the forward
+        // write. A competing tab can write between any separate read and
+        // mutation, so never overwrite or delete a record we do not own.
+        if (existing && TodoStorage.habitLogs.putIfCurrent) await TodoStorage.habitLogs.putIfCurrent(existing, record);
+        else if (!existing && TodoStorage.habitLogs.deleteIfCurrent) await TodoStorage.habitLogs.deleteIfCurrent(record.id, record);
+        else {
+          const current = await TodoStorage.habitLogs.get(record.id);
+          const stillOurRecord = current && ['id', 'habitId', 'date', 'status', 'value', 'createdAt', 'updatedAt']
+            .every(field => Object.is(current[field] ?? null, record[field] ?? null));
+          if (stillOurRecord) {
+            if (existing) await TodoStorage.habitLogs.put(existing);
+            else await TodoStorage.habitLogs.deleteMany([record.id]);
+          }
         }
       } catch (failure) { rollbackError = failure; }
       habit.updatedAt = previousUpdatedAt;

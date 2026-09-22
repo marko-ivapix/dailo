@@ -353,6 +353,21 @@
         return clone(record);
       });
     },
+    async deleteIfCurrent(id, expected) {
+      if (!id || !expected || expected.id !== id) throw new Error('Habit log expected record is required.');
+      const matches = actual => JSON.stringify(actual ?? null) === JSON.stringify(expected);
+      if (memoryMode()) {
+        const current = memoryStores.habitLogs.get(id);
+        if (!matches(current)) throw new Error('Habit log changed in another context.');
+        memoryStores.habitLogs.delete(id);
+        return;
+      }
+      return withStore('habitLogs', 'readwrite', async store => {
+        const current = await requestPromise(store.get(id));
+        if (!matches(current)) throw new Error('Habit log changed in another context.');
+        await requestPromise(store.delete(id));
+      });
+    },
     async get(id) { return getRecord('habitLogs', id); },
     async getByHabitAndDate(habitId, date) {
       if (memoryMode()) return clone([...memoryStores.habitLogs.values()].find(record => record.habitId === habitId && record.date === date));
