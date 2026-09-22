@@ -1,7 +1,7 @@
 # Dailo V1.7 Design Specification
 
-**Date:** 2026-09-22  
-**Status:** Draft for user review  
+**Date:** 2026-09-22
+**Status:** Approved for implementation
 **Baseline:** V1.6 (`9655b4c`)
 
 ## Goal
@@ -130,4 +130,3 @@ Each block is independently testable and reviewed before the next block begins.
 
 - Full visual redesign.
 - Accounts, cloud sync, teams, comments, AI planning, server/background notifications, Google/Apple Calendar integrations, native iOS/Android, nested goals, weighted goal contributions, inline PDF/image preview, full hourly time-blocking, and bulk actions.
-

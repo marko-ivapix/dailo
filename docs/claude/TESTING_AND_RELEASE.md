@@ -53,7 +53,7 @@ Artifact:
 ```text
 Dailo-v1.7-distributable.zip
 SHA-256: recorded in the adjacent `Dailo-v1.7-distributable.zip.sha256` sidecar
-Archive entries: 51 files
+Archive entries: 51 ZIP entries (42 regular files and 9 directories)
 Archive validation: `unzip -t` passed with no errors.
 ```
 
