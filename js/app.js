@@ -16,6 +16,15 @@
   const WEEKDAY_FMT = new Intl.DateTimeFormat(undefined, { weekday: 'long' });
   const SHORTCUT_DEFAULTS = { newTask:'N', search:'Ctrl/Cmd+F', today:'T', inbox:'I', upcoming:'U', calendar:'C', goals:'G', habits:'H', templates:'Shift+T' };
   const SHORTCUT_LABELS = {newTask:'New task',search:'Search',today:'Today',inbox:'Inbox',upcoming:'Upcoming',calendar:'Calendar',goals:'Goals',habits:'Habits',templates:'Templates'};
+  const MOBILE_MORE_ROUTES = [
+    ['upcoming', 'Upcoming', 'ph-calendar-dots'], ['anytime', 'Anytime', 'ph-infinity'],
+    ['projects', 'Projects', 'ph-folder'], ['areas', 'Areas', 'ph-squares-four'],
+    ['tags', 'Tags', 'ph-tag'], ['notes', 'Notes', 'ph-note'],
+    ['resources', 'Resources', 'ph-link'], ['cleaning', 'Cleaning', 'ph-broom'],
+    ['templates', 'Templates', 'ph-copy'], ['saved-views', 'Saved Views', 'ph-funnel'],
+    ['completed', 'Completed', 'ph-check-circle'], ['archived', 'Archived Projects', 'ph-archive'],
+    ['search', 'Search', 'ph-magnifying-glass'], ['settings', 'Settings', 'ph-gear']
+  ];
   const INBOX_FILTERS = [['all', 'All'], ['tasks', 'Tasks'], ['goals', 'Goals'], ['habits', 'Habits'], ['notes', 'Notes'], ['resources', 'Resources']];
   let shortcutError = '';
   const DATE_TIME_FMT = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
@@ -49,6 +58,8 @@
   let goalPropertyEditor = null;
   let habitPropertyEditor = null;
   let createdGoalFocusId = null;
+  let mobileMoreReturnFocus = null;
+  let mobileMoreOpen = false;
   const knowledgeAttachmentCache = new Map();
 
   function captureModalReturnFocus() {
@@ -72,6 +83,38 @@
     toggle.setAttribute('aria-expanded', String(open));
     toggle.setAttribute('aria-label', open ? 'Close quick add menu' : 'Open quick add menu');
     menu.hidden = !open;
+  }
+
+  function mobileMoreRouteActive(route, current = currentRoute()) {
+    const moduleRoute = { project: 'projects', area: 'areas', goal: 'goals', habit: 'habits', note: 'notes', resource: 'resources', 'saved-view': 'saved-views' }[current.type] || current.type;
+    return route === moduleRoute;
+  }
+
+  function renderMobileMoreSheet() {
+    const root = $('#mobile-more-sheet-root');
+    const trigger = $('#mobile-more-trigger');
+    if (!root || !trigger) return;
+    root.hidden = !mobileMoreOpen || Boolean(recovery);
+    trigger.setAttribute('aria-expanded', String(mobileMoreOpen));
+    if (!mobileMoreOpen || recovery || !state) { root.innerHTML = ''; return; }
+    const current = currentRoute();
+    root.innerHTML = `<div class="mobile-more-backdrop" data-action="close-mobile-more"><section id="mobile-more-sheet" class="mobile-more-sheet" role="dialog" aria-modal="true" aria-labelledby="mobile-more-title"><div class="mobile-more-header"><h2 id="mobile-more-title">More</h2><button class="btn-icon" type="button" data-action="close-mobile-more" aria-label="Close More"><i class="ph ph-x"></i></button></div><div class="mobile-more-list">${MOBILE_MORE_ROUTES.map(([route, label, icon]) => { const active = mobileMoreRouteActive(route, current); const action = route === 'search' ? ' data-action="open-search"' : ''; return `<button class="mobile-more-route${active ? ' is-selected' : ''}" type="button" data-mobile-more-route="${route}"${action}${active ? ' aria-current="page"' : ''}><i class="ph ${icon}" aria-hidden="true"></i><span>${label}</span>${active ? '<i class="ph ph-check mobile-more-check" aria-hidden="true"></i>' : ''}</button>`; }).join('')}</div></section></div>`;
+    requestAnimationFrame(() => root.querySelector('.mobile-more-route, [data-action="close-mobile-more"]')?.focus());
+  }
+
+  function openMobileMore(trigger = $('#mobile-more-trigger')) {
+    mobileMoreReturnFocus = trigger instanceof HTMLElement ? trigger : $('#mobile-more-trigger');
+    mobileMoreOpen = true;
+    renderMobileMoreSheet();
+  }
+
+  function closeMobileMore() {
+    if (!mobileMoreOpen) return;
+    mobileMoreOpen = false;
+    const returnFocus = mobileMoreReturnFocus;
+    mobileMoreReturnFocus = null;
+    renderMobileMoreSheet();
+    requestAnimationFrame(() => returnFocus?.isConnected && returnFocus.focus());
   }
 
   // Goal panels retain a logical trigger because rendering replaces its node.
@@ -746,6 +789,7 @@
     renderSidebar();
     renderMain();
     renderMobileBottomNav();
+    renderMobileMoreSheet();
   }
 
   function renderMobileBottomNav() {
@@ -3551,6 +3595,15 @@
     const mobileQuickAdd = event.target.closest('#mobile-quick-add');
     if (!mobileQuickAdd) setMobileQuickAddOpen(false);
 
+    const mobileMoreRoute = event.target.closest('[data-mobile-more-route]');
+    if (mobileMoreRoute) {
+      const route = mobileMoreRoute.dataset.mobileMoreRoute;
+      closeMobileMore();
+      if (route === 'search') openSearch();
+      else navigate(route);
+      return;
+    }
+
     const routeEl = event.target.closest('[data-route]');
     if (routeEl) { event.preventDefault(); navigate(routeEl.dataset.route); return; }
 
@@ -3580,6 +3633,12 @@
     }
     const action = el.dataset.action;
     if (action === 'toggle-mobile-quick-add') { setMobileQuickAddOpen(el.getAttribute('aria-expanded') !== 'true'); return; }
+    if (action === 'open-mobile-more') { openMobileMore(el); return; }
+    if (action === 'close-mobile-more') {
+      if (el.classList.contains('mobile-more-backdrop') && event.target !== el) return;
+      closeMobileMore();
+      return;
+    }
     if (el.closest('#mobile-quick-add-menu')) {
       setMobileQuickAddOpen(false);
       $('#mobile-quick-add-toggle')?.focus();
@@ -3837,6 +3896,7 @@
     }
 
     if (event.key === 'Escape') {
+      if (mobileMoreOpen) { event.preventDefault(); closeMobileMore(); return; }
       if ($('#mobile-quick-add-toggle')?.getAttribute('aria-expanded') === 'true') { event.preventDefault(); setMobileQuickAddOpen(false); $('#mobile-quick-add-toggle')?.focus(); return; }
       if (popoverEl) { event.preventDefault(); closePopover(); return; }
       if (modalState?.type === 'task' && typing) {
