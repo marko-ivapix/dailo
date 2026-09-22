@@ -3145,14 +3145,28 @@
     let status = requestedStatus; let value = requestedValue;
     if (habit.trackingType === 'numeric') { const numeric = Core.numericHabitState(habit, requestedValue); status = numeric.status; value = numeric.value; }
     const record = { id: `${habitId}:${date}`, habitId, date, status: ['done', 'skipped', 'missed'].includes(status) ? status : 'done', value: value ?? null, createdAt: existing?.createdAt || nowIso(), updatedAt: nowIso() };
+    const previousUpdatedAt = habit.updatedAt;
+    habit.updatedAt = nowIso();
+    // Establish canonical ownership before touching the growing IndexedDB
+    // store. A stale tab must not leave a check-in behind when metadata save
+    // is rejected.
+    if (!saveState()) { habit.updatedAt = previousUpdatedAt; return null; }
     try {
       await TodoStorage.habitLogs.put(record);
       await refreshHabitMetrics();
     } catch (error) {
-      reportStorageFailure(error);
+      let rollbackError = null;
+      try {
+        if (existing) await TodoStorage.habitLogs.put(existing);
+        else await TodoStorage.habitLogs.deleteMany([record.id]);
+      } catch (failure) { rollbackError = failure; }
+      habit.updatedAt = previousUpdatedAt;
+      if (!saveState() && !rollbackError) rollbackError = new Error('Habit metadata rollback was rejected.');
+      try { await refreshHabitMetrics(); } catch (failure) { rollbackError ||= failure; }
+      reportStorageFailure(rollbackError ? new AggregateError([error, rollbackError], 'Habit check-in failed and rollback needs attention.') : error);
       return null;
     }
-    habit.updatedAt = nowIso(); saveState(); evaluateGoalProgressChanges(before); await evaluateHabitBoundaries(); render(); return true;
+    evaluateGoalProgressChanges(before); await evaluateHabitBoundaries(); render(); return true;
   }
 
   async function evaluateHabitBoundaries() {
@@ -3356,7 +3370,7 @@
   }
 
   function captureStatusSource() {
-    return state ? { source: state, stateText: compactState(state), raw: localStorage.getItem(STORAGE_KEY) } : null;
+    return state ? { source: state, stateText: compactState(state), raw: canonicalRaw } : null;
   }
 
   async function hasRetainedRecoverySnapshot(fallback = false) {
@@ -3365,7 +3379,9 @@
   }
 
   function updateBackupStatus(patch, op = null) {
-    if (!state || (op && (state !== op.source || compactState(state) !== op.stateText || localStorage.getItem(STORAGE_KEY) !== op.raw))) return false;
+    const expectedRaw = op?.raw ?? canonicalRaw;
+    if (!state || localStorage.getItem(STORAGE_KEY) !== expectedRaw
+      || (op && (state !== op.source || compactState(state) !== op.stateText))) return false;
     state.settings ||= {};
     state.settings.backupStatus = { lastExport: null, lastImport: null, snapshotAvailable: false, validationResult: 'Not yet validated', ...(state.settings.backupStatus || {}), ...patch };
     try {
@@ -3373,7 +3389,7 @@
       delete persisted.habitLogCache; delete persisted.habitMetrics;
       localStorage.setItem(STORAGE_KEY, JSON.stringify(persisted));
       canonicalRaw = localStorage.getItem(STORAGE_KEY);
-      if (op && state === op.source) { op.raw = localStorage.getItem(STORAGE_KEY); op.stateText = compactState(state); }
+      if (op && state === op.source) { op.raw = canonicalRaw; op.stateText = compactState(state); }
       return true;
     } catch (error) { console.error(error); return false; }
   }
@@ -3451,7 +3467,7 @@
       await markGlobalSnapshot(op, 'mutating');
       const restored = await TodoStorage.restoreRecoverySnapshot(op.snapshotId);
       await markGlobalSnapshot(op, 'rolled-back');
-      state = normalizeState(restored); recovery = null; globalOperation = null;
+      state = normalizeState(restored); canonicalRaw = localStorage.getItem(STORAGE_KEY); recovery = null; globalOperation = null;
       globalRecoveryNotice = null; render();
     } catch (error) {
       await markGlobalSnapshot(op, 'rollback-failed', { rollbackError: error.message }).catch(() => {});
@@ -3472,7 +3488,8 @@
     globalOperation = op;
     try {
       op.token = await deleteLifecycle.hold();
-      op.raw = localStorage.getItem(STORAGE_KEY); op.stateText = compactState(state);
+      op.raw = canonicalRaw; op.stateText = compactState(state);
+      assertGlobalSource(op);
       op.payload = await TodoStorage.captureUserData(); assertGlobalSource(op);
       const frozenStorage = { attachments: { getMany: async ids => op.payload.attachments.filter(record => ids.includes(record.id)) },
         habitLogs: { listAll: async () => op.payload.habitLogs }, goalHistory: { listAll: async () => op.payload.goalHistory } };
@@ -3523,7 +3540,7 @@
       await markGlobalSnapshot(op, 'rolled-back');
       const verified = await TodoStorage.verifyRecoverySnapshot(op.snapshotId);
       if (globalOperation !== op || state !== source || compactState(state) !== sourceText) throw new Error('Recovery source changed during verification. Retry recovery.');
-      state = normalizeState(restored); recovery = null;
+      state = normalizeState(restored); canonicalRaw = localStorage.getItem(STORAGE_KEY); recovery = null;
       const resumedSource = state, resumedText = compactState(state);
       statusSource = captureStatusSource();
       if (op.token) await deleteLifecycle.resume(op.token);
@@ -3579,13 +3596,13 @@
       try { await markGlobalSnapshot(op, 'committed'); } catch (error) { phaseError = error; }
       await verifyGlobalReplacement(op);
       deleteLifecycle.retire(op.token);
-      state = normalizeState(op.validated.state); recovery = null; modalState = null;
+      state = normalizeState(op.validated.state); canonicalRaw = localStorage.getItem(STORAGE_KEY); recovery = null; modalState = null;
       const committedSource = captureStatusSource();
       globalOperation = phaseError ? op : null; renderModal(); location.hash = '#today'; render();
       try {
         if (phaseError) throw phaseError;
         if (op.selective) {
-          op.committedText = compactState(state); op.committedRaw = localStorage.getItem(STORAGE_KEY);
+          op.committedText = compactState(state); op.committedRaw = canonicalRaw;
           setUndo('Selected entity restored', () => undoSelectiveRestore(op), () => op.keepRecovery ? true : cleanupGlobalSnapshot(op));
         } else {
           await cleanupGlobalSnapshot(op);
@@ -4013,7 +4030,7 @@
       if (modalState) { event.preventDefault(); closeModal(); return; }
     }
 
-    if (!typing && !modalState && !popoverEl && !event.repeat && !event.isComposing) {
+    if (!typing && !modalState && !popoverEl && !mobileMoreOpen && !event.repeat && !event.isComposing) {
       // Alt/Option can turn a letter into a glyph (for example Y → ¥).
       const physicalKey = /^Key[A-Z]$/.test(event.code || '') ? event.code.slice(3) : /^Digit[0-9]$/.test(event.code || '') ? event.code.slice(5) : event.key;
       const combination=Core.normalizeShortcut([event.ctrlKey || event.metaKey?'Ctrl/Cmd':null,event.altKey?'Alt':null,event.shiftKey?'Shift':null,physicalKey].filter(Boolean).join('+'));

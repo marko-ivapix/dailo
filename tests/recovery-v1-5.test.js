@@ -25,7 +25,7 @@ function appRecovery(state) {
   const source = fs.readFileSync(require.resolve('../js/app.js'), 'utf8');
   const code = source.slice(source.indexOf('  function compactState('), source.indexOf('  async function enableBrowserNotifications('));
   const input = { value: '' };
-  const ctx = { state, Core, TodoStorage: Storage, Backup, localStorage, STORAGE_KEY: 'todoAppData', structuredClone,
+  const ctx = { state, canonicalRaw: localStorage.getItem('todoAppData'), Core, TodoStorage: Storage, Backup, localStorage, STORAGE_KEY: 'todoAppData', structuredClone,
     globalOperation: null, globalRecoveryNotice: null, recovery: null, startupPromise: null, modalState: null, modalReturnFocus: null,
     normalizeState: Core.normalizeState, nowIso: () => '2026-09-17T12:00:00Z', flushTextSave() {},
     deleteLifecycle: { hold: async () => ({}), retire() {}, resume: async () => {} },
@@ -166,9 +166,11 @@ test('Selective restore downloads safety ZIP, requires RESTORE, commits and Undo
   assert.equal(app.ctx.state.tasks[0].title, 'Original');
   assert.equal(app.ctx.state.tasks[1].title, 'Keep other edit');
   assert.equal(await (await Storage.attachments.get('file')).blob.text(), 'old');
+  assert.doesNotThrow(() => { app.ctx.canonicalRaw = Storage.writeCanonicalStateSync(app.ctx.state, app.ctx.canonicalRaw); }, 'the next save must own the selective restore result');
   await app.ctx.undo();
   assert.equal(app.ctx.state.tasks[0].title, 'Current version');
   assert.equal(await (await Storage.attachments.get('file')).blob.text(), 'new');
+  assert.doesNotThrow(() => { app.ctx.canonicalRaw = Storage.writeCanonicalStateSync(app.ctx.state, app.ctx.canonicalRaw); }, 'the next save must own the Undo result');
   assert.equal(app.ctx.globalOperation, null);
 });
 
@@ -188,6 +190,7 @@ test('Selective restore rolls back metadata and native records when the commit w
   assert.equal(app.ctx.state.tasks[0].title, 'Current version');
   assert.equal(app.ctx.globalOperation, null);
   assert.match(app.ctx.message, /restored and verified/);
+  assert.doesNotThrow(() => { app.ctx.canonicalRaw = Storage.writeCanonicalStateSync(app.ctx.state, app.ctx.canonicalRaw); }, 'the next save must own the rollback result');
 });
 
 test('Selective Undo refuses later edits without overwriting them', async () => {

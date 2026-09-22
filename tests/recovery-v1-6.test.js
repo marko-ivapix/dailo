@@ -15,7 +15,7 @@ function recoveryApp(state) {
   const source = fs.readFileSync(require.resolve('../js/app.js'), 'utf8');
   const code = source.slice(source.indexOf('  async function exportBackupAction('), source.indexOf('  async function enableBrowserNotifications('));
   const input = { value: '' };
-  const ctx = { state, Core, TodoStorage: Storage, Backup, Attachments: {}, localStorage, STORAGE_KEY: 'todoAppData', structuredClone,
+  const ctx = { state, canonicalRaw: localStorage.getItem('todoAppData'), Core, TodoStorage: Storage, Backup, Attachments: {}, localStorage, STORAGE_KEY: 'todoAppData', structuredClone,
     globalOperation: null, globalRecoveryNotice: null, recovery: null, startupPromise: null, modalState: null, modalReturnFocus: null,
     undoHold: null, undoGeneration: 0, undoState: null, undoWork: new Set(),
     normalizeState: Core.normalizeState, nowIso: () => '2026-09-17T12:00:00.000Z', flushTextSave() {},
@@ -34,10 +34,10 @@ function startupRecoveryApp() {
   const source = fs.readFileSync(require.resolve('../js/app.js'), 'utf8');
   const load = source.slice(source.indexOf('  async function loadState('), source.indexOf('  function reportStorageFailure('));
   const status = source.slice(source.indexOf('  function compactState('), source.indexOf('  function assertGlobalSource('));
-  const ctx = { state: null, Core, TodoStorage: Storage, localStorage, STORAGE_KEY: 'todoAppData',
+  const ctx = { state: null, canonicalRaw: null, Core, TodoStorage: Storage, localStorage, STORAGE_KEY: 'todoAppData',
     recovery: null, globalOperation: null, globalRecoveryNotice: null, normalizeState: Core.normalizeState,
     globalNotice(message, retry) { ctx.globalRecoveryNotice = { message, retry }; }, renderToast() {},
-    console, saveState() { localStorage.setItem('todoAppData', JSON.stringify(ctx.state)); } };
+    console, saveState() { const raw = JSON.stringify(ctx.state); localStorage.setItem('todoAppData', raw); ctx.canonicalRaw = raw; } };
   vm.createContext(ctx); vm.runInContext(`${status}\n${load}`, ctx);
   return ctx;
 }
@@ -194,6 +194,37 @@ test('export status never overwrites a newer local workspace', async () => {
   try { await app.ctx.exportBackupAction(); } finally { Backup.exportBackupV3 = exportBackup; }
   assert.equal(localStorage.getItem('todoAppData'), newerRaw);
   assert.equal(JSON.parse(localStorage.getItem('todoAppData')).tasks[0].title, 'NEWER DURING EXPORT');
+});
+
+test('already-stale export cannot adopt and overwrite another tab canonical state', async () => {
+  await Storage.clearAllForTests(); values.clear();
+  const current = Core.normalizeState({ version: 3, tasks: [{ id: 'task', title: 'Original' }], projects: [], tags: [], areas: [], goals: [], habits: [], notes: [], resources: [], templates: [], savedViews: [], settings: {}, ui: {} });
+  localStorage.setItem('todoAppData', JSON.stringify(current));
+  const app = recoveryApp(current);
+  const newer = structuredClone(current); newer.tasks[0].title = 'Newer before export';
+  const newerRaw = JSON.stringify(newer);
+  localStorage.setItem('todoAppData', newerRaw);
+
+  await app.ctx.exportBackupAction();
+
+  assert.equal(localStorage.getItem('todoAppData'), newerRaw);
+});
+
+test('already-stale tab cannot prepare a destructive restore from another tab source', async () => {
+  await Storage.clearAllForTests(); values.clear();
+  const current = Core.normalizeState({ version: 3, tasks: [{ id: 'task', title: 'Original' }], projects: [], tags: [], areas: [], goals: [], habits: [], notes: [], resources: [], templates: [], savedViews: [], settings: {}, ui: {} });
+  localStorage.setItem('todoAppData', JSON.stringify(current));
+  const payload = await Backup.exportBackupV3(current, { attachments: { getMany: async () => [] }, habitLogs: { listAll: async () => [] }, goalHistory: { listAll: async () => [] } }, '2026-09-17T10:00:00.000Z');
+  const app = recoveryApp(current);
+  const newer = structuredClone(current); newer.tasks[0].title = 'Newer before restore';
+  const newerRaw = JSON.stringify(newer);
+  localStorage.setItem('todoAppData', newerRaw);
+
+  await app.begin(payload);
+
+  assert.equal(app.ctx.confirm, undefined);
+  assert.equal(localStorage.getItem('todoAppData'), newerRaw);
+  assert.match(app.ctx.message, /Nothing was replaced/i);
 });
 
 test('export keeps a retained recovery snapshot available after both success and failure', async () => {
