@@ -24,10 +24,10 @@ Current V1.7 automated evidence (verified 2026-09-22):
 
 | Check | Result |
 | --- | ---: |
-| Complete Node suite | **238 passed, 0 failed, 0 skipped** |
-| Focused Task 5 backup/recovery set | **46 passed, 0 failed, 0 skipped** |
+| Complete Node suite | **251 passed, 0 failed, 0 skipped** |
+| Final safety/recovery focused sets | **85 + 30 passed, 0 failed, 0 skipped** |
 | Focused Task 6 polish file | **4 passed, 0 failed, 0 skipped** |
-| JavaScript syntax | **51 files passed** |
+| JavaScript syntax | **52 files passed** |
 | Python AST parsing | **19 files passed** |
 | Static browser contracts | **10/10 passed** |
 | Browser-regression registry contracts | **3/3 passed** |
@@ -53,7 +53,7 @@ Artifact:
 ```text
 Dailo-v1.7-distributable.zip
 SHA-256: recorded in the adjacent `Dailo-v1.7-distributable.zip.sha256` sidecar
-Archive entries: 51 ZIP entries (42 regular files and 9 directories)
+Archive entries: 42 regular files
 Archive validation: `unzip -t` passed with no errors.
 ```
 

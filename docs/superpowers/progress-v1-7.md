@@ -16,7 +16,7 @@
 - [x] Task 4 — Recurrence, validation, and Goal-link integrity (`2c169e3`, compatibility fix `50803a5`; implementer + final review approved).
 - [x] Task 5 — Backup, restore, snapshots, and multi-tab safety (`e4ba059`, fixes `cbbce6a`, `1278eb1`; implementer + separate review approved).
 - [x] Task 6 — Targeted responsive polish and documentation (`fde42a3`, fixes `d2bea12`, `4c2f03f`; implementer + separate review approved).
-- [ ] Task 7 — Integration, packaging, and final whole-branch review (automated integration green; final review pending).
+- [x] Task 7 — Integration, packaging, and final whole-branch review (`aa79b8f`, `df2e43c`, `0a5ce9f`, `8f608b7`, `0397784`, `7d81044`, `edcecc4`; final review approved).
 
 ## Evidence log
 
@@ -34,9 +34,9 @@ Task 6 evidence: final review verified targeted compact filter/list/Day Detail p
 
 Task 3 runner evidence: the standard registry now enumerates V1.1, V1.2, V1.3, V1.5, and V1.6 groups with scenario names matching the maintained scripts. V1.5 fixtures use a fixed clock and explicit IDs; V1.6 mobile/compact entries are static contracts with acceptance marked pending-manual. `tests/run-browser-regressions.py --list` and `--dry-run` provide deterministic registry checks without launching a browser; native browser acceptance remains pending.
 
-The V1.6 baseline was 207/207 automated tests; the earlier Task 2–4 checkpoint was 224/224. The current release evidence is recorded below at 238/238. Native browser acceptance remains pending.
+The V1.6 baseline was 207/207 automated tests; the earlier Task 2–4 checkpoint was 224/224. The current release evidence is recorded below at 251/251. Native browser acceptance remains pending.
 
-Task 7 integration evidence: full Node suite **238/238 passed** with 0 failures/skips; JavaScript syntax **51/51 passed**; top-level Python AST **19/19 passed**; static browser contracts **10/10 passed**; browser-regression registry contracts **3/3 passed**; browser-path adapter **2/2 passed**; registry `--list` and `--dry-run` completed without launching a browser; `git diff --check` passed. `docs/codex/ACCEPTANCE.md` was inspected against current source/tests: it contains **126** historical human/browser items, none checked in the file, and remains manual-pending rather than being falsely marked green. The distributable contains **51 ZIP entries (42 regular files and 9 directories)** and passes `unzip -t`; its exact SHA-256 is recorded in the adjacent `Dailo-v1.7-distributable.zip.sha256` sidecar so the packaged ledger remains byte-identical to the release artifact.
+Task 7 integration evidence: final whole-branch review approved with no critical or important findings. Full Node suite **251/251 passed** with 0 failures/skips; final safety/recovery focused sets **85/85** and **30/30**; JavaScript syntax **52/52 passed**; top-level Python AST **19/19 passed**; static browser contracts **10/10 passed**; browser-regression registry contracts **3/3 passed**; browser-path adapter **2/2 passed**; registry `--list` and `--dry-run` completed without launching a browser; whole-branch `git diff --check` passed. `docs/codex/ACCEPTANCE.md` was inspected against current source/tests: it contains **126** historical human/browser items, none checked in, and remains manual-pending rather than being falsely marked green. The distributable contains **42 regular ZIP files** and passes `unzip -t`; its exact SHA-256 is recorded in the adjacent `Dailo-v1.7-distributable.zip.sha256` sidecar so the packaged ledger remains byte-identical to the release artifact.
 
 ## Manual browser gate
 
