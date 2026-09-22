@@ -15,7 +15,7 @@
 - [x] Task 3 — Regression runner and release-evidence coverage (`44d199f`, fixes `867eda0`, `4a13b2b`, `542cd81`, ledger cleanup `0a19c20`; implementer + separate review approved).
 - [x] Task 4 — Recurrence, validation, and Goal-link integrity (`2c169e3`, compatibility fix `50803a5`; implementer + final review approved).
 - [x] Task 5 — Backup, restore, snapshots, and multi-tab safety (`e4ba059`, fixes `cbbce6a`, `1278eb1`; implementer + separate review approved).
-- [ ] Task 6 — Targeted responsive polish and documentation.
+- [x] Task 6 — Targeted responsive polish and documentation (`fde42a3`, fixes `d2bea12`, `4c2f03f`; implementer + separate review approved).
 - [ ] Task 7 — Integration, packaging, and final whole-branch review.
 
 ## Evidence log
@@ -29,6 +29,8 @@ Task 2 evidence: final review exercised nested and rerendered popover focus, dup
 Task 3 evidence: final review verified Python AST parsing **21/21**, V1.6 static contracts **10/10**, registry checks **3/3**, browser path-adapter checks **2/2**, deterministic `--list`/`--dry-run` output, exact mocked failure context, and `git diff --check`. V1.5 browser fixtures use fixed dates and four explicit open tasks; V1.6 mobile/touch acceptance remains explicitly pending-manual.
 
 Task 5 evidence: final review verified focused backup/recovery coverage **46/46**, full Node suite **234/234**, JavaScript syntax, Python AST **19/19**, and `git diff --check`. ZIP entry/attachment/decompressed limits reject before extraction, snapshots enforce pre-write byte budgets while preserving safety copies, restore rollback keeps canonical metadata plus attachments/logs intact, delegated legacy restore validates before transaction, and canonical removal/newer-tab writes surface safe stale handling.
+
+Task 6 evidence: final review verified targeted compact filter/list/Day Detail polish, V1.7 documentation synchronization, retained Search/no-bulk constraints, Task6 assertions **4/4**, full Node suite **238/238**, JavaScript syntax **51/51**, top-level Python AST **19/19**, static scenarios **10/10**, browser registry/path checks, and `git diff --check`. Native browser acceptance remains manual-pending.
 
 Task 3 runner evidence: the standard registry now enumerates V1.1, V1.2, V1.3, V1.5, and V1.6 groups with scenario names matching the maintained scripts. V1.5 fixtures use a fixed clock and explicit IDs; V1.6 mobile/compact entries are static contracts with acceptance marked pending-manual. `tests/run-browser-regressions.py --list` and `--dry-run` provide deterministic registry checks without launching a browser; native browser acceptance remains pending.
 
