@@ -1906,6 +1906,7 @@
       popoverEl.setAttribute('role', 'dialog');
       popoverEl.setAttribute('aria-labelledby', title.id);
     }
+    requestAnimationFrame(() => popoverEl?.querySelector('input, select, textarea, button')?.focus());
   }
 
   function inlineNewTag(button) {

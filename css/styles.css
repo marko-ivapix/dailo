@@ -902,12 +902,6 @@ button.area-object:hover { background: var(--surface-interactive); }
 .area-icon-choice:hover, .area-icon-choice.is-selected { color: var(--text-primary); border-color: var(--primary-focus); box-shadow: var(--focus-ring); }
 @media (max-width: 700px) { .area-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
-/* Keep primary compact actions touchable after the later density overrides. */
-@media (max-width: 700px) {
-  .task-actions .btn-icon,
-  .subtask-row .btn-icon { width: 44px; height: 44px; min-height: 44px; }
-}
-
 /* V1.3 Goals */
 .goal-list { display:grid; gap:8px; }
 .goal-group, .habit-group { position:relative; }
@@ -1527,4 +1521,10 @@ body { font-size: 14px; line-height: 1.4; }
   .mobile-quick-add-option i, .mobile-quick-add-toggle { width: 44px; height: 44px; }
   .mobile-quick-add-option i { font-size: 19px; }
   .mobile-quick-add-toggle { font-size: 22px; }
+}
+
+/* Keep primary compact actions touchable after all density rules. */
+@media (max-width: 700px) {
+  .task-actions .btn-icon,
+  .subtask-row .btn-icon { width: 44px; height: 44px; min-height: 44px; }
 }
