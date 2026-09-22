@@ -600,7 +600,7 @@
     const migration = migrateStateV3(input);
     if (!migration.ok) throw new Error(migration.reason || 'invalid-state');
     let state = migrateStateV16(migration.state).state;
-    state = repairGoalLinks(state);
+    state = repairGoalLinks(state, { strict: false });
     const focusTaskIds = selectFocusTasks(state.tasks, state.settings?.focusTaskIds);
     const dashboard = state.settings?.dashboard || {};
     state.settings = {
@@ -1178,16 +1178,21 @@
   }
 
   function repairGoalLinks(input, options = {}) {
+    const strict = options.strict !== false;
     const state = JSON.parse(JSON.stringify(input));
     const warnings = [];
     const goals = new Map((state.goals || []).map(goal => [goal.id, goal]));
+    for (const task of state.tasks || []) for (const goalId of task.goalIds || []) {
+      const goal = goals.get(goalId);
+      if (goal && !(goal.taskIds || []).includes(task.id)) { goal.taskIds = [...(goal.taskIds || []), task.id]; warnings.push(`goal:${goal.id}:task:${task.id}`); }
+    }
     for (const goal of state.goals || []) {
       for (const taskId of goal.taskIds || []) { const item = (state.tasks || []).find(value => value.id === taskId); if (item && !(item.goalIds || []).includes(goal.id)) { item.goalIds = [...(item.goalIds || []), goal.id]; warnings.push(`goal:${goal.id}:task:${item.id}`); } }
       for (const link of goal.projectLinks || []) { const item = (state.projects || []).find(value => value.id === link?.projectId); if (item && !(item.goalIds || []).includes(goal.id)) { item.goalIds = [...(item.goalIds || []), goal.id]; warnings.push(`goal:${goal.id}:project:${item.id}`); } }
       for (const link of goal.habitLinks || []) { const item = (state.habits || []).find(value => value.id === link?.habitId); if (item && !(item.goalIds || []).includes(goal.id)) { item.goalIds = [...(item.goalIds || []), goal.id]; warnings.push(`goal:${goal.id}:habit:${item.id}`); } }
     }
     const error = validateGoalLinks(state);
-    if (error) throw new Error(`Goal-link repair required: ${error}`);
+    if (error && strict) throw new Error(`Goal-link repair required: ${error}`);
     return options.report ? { state, warnings } : state;
   }
 

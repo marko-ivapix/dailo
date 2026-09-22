@@ -296,7 +296,7 @@
     validateIds(manifest.data, manifest.attachments);
     const migration = root.TodoCore?.migrateStateV3(manifest.data);
     if (!migration?.ok) throw new Error('Invalid app data');
-    const repair = root.TodoCore.repairGoalLinks ? root.TodoCore.repairGoalLinks(migration.state, { report: true }) : { state: migration.state, warnings: [] };
+    const repair = root.TodoCore.repairGoalLinks ? root.TodoCore.repairGoalLinks(migration.state, { report: true, strict: true }) : { state: migration.state, warnings: [] };
     const state = repair.state;
     const goalLinkError = root.TodoCore.validateGoalLinks?.(state);
     if (goalLinkError) throw new Error(`Invalid backup ${goalLinkError}`);
