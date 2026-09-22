@@ -115,3 +115,12 @@ test('stale canonical writes are rejected instead of overwriting a newer tab', a
   await assert.rejects(() => Storage.writeCanonicalState(baseState(), current), /newer|stale|changed/i);
   assert.equal(saved, newer);
 });
+
+test('legacy restore wrapper delegates to the recovery-backed transaction', async () => {
+  const original = Storage.restoreValidatedBackup;
+  let delegated = null;
+  Storage.restoreValidatedBackup = async value => { delegated = value; };
+  const validated = { state: baseState(), attachmentRecords: [], habitLogs: [], goalHistory: [] };
+  try { await Backup.restoreBackup(validated); } finally { Storage.restoreValidatedBackup = original; }
+  assert.equal(delegated, validated);
+});

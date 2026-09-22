@@ -59,3 +59,9 @@ test('Calendar Week keeps visible day context on narrow viewports', () => {
   assert.match(css, /@media \(max-width: 700px\)[\s\S]*?\.calendar-week[\s\S]*?min-width/);
   assert.match(css, /@media \(max-width: 700px\)[\s\S]*?\.calendar-day-heading/);
 });
+
+test('stale-data notice covers both external writes and canonical removal', () => {
+  assert.match(app, /staleDataNotice/);
+  assert.match(app, /const validRemoval = event\.newValue === null/);
+  assert.match(app, /data-action="refresh-stale-data"/);
+});

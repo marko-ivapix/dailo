@@ -569,7 +569,7 @@
     await done;
   }
 
-  async function createRecoverySnapshot(reason, state, storage = null) {
+  async function createRecoverySnapshot(reason, state, storage = null, options = {}) {
     const source = storage || { captureUserData, sameUserData, recoverySnapshots };
     const rawAppData = root.localStorage.getItem('todoAppData'), appData = rawAppData === null ? null : JSON.parse(rawAppData);
     const stateText = JSON.stringify(state), payload = await source.captureUserData();
@@ -577,8 +577,12 @@
       || !(await source.sameUserData(await source.captureUserData(), payload))
       || root.localStorage.getItem('todoAppData') !== rawAppData || JSON.stringify(state) !== stateText) throw new Error('Source changed while preparing recovery. Retry.');
     const id = `recovery-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    await source.recoverySnapshots.put({ id, reason, phase: 'prepared', createdAt: new Date().toISOString(), rawAppData, appData,
-      liveState: JSON.parse(stateText), ...payload, attachmentRefs: payload.attachments, habitLogRefs: payload.habitLogs, goalHistoryRefs: payload.goalHistory });
+    const snapshot = { id, reason, phase: 'prepared', createdAt: new Date().toISOString(), rawAppData, appData,
+      liveState: JSON.parse(stateText), ...payload, attachmentRefs: payload.attachments, habitLogRefs: payload.habitLogs, goalHistoryRefs: payload.goalHistory };
+    const byteBudget = Number(options.maxBytes);
+    if (Number.isFinite(byteBudget) && (byteBudget <= 0 || estimateSnapshotBytes(snapshot) > byteBudget))
+      throw new Error(`Automatic snapshot budget exceeded (${byteBudget} bytes)`);
+    await source.recoverySnapshots.put(snapshot);
     return id;
   }
 
@@ -613,7 +617,7 @@
       const previous = (await recoverySnapshots.listAll()).filter(item => item.reason === 'automatic')
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
       if (previous.length && timestamp.getTime() - Date.parse(previous[0].createdAt) < 300000) return null;
-      const id = await createRecoverySnapshot('automatic', state);
+      const id = await createRecoverySnapshot('automatic', state, null, { maxBytes: byteBudget });
       const snapshot = await recoverySnapshots.get(id);
       try {
         snapshot.appData = normalizeState(snapshot.appData);

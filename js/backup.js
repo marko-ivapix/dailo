@@ -443,7 +443,13 @@
     return next;
   }
 
-  async function restoreBackup(validated, { attachmentApi, readState, writeState }) {
+  async function restoreBackup(validated, options = {}) {
+    // Production callers use Storage.restoreValidatedBackup so restore always
+    // follows the recovery-backed transaction. The injected adapter branch is
+    // retained only for legacy integrations/tests that supply their own stores.
+    const { attachmentApi, readState, writeState } = options;
+    if (!attachmentApi && !readState && !writeState && root.TodoStorage.restoreValidatedBackup)
+      return root.TodoStorage.restoreValidatedBackup(validated);
     validated = structuredClone(validated);
     validated.state = root.TodoCore.repairGoalLinks(validated.state);
     validateDomain(validated.state, validated.habitLogs || [], validated.goalHistory || []);

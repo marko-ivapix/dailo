@@ -4257,10 +4257,12 @@
     window.addEventListener('hashchange', () => { closePopover(); closeModal(); render(); });
     window.addEventListener('storage', event => {
       if (globalOperation) return;
-      if (event.key !== STORAGE_KEY || !event.newValue) return;
+      if (event.key !== STORAGE_KEY) return;
       try {
         const source = localStorage.getItem(STORAGE_KEY);
-        if (Core.migrateStateV3(JSON.parse(event.newValue)).ok && event.newValue !== canonicalRaw) {
+        const validReplacement = event.newValue && Core.migrateStateV3(JSON.parse(event.newValue)).ok;
+        const validRemoval = event.newValue === null && canonicalRaw !== null;
+        if ((validReplacement || validRemoval) && event.newValue !== canonicalRaw) {
           staleDataNotice = { raw: event.newValue, source: canonicalRaw ?? source };
           renderToast();
         }
