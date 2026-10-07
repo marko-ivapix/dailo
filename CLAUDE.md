@@ -54,6 +54,19 @@ python3 -m http.server 8080
 
 Do not launch an isolated Chromium or open/modify the user's personal Chrome unless the user explicitly asks for that browser action. Native visual/browser acceptance is separate from the local automated suite.
 
+## Cloud sessions (Claude app / claude.ai/code)
+
+- `.venv/` is gitignored, so it does not exist in a cloud clone. Wherever docs say `./.venv/bin/python`, use `python3` instead (no packages are needed; Node 22 and Python 3 are preinstalled):
+
+```bash
+python3 tests/test_browser_path_adapter.py
+python3 -c "import importlib.util as u, inspect; s = u.spec_from_file_location('reg', 'tests/test_browser_regression_registry.py'); m = u.module_from_spec(s); s.loader.exec_module(m); t = [f for n, f in inspect.getmembers(m, inspect.isfunction) if n.startswith('test_')]; [f() for f in t]; print(f'registry: {len(t)}/{len(t)} passed')"
+python3 tests/run-browser-regressions.py --dry-run
+```
+
+- The registry file has no `__main__`; running it directly executes 0 tests, so use the one-liner above.
+- Start from branch `feature/todo-v1-3`. If the session pushes to a different branch (for example `claude/...`), tell the user the exact branch name.
+
 ## Current handoff boundary
 
 - V1.7 behavior is implemented and locally verified. The V1.8 visual redesign is implemented in `css/styles.css` (token system + one appended layer) with minimal markup hooks, verified by automated/static checks only; it is committed and pushed on `feature/todo-v1-3` but not packaged.
