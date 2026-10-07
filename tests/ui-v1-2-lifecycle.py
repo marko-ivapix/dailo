@@ -4,9 +4,11 @@ from playwright.sync_api import sync_playwright
 ROOT = Path(__file__).resolve().parents[1]
 CORE = (ROOT / 'js' / 'core.js').read_text()
 JSZIP = (ROOT / 'vendor' / 'jszip.min.js').read_text()
+STORAGE = (ROOT / 'js' / 'storage.js').read_text()
 ATTACHMENTS = (ROOT / 'js' / 'attachments.js').read_text()
 BACKUP = (ROOT / 'js' / 'backup.js').read_text()
 APP = (ROOT / 'js' / 'app.js').read_text()
+MODULES = [(ROOT / 'js' / name).read_text() for name in ('domain-modules.js', 'knowledge.js', 'goals-ui.js', 'habits-ui.js', 'saved-views-ui.js', 'projects-ui.js', 'areas-ui.js', 'settings-ui.js', 'templates-ui.js', 'calendar-ui.js', 'tasks-ui.js', 'cleaning-ui.js')]
 SHELL = '''<!doctype html><html><body>
 <div id="app" class="app-shell" aria-live="polite">
   <aside id="sidebar" class="sidebar" aria-label="Primary navigation"></aside>
@@ -40,9 +42,11 @@ def boot(page, seed=None):
     }''', seed)
     page.add_script_tag(content=JSZIP)
     page.add_script_tag(content=CORE)
+    page.add_script_tag(content=STORAGE)
     page.add_script_tag(content=ATTACHMENTS)
     page.add_script_tag(content=BACKUP)
-    page.add_script_tag(content=APP)
+    for script in MODULES + [APP]:
+        page.add_script_tag(content=script)
     page.wait_for_selector('.page-title')
 
 
@@ -62,7 +66,7 @@ def add_anytime_task_with_files(page, task_id='life_task', file_count=1):
 
 def main():
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True, args=['--no-sandbox'])
+        browser = p.chromium.launch(headless=True, executable_path='/usr/bin/chromium', args=['--no-sandbox'])
 
         # Attachment picker + drag/drop + delete/Undo + task delete/Undo.
         page = browser.new_page(viewport={'width': 1440, 'height': 1000})
@@ -103,6 +107,9 @@ def main():
         # Attachment delete keeps Blob pending and Undo restores the exact ID/bytes.
         page.click(f'[data-action="attachment-menu"][data-attachment-id="{drop_id}"]')
         page.click(f'[data-pop-action="attachment-delete"][data-attachment-id="{drop_id}"]')
+        assert page.locator('[data-action="confirm-action"]').count() == 1
+        page.click('[data-action="confirm-action"]')
+        page.wait_for_function('!document.querySelector("[data-action=confirm-action]") && !!document.querySelector("[data-action=undo]")')
         page.wait_for_timeout(20)
         after_delete = page.evaluate("id => ({refs:TodoApp.state.tasks.find(t=>t.id==='life_task').attachmentIds, rec:null})", drop_id)
         assert drop_id not in after_delete['refs']
@@ -114,7 +121,11 @@ def main():
         assert drop_id in restored['refs'] and restored['pending'] is None and restored['text'] == 'drop-bytes'
 
         # Task delete retains attachment records pending, Undo restores task + same blobs.
+        page.click('[data-action="open-task"][data-task-id="life_task"]')
         page.click('[data-action="delete-task"][data-task-id="life_task"]')
+        assert page.locator('[data-action="confirm-action"]').count() == 1
+        page.click('[data-action="confirm-action"]')
+        page.wait_for_function('!document.querySelector("[data-action=confirm-action]") && !!document.querySelector("[data-action=undo]")')
         page.wait_for_timeout(20)
         assert page.evaluate("!TodoApp.state.tasks.some(t=>t.id==='life_task')")
         pending_all = page.evaluate("async ids => Promise.all(ids.map(async id => {const r=await TodoAttachments.get(id);return !!r?.pendingDeleteUntil;}))", ids)
@@ -212,7 +223,7 @@ def main():
           return {files:Object.keys(zip.files),manifest,text,summary:inspected.summary};
         }''')
         assert 'data.json' in backup_result['files']
-        assert backup_result['manifest']['backupVersion'] == 1 and backup_result['manifest']['appVersion'] == '1.2'
+        assert backup_result['manifest']['backupVersion'] == 2 and backup_result['manifest']['appVersion'] == '1.3'
         assert backup_result['text'] == 'backup-bytes'
         assert backup_result['summary']['attachments'] == 1 and backup_result['summary']['tags'] == 1
 
@@ -261,14 +272,16 @@ def main():
         add_anytime_task_with_files(page_reset, 'reset_task', 1)
         assert page_reset.evaluate("TodoAttachments.listAll().then(x=>x.length)") == 1
         page_reset.evaluate("location.hash='#settings'; TodoApp.render()")
-        page_reset.click('[data-action="reset-app"]')
+        with page_reset.expect_download():
+            page_reset.click('[data-action="reset-app"]')
+        page_reset.locator('#global-confirm-phrase').fill('RESET')
         page_reset.click('[data-action="confirm-action"]')
-        page_reset.wait_for_timeout(30)
+        page_reset.wait_for_function('TodoApp.state.tasks.length === 0 && !document.querySelector("#global-confirm-phrase")')
         assert page_reset.evaluate("TodoApp.state.tasks.length") == 0
         assert page_reset.evaluate("TodoApp.state.tags.length") == 0
         assert page_reset.evaluate("TodoAttachments.listAll().then(x=>x.length)") == 0
         persisted = page_reset.evaluate("JSON.parse(localStorage.getItem('todoAppData'))")
-        assert persisted['version'] == 2 and persisted['tasks'] == []
+        assert persisted['version'] == 3 and persisted['tasks'] == []
 
         browser.close()
 

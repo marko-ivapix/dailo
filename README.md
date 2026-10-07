@@ -1,6 +1,6 @@
-# To Do — HTML Prototype v1.2
+# Dailo — HTML Prototype v1.8
 
-Desktop-first functional prototype for a personal/freelancer task tracker. The product keeps a simple workflow:
+Desktop-first, local-first functional prototype for a personal/freelancer task tracker. The product keeps a simple workflow:
 
 **Capture → Organize → Plan → Complete**
 
@@ -11,20 +11,103 @@ Desktop-first functional prototype for a personal/freelancer task tracker. The p
 This is a static HTML/CSS/vanilla JavaScript prototype. Serve the folder with a small local web server:
 
 ```bash
-cd todo-app-prototype-v1.2
+# run from this repository root
 python3 -m http.server 8080
 ```
 
 Then open `http://localhost:8080`.
 
+## V1.6 highlights
+
+- Task duration, a three-task Today Focus queue, inline completion/planning and Daily Review.
+- Trailing Quick Add date/time phrases with explicit field values taking precedence.
+- Goal health and linked contributions; Habit minimum/ideal targets, grace-day recovery and rolling weekly/monthly insights. Numeric Habit targets can be fractional; weekly check-in targets remain whole counts.
+- Calendar task blocks use planned time plus duration and mark overlaps without introducing another event store.
+- Resource type, reading status, author and review date; separate Note/Resource clips, favorites and local filters.
+- Template variables/scheduled Task creation and Today section personalization.
+- Cleaning workspace with room Projects (`isCleaningRoom`) and ordinary chore Tasks, including room presets and recurring maintenance examples.
+- Responsive navigation parity: the compact circular Quick Add menu is available in mobile, tablet and desktop previews, while narrow screens also expose persistent bottom navigation for Today, Inbox, Calendar, Goals and Habits.
+- Inbox triage supports All / Tasks / Goals / Habits / Notes / Resources filters, captured-item grouping and non-destructive removal from Inbox.
+- Bounded local snapshots and selective recovery, described below. State schema remains V3 and earlier ZIP formats remain importable.
+
+## V1.7 stabilization highlights
+
+- Mobile `More` navigation keeps every route reachable while preserving the five primary destinations and Quick Add.
+- Accessibility hardening adds named dialogs, predictable focus return, semantic Area tabs and touch-safe primary controls.
+- Regression evidence now enumerates V1.1, V1.2, V1.3, V1.5 and V1.6 browser-scenario groups, while V1.7 release checks cover the Node/static safety and integration suites separately.
+- Data safety covers reciprocal Goal-link repair, timestamp/ID validation, bounded ZIP/snapshot work and stale-tab protection.
+- Targeted responsive polish keeps mobile filters, Notes/Resources/Areas lists and Calendar Day Detail compact without a broad redesign.
+- Global Search behavior and the no-bulk-actions constraint remain unchanged.
+
+## V1.8 visual redesign — Quiet Graphite / Swiss Compact
+
+- Presentation-only release on top of V1.7 behavior: no schema, Search, recovery, entity or navigation-meaning change and no new dependency.
+- Graphite neutrals with hairline structure instead of stacked filled cards; tighter 4/6/8/12px radii; overlay-only shadows; no blur or glow.
+- Space Grotesk page titles, card headings and numerals; Geist for everything operational; tabular counts and dates.
+- Electric-blue primary actions, a lighter on-dark blue for focus/active navigation, mint completion, yellow warning, red danger/overdue — contrast pairs are recorded in the V1.8 spec.
+- Sidebar back to the 240px/72px brand geometry with an accent active marker; opaque bottom bar with an active indicator; bottom-anchored More sheet; rounded-square 44px Quick Add.
+- Segmented controls for Inbox filters, Calendar Week/Month and Template types; underline Area tabs; Calendar type rails (tasks blue, habits mint, goals neutral, milestones yellow).
+- Visible two-step focus ring (inset inside clipped/scrolling containers), `prefers-contrast: more` and forced-colors support, motion-safe loading indicator, quieter empty states and opaque error band. Phone touch targets stay at 44px.
+
+Spec: `docs/superpowers/specs/2026-10-07-todo-v1-8-design.md`. Plan: `docs/superpowers/plans/2026-10-07-todo-v1-8.md`. Evidence: `docs/superpowers/progress-v1-8.md`. V1.8 visual, responsive, touch, keyboard and assistive-technology acceptance in a native browser is **manual-pending**.
+
+The V1.7 release ledger is `docs/superpowers/progress-v1-7.md`. Native browser acceptance is **manual-pending** unless that ledger explicitly records a user-owned-browser run; static checks and Node tests do not imply visual or browser acceptance.
+
+For Claude Code continuation, start with `CLAUDE.md` and `docs/claude/CONTINUATION.md`. Historical versioned specs remain traceability documents; current source and focused tests are the factual implementation baseline.
+
+Scheduled Task templates are one-shot per configured date. They run after saving a due schedule, during ready startup, and on the open app's 30-second checks. Missed dates catch up once when the app is next ready; variables and relative dates use the scheduled day, not the catch-up day. They do not run while the app is closed. Failed saves remain eligible for retry without duplicate Tasks. Saving a different schedule date creates a new one-shot schedule.
+
+Today keeps its heading/date above personalized cards. Pinned cards appear first; Up/Down reorders within the pinned or unpinned group. Task/Project templates preserve Task duration, and Habit templates preserve minimum/ideal targets and grace days without execution history.
+
+### Local snapshots and selective recovery
+
+After successful saves, Dailo attempts an automatic snapshot after one idle second, at most once every five minutes. Startup also schedules a capture. It retains the five latest automatic copies, including normalized metadata, files, Habit logs and Goal history. Copies for interrupted operations are retained separately. These copies share the browser's storage quota and are not a substitute for an exported ZIP.
+
+Use **Settings → Data → Local snapshots** to choose one entity from a saved version. Its record and owned files/history replace that entity's current version; unrelated records remain current. Task, Project and Habit restores also reconcile their reciprocal Goal links while preserving other Goal fields and contributions. Restoring a Goal reconciles its membership on existing Tasks, Projects and Habits without replacing their other fields or Goal links. Missing or incompatible saved contribution settings stop the restore. Linked entities must already exist: missing dependencies stop the restore and must be recovered separately. Restoring an Area or Project does not implicitly restore its children.
+
+Each selective restore downloads a safety ZIP, creates an internal recovery copy, and requires typing **RESTORE**. The same source checks, write verification and rollback used by full restore protect selective replacement. Snackbar Undo is available briefly while data remains unchanged after restore. If later edits make Undo unsafe, the operation refuses to overwrite them and retains its safety copy for another selective recovery. Full ZIP restore and Reset retain their existing typed **RESTORE**/**RESET** safeguards.
+
+Storage failures distinguish unsaved changes from an automatic snapshot failure and offer Retry. Reduced-motion preference suppresses animation/transition delays and reduces durations.
+
+### Verification status
+
+The latest V1.7 verification is recorded in `docs/superpowers/progress-v1-7.md`. It distinguishes automated evidence from the **manual-pending** user-owned-browser gate; no isolated Chromium or personal Chrome is opened by the implementation workflow.
+
+## V1.4 foundation
+
+V1.4 keeps the V1.3 data model and adds a faster daily-planning flow:
+
+- Today and Upcoming surface overdue work, scheduled Habits, active Goals and dated Milestones with quick move/snooze actions.
+- Task Properties expose Important, Urgent and Focus controls while preserving planned/due dates, reminders, recurrence, links and attachments.
+- Calendar Week/Month/Day Detail share the same state as Tasks, Goals and Habits, including planned/due times and same-time conflict hints.
+- Goal detail shows linked work and milestone progress; the Habit dashboard supports month navigation, historical check-ins, streaks and trend summaries.
+- Notes and Resources stay separate and support Areas, tags, relationships and attachments.
+- Mobile controls use larger touch targets, a compact Quick Add flow, keyboard-safe focus states and disabled future Habit cells.
+
+V1.4 does not change global Search, add bulk actions, or introduce a backend. Existing V1.3/V3 state and ZIP backups remain readable; no persisted schema bump was needed.
+
 Space Grotesk, Geist and Phosphor icon styles are referenced from public CDNs. The application itself has no backend or account requirement.
 
 ## What is included
 
+### Area knowledge and Goal horizons
+
+**Notes** and **Resources** have dedicated sidebar lists and detail editors, with optional Area assignment, links, and attachments. Area Detail also shows their counts and contextual creation controls. Resources can link to Tasks, Projects, Goals, and Habits; deleting an Area clears its assignment without deleting these records. Goal create/edit includes Short-term, Mid-term, and Long-term horizons; **By month** groups Goals by target date, with undated Goals separate.
+
+Automated Node checks now cover metadata editing, ownership, ZIP round trips and failure recovery for these additions. Native browser reload, attachment interactions and keyboard/focus acceptance remain a separate user-owned-browser acceptance check.
+
+### Prototype routines and starter examples
+
+Habit create/edit includes Morning, Daily, and Night routines. The active Habits view groups these routines; Today continues to follow each Habit's schedule.
+
+Use **Settings → Data → Add starter examples** to add eight editable Areas (Family & Friends, Work, Personal Growth, Home, Travel, Health, Career, Finance) and twelve editable Habits. Morning: Cold shower, Wim Hof breathing, 10-minute workout, Beard balm. Daily: No-nut, Training four times per week, Sleep before midnight, Sleep 7–8 hours, Program 30 minutes, Read/learn 30 minutes. Night: Beard balm, Enter tomorrow's tasks. Training uses four times per week; the others use daily schedules. New Habits have no Area, Goal links, reminders, or check-in history.
+
+The action is explicit and adds only missing examples. Stable markers prevent repeat creation after edits; matching Area names and Habit names within the same routine also prevent initial duplicates without modifying user records. Archived/paused matches remain untouched. Deleting an example makes it eligible to be added again. Starter-action repetition, reload persistence, and routine interactions remain unverified in a browser under the fast-prototype workflow.
+
 ### Core task workflow
 
 - Today with Overdue, manually planned tasks, rule-based Suggestions and Completed-today
-- Inbox capture and quick processing
+- Inbox capture and quick processing, with mixed-record filters for Tasks, Goals, Habits, Notes and Resources
 - Upcoming grouped by earliest relevant future planned/due date
 - Anytime for processed active tasks that are not planned for a date
 - Flat Projects with project colors, archive/restore and manual ordering
@@ -35,7 +118,7 @@ Space Grotesk, Geist and Phosphor icon styles are referenced from public CDNs. T
 - Recurring tasks: daily, weekly, monthly and custom interval
 - Delete/complete/move/archive Undo where applicable
 
-### V1.2 — Tags
+### V1.2/V1.3 — Tags
 
 Tags are global reusable objects, not per-task strings.
 
@@ -52,7 +135,7 @@ Tags are global reusable objects, not per-task strings.
 
 Task metadata stores only `tagIds[]`.
 
-### V1.2 — Priority
+### V1.2/V1.3 — Priority
 
 Supported values:
 
@@ -69,12 +152,13 @@ The list UI uses a small flag indicator:
 - Low — muted info tone
 - None — no indicator
 
-### V1.2 — Attachments
+### V1.2/V1.3 — Attachments
 
 Attachments are real local files stored as Blobs in IndexedDB.
 
-- Task Detail only; Quick Add remains lightweight
-- Add through file picker or drag & drop
+- In Task Detail, find files under **Task properties → Attachments**; Quick Add remains lightweight
+- Use **Add image** for an image-filtered file chooser, or **Add attachment** / drag & drop for any file type
+- Both choosers share the same attachment list, limits, ownership, and delete/Undo flow; image filtering is chooser guidance, not a separate file store or preview
 - All file types allowed
 - Maximum **10 MB per file**
 - Maximum **10 attachments per task**
@@ -86,7 +170,9 @@ Attachments are real local files stored as Blobs in IndexedDB.
 
 Binary files never enter localStorage.
 
-### V1.2 — Duplicate task
+Notes and Resources use the same attachment store and limits (10 files per owner). Existing Task attachment IDs and ownership remain unchanged. The current implementation exports ZIP `backupVersion: 2` with knowledge files and accepts valid backup versions 1 and 2. The `exportBackupV3` function name refers to the V3 state schema, not ZIP format 3.
+
+### V1.2/V1.3 — Duplicate task
 
 Duplicate copies task metadata and creates independent subtask IDs.
 
@@ -98,7 +184,7 @@ Cancel | Without files | Copy files
 
 `Copy files` creates independent attachment records with new IDs and new task ownership. A failed multi-file copy rolls back partial attachment copies and does not create a half-finished duplicate task.
 
-### V1.2 — Faster planning
+### V1.2/V1.3 — Faster planning
 
 Natural-language Quick Add recognizes only deterministic trailing planning phrases:
 
@@ -122,7 +208,7 @@ The task context menu includes contextually appropriate actions for Today/Tomorr
 
 ## Storage architecture
 
-V1.2 uses a hybrid local storage model.
+V1.6 retains the hybrid local storage model and schema V3 introduced in V1.3.
 
 ### localStorage
 
@@ -135,10 +221,10 @@ todoAppData
 Schema version:
 
 ```text
-version: 2
+version: 3
 ```
 
-Stores task/project/tag/settings/UI metadata. V1.1 `version: 1` state is migrated to v2 on load with these new defaults:
+Stores compact Task/Project/Area/Goal/Habit/Note/Resource/Template/Saved View/tag/settings/UI metadata. Supported V1/V2 states migrate to V3 without changing existing IDs. The earlier V1-to-V2 migration added these defaults, which are retained:
 
 ```js
 tags = []
@@ -154,16 +240,19 @@ Existing reminders, recurrence, archived projects, completed history, manual ord
 Database:
 
 ```text
-todoAppAttachments
+todoAppDB
 ```
 
-Object store:
+Object stores (database version 1, distinct from metadata schema V3):
 
 ```text
 attachments
+habitLogs
+goalHistory
+recoverySnapshots
 ```
 
-Each attachment record contains its ID, task ownership, file metadata, Blob, timestamps and optional pending-delete timestamp.
+Each attachment record contains its ID, Task/Note/Resource ownership, file metadata, Blob, timestamps and optional pending-delete timestamp. The legacy V1.2 `todoAppAttachments` database is copied non-destructively into the shared attachment store during migration.
 
 ## Backup and restore
 
@@ -215,13 +304,25 @@ Modal dialogs trap keyboard focus. Confirmation dialogs return focus to their tr
 
 ## Tests
 
-Run all current regression/integration checks:
+Run all current regression/integration checks. The browser commands below are optional developer/CI checks. This release verification does not launch an isolated Chromium and does not open or modify the user's personal Chrome; visual and interaction acceptance is intentionally user-owned.
+
+If you explicitly choose to run the historical browser harness in CI, install its pinned dependency in a worktree-local virtual environment:
 
 ```bash
-node --test tests/core.test.js
-python tests/ui-v1-1-smoke.py
-python tests/ui-v1-2-smoke.py
-python tests/ui-v1-2-lifecycle.py
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements-browser-tests.txt
+# CI-only: install the browser runtime used by the optional harness.
+.venv/bin/python -m playwright install chromium
+```
+
+Then run:
+
+```bash
+node --test tests/*.test.js
+.venv/bin/python tests/test_browser_path_adapter.py
+.venv/bin/python tests/run-browser-regressions.py
+.venv/bin/python tests/ui-v1-3-storage-migration.py
+.venv/bin/python tests/ui-v1-3-goal-ux.py
 ```
 
 Syntax checks:
@@ -233,14 +334,16 @@ node --check js/backup.js
 node --check js/app.js
 ```
 
-The browser harness uses an in-memory test adapter for attachment storage because this execution environment blocks normal browser origins. Production code defaults to the real IndexedDB adapter; the in-memory path is enabled only by the test-only `window.__TODO_TEST_MEMORY_DB__` flag.
+The optional browser harness uses an in-memory test adapter or a temporary loopback server with real IndexedDB. It is isolated CI tooling, not a production runtime requirement and not part of the user's Chrome session. Production defaults to real IndexedDB. `TodoApp.ready` can be awaited for startup migration and Habit hydration before interacting with the ready app.
+
+Goal creation keeps milestones, reminders and source-specific links under More. Nested editors change only the draft until Create/Save. Goal Detail offers inline title/Area/target/unit/date editors (Save or Enter to commit, Cancel or Escape to discard), dedicated progress-source/link/milestone/reminder panels, and a quick status menu. Switching progress source retains inactive relationships and manual values. The native Goal UX suite covers these controls, contextual/template dates, reciprocal links, cancellation, validation, focus, keyboard behavior and reload persistence.
 
 ## Still intentionally excluded
 
 - bulk actions
 - tag-aware / priority-aware Search changes
-- calendar view
-- time estimates / time tracking
+- hourly time-block grid
+- elapsed-time tracking (optional planned Task duration is supported)
 - comments / collaboration
 - accounts / backend / cloud sync
 - AI planning
@@ -249,7 +352,7 @@ The browser harness uses an in-memory test adapter for attachment storage becaus
 
 ## Brand reference
 
-The UI follows the supplied Universal Brand Design System v1: dark technical foundation, electric-blue actions/focus, mint positive states, restrained semantic color, Space Grotesk + Geist typography direction, Phosphor icon direction, approved sidebar geometry and precise motion/reduced-motion behavior.
+The UI follows the supplied Universal Brand Design System v1: dark technical foundation, electric-blue actions/focus, mint positive states, restrained semantic color, Space Grotesk + Geist typography direction, Phosphor icon direction, approved sidebar geometry and precise motion/reduced-motion behavior. V1.8 implements it as the Quiet Graphite / Swiss Compact token system at the top of `css/styles.css`.
 
 ## Codex / agent handoff
 

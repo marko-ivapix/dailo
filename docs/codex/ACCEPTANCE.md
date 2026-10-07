@@ -1,4 +1,6 @@
-# V1.3 Acceptance Checklist
+# V1.3 Acceptance Checklist (historical baseline)
+
+> This checklist records the original V1.3 human/browser gate. Current V1.7 onboarding and implementation facts live in `CLAUDE.md` and `docs/claude/`. Do not mark browser items green from source inspection alone.
 
 This is a human-readable release gate. A feature is accepted only when behavior is demonstrated in the current build, not merely present in source code.
 

@@ -4,8 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="color-scheme" content="dark" />
-  <meta name="theme-color" content="#141821" />
-  <title>To Do — HTML Prototype</title>
+  <meta name="theme-color" content="#0F1114" />
+  <title>Dailo — Prototype v1.8</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
@@ -15,17 +15,49 @@
 </head>
 <body>
   <noscript>This prototype requires JavaScript.</noscript>
-  <div id="app" class="app-shell" aria-live="polite">
+  <div id="app" class="app-shell">
     <aside id="sidebar" class="sidebar" aria-label="Primary navigation"></aside>
     <main id="main" class="main" tabindex="-1"></main>
   </div>
+  <nav id="mobile-bottom-nav" class="mobile-bottom-nav" aria-label="Quick navigation">
+    <button class="mobile-bottom-nav-item" type="button" data-route="today"><i class="ph ph-sun" aria-hidden="true"></i><span>Today</span></button>
+    <button class="mobile-bottom-nav-item" type="button" data-route="inbox"><i class="ph ph-tray" aria-hidden="true"></i><span>Inbox</span><b id="mobile-inbox-badge" class="mobile-bottom-nav-badge" hidden></b></button>
+    <button class="mobile-bottom-nav-item" type="button" data-route="calendar"><i class="ph ph-calendar-blank" aria-hidden="true"></i><span>Calendar</span></button>
+    <button class="mobile-bottom-nav-item" type="button" data-route="goals"><i class="ph ph-target" aria-hidden="true"></i><span>Goals</span></button>
+    <button class="mobile-bottom-nav-item" type="button" data-route="habits"><i class="ph ph-repeat" aria-hidden="true"></i><span>Habits</span></button>
+    <button id="mobile-more-trigger" class="mobile-bottom-nav-item" type="button" data-action="open-mobile-more" aria-haspopup="dialog" aria-expanded="false"><i class="ph ph-dots-three-outline" aria-hidden="true"></i><span>More</span></button>
+  </nav>
+  <div id="mobile-more-sheet-root" hidden></div>
+  <div id="mobile-quick-add" class="mobile-quick-add">
+    <div id="mobile-quick-add-menu" class="mobile-quick-add-menu" hidden>
+      <button class="mobile-quick-add-option" type="button" data-action="quick-add"><span>Task</span><i class="ph ph-check-square-offset" aria-hidden="true"></i></button>
+      <button class="mobile-quick-add-option" type="button" data-action="new-goal"><span>Goal</span><i class="ph ph-target" aria-hidden="true"></i></button>
+      <button class="mobile-quick-add-option" type="button" data-action="new-habit"><span>Habit</span><i class="ph ph-repeat" aria-hidden="true"></i></button>
+      <button class="mobile-quick-add-option" type="button" data-action="new-knowledge" data-owner-type="note"><span>Note</span><i class="ph ph-note" aria-hidden="true"></i></button>
+      <button class="mobile-quick-add-option" type="button" data-action="new-knowledge" data-owner-type="resource"><span>Resource</span><i class="ph ph-link" aria-hidden="true"></i></button>
+      <button class="mobile-quick-add-option" type="button" data-action="new-project"><span>Project</span><i class="ph ph-folder" aria-hidden="true"></i></button>
+    </div>
+    <button id="mobile-quick-add-toggle" class="mobile-quick-add-toggle" type="button" data-action="toggle-mobile-quick-add" aria-label="Open quick add menu" aria-expanded="false" aria-controls="mobile-quick-add-menu"><i class="ph ph-plus" aria-hidden="true"></i></button>
+  </div>
   <div id="modal-root"></div>
   <div id="toast-root" class="toast-root" aria-live="assertive" aria-atomic="true"></div>
+  <div id="global-status" aria-live="polite" aria-atomic="true" class="sr-only"></div>
   <script src="vendor/jszip.min.js"></script>
   <script src="js/core.js"></script>
+  <script src="js/storage.js"></script>
   <script src="js/attachments.js"></script>
   <script src="js/backup.js"></script>
+  <script src="js/domain-modules.js"></script>
+  <script src="js/knowledge.js"></script>
+  <script src="js/goals-ui.js"></script>
+  <script src="js/habits-ui.js"></script>
+  <script src="js/saved-views-ui.js"></script>
+  <script src="js/projects-ui.js"></script>
+  <script src="js/areas-ui.js"></script>
+  <script src="js/settings-ui.js"></script>
   <script src="js/templates-ui.js"></script>
+  <script src="js/calendar-ui.js"></script>
+  <script src="js/tasks-ui.js"></script>
   <script src="js/cleaning-ui.js"></script>
   <script src="js/app.js"></script>
 </body>

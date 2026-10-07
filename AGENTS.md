@@ -1,10 +1,12 @@
-# AGENTS.md — To Do App V1.3
+# AGENTS.md — Dailo To Do App V1.7
+
+> This file preserves the V1.3–V1.7 execution and product constraints. The current Claude Code handoff, verified baseline and next-work protocol are in `CLAUDE.md` and `docs/claude/CONTINUATION.md`. The V1.8 visual redesign (Quiet Graphite / Swiss Compact) is specified in `docs/superpowers/specs/2026-10-07-todo-v1-8-design.md`; its tokens in `css/styles.css` are the current implementation of the brand rules below and it changes no product rule in this file.
 
 This file is the entry point for Codex or any coding agent working in this repository.
 
 ## Mission
 
-Build and finish the **To Do App V1.3** as a desktop-first, dark, local-first productivity application for individuals and freelancers.
+Maintain the **Dailo To Do App**, whose V1.3 baseline has been extended through the approved V1.7 stabilization prototype. It is a desktop-first, dark, local-first productivity application for individuals and freelancers.
 
 The core product workflow is:
 
@@ -15,26 +17,30 @@ The product is **Today-first**. Today is the main working surface; Projects, Are
 ## Source of truth — read in this order
 
 1. `AGENTS.md` — execution rules and repository conventions.
-2. `docs/codex/PRODUCT_BRIEF.md` — product model and high-level behavior.
-3. `docs/codex/V1_3_SCOPE.md` — required V1.3 feature set.
-4. `docs/superpowers/specs/2026-09-15-todo-v1-3-design.md` — **authoritative functional/system design spec**.
-5. `docs/superpowers/plans/2026-09-16-todo-v1-3.md` — **authoritative implementation plan**.
-6. `docs/codex/TASKS.md` — condensed implementation checklist.
-7. `docs/codex/ACCEPTANCE.md` — completion/verification checklist.
+2. `CLAUDE.md` — agent entry point and current documentation index.
+3. `docs/claude/` — current implementation map, architecture, domain, feature, storage and release guides.
+4. `README.md` and `PROJECT_OVERVIEW.md` — current user-facing and Serbian product overviews.
+5. `docs/codex/PRODUCT_BRIEF.md` and `docs/codex/V1_3_SCOPE.md` — V1.3 product baseline.
+6. `docs/superpowers/specs/2026-09-22-todo-v1-7-design.md` — approved V1.7 stabilization design.
+7. `docs/superpowers/plans/2026-09-22-todo-v1-7.md` — V1.7 implementation plan.
+8. `docs/superpowers/progress-v1-7.md` — current release evidence.
+9. `docs/superpowers/specs/2026-09-17-todo-v1-6-design.md` and `docs/superpowers/progress-v1-6.md` — prior V1.6 behavior and evidence.
+10. `docs/superpowers/specs/2026-09-15-todo-v1-3-design.md` and `docs/superpowers/plans/2026-09-16-todo-v1-3.md` — historical V1.3 authority when investigating baseline behavior.
+11. `docs/codex/TASKS.md` and `docs/codex/ACCEPTANCE.md` — historical/condensed checklist; verify against current source and tests.
 
-If a summary document conflicts with the full V1.3 design spec, **the design spec wins**. If implementation sequencing differs, **the implementation plan wins**.
+If a summary document conflicts with current source/tests, document the discrepancy and use the current implementation as the factual baseline. For approved scope, the applicable versioned design spec wins; for implementation sequencing, the applicable versioned plan wins. Historical V1.3/V1.6 documents do not override approved V1.7 behavior.
 
 ## Technology constraints
 
 - Static browser application.
 - HTML + CSS + vanilla JavaScript.
 - No framework migration unless explicitly approved.
-- No backend, accounts or cloud sync in V1.3.
+- No backend, accounts or cloud sync in V1.7.
 - Primary metadata state is local-first.
 - `localStorage` stores compact application state.
 - IndexedDB stores large/growing data such as attachments, Habit logs, Goal history and recovery snapshots.
 - Existing V1.2 user data must migrate safely to schema V3.
-- Existing Search behavior must not be redesigned in V1.3.
+- Existing Search behavior must not be redesigned in V1.7.
 - No bulk-selection/bulk-action UI.
 
 ## Product rules that must not be broken
@@ -195,7 +201,7 @@ For each plan task:
 6. Run relevant regression tests.
 7. Only then mark the task complete in `docs/codex/TASKS.md`.
 
-Before declaring V1.3 complete, execute the full acceptance checklist in `docs/codex/ACCEPTANCE.md` and the full regression suite.
+Before declaring a release complete, execute the applicable acceptance checklist and full regression suite. The current V1.7 release ledger records automated verification; native browser acceptance remains a separate manual gate when it has not been run.
 
 ## Important current-state note
 

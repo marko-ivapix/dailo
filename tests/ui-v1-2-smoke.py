@@ -4,9 +4,11 @@ from playwright.sync_api import sync_playwright
 ROOT = Path(__file__).resolve().parents[1]
 CORE = (ROOT / 'js' / 'core.js').read_text()
 JSZIP = (ROOT / 'vendor' / 'jszip.min.js').read_text()
+STORAGE = (ROOT / 'js' / 'storage.js').read_text()
 ATTACHMENTS = (ROOT / 'js' / 'attachments.js').read_text()
 BACKUP = (ROOT / 'js' / 'backup.js').read_text()
 APP = (ROOT / 'js' / 'app.js').read_text()
+MODULES = [(ROOT / 'js' / name).read_text() for name in ('domain-modules.js', 'knowledge.js', 'goals-ui.js', 'habits-ui.js', 'saved-views-ui.js', 'projects-ui.js', 'areas-ui.js', 'settings-ui.js', 'templates-ui.js', 'calendar-ui.js', 'tasks-ui.js', 'cleaning-ui.js')]
 SHELL = '''<!doctype html><html><body>
 <div id="app" class="app-shell" aria-live="polite">
   <aside id="sidebar" class="sidebar" aria-label="Primary navigation"></aside>
@@ -32,15 +34,17 @@ def boot(page, seed=None):
     }''', seed)
     page.add_script_tag(content=JSZIP)
     page.add_script_tag(content=CORE)
+    page.add_script_tag(content=STORAGE)
     page.add_script_tag(content=ATTACHMENTS)
     page.add_script_tag(content=BACKUP)
-    page.add_script_tag(content=APP)
+    for script in MODULES + [APP]:
+        page.add_script_tag(content=script)
     page.wait_for_selector('.page-title')
 
 
 def main():
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True, args=['--no-sandbox'])
+        browser = p.chromium.launch(headless=True, executable_path='/usr/bin/chromium', args=['--no-sandbox'])
         page = browser.new_page(viewport={"width": 1440, "height": 1000})
         boot(page)
 
@@ -226,14 +230,15 @@ def main():
         # Confirmation dialogs trap focus and return it to their trigger on close.
         reset_trigger = page.locator('[data-action="reset-app"]')
         reset_trigger.focus()
-        reset_trigger.click()
-        page.wait_for_timeout(20)
+        with page.expect_download():
+            reset_trigger.click()
+        page.wait_for_selector('#global-confirm-phrase')
         assert page.evaluate("!!document.activeElement.closest('.modal')"), 'Modal did not receive focus'
         page.keyboard.press('Escape')
         page.wait_for_timeout(20)
         assert page.evaluate("document.activeElement?.dataset?.action === 'reset-app'"), 'Focus did not return to modal trigger'
 
-        # Legacy v1 state migrates in-app to v2 without losing v1.1 fields.
+        # Legacy v1 state migrates in-app to v3 without losing V1/V1.2 fields.
         legacy = {
             'version': 1,
             'tasks': [{
@@ -251,16 +256,23 @@ def main():
         page2 = browser.new_page(viewport={"width": 1440, "height": 1000})
         boot(page2, legacy)
         migrated = page2.evaluate("window.TodoApp.state")
-        assert migrated['version'] == 2
+        assert migrated['version'] == 3
         assert migrated['tags'] == []
         assert migrated['tasks'][0]['priority'] == 'none'
         assert migrated['tasks'][0]['tagIds'] == []
         assert migrated['tasks'][0]['attachmentIds'] == []
+        assert migrated['tasks'][0]['goalIds'] == []
+        assert migrated['tasks'][0]['plannedTime'] is None
+        assert migrated['tasks'][0]['dueTime'] is None
         assert migrated['tasks'][0]['recurrence']['frequency'] == 'weekly'
         assert migrated['projects'][0]['isArchived'] is True
+        assert migrated['projects'][0]['goalIds'] == []
+        assert migrated['areas'] == []
+        assert migrated['goals'] == []
+        assert migrated['habits'] == []
         assert migrated['ui']['completedPeriod'] == 7
         persisted = page2.evaluate("JSON.parse(localStorage.getItem('todoAppData'))")
-        assert persisted['version'] == 2
+        assert persisted['version'] == 3
 
         browser.close()
 

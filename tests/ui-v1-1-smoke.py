@@ -3,7 +3,12 @@ from playwright.sync_api import sync_playwright
 
 ROOT = Path(__file__).resolve().parents[1]
 CORE = (ROOT / 'js' / 'core.js').read_text()
+JSZIP = (ROOT / 'vendor' / 'jszip.min.js').read_text()
+STORAGE = (ROOT / 'js' / 'storage.js').read_text()
+ATTACHMENTS = (ROOT / 'js' / 'attachments.js').read_text()
+BACKUP = (ROOT / 'js' / 'backup.js').read_text()
 APP = (ROOT / 'js' / 'app.js').read_text()
+MODULES = [(ROOT / 'js' / name).read_text() for name in ('domain-modules.js', 'knowledge.js', 'goals-ui.js', 'habits-ui.js', 'saved-views-ui.js', 'projects-ui.js', 'areas-ui.js', 'settings-ui.js', 'templates-ui.js', 'calendar-ui.js', 'tasks-ui.js', 'cleaning-ui.js')]
 SHELL = '''<!doctype html><html><body>
 <div id="app" class="app-shell" aria-live="polite">
   <aside id="sidebar" class="sidebar" aria-label="Primary navigation"></aside>
@@ -18,6 +23,7 @@ def boot(page):
     page.set_content(SHELL)
     page.evaluate("location.hash = '#today'")
     page.evaluate('''() => {
+      window.__TODO_TEST_MEMORY_DB__ = true;
       const data = new Map();
       Object.defineProperty(window, 'localStorage', { value: {
         getItem: key => data.has(key) ? data.get(key) : null,
@@ -26,8 +32,13 @@ def boot(page):
         clear: () => data.clear()
       }, configurable: true });
     }''')
+    page.add_script_tag(content=JSZIP)
     page.add_script_tag(content=CORE)
-    page.add_script_tag(content=APP)
+    page.add_script_tag(content=STORAGE)
+    page.add_script_tag(content=ATTACHMENTS)
+    page.add_script_tag(content=BACKUP)
+    for script in MODULES + [APP]:
+        page.add_script_tag(content=script)
     page.wait_for_selector('.page-title')
 
 
@@ -39,9 +50,10 @@ def assert_text(page, selector, text):
 
 def main():
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True, args=['--no-sandbox'])
+        browser = p.chromium.launch(headless=True, executable_path='/usr/bin/chromium', args=['--no-sandbox'])
         page = browser.new_page(viewport={"width": 1440, "height": 1000})
         boot(page)
+        assert page.evaluate('Boolean(window.TodoStorage && window.TodoAttachments && window.TodoBackup)')
 
         # More exposes Anytime / Archived and Anytime is a real processed-task view.
         page.click('[data-action="more-menu"]')
@@ -71,7 +83,7 @@ def main():
         page.click('[data-action="task-repeat-picker"]')
         page.click('[data-pop-action="set-repeat"][data-frequency="weekly"]')
         repeat = page.evaluate(f"window.TodoApp.state.tasks.find(t => t.id === '{task_id}').recurrence")
-        assert repeat == {'frequency': 'weekly', 'interval': 1}
+        assert repeat == {'frequency': 'weekly', 'interval': 1, 'status':'active', 'endType':'never', 'endDate':None, 'endAfterOccurrences':None, 'occurrencesCreated':0, 'skipNext':False, 'seriesId':task_id}
         page.click('[data-action="close-modal"]')
 
         # Completing recurring task creates the next active occurrence.

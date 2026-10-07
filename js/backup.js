@@ -6,8 +6,19 @@
   'use strict';
 
   const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
-  const MAX_ATTACHMENTS_PER_TASK = 10;
-  const BACKUP_VERSION = 1;
+  const MAX_ATTACHMENTS_PER_OWNER = 10;
+  // ZIP limits are intentionally conservative.  They protect the local-first
+  // app from malformed archives and decompression bombs before any replacement
+  // or IndexedDB write is attempted.  Callers may pass smaller limits in tests.
+  const LIMITS = Object.freeze({
+    maxZipEntries: 2000,
+    maxAttachments: 200,
+    maxAttachmentBytes: 50 * 1024 * 1024,
+    maxDecompressedBytes: 100 * 1024 * 1024,
+  });
+  // V1.3/V1.4 share the ZIP format. The app/schema version is tracked
+  // separately in the manifest data (`data.version === 3`).
+  const BACKUP_VERSION = 2;
 
   function requireZip() {
     if (!root.JSZip) throw new Error('ZIP support unavailable');
@@ -23,107 +34,515 @@
     return JSON.parse(JSON.stringify(value));
   }
 
-  function uniquePath(taskId, fileName, used) {
-    const base = safeName(fileName);
+  function ownerDirectory(owner) {
+    return `attachments/${owner.type}_${owner.type === 'task' ? safeName(owner.item.id) : encodeURIComponent(owner.item.id)}`;
+  }
+
+  function uniquePath(owner, fileName, used) {
+    const cleaned = safeName(fileName);
+    const base = ['.', '..'].includes(cleaned) ? 'attachment' : cleaned;
     const dot = base.lastIndexOf('.');
     const stem = dot > 0 ? base.slice(0, dot) : base;
     const ext = dot > 0 ? base.slice(dot) : '';
     let index = 1;
-    let path = `attachments/task_${safeName(taskId)}/${base}`;
-    while (used.has(path)) { index += 1; path = `attachments/task_${safeName(taskId)}/${stem}-${index}${ext}`; }
+    let path = `${ownerDirectory(owner)}/${base}`;
+    while (used.has(path)) { index += 1; path = `${ownerDirectory(owner)}/${stem}-${index}${ext}`; }
     used.add(path);
     return path;
   }
 
   async function exportBackup(state, attachmentApi, nowIso) {
+    return exportBackupV3(state, { attachments: attachmentApi, habitLogs: root.TodoStorage.habitLogs, goalHistory: root.TodoStorage.goalHistory }, nowIso);
+  }
+
+  async function exportBackupV3(state, storage, nowIso) {
+    const source = state;
+    const sourceText = JSON.stringify(state);
+    state = deepClone(state);
+    delete state.habitLogCache; delete state.habitMetrics;
     const JSZip = requireZip();
     const zip = new JSZip();
     const used = new Set();
     const metadata = [];
     const referenced = new Set();
-    for (const task of state.tasks || []) for (const id of task.attachmentIds || []) referenced.add(id);
-    const records = await attachmentApi.getMany([...referenced]);
+    const owners = root.TodoStorage.attachmentOwners(state);
+    for (const owner of owners) for (const id of owner.item.attachmentIds || []) referenced.add(id);
+    const records = await storage.attachments.getMany([...referenced]);
+    const habitLogs = await storage.habitLogs.listAll(), goalHistory = await storage.goalHistory.listAll();
+    validateDomain(state, habitLogs, goalHistory);
+    validateIds(state, records);
+    root.TodoStorage.verifyAttachmentReferences(state, records);
     const byId = new Map(records.map(record => [record.id, record]));
-    for (const id of referenced) if (!byId.has(id)) throw new Error(`Missing attachment: ${id}`);
-    for (const task of state.tasks || []) {
-      for (const id of task.attachmentIds || []) {
+    for (const owner of owners) {
+      for (const id of owner.item.attachmentIds || []) {
         const record = byId.get(id);
-        if (record.taskId !== task.id) throw new Error(`Attachment ownership mismatch: ${id}`);
-        if (record.size > MAX_ATTACHMENT_BYTES) throw new Error(`Attachment exceeds 10 MB: ${record.fileName}`);
-        const path = uniquePath(task.id, record.fileName, used);
-        zip.file(path, record.blob);
-        metadata.push({ id: record.id, taskId: record.taskId, fileName: record.fileName, mimeType: record.mimeType || 'application/octet-stream', size: record.size, createdAt: record.createdAt, updatedAt: record.updatedAt, path });
+        const path = uniquePath(owner, record.fileName, used);
+        zip.file(path, await record.blob.arrayBuffer());
+        const item = { ...record, blobType: record.blob.type, path }; delete item.blob;
+        metadata.push(item);
       }
     }
-    const manifest = { backupVersion: BACKUP_VERSION, appVersion: '1.2', exportedAt: nowIso, data: deepClone(state), attachments: metadata };
+    const manifest = { backupVersion: BACKUP_VERSION, appVersion: '1.3', exportedAt: nowIso, data: state, attachments: metadata, habitLogs, goalHistory };
+    if (JSON.stringify(source) !== sourceText) throw new Error('Source changed during export. Retry.');
     zip.file('data.json', JSON.stringify(manifest, null, 2));
-    return zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
+    const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
+    if (JSON.stringify(source) !== sourceText) throw new Error('Source changed during export. Retry.');
+    return blob;
+  }
+
+  function validateDomain(state, logs, history) {
+    const fail = label => { throw new Error(`Invalid backup ${label}`); };
+    const object = value => value && typeof value === 'object' && !Array.isArray(value);
+    const name = value => typeof value === 'string' && value.trim();
+    const date = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && root.TodoCore.parseDateOnly(value) && root.TodoCore.dateOnly(root.TodoCore.parseDateOnly(value)) === value;
+    const enumField = (item, key, values) => { if (item[key] != null && !values.includes(item[key])) fail(key); };
+    const dateField = (item, key) => { if (item[key] != null && !date(item[key])) fail(key); };
+    const numberField = (item, key, min = 0) => { if (item[key] != null && (typeof item[key] !== 'number' || !Number.isFinite(item[key]) || item[key] < min)) fail(key); };
+    const booleanField = (item, key) => { if (item[key] != null && typeof item[key] !== 'boolean') fail(key); };
+    const positiveInteger = value => Number.isInteger(value) && value > 0;
+    const positiveField = (item, key) => { numberField(item,key); if (item[key] != null && item[key] <= 0) fail(key); };
+    const recurrence = item => {
+      if (item == null) return;
+      if (!object(item) || !['daily','weekly','monthly'].includes(item.frequency) || !positiveInteger(item.interval)) fail('recurrence');
+      enumField(item,'status',['active','paused','ended']);enumField(item,'endType',['never','date','afterOccurrences']);dateField(item,'endDate');
+      if (item.endType === 'date' && !date(item.endDate) || item.endType === 'afterOccurrences' && !positiveInteger(item.endAfterOccurrences)) fail('recurrence end');
+      numberField(item,'occurrencesCreated');booleanField(item,'skipNext');
+    };
+    // Pre-extension V3 ZIPs omitted both knowledge collections.
+    state = { notes: [], resources: [], ...state };
+    const ids = {};
+    const allIds = new Set();
+    for (const collection of ['tasks','projects','tags','areas','goals','habits','notes','resources','templates','savedViews']) {
+      if (!Array.isArray(state[collection])) fail(collection);
+      ids[collection] = new Set();
+      for (const item of state[collection]) {
+        if (!object(item) || !name(item.id) || ids[collection].has(item.id) || allIds.has(item.id) || !name(item[['tasks','goals','notes','resources'].includes(collection) ? 'title' : 'name'])) fail(allIds.has(item.id) ? 'duplicate-id' : collection);
+        ids[collection].add(item.id);
+        allIds.add(item.id);
+      }
+    }
+    const ref = (value, collection) => { if (value != null && !ids[collection].has(value)) fail(`${collection} reference`); };
+    const refs = (item, key, collection) => { if (item[key] != null) { if (!Array.isArray(item[key]) || new Set(item[key]).size !== item[key].length) fail(key); item[key].forEach(id => ref(id, collection)); } };
+    const nested = (items, label) => { if (!Array.isArray(items) || items.some(item => !object(item) || !name(item.id)) || new Set(items.map(item => item.id)).size !== items.length) fail(label); };
+    const entityTimestamps = (item, label) => { if (!root.TodoCore.validEntityTimestamps(item)) fail(`${label} timestamp`); };
+    const taskFields = (task, baseline = false) => {
+      if (!object(task) || !name(task.title)) fail(baseline ? 'recurrence baseline' : 'task');
+      entityTimestamps(task, baseline ? 'recurrence baseline' : 'task');
+      for (const key of ['notes']) if (task[key] != null && typeof task[key] !== 'string') fail(key);
+      for (const key of ['id','projectId','areaId','recurrenceSuccessorId']) if (task[key] != null && !name(task[key])) fail(key);
+      for (const key of ['goalIds','tagIds','attachmentIds']) if (task[key] != null
+        && (!Array.isArray(task[key]) || task[key].some(id => !name(id)) || new Set(task[key]).size !== task[key].length)) fail(key);
+      enumField(task,'priority',['none','low','medium','high']);
+      booleanField(task,'isCompleted');booleanField(task,'isInbox');recurrence(task.recurrence);
+      for (const key of ['plannedDate','dueDate']) dateField(task,key);
+      booleanField(task,'isImportant'); booleanField(task,'isUrgent');
+      for (const key of ['plannedTime','dueTime']) if (task[key] != null && root.TodoCore.normalizeTime(task[key]) !== task[key]) fail(key);
+      for (const key of ['reminderAt','reminderFiredAt','completedAt']) if (task[key] != null
+        && (typeof task[key] !== 'string' || !Number.isFinite(Date.parse(task[key])))) fail(key);
+      for (const key of ['todayOrder','projectOrder','inboxOrder']) numberField(task,key,-Infinity);
+      if (task.durationMinutes != null && !positiveInteger(task.durationMinutes)) fail('durationMinutes');
+      if (task.subtasks != null) {
+        nested(task.subtasks,'subtasks');
+        for (const sub of task.subtasks) {
+          if (!name(sub.title) || sub.subtasks != null && (!Array.isArray(sub.subtasks) || sub.subtasks.length)) fail('subtask');
+          booleanField(sub,'isCompleted');numberField(sub,'order');
+        }
+      }
+      // A baseline is the actual source of the next occurrence. Its references
+      // may be stale and are pruned by generation, but its values must be usable.
+      if (task.recurrenceBaseline != null) taskFields(task.recurrenceBaseline, true);
+    };
+    for (const item of [...state.tasks, ...state.projects, ...state.goals, ...state.habits, ...state.notes, ...state.resources]) ref(item.areaId, 'areas');
+    for (const collection of ['notes', 'resources']) for (const item of state[collection]) {
+      booleanField(item, 'favorite');
+      if (item.clip != null && typeof item.clip !== 'string') fail('clip');
+      for (const field of [collection === 'notes' ? 'body' : 'description', 'createdAt', 'updatedAt'])
+        if (typeof item[field] !== 'string') fail(`${collection} ${field}`);
+      if (item.createdAt !== '' && !root.TodoCore.isIsoTimestamp(item.createdAt)
+        || item.updatedAt !== '' && !root.TodoCore.isIsoTimestamp(item.updatedAt)) fail(`${collection} timestamp`);
+      if (item.areaId != null && !name(item.areaId)) fail(`${collection} Area`);
+      if (!Array.isArray(item.linkUrls) || item.linkUrls.some(url => typeof url !== 'string')) fail(`${collection} links`);
+      refs(item, 'tagIds', 'tags');
+      if (!Array.isArray(item.attachmentIds) || item.attachmentIds.some(id => !name(id))
+        || new Set(item.attachmentIds).size !== item.attachmentIds.length) fail(`${collection} attachments`);
+      if (collection === 'resources') for (const [field, target] of Object.entries({ relatedTaskIds: 'tasks', relatedProjectIds: 'projects', relatedGoalIds: 'goals', relatedHabitIds: 'habits' })) {
+        if (!Array.isArray(item[field]) || item[field].some(id => !name(id))) fail(field);
+        refs(item, field, target);
+      }
+      if (collection === 'resources') {
+        enumField(item, 'type', ['book', 'video', 'article', 'course', 'document', 'other']);
+        enumField(item, 'status', ['unread', 'reading', 'completed']);
+        if (item.author != null && typeof item.author !== 'string') fail('author');
+        dateField(item, 'reviewedAt');
+      }
+    }
+    for (const item of [...state.tasks, ...state.projects, ...state.habits]) refs(item, 'goalIds', 'goals');
+    for (const task of state.tasks) {
+      ref(task.projectId,'projects'); refs(task,'tagIds','tags');
+      taskFields(task);
+    }
+    for (const area of state.areas) enumField(area,'status',['active','archived']);
+    for (const item of state.projects) for (const field of ['createdAt', 'updatedAt']) if (item[field] != null && item[field] !== '' && !root.TodoCore.isIsoTimestamp(item[field])) fail(`project ${field} timestamp`);
+    for (const goal of state.goals) {
+      entityTimestamps(goal, 'Goal');
+      enumField(goal,'horizon',['short','mid','long']);
+      enumField(goal,'status',['active','paused','completed','archived']); enumField(goal,'progressMode',['manual','linkedTasks','linkedHabits']); enumField(goal,'progressType',['percentage','numeric']);
+      numberField(goal,'currentValue');positiveField(goal,'targetValue');dateField(goal,'targetDate');refs(goal,'taskIds','tasks');
+      if (goal.unit != null && typeof goal.unit !== 'string') fail('Goal unit');
+      if (goal.projectLinks != null) { if (!Array.isArray(goal.projectLinks) || new Set(goal.projectLinks.map(link=>link?.projectId)).size !== goal.projectLinks.length) fail('project links'); for (const link of goal.projectLinks) { if (!object(link) || !link.projectId || !['allTasks','selectedTasks'].includes(link.contributionMode)) fail('project link');ref(link.projectId,'projects');refs(link,'selectedTaskIds','tasks');if ((link.selectedTaskIds || []).some(id => state.tasks.find(task => task.id === id)?.projectId !== link.projectId)) fail('selected project Task'); } }
+      if (goal.habitLinks != null) { if (!Array.isArray(goal.habitLinks) || new Set(goal.habitLinks.map(link=>link?.habitId)).size !== goal.habitLinks.length) fail('habit links');for (const link of goal.habitLinks) { if (!object(link) || !link.habitId || !['totalCheckins','streak','successfulPeriods','totalValue','currentStreak','longestStreak','completionRate'].includes(link.metric) || !(link.target > 0)) fail('habit link');ref(link.habitId,'habits');positiveField(link,'target'); } }
+      if (goal.milestones != null) { nested(goal.milestones,'milestones');for (const item of goal.milestones) { if (!name(item.title)) fail('milestone');dateField(item,'date'); } }
+      if (goal.reminders != null && (!object(goal.reminders) || goal.reminders.time != null && root.TodoCore.normalizeTime(goal.reminders.time) !== goal.reminders.time)) fail('Goal reminders');
+    }
+    for (const habit of state.habits) {
+      entityTimestamps(habit, 'Habit');
+      enumField(habit,'routine',['morning','daily','night']);
+      enumField(habit,'status',['active','paused','archived']);enumField(habit,'trackingType',['checkbox','numeric']);enumField(habit,'frequencyType',['daily','weekdays','timesPerWeek','everyNDays']);enumField(habit,'continuation',['automatic','askEachPeriod','onePeriod']);enumField(habit,'endType',['never','date','successfulPeriods']);
+      for (const key of ['startDate','endDate']) dateField(habit,key);
+      for (const key of ['targetValue','timesPerWeek','everyNDays','successfulPeriodsTarget']) positiveField(habit,key);
+      for (const key of ['minimumTarget','idealTarget']) {
+        if (habit.trackingType === 'numeric' && habit.frequencyType !== 'timesPerWeek') positiveField(habit, key);
+        else if (habit[key] != null && !positiveInteger(habit[key])) fail(key);
+      }
+      if (habit.idealTarget != null && habit.minimumTarget != null && habit.idealTarget < habit.minimumTarget) fail('idealTarget');
+      if (habit.graceDays != null && (!Number.isInteger(habit.graceDays) || habit.graceDays < 0)) fail('graceDays');
+      if (habit.trackingType === 'numeric' && !(habit.targetValue > 0)
+        || habit.frequencyType === 'timesPerWeek' && (!positiveInteger(habit.timesPerWeek) || habit.timesPerWeek > 7)
+        || habit.frequencyType === 'everyNDays' && !positiveInteger(habit.everyNDays)
+        || habit.frequencyType === 'weekdays' && !habit.weekdays?.length
+        || habit.endType === 'date' && !date(habit.endDate)
+        || habit.endType === 'successfulPeriods' && !positiveInteger(habit.successfulPeriodsTarget)) fail('Habit configuration');
+      if (habit.weekdays != null && (!Array.isArray(habit.weekdays) || habit.weekdays.some(n => !Number.isInteger(n) || n < 0 || n > 6))) fail('weekdays');
+      if (habit.quickValues != null && (!Array.isArray(habit.quickValues) || habit.quickValues.some(n => typeof n !== 'number' || !Number.isFinite(n) || n <= 0))) fail('quick values');
+      if (habit.reminders != null) { nested(habit.reminders,'Habit reminders');for (const item of habit.reminders) if (root.TodoCore.normalizeTime(item.time) !== item.time) fail('Habit reminder time'); }
+    }
+    const templateData = data => {
+      if (!object(data)) fail('Template data');
+      if (data.durationMinutes != null && !positiveInteger(data.durationMinutes)) fail('Template durationMinutes');
+      for (const key of ['minimumTarget','idealTarget']) {
+        if (data.trackingType === 'numeric' && data.frequencyType !== 'timesPerWeek') positiveField(data,key);
+        else if (data[key] != null && !positiveInteger(data[key])) fail('Template ' + key);
+      }
+      if (data.minimumTarget != null && data.idealTarget != null && data.idealTarget < data.minimumTarget) fail('Template idealTarget');
+      if (data.graceDays != null && (!Number.isInteger(data.graceDays) || data.graceDays < 0)) fail('Template graceDays');
+      for (const key of ['goalIds','tagIds']) if (data[key] != null && (!Array.isArray(data[key]) || data[key].some(id => !name(id)))) fail(`Template ${key}`);
+      for (const key of ['projectId','areaId','goalId']) if (data[key] != null && !name(data[key])) fail(`Template ${key}`);
+      for (const key of ['plannedOffsetDays','dueOffsetDays','reminderOffsetDays','targetOffsetDays','endOffsetDays','dateOffsetDays']) if (data[key] != null && !Number.isInteger(data[key])) fail(`Template ${key}`);
+      for (const key of ['plannedTime','dueTime','reminderTime','time']) if (data[key] != null && root.TodoCore.normalizeTime(data[key]) !== data[key]) fail(`Template ${key}`);
+      for (const key of ['targetValue','target','timesPerWeek','everyNDays','successfulPeriodsTarget','interval','endAfterOccurrences']) positiveField(data,key);
+      enumField(data,'priority',['none','low','medium','high']);enumField(data,'frequencyType',['daily','weekdays','timesPerWeek','everyNDays']);enumField(data,'trackingType',['checkbox','numeric']);enumField(data,'progressMode',['manual','linkedTasks','linkedHabits']);enumField(data,'progressType',['percentage','numeric']);enumField(data,'frequency',['daily','weekly','monthly']);
+      for (const key of ['tasks','subtasks','milestones','goalLinkConfigs']) if (data[key] != null) { if (!Array.isArray(data[key])) fail(`Template ${key}`);data[key].forEach(templateData); }
+      if (data.reminders != null) { if (Array.isArray(data.reminders)) data.reminders.forEach(templateData);else templateData(data.reminders); }
+      if (data.recurrence != null) templateData(data.recurrence);
+      if (data.selectedTaskIndices != null && (!Array.isArray(data.selectedTaskIndices) || data.selectedTaskIndices.some(index=>!Number.isInteger(index) || index<0))) fail('Template selected tasks');
+    };
+    for (const item of state.templates) { if (!['task','project','goal','habit'].includes(item.type)) fail('Template type');templateData(item.data); }
+    for (const item of state.savedViews) {
+      if (!['tasks','goals','habits'].includes(item.type) || !object(item.filters)) fail('Saved View filters');
+      for (const key of ['projectId','areaId','tagId']) if (item.filters[key] != null && !name(item.filters[key])) fail('Saved View reference');
+      enumField(item.filters,'priority',['none','low','medium','high']);
+      enumField(item.filters,'status',item.type==='goals'?['active','paused','completed','archived']:['active','paused','archived']);
+      for (const key of ['plannedDate','dueDate','targetDate']) dateField(item.filters,key);
+    }
+    if (state.settings?.focusTaskIds != null) {
+      if (!Array.isArray(state.settings.focusTaskIds) || new Set(state.settings.focusTaskIds).size !== state.settings.focusTaskIds.length) fail('focusTaskIds');
+      state.settings.focusTaskIds.forEach(id => ref(id, 'tasks'));
+    }
+    if (state.settings?.dashboard != null) {
+      const dashboard = state.settings.dashboard;
+      if (!object(dashboard) || dashboard.focusedMode != null && typeof dashboard.focusedMode !== 'boolean') fail('dashboard');
+      for (const key of ['sectionOrder', 'pinnedSectionIds']) if (dashboard[key] != null && (!Array.isArray(dashboard[key]) || dashboard[key].some(value => !name(value)) || new Set(dashboard[key]).size !== dashboard[key].length)) fail('dashboard');
+    }
+    if (state.settings != null) {
+      if (!object(state.settings)) fail('settings');
+      enumField(state.settings, 'todayFocusFilter', ['all', 'open', 'completed', 'important', 'dueToday']);
+      for (const key of ['todayFocusStrip', 'compactDensity']) booleanField(state.settings, key);
+      if (state.settings.todayVisibleSections != null && (!Array.isArray(state.settings.todayVisibleSections)
+        || state.settings.todayVisibleSections.some(section => !['focus', 'review', 'actions'].includes(section))
+        || new Set(state.settings.todayVisibleSections).size !== state.settings.todayVisibleSections.length)) fail('todayVisibleSections');
+      if (state.settings.weekStartsOn != null && ![0, 1, 'monday', 'sunday'].includes(state.settings.weekStartsOn)) fail('weekStartsOn');
+    }
+    nested(logs,'Habit logs');nested(history,'Goal history');const days = new Set();
+    for (const log of logs) { ref(log.habitId,'habits');if (!log.habitId || !date(log.date) || days.has(`${log.habitId}:${log.date}`) || !['done','skipped','missed'].includes(log.status)) fail('Habit log');days.add(`${log.habitId}:${log.date}`);numberField(log,'value'); }
+    for (const event of history) { ref(event.goalId,'goals');if (!event.goalId || !['created','progressChanged','statusChanged','targetDateChanged','projectLinked','projectUnlinked','manualProgress'].includes(event.type) || !object(event.data) || typeof event.createdAt !== 'string' || !event.createdAt || !root.TodoCore.isIsoTimestamp(event.createdAt)) fail('Goal history timestamp'); }
   }
 
   function validateIds(state, attachments) {
-    const projectIds = new Set((state.projects || []).map(x => x.id));
-    const tagIds = new Set((state.tags || []).map(x => x.id));
-    const taskIds = new Set();
-    for (const task of state.tasks || []) {
-      if (!task.id || taskIds.has(task.id)) throw new Error('Invalid or duplicate task ID');
-      taskIds.add(task.id);
-      if (task.projectId && !projectIds.has(task.projectId)) task.projectId = null;
-      task.tagIds = (task.tagIds || []).filter(id => tagIds.has(id));
-      if ((task.attachmentIds || []).length > MAX_ATTACHMENTS_PER_TASK) throw new Error('A task has more than 10 attachments');
+    const owners = new Map();
+    for (const owner of root.TodoStorage.attachmentOwners(state)) {
+      const ids = owner.item.attachmentIds || [];
+      if (ids.length > MAX_ATTACHMENTS_PER_OWNER) throw new Error('An item has more than 10 attachments');
+      for (const id of ids) {
+        if (typeof id !== 'string' || !id.trim() || owners.has(id)) throw new Error('Invalid or reused attachment ID');
+        owners.set(id, owner);
+      }
     }
     const attachmentIds = new Set();
     for (const item of attachments || []) {
-      if (!item.id || attachmentIds.has(item.id) || !taskIds.has(item.taskId)) throw new Error('Invalid attachment metadata');
+      const owner = owners.get(item?.id);
+      if (!owner || attachmentIds.has(item.id) || !root.TodoStorage.attachmentBelongsTo(item, owner)
+        || typeof item.fileName !== 'string' || typeof item.mimeType !== 'string' || item.pendingDeleteUntil || item.pendingDeleteToken)
+        throw new Error('Invalid attachment metadata or ownership');
       attachmentIds.add(item.id);
-      if (Number(item.size) > MAX_ATTACHMENT_BYTES) throw new Error('Attachment exceeds 10 MB');
+      if (!Number.isInteger(item.size) || item.size < 0 || item.size > MAX_ATTACHMENT_BYTES) throw new Error('Invalid attachment size');
     }
-    for (const task of state.tasks || []) for (const id of task.attachmentIds || []) if (!attachmentIds.has(id)) throw new Error(`Missing attachment metadata: ${id}`);
+    for (const id of owners.keys()) if (!attachmentIds.has(id)) throw new Error(`Missing attachment metadata: ${id}`);
+    return owners;
   }
 
   async function inspectBackup(fileOrBlob) {
+    return inspectBackupV3(fileOrBlob);
+  }
+
+  function limitOptions(options = {}) {
+    return { ...LIMITS, ...(options.limits || {}) };
+  }
+
+  function preflightZip(zip, limits) {
+    const entries = Object.values(zip.files || {});
+    if (entries.length > limits.maxZipEntries) throw new Error(`Backup exceeds ZIP entry limit (${limits.maxZipEntries})`);
+    const estimated = entries.reduce((total, entry) => total + Number(entry._data?.uncompressedSize || 0), 0);
+    if (estimated > limits.maxDecompressedBytes) throw new Error(`Backup exceeds decompressed size limit (${limits.maxDecompressedBytes} bytes)`);
+    return { entries, estimated };
+  }
+
+  const CRC32_TABLE = (() => {
+    const table = new Uint32Array(256);
+    for (let index = 0; index < table.length; index += 1) {
+      let value = index;
+      for (let bit = 0; bit < 8; bit += 1) value = value & 1 ? 0xedb88320 ^ value >>> 1 : value >>> 1;
+      table[index] = value >>> 0;
+    }
+    return table;
+  })();
+
+  function updateCrc32(crc, bytes) {
+    let value = crc;
+    for (const byte of bytes) value = CRC32_TABLE[(value ^ byte) & 0xff] ^ value >>> 8;
+    return value >>> 0;
+  }
+
+  function readZipEntryBounded(entry, maxBytes, label) {
+    if (!Number.isFinite(maxBytes) || maxBytes < 0) return Promise.reject(new Error(`Backup exceeds decompressed size limit while reading ${label}`));
+    let stream;
+    try { stream = entry.internalStream('uint8array'); }
+    catch (error) { return Promise.reject(error); }
+    return new Promise((resolve, reject) => {
+      const chunks = [];
+      let size = 0, crc = 0xffffffff, settled = false;
+      const fail = error => {
+        if (settled) return;
+        settled = true;
+        try { stream.pause(); } catch (_) { /* stream already ended */ }
+        reject(error);
+      };
+      stream.on('data', chunk => {
+        if (settled) return;
+        const bytes = chunk instanceof Uint8Array ? chunk : new Uint8Array(chunk);
+        if (size + bytes.byteLength > maxBytes) {
+          fail(new Error(`Backup exceeds decompressed size limit while reading ${label}`));
+          return;
+        }
+        chunks.push(bytes); size += bytes.byteLength; crc = updateCrc32(crc, bytes);
+      });
+      stream.on('error', fail);
+      stream.on('end', () => {
+        if (settled) return;
+        const expected = entry._data?.crc32;
+        const actual = (crc ^ 0xffffffff) | 0;
+        if (!Number.isFinite(expected) || actual !== (Number(expected) | 0)) {
+          fail(new Error(`Corrupt ZIP entry (CRC32 mismatch): ${label}`));
+          return;
+        }
+        settled = true;
+        const output = new Uint8Array(size);
+        let offset = 0;
+        for (const chunk of chunks) { output.set(chunk, offset); offset += chunk.byteLength; }
+        resolve(output);
+      });
+      stream.resume();
+    });
+  }
+
+  async function inspectBackupV3(fileOrBlob, options = {}) {
+    const limits = limitOptions(options);
     const JSZip = requireZip();
-    const zip = await JSZip.loadAsync(fileOrBlob);
+    const input = await fileOrBlob;
+    // JSZip's CRC option inflates every entry during load, before callers can
+    // inspect central-directory sizes. Keep loading metadata-only so preflight
+    // limits always run before any entry is decompressed.
+    const zip = await JSZip.loadAsync(input instanceof root.Blob ? await input.arrayBuffer() : input, { checkCRC32: false });
+    const preflight = preflightZip(zip, limits);
     const dataEntry = zip.file('data.json');
     if (!dataEntry) throw new Error('Backup is missing data.json');
+    let extractedSize = 0;
     let manifest;
-    try { manifest = JSON.parse(await dataEntry.async('string')); } catch (_) { throw new Error('Invalid data.json'); }
-    if (manifest.backupVersion !== BACKUP_VERSION) throw new Error('Unsupported backup version');
-    const migration = root.TodoCore?.migrateStateV2(manifest.data);
+    try {
+      const dataBytes = await readZipEntryBounded(dataEntry, limits.maxDecompressedBytes - extractedSize, 'data.json');
+      extractedSize += dataBytes.byteLength;
+      manifest = JSON.parse(new root.TextDecoder().decode(dataBytes));
+    } catch (error) {
+      if (/decompressed size limit|CRC32|corrupt/i.test(String(error?.message))) throw error;
+      throw new Error('Invalid data.json');
+    }
+    if (!manifest || ![1, 2, BACKUP_VERSION].includes(manifest.backupVersion)) throw new Error('Unsupported backup version');
+    if (manifest.backupVersion >= 2 && manifest.data?.version !== 3) throw new Error('Invalid V3 backup state');
+    if (manifest.backupVersion >= 2) validateDomain(manifest.data, manifest.habitLogs, manifest.goalHistory);
+    if (!Array.isArray(manifest.attachments)) throw new Error('Invalid attachment manifest');
+    if (manifest.attachments.length > limits.maxAttachments) throw new Error(`Backup exceeds attachment count limit (${limits.maxAttachments})`);
+    const declaredAttachmentBytes = manifest.attachments.reduce((total, item) => total + Number(item?.size || 0), 0);
+    if (!Number.isFinite(declaredAttachmentBytes) || declaredAttachmentBytes > limits.maxAttachmentBytes)
+      throw new Error(`Backup exceeds attachment bytes limit (${limits.maxAttachmentBytes} bytes)`);
+    // Check references before migration can normalize a malformed ID array.
+    validateIds(manifest.data, manifest.attachments);
+    const migration = root.TodoCore?.migrateStateV3(manifest.data);
     if (!migration?.ok) throw new Error('Invalid app data');
-    const state = migration.state;
-    const attachments = Array.isArray(manifest.attachments) ? manifest.attachments : [];
-    validateIds(state, attachments);
+    const repair = root.TodoCore.repairGoalLinks ? root.TodoCore.repairGoalLinks(migration.state, { report: true, strict: true }) : { state: migration.state, warnings: [] };
+    const state = repair.state;
+    const goalLinkError = root.TodoCore.validateGoalLinks?.(state);
+    if (goalLinkError) throw new Error(`Invalid backup ${goalLinkError}`);
+    const attachments = manifest.attachments;
+    const habitLogs = manifest.backupVersion === 1 ? [] : manifest.habitLogs;
+    const goalHistory = manifest.backupVersion === 1 ? [] : manifest.goalHistory;
+    validateDomain(state, habitLogs, goalHistory);
+    const owners = validateIds(state, attachments);
     const records = [];
     let totalSize = 0;
+    const paths = new Set();
     for (const item of attachments) {
+      const owner = owners.get(item.id), parts = typeof item.path === 'string' ? item.path.split('/') : [];
+      // V1.2 packages (backupVersion 1) only knew about task attachments.
+      // V1.3 packages (backupVersion 2) may also contain Note/Resource files.
+      if (manifest.backupVersion === 1 && owner.type !== 'task'
+        || parts.length !== 3 || `${parts[0]}/${parts[1]}` !== ownerDirectory(owner)
+        || !parts[2] || ['.', '..'].includes(parts[2]) || /[\\:*?"<>|\x00-\x1f]/.test(parts[2]) || paths.has(item.path)
+        || item.blobType != null && typeof item.blobType !== 'string') throw new Error('Invalid attachment path or metadata');
+      paths.add(item.path);
       const entry = zip.file(item.path);
       if (!entry) throw new Error(`Missing attachment file: ${item.fileName}`);
-      const blob = await entry.async('blob');
+      if (entry.unsafeOriginalName && entry.unsafeOriginalName !== item.path) throw new Error(`Unsafe attachment file: ${item.fileName}`);
+      const bytes = await readZipEntryBounded(entry, limits.maxDecompressedBytes - extractedSize, item.path);
+      extractedSize += bytes.byteLength;
+      const blob = new root.Blob([bytes], { type: item.blobType ?? item.mimeType });
       if (blob.size !== Number(item.size)) throw new Error(`Attachment size mismatch: ${item.fileName}`);
       if (blob.size > MAX_ATTACHMENT_BYTES) throw new Error(`Attachment exceeds 10 MB: ${item.fileName}`);
       totalSize += blob.size;
-      records.push({ id: item.id, taskId: item.taskId, fileName: item.fileName, mimeType: item.mimeType || blob.type || 'application/octet-stream', size: blob.size, blob, createdAt: item.createdAt || manifest.exportedAt, updatedAt: item.updatedAt || manifest.exportedAt, pendingDeleteUntil: null });
+      if (totalSize > limits.maxAttachmentBytes) throw new Error(`Backup exceeds attachment bytes limit (${limits.maxAttachmentBytes} bytes)`);
+      const record = { ...item, blob }; delete record.path; delete record.blobType;
+      records.push(record);
     }
+    root.TodoStorage.verifyAttachmentReferences(state, records);
     return {
       manifest,
       state,
       attachmentRecords: records,
-      summary: { exportedAt: manifest.exportedAt, tasks: state.tasks.length, projects: state.projects.length, tags: state.tags.length, attachments: records.length, totalSize }
+      habitLogs,
+      goalHistory,
+      summary: { exportedAt: manifest.exportedAt, tasks: state.tasks.length, projects: state.projects.length, tags: state.tags.length, goals: state.goals.length, habits: state.habits.length, notes: state.notes.length, resources: state.resources.length, attachments: records.length, habitLogs: habitLogs.length, goalHistory: goalHistory.length, totalSize, ...(repair.warnings.length ? { warnings: repair.warnings } : {}) }
     };
   }
 
-  async function restoreBackup(validated, { attachmentApi, readState, writeState }) {
+  function prepareSelectiveRestore(current, snapshot, collection, id) {
+    const collections = ['tasks', 'projects', 'areas', 'tags', 'goals', 'habits', 'notes', 'resources', 'templates', 'savedViews'];
+    if (!collections.includes(collection)) throw new Error('Choose a supported entity type.');
+    const migration = root.TodoCore.migrateStateV3(snapshot.appData);
+    if (!migration.ok) throw new Error(`Snapshot validation failed: ${migration.reason}`);
+    validateDomain(migration.state, snapshot.habitLogs || [], snapshot.goalHistory || []);
+    let source;
+    try { source = root.TodoCore.normalizeState(migration.state); }
+    catch (error) { if (/Goal-link repair required/.test(error.message)) throw new Error('Cannot restore reciprocal Goal link: saved contribution settings are missing.'); throw error; }
+    const record = source[collection].find(item => item.id === id);
+    if (!record) throw new Error('The selected entity is not in this snapshot.');
+    validateDomain(source, snapshot.habitLogs || [], snapshot.goalHistory || []);
+    root.TodoStorage.verifyAttachmentReferences(source, snapshot.attachments || []);
+    const next = structuredClone(current);
+    next.state = root.TodoCore.normalizeState(next.state);
+    const index = next.state[collection].findIndex(item => item.id === id);
+    if (index < 0) next.state[collection].push(structuredClone(record));
+    else next.state[collection][index] = structuredClone(record);
+    if (collection === 'goals') {
+      for (const [owners, field, ownerField] of [['tasks', 'taskIds', null], ['projects', 'projectLinks', 'projectId'], ['habits', 'habitLinks', 'habitId']]) {
+        const linked = new Set((record[field] || []).map(link => ownerField ? link[ownerField] : link));
+        for (const owner of next.state[owners]) {
+          if (!linked.has(owner.id) && !(owner.goalIds || []).includes(id)) continue;
+          const goalIds = new Set(owner.goalIds || []);
+          if (linked.has(owner.id)) goalIds.add(id); else goalIds.delete(id);
+          owner.goalIds = [...goalIds];
+        }
+      }
+    }
+    const goalLink = { tasks: ['taskIds', null], projects: ['projectLinks', 'projectId'], habits: ['habitLinks', 'habitId'] }[collection];
+    if (goalLink) {
+      const [field, ownerField] = goalLink;
+      const belongs = link => ownerField ? link[ownerField] === id : link === id;
+      for (const goal of next.state.goals) {
+        const linked = (record.goalIds || []).includes(goal.id);
+        if (!linked && !(goal[field] || []).some(belongs)) continue;
+        // Only the selected entity's reciprocal link changes. Never replace the
+        // current Goal or invent Project/Habit contribution settings.
+        let restored = id;
+        if (linked && ownerField) {
+          restored = source.goals.find(item => item.id === goal.id)?.[field]?.find(belongs);
+          if (!restored) throw new Error('Cannot restore reciprocal Goal link: saved contribution settings are missing.');
+        }
+        goal[field] = (goal[field] || []).filter(link => !belongs(link));
+        if (linked) goal[field].push(structuredClone(restored));
+      }
+    }
+    const ownerType = { tasks: 'task', notes: 'note', resources: 'resource' }[collection];
+    if (ownerType) {
+      const belongs = file => ownerType === 'task' ? file.taskId === id : file.ownerType === ownerType && file.ownerId === id;
+      const restored = (snapshot.attachments || []).filter(file => (record.attachmentIds || []).includes(file.id));
+      const retained = next.attachmentRecords.filter(file => !belongs(file));
+      if (restored.some(file => retained.some(other => other.id === file.id))) throw new Error('Attachment ownership changed. Restore cannot replace another entity\'s file.');
+      next.attachmentRecords = [...retained, ...structuredClone(restored)];
+    }
+    for (const [name, entityCollection, ownerField] of [['habitLogs', 'habits', 'habitId'], ['goalHistory', 'goals', 'goalId']]) {
+      if (collection !== entityCollection) continue;
+      const restored = (snapshot[name] || []).filter(entry => entry[ownerField] === id);
+      const retained = (next[name] || []).filter(entry => entry[ownerField] !== id);
+      if (restored.some(entry => retained.some(other => other.id === entry.id))) throw new Error('History ownership changed.');
+      next[name] = [...retained, ...structuredClone(restored)];
+    }
+    // Dependencies are deliberately not resurrected as extra entities. Missing
+    // references reject the candidate; users can restore those entities first.
+    const validation = root.TodoCore.validateStateV3(next.state);
+    if (!validation.ok) throw new Error(`Restore linked items first: ${validation.reason}`);
+    validateDomain(next.state, next.habitLogs || [], next.goalHistory || []);
+    root.TodoStorage.verifyAttachmentReferences(next.state, next.attachmentRecords);
+    const referencedIds = new Set(root.TodoStorage.attachmentOwners(next.state).flatMap(owner => owner.item.attachmentIds || []));
+    validateIds(next.state, next.attachmentRecords.filter(file => referencedIds.has(file.id)));
+    return next;
+  }
+
+  async function restoreBackup(validated, options = {}) {
+    validated = structuredClone(validated);
+    validated.state = root.TodoCore.repairGoalLinks(validated.state);
+    validateDomain(validated.state, validated.habitLogs || [], validated.goalHistory || []);
+    validateIds(validated.state, validated.attachmentRecords);
+    root.TodoStorage.verifyAttachmentReferences(validated.state, validated.attachmentRecords);
+    // Production callers use Storage.restoreValidatedBackup so restore always
+    // follows the recovery-backed transaction. The injected adapter branch is
+    // retained only for legacy integrations/tests that supply their own stores.
+    const { attachmentApi, readState, writeState } = options;
+    if (!attachmentApi && !readState && !writeState && root.TodoStorage.restoreValidatedBackup)
+      return root.TodoStorage.restoreValidatedBackup(validated);
     const oldState = deepClone(await readState());
     const oldAttachments = await attachmentApi.listAll();
+    const oldLogs = await root.TodoStorage.habitLogs.listAll(), oldHistory = await root.TodoStorage.goalHistory.listAll();
+    const replaceGrowing = async (name, records) => { await root.TodoStorage[name].clearAll(); for (const record of records) await root.TodoStorage[name].put(record); };
     try {
       await attachmentApi.replaceAll(validated.attachmentRecords);
+      await replaceGrowing('habitLogs', validated.habitLogs || []);await replaceGrowing('goalHistory', validated.goalHistory || []);
       await writeState(deepClone(validated.state));
     } catch (error) {
-      try { await attachmentApi.replaceAll(oldAttachments); } catch (_) {}
-      try { await writeState(oldState); } catch (_) {}
+      const failures = [];
+      for (const restore of [()=>attachmentApi.replaceAll(oldAttachments),()=>replaceGrowing('habitLogs',oldLogs),()=>replaceGrowing('goalHistory',oldHistory),()=>writeState(oldState)])
+        try { await restore(); } catch (failure) { failures.push(failure); }
+      if (failures.length) throw new AggregateError([error,...failures], `Restore failed: ${error.message}. Rollback failed: ${failures.map(item=>item.message).join('; ')}. Keep the safety backup and retry recovery.`);
       throw error;
     }
   }
 
-  return { BACKUP_VERSION, exportBackup, inspectBackup, restoreBackup, safeName };
+  return { BACKUP_VERSION, LIMITS, exportBackup, inspectBackup, exportBackupV3, inspectBackupV3, prepareSelectiveRestore, restoreBackup, validateDomain, safeName };
 });
