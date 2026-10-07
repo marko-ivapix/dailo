@@ -12,7 +12,7 @@
 - [x] Step 2 — Version and problem reports (report address pending)
 - [x] Step 3 — Data protection
 - [x] Step 4 — Install
-- [ ] Step 5 — Offline
+- [x] Step 5 — Offline
 - [ ] Step 6 — Serbian localization
 - [ ] Step 7 — Final verification and package
 
@@ -101,3 +101,33 @@ Checks: focused 7/7; full Node **305 pass, 0 fail, 1 todo (306 tests)**; JavaScr
 - **Settings → General:** "Install app" row. When installed (standalone) it says so; otherwise it gives the iPhone steps (Share → Add to Home Screen → Add) and warns that Safari and the installed app keep data separately.
 
 Checks: focused 4/4; V1.8 design contracts 37/37; full Node **309 pass, 0 fail, 1 todo (310 tests)**; JavaScript syntax 58/58; `tools/generate-icons.py` parses; staged `git diff --check` passed. Visual result and status-bar clearance on a real iPhone are **manual-pending**.
+
+**Step 5 — offline start.** New `tests/offline-v1-9.test.js` (6 tests, all failing before the change).
+- **Fonts** in `vendor/fonts/`:
+  - Geist and Space Grotesk variable `woff2`, `latin` + `latin-ext` subsets, from `@fontsource-variable/geist@5.3.0` and `@fontsource-variable/space-grotesk@5.3.0`;
+  - `fonts.css` declares the family names `css/styles.css` already uses (Geist 100–900, Space Grotesk 300–700), with the upstream `unicode-range`s;
+  - the OFL license files are included;
+  - about 87 KB in total. Geist 700, which the CSS uses, is now real instead of synthesized.
+- **Icons** in `vendor/phosphor/`:
+  - `@phosphor-icons/web@2.1.1` regular and fill `woff2` (~279 KB);
+  - the CSS is rewritten so `@font-face` points only at the local `woff2`;
+  - the MIT `LICENSE` is included (CRLF normalized to LF for `git diff --check`; text unchanged).
+- **`index.html`:** the Google Fonts and unpkg links and preconnects are removed. A test asserts that no `http(s)://` reference remains and that every local reference exists.
+- **Icon audit:** every literal `ph-*` icon name in `index.html` and `js/*.js` exists in the vendored CSS. It passes after the G1 fix, so no other broken icon names were found.
+- **`sw.js`** (scope `./`):
+  - precaches the exact runtime shell into `dailo-shell-<VERSION>`. A test derives the expected list from `index.html`, its stylesheets' `url()`s and the manifest icons, and requires the two to be equal;
+  - `VERSION` must equal `APP_VERSION`;
+  - `activate` deletes only older `dailo-shell-*` caches and claims clients;
+  - `fetch`:
+    - cache-first for shell files (query strings ignored);
+    - navigations to the app page (`./`, `index.html`) get the cached `index.html`;
+    - other pages and downloads under the scope (docs, release ZIPs), cross-origin requests and non-GET requests are not intercepted;
+  - `skipWaiting` runs only from a `SKIP_WAITING` message.
+- **`js/app.js`:**
+  - `registerServiceWorker()` runs only on `https:`/`localhost`;
+  - a waiting worker produces a "A new version of Dailo is available — Refresh" toast;
+  - `applyAppUpdate()` (the only `SKIP_WAITING` sender) flushes pending text and reloads once on `controllerchange`;
+  - the first install shows no prompt.
+- **Test stub added** (assertions unchanged): `registerServiceWorker() {}` in the scheduler harness that slices `init()`.
+
+Checks: focused 6/6; full Node **315 pass, 0 fail, 1 todo (316 tests)**; JavaScript syntax 59/59 plus `node --check sw.js`; static browser contracts 10/10; staged `git diff --check` passed. Real offline launch and the update prompt on iPhone are **manual-pending**.

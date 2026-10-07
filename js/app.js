@@ -39,6 +39,8 @@
   let automaticSnapshotTimer = null;
   let storagePersistence = { state: 'unknown' };
   let storagePersistenceRequested = false;
+  let waitingServiceWorker = null;
+  let appUpdateRequested = false;
   let globalOperation = null;
   let globalRecoveryNotice = null;
   let modalState = null;
@@ -2918,7 +2920,8 @@
     const recoveryNotice = failed && !undoHold ? `<div class="toast" role="alert"><i class="ph ph-warning toast-icon"></i><span class="toast-message">${esc(failed.recoveryError)} · Snapshot retained</span><button class="toast-action" type="button" data-action="retry-delete-recovery">Retry recovery</button></div>` : '';
     const globalNotice = globalRecoveryNotice ? `<div class="toast" role="alert"><span class="toast-message">${esc(globalRecoveryNotice.message)}</span><button class="toast-action" data-action="retry-global-recovery">Retry</button></div>` : '';
     const staleNotice = staleDataNotice ? `<div class="toast" role="alert"><i class="ph ph-arrows-clockwise toast-icon"></i><span class="toast-message">This workspace changed in another tab. Refresh to load the latest data.</span><button class="toast-action" type="button" data-action="refresh-stale-data">Refresh</button></div>` : '';
-    root.innerHTML = undo + info + recoveryNotice + globalNotice + staleNotice;
+    const updateNotice = waitingServiceWorker ? `<div class="toast" role="status"><i class="ph ph-arrow-circle-up toast-icon"></i><span class="toast-message">A new version of Dailo is available.</span><button class="toast-action" type="button" data-action="apply-app-update">Refresh</button></div>` : '';
+    root.innerHTML = undo + info + recoveryNotice + globalNotice + staleNotice + updateNotice;
   }
 
   async function doUndo() {
@@ -3359,6 +3362,30 @@
     } catch (error) {
       return { state: 'unknown' };
     }
+  }
+
+  // Offline shell (V1.9). Service workers need HTTPS or localhost.
+  function registerServiceWorker() {
+    const secure = location.protocol === 'https:' || ['localhost', '127.0.0.1'].includes(location.hostname);
+    if (!secure || typeof navigator === 'undefined' || !navigator.serviceWorker) return;
+    // Without a controller this is the first install, which activates on its own: nothing to offer.
+    const offer = worker => { if (worker && navigator.serviceWorker.controller) { waitingServiceWorker = worker; renderToast(); } };
+    navigator.serviceWorker.register('sw.js').then(registration => {
+      offer(registration.waiting);
+      registration.addEventListener('updatefound', () => {
+        const worker = registration.installing;
+        worker?.addEventListener('statechange', () => { if (worker.state === 'installed') offer(worker); });
+      });
+    }).catch(error => console.error(error));
+    navigator.serviceWorker.addEventListener('controllerchange', () => { if (appUpdateRequested) { appUpdateRequested = false; location.reload(); } });
+  }
+
+  // Runs only from the "Refresh" button, so the page never reloads while the user is editing.
+  function applyAppUpdate() {
+    if (!waitingServiceWorker) return;
+    appUpdateRequested = true;
+    flushTextSave();
+    waitingServiceWorker.postMessage({ type: 'SKIP_WAITING' });
   }
 
   function updateStoragePersistence(request = false) {
@@ -3924,6 +3951,7 @@
     else if (action === 'enable-notifications') enableBrowserNotifications();
     else if (action === 'export-backup') exportBackupAction();
     else if (action === 'snooze-backup-reminder') { snoozeBackupReminder(); render(); }
+    else if (action === 'apply-app-update') applyAppUpdate();
     else if (action === 'request-storage-persistence') updateStoragePersistence(true).catch(console.error);
     else if (action === 'import-backup') chooseImportBackup();
     else if (action === 'restore-backup') restoreImportedBackup();
@@ -4418,6 +4446,7 @@
     await startReady();
     scheduleAutomaticSnapshot();
     updateStoragePersistence(false).catch(console.error);
+    registerServiceWorker();
     if (!location.hash) location.hash = '#today';
     setInterval(() => {
       if (globalOperation || startupPromise || recovery || !state) return;
