@@ -41,3 +41,10 @@ Task 7 integration evidence: final whole-branch review approved with no critical
 ## Manual browser gate
 
 Pending user-owned-browser verification. No isolated Chromium or personal Chrome was opened by the implementation workflow.
+
+## Documentation handoff sync — 2026-10-07
+
+- Added and linked `docs/claude/CONTINUATION.md` as the Claude Code entry point for the verified V1.7 baseline and the planned V1.8 redesign.
+- Synchronized current-version pointers, release facts, test commands, module counts and manual-pending boundaries across `CLAUDE.md`, `README.md`, `docs/claude/` and the condensed Codex indexes.
+- Re-ran the local documentation baseline: Node **251/251**, JavaScript syntax **52/52**, Python AST **19/19**, browser-path adapter **2/2**, browser-regression registry **3/3**, dry-run registry/static contracts and `git diff --check` all passed.
+- Historical versioned specs, plans and checklists remain traceability records; no manual browser item was marked complete.

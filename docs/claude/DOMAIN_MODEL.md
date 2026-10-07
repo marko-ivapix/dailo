@@ -1,6 +1,6 @@
 # Dailo domain model
 
-Current implementation reference, inspected 2026-09-22. This describes the static V1.7 stabilization prototype, not a backend contract or a claim of native-browser acceptance. Product intent remains **Capture → Organize → Plan → Complete**, with Today as the main working surface.
+Current implementation reference, inspected 2026-10-07. This describes the static V1.7 stabilization prototype, not a backend contract or a claim of native-browser acceptance. Product intent remains **Capture → Organize → Plan → Complete**, with Today as the main working surface.
 
 ## Canonical entities
 
@@ -66,6 +66,6 @@ Automatic snapshots run after successful saves/startup, idle for one second, no 
 
 ## Evidence and limits
 
-Implementation: `js/core.js`, `js/app.js`, `js/domain-modules.js`, `js/*-ui.js`, `js/knowledge.js`, `js/storage.js`, `js/attachments.js`, `js/backup.js`. Regression evidence: `tests/core*.test.js`, `tests/tasks-today*.test.js`, `tests/goals-v1-6.test.js`, `tests/habits-v1-6.test.js`, `tests/calendar-v1-6.test.js`, `tests/templates-v1-6.test.js`, `tests/knowledge*.test.js`, `tests/backup*.test.js`, `tests/recovery*.test.js`, `tests/inbox-v1-6.test.js`, `tests/backup-v1-7.test.js`, `tests/v1-7-polish.test.js`. The V1.7 verification records 238 passing Node tests, 51 JavaScript files passing syntax checks, Python AST/static checks, and native-browser acceptance manual-pending.
+Implementation: `js/core.js`, `js/app.js`, `js/domain-modules.js`, `js/*-ui.js`, `js/knowledge.js`, `js/storage.js`, `js/attachments.js`, `js/backup.js`. Regression evidence: `tests/core*.test.js`, `tests/tasks-today*.test.js`, `tests/goals-v1-6.test.js`, `tests/habits-v1-6.test.js`, `tests/calendar-v1-6.test.js`, `tests/templates-v1-6.test.js`, `tests/knowledge*.test.js`, `tests/backup*.test.js`, `tests/recovery*.test.js`, `tests/inbox-v1-6.test.js`, `tests/backup-v1-7.test.js`, `tests/v1-7-polish.test.js`. The current V1.7 verification records 251 passing Node tests, 52 JavaScript files passing syntax checks, Python AST/static checks, and native-browser acceptance manual-pending.
 
 Native-browser persistence, file interactions, visuals, keyboard/focus, responsive/mobile and accessibility acceptance remain manual-pending. No backend, authentication, cloud sync, collaboration, server reminders, AI planning, integrations, bulk actions, Search redesign, nested Goals, weighted contributions, elapsed-time tracking or inline attachment preview is implemented by this model.

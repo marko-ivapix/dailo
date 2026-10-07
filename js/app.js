@@ -847,7 +847,7 @@
     const group = (key,label,body) => `<section class="sidebar-section" data-sidebar-section="${key}"><button class="sidebar-section-title sidebar-section-toggle" type="button" data-action="toggle-sidebar-section" data-section="${key}" aria-expanded="${!state.ui.sidebarSections[key]}" aria-controls="sidebar-${key}" title="${label}"><span>${label}</span><i class="ph ${state.ui.sidebarSections[key]?'ph-caret-right':'ph-caret-down'}"></i></button><div class="sidebar-section-body" id="sidebar-${key}" ${state.ui.sidebarSections[key]?'hidden':''}>${body}</div></section>`;
     $('#sidebar').innerHTML = `
       <div class="sidebar-header">
-        <div class="brand" title="Dailo v1.5 prototype">
+        <div class="brand" title="Dailo v1.8 prototype">
           <span class="brand-mark" aria-hidden="true"></span>
           <span class="brand-name">Dailo</span>
         </div>
@@ -1227,7 +1227,7 @@
 
   function renderRecovery() {
     if (recovery === 'global-recovery') return '<div class="recovery"><div class="recovery-card"><h1>Recovery is required.</h1><p>An interrupted global operation retained its internal recovery copy. Use Retry recovery below before continuing.</p></div></div>';
-    if (recovery === 'migration-loading') return '<div class="recovery"><div class="recovery-card"><h1>Preparing your local data…</h1><p>Please wait while local storage is checked.</p></div></div>';
+    if (recovery === 'migration-loading') return '<div class="recovery recovery--loading" role="status" aria-busy="true"><div class="recovery-card"><span class="recovery-spinner" aria-hidden="true"></span><h1>Preparing your local data…</h1><p>Please wait while local storage is checked.</p></div></div>';
     if (recovery === 'migration-error') return '<div class="recovery"><div class="recovery-card"><h1>Local data migration could not finish.</h1><p>Your saved data and original files have not been overwritten. Check available storage and close other app tabs, then retry.</p><div class="recovery-actions"><button class="btn btn-secondary" type="button" data-action="retry-load">Retry</button></div></div></div>';
     const unsupported = recovery === 'unsupported-version';
     return `<div class="recovery"><div class="recovery-card"><h1>${unsupported ? 'This data is from a newer version.' : "We couldn't load your local data."}</h1><p>${unsupported ? "The prototype can't safely read this saved format." : 'Your saved data appears to be invalid. Nothing has been overwritten.'}</p><div class="recovery-actions"><button class="btn btn-secondary" type="button" data-action="retry-load">Retry</button><button class="btn btn-danger" type="button" data-action="recovery-reset">Reset local data</button></div></div></div>`;

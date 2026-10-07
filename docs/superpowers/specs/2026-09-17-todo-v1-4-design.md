@@ -1,6 +1,6 @@
 # Dailo V1.4 Design Specification
 
-**Status:** Draft for approval  
+**Status:** Implemented as a historical V1.4 extension; current source and `docs/superpowers/progress-v1-4.md` are the factual evidence
 **Date:** 2026-09-17  
 **Baseline:** V1.3 local prototype
 

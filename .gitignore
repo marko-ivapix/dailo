@@ -4,3 +4,5 @@
 __pycache__/
 *.pyc
 Dailo-v1.5-distributable.zip
+.DS_Store
+Dailo-v1.7-distributable/

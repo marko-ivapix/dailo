@@ -1,5 +1,7 @@
 # Dailo — Claude project guide
 
+> Documentation synchronized on 2026-10-07 against the V1.7 source, tests and release artifact, then updated for the V1.8 Quiet Graphite visual redesign implemented in the working tree on the same date. V1.8 is presentation-only: behavior, persistence, Search and recovery are the V1.7 baseline. It is not yet committed or packaged, and native-browser visual acceptance is manual-pending.
+
 This file is the entry point for Claude and other coding agents working in this repository.
 
 ## Read first
@@ -7,13 +9,14 @@ This file is the entry point for Claude and other coding agents working in this 
 Read these files in order:
 
 1. `AGENTS.md` — non-negotiable product and engineering rules.
-2. `docs/claude/PROJECT_MAP.md` — repository map and module entry points.
-3. `docs/claude/ARCHITECTURE.md` — runtime, rendering and state flow.
-4. `docs/claude/DOMAIN_MODEL.md` — entities, links, lifecycle and invariants.
-5. `docs/claude/FEATURES.md` — current V1.3–V1.7 behavior and known gaps.
-6. `docs/claude/DATA_AND_RECOVERY.md` — local persistence, migration and recovery.
-7. `docs/claude/TESTING_AND_RELEASE.md` — verification commands and release facts.
-8. `docs/claude/WORKING_RULES.md` — safe change and review rules.
+2. `docs/claude/CONTINUATION.md` — current handoff, verified baseline and next-work protocol.
+3. `docs/claude/PROJECT_MAP.md` — repository map and module entry points.
+4. `docs/claude/ARCHITECTURE.md` — runtime, rendering and state flow.
+5. `docs/claude/DOMAIN_MODEL.md` — entities, links, lifecycle and invariants.
+6. `docs/claude/FEATURES.md` — current V1.3–V1.7 behavior and known gaps.
+7. `docs/claude/DATA_AND_RECOVERY.md` — local persistence, migration and recovery.
+8. `docs/claude/TESTING_AND_RELEASE.md` — verification commands and release facts.
+9. `docs/claude/WORKING_RULES.md` — safe change and review rules.
 
 Then consult the primary project files:
 
@@ -22,6 +25,10 @@ Then consult the primary project files:
 - `docs/superpowers/specs/2026-09-22-todo-v1-7-design.md` — approved V1.7 stabilization design.
 - `docs/superpowers/plans/2026-09-22-todo-v1-7.md` — V1.7 implementation plan.
 - `docs/superpowers/progress-v1-7.md` — release evidence and exact verification results.
+- `docs/superpowers/specs/2026-10-07-todo-v1-8-design.md` — V1.8 Quiet Graphite / Swiss Compact visual design (tokens, responsive rules, preserved behaviors).
+- `docs/superpowers/plans/2026-10-07-todo-v1-8.md` and `docs/superpowers/progress-v1-8.md` — V1.8 plan and per-phase evidence.
+
+The historical V1.3/V1.4/V1.5/V1.6 specifications and progress ledgers remain useful for intent and regression context. They are not a replacement for current source inspection.
 
 ## Source-of-truth rule
 
@@ -40,3 +47,11 @@ python3 -m http.server 8080
 ```
 
 Do not launch an isolated Chromium or open/modify the user's personal Chrome unless the user explicitly asks for that browser action. Native visual/browser acceptance is separate from the local automated suite.
+
+## Current handoff boundary
+
+- V1.7 behavior is implemented and locally verified. The V1.8 visual redesign is implemented in `css/styles.css` (token system + one appended layer) with minimal markup hooks, verified by automated/static checks only; it is uncommitted and not packaged.
+- The app remains static HTML/CSS/vanilla JavaScript with localStorage + IndexedDB; there is no backend, account system, cloud sync or production REST API.
+- Global Search behavior and the no-bulk-actions rule are compatibility constraints.
+- Native browser, mobile touch, real IndexedDB/file chooser and visual acceptance remain **manual-pending**. Never report them as green from Node/static checks.
+- For a new feature, create or update a versioned design/plan entry, add a focused failing test first, then implement the smallest compatible change.

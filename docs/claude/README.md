@@ -1,9 +1,10 @@
 # Claude documentation index
 
-These files are the current implementation handoff for Claude and other agents. They are derived from the V1.7 source, tests and release evidence on 2026-09-22.
+These files are the current implementation handoff for Claude and other agents. They were synchronized on 2026-10-07 against the V1.7 source, tests and release evidence.
 
 | File | Use it for |
 | --- | --- |
+| `CONTINUATION.md` | Current handoff, verified baseline, honest acceptance boundary and next-work protocol |
 | `PROJECT_MAP.md` | File/module inventory and where to start a change |
 | `ARCHITECTURE.md` | Boot, adapter dispatch, rendering, events and derived views |
 | `DOMAIN_MODEL.md` | Entity shape, relationships, lifecycle and invariants |
@@ -12,7 +13,7 @@ These files are the current implementation handoff for Claude and other agents. 
 | `TESTING_AND_RELEASE.md` | Commands, exact release counts, package and browser limits |
 | `WORKING_RULES.md` | Safe editing, scope, verification and documentation vocabulary |
 
-Start at the repository root [`CLAUDE.md`](../../CLAUDE.md), then read these guides before editing code. `AGENTS.md` remains the governing project policy. The V1.7 spec, plan and progress ledger are the current release references. Versioned specs and plans remain authoritative for approved scope; current source/tests remain authoritative for what is actually implemented.
+Start at the repository root [`CLAUDE.md`](../../CLAUDE.md), then read `CONTINUATION.md` and the relevant guides before editing code. `AGENTS.md` remains the governing project policy. The V1.7 spec, plan and progress ledger are the current behavior references; the V1.8 spec (`docs/superpowers/specs/2026-10-07-todo-v1-8-design.md`), plan and ledger (`docs/superpowers/progress-v1-8.md`) are the current visual-design references. Versioned specs and plans remain authoritative for approved scope; current source/tests remain authoritative for what is actually implemented.
 
 Status labels used throughout:
 

@@ -1,13 +1,13 @@
 # Current implementation project map
 
-This map describes the source inspected on 2026-09-22. It is an onboarding aid for Claude, not a replacement for `AGENTS.md`, the versioned specifications, or acceptance evidence. The directory name still says V1.3; README describes V1.7 functionality. Inspect source before making version or completion claims.
+This map describes the source inspected on 2026-10-07. It is an onboarding aid for Claude, not a replacement for `AGENTS.md`, the versioned specifications, or acceptance evidence. The directory name still says V1.3; README describes V1.7 functionality. Inspect source before making version or completion claims.
 
 ## Runtime files
 
 | File | Current responsibility |
 | --- | --- |
 | `index.html` | Static shell: desktop sidebar, responsive mobile bottom navigation, main content, floating Quick Add/capture controls, modal and toast roots; loads styles and ordered classic scripts. |
-| `css/styles.css` | Shared application styling, tokens, component states, density, responsive rules for desktop/mobile/tablet navigation and Quick Add, plus reduced-motion behavior. There is no component CSS build pipeline. |
+| `css/styles.css` | Shared application styling. The top `:root` block is the V1.8 Quiet Graphite token system (primitives, semantic roles, every V1.7 token name kept as an alias). Historical V1.3–V1.7 rule layers follow, then one appended `V1.8 Quiet Graphite / Swiss Compact` layer organized by surface; the phone touch-target guard must stay the final rule. Includes responsive desktop/tablet/phone rules, reduced motion, `prefers-contrast` and forced-colors support. There is no component CSS build pipeline. |
 | `vendor/jszip.min.js` | Vendored JSZip 3.10.1; supplies `JSZip` for local ZIP export/import. |
 | `js/core.js` | `TodoCore`: normalization, V3 migration/validation, task/date rules, derived views, Goal contributions, Habit schedules/metrics, templates and newer planning/insight calculations. Also exports CommonJS for Node tests. |
 | `js/storage.js` | `TodoStorage`: IndexedDB access, attachment ownership, legacy-file migration, Habit logs, Goal history, migration/recovery snapshots, validated data replacement and verification. Also supports CommonJS/test memory storage. |
@@ -38,9 +38,9 @@ This map describes the source inspected on 2026-09-22. It is an onboarding aid f
 
 ## Tests and documentation
 
-`tests/*.test.js` uses Node's built-in test runner. Some tests import pure modules; others evaluate selected app/controller code in VM contexts with test doubles or inspect source/CSS. Those checks do not establish real browser behavior. Files carry historical version suffixes and remain regression coverage, not independent applications.
+`tests/*.test.js` uses Node's built-in test runner. The current tree has 35 Node test files (including `tests/design-v1-8.test.js`, the V1.8 visual contracts), 17 runtime JavaScript modules and 19 Python test/helper files. Some tests import pure modules; others evaluate selected app/controller code in VM contexts with test doubles or inspect source/CSS. Those checks do not establish real browser behavior. Files carry historical version suffixes and remain regression coverage, not independent applications.
 
-`tests/ui-*.py` contains browser scenarios. `tests/browser_test_support/` contains the test-only path adapter and `sitecustomize.py`; `tests/test_browser_path_adapter.py` checks the adapter. `tests/run-browser-regressions.py` enumerates maintained V1.1/V1.2/V1.3/V1.5/V1.6 groups and labels static versus manual-browser entries. Browser prerequisites are in `requirements-browser-tests.txt` and README. There is no root `package.json`; the Node suite is invoked directly with `node --test tests/*.test.js`.
+`tests/ui-*.py` contains browser scenarios. `tests/browser_test_support/` contains the test-only path adapter and `sitecustomize.py`; `tests/test_browser_path_adapter.py` checks the adapter. `tests/run-browser-regressions.py` enumerates maintained V1.1/V1.2/V1.3/V1.5/V1.6 groups and labels static versus manual-browser entries. V1.7 release coverage is primarily in the Node/static suites and the V1.7 progress ledger. Browser prerequisites are in `requirements-browser-tests.txt` and README. There is no root `package.json`; the Node suite is invoked directly with `node --test tests/*.test.js`.
 
 `README.md` explains running the prototype, features and verification limitations. `PROJECT_OVERVIEW.md` is a Serbian product overview with explicitly labeled brainstorming questions; those questions are not accepted requirements. `docs/codex/` holds product/scope/checklists; `docs/superpowers/` holds versioned specs, plans and progress evidence. Follow `AGENTS.md` precedence when changing behavior, and distinguish historical requirements from current implementation.
 

@@ -1,7 +1,7 @@
 # Dailo V1.6 Design Specification
 
 **Date:** 2026-09-17  
-**Status:** Approved in chat; awaiting written-spec review before implementation  
+**Status:** Approved; implementation completed and recorded in `docs/superpowers/progress-v1-6.md` (historical design record)
 **Baseline:** V1.5 (`08234b0`)
 
 ## Goal
@@ -196,4 +196,3 @@ Finish V1.6 with safe recovery and a consistent compact experience.
 ## Out of scope for V1.6
 
 - Accounts, backend sync, collaboration, notifications delivered by a server, AI features, recurring bulk operations, and a global Search redesign.
-

@@ -1,6 +1,6 @@
 # Dailo feature inventory
 
-Inspected 2026-09-22 against current V1.7 source, tests and release ledger. **Implemented** means code exists. **Automated coverage** means relevant assertions exist; some UI assertions inspect source strings rather than drive a browser. **Manual-pending** means native-browser acceptance remains outstanding. Nothing here converts prototype behavior into production/backend verification.
+Inspected 2026-10-07 against current V1.7 source, tests and release ledger. **Implemented** means code exists. **Automated coverage** means relevant assertions exist; some UI assertions inspect source strings rather than drive a browser. **Manual-pending** means native-browser acceptance remains outstanding. Nothing here converts prototype behavior into production/backend verification.
 
 ## Implemented features and evidence
 
@@ -20,6 +20,7 @@ Inspected 2026-09-22 against current V1.7 source, tests and release ledger. **Im
 | Delete/Undo | Confirmation → Delete → Snackbar Undo; linked/history/file snapshots; deferred pending-attachment cleanup; Clear Completed Undo | `js/app.js`, `js/storage.js`, `js/attachments.js`; Core/storage/recovery/integration suites |
 | Export/full restore/reset | V3 state payload in ZIP `backupVersion: 2`; valid backup versions 1/2 import; entities/files/Habit logs/Goal history/preferences; validation before Replace All; safety ZIP/internal copy/typed confirmation; verified write and rollback; status/retained-copy cleanup Retry | `js/backup.js`, `js/storage.js`, `js/app.js`; `backup-v1-6.test.js`, `backup-status-v1-6.test.js`, `recovery-v1-6.test.js` |
 | Local recovery | Five bounded automatic snapshots, idle/rate-limited capture after successful save/startup; selective entity replacement, owned files/history and reciprocal links; dependency validation; typed RESTORE and safety copies; Undo guards against later edits | `js/storage.js`, `js/backup.js`, `js/app.js`; `recovery-v1-5.test.js`, `recovery-ui-v1-5.test.js`, integration tests |
+| V1.8 visual design | Quiet Graphite / Swiss Compact token system and per-surface layer: graphite neutrals, hairline structure, 4/6/8/12px radii, Space Grotesk headings/numerals, visible two-step focus ring, inset rings in clipped containers, segmented controls, type rails in Calendar, state rails, empty/loading/error states, `prefers-contrast`/forced-colors support; behavior unchanged | `css/styles.css`, `tests/design-v1-8.test.js`; native visual acceptance manual-pending |
 | Starter examples | Explicit Settings action adds missing editable sample Areas/Habits with stable markers and no copied history; routines group active Habits | `js/habits-ui.js`; underlying sample/routine assertions in Core suites; repeat/reload interaction still manual-pending |
 
 ## Verification status
@@ -36,12 +37,12 @@ Accounts/authentication, backend/cloud sync, collaboration/comments/team workspa
 
 ## Documentation drift to resolve before using older summaries as instructions
 
-1. `AGENTS.md`, `docs/codex/PRODUCT_BRIEF.md`, `V1_3_SCOPE.md`, `TASKS.md` and `ACCEPTANCE.md` describe the V1.3 baseline. Preserve historical semantics, but add a current-version entry point and explicit precedence for V1.4–V1.6 changes.
+1. `AGENTS.md`, `docs/codex/PRODUCT_BRIEF.md`, `V1_3_SCOPE.md`, `TASKS.md` and `ACCEPTANCE.md` describe the V1.3 baseline. Preserve historical semantics, but use `CLAUDE.md` and `CONTINUATION.md` as the current-version entry points and keep V1.4–V1.7 changes explicit.
 2. The older brief/scope excludes Habits from Upcoming; current `deriveUpcomingV3` adds the next scheduled Habit within 14 days and milestone projections. Update current product guidance accordingly.
 3. The older Calendar brief says no duration/time-block rectangles. Current planned-time/duration blocks are implemented. Week/Month and Day Detail remain; this is not a standalone hourly grid.
 4. V1.3 requires Goal dragging, whereas current Calendar UI exposes only Task drag. V1.6's non-draggable Goal direction matches the UI; make the supersession explicit.
-5. V1.6 spec header says awaiting written-spec review before implementation despite the completed release ledger. Update the status/history when authorized; do not treat that header as current completion evidence.
+5. The V1.6 spec is now labeled as a completed historical design record; its release ledger remains the evidence source for what shipped.
 6. README's short export tree shows only Task attachment paths, while current ZIP exports can include Note/Resource-owned files and histories as well. Its initial import/reset description should point to the fuller typed-confirmation/recovery contract rather than omit it.
 7. README mentions native Goal UX suite coverage while also declaring browser acceptance pending. Keep test availability distinct from freshly executed browser results.
 
-These are recommendations only; this handoff does not edit historical specifications or declare manual acceptance complete.
+The historical specifications and checklists remain unchanged as traceability records. This current handoff resolves the documentation entry-point/version drift but does not declare any manual browser item complete.

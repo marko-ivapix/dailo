@@ -1,6 +1,6 @@
 # Codex Task Checklist — V1.3 baseline
 
-> The current implementation extends this baseline through V1.6. Use `CLAUDE.md` and `docs/claude/` for current source/module/release facts; this file remains the condensed V1.3 task history.
+> The current implementation extends this baseline through V1.7. Use `CLAUDE.md` and `docs/claude/` for current source/module/release facts; this file remains the condensed V1.3 task history.
 
 **Important:** This checklist intentionally starts unchecked. Codex must inspect the actual working tree and run fresh tests before marking an item complete. Prior chat claims are not evidence.
 

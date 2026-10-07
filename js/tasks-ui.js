@@ -5,7 +5,7 @@
     const project = ctx.getProject(task.projectId);
     const today = ctx.Core.dateOnly();
     const meta = [];
-    if (project) meta.push(`<span style="display:inline-flex;align-items:center;gap:6px"><span class="project-dot" style="--project-color:${ctx.esc(project.color)}"></span>${ctx.esc(project.name)}</span>`);
+    if (project) meta.push(`<span class="task-meta-project"><span class="project-dot" style="--project-color:${ctx.esc(project.color)}"></span>${ctx.esc(project.name)}</span>`);
     if (task.dueDate) {
       let cls = '';
       let label = `Due ${ctx.relativeDateLabel(task.dueDate, today)}`;

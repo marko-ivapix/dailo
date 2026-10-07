@@ -33,6 +33,17 @@ Node testovi pokrivaju podatke, UI module, ZIP i selektivni recovery; izolovana 
 
 V1.7 status i tačni brojevi provera vode se u `docs/superpowers/progress-v1-7.md`. Native browser provera je **manual-pending** dok ne bude izvršena u user-owned browseru; statičke i Node provere nisu zamena za vizuelnu ili stvarnu browser potvrdu.
 
+## V1.8 — vizuelni redizajn (Quiet Graphite / Swiss Compact)
+
+- Samo vizuelna promena preko V1.7 ponašanja: bez izmene šeme podataka, Search-a, recovery tokova, entiteta ili značenja navigacije, i bez novih zavisnosti.
+- Grafitne neutralne boje i tanke linije umesto punih kartica; manji radijusi (4/6/8/12px); senke samo na overlay elementima; bez blur-a i glow-a.
+- Space Grotesk za naslove i brojeve, Geist za sve ostalo; električno plava za primarne akcije, svetlija plava za fokus i aktivnu navigaciju, mint za završeno, žuta za upozorenje, crvena za opasnost/kašnjenje.
+- Sidebar ponovo 240px/72px; donja navigacija sa indikatorom aktivne rute; More sheet pri dnu ekrana; Quick Add kao zaobljeni kvadrat od 44px.
+- Segmentirane kontrole (Inbox filteri, Calendar Week/Month, tipovi Template-a), podvučeni Area tabovi, obojene trake po tipu u Calendar-u.
+- Vidljiv fokus prsten, podrška za `prefers-contrast: more` i forced-colors, loading indikator koji poštuje reduced motion; touch mete na telefonu ostaju 44px.
+
+Detalji: `docs/superpowers/specs/2026-10-07-todo-v1-8-design.md` i `docs/superpowers/progress-v1-8.md`. Vizuelna provera u pravom browseru je **manual-pending**. Globalni Search ostaje nepromenjen, a bulk akcije nisu dodate.
+
 ## 1. Today i Upcoming
 
 - **Today** prikazuje današnje zadatke, zakasnele stavke, zakazane navike,

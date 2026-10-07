@@ -2,10 +2,10 @@
 
 ## Before editing
 
-1. Read `CLAUDE.md` and `AGENTS.md`.
+1. Read `CLAUDE.md`, `AGENTS.md` and `docs/claude/CONTINUATION.md`.
 2. Inspect the current source, relevant tests and the current V1.7 progress ledger.
 3. Identify whether the requested behavior already exists in a different UI module or derived view.
-4. Preserve existing V1.2–V1.6 behavior unless the approved V1.7 design explicitly changes it.
+4. Preserve existing V1.2–V1.6 behavior unless the approved V1.7 design explicitly changes it. Treat any V1.8 redesign as a visual change until a new spec says otherwise.
 
 ## Product constraints
 

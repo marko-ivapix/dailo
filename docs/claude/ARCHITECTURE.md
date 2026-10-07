@@ -1,6 +1,6 @@
 # Current implementation architecture
 
-This document records inspected implementation on 2026-09-22. It describes mechanisms present in source, not proof of functional, visual or native-browser acceptance. Read `AGENTS.md` and the applicable versioned spec before changing behavior.
+This document records implementation inspected on 2026-10-07. It describes mechanisms present in source, not proof of functional, visual or native-browser acceptance. Read `AGENTS.md` and the applicable versioned spec before changing behavior.
 
 ## Composition and module boundaries
 
@@ -27,7 +27,7 @@ Metadata schema version is `3`. The main object contains Tasks, Projects, Tags, 
 
 `saveState()` normalizes metadata, updates the Focus selection, omits transient `habitLogCache` and `habitMetrics`, and writes compact JSON to `todoAppData`. It reports failures and schedules a snapshot after successful saves. `saveAndRender()` attempts saving and then renders; a rendered edit is not evidence that its storage write succeeded. Text edits also use a short debounce and flush paths.
 
-IndexedDB database `todoAppDB`, database version `1`, has `attachments`, `habitLogs`, `goalHistory` and `recoverySnapshots` stores. Database version, metadata schema version and ZIP format version are different contracts. In the inspected `backup.js`, `BACKUP_VERSION` is `2`, export writes `backupVersion: 2` and `appVersion: '1.3'`, and inspection accepts backup versions `1` and `2`. The function name `exportBackupV3` does not mean ZIP format 3. README's format-3 compatibility claim conflicts with this implementation; do not repeat it as a fact. Storage also handles the legacy `todoAppAttachments` database. Files are Blobs in IndexedDB and metadata retains attachment IDs. Attachments supports Tasks, Notes and Resources through shared owner checks.
+IndexedDB database `todoAppDB`, database version `1`, has `attachments`, `habitLogs`, `goalHistory` and `recoverySnapshots` stores. Database version, metadata schema version and ZIP format version are different contracts. In the inspected `backup.js`, `BACKUP_VERSION` is `2`, export writes `backupVersion: 2` and the historical manifest field `appVersion: '1.3'`, and inspection accepts backup versions `1` and `2`. The function name `exportBackupV3` refers to the V3 state payload; it does not mean ZIP format 3. Storage also handles the legacy `todoAppAttachments` database. Files are Blobs in IndexedDB and metadata retains attachment IDs. Attachments supports Tasks, Notes and Resources through shared owner checks.
 
 Automatic captures are scheduled after one idle second, rate limited to five minutes and retain five automatic snapshots; operation-recovery copies are separate. They include normalized metadata and associated stored records and consume the same browser quota as application data. An exported ZIP is a separate portable artifact.
 

@@ -1,6 +1,6 @@
 # Data, persistence and recovery
 
-This is the current storage contract inspected from `js/core.js`, `js/storage.js`, `js/attachments.js`, `js/backup.js` and the coordinating portions of `js/app.js`.
+This is the current storage contract inspected on 2026-10-07 from `js/core.js`, `js/storage.js`, `js/attachments.js`, `js/backup.js` and the coordinating portions of `js/app.js`.
 
 ## Two persistence layers
 
@@ -30,7 +30,7 @@ Do not confuse these versions:
 | ZIP backup format | `2` | `backup.js` export/import manifest contract |
 | Application label in exported ZIP | `1.3` | Historical app version field |
 
-`exportBackupV3` refers to the V3 state payload, not to ZIP format 3. The current implementation exports `backupVersion: 2` and accepts backup versions `1` and `2`; an older README sentence claiming ZIP format 3 is stale.
+`exportBackupV3` refers to the V3 state payload, not to ZIP format 3. The current implementation exports `backupVersion: 2` and accepts backup versions `1` and `2`. The manifest's historical `appVersion: '1.3'` is not the current product release label.
 
 ## Startup and V1.2 → V3 migration
 

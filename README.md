@@ -1,4 +1,4 @@
-# Dailo — HTML Prototype v1.7
+# Dailo — HTML Prototype v1.8
 
 Desktop-first, local-first functional prototype for a personal/freelancer task tracker. The product keeps a simple workflow:
 
@@ -11,7 +11,7 @@ Desktop-first, local-first functional prototype for a personal/freelancer task t
 This is a static HTML/CSS/vanilla JavaScript prototype. Serve the folder with a small local web server:
 
 ```bash
-cd todo-app-prototype-v1.3
+# run from this repository root
 python3 -m http.server 8080
 ```
 
@@ -34,12 +34,26 @@ Then open `http://localhost:8080`.
 
 - Mobile `More` navigation keeps every route reachable while preserving the five primary destinations and Quick Add.
 - Accessibility hardening adds named dialogs, predictable focus return, semantic Area tabs and touch-safe primary controls.
-- Regression evidence now enumerates V1.1, V1.2, V1.3, V1.5 and V1.6 scenario groups, with static checks separated from user-owned-browser checks.
+- Regression evidence now enumerates V1.1, V1.2, V1.3, V1.5 and V1.6 browser-scenario groups, while V1.7 release checks cover the Node/static safety and integration suites separately.
 - Data safety covers reciprocal Goal-link repair, timestamp/ID validation, bounded ZIP/snapshot work and stale-tab protection.
 - Targeted responsive polish keeps mobile filters, Notes/Resources/Areas lists and Calendar Day Detail compact without a broad redesign.
 - Global Search behavior and the no-bulk-actions constraint remain unchanged.
 
+## V1.8 visual redesign — Quiet Graphite / Swiss Compact
+
+- Presentation-only release on top of V1.7 behavior: no schema, Search, recovery, entity or navigation-meaning change and no new dependency.
+- Graphite neutrals with hairline structure instead of stacked filled cards; tighter 4/6/8/12px radii; overlay-only shadows; no blur or glow.
+- Space Grotesk page titles, card headings and numerals; Geist for everything operational; tabular counts and dates.
+- Electric-blue primary actions, a lighter on-dark blue for focus/active navigation, mint completion, yellow warning, red danger/overdue — contrast pairs are recorded in the V1.8 spec.
+- Sidebar back to the 240px/72px brand geometry with an accent active marker; opaque bottom bar with an active indicator; bottom-anchored More sheet; rounded-square 44px Quick Add.
+- Segmented controls for Inbox filters, Calendar Week/Month and Template types; underline Area tabs; Calendar type rails (tasks blue, habits mint, goals neutral, milestones yellow).
+- Visible two-step focus ring (inset inside clipped/scrolling containers), `prefers-contrast: more` and forced-colors support, motion-safe loading indicator, quieter empty states and opaque error band. Phone touch targets stay at 44px.
+
+Spec: `docs/superpowers/specs/2026-10-07-todo-v1-8-design.md`. Plan: `docs/superpowers/plans/2026-10-07-todo-v1-8.md`. Evidence: `docs/superpowers/progress-v1-8.md`. V1.8 visual, responsive, touch, keyboard and assistive-technology acceptance in a native browser is **manual-pending**.
+
 The V1.7 release ledger is `docs/superpowers/progress-v1-7.md`. Native browser acceptance is **manual-pending** unless that ledger explicitly records a user-owned-browser run; static checks and Node tests do not imply visual or browser acceptance.
+
+For Claude Code continuation, start with `CLAUDE.md` and `docs/claude/CONTINUATION.md`. Historical versioned specs remain traceability documents; current source and focused tests are the factual implementation baseline.
 
 Scheduled Task templates are one-shot per configured date. They run after saving a due schedule, during ready startup, and on the open app's 30-second checks. Missed dates catch up once when the app is next ready; variables and relative dates use the scheduled day, not the catch-up day. They do not run while the app is closed. Failed saves remain eligible for retry without duplicate Tasks. Saving a different schedule date creates a new one-shot schedule.
 
@@ -338,7 +352,7 @@ Goal creation keeps milestones, reminders and source-specific links under More. 
 
 ## Brand reference
 
-The UI follows the supplied Universal Brand Design System v1: dark technical foundation, electric-blue actions/focus, mint positive states, restrained semantic color, Space Grotesk + Geist typography direction, Phosphor icon direction, approved sidebar geometry and precise motion/reduced-motion behavior.
+The UI follows the supplied Universal Brand Design System v1: dark technical foundation, electric-blue actions/focus, mint positive states, restrained semantic color, Space Grotesk + Geist typography direction, Phosphor icon direction, approved sidebar geometry and precise motion/reduced-motion behavior. V1.8 implements it as the Quiet Graphite / Swiss Compact token system at the top of `css/styles.css`.
 
 ## Codex / agent handoff
 

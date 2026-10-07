@@ -1,5 +1,7 @@
 # AGENTS.md — Dailo To Do App V1.7
 
+> This file preserves the V1.3–V1.7 execution and product constraints. The current Claude Code handoff, verified baseline and next-work protocol are in `CLAUDE.md` and `docs/claude/CONTINUATION.md`. The V1.8 visual redesign (Quiet Graphite / Swiss Compact) is specified in `docs/superpowers/specs/2026-10-07-todo-v1-8-design.md`; its tokens in `css/styles.css` are the current implementation of the brand rules below and it changes no product rule in this file.
+
 This file is the entry point for Codex or any coding agent working in this repository.
 
 ## Mission
