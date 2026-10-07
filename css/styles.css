@@ -2183,6 +2183,13 @@ fieldset.settings-row label { display: inline-flex; align-items: center; gap: 6p
    ========================================================================== */
 a.btn { text-decoration: none; }
 
+/* Standalone iOS uses a black-translucent status bar: keep content and viewport-sticky bars below it. */
+.app-shell { padding-top: env(safe-area-inset-top); }
+.sidebar, .global-warning, .v17-sticky-context { top: env(safe-area-inset-top); }
+@media (max-width: 700px) {
+  .modal { max-height: calc(100vh - 24px - env(safe-area-inset-top)); }
+}
+
 /* Backup reminder on Today: a quiet warning panel, never a modal. */
 .backup-reminder { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; margin: 0 0 var(--space-4); padding: var(--space-3) var(--space-4); border: 1px solid color-mix(in srgb, var(--warning) 35%, transparent); border-left: 2px solid var(--warning); border-radius: var(--radius-md); background: var(--warning-tint); }
 .backup-reminder-icon { flex: none; color: var(--warning); font-size: 20px; }

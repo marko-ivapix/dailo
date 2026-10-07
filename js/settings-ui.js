@@ -20,10 +20,14 @@
     const reminderOptions = [...new Set([0, 3, 7, 14, 30, reminderDays])].sort((a, b) => a - b)
       .map(days => `<option value="${days}"${days === reminderDays ? ' selected' : ''}>${days ? `Every ${days} days` : 'Off'}</option>`).join('');
     const release = ctx.release || {};
+    const installed = Boolean(ctx.environmentInfo?.().standalone);
     const reportHref = release.problemReportMailto?.({ email: release.REPORT_EMAIL, version: release.APP_VERSION, ...(ctx.environmentInfo?.() || {}) }) || null;
     return `${pageHeader('Settings', 'Prototype preferences and local data', { add: false })}
       <section class="settings-card">
         <h2>General</h2>
+        <div class="settings-row"><div class="settings-label"><strong>Install app</strong>${installed
+          ? '<span data-install-status="installed">Installed. Dailo opens from your Home Screen like an app.</span>'
+          : '<span data-install-status="browser">On iPhone, in Safari tap Share, then Add to Home Screen, then Add. Install first and then start using Dailo: data in Safari and in the installed app are kept separately.</span>'}</div></div>
         <div class="settings-row">
           <div class="settings-label"><strong>Theme</strong><span>Dark is the approved MVP theme.</span></div>
           <button class="btn btn-secondary" type="button" disabled aria-disabled="true">Dark</button>

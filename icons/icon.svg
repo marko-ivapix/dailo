@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 30 30" width="30" height="30">
+  <!-- Same geometry as the sidebar .brand-mark in css/styles.css. -->
+  <defs><clipPath id="tile"><rect width="30" height="30" rx="8"/></clipPath></defs>
+  <g clip-path="url(#tile)">
+    <rect width="30" height="30" fill="#0619FE"/>
+    <circle cx="21" cy="15" r="10" fill="none" stroke="#FFFFFF" stroke-opacity=".92" stroke-width="2"/>
+    <circle cx="9" cy="15" r="3" fill="#0619FE" stroke="#FFFFFF" stroke-opacity=".92" stroke-width="2"/>
+  </g>
+</svg>
