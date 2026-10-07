@@ -82,7 +82,7 @@
         metadata.push(item);
       }
     }
-    const manifest = { backupVersion: BACKUP_VERSION, appVersion: '1.3', exportedAt: nowIso, data: state, attachments: metadata, habitLogs, goalHistory };
+    const manifest = { backupVersion: BACKUP_VERSION, appVersion: '1.3', releaseVersion: root.DailoRelease?.APP_VERSION || null, exportedAt: nowIso, data: state, attachments: metadata, habitLogs, goalHistory };
     if (JSON.stringify(source) !== sourceText) throw new Error('Source changed during export. Retry.');
     zip.file('data.json', JSON.stringify(manifest, null, 2));
     const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });

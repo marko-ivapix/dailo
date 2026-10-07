@@ -5,6 +5,7 @@
   const TodoStorage = window.TodoStorage;
   const Attachments = window.TodoAttachments;
   const Backup = window.TodoBackup;
+  const Release = window.DailoRelease || { APP_VERSION: '', REPORT_EMAIL: '', problemReportMailto: () => null };
   const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
   const MAX_ATTACHMENTS_PER_TASK = 10;
   const STORAGE_KEY = 'todoAppData';
@@ -659,6 +660,10 @@
         view.isPinned = !view.isPinned; view.updatedAt = nowIso(); saveAndRender();
       },
       shortcutLabels: SHORTCUT_LABELS,
+      release: Release,
+      environmentInfo() {
+        return { userAgent: navigator.userAgent || '', standalone: navigator.standalone === true || Boolean(window.matchMedia?.('(display-mode: standalone)').matches) };
+      },
       shortcutError: () => shortcutError,
       notificationButtonLabel() {
         return typeof Notification === 'undefined' ? 'Unavailable' : (Notification.permission === 'granted' ? 'Enabled' : Notification.permission === 'denied' ? 'Blocked' : 'Enable');
@@ -847,7 +852,7 @@
     const group = (key,label,body) => `<section class="sidebar-section" data-sidebar-section="${key}"><button class="sidebar-section-title sidebar-section-toggle" type="button" data-action="toggle-sidebar-section" data-section="${key}" aria-expanded="${!state.ui.sidebarSections[key]}" aria-controls="sidebar-${key}" title="${label}"><span>${label}</span><i class="ph ${state.ui.sidebarSections[key]?'ph-caret-right':'ph-caret-down'}"></i></button><div class="sidebar-section-body" id="sidebar-${key}" ${state.ui.sidebarSections[key]?'hidden':''}>${body}</div></section>`;
     $('#sidebar').innerHTML = `
       <div class="sidebar-header">
-        <div class="brand" title="Dailo v1.8 prototype">
+        <div class="brand" title="Dailo ${esc(Release.APP_VERSION)}">
           <span class="brand-mark" aria-hidden="true"></span>
           <span class="brand-name">Dailo</span>
         </div>

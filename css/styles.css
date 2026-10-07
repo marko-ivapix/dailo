@@ -2178,6 +2178,11 @@ fieldset.settings-row label { display: inline-flex; align-items: center; gap: 6p
   .mobile-bottom-nav-item.is-active::before, .area-tabs button[aria-selected="true"]::after { forced-color-adjust: none; background: Highlight; }
 }
 
+/* ==========================================================================
+   V1.9 Beta-ready additions. Keep this layer before the touch-target guard.
+   ========================================================================== */
+a.btn { text-decoration: none; }
+
 /* Keep primary compact actions touchable after all density rules. */
 @media (max-width: 700px) {
   .task-actions .btn-icon,

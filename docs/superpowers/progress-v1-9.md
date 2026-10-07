@@ -9,7 +9,7 @@
 - [x] Spec approved by the user (2026-10-07)
 - [x] Plan written
 - [x] Step 1 — Fixes and UUID fallback
-- [ ] Step 2 — Version and problem reports
+- [x] Step 2 — Version and problem reports (report address pending)
 - [ ] Step 3 — Data protection
 - [ ] Step 4 — Install
 - [ ] Step 5 — Offline
@@ -43,3 +43,18 @@ _Step entries are appended below as each step completes._
 - **D:** `Core.makeUuid()` uses `crypto.randomUUID`, else `crypto.getRandomValues` (RFC 4122 v4 bits), else `Math.random`. It is used by `splitRecurrenceForFuture` and the default `instantiateTemplate` id. A test removes `randomUUID` from `globalThis.crypto` to simulate an insecure context.
 
 Checks: focused 6/6; full Node **294/294**; JavaScript syntax 54/54; `git diff --check` passed.
+
+**Step 2 — version and problem reports.** New `tests/release-v1-9.test.js`. It failed first because `js/release.js` did not exist. It now has 4 passing tests and 1 `todo` release gate.
+- **`js/release.js`** (UMD, `globalThis.DailoRelease`):
+  - `APP_VERSION = '1.9.0'` and `REPORT_EMAIL` (empty until the user supplies the address);
+  - `problemReportMailto()` builds a `mailto:` with a subject plus a CRLF body containing the version, user agent, standalone flag and persistence state. It never includes app data and returns `null` for an empty or invalid address.
+- **`index.html`** loads `js/release.js` before `js/core.js`. The `<title>` is now plain "Dailo"; the version is shown in Settings and the brand tooltip instead. This deviates slightly from the spec, which put the version in the title.
+- **`js/app.js`:**
+  - the brand tooltip uses `Release.APP_VERSION` (the hard-coded "v1.8 prototype" is gone);
+  - the domain context exposes `release` and `environmentInfo()` (user agent and standalone detection).
+- **`js/backup.js`:** the manifest gains `releaseVersion`. The historical `appVersion: '1.3'` is unchanged and asserted.
+- **`js/settings-ui.js`:** new "About" card with version, privacy note and a "Report a problem" link. The link renders only when an address is configured. Only existing classes plus `data-*` hooks are used, so the V1.8 class audit stays green.
+- **`css/styles.css`:** new V1.9 layer before the touch-target guard (`a.btn { text-decoration: none; }`).
+- The release-gate test is marked `todo` while `REPORT_EMAIL` is empty, so the suite stays green. It becomes a real assertion as soon as the address is set.
+
+Checks: focused 4 pass + 1 todo; V1.8 design contracts 37/37; full Node **298 pass, 0 fail, 1 todo (299 tests)**; JavaScript syntax 55/55; `git diff --check` passed.

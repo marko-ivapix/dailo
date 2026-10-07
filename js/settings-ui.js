@@ -5,6 +5,8 @@
     const { state, pageHeader, shortcutLabels, shortcutError, notificationButtonLabel, esc } = ctx;
     const backupStatus = state.settings.backupStatus || {};
     const statusTime = value => value || 'Never';
+    const release = ctx.release || {};
+    const reportHref = release.problemReportMailto?.({ email: release.REPORT_EMAIL, version: release.APP_VERSION, ...(ctx.environmentInfo?.() || {}) }) || null;
     return `${pageHeader('Settings', 'Prototype preferences and local data', { add: false })}
       <section class="settings-card">
         <h2>General</h2>
@@ -42,6 +44,12 @@
         <div class="settings-row"><div class="settings-label"><strong>Populate demo workspace</strong><span>Add missing editable examples across Areas, Projects, Tasks, Goals, Habits, Cleaning, Tags, Notes and Resources. Existing items and edits stay intact.</span></div><button class="btn btn-secondary" type="button" data-action="add-starter-examples">Populate workspace</button></div>
         <div class="settings-row"><div class="settings-label"><strong>Clear completed tasks</strong><span>Permanently delete all completed tasks and their attachments.</span></div><button class="btn btn-secondary" type="button" data-action="clear-completed">Clear</button></div>
         <div class="settings-row"><div class="settings-label"><strong>Reset app data</strong><span>A safety ZIP is created first, then local tasks, projects, tags, attachments and preferences are cleared.</span></div><button class="btn btn-ghost" type="button" data-action="reset-app" style="color:var(--danger)">Reset</button></div>
+      </section>
+      <section class="settings-card" data-settings-about>
+        <h2>About</h2>
+        <div class="settings-row"><div class="settings-label"><strong>Version</strong><span>Dailo ${esc(release.APP_VERSION || '')}</span></div></div>
+        ${reportHref ? `<div class="settings-row"><div class="settings-label"><strong>Report a problem</strong><span>Opens an e-mail with the app version and device details. Your data is not attached.</span></div><a class="btn btn-secondary" href="${esc(reportHref)}" data-report-problem>Report a problem</a></div>` : ''}
+        <div class="settings-row"><div class="settings-label"><strong>Privacy</strong><span data-privacy-note>Your data stays only on this device. Dailo has no server or account.</span></div></div>
       </section>`;
   }
 
