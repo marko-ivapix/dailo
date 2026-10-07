@@ -595,6 +595,34 @@
     return normalized;
   }
 
+  // Backup reminder (V1.9). A missing or invalid preference means the 7-day default; 0 turns it off.
+  function backupReminderDays(settings) {
+    const value = settings?.backupReminderDays;
+    return Number.isInteger(value) && value >= 0 && value <= 90 ? value : 7;
+  }
+
+  function oldestCreatedAt(state) {
+    let oldest = null;
+    for (const key of ['tasks', 'goals', 'habits', 'notes', 'resources']) {
+      for (const item of state?.[key] || []) {
+        if (isIsoTimestamp(item?.createdAt) && (oldest === null || Date.parse(item.createdAt) < Date.parse(oldest))) oldest = item.createdAt;
+      }
+    }
+    return oldest;
+  }
+
+  // Without any export the reminder counts from the oldest record, so an empty workspace never nags.
+  function backupReminderDue({ lastExport = null, reminderDays = 7, snoozedUntil = null, oldestCreatedAt: oldest = null, now } = {}) {
+    if (!Number.isInteger(reminderDays) || reminderDays <= 0) return false;
+    const nowMs = Date.parse(now);
+    if (!Number.isFinite(nowMs)) return false;
+    const snoozeMs = Date.parse(snoozedUntil);
+    if (Number.isFinite(snoozeMs) && nowMs < snoozeMs) return false;
+    const exportedMs = Date.parse(lastExport);
+    const referenceMs = Number.isFinite(exportedMs) ? exportedMs : Date.parse(oldest);
+    return Number.isFinite(referenceMs) && nowMs - referenceMs >= reminderDays * 86400000;
+  }
+
   function resetV16Settings(settings) {
     return { ...normalizeV16Settings(settings), todayFocusFilter: 'all', todayFocusStrip: true, compactDensity: true, todayVisibleSections: ['focus', 'review', 'actions'], weekStartsOn: 1 };
   }
@@ -1483,6 +1511,9 @@
     normalizeState,
     normalizeV16Settings,
     resetV16Settings,
+    backupReminderDays,
+    backupReminderDue,
+    oldestCreatedAt,
     migrateStateV16,
     selectFocusTasks,
     getGoalHealth,

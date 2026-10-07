@@ -4,7 +4,21 @@
   function renderSettings(ctx) {
     const { state, pageHeader, shortcutLabels, shortcutError, notificationButtonLabel, esc } = ctx;
     const backupStatus = state.settings.backupStatus || {};
-    const statusTime = value => value || 'Never';
+    const statusTime = value => (value && !Number.isNaN(Date.parse(value))
+      ? `<time datetime="${esc(value)}">${esc(new Date(value).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }))}</time>`
+      : 'Never');
+    const persistence = ctx.storagePersistence?.() || { state: 'unknown' };
+    const persistenceText = {
+      granted: 'On. The browser keeps Dailo data unless you delete it.',
+      denied: 'Not granted yet. Install Dailo to the Home Screen and keep regular backups.',
+      unsupported: 'Not supported in this browser. Keep regular backups.',
+      unknown: 'Checking…',
+    }[persistence.state] || 'Checking…';
+    const megabytes = bytes => `${(bytes / 1048576).toFixed(1)} MB`;
+    const usage = Number.isFinite(persistence.usage) && Number.isFinite(persistence.quota) ? ` ${megabytes(persistence.usage)} of ${megabytes(persistence.quota)} used.` : '';
+    const reminderDays = ctx.Core?.backupReminderDays ? ctx.Core.backupReminderDays(state.settings) : 7;
+    const reminderOptions = [...new Set([0, 3, 7, 14, 30, reminderDays])].sort((a, b) => a - b)
+      .map(days => `<option value="${days}"${days === reminderDays ? ' selected' : ''}>${days ? `Every ${days} days` : 'Off'}</option>`).join('');
     const release = ctx.release || {};
     const reportHref = release.problemReportMailto?.({ email: release.REPORT_EMAIL, version: release.APP_VERSION, ...(ctx.environmentInfo?.() || {}) }) || null;
     return `${pageHeader('Settings', 'Prototype preferences and local data', { add: false })}
@@ -37,7 +51,9 @@
       </section>
       <section class="settings-card">
         <h2>Data</h2>
-        <div class="settings-row"><div class="settings-label"><strong>Backup status</strong><span>Last export: ${esc(statusTime(backupStatus.lastExport))}<br>Last import: ${esc(statusTime(backupStatus.lastImport))}<br>Recovery snapshot: ${backupStatus.snapshotAvailable ? 'Available' : 'None pending'}<br>Validation: ${esc(backupStatus.validationResult || 'Not yet validated')}</span></div></div>
+        <div class="settings-row"><div class="settings-label"><strong>Backup status</strong><span>Last export: ${statusTime(backupStatus.lastExport)}<br>Last import: ${statusTime(backupStatus.lastImport)}<br>Recovery snapshot: ${backupStatus.snapshotAvailable ? 'Available' : 'None pending'}<br>Validation: ${esc(backupStatus.validationResult || 'Not yet validated')}</span></div></div>
+        <div class="settings-row"><div class="settings-label"><strong>Persistent storage</strong><span data-storage-persistence="${esc(persistence.state)}">${esc(persistenceText)}${esc(usage)}</span></div>${persistence.state === 'denied' ? '<button class="btn btn-secondary" type="button" data-action="request-storage-persistence">Request</button>' : ''}</div>
+        <div class="settings-row"><label class="settings-label" for="backup-reminder-days"><strong>Backup reminder</strong><span>Today reminds you to export a backup when the last one is older than this.</span></label><select class="input" id="backup-reminder-days">${reminderOptions}</select></div>
         <div class="settings-row"><div class="settings-label"><strong>Local snapshots</strong><span>Five automatic copies, at most once every five minutes after saving. Restore one entity with its files and history.</span></div><button class="btn btn-secondary" type="button" data-action="open-local-snapshots">Browse snapshots</button></div>
         <div class="settings-row"><div class="settings-label"><strong>Export backup</strong><span>Download a portable ZIP with all local data, including Notes, Resources and files.</span></div><button class="btn btn-secondary" type="button" data-action="export-backup"><i class="ph ph-download-simple"></i> Export ZIP</button></div>
         <div class="settings-row"><div class="settings-label"><strong>Import backup</strong><span>Validate a ZIP first, then replace current data only after you confirm.</span></div><div><button class="btn btn-secondary" type="button" data-action="import-backup"><i class="ph ph-upload-simple"></i> Import ZIP</button><input id="backup-import-input" type="file" accept=".zip,application/zip" hidden /></div></div>

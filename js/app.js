@@ -37,6 +37,8 @@
   let storageError = false;
   let automaticSnapshotError = null;
   let automaticSnapshotTimer = null;
+  let storagePersistence = { state: 'unknown' };
+  let storagePersistenceRequested = false;
   let globalOperation = null;
   let globalRecoveryNotice = null;
   let modalState = null;
@@ -662,8 +664,9 @@
       shortcutLabels: SHORTCUT_LABELS,
       release: Release,
       environmentInfo() {
-        return { userAgent: navigator.userAgent || '', standalone: navigator.standalone === true || Boolean(window.matchMedia?.('(display-mode: standalone)').matches) };
+        return { userAgent: navigator.userAgent || '', standalone: navigator.standalone === true || Boolean(window.matchMedia?.('(display-mode: standalone)').matches), persistence: storagePersistence.state };
       },
+      storagePersistence: () => storagePersistence,
       shortcutError: () => shortcutError,
       notificationButtonLabel() {
         return typeof Notification === 'undefined' ? 'Unavailable' : (Notification.permission === 'granted' ? 'Enabled' : Notification.permission === 'denied' ? 'Blocked' : 'Enable');
@@ -1050,6 +1053,7 @@
     let html = pageHeader('Today', '', { contextToday: true, add: false, actionHtml: `<button class="btn btn-secondary" type="button" data-action="dashboard-focus-toggle"><i class="ph ph-faders-horizontal"></i>${state.settings.dashboard?.focusedMode ? 'Full Today' : 'Focus View'}</button><button class="btn btn-secondary" type="button" data-action="open-focus"><i class="ph ph-crosshair"></i> Focus</button>` });
     if (state.settings.todayFocusStrip !== false) html += `<section class="today-focus-strip" data-today-focus-strip aria-label="Today focus"><div class="today-focus-strip-summary"><span class="today-context-date"><i class="ph ph-calendar-blank"></i>${esc(formatPageToday(today))}</span><span class="today-focus-strip-count" data-today-open-count>${openTodayCount} open</span><span class="today-focus-strip-count" data-today-completed-count>${completedTodayCount} completed</span>${plannedMinutes ? `<span class="today-focus-strip-count">${plannedMinutes} min planned</span>` : ''}</div><div class="today-focus-strip-controls"><label class="today-filter">Show <select class="filter-select" data-today-filter aria-label="Filter Today tasks">${[['all', 'All'], ['open', 'Open'], ['completed', 'Completed'], ['important', 'Important'], ['dueToday', 'Due today']].map(([value, label]) => `<option value="${value}"${todayFocusFilter === value ? ' selected' : ''}>${label}</option>`).join('')}</select></label><button class="btn btn-primary" type="button" data-action="quick-add" data-today="true"><i class="ph ph-plus"></i>Add task</button></div></section>`;
     html += `<div class="today-context" data-today-context="true">${contextCounts ? `<span class="today-context-summary">${esc(contextCounts)}</span>` : ''}</div>`;
+    html += backupReminderNotice();
     const focusIds = Core.selectFocusTasks(state.tasks, state.settings.focusTaskIds);
     const focusTasks = focusIds.map(getTask);
     const completedToday = state.tasks.filter(task => task.isCompleted && String(task.completedAt || '').slice(0, 10) === today);
@@ -3328,6 +3332,43 @@
     return requestTaskEdit(task.id,changes,after);
   }
 
+  // Today notice when the last ZIP export is older than the reminder interval (V1.9).
+  function backupReminderNotice() {
+    let snoozedUntil = null;
+    try { snoozedUntil = localStorage.getItem('todoAppBackupReminderSnoozedUntil'); } catch (error) { snoozedUntil = null; }
+    const lastExport = state.settings.backupStatus?.lastExport || null;
+    const due = Core.backupReminderDue({ lastExport, reminderDays: Core.backupReminderDays(state.settings), snoozedUntil, oldestCreatedAt: Core.oldestCreatedAt(state), now: nowIso() });
+    if (!due) return '';
+    const last = lastExport && !Number.isNaN(Date.parse(lastExport)) ? `Last backup: ${new Date(lastExport).toLocaleDateString()}.` : 'No backup yet.';
+    return `<section class="backup-reminder" data-backup-reminder role="status" aria-label="Backup reminder"><i class="ph ph-shield-check backup-reminder-icon" aria-hidden="true"></i><div class="backup-reminder-copy"><strong>Back up your data</strong><span>${esc(last)} Dailo keeps everything only on this device.</span></div><div class="backup-reminder-actions"><button class="btn btn-primary" type="button" data-action="export-backup">Export backup</button><button class="btn btn-ghost" type="button" data-action="snooze-backup-reminder">Remind me tomorrow</button></div></section>`;
+  }
+
+  function snoozeBackupReminder() {
+    try { localStorage.setItem('todoAppBackupReminderSnoozedUntil', new Date(Date.parse(nowIso()) + 86400000).toISOString()); } catch (error) { /* private mode: the notice simply returns */ }
+  }
+
+  // Asks the browser to keep Dailo's storage only when request is true (after user activity).
+  async function refreshStoragePersistence(request = false) {
+    const storage = typeof navigator === 'undefined' ? null : navigator.storage;
+    if (!storage || typeof storage.persisted !== 'function') return { state: 'unsupported' };
+    try {
+      let granted = await storage.persisted();
+      if (!granted && request && typeof storage.persist === 'function') granted = await storage.persist();
+      const estimate = typeof storage.estimate === 'function' ? await storage.estimate().catch(() => null) : null;
+      return { state: granted ? 'granted' : 'denied', usage: estimate?.usage ?? null, quota: estimate?.quota ?? null };
+    } catch (error) {
+      return { state: 'unknown' };
+    }
+  }
+
+  function updateStoragePersistence(request = false) {
+    return refreshStoragePersistence(request).then(status => {
+      storagePersistence = status;
+      if (currentRoute().type === 'settings' && !modalState) render();
+      return status;
+    });
+  }
+
   async function exportBackupAction() {
     const source = captureStatusSource();
     const snapshotAvailable = await hasRetainedRecoverySnapshot(source?.source?.settings?.backupStatus?.snapshotAvailable === true);
@@ -3721,6 +3762,7 @@
   function showTaskRepeatPicker(taskId, anchor) { openRepeatPicker(anchor, { type: 'task', taskId }); }
 
   function handleClick(event) {
+    if (!storagePersistenceRequested && state && !startupPromise) { storagePersistenceRequested = true; updateStoragePersistence(true).catch(console.error); }
     if (event.target.closest('[data-action="refresh-stale-data"]')) {
       const notice = staleDataNotice;
       staleDataNotice = null;
@@ -3881,6 +3923,8 @@
     else if (action === 'retry-delete-recovery') retryFailedDeleteRecovery();
     else if (action === 'enable-notifications') enableBrowserNotifications();
     else if (action === 'export-backup') exportBackupAction();
+    else if (action === 'snooze-backup-reminder') { snoozeBackupReminder(); render(); }
+    else if (action === 'request-storage-persistence') updateStoragePersistence(true).catch(console.error);
     else if (action === 'import-backup') chooseImportBackup();
     else if (action === 'restore-backup') restoreImportedBackup();
     else if (action === 'clear-completed') clearCompleted();
@@ -3991,6 +4035,7 @@
     if (event.target.matches('[data-task-time]')) { updateTask(event.target.dataset.taskId, { [event.target.dataset.taskTime]: Core.normalizeTime(event.target.value) }, false); render(); return; }
     if (event.target.matches('[data-task-flag]')) { const task = getTask(event.target.dataset.taskId); const field = event.target.dataset.taskFlag; if (task && ['isImportant', 'isUrgent'].includes(field)) { task[field] = event.target.checked; task.updatedAt = nowIso(); saveState(); render(); } return; }
     if (['attachment-input', 'attachment-image-input'].includes(event.target.id)) { receiveAttachmentFiles(event.target.dataset, [...event.target.files]); event.target.value=''; return; }
+    if (event.target.id === 'backup-reminder-days') { const days = Number(event.target.value); if (Number.isInteger(days) && days >= 0 && days <= 90) { state.settings.backupReminderDays = days; saveAndRender(); } return; }
     if (event.target.id === 'backup-import-input') { const file=event.target.files?.[0]; event.target.value=''; if(file) inspectImportBackup(file); return; }
     if (event.target.id === 'completed-project-filter') {
       state.ui.completedProjectFilter = event.target.value || '';
@@ -4372,6 +4417,7 @@
     if (typeof setMobileQuickAddOpen === 'function') setMobileQuickAddOpen(false);
     await startReady();
     scheduleAutomaticSnapshot();
+    updateStoragePersistence(false).catch(console.error);
     if (!location.hash) location.hash = '#today';
     setInterval(() => {
       if (globalOperation || startupPromise || recovery || !state) return;

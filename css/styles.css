@@ -2183,6 +2183,14 @@ fieldset.settings-row label { display: inline-flex; align-items: center; gap: 6p
    ========================================================================== */
 a.btn { text-decoration: none; }
 
+/* Backup reminder on Today: a quiet warning panel, never a modal. */
+.backup-reminder { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; margin: 0 0 var(--space-4); padding: var(--space-3) var(--space-4); border: 1px solid color-mix(in srgb, var(--warning) 35%, transparent); border-left: 2px solid var(--warning); border-radius: var(--radius-md); background: var(--warning-tint); }
+.backup-reminder-icon { flex: none; color: var(--warning); font-size: 20px; }
+.backup-reminder-copy { display: grid; flex: 1 1 220px; gap: 2px; min-width: 0; }
+.backup-reminder-copy strong { color: var(--ink-1); font-size: 14px; font-weight: 600; }
+.backup-reminder-copy span { color: var(--ink-3); font-size: 13px; line-height: 1.4; }
+.backup-reminder-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+
 /* Keep primary compact actions touchable after all density rules. */
 @media (max-width: 700px) {
   .task-actions .btn-icon,
