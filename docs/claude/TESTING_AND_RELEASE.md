@@ -64,18 +64,34 @@ No isolated Chromium was launched for the V1.7 release or the V1.8 visual redesi
 
 ## Distributable ZIP
 
-Artifact:
+Current artifact (V1.8, packaged 2026-10-07):
 
 ```text
-Dailo-v1.7-distributable.zip
-SHA-256: recorded in the adjacent `Dailo-v1.7-distributable.zip.sha256` sidecar
-Archive entries: 42 regular files
-Archive validation: `unzip -t` passed with no errors.
+Dailo-v1.8-distributable.zip
+SHA-256: recorded in the adjacent `Dailo-v1.8-distributable.zip.sha256` sidecar (`sha256sum -c` format)
+Archive entries: 46 regular files, no directory entries
+Archive validation: `unzip -t` passed with no errors; extracted files are byte-identical to the source commit
 ```
 
-Release checks:
+The V1.8 package is the V1.7 package layout (42 files) plus `docs/claude/CONTINUATION.md` and the V1.8 spec, plan and progress ledger. It excludes tests, `.superpowers/` review logs, worktree metadata, virtual environments, caches and other ZIPs. Behavior is the V1.7 baseline; V1.8 changes presentation only.
 
-The package is built from the verified working tree. It excludes tests, worktree metadata, virtual environments, caches, historical/nested ZIPs and review logs, while retaining the approved V1.7 spec, plan, progress ledger and current handoff documentation.
+Build (reproducible: the archive is made from a commit, file times are that commit's time, entries are sorted and zip extra fields are omitted). `SRC=HEAD` when packaging freshly committed docs/source; to re-verify a published package, use the parent of the commit that added it, `SRC=$(git rev-list -1 HEAD -- Dailo-v1.8-distributable.zip)^`.
+
+```bash
+OUT="$PWD/Dailo-v1.8-distributable.zip"; STAGE=$(mktemp -d); rm -f "$OUT"
+git archive "$SRC" -- .gitignore AGENTS.md CLAUDE.md PROJECT_OVERVIEW.md README.md index.html \
+  requirements-browser-tests.txt css/styles.css 'js/*.js' vendor/jszip.min.js \
+  'docs/claude/*.md' 'docs/codex/*.md' \
+  docs/superpowers/specs/2026-09-22-todo-v1-7-design.md docs/superpowers/plans/2026-09-22-todo-v1-7.md \
+  docs/superpowers/progress-v1-7.md docs/superpowers/specs/2026-10-07-todo-v1-8-design.md \
+  docs/superpowers/plans/2026-10-07-todo-v1-8.md docs/superpowers/progress-v1-8.md | tar -x -C "$STAGE"
+(cd "$STAGE" && find . -type f | sed 's|^\./||' | LC_ALL=C sort | TZ=UTC zip -X -D -q "$OUT" -@)
+unzip -t "$OUT" && sha256sum Dailo-v1.8-distributable.zip > Dailo-v1.8-distributable.zip.sha256
+```
+
+The SHA-256 lives only in the sidecar so the packaged ledger and guides stay byte-identical to the release artifact.
+
+Previous artifact: `Dailo-v1.7-distributable.zip` (42 regular files, `unzip -t` passed, SHA-256 in `Dailo-v1.7-distributable.zip.sha256`) remains in the repository as the V1.7 release.
 
 ## Acceptance checklist boundary
 

@@ -1,6 +1,6 @@
 # Dailo — Claude project guide
 
-> Documentation synchronized on 2026-10-07 against the V1.7 source, tests and release artifact, then updated for the V1.8 Quiet Graphite visual redesign implemented on the same date. V1.8 is presentation-only: behavior, persistence, Search and recovery are the V1.7 baseline. It is committed on `feature/todo-v1-3` (`4cfab6c`) and pushed to `https://github.com/marko-ivapix/dailo`; it is not packaged, and native-browser visual acceptance is manual-pending.
+> Documentation synchronized on 2026-10-07 against the V1.7 source, tests and release artifact, then updated for the V1.8 Quiet Graphite visual redesign implemented on the same date. V1.8 is presentation-only: behavior, persistence, Search and recovery are the V1.7 baseline. It is committed on `feature/todo-v1-3` (`4cfab6c`) and pushed to `https://github.com/marko-ivapix/dailo`; it is packaged as `Dailo-v1.8-distributable.zip`, and native-browser visual acceptance is manual-pending.
 
 This file is the entry point for Claude and other coding agents working in this repository.
 
@@ -56,7 +56,7 @@ Do not launch an isolated Chromium or open/modify the user's personal Chrome unl
 
 ## Current handoff boundary
 
-- V1.7 behavior is implemented and locally verified. The V1.8 visual redesign is implemented in `css/styles.css` (token system + one appended layer) with minimal markup hooks, verified by automated/static checks only; it is committed and pushed on `feature/todo-v1-3` but not packaged.
+- V1.7 behavior is implemented and locally verified. The V1.8 visual redesign is implemented in `css/styles.css` (token system + one appended layer) with minimal markup hooks, verified by automated/static checks only; it is committed and pushed on `feature/todo-v1-3` and packaged as `Dailo-v1.8-distributable.zip` (recipe in `docs/claude/TESTING_AND_RELEASE.md`).
 - The app remains static HTML/CSS/vanilla JavaScript with localStorage + IndexedDB; there is no backend, account system, cloud sync or production REST API.
 - Global Search behavior and the no-bulk-actions rule are compatibility constraints.
 - Native browser, mobile touch, real IndexedDB/file chooser and visual acceptance remain **manual-pending**. Never report them as green from Node/static checks.
