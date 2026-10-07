@@ -120,3 +120,11 @@ Built `Dailo-v1.8-distributable.zip` from the commit immediately before the pack
 - Keyboard focus visibility everywhere (including inset rings in clipped/scrolling containers), `prefers-reduced-motion`, `prefers-contrast: more`, forced colors, and 44px phone touch targets.
 
 Record exactly which items were observed, and on which browser/device, before marking anything as passed.
+
+### Manual observations
+
+| Date | Device / browser | Source | Observed | Result |
+| --- | --- | --- | --- | --- |
+| 2026-10-07 | iPhone, Safari (tab, not installed) | GitHub Pages `https://marko-ivapix.github.io/dailo/` at `29d1774` | App loads over HTTPS; a newly created task is still present after a page reload | Passed (reported by the user) |
+
+Only the items in this table were observed. Everything else in the gate above remains **manual-pending**.
