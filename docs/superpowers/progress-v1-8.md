@@ -102,7 +102,7 @@ Additional checks: CSS structural lint (balanced braces, no malformed declaratio
 | `tests/run-browser-regressions.py --dry-run` | **10/10** static contracts (2 + 3 + 5); browser launch skipped |
 | `git diff --check` | passed |
 
-Built `Dailo-v1.8-distributable.zip` from the commit that adds this entry, using the reproducible recipe in `docs/claude/TESTING_AND_RELEASE.md`: **46 regular files** (the V1.7 layout of 42 plus `docs/claude/CONTINUATION.md` and the V1.8 spec, plan and this ledger), no directory entries. `unzip -t` passed; two independent builds were byte-identical; every extracted file is byte-identical to the source commit. The SHA-256 is recorded only in `Dailo-v1.8-distributable.zip.sha256`. The package commit is on branch `ccr-95f6062b-lgg2fr`, pending merge into `feature/todo-v1-3`. No browser was opened.
+Built `Dailo-v1.8-distributable.zip` from the commit immediately before the package commit (it includes the cloud-session notes merged into `CLAUDE.md` from `feature/todo-v1-3`), using the reproducible recipe in `docs/claude/TESTING_AND_RELEASE.md`: **46 regular files** (the V1.7 layout of 42 plus `docs/claude/CONTINUATION.md` and the V1.8 spec, plan and this ledger), no directory entries. `unzip -t` passed; two independent builds were byte-identical; every extracted file is byte-identical to the source commit. The SHA-256 is recorded only in `Dailo-v1.8-distributable.zip.sha256`. The package commit is on branch `ccr-95f6062b-lgg2fr`, pending merge into `feature/todo-v1-3`. No browser was opened.
 
 ## Manual browser gate
 
