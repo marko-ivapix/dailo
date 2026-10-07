@@ -19,7 +19,8 @@
 ## Where we are
 
 - V1.3–V1.7 behavior and the V1.8 visual layer are implemented and covered by automated checks (288 Node tests). Native-browser acceptance is still **manual-pending**: 126 historical items in `docs/codex/ACCEPTANCE.md` are unchecked and the V1.8 manual gate in `docs/superpowers/progress-v1-8.md` is open.
-- First manual result (user, 2026-10-07): on the user's phone the Pages site loads and a new task persists after reload. Device/browser not yet recorded.
+- First manual result (user, 2026-10-07): on the user's phone the Pages site loads and a new task persists after reload. Recorded later as iPhone, Safari tab (`docs/superpowers/progress-v1-8.md`).
+- **V1.9 update (2026-10-07):** Phase 1 is implemented (V1.9 plan Steps 1–6) on branch `ccr-95f6062b-lgg2fr`, with automated checks green: 330 Node tests, 329 passed, 1 todo, the release gate for the problem-report address. Still open: the report address, `Dailo-v1.9-distributable.zip`, the PR into `main` and the manual iPhone pass. Evidence: `docs/superpowers/progress-v1-9.md`.
 - Release risks found while planning:
   1. **Data loss on iOS Safari.** WebKit deletes script-writable storage (localStorage, IndexedDB) for sites not opened for 7 days unless the site is added to the Home Screen. Dailo has no web app manifest and never calls `navigator.storage.persist()`.
   2. **Offline gaps.** Geist, Space Grotesk and Phosphor icons load from CDNs; there is no service worker, so the app does not open offline and icons disappear without network.
@@ -28,17 +29,18 @@
   5. **No feedback channel** for beta users and no visible app version.
   6. **Pages serves the whole repository**, including docs, tests and release ZIPs. Acceptable for a public repo, optional to narrow.
 
-## Phase 1 — V1.9 "Beta-ready" (local-first, no backend)
+## Phase 1 — V1.9 "Beta-ready" (local-first, no backend) — implemented, pending report address, package and merge
 
 Goal: beta users can install Dailo, use it offline and not lose data.
 
-- [ ] Web app manifest, icons (192/512 + `apple-touch-icon`), standalone display → installable to the Home Screen (also removes the iOS 7-day eviction for installed apps).
-- [ ] Request persistent storage with `navigator.storage.persist()` and show the result in Settings → Data.
-- [ ] Backup reminder: record the last successful ZIP export and offer a one-tap export after a configurable number of days.
-- [ ] Self-host fonts and icons (check OFL/MIT licenses) and add a service worker that caches the app shell for offline start.
-- [ ] Fallback ID generator when `crypto.randomUUID` is unavailable.
-- [ ] "Report a problem" entry (GitHub issue template or form) and app version in Settings.
-- [ ] Optional: deploy only runtime files to Pages through a GitHub Actions workflow.
+- [x] Web app manifest, icons (192/512 + `apple-touch-icon`), standalone display → installable to the Home Screen (also removes the iOS 7-day eviction for installed apps).
+- [x] Request persistent storage with `navigator.storage.persist()` and show the result in Settings → Data.
+- [x] Backup reminder: record the last successful ZIP export and offer a one-tap export after a configurable number of days (default 7).
+- [x] Self-host fonts and icons (check OFL/MIT licenses) and add a service worker that caches the app shell for offline start.
+- [x] Fallback ID generator when `crypto.randomUUID` is unavailable.
+- [x] "Report a problem" entry (GitHub issue template or form) and app version in Settings. V1.9 chose an e-mail (`mailto:`) report; the link stays hidden until the user supplies the address.
+- [ ] Optional: deploy only runtime files to Pages through a GitHub Actions workflow. Not part of V1.9; the service worker does not intercept docs or release ZIPs.
+- [x] Added by the V1.9 spec: Serbian (`sr-Latn`) UI with Serbian Quick Add keywords, and fixes G1–G3.
 
 Constraints: no Search change, no bulk actions, delete/Undo and typed RESET/RESTORE unchanged. Any new persisted field (e.g. last-export date) needs a normalization/migration test and backup round-trip coverage.
 
@@ -52,14 +54,14 @@ Constraints: no Search change, no bulk actions, delete/Undo and typed RESET/REST
 
 - [ ] Short onboarding page: install to Home Screen, data lives on the device, export backups regularly, known limitations (single device until V2, reminders only while open).
 - [ ] Invite 5–10 people; triage feedback weekly and re-rank Phase 4.
-- [ ] Open question: UI language for beta (currently English, `lang="en"`); a Serbian UI affects Quick Add keywords.
+- [x] Open question: UI language for beta. Resolved in V1.9: Serbian Latin only, with Serbian Quick Add keywords.
 
 ## Phase 4 — Features (V1.10+, alongside the beta)
 
 Each item gets its own spec; existing behavior was checked in source on 2026-10-07.
 
 - [ ] **Duration + time-blocking.** Exists: `durationMinutes`, same-day planned-time blocks and overlap detection (`js/core.js`). Missing: duration entry in Quick Add, an hourly Day/Week grid (previously deferred), drag into time slots, daily capacity.
-- [ ] **Smart Quick Add.** Exists: `parseQuickPlanPhrase` (English `today`/`tomorrow`/weekday, `HH:MM`), `#tag`, `!priority`. Missing: due-date syntax, duration (`30m`, `1h`), project/Area syntax, relative dates, Serbian keywords (if chosen), live preview chips; voice input to be investigated per browser.
+- [ ] **Smart Quick Add.** Exists: `parseQuickPlanPhrase` (English `today`/`tomorrow`/weekday, `HH:MM`), `#tag`, `!priority`. V1.9 added Serbian day/time keywords. Missing: due-date syntax, duration (`30m`, `1h`), project/Area syntax, relative dates, live preview chips; voice input to be investigated per browser.
 - [ ] **Weekly review.** Exists: Today "Daily review" stats card. Missing: a guided weekly flow (Inbox to zero, overdue, next week, Goal progress, Habit stats, Area check) with a completion record.
 
 ## Phase 5 — V2.0 Mobile app + Supabase sync
@@ -78,4 +80,4 @@ Spec must decide:
 
 ## Next step
 
-The V1.9 spec draft is `docs/superpowers/specs/2026-10-07-todo-v1-9-design.md`. After the user answers its open questions, write `docs/superpowers/plans/2026-10-07-todo-v1-9.md` and start Phase 1 with failing tests.
+V1.9 is implemented per `docs/superpowers/specs/2026-10-07-todo-v1-9-design.md` and `docs/superpowers/plans/2026-10-07-todo-v1-9.md`. Finish its Step 7 (report address, package, PR into `main`, manual iPhone checklist), then start Phase 2.

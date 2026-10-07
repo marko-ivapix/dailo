@@ -73,7 +73,7 @@ Checks: focused 4 pass + 1 todo; V1.8 design contracts 37/37; full Node **298 pa
   - `refreshStoragePersistence(request)` feature-detects `navigator.storage.persisted/persist/estimate`;
   - the status is checked at startup without requesting. Persistence is requested once per session on the first user click (user activity) and from Settings. The spec said "after the first successful save"; the click trigger was chosen because timer-driven saves (reminders, date boundary) can happen without user activity.
 - **Settings** (`js/settings-ui.js`):
-  - "Persistent storage" row with status, MB usage and a "Request" button when not granted;
+  - "Persistent storage" row with status, MB usage and a "Request" button when the browser reports `denied` (not shown while the state is `unknown` or `unsupported`);
   - "Backup reminder" select (Off / 3 / 7 / 14 / 30 days, plus any imported value);
   - last export/import shown as a formatted `<time datetime="…">`. The raw ISO value stays in `datetime`, so the V1.6 backup-status test is unchanged.
 - **Problem report:** `environmentInfo()` now includes the persistence state.
@@ -170,6 +170,7 @@ Checks: focused 6/6; full Node **315 pass, 0 fail, 1 todo (316 tests)**; JavaScr
   - `tests/accessibility-v1-7.test.js`, `tests/design-v1-8.test.js`, `tests/inbox-v1-6.test.js`, `tests/modal-ux-v1-6.test.js` and `tests/navigation-v1-7.test.js` now match the `tr(…)`/`msg(…)` source;
   - `tests/insights-v1-5.test.js` expects `4 / 2 Check-ins · 100%`;
   - `tests/ui-v1-6-knowledge.py` (static contract) now matches the `tr(…)` source and the per-type `msg('Note deleted')`/`msg('Resource deleted')` Undo messages. It was red after `fa638c5` (2 checks asserted English source text) and is fixed here.
+- **Found during the docs sync:** the Home Screen icons use the sidebar `.brand-mark` rings in white on a full-bleed blue tile, not the geometric "D" on graphite that the spec describes (Step 4). Service worker registration also accepts `127.0.0.1`.
 - **Not covered:** the Playwright scenario scripts (`tests/ui-*.py` run in a browser) still use English text selectors, so they are out of date for the Serbian UI. They are not part of release verification.
 
 Checks: focused i18n 9/9 and Quick Add 5/5; full Node **329 pass, 0 fail, 1 todo (330 tests)**; JavaScript syntax 63/63 (`js/*.js vendor/*.js tests/*.js`) plus `tests/support/i18n.js` and `sw.js`; static browser contracts 10/10 (dry-run); registry 3/3; path adapter OK; `git diff --check` passed. Serbian wording on a real iPhone (truncation, line breaks) is **manual-pending**.

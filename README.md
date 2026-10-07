@@ -1,4 +1,4 @@
-# Dailo — HTML Prototype v1.8
+# Dailo — HTML Prototype v1.9
 
 Desktop-first, local-first functional prototype for a personal/freelancer task tracker. The product keeps a simple workflow:
 
@@ -16,6 +16,26 @@ python3 -m http.server 8080
 ```
 
 Then open `http://localhost:8080`.
+
+- The service worker registers only on `https:` or `localhost`/`127.0.0.1`. On a plain-HTTP LAN address the app still works, without offline caching.
+- Shell files are served cache-first until `sw.js` changes. While developing on localhost, bypass or unregister the worker in the browser's developer tools to see edited files.
+- GitHub Pages serves the repository over HTTPS at `https://marko-ivapix.github.io/dailo/`. All paths and the manifest/service-worker scope are relative (`./`), so install and offline start are designed to work under the `/dailo/` sub-path (not yet confirmed on a device). Pages publishes `main`, so V1.9 appears there once its PR is merged.
+
+## V1.9 beta-ready
+
+Local-first build for a small Serbian-speaking beta on iPhone Safari. There is still no backend, account or sync; those arrive with the V2.0 mobile app.
+
+- **Install to the iPhone Home Screen.** In Safari tap Share → Add to Home Screen → Add. Settings → General shows these steps, or confirms that Dailo is installed. Safari and the installed app keep separate data: install first, then use; move existing Safari data with ZIP export and import.
+- **Offline start.** Geist, Space Grotesk and Phosphor icons are vendored with their licenses (`vendor/fonts/`, `vendor/phosphor/`); no CDN is used. `sw.js` precaches the app shell in a versioned cache. Docs, downloads and other requests go to the network.
+- **Update prompt.** A new version waits until you tap Refresh in the "new version available" notice. The page never reloads by itself.
+- **Persistent storage.** Dailo asks the browser to keep its data (`navigator.storage.persist()`) after the first tap in a session, or from Settings → Data → Persistent storage, which also shows the status and usage.
+- **Backup reminder.** When the last ZIP export is older than the interval (default 7 days), Today shows one notice with Export backup and Remind me tomorrow (24-hour snooze). Without any export, it counts from the oldest record; an empty workspace gets no reminder. The interval (Off / 3 / 7 / 14 / 30 days) is in Settings → Data.
+- **Serbian interface (`sr-Latn`).** Every screen, dialog, toast, Undo message, recovery screen and the Search modal's labels are Serbian. Dates and numbers use `sr-Latn-RS`. Search behavior is unchanged, and the typed confirmations stay `RESET` and `RESTORE`.
+- **Serbian Quick Add.** Trailing `danas`, `sutra` and weekdays (`ponedeljak` … `nedelja`, with or without diacritics, optionally after `u`, e.g. `u sredu`) set the plan date; `u 9:30` sets the time. English keywords keep working.
+- **Version and problem report.** Version `1.9.0` appears in Settings → About and the brand tooltip; the backup manifest records `releaseVersion`. "Report a problem" opens an e-mail with the version and device details only, never app data. The link stays hidden until the beta report address is configured (pending).
+- **Fixes.** The favorite star icon renders again (G1); a stored week start of `0` now behaves as Sunday everywhere (G2); the stale disabled "Week starts on" row is gone from Settings → General (G3). `Core.makeUuid()` falls back to `crypto.getRandomValues` or `Math.random` where `crypto.randomUUID` is unavailable, such as plain-HTTP LAN addresses.
+
+Spec: `docs/superpowers/specs/2026-10-07-todo-v1-9-design.md`. Plan: `docs/superpowers/plans/2026-10-07-todo-v1-9.md`. Evidence: `docs/superpowers/progress-v1-9.md`. Install, standalone layout, offline launch, the update prompt, persistence, the backup reminder and the Serbian wording on a real iPhone are **manual-pending**.
 
 ## V1.6 highlights
 
@@ -51,7 +71,7 @@ Then open `http://localhost:8080`.
 
 Spec: `docs/superpowers/specs/2026-10-07-todo-v1-8-design.md`. Plan: `docs/superpowers/plans/2026-10-07-todo-v1-8.md`. Evidence: `docs/superpowers/progress-v1-8.md`. V1.8 visual, responsive, touch, keyboard and assistive-technology acceptance in a native browser is **manual-pending**.
 
-The V1.7 release ledger is `docs/superpowers/progress-v1-7.md`. Native browser acceptance is **manual-pending** unless that ledger explicitly records a user-owned-browser run; static checks and Node tests do not imply visual or browser acceptance.
+The V1.9 evidence ledger is `docs/superpowers/progress-v1-9.md`; the V1.7 release ledger is `docs/superpowers/progress-v1-7.md`. Native browser acceptance is **manual-pending** unless that ledger explicitly records a user-owned-browser run; static checks and Node tests do not imply visual or browser acceptance.
 
 For Claude Code continuation, start with `CLAUDE.md` and `docs/claude/CONTINUATION.md`. Historical versioned specs remain traceability documents; current source and focused tests are the factual implementation baseline.
 
@@ -71,7 +91,7 @@ Storage failures distinguish unsaved changes from an automatic snapshot failure 
 
 ### Verification status
 
-The latest V1.7 verification is recorded in `docs/superpowers/progress-v1-7.md`. It distinguishes automated evidence from the **manual-pending** user-owned-browser gate; no isolated Chromium or personal Chrome is opened by the implementation workflow.
+The latest verification is recorded in `docs/superpowers/progress-v1-9.md` (V1.9 Step 6: 330 Node tests, 329 passed, 0 failed, 1 todo; the todo is the release gate waiting for the problem-report address). V1.7 release evidence stays in `docs/superpowers/progress-v1-7.md`. Both distinguish automated evidence from the **manual-pending** user-owned-browser and iPhone gate; no isolated Chromium or personal Chrome is opened by the implementation workflow.
 
 ## V1.4 foundation
 
@@ -86,7 +106,7 @@ V1.4 keeps the V1.3 data model and adds a faster daily-planning flow:
 
 V1.4 does not change global Search, add bulk actions, or introduce a backend. Existing V1.3/V3 state and ZIP backups remain readable; no persisted schema bump was needed.
 
-Space Grotesk, Geist and Phosphor icon styles are referenced from public CDNs. The application itself has no backend or account requirement.
+Since V1.9, Space Grotesk, Geist and the Phosphor icon styles are vendored under `vendor/fonts/` and `vendor/phosphor/` with their license files (V1.4–V1.8 loaded them from public CDNs). The application itself has no backend or account requirement.
 
 ## What is included
 
@@ -194,7 +214,7 @@ Call today
 Update homepage Friday
 ```
 
-Unsupported/non-trailing phrases are left untouched. An explicitly selected Plan date always wins over parsed text.
+Unsupported/non-trailing phrases are left untouched. An explicitly selected Plan date always wins over parsed text. V1.9 adds the Serbian keywords `danas`, `sutra`, weekdays (optionally after `u`) and `u H:MM`, for example `Pošalji fakturu sutra u 9:30`.
 
 Task drag & drop now supports context moves in addition to same-list reordering:
 
@@ -328,11 +348,10 @@ node --test tests/*.test.js
 Syntax checks:
 
 ```bash
-node --check js/core.js
-node --check js/attachments.js
-node --check js/backup.js
-node --check js/app.js
+for file in js/*.js vendor/*.js tests/*.js tests/support/*.js sw.js; do node --check "$file"; done
 ```
+
+The Playwright scenarios in `tests/ui-*.py` select elements by English text. They are out of date for the V1.9 Serbian UI and are not part of release verification; `tests/run-browser-regressions.py --dry-run` runs only their static contracts.
 
 The optional browser harness uses an in-memory test adapter or a temporary loopback server with real IndexedDB. It is isolated CI tooling, not a production runtime requirement and not part of the user's Chrome session. Production defaults to real IndexedDB. `TodoApp.ready` can be awaited for startup migration and Habit hydration before interacting with the ready app.
 
@@ -352,7 +371,7 @@ Goal creation keeps milestones, reminders and source-specific links under More. 
 
 ## Brand reference
 
-The UI follows the supplied Universal Brand Design System v1: dark technical foundation, electric-blue actions/focus, mint positive states, restrained semantic color, Space Grotesk + Geist typography direction, Phosphor icon direction, approved sidebar geometry and precise motion/reduced-motion behavior. V1.8 implements it as the Quiet Graphite / Swiss Compact token system at the top of `css/styles.css`.
+The UI follows the supplied Universal Brand Design System v1: dark technical foundation, electric-blue actions/focus, mint positive states, restrained semantic color, Space Grotesk + Geist typography direction, Phosphor icon direction, approved sidebar geometry and precise motion/reduced-motion behavior. V1.8 implements it as the Quiet Graphite / Swiss Compact token system at the top of `css/styles.css`. V1.9 serves the fonts and icons locally and adds the Home Screen icons in `icons/` (generated by `tools/generate-icons.py`).
 
 ## Codex / agent handoff
 

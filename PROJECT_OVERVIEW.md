@@ -1,6 +1,6 @@
 # Dailo — pregled projekta i brainstorming
 
-> Current implementation: V1.7 stabilization prototype. For agent onboarding and verified source facts, read `CLAUDE.md` and `docs/claude/` first. The brainstorming questions below are ideas, not accepted requirements.
+> Current implementation: V1.7 behavior, V1.8 visual layer and V1.9 beta-ready additions (Serbian UI, install, offline, data protection; branch `ccr-95f6062b-lgg2fr`, pending a PR into `main`). For agent onboarding and verified source facts, read `CLAUDE.md` and `docs/claude/` first. The brainstorming questions below are ideas, not accepted requirements.
 
 Dailo je lokalna To-Do aplikacija za organizaciju zadataka, projekata, oblasti,
 ciljeva, navika, beleški i resursa. Osnovni tok je:
@@ -43,6 +43,20 @@ V1.7 status i tačni brojevi provera vode se u `docs/superpowers/progress-v1-7.m
 - Vidljiv fokus prsten, podrška za `prefers-contrast: more` i forced-colors, loading indikator koji poštuje reduced motion; touch mete na telefonu ostaju 44px.
 
 Detalji: `docs/superpowers/specs/2026-10-07-todo-v1-8-design.md` i `docs/superpowers/progress-v1-8.md`. Vizuelna provera u pravom browseru je **manual-pending**. Globalni Search ostaje nepromenjen, a bulk akcije nisu dodate.
+
+## V1.9 — spremno za beta testiranje
+
+Cilj je mala beta grupa na iPhone-u (Safari), i dalje bez backend-a, naloga i sinhronizacije; to stiže sa V2.0 mobilnom aplikacijom.
+
+- **Instalacija na početni ekran.** U Safariju: Deli → Dodaj na početni ekran → Dodaj. Podešavanja → Opšte → Instaliraj aplikaciju prikazuje ove korake ili potvrdu da je aplikacija instalirana. Safari i instalirana aplikacija čuvaju podatke odvojeno: prvo instalirati, pa tek onda koristiti; postojeći podaci se prenose ZIP izvozom i uvozom.
+- **Rad bez interneta.** Fontovi i Phosphor ikonice su lokalni, sa licencama; CDN se više ne koristi. Service worker čuva osnovne fajlove aplikacije u kešu označenom verzijom. Nova verzija čeka dok korisnik ne dodirne „Osveži”; stranica se nikad ne osvežava sama.
+- **Zaštita podataka.** Aplikacija traži od browsera trajno čuvanje (`navigator.storage.persist()`) pri prvom dodiru u sesiji ili iz Podešavanja → Podaci → Trajno čuvanje, gde se vidi i status. Today prikazuje podsetnik kada je poslednja rezervna kopija starija od zadatog broja dana (podrazumevano 7; Isključeno / 3 / 7 / 14 / 30), sa izvozom jednim dodirom i opcijom „Podseti me sutra” (24 sata).
+- **Srpski interfejs.** Sve je na srpskom (latinica, `sr-Latn`), uključujući natpise u Search prozoru; ponašanje Search-a je isto. Datumi i brojevi koriste `sr-Latn-RS`. Potvrde i dalje traže kucanje `RESET` i `RESTORE`.
+- **Quick Add na srpskom.** Na kraju naslova se prepoznaju `danas`, `sutra` i dani u nedelji, sa i bez dijakritika, i posle `u` (npr. `u sredu`, `cetvrtak`), kao i vreme `u 9:30`. Engleske reči i dalje rade.
+- **Verzija i prijava problema.** Verzija `1.9.0` se vidi u kartici Podešavanja → O aplikaciji. „Prijavi problem” otvara e-mail sa verzijom i podacima o uređaju, bez podataka iz aplikacije. Link se pojavljuje tek kada se zada adresa za prijave, a ona još nije poznata.
+- **Ispravke.** Zvezdica omiljene beleške ili resursa ponovo se vidi; početak nedelje se svuda tumači isto; uklonjen je zastareli red o početku nedelje iz opštih podešavanja; ID-jevi se prave i bez `crypto.randomUUID` (npr. na lokalnoj HTTP adresi).
+
+Detalji: `docs/superpowers/specs/2026-10-07-todo-v1-9-design.md`, `docs/superpowers/plans/2026-10-07-todo-v1-9.md` i `docs/superpowers/progress-v1-9.md`. Automatske provere su prošle (330 Node testova: 329 prošlo, 1 čeka adresu za prijave). Instalacija, rad bez mreže, ponuda nove verzije, trajno čuvanje, podsetnik i srpski tekst na pravom iPhone-u su **manual-pending**. Paket `Dailo-v1.9-distributable.zip` biće napravljen kada adresa za prijave bude poznata.
 
 ## 1. Today i Upcoming
 
@@ -208,11 +222,13 @@ quick-add komande poput `tomorrow`, skeniranje slike ili offline queue?
 python3 -m http.server 8080
 ```
 
-Zatim otvoriti `http://localhost:8080`.
+Zatim otvoriti `http://localhost:8080`. Service worker se registruje samo na `https:` ili `localhost`. GitHub Pages verzija je na `https://marko-ivapix.github.io/dailo/` i prikazuje `main`, pa V1.9 stiže tamo posle spajanja PR-a.
 
 ## Trenutni status
 
-V1.7 prototip se verifikuje prema `docs/superpowers/progress-v1-7.md`. Tačni
-brojevi Node, syntax, Python/static i ZIP provera upisuju se tek posle stvarnog
-pokretanja komandi; browser/visual acceptance ostaje **manual-pending** ako nije
-izvršena u user-owned browseru.
+V1.9 je implementiran (koraci 1–6) i proveren automatskim testovima prema
+`docs/superpowers/progress-v1-9.md`; preostaje korak 7 (adresa za prijave, paket,
+PR u `main`, ručna provera na iPhone-u). V1.7 osnova ostaje zabeležena u
+`docs/superpowers/progress-v1-7.md`. Tačni brojevi Node, syntax, Python/static i
+ZIP provera upisuju se tek posle stvarnog pokretanja komandi; browser/visual i
+iPhone acceptance ostaju **manual-pending** dok ih korisnik ne izvrši.
