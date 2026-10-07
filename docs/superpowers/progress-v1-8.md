@@ -83,7 +83,7 @@ Additional checks: CSS structural lint (balanced braces, no malformed declaratio
 5. Completed-goal progress turns mint via `:has()`; browsers without `:has()` keep the accent fill.
 6. Hairlines are decorative (below 3:1); controls are identified by fill, label and border together, and hover/focus states exceed 3:1.
 7. Space Grotesk, Geist and Phosphor still load from CDNs; offline rendering falls back to system fonts and missing icons.
-8. V1.8 is uncommitted and no V1.8 distributable was built; `Dailo-v1.7-distributable.zip` remains the latest package.
+8. No V1.8 distributable was built (V1.8 was committed as `4cfab6c` on `feature/todo-v1-3` and pushed to `https://github.com/marko-ivapix/dailo` after this verification, at the user's request); `Dailo-v1.7-distributable.zip` remains the latest package.
 
 **Search and no-bulk constraints:** preserved. Search behavior, scope, ranking and code are unchanged (CSS-only restyle of the existing Search modal); no bulk-selection or bulk-action UI, markup or selectors exist (`v1-7-polish` and V1.8 contracts green).
 

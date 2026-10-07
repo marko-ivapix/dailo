@@ -1,8 +1,14 @@
 # Dailo — Claude project guide
 
-> Documentation synchronized on 2026-10-07 against the V1.7 source, tests and release artifact, then updated for the V1.8 Quiet Graphite visual redesign implemented in the working tree on the same date. V1.8 is presentation-only: behavior, persistence, Search and recovery are the V1.7 baseline. It is not yet committed or packaged, and native-browser visual acceptance is manual-pending.
+> Documentation synchronized on 2026-10-07 against the V1.7 source, tests and release artifact, then updated for the V1.8 Quiet Graphite visual redesign implemented on the same date. V1.8 is presentation-only: behavior, persistence, Search and recovery are the V1.7 baseline. It is committed on `feature/todo-v1-3` (`4cfab6c`) and pushed to `https://github.com/marko-ivapix/dailo`; it is not packaged, and native-browser visual acceptance is manual-pending.
 
 This file is the entry point for Claude and other coding agents working in this repository.
+
+## Communicating with the user
+
+Always reply to the user **in Serbian and briefly**: say what it is or what was done, and how it was done. No long reports or exhaustive lists unless the user asks. Code, file names, commands and repository documentation keep their existing language (repository docs are English; `PROJECT_OVERVIEW.md` is Serbian).
+
+The current work branch is `feature/todo-v1-3` (the GitHub default branch `main` is older and does not contain V1.8).
 
 ## Read first
 
@@ -50,7 +56,7 @@ Do not launch an isolated Chromium or open/modify the user's personal Chrome unl
 
 ## Current handoff boundary
 
-- V1.7 behavior is implemented and locally verified. The V1.8 visual redesign is implemented in `css/styles.css` (token system + one appended layer) with minimal markup hooks, verified by automated/static checks only; it is uncommitted and not packaged.
+- V1.7 behavior is implemented and locally verified. The V1.8 visual redesign is implemented in `css/styles.css` (token system + one appended layer) with minimal markup hooks, verified by automated/static checks only; it is committed and pushed on `feature/todo-v1-3` but not packaged.
 - The app remains static HTML/CSS/vanilla JavaScript with localStorage + IndexedDB; there is no backend, account system, cloud sync or production REST API.
 - Global Search behavior and the no-bulk-actions rule are compatibility constraints.
 - Native browser, mobile touch, real IndexedDB/file chooser and visual acceptance remain **manual-pending**. Never report them as green from Node/static checks.
