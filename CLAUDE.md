@@ -1,6 +1,6 @@
 # Dailo — Claude project guide
 
-> Documentation synchronized on 2026-10-07 against the V1.7 source, tests and release artifact, then updated for the V1.8 Quiet Graphite visual redesign implemented on the same date. V1.8 is presentation-only: behavior, persistence, Search and recovery are the V1.7 baseline. It is committed on `feature/todo-v1-3` (`4cfab6c`) and pushed to `https://github.com/marko-ivapix/dailo`; it is packaged as `Dailo-v1.8-distributable.zip`, and native-browser visual acceptance is manual-pending.
+> Documentation synchronized on 2026-10-07 against the V1.7 source, tests and release artifact, then updated for the V1.8 Quiet Graphite visual redesign implemented on the same date. V1.8 is presentation-only: behavior, persistence, Search and recovery are the V1.7 baseline. It was committed on `feature/todo-v1-3` (`4cfab6c`), packaged as `Dailo-v1.8-distributable.zip` and merged into `main` (`994ac71`) at `https://github.com/marko-ivapix/dailo`; native-browser visual acceptance is manual-pending.
 
 This file is the entry point for Claude and other coding agents working in this repository.
 
@@ -8,7 +8,7 @@ This file is the entry point for Claude and other coding agents working in this 
 
 Always reply to the user **in Serbian and briefly**: say what it is or what was done, and how it was done. No long reports or exhaustive lists unless the user asks. Code, file names, commands and repository documentation keep their existing language (repository docs are English; `PROJECT_OVERVIEW.md` is Serbian).
 
-The current work branch is `feature/todo-v1-3` (the GitHub default branch `main` is older and does not contain V1.8).
+The work branch is `main` (the GitHub default branch). `feature/todo-v1-3` was merged into it on 2026-10-07 (PR #2, `994ac71`) and is historical; do not develop on it.
 
 ## Read first
 
@@ -65,11 +65,11 @@ python3 tests/run-browser-regressions.py --dry-run
 ```
 
 - The registry file has no `__main__`; running it directly executes 0 tests, so use the one-liner above.
-- Start from branch `feature/todo-v1-3`. If the session pushes to a different branch (for example `claude/...`), tell the user the exact branch name.
+- Start from branch `main`. If the session pushes to a different branch (for example `claude/...`), tell the user the exact branch name.
 
 ## Current handoff boundary
 
-- V1.7 behavior is implemented and locally verified. The V1.8 visual redesign is implemented in `css/styles.css` (token system + one appended layer) with minimal markup hooks, verified by automated/static checks only; it is committed and pushed on `feature/todo-v1-3` and packaged as `Dailo-v1.8-distributable.zip` (recipe in `docs/claude/TESTING_AND_RELEASE.md`).
+- V1.7 behavior is implemented and locally verified. The V1.8 visual redesign is implemented in `css/styles.css` (token system + one appended layer) with minimal markup hooks, verified by automated/static checks only; it is on `main` and packaged as `Dailo-v1.8-distributable.zip` (recipe in `docs/claude/TESTING_AND_RELEASE.md`).
 - The app remains static HTML/CSS/vanilla JavaScript with localStorage + IndexedDB; there is no backend, account system, cloud sync or production REST API.
 - Global Search behavior and the no-bulk-actions rule are compatibility constraints.
 - Native browser, mobile touch, real IndexedDB/file chooser and visual acceptance remain **manual-pending**. Never report them as green from Node/static checks.

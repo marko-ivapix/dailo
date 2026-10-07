@@ -4,7 +4,7 @@ This document records the current verification path. It does not turn source ins
 
 ## Run the local automated suite
 
-From the prototype worktree:
+From the repository root (branch `main`):
 
 ```bash
 node --test tests/*.test.js
@@ -89,7 +89,7 @@ git archive "$SRC" -- .gitignore AGENTS.md CLAUDE.md PROJECT_OVERVIEW.md README.
 unzip -t "$OUT" && sha256sum Dailo-v1.8-distributable.zip > Dailo-v1.8-distributable.zip.sha256
 ```
 
-The SHA-256 lives only in the sidecar so the packaged ledger and guides stay byte-identical to the release artifact.
+The SHA-256 lives only in the sidecar so the packaged ledger and guides stay byte-identical to the release artifact. The packaged docs are a snapshot of the source commit; later documentation edits on `main` (such as the branch notes after the 2026-10-07 merge) are not in the ZIP until a new package is built.
 
 Previous artifact: `Dailo-v1.7-distributable.zip` (42 regular files, `unzip -t` passed, SHA-256 in `Dailo-v1.7-distributable.zip.sha256`) remains in the repository as the V1.7 release.
 
