@@ -24,7 +24,7 @@
   1. **Data loss on iOS Safari.** WebKit deletes script-writable storage (localStorage, IndexedDB) for sites not opened for 7 days unless the site is added to the Home Screen. Dailo has no web app manifest and never calls `navigator.storage.persist()`.
   2. **Offline gaps.** Geist, Space Grotesk and Phosphor icons load from CDNs; there is no service worker, so the app does not open offline and icons disappear without network.
   3. **Reminders** fire only while the app is open (no service worker, no push).
-  4. **Insecure-context IDs.** `js/core.js` uses `crypto.randomUUID()`, which is unavailable outside HTTPS/localhost (e.g. a LAN IP), so creating items fails there. Pages is HTTPS, so this is low priority.
+  4. **Insecure-context IDs.** `crypto.randomUUID()` is unavailable outside HTTPS/localhost (e.g. a LAN IP). Item IDs come from `uid()` (`Math.random`) and work everywhere; only editing a recurring series "this and future" (`js/core.js:374`) fails there. Pages is HTTPS, so this is low priority (corrected while writing the V1.9 spec).
   5. **No feedback channel** for beta users and no visible app version.
   6. **Pages serves the whole repository**, including docs, tests and release ZIPs. Acceptable for a public repo, optional to narrow.
 
@@ -78,4 +78,4 @@ Spec must decide:
 
 ## Next step
 
-Write the V1.9 spec and plan (`docs/superpowers/specs/…-todo-v1-9-design.md`, `docs/superpowers/plans/…-todo-v1-9.md`) and start Phase 1 with failing tests.
+The V1.9 spec draft is `docs/superpowers/specs/2026-10-07-todo-v1-9-design.md`. After the user answers its open questions, write `docs/superpowers/plans/2026-10-07-todo-v1-9.md` and start Phase 1 with failing tests.
