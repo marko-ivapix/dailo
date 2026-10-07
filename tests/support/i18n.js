@@ -3,7 +3,7 @@
 const vm = require('node:vm');
 const I18n = require('../../js/i18n.js');
 
-const i18nGlobals = () => ({ I18n, TodoI18n: I18n, tr: I18n.tr, trn: I18n.trn, msg: I18n.msg });
+const i18nGlobals = () => ({ I18n, TodoI18n: I18n, tr: I18n.tr, trn: I18n.trn, trMessage: I18n.trMessage, msg: I18n.msg });
 
 function withI18n(sandbox) {
   Object.assign(sandbox, i18nGlobals());

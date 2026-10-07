@@ -33,6 +33,16 @@
     return interpolate(count === 1 ? one : other, values);
   }
 
+  // Shows a stored or thrown English message: the whole text when it is a key, otherwise
+  // "Prefix: detail" with the prefix translated and the detail handled the same way.
+  // Unknown text passes through unchanged.
+  function trMessage(text) {
+    const value = String(text ?? '');
+    if (own(catalogs[language], value)) return tr(value);
+    const parts = /^([^:]+): ([\s\S]+)$/.exec(value);
+    return parts ? `${tr(parts[1])}: ${trMessage(parts[2])}` : value;
+  }
+
   // Marks a constant (labels in lookup tables, persisted status sentences) as a translation key
   // without translating it; the value is passed to tr() where it is displayed.
   const msg = source => source;
@@ -49,5 +59,5 @@
   const locale = () => LOCALES[language];
   const catalog = code => ({ ...(catalogs[code] || {}) });
 
-  return { tr, trn, msg, addCatalog, setLanguage, locale, catalog, get language() { return language; } };
+  return { tr, trn, trMessage, msg, addCatalog, setLanguage, locale, catalog, get language() { return language; } };
 });

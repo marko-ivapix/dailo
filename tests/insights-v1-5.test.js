@@ -125,6 +125,6 @@ test('Goal habit contributions cap each link and escape names', () => {
   f.state.habitMetrics.h = { totalCheckins: 4 };
   const html = f.adapters.goals.renderRoute({ type: 'goal', id: 'g' }, f.ctx);
   assert.match(html, /data-goal-health="complete"/);
-  assert.match(html, /4 \/ 2 totalCheckins · 100%/);
+  assert.match(html, /4 \/ 2 Check-ins · 100%/);
   assert.doesNotMatch(html, /<img src=x>/);
 });

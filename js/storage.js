@@ -5,6 +5,9 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function (root) {
   'use strict';
 
+  // Marks a user-visible error text as a translation key (see js/i18n.js); the app translates it where it is shown.
+  const msg = text => text;
+
   const DB_NAME = 'todoAppDB';
   const DB_VERSION = 1;
   const STORES = ['attachments', 'habitLogs', 'goalHistory', 'recoverySnapshots'];
@@ -34,15 +37,15 @@
   function requestPromise(request) {
     return new Promise((resolve, reject) => {
       request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error || new Error('IndexedDB request failed'));
+      request.onerror = () => reject(request.error || new Error(msg('IndexedDB request failed')));
     });
   }
 
   function transactionDone(tx) {
     return new Promise((resolve, reject) => {
       tx.oncomplete = () => resolve();
-      tx.onabort = () => reject(tx.error || new Error('IndexedDB transaction aborted'));
-      tx.onerror = () => reject(tx.error || new Error('IndexedDB transaction failed'));
+      tx.onabort = () => reject(tx.error || new Error(msg('IndexedDB transaction aborted')));
+      tx.onerror = () => reject(tx.error || new Error(msg('IndexedDB transaction failed')));
     });
   }
 
@@ -78,7 +81,7 @@
 
   async function open() {
     if (memoryMode()) return { name: 'memory-test-db' };
-    if (!root.indexedDB) throw new Error('IndexedDB unavailable');
+    if (!root.indexedDB) throw new Error(msg('IndexedDB unavailable'));
     if (!dbPromise) {
       dbPromise = new Promise((resolve, reject) => {
         let request;
@@ -92,8 +95,8 @@
           request.result.onversionchange = () => { request.result.close(); dbPromise = null; };
           resolve(request.result);
         };
-        request.onerror = () => fail(request.error || new Error('Could not open storage database'));
-        request.onblocked = () => fail(new Error('Storage database is blocked'));
+        request.onerror = () => fail(request.error || new Error(msg('Could not open storage database')));
+        request.onblocked = () => fail(new Error(msg('Storage database is blocked')));
       });
     }
     try { return await dbPromise; }
@@ -119,7 +122,7 @@
   }
 
   function requireRecord(record, fields, label) {
-    if (!record || fields.some(field => !record[field])) throw new Error(`Invalid ${label} record`);
+    if (!record || fields.some(field => !record[field])) throw new Error(`${msg('Invalid stored record')}: ${label}`);
   }
 
   async function putRecord(storeName, record, fields, label) {
@@ -127,7 +130,7 @@
     if (memoryMode()) {
       if (storeName === 'habitLogs') {
         const duplicate = [...memoryStores.habitLogs.values()].find(item => item.id !== record.id && item.habitId === record.habitId && item.date === record.date);
-        if (duplicate) throw new Error('Habit log already exists for this habit and date');
+        if (duplicate) throw new Error(msg('Habit log already exists for this habit and date'));
       }
       memoryStores[storeName].set(record.id, clone(record));
       return clone(record);
@@ -225,7 +228,7 @@
 
   function knowledgeAttachmentSnapshot(record) {
     if (!record || !['note', 'resource'].includes(record.type) || typeof record.id !== 'string' || !record.id.trim())
-      throw new Error('Invalid knowledge attachment owner');
+      throw new Error(msg('Invalid knowledge attachment owner'));
     return { tasks: [], notes: record.type === 'note' ? [record] : [], resources: record.type === 'resource' ? [record] : [] };
   }
 
@@ -240,10 +243,10 @@
     requireRecord(record, ['id'], 'attachment');
     if (['note', 'resource'].includes(record.ownerType)) {
       requireRecord(record, ['ownerId'], 'attachment');
-      if (record.taskId != null) throw new Error('Invalid attachment ownership');
+      if (record.taskId != null) throw new Error(msg('Invalid attachment ownership'));
     } else {
       requireRecord(record, ['taskId'], 'attachment');
-      if (record.ownerType != null && record.ownerType !== 'task') throw new Error('Invalid attachment ownership');
+      if (record.ownerType != null && record.ownerType !== 'task') throw new Error(msg('Invalid attachment ownership'));
     }
   }
 
@@ -251,17 +254,17 @@
     const byId = new Map();
     for (const record of records) {
       requireAttachmentRecord(record);
-      if (byId.has(record.id)) throw new Error(`Duplicate attachment: ${record.id}`);
+      if (byId.has(record.id)) throw new Error(`${msg('Duplicate attachment')}: ${record.id}`);
       byId.set(record.id, record);
     }
     const referenced = new Set();
     for (const owner of attachmentOwners(state)) {
       for (const id of owner.item.attachmentIds || []) {
-        if (referenced.has(id)) throw new Error(`Reused attachment reference: ${id}`);
+        if (referenced.has(id)) throw new Error(`${msg('Reused attachment reference')}: ${id}`);
         referenced.add(id);
         const record = byId.get(id);
         if (!attachmentBelongsTo(record, owner) || !(record.blob instanceof root.Blob)
-          || record.blob.size !== record.size) throw new Error(`Missing or invalid attachment: ${id}`);
+          || record.blob.size !== record.size) throw new Error(`${msg('Missing or invalid attachment')}: ${id}`);
       }
     }
   }
@@ -337,34 +340,34 @@
     async putIfCurrent(record, expected) {
       requireRecord(record, ['id', 'habitId', 'date'], 'habit log');
       const expectedRecord = expected ?? null;
-      if (expectedRecord && expectedRecord.id !== record.id) throw new Error('Habit log expected record changed.');
+      if (expectedRecord && expectedRecord.id !== record.id) throw new Error(msg('Habit log expected record changed.'));
       const matches = actual => JSON.stringify(actual ?? null) === JSON.stringify(expectedRecord);
       if (memoryMode()) {
-        if (!matches(memoryStores.habitLogs.get(record.id))) throw new Error('Habit log changed in another context.');
+        if (!matches(memoryStores.habitLogs.get(record.id))) throw new Error(msg('Habit log changed in another context.'));
         const duplicate = [...memoryStores.habitLogs.values()].find(item => item.id !== record.id && item.habitId === record.habitId && item.date === record.date);
-        if (duplicate) throw new Error('Habit log already exists for this habit and date');
+        if (duplicate) throw new Error(msg('Habit log already exists for this habit and date'));
         memoryStores.habitLogs.set(record.id, clone(record));
         return clone(record);
       }
       return withStore('habitLogs', 'readwrite', async store => {
         const current = await requestPromise(store.get(record.id));
-        if (!matches(current)) throw new Error('Habit log changed in another context.');
+        if (!matches(current)) throw new Error(msg('Habit log changed in another context.'));
         await requestPromise(store.put(record));
         return clone(record);
       });
     },
     async deleteIfCurrent(id, expected) {
-      if (!id || !expected || expected.id !== id) throw new Error('Habit log expected record is required.');
+      if (!id || !expected || expected.id !== id) throw new Error(msg('Habit log expected record is required.'));
       const matches = actual => JSON.stringify(actual ?? null) === JSON.stringify(expected);
       if (memoryMode()) {
         const current = memoryStores.habitLogs.get(id);
-        if (!matches(current)) throw new Error('Habit log changed in another context.');
+        if (!matches(current)) throw new Error(msg('Habit log changed in another context.'));
         memoryStores.habitLogs.delete(id);
         return;
       }
       return withStore('habitLogs', 'readwrite', async store => {
         const current = await requestPromise(store.get(id));
-        if (!matches(current)) throw new Error('Habit log changed in another context.');
+        if (!matches(current)) throw new Error(msg('Habit log changed in another context.'));
         await requestPromise(store.delete(id));
       });
     },
@@ -405,24 +408,24 @@
       if (expectedAttachments) {
         for (const expected of expectedAttachments) {
           const actual = memoryStores.attachments.get(expected.id);
-          if (!(await sameAttachmentRecord(actual, expected))) throw new Error('Retained attachment ownership changed.');
+          if (!(await sameAttachmentRecord(actual, expected))) throw new Error(msg('Retained attachment ownership changed.'));
           guards.push(['attachments', expected.id, actual]);
         }
       }
       for (const name of names) {
         for (const [id, expected] of expectedHistory?.[name] || []) {
           const actual = memoryStores[name].get(id);
-          if (JSON.stringify(actual || null) !== JSON.stringify(expected)) throw new Error('Retained history ownership changed.');
+          if (JSON.stringify(actual || null) !== JSON.stringify(expected)) throw new Error(msg('Retained history ownership changed.'));
           guards.push([name, id, actual]);
         }
         for (const expected of snapshot.deleteRecords?.[name] || []) {
           const actual = memoryStores[name].get(expected.id);
-          if (JSON.stringify(actual) !== JSON.stringify(expected)) throw new Error('Retained history ownership changed.');
+          if (JSON.stringify(actual) !== JSON.stringify(expected)) throw new Error(msg('Retained history ownership changed.'));
           guards.push([name, expected.id, actual]);
         }
       }
       validate?.();
-      if (guards.some(([name, id, record]) => memoryStores[name].get(id) !== record)) throw new Error('Retained record ownership changed.');
+      if (guards.some(([name, id, record]) => memoryStores[name].get(id) !== record)) throw new Error(msg('Retained record ownership changed.'));
       for (const name of names) for (const record of snapshot[name] || []) memoryStores[name].set(record.id, clone(record));
       for (const name of names) for (const record of snapshot.deleteRecords?.[name] || []) memoryStores[name].delete(record.id);
       return;
@@ -434,7 +437,7 @@
         const store = tx.objectStore(name);
         if (name === 'attachments' && expectedAttachments) {
           const expected = expectedAttachments.find(item => item.id === record.id);
-          if (!expected || !(await mutateMatchingBlob(store, tx, expected, () => { validate?.(); store.put(record); }))) throw new Error('Retained attachment ownership changed.');
+          if (!expected || !(await mutateMatchingBlob(store, tx, expected, () => { validate?.(); store.put(record); }))) throw new Error(msg('Retained attachment ownership changed.'));
         } else if (expectedHistory?.[name]) {
           const expected = expectedHistory[name].find(([id]) => id === record.id);
           await new Promise((resolve, reject) => {
@@ -442,7 +445,7 @@
             read.onerror = () => reject(read.error);
             read.onsuccess = () => {
               try {
-                if (!expected || JSON.stringify(read.result || null) !== JSON.stringify(expected[1])) throw new Error('Retained history ownership changed.');
+                if (!expected || JSON.stringify(read.result || null) !== JSON.stringify(expected[1])) throw new Error(msg('Retained history ownership changed.'));
                 validate?.(); store.put(record); resolve();
               } catch (error) { try { tx.abort(); } catch (_) {} reject(error); }
             };
@@ -450,7 +453,7 @@
         } else { validate?.(); store.put(record); }
       }
       for (const name of names) for (const record of snapshot.deleteRecords?.[name] || [])
-        if (!(await mutateMatchingBlob(tx.objectStore(name), tx, record, () => { validate?.(); tx.objectStore(name).delete(record.id); }))) throw new Error('Retained history ownership changed.');
+        if (!(await mutateMatchingBlob(tx.objectStore(name), tx, record, () => { validate?.(); tx.objectStore(name).delete(record.id); }))) throw new Error(msg('Retained history ownership changed.'));
     }
     catch (error) { try { tx.abort(); } catch (_) {} await done.catch(() => {}); throw error; }
     await done;
@@ -463,15 +466,15 @@
       catch (error) { reject(error); return; }
       let failed = false;
       request.onsuccess = () => { if (failed) request.result.close(); else resolve(request.result); };
-      request.onerror = () => { failed = true; reject(request.error || new Error('Could not open legacy attachment database')); };
-      request.onblocked = () => { failed = true; reject(new Error('Legacy attachment database is blocked')); };
+      request.onerror = () => { failed = true; reject(request.error || new Error(msg('Could not open legacy attachment database'))); };
+      request.onblocked = () => { failed = true; reject(new Error(msg('Legacy attachment database is blocked'))); };
     });
   }
 
   async function readLegacyAttachments(taskAttachmentIds) {
     const ids = new Set((taskAttachmentIds || []).filter(Boolean));
     if (!ids.size || memoryMode()) return [];
-    if (!root.indexedDB) throw new Error('IndexedDB unavailable');
+    if (!root.indexedDB) throw new Error(msg('IndexedDB unavailable'));
     const legacyDb = await openLegacyAttachmentDb();
     try {
       if (!legacyDb.objectStoreNames.contains(ATTACHMENTS_STORE)) return [];
@@ -481,10 +484,10 @@
         for (const id of ids) {
           const request = tx.objectStore(ATTACHMENTS_STORE).get(id);
           request.onsuccess = () => { if (request.result) records.push(request.result); };
-          request.onerror = () => reject(request.error || new Error('Could not read legacy attachments'));
+          request.onerror = () => reject(request.error || new Error(msg('Could not read legacy attachments')));
         }
         tx.oncomplete = () => resolve(records);
-        tx.onabort = () => reject(tx.error || new Error('Legacy attachment transaction aborted'));
+        tx.onabort = () => reject(tx.error || new Error(msg('Legacy attachment transaction aborted')));
       });
       return records;
     } finally {
@@ -527,10 +530,10 @@
       for (const expected of legacy) {
         const actual = await attachments.get(expected.id);
         if (!actual || actual.taskId !== expected.taskId || actual.blob.type !== expected.blob.type
-          || actual.blob.size !== expected.blob.size) throw new Error(`Attachment copy verification failed: ${expected.id}`);
+          || actual.blob.size !== expected.blob.size) throw new Error(`${msg('Attachment copy verification failed')}: ${expected.id}`);
         const before = new Uint8Array(await expected.blob.arrayBuffer());
         const after = new Uint8Array(await actual.blob.arrayBuffer());
-        if (before.some((byte, index) => byte !== after[index])) throw new Error(`Attachment bytes changed: ${expected.id}`);
+        if (before.some((byte, index) => byte !== after[index])) throw new Error(`${msg('Attachment bytes changed')}: ${expected.id}`);
       }
     }
     verifyAttachmentReferences(appData, await attachments.getMany(ids));
@@ -565,9 +568,9 @@
     const next = clone(payload);
     if (memoryMode()) {
       const before = await captureUserData();
-      if (expected && !(await sameUserData(before, expected))) throw new Error('Stored data changed. Retry with a fresh safety backup.');
+      if (expected && !(await sameUserData(before, expected))) throw new Error(msg('Stored data changed. Retry with a fresh safety backup.'));
       validate?.();
-      if (!(await sameUserData(await captureUserData(), before))) throw new Error('Stored data changed during preparation.');
+      if (!(await sameUserData(await captureUserData(), before))) throw new Error(msg('Stored data changed during preparation.'));
       validate?.();
       for (const name of USER_STORES) { memoryStores[name].clear(); for (const record of next[name]) memoryStores[name].set(record.id, clone(record)); }
       return;
@@ -587,7 +590,7 @@
             if (!settled) { pump(); return; }
             try {
               if (failure) throw failure;
-              if (!matches) throw new Error('Stored data changed. Retry with a fresh safety backup.');
+              if (!matches) throw new Error(msg('Stored data changed. Retry with a fresh safety backup.'));
               validate?.();
               for (const name of USER_STORES) {
                 const store = tx.objectStore(name); store.clear();
@@ -609,13 +612,13 @@
     const stateText = JSON.stringify(state), payload = await source.captureUserData();
     if (root.localStorage.getItem('todoAppData') !== rawAppData || JSON.stringify(state) !== stateText
       || !(await source.sameUserData(await source.captureUserData(), payload))
-      || root.localStorage.getItem('todoAppData') !== rawAppData || JSON.stringify(state) !== stateText) throw new Error('Source changed while preparing recovery. Retry.');
+      || root.localStorage.getItem('todoAppData') !== rawAppData || JSON.stringify(state) !== stateText) throw new Error(msg('Source changed while preparing recovery. Retry.'));
     const id = `recovery-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const snapshot = { id, reason, phase: 'prepared', createdAt: new Date().toISOString(), rawAppData, appData,
       liveState: JSON.parse(stateText), ...payload, attachmentRefs: payload.attachments, habitLogRefs: payload.habitLogs, goalHistoryRefs: payload.goalHistory };
     const byteBudget = Number(options.maxBytes);
     if (Number.isFinite(byteBudget) && (byteBudget <= 0 || estimateSnapshotBytes(snapshot) > byteBudget))
-      throw new Error(`Automatic snapshot budget exceeded (${byteBudget} bytes)`);
+      throw new Error(`${msg('Automatic snapshot budget exceeded (bytes)')}: ${byteBudget}`);
     return { source, snapshot };
   }
 
@@ -629,7 +632,7 @@
     const snapshot = await recoverySnapshots.get(snapshotId);
     if (!snapshot || root.localStorage.getItem('todoAppData') !== snapshot.rawAppData
       || !(await sameUserData(await captureUserData(), snapshot))
-      || root.localStorage.getItem('todoAppData') !== snapshot.rawAppData) throw new Error('Recovery verification failed. Recovery snapshot retained; retry recovery.');
+      || root.localStorage.getItem('todoAppData') !== snapshot.rawAppData) throw new Error(msg('Recovery verification failed. Recovery snapshot retained; retry recovery.'));
     return snapshot;
   }
 
@@ -650,9 +653,9 @@
   function createAutomaticSnapshot(state, now = new Date(), options = {}) {
     const operation = automaticSnapshotWork.catch(() => {}).then(async () => {
       const timestamp = new Date(now);
-      if (!Number.isFinite(timestamp.getTime())) throw new Error('Invalid snapshot date.');
+      if (!Number.isFinite(timestamp.getTime())) throw new Error(msg('Invalid snapshot date.'));
       const byteBudget = Number.isFinite(options.maxBytes) ? options.maxBytes : AUTOMATIC_SNAPSHOT_MAX_BYTES;
-      if (byteBudget <= 0) throw new Error('Automatic snapshot budget must be positive.');
+      if (byteBudget <= 0) throw new Error(msg('Automatic snapshot budget must be positive.'));
       const previous = (await recoverySnapshots.listAll()).filter(item => item.reason === 'automatic')
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
       if (previous.length && timestamp.getTime() - Date.parse(previous[0].createdAt) < 300000) return null;
@@ -664,7 +667,7 @@
         verifyAttachmentReferences(snapshot.appData, snapshot.attachments);
         snapshot.createdAt = timestamp.toISOString();
         const candidateBytes = estimateSnapshotBytes(snapshot);
-        if (candidateBytes > byteBudget) throw new Error(`Automatic snapshot budget exceeded (${byteBudget} bytes)`);
+        if (candidateBytes > byteBudget) throw new Error(`${msg('Automatic snapshot budget exceeded (bytes)')}: ${byteBudget}`);
         // Make space before insertion so IndexedDB never temporarily exceeds
         // the aggregate automatic-snapshot budget. Operation safety copies are
         // excluded and therefore cannot be pruned here.
@@ -718,16 +721,16 @@
 
   async function restoreRecoverySnapshot(snapshotId) {
     const snapshot = await recoverySnapshots.get(snapshotId);
-    if (!snapshot) throw new Error('Recovery snapshot is unavailable.');
+    if (!snapshot) throw new Error(msg('Recovery snapshot is unavailable.'));
     let expected = null;
     const validate = () => {
       if (snapshot.destination && ![snapshot.rawAppData, snapshot.destination.rawAppData].includes(root.localStorage.getItem('todoAppData')))
-        throw new Error('Recovery ownership changed: foreign metadata is present. Close other tabs and resolve the source before retrying recovery.');
+        throw new Error(msg('Recovery ownership changed: foreign metadata is present. Close other tabs and resolve the source before retrying recovery.'));
     };
     if (snapshot.destination) {
       validate(); expected = await captureUserData();
       if (!(await sameUserData(expected, snapshot)) && !(await sameUserData(expected, snapshot.destination)))
-        throw new Error('Recovery ownership changed: foreign stored records or file bytes are present. Resolve the source before retrying recovery.');
+        throw new Error(msg('Recovery ownership changed: foreign stored records or file bytes are present. Resolve the source before retrying recovery.'));
       validate();
     }
     await replaceUserData(snapshot, expected, validate);
@@ -764,17 +767,17 @@
         const currentIsNext = await sameUserData(currentData, nextData);
         const safeInFlight = currentRaw === oldRaw && currentIsNext;
         if (!currentIsOld && !(currentRaw === nextRaw && currentIsNext) && !safeInFlight)
-          throw new Error('Canonical or stored data changed during rollback; recovery remains available.');
+          throw new Error(msg('Canonical or stored data changed during rollback; recovery remains available.'));
         if (currentIsNext) await replaceUserData(before, currentData);
         if (currentRaw === oldRaw) {
           if (oldRaw === null) root.localStorage.removeItem('todoAppData');
           else root.localStorage.setItem('todoAppData', oldRaw);
         } else if (root.localStorage.getItem('todoAppData') !== nextRaw) {
-          throw new Error('Canonical data changed during rollback; recovery remains available.');
+          throw new Error(msg('Canonical data changed during rollback; recovery remains available.'));
         } else if (oldRaw === null) root.localStorage.removeItem('todoAppData');
         else root.localStorage.setItem('todoAppData', oldRaw);
       } catch (failure) { failures.push(failure); }
-      if (failures.length) throw new AggregateError([error, ...failures], `Backup replacement failed: ${error.message}. Rollback failed.`);
+      if (failures.length) throw new AggregateError([error, ...failures], `${msg('Backup replacement and rollback failed')}: ${error.message}`);
       throw error;
     }
   }
@@ -792,10 +795,10 @@
 
   function writeCanonicalStateSync(nextState, expectedRaw) {
     const before = root.localStorage.getItem('todoAppData');
-    if (expectedRaw !== undefined && before !== expectedRaw) throw new Error('Canonical data changed in another tab; refresh before saving.');
+    if (expectedRaw !== undefined && before !== expectedRaw) throw new Error(msg('Canonical data changed in another tab; refresh before saving.'));
     const persisted = normalizeState(nextState);
     const raw = JSON.stringify(persisted);
-    if (root.localStorage.getItem('todoAppData') !== before) throw new Error('Canonical data changed in another tab; refresh before saving.');
+    if (root.localStorage.getItem('todoAppData') !== before) throw new Error(msg('Canonical data changed in another tab; refresh before saving.'));
     root.localStorage.setItem('todoAppData', raw);
     return raw;
   }

@@ -5,6 +5,9 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function (root) {
   'use strict';
 
+  // Marks a user-visible error text as a translation key (see js/i18n.js); the app translates it where it is shown.
+  const msg = text => text;
+
   const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
   const MAX_ATTACHMENTS_PER_OWNER = 10;
   // ZIP limits are intentionally conservative.  They protect the local-first
@@ -21,7 +24,7 @@
   const BACKUP_VERSION = 2;
 
   function requireZip() {
-    if (!root.JSZip) throw new Error('ZIP support unavailable');
+    if (!root.JSZip) throw new Error(msg('ZIP support unavailable'));
     return root.JSZip;
   }
 
@@ -83,15 +86,15 @@
       }
     }
     const manifest = { backupVersion: BACKUP_VERSION, appVersion: '1.3', releaseVersion: root.DailoRelease?.APP_VERSION || null, exportedAt: nowIso, data: state, attachments: metadata, habitLogs, goalHistory };
-    if (JSON.stringify(source) !== sourceText) throw new Error('Source changed during export. Retry.');
+    if (JSON.stringify(source) !== sourceText) throw new Error(msg('Source changed during export. Retry.'));
     zip.file('data.json', JSON.stringify(manifest, null, 2));
     const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
-    if (JSON.stringify(source) !== sourceText) throw new Error('Source changed during export. Retry.');
+    if (JSON.stringify(source) !== sourceText) throw new Error(msg('Source changed during export. Retry.'));
     return blob;
   }
 
   function validateDomain(state, logs, history) {
-    const fail = label => { throw new Error(`Invalid backup ${label}`); };
+    const fail = label => { throw new Error(`${msg('Invalid backup')}: ${label}`); };
     const object = value => value && typeof value === 'object' && !Array.isArray(value);
     const name = value => typeof value === 'string' && value.trim();
     const date = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && root.TodoCore.parseDateOnly(value) && root.TodoCore.dateOnly(root.TodoCore.parseDateOnly(value)) === value;
@@ -272,9 +275,9 @@
     const owners = new Map();
     for (const owner of root.TodoStorage.attachmentOwners(state)) {
       const ids = owner.item.attachmentIds || [];
-      if (ids.length > MAX_ATTACHMENTS_PER_OWNER) throw new Error('An item has more than 10 attachments');
+      if (ids.length > MAX_ATTACHMENTS_PER_OWNER) throw new Error(msg('An item has more than 10 attachments'));
       for (const id of ids) {
-        if (typeof id !== 'string' || !id.trim() || owners.has(id)) throw new Error('Invalid or reused attachment ID');
+        if (typeof id !== 'string' || !id.trim() || owners.has(id)) throw new Error(msg('Invalid or reused attachment ID'));
         owners.set(id, owner);
       }
     }
@@ -283,11 +286,11 @@
       const owner = owners.get(item?.id);
       if (!owner || attachmentIds.has(item.id) || !root.TodoStorage.attachmentBelongsTo(item, owner)
         || typeof item.fileName !== 'string' || typeof item.mimeType !== 'string' || item.pendingDeleteUntil || item.pendingDeleteToken)
-        throw new Error('Invalid attachment metadata or ownership');
+        throw new Error(msg('Invalid attachment metadata or ownership'));
       attachmentIds.add(item.id);
-      if (!Number.isInteger(item.size) || item.size < 0 || item.size > MAX_ATTACHMENT_BYTES) throw new Error('Invalid attachment size');
+      if (!Number.isInteger(item.size) || item.size < 0 || item.size > MAX_ATTACHMENT_BYTES) throw new Error(msg('Invalid attachment size'));
     }
-    for (const id of owners.keys()) if (!attachmentIds.has(id)) throw new Error(`Missing attachment metadata: ${id}`);
+    for (const id of owners.keys()) if (!attachmentIds.has(id)) throw new Error(`${msg('Missing attachment metadata')}: ${id}`);
     return owners;
   }
 
@@ -301,9 +304,9 @@
 
   function preflightZip(zip, limits) {
     const entries = Object.values(zip.files || {});
-    if (entries.length > limits.maxZipEntries) throw new Error(`Backup exceeds ZIP entry limit (${limits.maxZipEntries})`);
+    if (entries.length > limits.maxZipEntries) throw new Error(`${msg('Backup exceeds ZIP entry limit')}: ${limits.maxZipEntries}`);
     const estimated = entries.reduce((total, entry) => total + Number(entry._data?.uncompressedSize || 0), 0);
-    if (estimated > limits.maxDecompressedBytes) throw new Error(`Backup exceeds decompressed size limit (${limits.maxDecompressedBytes} bytes)`);
+    if (estimated > limits.maxDecompressedBytes) throw new Error(`${msg('Backup exceeds decompressed size limit (bytes)')}: ${limits.maxDecompressedBytes}`);
     return { entries, estimated };
   }
 
@@ -324,7 +327,7 @@
   }
 
   function readZipEntryBounded(entry, maxBytes, label) {
-    if (!Number.isFinite(maxBytes) || maxBytes < 0) return Promise.reject(new Error(`Backup exceeds decompressed size limit while reading ${label}`));
+    if (!Number.isFinite(maxBytes) || maxBytes < 0) return Promise.reject(new Error(`${msg('Backup exceeds decompressed size limit while reading')}: ${label}`));
     let stream;
     try { stream = entry.internalStream('uint8array'); }
     catch (error) { return Promise.reject(error); }
@@ -341,7 +344,7 @@
         if (settled) return;
         const bytes = chunk instanceof Uint8Array ? chunk : new Uint8Array(chunk);
         if (size + bytes.byteLength > maxBytes) {
-          fail(new Error(`Backup exceeds decompressed size limit while reading ${label}`));
+          fail(new Error(`${msg('Backup exceeds decompressed size limit while reading')}: ${label}`));
           return;
         }
         chunks.push(bytes); size += bytes.byteLength; crc = updateCrc32(crc, bytes);
@@ -352,7 +355,7 @@
         const expected = entry._data?.crc32;
         const actual = (crc ^ 0xffffffff) | 0;
         if (!Number.isFinite(expected) || actual !== (Number(expected) | 0)) {
-          fail(new Error(`Corrupt ZIP entry (CRC32 mismatch): ${label}`));
+          fail(new Error(`${msg('Corrupt ZIP entry (CRC32 mismatch)')}: ${label}`));
           return;
         }
         settled = true;
@@ -375,7 +378,7 @@
     const zip = await JSZip.loadAsync(input instanceof root.Blob ? await input.arrayBuffer() : input, { checkCRC32: false });
     const preflight = preflightZip(zip, limits);
     const dataEntry = zip.file('data.json');
-    if (!dataEntry) throw new Error('Backup is missing data.json');
+    if (!dataEntry) throw new Error(msg('Backup is missing data.json'));
     let extractedSize = 0;
     let manifest;
     try {
@@ -384,24 +387,24 @@
       manifest = JSON.parse(new root.TextDecoder().decode(dataBytes));
     } catch (error) {
       if (/decompressed size limit|CRC32|corrupt/i.test(String(error?.message))) throw error;
-      throw new Error('Invalid data.json');
+      throw new Error(msg('Invalid data.json'));
     }
-    if (!manifest || ![1, 2, BACKUP_VERSION].includes(manifest.backupVersion)) throw new Error('Unsupported backup version');
-    if (manifest.backupVersion >= 2 && manifest.data?.version !== 3) throw new Error('Invalid V3 backup state');
+    if (!manifest || ![1, 2, BACKUP_VERSION].includes(manifest.backupVersion)) throw new Error(msg('Unsupported backup version'));
+    if (manifest.backupVersion >= 2 && manifest.data?.version !== 3) throw new Error(msg('Invalid V3 backup state'));
     if (manifest.backupVersion >= 2) validateDomain(manifest.data, manifest.habitLogs, manifest.goalHistory);
-    if (!Array.isArray(manifest.attachments)) throw new Error('Invalid attachment manifest');
-    if (manifest.attachments.length > limits.maxAttachments) throw new Error(`Backup exceeds attachment count limit (${limits.maxAttachments})`);
+    if (!Array.isArray(manifest.attachments)) throw new Error(msg('Invalid attachment manifest'));
+    if (manifest.attachments.length > limits.maxAttachments) throw new Error(`${msg('Backup exceeds attachment count limit')}: ${limits.maxAttachments}`);
     const declaredAttachmentBytes = manifest.attachments.reduce((total, item) => total + Number(item?.size || 0), 0);
     if (!Number.isFinite(declaredAttachmentBytes) || declaredAttachmentBytes > limits.maxAttachmentBytes)
-      throw new Error(`Backup exceeds attachment bytes limit (${limits.maxAttachmentBytes} bytes)`);
+      throw new Error(`${msg('Backup exceeds attachment bytes limit (bytes)')}: ${limits.maxAttachmentBytes}`);
     // Check references before migration can normalize a malformed ID array.
     validateIds(manifest.data, manifest.attachments);
     const migration = root.TodoCore?.migrateStateV3(manifest.data);
-    if (!migration?.ok) throw new Error('Invalid app data');
+    if (!migration?.ok) throw new Error(msg('Invalid app data'));
     const repair = root.TodoCore.repairGoalLinks ? root.TodoCore.repairGoalLinks(migration.state, { report: true, strict: true }) : { state: migration.state, warnings: [] };
     const state = repair.state;
     const goalLinkError = root.TodoCore.validateGoalLinks?.(state);
-    if (goalLinkError) throw new Error(`Invalid backup ${goalLinkError}`);
+    if (goalLinkError) throw new Error(`${msg('Invalid backup')}: ${goalLinkError}`);
     const attachments = manifest.attachments;
     const habitLogs = manifest.backupVersion === 1 ? [] : manifest.habitLogs;
     const goalHistory = manifest.backupVersion === 1 ? [] : manifest.goalHistory;
@@ -417,18 +420,18 @@
       if (manifest.backupVersion === 1 && owner.type !== 'task'
         || parts.length !== 3 || `${parts[0]}/${parts[1]}` !== ownerDirectory(owner)
         || !parts[2] || ['.', '..'].includes(parts[2]) || /[\\:*?"<>|\x00-\x1f]/.test(parts[2]) || paths.has(item.path)
-        || item.blobType != null && typeof item.blobType !== 'string') throw new Error('Invalid attachment path or metadata');
+        || item.blobType != null && typeof item.blobType !== 'string') throw new Error(msg('Invalid attachment path or metadata'));
       paths.add(item.path);
       const entry = zip.file(item.path);
-      if (!entry) throw new Error(`Missing attachment file: ${item.fileName}`);
-      if (entry.unsafeOriginalName && entry.unsafeOriginalName !== item.path) throw new Error(`Unsafe attachment file: ${item.fileName}`);
+      if (!entry) throw new Error(`${msg('Missing attachment file')}: ${item.fileName}`);
+      if (entry.unsafeOriginalName && entry.unsafeOriginalName !== item.path) throw new Error(`${msg('Unsafe attachment file')}: ${item.fileName}`);
       const bytes = await readZipEntryBounded(entry, limits.maxDecompressedBytes - extractedSize, item.path);
       extractedSize += bytes.byteLength;
       const blob = new root.Blob([bytes], { type: item.blobType ?? item.mimeType });
-      if (blob.size !== Number(item.size)) throw new Error(`Attachment size mismatch: ${item.fileName}`);
-      if (blob.size > MAX_ATTACHMENT_BYTES) throw new Error(`Attachment exceeds 10 MB: ${item.fileName}`);
+      if (blob.size !== Number(item.size)) throw new Error(`${msg('Attachment size mismatch')}: ${item.fileName}`);
+      if (blob.size > MAX_ATTACHMENT_BYTES) throw new Error(`${msg('Attachment exceeds 10 MB')}: ${item.fileName}`);
       totalSize += blob.size;
-      if (totalSize > limits.maxAttachmentBytes) throw new Error(`Backup exceeds attachment bytes limit (${limits.maxAttachmentBytes} bytes)`);
+      if (totalSize > limits.maxAttachmentBytes) throw new Error(`${msg('Backup exceeds attachment bytes limit (bytes)')}: ${limits.maxAttachmentBytes}`);
       const record = { ...item, blob }; delete record.path; delete record.blobType;
       records.push(record);
     }
@@ -445,15 +448,15 @@
 
   function prepareSelectiveRestore(current, snapshot, collection, id) {
     const collections = ['tasks', 'projects', 'areas', 'tags', 'goals', 'habits', 'notes', 'resources', 'templates', 'savedViews'];
-    if (!collections.includes(collection)) throw new Error('Choose a supported entity type.');
+    if (!collections.includes(collection)) throw new Error(msg('Choose a supported entity type.'));
     const migration = root.TodoCore.migrateStateV3(snapshot.appData);
-    if (!migration.ok) throw new Error(`Snapshot validation failed: ${migration.reason}`);
+    if (!migration.ok) throw new Error(`${msg('Snapshot validation failed')}: ${migration.reason}`);
     validateDomain(migration.state, snapshot.habitLogs || [], snapshot.goalHistory || []);
     let source;
     try { source = root.TodoCore.normalizeState(migration.state); }
-    catch (error) { if (/Goal-link repair required/.test(error.message)) throw new Error('Cannot restore reciprocal Goal link: saved contribution settings are missing.'); throw error; }
+    catch (error) { if (/Goal-link repair required/.test(error.message)) throw new Error(msg('Cannot restore reciprocal Goal link: saved contribution settings are missing.')); throw error; }
     const record = source[collection].find(item => item.id === id);
-    if (!record) throw new Error('The selected entity is not in this snapshot.');
+    if (!record) throw new Error(msg('The selected entity is not in this snapshot.'));
     validateDomain(source, snapshot.habitLogs || [], snapshot.goalHistory || []);
     root.TodoStorage.verifyAttachmentReferences(source, snapshot.attachments || []);
     const next = structuredClone(current);
@@ -484,7 +487,7 @@
         let restored = id;
         if (linked && ownerField) {
           restored = source.goals.find(item => item.id === goal.id)?.[field]?.find(belongs);
-          if (!restored) throw new Error('Cannot restore reciprocal Goal link: saved contribution settings are missing.');
+          if (!restored) throw new Error(msg('Cannot restore reciprocal Goal link: saved contribution settings are missing.'));
         }
         goal[field] = (goal[field] || []).filter(link => !belongs(link));
         if (linked) goal[field].push(structuredClone(restored));
@@ -495,20 +498,20 @@
       const belongs = file => ownerType === 'task' ? file.taskId === id : file.ownerType === ownerType && file.ownerId === id;
       const restored = (snapshot.attachments || []).filter(file => (record.attachmentIds || []).includes(file.id));
       const retained = next.attachmentRecords.filter(file => !belongs(file));
-      if (restored.some(file => retained.some(other => other.id === file.id))) throw new Error('Attachment ownership changed. Restore cannot replace another entity\'s file.');
+      if (restored.some(file => retained.some(other => other.id === file.id))) throw new Error(msg('Attachment ownership changed. Restore cannot replace another entity\'s file.'));
       next.attachmentRecords = [...retained, ...structuredClone(restored)];
     }
     for (const [name, entityCollection, ownerField] of [['habitLogs', 'habits', 'habitId'], ['goalHistory', 'goals', 'goalId']]) {
       if (collection !== entityCollection) continue;
       const restored = (snapshot[name] || []).filter(entry => entry[ownerField] === id);
       const retained = (next[name] || []).filter(entry => entry[ownerField] !== id);
-      if (restored.some(entry => retained.some(other => other.id === entry.id))) throw new Error('History ownership changed.');
+      if (restored.some(entry => retained.some(other => other.id === entry.id))) throw new Error(msg('History ownership changed.'));
       next[name] = [...retained, ...structuredClone(restored)];
     }
     // Dependencies are deliberately not resurrected as extra entities. Missing
     // references reject the candidate; users can restore those entities first.
     const validation = root.TodoCore.validateStateV3(next.state);
-    if (!validation.ok) throw new Error(`Restore linked items first: ${validation.reason}`);
+    if (!validation.ok) throw new Error(`${msg('Restore linked items first')}: ${validation.reason}`);
     validateDomain(next.state, next.habitLogs || [], next.goalHistory || []);
     root.TodoStorage.verifyAttachmentReferences(next.state, next.attachmentRecords);
     const referencedIds = new Set(root.TodoStorage.attachmentOwners(next.state).flatMap(owner => owner.item.attachmentIds || []));
@@ -540,7 +543,7 @@
       const failures = [];
       for (const restore of [()=>attachmentApi.replaceAll(oldAttachments),()=>replaceGrowing('habitLogs',oldLogs),()=>replaceGrowing('goalHistory',oldHistory),()=>writeState(oldState)])
         try { await restore(); } catch (failure) { failures.push(failure); }
-      if (failures.length) throw new AggregateError([error,...failures], `Restore failed: ${error.message}. Rollback failed: ${failures.map(item=>item.message).join('; ')}. Keep the safety backup and retry recovery.`);
+      if (failures.length) throw new AggregateError([error,...failures], `${msg('Restore and rollback failed. Keep the safety backup and retry recovery.')}: ${[error, ...failures].map(item => item.message).join('; ')}`);
       throw error;
     }
   }

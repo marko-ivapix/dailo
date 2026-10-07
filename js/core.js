@@ -4,6 +4,8 @@
   root.TodoCore = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   const pad = n => String(n).padStart(2, '0');
+  // Marks a user-visible error text as a translation key (see js/i18n.js); the app translates it where it is shown.
+  const msg = text => text;
 
   function applySavedView(view, state, today = dateOnly()) {
     if (!['tasks','goals','habits'].includes(view?.type)) return [];
@@ -103,7 +105,7 @@
       data.milestones = (entity.milestones || []).map((m,order) => ({title:m.title,dateOffsetDays:templateOffset(m.date,contextDate),order,isCompleted:false,completedAt:null}));
       const r = entity.reminders || {};
       data.reminders = {sevenDaysBefore:!!r.sevenDaysBefore,threeDaysBefore:!!r.threeDaysBefore,oneDayBefore:!!r.oneDayBefore,onTargetDate:!!r.onTargetDate,time:r.time || '09:00'};
-    } else throw new Error('Unsupported template type');
+    } else throw new Error(msg('Unsupported template type'));
     return {type,data};
   }
 
@@ -145,7 +147,7 @@
     }
     if (template.type === 'habit') return {habit:{...common,id:ids.habitId || makeId('habit'),name:d.name || '',areaId:live('areas',d.areaId),goalIds:links('goals',d.goalIds),status:'active',trackingType:d.trackingType || 'checkbox',targetValue:d.targetValue ?? 1,minimumTarget:habitTargetOrNull(d,d.minimumTarget),idealTarget:habitTargetOrNull(d,d.idealTarget),graceDays:Number.isInteger(d.graceDays) && d.graceDays >= 0 ? d.graceDays : 0,unit:d.unit || '',quickValues:d.quickValues || [],frequencyType:d.frequencyType || 'daily',weekdays:d.weekdays || [1,2,3,4,5],timesPerWeek:d.timesPerWeek || 4,everyNDays:d.everyNDays || 2,startDate:contextDate,continuation:d.continuation || 'automatic',endType:d.endType || 'never',endDate:resolve(d.endOffsetDays),successfulPeriodsTarget:d.successfulPeriodsTarget || null,reminders:(d.reminders || []).map(r=>({id:makeId('habit-reminder'),time:r.time,enabled:r.enabled !== false})),reminderFiredMoments:[],pauseIntervals:[],pauseStartedAt:null},goalLinks:configs.map(c=>({goalId:c.goalId,metric:c.metric,target:c.target}))};
     if (template.type === 'goal') return {goal:{...common,id:ids.goalId || makeId('goal'),title:d.title || '',areaId:live('areas',d.areaId),status:'active',progressMode:d.progressMode || 'manual',progressType:d.progressType || 'percentage',currentValue:0,targetValue:d.targetValue ?? 100,unit:d.unit || '',targetDate:resolve(d.targetOffsetDays),projectLinks:[],taskIds:[],habitLinks:[],completedAt:null,reminderFiredMoments:[],reminders:d.reminders || {},milestones:(d.milestones || []).map((m,order)=>({id:makeId('milestone'),title:m.title,date:resolve(m.dateOffsetDays),order,isCompleted:false,completedAt:null}))}};
-    throw new Error('Unsupported template type');
+    throw new Error(msg('Unsupported template type'));
   }
   function instantiateScheduledTaskTemplates(state, today, ids = {}) {
     const created = [];
@@ -1052,28 +1054,39 @@
     return (tasks || []).filter(task => !task.isCompleted && Array.isArray(task.tagIds) && task.tagIds.includes(tagId));
   }
 
+  // Quick Add day words. "u" may precede a Serbian weekday ("u sredu"); Serbian words work with and without diacritics.
+  const QUICK_DAY_OFFSETS = { today: 0, tomorrow: 1, danas: 0, sutra: 1 };
+  const QUICK_WEEKDAYS = { sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6 };
+  const QUICK_WEEKDAYS_SR = { nedelja: 0, nedelju: 0, ponedeljak: 1, utorak: 2, sreda: 3, sredu: 3, četvrtak: 4, cetvrtak: 4, petak: 5, subota: 6, subotu: 6 };
+
+  // Splits a trailing "HH:MM", "at HH:MM" or "u H:MM" off a title; plannedTime is null when the time is invalid.
+  function splitQuickTime(text) {
+    const timed = String(text || '').trim().match(/^(.*?\S)\s+(?:(?:at|u)\s+)?(\d{1,2}):(\d{2})$/i);
+    if (!timed) return null;
+    return { rest: timed[1], plannedTime: normalizeTime(`${timed[2].padStart(2, '0')}:${timed[3]}`) };
+  }
+
   function parseQuickPlanPhrase(rawTitle, today) {
     const original = String(rawTitle || '');
     const trimmed = original.trim();
     if (!trimmed) return { title: original, plannedDate: null };
-    const timed = trimmed.match(/^(.*?\S)\s+(?:at\s+)?(\d{2}:\d{2})$/i);
+    const timed = splitQuickTime(trimmed);
     if (timed) {
-      const plannedTime = normalizeTime(timed[2]);
-      if (!plannedTime) return { title: original, plannedDate: null };
-      return { ...parseQuickPlanPhrase(timed[1], today), plannedTime };
+      if (!timed.plannedTime) return { title: original, plannedDate: null };
+      return { ...parseQuickPlanPhrase(timed.rest, today), plannedTime: timed.plannedTime };
     }
-    const match = trimmed.match(/^(.*\S)\s+(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)$/i);
+    const match = trimmed.match(/^(.*\S)\s+(\p{L}+)$/u);
     if (!match) return { title: original, plannedDate: null };
-    const title = match[1].trim();
     const token = match[2].toLocaleLowerCase();
+    const serbianWeekday = Object.prototype.hasOwnProperty.call(QUICK_WEEKDAYS_SR, token);
+    const title = (serbianWeekday ? match[1].replace(/(?:^|\s+)u$/i, '') : match[1]).trim();
     if (!title) return { title: original, plannedDate: null };
-    if (token === 'today') return { title, plannedDate: today };
-    if (token === 'tomorrow') return { title, plannedDate: addDays(today, 1) };
-    const weekdays = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    if (Object.prototype.hasOwnProperty.call(QUICK_DAY_OFFSETS, token)) return { title, plannedDate: QUICK_DAY_OFFSETS[token] ? addDays(today, QUICK_DAY_OFFSETS[token]) : today };
+    const weekdays = serbianWeekday ? QUICK_WEEKDAYS_SR : QUICK_WEEKDAYS;
+    if (!Object.prototype.hasOwnProperty.call(weekdays, token)) return { title: original, plannedDate: null };
     const base = parseDateOnly(today);
     if (!base) return { title: original, plannedDate: null };
-    const target = weekdays.indexOf(token);
-    let delta = (target - base.getDay() + 7) % 7;
+    let delta = (weekdays[token] - base.getDay() + 7) % 7;
     if (delta === 0) delta = 7;
     return { title, plannedDate: addDays(today, delta) };
   }
@@ -1245,7 +1258,7 @@
       for (const link of goal.habitLinks || []) { const item = (state.habits || []).find(value => value.id === link?.habitId); if (item && !(item.goalIds || []).includes(goal.id)) { item.goalIds = [...(item.goalIds || []), goal.id]; warnings.push(`goal:${goal.id}:habit:${item.id}`); } }
     }
     const error = validateGoalLinks(state);
-    if (error && strict) throw new Error(`Goal-link repair required: ${error}`);
+    if (error && strict) throw new Error(`${msg('Goal-link repair required')}: ${error}`);
     return options.report ? { state, warnings } : state;
   }
 
@@ -1536,6 +1549,7 @@
     habitReminderActive,
     tasksForTag,
     parseQuickPlanPhrase,
+    splitQuickTime,
     cloneTaskForDuplicate,
   };
 });

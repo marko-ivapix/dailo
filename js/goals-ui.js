@@ -6,6 +6,7 @@
 
   // UI only: live app state and persistence/overlay helpers arrive per invocation.
   const HORIZONS = Object.freeze({ short: msg('Short-term'), mid: msg('Mid-term'), long: msg('Long-term') });
+  const HABIT_METRICS = Object.freeze({ totalCheckins: msg('Check-ins'), streak: msg('Streak'), successfulPeriods: msg('Periods') });
   const HORIZON_DETAILS = Object.freeze({
     short: { icon: 'ph-flag', copy: msg('Near-term outcomes to move forward now.'), empty: msg('No short-term goals here.') },
     mid: { icon: 'ph-path', copy: msg('Outcomes taking shape over the coming months.'), empty: msg('No mid-term goals here.') },
@@ -105,7 +106,7 @@
         const habit = state.habits.find(item => item.id === link.habitId);
         const actual = Number(state.habitMetrics?.[link.habitId]?.[link.metric]) || 0;
         const percent = link.target > 0 ? Math.max(0, Math.min(100, actual / link.target * 100)) : 0;
-        return `<p><strong>${esc(habit?.name || tr('Unavailable habit'))}</strong> · ${esc(actual)} / ${esc(link.target)} ${esc(link.metric)} · ${Math.round(percent)}%</p>`;
+        return `<p><strong>${esc(habit?.name || tr('Unavailable habit'))}</strong> · ${esc(actual)} / ${esc(link.target)} ${esc(HABIT_METRICS[link.metric] ? tr(HABIT_METRICS[link.metric]) : link.metric)} · ${Math.round(percent)}%</p>`;
       }).join('') || `<p>${tr('No linked Habits yet.')}</p>`}<p>${tr('Each linked Habit has equal weight; its contribution is capped at 100%.')}</p></section>`;
     }
     html += `<div class="form-stack goal-properties">${[['title',msg('Title')],['areaId',msg('Area')],['horizon',msg('Horizon')],['targetValue',msg('Target value')],['unit',msg('Unit')],['targetDate',msg('Target date')]].map(([field,label]) => renderGoalProperty(ctx, goal, field, label)).join('')}<div class="goal-detail-actions"><button class="btn btn-secondary" type="button" data-action="edit-goal-source" data-goal-id="${esc(goal.id)}">${tr('Progress source')}</button><button class="btn btn-secondary" type="button" data-action="goal-status-menu" data-goal-id="${esc(goal.id)}">${tr('Status: {status}', { status: esc(goalStatusLabel(goal)) })}</button></div></div>`;

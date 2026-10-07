@@ -13,7 +13,7 @@
 - [x] Step 3 — Data protection
 - [x] Step 4 — Install
 - [x] Step 5 — Offline
-- [ ] Step 6 — Serbian localization
+- [x] Step 6 — Serbian localization
 - [ ] Step 7 — Final verification and package
 
 Open input: the e-mail address for problem reports (requested from the user).
@@ -131,3 +131,45 @@ Checks: focused 4/4; V1.8 design contracts 37/37; full Node **309 pass, 0 fail, 
 - **Test stub added** (assertions unchanged): `registerServiceWorker() {}` in the scheduler harness that slices `init()`.
 
 Checks: focused 6/6; full Node **315 pass, 0 fail, 1 todo (316 tests)**; JavaScript syntax 59/59 plus `node --check sw.js`; static browser contracts 10/10; staged `git diff --check` passed. Real offline launch and the update prompt on iPhone are **manual-pending**.
+
+**Step 6 — Serbian localization.** New `tests/i18n-v1-9.test.js` (9 tests) and `tests/quick-add-v1-9.test.js` (5 tests). Both failed before the change: `js/i18n.js` did not exist, and the Serbian Quick Add phrases came back unparsed.
+- **Mechanism** (`js/i18n.js`, `js/i18n-sr.js`, loaded after `js/release.js` and before `js/core.js`):
+  - `tr(source, params)` uses the English source string as the key, with `{name}` placeholders;
+  - `trn(count, one, other, params)` uses `Intl.PluralRules` (Serbian one/few/other, keyed by the English "other" form);
+  - `msg(source)` only marks a key in lookup tables, persisted status sentences and thrown errors;
+  - `trMessage(text)` shows a stored or thrown message: the whole text when it is a key, otherwise "Prefix: detail" with the prefix translated. Unknown text passes through;
+  - `I18n.locale()` is `sr-Latn-RS` in the browser and `en` in Node.
+- **Catalog:** 1420 entries, 61 of them plurals, Latin script only. The completeness test requires an entry for every literal `tr`/`msg`/`trn` key in `index.html` and `js/*.js`, with the same placeholders, and rejects unused entries and template-literal keys.
+- **Surfaces:**
+  - `index.html` is translated directly (`lang="sr-Latn"`);
+  - every view, dialog, popover, toast, Undo message, Search label, recovery screen, Settings row and sample/starter title goes through the catalog;
+  - `Intl` date and number formats use `I18n.locale()`;
+  - typed `RESET`/`RESTORE`, the brand, IDs, persisted enum values and user data are unchanged.
+- **Errors:**
+  - user-visible errors in `js/app.js`, `js/backup.js`, `js/storage.js` and `js/core.js` are `msg`-marked;
+  - dynamic ones now have the form "Prefix: detail". English shapes that changed: for example `Backup exceeds ZIP entry limit (2000)` → `Backup exceeds ZIP entry limit: 2000`, `Invalid backup dueDate` → `Invalid backup: dueDate`, `Invalid tasks record` → `Invalid stored record: tasks`, plus the two `AggregateError` summaries. Existing test regexes still match.
+  - Persisted English `validationResult` sentences are translated at display time (no migration).
+- **Quick Add** (`Core.parseQuickPlanPhrase`):
+  - accepts `danas`, `sutra`, `ponedeljak`, `utorak`, `sreda`/`sredu`, `četvrtak`/`cetvrtak`, `petak`, `subota`/`subotu` and `nedelja`/`nedelju`;
+  - an optional `u` may come before a Serbian weekday;
+  - time is accepted as `u H:MM` or `u HH:MM`, and a single-digit hour is padded (this also applies to English `at 9:05`);
+  - the English keywords and every existing Quick Add assertion are unchanged;
+  - `Core.splitQuickTime` is shared with the no-date branch of `parseQuickAddTitle`.
+- **Untranslated-text audit:**
+  - a small lexer reads every template literal and quoted markup string in `js/*.js`, skipping comments, strings and regex literals. Text nodes and `aria-label`/`aria-description`/`title`/`placeholder`/`alt` values may contain only `${…}` expressions and allowlisted words (`Dailo`, `https`, `ZIP`, `JSON`, `RESET`, `RESTORE`);
+  - it scans more than 4000 texts and finds none;
+  - a self-test proves the lexer catches English in nested templates and quoted markup and ignores regex literals and comments. Injecting `<em>Check in now</em>` into `js/habits-ui.js` made it fail, and the file was then restored;
+  - `index.html` may not contain any text that the catalog translates.
+- **Readable label:** a Goal's linked-habit progress line shows the metric label (`Check-ins`/`Streak`/`Periods`, translated) instead of the raw key `totalCheckins`.
+- **Implementation differs from the spec (spec F.1, F.2, F.4, F.12):**
+  - the functions are named `tr`/`trn`/`msg`/`trMessage` and `setLanguage`, because `t` is a common local variable in `js/app.js`;
+  - modules read `window.TodoI18n` directly, and tests inject an English `I18n` through `tests/support/i18n.js` (`withI18n`, `runInNewContextWithI18n`; 18 test files wired) instead of per-test `t: s => s` stubs;
+  - the hard-coded weekday/month arrays are `msg`-marked catalog entries rather than `Intl`-derived names;
+  - the surfaces landed in one commit (`fa638c5`) plus this follow-up, not one commit per surface; the full suite was green at each commit.
+- **Test source-text updates** (same intent, assertions not weakened):
+  - `tests/accessibility-v1-7.test.js`, `tests/design-v1-8.test.js`, `tests/inbox-v1-6.test.js`, `tests/modal-ux-v1-6.test.js` and `tests/navigation-v1-7.test.js` now match the `tr(…)`/`msg(…)` source;
+  - `tests/insights-v1-5.test.js` expects `4 / 2 Check-ins · 100%`;
+  - `tests/ui-v1-6-knowledge.py` (static contract) now matches the `tr(…)` source and the per-type `msg('Note deleted')`/`msg('Resource deleted')` Undo messages. It was red after `fa638c5` (2 checks asserted English source text) and is fixed here.
+- **Not covered:** the Playwright scenario scripts (`tests/ui-*.py` run in a browser) still use English text selectors, so they are out of date for the Serbian UI. They are not part of release verification.
+
+Checks: focused i18n 9/9 and Quick Add 5/5; full Node **329 pass, 0 fail, 1 todo (330 tests)**; JavaScript syntax 63/63 (`js/*.js vendor/*.js tests/*.js`) plus `tests/support/i18n.js` and `sw.js`; static browser contracts 10/10 (dry-run); registry 3/3; path adapter OK; `git diff --check` passed. Serbian wording on a real iPhone (truncation, line breaks) is **manual-pending**.

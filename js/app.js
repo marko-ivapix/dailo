@@ -2,7 +2,7 @@
   'use strict';
 
   const I18n = window.TodoI18n;
-  const { tr, trn, msg } = I18n;
+  const { tr, trn, trMessage, msg } = I18n;
   const Core = window.TodoCore;
   const TodoStorage = window.TodoStorage;
   const Attachments = window.TodoAttachments;
@@ -428,7 +428,7 @@
       if (interrupted) {
         const op = { snapshotId: interrupted.id, reason: interrupted.reason, token: null };
         globalOperation = op; recovery = 'global-recovery';
-        globalNotice(tr('An interrupted operation needs recovery. {operationError} {rollbackError} Recovery copy retained. Retry recovery.', { operationError: tr(interrupted.operationError || ''), rollbackError: tr(interrupted.rollbackError || '') }), () => rollbackGlobalOperation(op, new Error(interrupted.operationError || 'Interrupted operation')));
+        globalNotice(tr('An interrupted operation needs recovery. {operationError} {rollbackError} Recovery copy retained. Retry recovery.', { operationError: trMessage(interrupted.operationError), rollbackError: trMessage(interrupted.rollbackError) }), () => rollbackGlobalOperation(op, new Error(interrupted.operationError || msg('Interrupted operation'))));
         return;
       }
       function finishLoadedState(loadedSource) {
@@ -916,7 +916,7 @@
 
   function storageWarningHtml() {
     if (storageError) return `<div class="global-warning" role="alert">${tr("Changes couldn't be saved locally. Refreshing may cause data loss.")} <button class="btn btn-secondary" data-action="retry-save">${tr('Retry save')}</button></div>`;
-    if (automaticSnapshotError) return `<div class="global-warning" role="alert">${tr('Automatic snapshot failed: {error}. Your last saved app data remains available.', { error: esc(tr(automaticSnapshotError)) })} <button class="btn btn-secondary" data-action="retry-snapshot">${tr('Retry snapshot')}</button></div>`;
+    if (automaticSnapshotError) return `<div class="global-warning" role="alert">${tr('Automatic snapshot failed: {error}. Your last saved app data remains available.', { error: esc(trMessage(automaticSnapshotError)) })} <button class="btn btn-secondary" data-action="retry-snapshot">${tr('Retry snapshot')}</button></div>`;
     return '';
   }
 
@@ -2328,9 +2328,9 @@
     let parsedPlan;
     if (parsePlan) parsedPlan = Core.parseQuickPlanPhrase(tokenFree, Core.dateOnly());
     else {
-      const timed = tokenFree.trim().match(/^(.*?\S)\s+(?:at\s+)?(\d{2}:\d{2})$/i);
-      const plannedTime = timed && Core.normalizeTime(timed[2]);
-      parsedPlan = { title: plannedTime ? timed[1] : tokenFree, plannedDate: null, plannedTime: plannedTime || null };
+      const timed = Core.splitQuickTime(tokenFree);
+      const plannedTime = timed && timed.plannedTime;
+      parsedPlan = { title: plannedTime ? timed.rest : tokenFree, plannedDate: null, plannedTime: plannedTime || null };
     }
     const title = parsedPlan.title.replace(/\s{2,}/g, ' ').trim();
     return { title, plannedDate: parsedPlan.plannedDate, plannedTime: parsedPlan.plannedTime || null, tagIds: [...new Set(tagIds)], priority };
@@ -2471,7 +2471,7 @@
             setUndo(deletedMessage, () => restoreDeleteSnapshot(snapshot), () => finalizeDeleteSnapshot(snapshot), snapshot);
           } catch (error) {
             if (modalState === dialog) closeModal();
-            render(); setToastMessage(tr('Delete failed. {error}', { error: tr(error.message) }));
+            render(); setToastMessage(tr('Delete failed. {error}', { error: trMessage(error.message) }));
           }
         })();
         deleteOperations.add(operation);
@@ -2661,7 +2661,7 @@
         await TodoStorage.restoreDeleteRecords(owned, expected, () => validateDeleteSnapshot(snapshot, false));
       }
       catch (rollbackError) {
-        snapshot.recoveryError = tr('{error} Recovery failed: {rollbackError}', { error: tr(error.message), rollbackError: tr(rollbackError.message) });
+        snapshot.recoveryError = tr('{error} Recovery failed: {rollbackError}', { error: trMessage(error.message), rollbackError: trMessage(rollbackError.message) });
         failedDeleteSnapshots.add(snapshot);
         throw new Error(`${snapshot.recoveryError}. Full snapshot retained; retry recovery when storage is available.`);
       }
@@ -2707,7 +2707,7 @@
         failedDeleteSnapshots.delete(snapshot);
         if (snapshot.type === 'habit') await refreshHabitMetrics();
         renderToast(); render(); setToastMessage(tr('Delete recovery verified. Original files and history restored.'));
-      } catch (error) { setToastMessage(tr('Recovery failed. {error}', { error: tr(error.message) })); }
+      } catch (error) { setToastMessage(tr('Recovery failed. {error}', { error: trMessage(error.message) })); }
       finally { snapshot.recoveryBusy = false; }
     })();
     deleteOperations.add(operation);
@@ -2777,7 +2777,7 @@
         try { await reapplyDeleteRecords(snapshot); }
         catch (compensationError) {
           snapshot.recoveryKind = 'undo';
-          snapshot.recoveryError = tr('Undo failed: {error} Compensation failed: {compensationError}', { error: tr(error.message), compensationError: tr(compensationError.message) });
+          snapshot.recoveryError = tr('Undo failed: {error} Compensation failed: {compensationError}', { error: trMessage(error.message), compensationError: trMessage(compensationError.message) });
           failedDeleteSnapshots.add(snapshot);
           throw new Error(snapshot.recoveryError);
         }
@@ -2891,7 +2891,7 @@
   function retainFailedUndo(work, error) {
     const snapshot = work.snapshot;
     snapshot.recoveryKind = 'undo';
-    snapshot.recoveryError ||= `Undo failed: ${error}`;
+    snapshot.recoveryError ||= `${msg('Undo failed')}: ${error}`;
     failedDeleteSnapshots.add(snapshot);
     clearTimeout(work.timer);
     if (undoState === work) undoState = null;
@@ -2930,7 +2930,7 @@
     const undo = undoState ? `<div class="toast"><i class="ph-fill ph-check-circle toast-icon"></i><span class="toast-message">${esc(tr(undoState.message))}</span><button class="toast-action" type="button" data-action="undo">${tr('Undo')}</button></div>` : '';
     const info = toastMessage ? `<div class="toast"><i class="ph ph-info toast-icon" style="color:var(--info)"></i><span class="toast-message">${esc(toastMessage)}</span></div>` : '';
     const failed = [...failedDeleteSnapshots][0];
-    const recoveryNotice = failed && !undoHold ? `<div class="toast" role="alert"><i class="ph ph-warning toast-icon"></i><span class="toast-message">${esc(tr(failed.recoveryError))} · ${tr('Snapshot retained')}</span><button class="toast-action" type="button" data-action="retry-delete-recovery">${tr('Retry recovery')}</button></div>` : '';
+    const recoveryNotice = failed && !undoHold ? `<div class="toast" role="alert"><i class="ph ph-warning toast-icon"></i><span class="toast-message">${esc(trMessage(failed.recoveryError))} · ${tr('Snapshot retained')}</span><button class="toast-action" type="button" data-action="retry-delete-recovery">${tr('Retry recovery')}</button></div>` : '';
     const globalNotice = globalRecoveryNotice ? `<div class="toast" role="alert"><span class="toast-message">${esc(globalRecoveryNotice.message)}</span><button class="toast-action" data-action="retry-global-recovery">${tr('Retry')}</button></div>` : '';
     const staleNotice = staleDataNotice ? `<div class="toast" role="alert"><i class="ph ph-arrows-clockwise toast-icon"></i><span class="toast-message">${tr('This workspace changed in another tab. Refresh to load the latest data.')}</span><button class="toast-action" type="button" data-action="refresh-stale-data">${tr('Refresh')}</button></div>` : '';
     const updateNotice = waitingServiceWorker ? `<div class="toast" role="status"><i class="ph ph-arrow-circle-up toast-icon"></i><span class="toast-message">${tr('A new version of Dailo is available.')}</span><button class="toast-action" type="button" data-action="apply-app-update">${tr('Refresh')}</button></div>` : '';
@@ -3069,7 +3069,7 @@
       renderModal();
     }).catch(error => {
       if (modalState?.type !== 'goal-history' || modalState.goalId !== goalId) return;
-      modalState.error = tr(error?.message || msg('Goal history could not be loaded.'));
+      modalState.error = trMessage(error?.message || msg('Goal history could not be loaded.'));
       renderModal();
     });
   }
@@ -3448,7 +3448,7 @@
     modalState = dialog; renderModal();
     try { dialog.snapshots = (await TodoStorage.recoverySnapshots.listAll()).filter(item => item.reason === 'automatic' || item.selective)
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt)); }
-    catch (error) { dialog.error = tr('Snapshots could not be loaded: {error}', { error: tr(error.message) }); }
+    catch (error) { dialog.error = tr('Snapshots could not be loaded: {error}', { error: trMessage(error.message) }); }
     dialog.loading = false;
     if (modalState === dialog) { renderModal(); requestAnimationFrame(() => $('#modal-root button')?.focus()); }
   }
@@ -3506,7 +3506,7 @@
   }
 
   function globalNotice(message, retry) {
-    globalRecoveryNotice = { message: tr(String(message)), retry }; renderToast();
+    globalRecoveryNotice = { message: trMessage(message), retry }; renderToast();
   }
 
   async function cleanupGlobalSnapshot(op) {
@@ -3534,7 +3534,7 @@
     try { if (op.token) await deleteLifecycle.resume(op.token); }
     catch (error) {
       op.busy = false;
-      globalNotice(tr('{message} Normal Undo could not resume: {error}. Retry recovery after resolving the changed source.', { message: tr(message), error: tr(error.message) }), () => abandonGlobalOperation(op, message));
+      globalNotice(tr('{message} Normal Undo could not resume: {error}. Retry recovery after resolving the changed source.', { message: tr(message), error: trMessage(error.message) }), () => abandonGlobalOperation(op, message));
       return;
     }
     try { await cleanupGlobalSnapshot(op); } catch (error) { cleanupError = error; }
@@ -3543,7 +3543,7 @@
     if (cleanupError) {
       const retained = `${msg('Recovery copy retained')}: ${cleanupError.message}`;
       updateBackupStatus({ snapshotAvailable: true, validationResult: retained }, op);
-      globalNotice(tr('{message} Temporary backup cleanup failed: {error}. Retry cleanup.', { message: tr(message), error: tr(cleanupError.message) }), async () => {
+      globalNotice(tr('{message} Temporary backup cleanup failed: {error}. Retry cleanup.', { message: tr(message), error: trMessage(cleanupError.message) }), async () => {
         try {
           await cleanupGlobalSnapshot(op);
           updateBackupStatus({ snapshotAvailable: false, validationResult: msg('Backup validation canceled; recovery copy removed') }, op);
@@ -3577,11 +3577,11 @@
       globalRecoveryNotice = null; render();
     } catch (error) {
       await markGlobalSnapshot(op, 'rollback-failed', { rollbackError: error.message }).catch(() => {});
-      globalNotice(tr('Undo recovery needs attention: {error}. Safety copy retained.', { error: tr(error.message) }), () => undoSelectiveRestore(op));
+      globalNotice(tr('Undo recovery needs attention: {error}. Safety copy retained.', { error: trMessage(error.message) }), () => undoSelectiveRestore(op));
       throw error;
     }
     try { await cleanupGlobalSnapshot(op); }
-    catch (error) { globalNotice(tr('Undo is verified. Safety-copy cleanup failed: {error}. Retry cleanup.', { error: tr(error.message) }), async () => { await cleanupGlobalSnapshot(op); globalRecoveryNotice = null; renderToast(); }); }
+    catch (error) { globalNotice(tr('Undo is verified. Safety-copy cleanup failed: {error}. Retry cleanup.', { error: trMessage(error.message) }), async () => { await cleanupGlobalSnapshot(op); globalRecoveryNotice = null; renderToast(); }); }
     refreshHabitMetrics().then(render).catch(error => setToastMessage(error.message));
   }
 
@@ -3622,7 +3622,7 @@
       openConfirm({ title: reason === 'reset' ? msg('Reset all app data?') : selection ? msg('Restore selected entity?') : msg('Restore backup?'), message: [tr('A safety ZIP was downloaded and an internal recovery copy was created.'), summary].filter(Boolean).join(' '),
         phrase: reason.toUpperCase(), confirmLabel: reason === 'reset' ? msg('Reset app') : msg('Restore backup'),
         onConfirm: () => commitGlobalOperation(op), onCancel: () => abandonGlobalOperation(op) });
-    } catch (error) { await abandonGlobalOperation(op, tr('Safety preparation failed: {error}. Nothing was replaced. Retry the operation.', { error: tr(error.message) }), { snapshotAvailable: false, validationResult: `${msg('Recovery preparation failed')}: ${error.message}` }); }
+    } catch (error) { await abandonGlobalOperation(op, tr('Safety preparation failed: {error}. Nothing was replaced. Retry the operation.', { error: trMessage(error.message) }), { snapshotAvailable: false, validationResult: `${msg('Recovery preparation failed')}: ${error.message}` }); }
   }
 
   async function verifyGlobalReplacement(op) {
@@ -3662,9 +3662,9 @@
       try {
         await cleanupGlobalSnapshot(op);
         updateBackupStatus({ snapshotAvailable: false, validationResult: op.reason === 'restore' ? msg('Import failed; original data restored and verified') : msg('Reset failed; original data restored and verified') }, statusSource);
-        setToastMessage(tr('{error}. Original data was restored and verified.', { error: tr(cause.message) }));
+        setToastMessage(tr('{error}. Original data was restored and verified.', { error: trMessage(cause.message) }));
       }
-      catch (cleanupError) { globalNotice(tr('{error}. Original data was restored. Cleanup failed: {cleanupError}. Retry cleanup.', { error: tr(cause.message), cleanupError: tr(cleanupError.message) }), async () => { await cleanupGlobalSnapshot(op); updateBackupStatus({ snapshotAvailable: false, validationResult: op.reason === 'restore' ? msg('Import failed; original data restored and verified') : msg('Reset failed; original data restored and verified') }, statusSource); globalRecoveryNotice = null; renderToast(); }); }
+      catch (cleanupError) { globalNotice(tr('{error}. Original data was restored. Cleanup failed: {cleanupError}. Retry cleanup.', { error: trMessage(cause.message), cleanupError: trMessage(cleanupError.message) }), async () => { await cleanupGlobalSnapshot(op); updateBackupStatus({ snapshotAvailable: false, validationResult: op.reason === 'restore' ? msg('Import failed; original data restored and verified') : msg('Reset failed; original data restored and verified') }, statusSource); globalRecoveryNotice = null; renderToast(); }); }
     } catch (rollbackError) {
       // Resume may already have released its token. Re-hold the remaining work
       // synchronously before any bookkeeping await, keeping its original deadlines.
@@ -3676,7 +3676,7 @@
       try { await markGlobalSnapshot(op, 'rollback-failed', { operationError: cause.message, rollbackError: rollbackError.message }); }
       catch (_) { /* The original full recovery payload remains; mutating phase is already durable. */ }
       updateBackupStatus({ snapshotAvailable: true, validationResult: op.reason === 'restore' ? msg('Import failed; recovery is required') : msg('Reset failed; recovery is required') }, statusSource);
-      globalNotice(tr('Operation failed: {error}. Recovery also failed: {rollbackError}. The recovery snapshot is retained. Retry recovery.', { error: tr(cause.message), rollbackError: tr(rollbackError.message) }), () => rollbackGlobalOperation(op, cause));
+      globalNotice(tr('Operation failed: {error}. Recovery also failed: {rollbackError}. The recovery snapshot is retained. Retry recovery.', { error: trMessage(cause.message), rollbackError: trMessage(rollbackError.message) }), () => rollbackGlobalOperation(op, cause));
     } finally { op.recovering = false; }
   }
 
@@ -3717,12 +3717,12 @@
           setToastMessage(op.reason === 'reset' ? tr('App data reset and verified.') : tr('Backup restored and verified.'));
         }
       }
-      catch (error) { updateBackupStatus({ snapshotAvailable: true, validationResult: `${msg('Replacement verified; recovery cleanup failed')}: ${error.message}` }, committedSource); globalNotice(tr('New data is verified. Recovery copy cleanup failed: {error}. Retry cleanup.', { error: tr(error.message) }), async () => { await markGlobalSnapshot(op, 'committed'); await cleanupGlobalSnapshot(op); updateBackupStatus({ lastImport: op.reason === 'restore' ? nowIso() : state.settings.backupStatus?.lastImport || null, snapshotAvailable: false, validationResult: op.reason === 'restore' ? 'Import restored and verified' : 'Reset verified' }, committedSource); if (globalOperation === op) globalOperation = null; globalRecoveryNotice = null; renderToast(); }); }
-      refreshHabitMetrics().then(render).catch(error => setToastMessage(tr('History display could not refresh: {error}. Reload to retry.', { error: tr(error.message) })));
+      catch (error) { updateBackupStatus({ snapshotAvailable: true, validationResult: `${msg('Replacement verified; recovery cleanup failed')}: ${error.message}` }, committedSource); globalNotice(tr('New data is verified. Recovery copy cleanup failed: {error}. Retry cleanup.', { error: trMessage(error.message) }), async () => { await markGlobalSnapshot(op, 'committed'); await cleanupGlobalSnapshot(op); updateBackupStatus({ lastImport: op.reason === 'restore' ? nowIso() : state.settings.backupStatus?.lastImport || null, snapshotAvailable: false, validationResult: op.reason === 'restore' ? 'Import restored and verified' : 'Reset verified' }, committedSource); if (globalOperation === op) globalOperation = null; globalRecoveryNotice = null; renderToast(); }); }
+      refreshHabitMetrics().then(render).catch(error => setToastMessage(tr('History display could not refresh: {error}. Reload to retry.', { error: trMessage(error.message) })));
     } catch (error) {
       op.busy = false;
       if (mutationStarted) await rollbackGlobalOperation(op, error);
-      else await abandonGlobalOperation(op, tr('Operation stopped: {error}. Nothing was replaced.', { error: tr(error.message) }));
+      else await abandonGlobalOperation(op, tr('Operation stopped: {error}. Nothing was replaced.', { error: trMessage(error.message) }));
     }
   }
 
@@ -3787,7 +3787,7 @@
   // Messages are English catalog keys or already translated text; tr() leaves the latter unchanged.
   function setToastMessage(message) {
     clearTimeout(toastMessageTimer);
-    toastMessage = message == null ? message : tr(String(message));
+    toastMessage = message == null ? message : trMessage(message);
     renderToast();
     // Information has its own lifetime; it must never replace/finalize Undo.
     toastMessageTimer = setTimeout(() => {
@@ -3820,7 +3820,7 @@
       return;
     }
     if (event.target.closest('[data-action="retry-global-recovery"]')) {
-      Promise.resolve(globalRecoveryNotice?.retry()).catch(error => globalNotice(tr('Retry failed: {error}. Recovery copy retained. Retry again.', { error: tr(error.message) }), globalRecoveryNotice.retry)); return;
+      Promise.resolve(globalRecoveryNotice?.retry()).catch(error => globalNotice(tr('Retry failed: {error}. Recovery copy retained. Retry again.', { error: trMessage(error.message) }), globalRecoveryNotice.retry)); return;
     }
     if (globalOperation && !event.target.closest('#modal-root [data-action="confirm-action"], #modal-root [data-action="close-modal"]')) return;
     const mobileQuickAdd = event.target.closest('#mobile-quick-add');

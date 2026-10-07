@@ -2,7 +2,7 @@
   'use strict';
 
   const I18n = window.TodoI18n;
-  const { tr, trn, msg } = I18n;
+  const { tr, trn, trMessage, msg } = I18n;
 
   function renderSettings(ctx) {
     const { state, pageHeader, shortcutLabels, shortcutError, notificationButtonLabel, esc } = ctx;
@@ -11,12 +11,6 @@
       ? `<time datetime="${esc(value)}">${esc(new Date(value).toLocaleString(I18n.locale(), { dateStyle: 'medium', timeStyle: 'short' }))}</time>`
       : tr('Never'));
     // Status sentences are stored in English; "Prefix: detail" failures translate their prefix.
-    const statusText = value => {
-      const exact = tr(value);
-      if (exact !== value) return exact;
-      const parts = /^([^:]+): (.+)$/.exec(value);
-      return parts ? `${tr(parts[1])}: ${tr(parts[2])}` : value;
-    };
     const persistence = ctx.storagePersistence?.() || { state: 'unknown' };
     const persistenceText = {
       granted: tr('On. The browser keeps Dailo data unless you delete it.'),
@@ -67,7 +61,7 @@
       </section>
       <section class="settings-card">
         <h2>${tr('Data')}</h2>
-        <div class="settings-row"><div class="settings-label"><strong>${tr('Backup status')}</strong><span>${tr('Last export:')} ${statusTime(backupStatus.lastExport)}<br>${tr('Last import:')} ${statusTime(backupStatus.lastImport)}<br>${tr('Recovery snapshot:')} ${backupStatus.snapshotAvailable ? tr('Available') : tr('None pending')}<br>${tr('Validation:')} ${esc(statusText(backupStatus.validationResult || msg('Not yet validated')))}</span></div></div>
+        <div class="settings-row"><div class="settings-label"><strong>${tr('Backup status')}</strong><span>${tr('Last export:')} ${statusTime(backupStatus.lastExport)}<br>${tr('Last import:')} ${statusTime(backupStatus.lastImport)}<br>${tr('Recovery snapshot:')} ${backupStatus.snapshotAvailable ? tr('Available') : tr('None pending')}<br>${tr('Validation:')} ${esc(trMessage(backupStatus.validationResult || msg('Not yet validated')))}</span></div></div>
         <div class="settings-row"><div class="settings-label"><strong>${tr('Persistent storage')}</strong><span data-storage-persistence="${esc(persistence.state)}">${esc(persistenceText)}${esc(usage)}</span></div>${persistence.state === 'denied' ? `<button class="btn btn-secondary" type="button" data-action="request-storage-persistence">${tr('Request')}</button>` : ''}</div>
         <div class="settings-row"><label class="settings-label" for="backup-reminder-days"><strong>${tr('Backup reminder')}</strong><span>${tr('Today reminds you to export a backup when the last one is older than this.')}</span></label><select class="input" id="backup-reminder-days">${reminderOptions}</select></div>
         <div class="settings-row"><div class="settings-label"><strong>${tr('Local snapshots')}</strong><span>${tr('Five automatic copies, at most once every five minutes after saving. Restore one item with its files and history.')}</span></div><button class="btn btn-secondary" type="button" data-action="open-local-snapshots">${tr('Browse snapshots')}</button></div>
