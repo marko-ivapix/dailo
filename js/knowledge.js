@@ -1,13 +1,16 @@
 (function () {
   'use strict';
+  const { tr, trn, msg } = window.TodoI18n;
 
-  const knowledgeLabel = type => type === 'note' ? 'Note' : 'Resource';
+  const knowledgeLabel = type => type === 'note' ? msg('Note') : msg('Resource');
   const knowledgeIcon = type => type === 'note' ? 'ph-note' : 'ph-link';
-  const RESOURCE_TYPES = { book: 'Book', video: 'Video', article: 'Article', course: 'Course', document: 'Document', other: 'Other' };
-  const RESOURCE_STATUSES = { unread: 'Unread', reading: 'Reading', completed: 'Completed' };
+  const RESOURCE_TYPES = { book: msg('Book'), video: msg('Video'), article: msg('Article'), course: msg('Course'), document: msg('Document'), other: msg('Other') };
+  const RESOURCE_STATUSES = { unread: msg('Unread'), reading: msg('Reading'), completed: msg('Completed') };
+  // Persisted keys stay English; only the displayed labels are translated.
+  const translatedOptions = options => Object.fromEntries(Object.entries(options).map(([key, label]) => [key, tr(label)]));
 
   function favoriteButton(context, type, item) {
-    return `<button class="btn-icon knowledge-favorite ${item.favorite ? 'is-favorite' : ''}" type="button" data-action="toggle-knowledge-favorite" data-owner-type="${type}" data-owner-id="${context.esc(item.id)}" aria-label="${item.favorite ? 'Remove from favorites' : 'Add to favorites'}" aria-pressed="${Boolean(item.favorite)}"><i class="${item.favorite ? 'ph-fill ph-star' : 'ph ph-star'}"></i></button>`;
+    return `<button class="btn-icon knowledge-favorite ${item.favorite ? 'is-favorite' : ''}" type="button" data-action="toggle-knowledge-favorite" data-owner-type="${type}" data-owner-id="${context.esc(item.id)}" aria-label="${item.favorite ? tr('Remove from favorites') : tr('Add to favorites')}" aria-pressed="${Boolean(item.favorite)}"><i class="${item.favorite ? 'ph-fill ph-star' : 'ph ph-star'}"></i></button>`;
   }
 
   function selectOptions(context, options, value) {
@@ -19,17 +22,17 @@
     let html = '';
     for (const type of ['note', 'resource']) {
       const items = state[knowledgeCollection(type)].filter(item => item.areaId === areaId);
-      html += `<section class="section area-detail-section"><div class="section-header"><h2 class="section-label">${knowledgeCollection(type) === 'notes' ? 'Notes' : 'Resources'}</h2><span class="section-count">${items.length}</span></div>${items.length ? items.map(item => renderKnowledgeRow(context, type, item)).join('') : `<p class="area-empty-copy">No ${knowledgeCollection(type)} in this Area.</p>`}<button class="inline-add" type="button" data-action="new-knowledge" data-owner-type="${type}" data-area-id="${esc(areaId)}"><i class="ph ph-plus"></i> New ${type}</button></section>`;
+      html += `<section class="section area-detail-section"><div class="section-header"><h2 class="section-label">${knowledgeCollection(type) === 'notes' ? tr('Notes') : tr('Resources')}</h2><span class="section-count">${items.length}</span></div>${items.length ? items.map(item => renderKnowledgeRow(context, type, item)).join('') : `<p class="area-empty-copy">${knowledgeCollection(type) === 'notes' ? tr('No notes in this Area.') : tr('No resources in this Area.')}</p>`}<button class="inline-add" type="button" data-action="new-knowledge" data-owner-type="${type}" data-area-id="${esc(areaId)}"><i class="ph ph-plus"></i> ${type === 'note' ? tr('New note') : tr('New resource')}</button></section>`;
     }
     return html;
   }
 
   function renderKnowledgeRow(context, type, item) {
     const { esc, getArea, state } = context;
-    const areaName = getArea(item.areaId)?.name || 'No area';
+    const areaName = getArea(item.areaId)?.name || tr('No area');
     const tags = (item.tagIds || []).map(id => state.tags.find(tag => tag.id === id)).filter(Boolean);
-    const metadata = type === 'resource' ? `<span>${esc(RESOURCE_TYPES[item.type] || 'Article')} · ${esc(RESOURCE_STATUSES[item.status] || 'Unread')}</span>${item.author ? `<span>${esc(item.author)}</span>` : ''}` : '';
-    return `<article class="goal-row knowledge-row"><button class="goal-open knowledge-open" type="button" data-route="${type}/${esc(item.id)}"><span class="knowledge-row-title"><i class="ph ${knowledgeIcon(type)}"></i><strong>${esc(item.title)}</strong></span><span class="knowledge-row-meta">${metadata}<span><i class="ph ph-map-pin"></i>${esc(areaName)}</span><span><i class="ph ph-link"></i>${item.linkUrls.length} ${item.linkUrls.length === 1 ? 'link' : 'links'}</span><span><i class="ph ph-paperclip"></i>${item.attachmentIds.length} ${item.attachmentIds.length === 1 ? 'file' : 'files'}</span>${tags.length ? `<span class="knowledge-row-tags">${tags.map(tag => `<em style="--tag-color:${esc(tag.color)}">${esc(tag.name)}</em>`).join('')}</span>` : ''}</span></button>${favoriteButton(context, type, item)}<button class="btn-icon" type="button" data-action="edit-knowledge" data-owner-type="${type}" data-owner-id="${esc(item.id)}" aria-label="Edit ${type}"><i class="ph ph-pencil-simple"></i></button></article>`;
+    const metadata = type === 'resource' ? `<span>${esc(tr(RESOURCE_TYPES[item.type] || 'Article'))} · ${esc(tr(RESOURCE_STATUSES[item.status] || 'Unread'))}</span>${item.author ? `<span>${esc(item.author)}</span>` : ''}` : '';
+    return `<article class="goal-row knowledge-row"><button class="goal-open knowledge-open" type="button" data-route="${type}/${esc(item.id)}"><span class="knowledge-row-title"><i class="ph ${knowledgeIcon(type)}"></i><strong>${esc(item.title)}</strong></span><span class="knowledge-row-meta">${metadata}<span><i class="ph ph-map-pin"></i>${esc(areaName)}</span><span><i class="ph ph-link"></i>${trn(item.linkUrls.length, '{count} link', '{count} links')}</span><span><i class="ph ph-paperclip"></i>${trn(item.attachmentIds.length, '{count} file', '{count} files')}</span>${tags.length ? `<span class="knowledge-row-tags">${tags.map(tag => `<em style="--tag-color:${esc(tag.color)}">${esc(tag.name)}</em>`).join('')}</span>` : ''}</span></button>${favoriteButton(context, type, item)}<button class="btn-icon" type="button" data-action="edit-knowledge" data-owner-type="${type}" data-owner-id="${esc(item.id)}" aria-label="${type === 'note' ? tr('Edit note') : tr('Edit resource')}"><i class="ph ph-pencil-simple"></i></button></article>`;
   }
 
   function renderKnowledgeList(context, type) {
@@ -42,10 +45,12 @@
       && (!filters.areaId || (filters.areaId === '__none' ? !item.areaId : item.areaId === filters.areaId))
       && (!filters.tagId || (item.tagIds || []).includes(filters.tagId)))
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-    const label = type === 'note' ? 'Notes' : 'Resources';
+    const label = type === 'note' ? tr('Notes') : tr('Resources');
     const filter = (field, label, options) => `<label class="field-label">${label}<select class="input" data-knowledge-filter="${field}" data-owner-type="${type}">${selectOptions(context, options, filters[field] || '')}</select></label>`;
-    const controls = `<div class="knowledge-filters v17-mobile-filter" aria-label="${label} filters">${type === 'resource' ? filter('type', 'Type', { '': 'All types', ...RESOURCE_TYPES }) + filter('status', 'Reading status', { '': 'All statuses', ...RESOURCE_STATUSES }) : ''}${filter('favorite', 'Favorites', { '': 'All items', true: 'Favorites only' })}${filter('areaId', 'Area', { '': 'All areas', __none: 'No area', ...Object.fromEntries(state.areas.map(area => [area.id, area.name])) })}${filter('tagId', 'Tag', { '': 'All tags', ...Object.fromEntries(state.tags.map(tag => [tag.id, tag.name])) })}<button class="btn btn-ghost" type="button" data-action="clear-knowledge-filters" data-owner-type="${type}">Clear filters</button></div>`;
-    return pageHeader(label, `${items.length} of ${collection.length} ${knowledgeCollection(type)}`, { add: false, actionHtml: `<button class="btn btn-primary" type="button" data-action="new-knowledge" data-owner-type="${type}"><i class="ph ph-plus"></i> New ${type}</button>` }) + controls + `<section class="section knowledge-list v17-knowledge-list">${items.length ? items.map(item => renderKnowledgeRow(context, type, item)).join('') : `<p class="area-empty-copy knowledge-empty v17-empty-state">${collection.length ? 'No items match these filters.' : `No ${label.toLowerCase()} yet. Create one to keep its links, files, and Area context together.`}</p>`}</section>`;
+    const controls = `<div class="knowledge-filters v17-mobile-filter" aria-label="${type === 'note' ? tr('Notes filters') : tr('Resources filters')}">${type === 'resource' ? filter('type', tr('Type'), { '': tr('All types'), ...translatedOptions(RESOURCE_TYPES) }) + filter('status', tr('Reading status'), { '': tr('All statuses'), ...translatedOptions(RESOURCE_STATUSES) }) : ''}${filter('favorite', tr('Favorites'), { '': tr('All items'), true: tr('Favorites only') })}${filter('areaId', tr('Area'), { '': tr('All areas'), __none: tr('No area'), ...Object.fromEntries(state.areas.map(area => [area.id, area.name])) })}${filter('tagId', tr('Tag'), { '': tr('All tags'), ...Object.fromEntries(state.tags.map(tag => [tag.id, tag.name])) })}<button class="btn btn-ghost" type="button" data-action="clear-knowledge-filters" data-owner-type="${type}">${tr('Clear filters')}</button></div>`;
+    const subtitle = knowledgeCollection(type) === 'notes' ? trn(collection.length, '{shown} of {count} note', '{shown} of {count} notes', { shown: items.length }) : trn(collection.length, '{shown} of {count} resource', '{shown} of {count} resources', { shown: items.length });
+    const emptyCopy = type === 'note' ? tr('No notes yet. Create one to keep its links, files, and Area context together.') : tr('No resources yet. Create one to keep its links, files, and Area context together.');
+    return pageHeader(label, subtitle, { add: false, actionHtml: `<button class="btn btn-primary" type="button" data-action="new-knowledge" data-owner-type="${type}"><i class="ph ph-plus"></i> ${type === 'note' ? tr('New note') : tr('New resource')}</button>` }) + controls + `<section class="section knowledge-list v17-knowledge-list">${items.length ? items.map(item => renderKnowledgeRow(context, type, item)).join('') : `<p class="area-empty-copy knowledge-empty v17-empty-state">${collection.length ? tr('No items match these filters.') : emptyCopy}</p>`}</section>`;
   }
 
   function knowledgeLinks(context, urls) {
@@ -70,17 +75,17 @@
         if (knowledgeAttachmentCache.get(key) === cached && context.state && currentRoute().type === type && currentRoute().id === id) renderMain();
       });
     }
-    const areaName = getArea(item.areaId)?.name || 'No area';
-    const attachmentMessage = cached.attachmentState === 'loading' ? 'Loading attachments…' : cached.attachmentState === 'error' ? 'Attachments are unavailable in this browser.' : cached.attachmentState === 'empty' ? 'No files attached yet.' : '';
-    let html = pageHeader(item.title, `${knowledgeLabel(type)} · ${areaName}`, { add: false, actionHtml: `<button class="btn btn-secondary" type="button" data-action="edit-knowledge" data-owner-type="${type}" data-owner-id="${esc(id)}"><i class="ph ph-pencil-simple"></i> Edit</button>` });
-    html += `<div class="knowledge-detail-metadata">${favoriteButton(context, type, item)}${type === 'resource' ? `<span>${esc(RESOURCE_TYPES[item.type] || 'Article')}</span><span>${esc(RESOURCE_STATUSES[item.status] || 'Unread')}</span><span>${item.author ? `By ${esc(item.author)}` : 'No author'}</span><span>${item.reviewedAt ? `Last reviewed ${esc(item.reviewedAt)}` : 'Not reviewed yet'}</span>` : ''}</div>`;
-    if (item.clip) html += `<section class="section knowledge-clip"><h2 class="section-label">Clipped text</h2><blockquote>${esc(item.clip)}</blockquote></section>`;
-    html += `<section class="section knowledge-summary"><div class="knowledge-context"><i class="ph ph-map-pin"></i><span>Area</span><strong>${esc(areaName)}</strong></div><div class="knowledge-body">${esc(type === 'note' ? item.body : item.description) || '<span class="area-empty-copy">No text yet.</span>'}</div></section><section class="section knowledge-links-section"><div class="section-header"><h2 class="section-label">Linked URLs</h2><span class="section-count">${item.linkUrls.length}</span></div><div class="area-object-list">${knowledgeLinks(context, item.linkUrls) || '<p class="area-empty-copy">No links added yet.</p>'}</div></section>`;
-    if (type === 'resource') for (const [field, label, collection, route] of [['relatedTaskIds', 'Tasks', 'tasks', null], ['relatedProjectIds', 'Projects', 'projects', 'project'], ['relatedGoalIds', 'Goals', 'goals', 'goal'], ['relatedHabitIds', 'Habits', 'habits', 'habit']]) {
+    const areaName = getArea(item.areaId)?.name || tr('No area');
+    const attachmentMessage = cached.attachmentState === 'loading' ? tr('Loading attachments…') : cached.attachmentState === 'error' ? tr('Attachments are unavailable in this browser.') : cached.attachmentState === 'empty' ? tr('No files attached yet.') : '';
+    let html = pageHeader(item.title, `${tr(knowledgeLabel(type))} · ${areaName}`, { add: false, actionHtml: `<button class="btn btn-secondary" type="button" data-action="edit-knowledge" data-owner-type="${type}" data-owner-id="${esc(id)}"><i class="ph ph-pencil-simple"></i> ${tr('Edit')}</button>` });
+    html += `<div class="knowledge-detail-metadata">${favoriteButton(context, type, item)}${type === 'resource' ? `<span>${esc(tr(RESOURCE_TYPES[item.type] || 'Article'))}</span><span>${esc(tr(RESOURCE_STATUSES[item.status] || 'Unread'))}</span><span>${item.author ? tr('By {author}', { author: esc(item.author) }) : tr('No author')}</span><span>${item.reviewedAt ? tr('Last reviewed {date}', { date: esc(item.reviewedAt) }) : tr('Not reviewed yet')}</span>` : ''}</div>`;
+    if (item.clip) html += `<section class="section knowledge-clip"><h2 class="section-label">${tr('Clipped text')}</h2><blockquote>${esc(item.clip)}</blockquote></section>`;
+    html += `<section class="section knowledge-summary"><div class="knowledge-context"><i class="ph ph-map-pin"></i><span>${tr('Area')}</span><strong>${esc(areaName)}</strong></div><div class="knowledge-body">${esc(type === 'note' ? item.body : item.description) || `<span class="area-empty-copy">${tr('No text yet.')}</span>`}</div></section><section class="section knowledge-links-section"><div class="section-header"><h2 class="section-label">${tr('Linked URLs')}</h2><span class="section-count">${item.linkUrls.length}</span></div><div class="area-object-list">${knowledgeLinks(context, item.linkUrls) || `<p class="area-empty-copy">${tr('No links added yet.')}</p>`}</div></section>`;
+    if (type === 'resource') for (const [field, label, emptyLabel, collection, route] of [['relatedTaskIds', tr('Related Tasks'), tr('No related tasks.'), 'tasks', null], ['relatedProjectIds', tr('Related Projects'), tr('No related projects.'), 'projects', 'project'], ['relatedGoalIds', tr('Related Goals'), tr('No related goals.'), 'goals', 'goal'], ['relatedHabitIds', tr('Related Habits'), tr('No related habits.'), 'habits', 'habit']]) {
       const related = state[collection].filter(candidate => item[field].includes(candidate.id));
-      html += `<section class="section knowledge-relations-section"><div class="section-header"><h2 class="section-label">Related ${label}</h2><span class="section-count">${related.length}</span></div><div class="area-object-list">${related.map(candidate => `<button class="area-object" type="button" ${route ? `data-route="${route}/${esc(candidate.id)}"` : `data-action="open-task" data-task-id="${esc(candidate.id)}"`}>${esc(candidate.title || candidate.name)}</button>`).join('') || `<p class="area-empty-copy">No related ${label.toLowerCase()}.</p>`}</div></section>`;
+      html += `<section class="section knowledge-relations-section"><div class="section-header"><h2 class="section-label">${label}</h2><span class="section-count">${related.length}</span></div><div class="area-object-list">${related.map(candidate => `<button class="area-object" type="button" ${route ? `data-route="${route}/${esc(candidate.id)}"` : `data-action="open-task" data-task-id="${esc(candidate.id)}"`}>${esc(candidate.title || candidate.name)}</button>`).join('') || `<p class="area-empty-copy">${emptyLabel}</p>`}</div></section>`;
     }
-    return html + `<section class="section knowledge-attachments-section"><div class="section-header"><h2 class="section-label">Attached files</h2><span class="section-count">${item.attachmentIds.length}</span></div>${attachmentMessage ? `<p class="attachment-message knowledge-attachment-message is-${cached.attachmentState}" role="status">${esc(attachmentMessage)}</p>` : ''}<div class="attachment-list">${cached.records.map(record => renderAttachmentRow(record, { ownerType: type, ownerId: id })).join('')}</div></section><button class="danger-link" type="button" data-action="delete-knowledge" data-owner-type="${type}" data-owner-id="${esc(id)}"><i class="ph ph-trash"></i> Delete ${type}</button>`;
+    return html + `<section class="section knowledge-attachments-section"><div class="section-header"><h2 class="section-label">${tr('Attached files')}</h2><span class="section-count">${item.attachmentIds.length}</span></div>${attachmentMessage ? `<p class="attachment-message knowledge-attachment-message is-${cached.attachmentState}" role="status">${esc(attachmentMessage)}</p>` : ''}<div class="attachment-list">${cached.records.map(record => renderAttachmentRow(record, { ownerType: type, ownerId: id })).join('')}</div></section><button class="danger-link" type="button" data-action="delete-knowledge" data-owner-type="${type}" data-owner-id="${esc(id)}"><i class="ph ph-trash"></i> ${type === 'note' ? tr('Delete note') : tr('Delete resource')}</button>`;
   }
 
   function openKnowledgeModal(context, type, id = null, areaId = null, options = {}) {
@@ -125,10 +130,10 @@
     const { modalState, renderModal, $ } = context;
     readKnowledgeDraft(context);
     const d = modalState.draft, value = d.linkDraft.trim();
-    if (!value) { modalState.error = 'Enter a link before adding it.'; renderModal(); requestAnimationFrame(() => $('#knowledge-link')?.focus()); return false; }
+    if (!value) { modalState.error = tr('Enter a link before adding it.'); renderModal(); requestAnimationFrame(() => $('#knowledge-link')?.focus()); return false; }
     const checked = context.Core.validateKnowledgeRecord({ type: modalState.ownerType, title: 'Link', linkUrls: [value], attachmentIds: ['pending-link'] });
     const url = checked.normalized.linkUrls[0];
-    if (!url || d.linkUrls.includes(url)) { modalState.error = url ? 'This link has already been added.' : 'Use a valid web or email link.'; renderModal(); requestAnimationFrame(() => $('#knowledge-link')?.focus()); return false; }
+    if (!url || d.linkUrls.includes(url)) { modalState.error = url ? tr('This link has already been added.') : tr('Use a valid web or email link.'); renderModal(); requestAnimationFrame(() => $('#knowledge-link')?.focus()); return false; }
     d.linkUrls.push(url); d.linkDraft = ''; modalState.error = '';
     renderModal(); requestAnimationFrame(() => $('#knowledge-link')?.focus()); return true;
   }
@@ -142,16 +147,16 @@
     const existingAttachmentIds = dialog.ownerId ? (attachmentOwner({ ownerType: type, ownerId: dialog.ownerId })?.item.attachmentIds || []) : [];
     const checked = context.Core.validateKnowledgeRecord({ type, title: d.title, linkUrls: d.linkUrls, attachmentIds: [...existingAttachmentIds, ...dialog.pendingFiles.map((_, index) => `pending-${index}`)] });
     if (!checked.valid) {
-      dialog.error = checked.errors.includes('title') ? `${knowledgeLabel(type)} needs a Name.`
-        : checked.errors.includes('linkUrls') ? 'Use valid web or email links.'
-          : `${knowledgeLabel(type)} needs at least one URL, image, or attached file.`;
+      dialog.error = checked.errors.includes('title') ? (type === 'note' ? tr('Note needs a Name.') : tr('Resource needs a Name.'))
+        : checked.errors.includes('linkUrls') ? tr('Use valid web or email links.')
+          : type === 'note' ? tr('Note needs at least one URL, image, or attached file.') : tr('Resource needs at least one URL, image, or attached file.');
       renderModal(); return;
     }
-    if (d.areaId && !getArea(d.areaId)) { dialog.error = 'The selected Area no longer exists.'; renderModal(); return; }
-    if (dialog.ownerId && attachmentOwner({ ownerType: type, ownerId: dialog.ownerId })?.item !== dialog.source) { dialog.error = 'The item changed. Reopen it before saving.'; renderModal(); return; }
+    if (d.areaId && !getArea(d.areaId)) { dialog.error = tr('The selected Area no longer exists.'); renderModal(); return; }
+    if (dialog.ownerId && attachmentOwner({ ownerType: type, ownerId: dialog.ownerId })?.item !== dialog.source) { dialog.error = tr('The item changed. Reopen it before saving.'); renderModal(); return; }
     if (type === 'resource' && (!Object.hasOwn(RESOURCE_TYPES, d.resourceType) || !Object.hasOwn(RESOURCE_STATUSES, d.resourceStatus)
       || d.reviewedAt && (!context.Core.parseDateOnly(d.reviewedAt) || context.Core.dateOnly(context.Core.parseDateOnly(d.reviewedAt)) !== d.reviewedAt))) {
-      dialog.error = 'Choose a valid type, reading status and review date.'; renderModal(); return;
+      dialog.error = tr('Choose a valid type, reading status and review date.'); renderModal(); return;
     }
     const isNew = !dialog.source;
     const ts = nowIso(), item = dialog.source || { id: uid(type), createdAt: ts, attachmentIds: [] }, previous = copyTemplate(item);
@@ -160,14 +165,14 @@
     Object.assign(item, { favorite: Boolean(d.favorite), clip: d.clip || '' });
     if (type === 'resource') Object.assign(item, { type: d.resourceType, status: d.resourceStatus, author: d.author.trim(), reviewedAt: d.reviewedAt || null });
     if (type === 'resource') for (const [field, collection] of [['relatedTaskIds', 'tasks'], ['relatedProjectIds', 'projects'], ['relatedGoalIds', 'goals'], ['relatedHabitIds', 'habits']]) {
-      if (d[field].some(id => !state[collection].some(candidate => candidate.id === id))) { Object.assign(item, previous); dialog.error = 'A related item changed. Reopen this Resource before saving.'; renderModal(); return; }
+      if (d[field].some(id => !state[collection].some(candidate => candidate.id === id))) { Object.assign(item, previous); dialog.error = tr('A related item changed. Reopen this Resource before saving.'); renderModal(); return; }
       item[field] = [...d[field]];
     }
     const deferInitialSave = Boolean(isNew && !checked.normalized.linkUrls.length && dialog.pendingFiles.length);
     if (isNew) state[knowledgeCollection(type)].push(item);
     if (!deferInitialSave && !saveState()) {
       if (dialog.source) Object.assign(item, previous); else state[knowledgeCollection(type)].splice(state[knowledgeCollection(type)].indexOf(item), 1);
-      dialog.error = 'Changes could not be saved locally. Try again.'; renderModal(); return;
+      dialog.error = tr('Changes could not be saved locally. Try again.'); renderModal(); return;
     }
     dialog.busy = true;
     dialog.ownerId = item.id; dialog.source = item;
@@ -176,13 +181,13 @@
     if (isNew && !checked.normalized.linkUrls.length && dialog.pendingFiles.length && !attachmentResult?.added && !item.attachmentIds.length) {
       state[knowledgeCollection(type)].splice(state[knowledgeCollection(type)].indexOf(item), 1);
       dialog.ownerId = null; dialog.source = null; dialog.busy = false;
-      dialog.error = `Attachment upload failed. This ${knowledgeLabel(type)} could not be stored because it needs a URL, image, or attached file.`;
+      dialog.error = type === 'note' ? tr('Attachment upload failed. This Note could not be stored because it needs a URL, image, or attached file.') : tr('Attachment upload failed. This Resource could not be stored because it needs a URL, image, or attached file.');
       renderModal(); return;
     }
     if (deferInitialSave && !saveState()) {
       state[knowledgeCollection(type)].splice(state[knowledgeCollection(type)].indexOf(item), 1);
       dialog.ownerId = null; dialog.source = null; dialog.busy = false;
-      dialog.error = `This ${knowledgeLabel(type)} could not be stored locally. Try again.`;
+      dialog.error = type === 'note' ? tr('This Note could not be stored locally. Try again.') : tr('This Resource could not be stored locally. Try again.');
       renderModal(); return;
     }
     if (context.modalState === dialog) { closeModal(); navigate(type + '/' + item.id); }
@@ -191,16 +196,16 @@
 
   function renderKnowledgeMetadataFields(context, type, draft) {
     const { esc } = context;
-    const resourceFields = type === 'resource' ? `<div class="knowledge-metadata-grid"><label class="field-label">Type<select id="knowledge-resource-type" class="input">${selectOptions(context, RESOURCE_TYPES, draft.resourceType)}</select></label><label class="field-label">Reading status<select id="knowledge-resource-status" class="input">${selectOptions(context, RESOURCE_STATUSES, draft.resourceStatus)}</select></label><label class="field-label">Author<input id="knowledge-author" class="input" maxlength="200" value="${esc(draft.author)}"></label><label class="field-label">Last reviewed<input id="knowledge-reviewed-at" class="input" type="date" value="${esc(draft.reviewedAt)}"></label></div>` : '';
-    return `${resourceFields}<label class="knowledge-favorite-field"><input id="knowledge-favorite" type="checkbox" ${draft.favorite ? 'checked' : ''}> Favorite</label><label class="field-label">Clipped text<textarea id="knowledge-clip" class="input" rows="4" placeholder="Paste an excerpt to keep with this ${type}…">${esc(draft.clip)}</textarea></label>`;
+    const resourceFields = type === 'resource' ? `<div class="knowledge-metadata-grid"><label class="field-label">${tr('Type')}<select id="knowledge-resource-type" class="input">${selectOptions(context, translatedOptions(RESOURCE_TYPES), draft.resourceType)}</select></label><label class="field-label">${tr('Reading status')}<select id="knowledge-resource-status" class="input">${selectOptions(context, translatedOptions(RESOURCE_STATUSES), draft.resourceStatus)}</select></label><label class="field-label">${tr('Author')}<input id="knowledge-author" class="input" maxlength="200" value="${esc(draft.author)}"></label><label class="field-label">${tr('Last reviewed')}<input id="knowledge-reviewed-at" class="input" type="date" value="${esc(draft.reviewedAt)}"></label></div>` : '';
+    return `${resourceFields}<label class="knowledge-favorite-field"><input id="knowledge-favorite" type="checkbox" ${draft.favorite ? 'checked' : ''}> ${tr('Favorite')}</label><label class="field-label">${tr('Clipped text')}<textarea id="knowledge-clip" class="input" rows="4" placeholder="${type === 'note' ? tr('Paste an excerpt to keep with this note…') : tr('Paste an excerpt to keep with this resource…')}">${esc(draft.clip)}</textarea></label>`;
   }
 
   function renderKnowledgeModal(context) {
     const { state, modalState, esc, modalFrame, renderAttachmentsSection } = context;
     const type = modalState.ownerType, d = modalState.draft;
-    const relations = type === 'resource' ? [['relatedTaskIds', 'Tasks', 'tasks'], ['relatedProjectIds', 'Projects', 'projects'], ['relatedGoalIds', 'Goals', 'goals'], ['relatedHabitIds', 'Habits', 'habits']].map(([field, label, collection]) => `<details><summary class="field-label">Related ${label} · ${d[field].length}</summary><div class="form-stack">${state[collection].map(item => `<label><input type="checkbox" data-knowledge-relation="${field}" value="${esc(item.id)}" ${d[field].includes(item.id) ? 'checked' : ''}> ${esc(item.title || item.name)}</label>`).join('') || '<p class="area-empty-copy">No items.</p>'}</div></details>`).join('') : '';
-    const tagPicker = renderKnowledgeMetadataFields(context, type, d) + `<details><summary class="field-label">Tags · ${d.tagIds.length}</summary><div class="knowledge-tag-picker">${state.tags.length ? state.tags.map(tag => `<label><input type="checkbox" data-knowledge-tag value="${esc(tag.id)}" ${d.tagIds.includes(tag.id) ? 'checked' : ''}><span class="tag-dot" style="--tag-color:${esc(tag.color)}"></span>${esc(tag.name)}</label>`).join('') : '<p class="area-empty-copy">No tags yet. Create tags from the Tags section.</p>'}</div></details>`;
-    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">${modalState.ownerId ? 'Edit' : 'New'} ${type}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="Close"><i class="ph ph-x"></i></button></div><div class="form-stack"><label class="field-label">Name<input id="knowledge-title" class="input" maxlength="120" value="${esc(d.title)}"></label><label class="field-label">Area<select id="knowledge-area" class="input"><option value="">No area</option>${state.areas.filter(area => area.status === 'active' || area.id === d.areaId).map(area => `<option value="${esc(area.id)}" ${area.id === d.areaId ? 'selected' : ''}>${esc(area.name)}</option>`).join('')}</select></label><label class="field-label">${type === 'note' ? 'Body' : 'Description'}<textarea id="knowledge-text" class="input" rows="6">${esc(d.text)}</textarea></label>${tagPicker}<p class="form-hint">${knowledgeLabel(type)}s need a Name and at least one URL, image, or attached file.</p><div class="field-label">Links</div>${d.linkUrls.map((url, index) => `<div class="attachment-row"><span class="attachment-main knowledge-link">${esc(url)}</span><button class="btn-icon" type="button" data-action="remove-knowledge-link" data-link-index="${index}" aria-label="Remove link"><i class="ph ph-x"></i></button></div>`).join('')}<label class="field-label" for="knowledge-link">Add link</label><input id="knowledge-link" class="input" type="text" value="${esc(d.linkDraft)}" placeholder="https://…"><button class="btn btn-secondary" type="button" data-action="add-knowledge-link">Add link</button>${relations}${renderAttachmentsSection({ ownerType: type, ownerId: modalState.ownerId })}${!modalState.ownerId && modalState.pendingFiles.length ? `<p class="area-empty-copy">${modalState.pendingFiles.map(file => esc(file.name)).join(' · ')} · files are added when you save.</p>` : ''}${modalState.error ? `<p class="validation" role="alert">${esc(modalState.error)}</p>` : ''}</div><div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">Cancel</button><button class="btn btn-primary" type="button" data-action="save-knowledge" ${modalState.busy ? 'disabled' : ''}>${modalState.ownerId ? 'Save changes' : 'Create ' + type}</button></div></div></div>`, 'quick');
+    const relations = type === 'resource' ? [['relatedTaskIds', tr('Related Tasks'), 'tasks'], ['relatedProjectIds', tr('Related Projects'), 'projects'], ['relatedGoalIds', tr('Related Goals'), 'goals'], ['relatedHabitIds', tr('Related Habits'), 'habits']].map(([field, label, collection]) => `<details><summary class="field-label">${label} · ${d[field].length}</summary><div class="form-stack">${state[collection].map(item => `<label><input type="checkbox" data-knowledge-relation="${field}" value="${esc(item.id)}" ${d[field].includes(item.id) ? 'checked' : ''}> ${esc(item.title || item.name)}</label>`).join('') || `<p class="area-empty-copy">${tr('No items.')}</p>`}</div></details>`).join('') : '';
+    const tagPicker = renderKnowledgeMetadataFields(context, type, d) + `<details><summary class="field-label">${tr('Tags')} · ${d.tagIds.length}</summary><div class="knowledge-tag-picker">${state.tags.length ? state.tags.map(tag => `<label><input type="checkbox" data-knowledge-tag value="${esc(tag.id)}" ${d.tagIds.includes(tag.id) ? 'checked' : ''}><span class="tag-dot" style="--tag-color:${esc(tag.color)}"></span>${esc(tag.name)}</label>`).join('') : `<p class="area-empty-copy">${tr('No tags yet. Create tags from the Tags section.')}</p>`}</div></details>`;
+    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">${modalState.ownerId ? (type === 'note' ? tr('Edit note') : tr('Edit resource')) : (type === 'note' ? tr('New note') : tr('New resource'))}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div><div class="form-stack"><label class="field-label">${tr('Name')}<input id="knowledge-title" class="input" maxlength="120" value="${esc(d.title)}"></label><label class="field-label">${tr('Area')}<select id="knowledge-area" class="input"><option value="">${tr('No area')}</option>${state.areas.filter(area => area.status === 'active' || area.id === d.areaId).map(area => `<option value="${esc(area.id)}" ${area.id === d.areaId ? 'selected' : ''}>${esc(area.name)}</option>`).join('')}</select></label><label class="field-label">${type === 'note' ? tr('Body') : tr('Description')}<textarea id="knowledge-text" class="input" rows="6">${esc(d.text)}</textarea></label>${tagPicker}<p class="form-hint">${type === 'note' ? tr('Notes need a Name and at least one URL, image, or attached file.') : tr('Resources need a Name and at least one URL, image, or attached file.')}</p><div class="field-label">${tr('Links')}</div>${d.linkUrls.map((url, index) => `<div class="attachment-row"><span class="attachment-main knowledge-link">${esc(url)}</span><button class="btn-icon" type="button" data-action="remove-knowledge-link" data-link-index="${index}" aria-label="${tr('Remove link')}"><i class="ph ph-x"></i></button></div>`).join('')}<label class="field-label" for="knowledge-link">${tr('Add link')}</label><input id="knowledge-link" class="input" type="text" value="${esc(d.linkDraft)}" placeholder="https://…"><button class="btn btn-secondary" type="button" data-action="add-knowledge-link">${tr('Add link')}</button>${relations}${renderAttachmentsSection({ ownerType: type, ownerId: modalState.ownerId })}${!modalState.ownerId && modalState.pendingFiles.length ? `<p class="area-empty-copy">${modalState.pendingFiles.map(file => esc(file.name)).join(' · ')} · ${tr('files are added when you save.')}</p>` : ''}${modalState.error ? `<p class="validation" role="alert">${esc(modalState.error)}</p>` : ''}</div><div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">${tr('Cancel')}</button><button class="btn btn-primary" type="button" data-action="save-knowledge" ${modalState.busy ? 'disabled' : ''}>${modalState.ownerId ? tr('Save changes') : type === 'note' ? tr('Create note') : tr('Create resource')}</button></div></div></div>`, 'quick');
   }
 
   window.TodoDomainModules?.register({
@@ -225,7 +230,7 @@
         if (!owner || !['note', 'resource'].includes(el.dataset.ownerType)) return true;
         const previous = { favorite: owner.item.favorite, updatedAt: owner.item.updatedAt };
         owner.item.favorite = !owner.item.favorite; owner.item.updatedAt = context.nowIso();
-        if (!context.saveState()) { Object.assign(owner.item, previous); context.setToastMessage('Favorite could not be saved locally. Try again.'); }
+        if (!context.saveState()) { Object.assign(owner.item, previous); context.setToastMessage(tr('Favorite could not be saved locally. Try again.')); }
         context.render();
       }
       else if (action === 'clear-knowledge-filters') {

@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
+const { withI18n, runInNewContextWithI18n } = require('./support/i18n.js');
 
 const Core = require('../js/core.js');
 global.TodoCore = Core;
@@ -31,7 +32,7 @@ function actualAddAttachments(state) {
     },
     attachmentModalMatches: () => false,
   };
-  vm.runInNewContext(`${source.slice(start, end)}\nglobalThis.addAttachments = addAttachments;`, sandbox);
+  runInNewContextWithI18n(`${source.slice(start, end)}\nglobalThis.addAttachments = addAttachments;`, sandbox);
   return { addAttachments: sandbox.addAttachments, saveCalls: () => saveCalls };
 }
 
@@ -74,7 +75,7 @@ test('knowledge attachment snapshots use the existing owner pipeline for notes a
 
 test('Notes editor requires a Name plus a normalized link or an attachment', () => {
   let adapter;
-  vm.runInNewContext(fs.readFileSync(require.resolve('../js/knowledge.js'), 'utf8'), {
+  runInNewContextWithI18n(fs.readFileSync(require.resolve('../js/knowledge.js'), 'utf8'), {
     window: { TodoDomainModules: { register: value => { adapter = value; } } }, requestAnimationFrame: fn => fn(), URL,
   });
   const state = { notes: [], resources: [], areas: [], tags: [], tasks: [], projects: [], goals: [], habits: [], ui: {} };
@@ -100,7 +101,7 @@ test('Notes editor requires a Name plus a normalized link or an attachment', () 
 test('new attachment-only Notes and Resources roll back when every upload fails', async () => {
   for (const type of ['note', 'resource']) {
     let adapter;
-    vm.runInNewContext(fs.readFileSync(require.resolve('../js/knowledge.js'), 'utf8'), {
+    runInNewContextWithI18n(fs.readFileSync(require.resolve('../js/knowledge.js'), 'utf8'), {
       window: { TodoDomainModules: { register: value => { adapter = value; } } }, requestAnimationFrame: fn => fn(), URL,
     });
     const state = { notes: [], resources: [], areas: [], tags: [], tasks: [], projects: [], goals: [], habits: [], ui: {} };

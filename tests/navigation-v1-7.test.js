@@ -19,7 +19,7 @@ test('mobile navigation keeps five primary destinations and adds More', () => {
   const nav = html.match(/<nav id="mobile-bottom-nav"[\s\S]*?<\/nav>/)?.[0] || '';
   for (const route of ['today', 'inbox', 'calendar', 'goals', 'habits']) assert.match(nav, new RegExp(`data-route="${route}"`));
   assert.match(nav, /id="mobile-more-trigger"/);
-  assert.match(nav, />More<\//);
+  assert.match(nav, />Još<\//, 'the More trigger has a visible (Serbian) label');
   assert.match(css, /grid-template-columns:\s*repeat\(6,/);
 });
 

@@ -1,11 +1,30 @@
 (function () {
   'use strict';
+  const I18n = window.TodoI18n;
+  const { tr, trn, msg } = I18n;
+
+  // Display labels only; the template type, row kind and option values stay persisted English ids.
+  const TYPE_LABELS = { task: msg('Task'), project: msg('Project'), habit: msg('Habit'), goal: msg('Goal') };
+  const ROW_LABELS = { subtasks: msg('Subtasks'), tasks: msg('Tasks'), reminders: msg('Reminders'), milestones: msg('Milestones') };
+  const ROW_ACTIONS = {
+    subtask: [msg('Add subtask'), msg('Remove subtask')],
+    task: [msg('Add task'), msg('Remove task')],
+    reminder: [msg('Add reminder'), msg('Remove reminder')],
+    milestone: [msg('Add milestone'), msg('Remove milestone')]
+  };
+  const EDITOR_TITLES = {
+    task: [msg('New task template'), msg('Edit task template')],
+    project: [msg('New project template'), msg('Edit project template')],
+    habit: [msg('New habit template'), msg('Edit habit template')],
+    goal: [msg('New goal template'), msg('Edit goal template')]
+  };
+  const typeLabel = (ctx, type) => (TYPE_LABELS[type] ? tr(TYPE_LABELS[type]) : ctx.templateLabel(type));
 
   function renderTemplates(ctx) {
-    const { state, templateTypes, templateLabel, pageHeader, esc } = ctx;
+    const { state, templateTypes, pageHeader, esc } = ctx;
     const type = templateTypes.includes(state.ui.templateType) ? state.ui.templateType : 'task';
     const rows = state.templates.filter(template => template.type === type);
-    return pageHeader('Templates', 'Reusable snapshots with relative dates.', { add: false, actionHtml: '<button class="btn btn-primary" type="button" data-action="new-template"><i class="ph ph-plus"></i> New template</button>' }) + `<div class="view-tabs">${templateTypes.map(templateType => `<button class="btn ${templateType === type ? 'btn-secondary' : 'btn-ghost'}" type="button" data-template-type="${templateType}">${templateLabel(templateType)}</button>`).join('')}</div><section class="section">${rows.length ? rows.map(template => `<article class="goal-row" data-template-row="${esc(template.id)}"><div class="goal-open"><strong>${esc(template.name)}</strong><small>${esc(template.data.title || template.data.name || '')}</small></div><div class="modal-footer-actions" aria-label="${esc(template.name)} actions"><button class="btn-icon" type="button" data-action="use-template" data-template-id="${esc(template.id)}" aria-label="Use template" title="Use template"><i class="ph ph-plus"></i></button><button class="btn-icon" type="button" data-action="edit-template" data-template-id="${esc(template.id)}" aria-label="Edit template" title="Edit template"><i class="ph ph-pencil-simple"></i></button><button class="btn-icon" type="button" data-action="duplicate-template" data-template-id="${esc(template.id)}" aria-label="Duplicate template" title="Duplicate template"><i class="ph ph-copy"></i></button><button class="btn-icon" type="button" data-action="delete-template" data-template-id="${esc(template.id)}" aria-label="Delete template" title="Delete template"><i class="ph ph-trash"></i></button></div></article>`).join('') : '<p class="area-empty-copy">No templates yet. Create one or save an existing item as a template.</p>'}</section>`;
+    return pageHeader(tr('Templates'), tr('Reusable snapshots with relative dates.'), { add: false, actionHtml: `<button class="btn btn-primary" type="button" data-action="new-template"><i class="ph ph-plus"></i> ${tr('New template')}</button>` }) + `<div class="view-tabs">${templateTypes.map(templateType => `<button class="btn ${templateType === type ? 'btn-secondary' : 'btn-ghost'}" type="button" data-template-type="${templateType}">${typeLabel(ctx, templateType)}</button>`).join('')}</div><section class="section">${rows.length ? rows.map(template => `<article class="goal-row" data-template-row="${esc(template.id)}"><div class="goal-open"><strong>${esc(template.name)}</strong><small>${esc(template.data.title || template.data.name || '')}</small></div><div class="modal-footer-actions" aria-label="${tr('{name} actions', { name: esc(template.name) })}"><button class="btn-icon" type="button" data-action="use-template" data-template-id="${esc(template.id)}" aria-label="${tr('Use template')}" title="${tr('Use template')}"><i class="ph ph-plus"></i></button><button class="btn-icon" type="button" data-action="edit-template" data-template-id="${esc(template.id)}" aria-label="${tr('Edit template')}" title="${tr('Edit template')}"><i class="ph ph-pencil-simple"></i></button><button class="btn-icon" type="button" data-action="duplicate-template" data-template-id="${esc(template.id)}" aria-label="${tr('Duplicate template')}" title="${tr('Duplicate template')}"><i class="ph ph-copy"></i></button><button class="btn-icon" type="button" data-action="delete-template" data-template-id="${esc(template.id)}" aria-label="${tr('Delete template')}" title="${tr('Delete template')}"><i class="ph ph-trash"></i></button></div></article>`).join('') : `<p class="area-empty-copy">${tr('No templates yet. Create one or save an existing item as a template.')}</p>`}</section>`;
   }
 
   function openEditor(ctx, templateId = null, type = ctx.state.ui.templateType || 'task', snapshot = null) {
@@ -34,40 +53,44 @@
   function templateFields(ctx, type, data, prefix = '') {
     const { state, getGoal, esc } = ctx;
     const field = (key, label, kind, options) => templateField(ctx, data, key, label, kind, options, prefix);
-    const choices = key => [['', 'None'], ...state[key].map(item => [item.id, item.name || item.title])];
-    let html = field(type === 'task' || type === 'goal' ? 'title' : 'name', type === 'task' || type === 'goal' ? 'Title' : 'Name') + field('areaId', 'Area', 'text', choices('areas'));
-    if (type !== 'goal') html += field('goalIds', 'Goal links (select multiple)', 'ids', state.goals.map(goal => [goal.id, goal.title]));
+    const choices = key => [['', tr('None')], ...state[key].map(item => [item.id, item.name || item.title])];
+    let html = field(type === 'task' || type === 'goal' ? 'title' : 'name', type === 'task' || type === 'goal' ? tr('Title') : tr('Name')) + field('areaId', tr('Area'), 'text', choices('areas'));
+    if (type !== 'goal') html += field('goalIds', tr('Goal links (select multiple)'), 'ids', state.goals.map(goal => [goal.id, goal.title]));
     if (type === 'task') {
-      html += field('notes', 'Notes', 'notes') + field('projectId', 'Project', 'text', choices('projects')) + field('tagIds', 'Tags (select multiple)', 'ids', state.tags.map(tag => [tag.id, tag.name])) + field('priority', 'Priority', 'text', [['none', 'None'], ['low', 'Low'], ['medium', 'Medium'], ['high', 'High']]) + field('plannedOffsetDays', 'Planned day offset (blank = none)', 'number') + field('plannedTime', 'Planned time', 'time') + field('dueOffsetDays', 'Due day offset (blank = none)', 'number') + field('dueTime', 'Due time', 'time') + field('reminderOffsetDays', 'Reminder day offset (blank = none)', 'number') + field('reminderTime', 'Reminder local time', 'time') + field('scheduleEnabled', 'Create automatically on date', 'boolean') + field('scheduleDate', 'Automatic creation date', 'date');
-      html += field('durationMinutes', 'Duration in minutes (blank = none)', 'number');
+      html += field('notes', tr('Notes'), 'notes') + field('projectId', tr('Project'), 'text', choices('projects')) + field('tagIds', tr('Tags (select multiple)'), 'ids', state.tags.map(tag => [tag.id, tag.name])) + field('priority', tr('Priority'), 'text', [['none', tr('None')], ['low', tr('Low')], ['medium', tr('Medium')], ['high', tr('High')]]) + field('plannedOffsetDays', tr('Planned day offset (blank = none)'), 'number') + field('plannedTime', tr('Planned time'), 'time') + field('dueOffsetDays', tr('Due day offset (blank = none)'), 'number') + field('dueTime', tr('Due time'), 'time') + field('reminderOffsetDays', tr('Reminder day offset (blank = none)'), 'number') + field('reminderTime', tr('Reminder local time'), 'time') + field('scheduleEnabled', tr('Create automatically on date'), 'boolean') + field('scheduleDate', tr('Automatic creation date'), 'date');
+      html += field('durationMinutes', tr('Duration in minutes (blank = none)'), 'number');
       const recurrence = data.recurrence || {};
-      html += templateField(ctx, recurrence, 'frequency', 'Repeat', 'text', [['', 'Does not repeat'], ['daily', 'Daily'], ['weekly', 'Weekly'], ['monthly', 'Monthly']], `${prefix}recurrence.`) + templateField(ctx, recurrence, 'interval', 'Repeat interval', 'number', null, `${prefix}recurrence.`);
-      html += templateField(ctx, recurrence, 'endType', 'Repeat end condition', 'text', [['never', 'Never'], ['date', 'On relative date'], ['afterOccurrences', 'After N occurrences']], `${prefix}recurrence.`) + templateField(ctx, recurrence, 'endOffsetDays', 'Repeat end day offset', 'number', null, `${prefix}recurrence.`) + templateField(ctx, recurrence, 'endAfterOccurrences', 'Repeat total occurrences', 'number', null, `${prefix}recurrence.`);
+      html += templateField(ctx, recurrence, 'frequency', tr('Repeat'), 'text', [['', tr('Does not repeat')], ['daily', tr('Daily')], ['weekly', tr('Weekly')], ['monthly', tr('Monthly')]], `${prefix}recurrence.`) + templateField(ctx, recurrence, 'interval', tr('Repeat interval'), 'number', null, `${prefix}recurrence.`);
+      html += templateField(ctx, recurrence, 'endType', tr('Repeat end condition'), 'text', [['never', tr('Never')], ['date', tr('On relative date')], ['afterOccurrences', tr('After N occurrences')]], `${prefix}recurrence.`) + templateField(ctx, recurrence, 'endOffsetDays', tr('Repeat end day offset'), 'number', null, `${prefix}recurrence.`) + templateField(ctx, recurrence, 'endAfterOccurrences', tr('Repeat total occurrences'), 'number', null, `${prefix}recurrence.`);
       html += templateRows(ctx, 'subtasks', data.subtasks || [], prefix, 'subtask');
-    } else if (type === 'project') html += field('color', 'Color', 'color') + templateRows(ctx, 'tasks', data.tasks || [], prefix, 'task');
+    } else if (type === 'project') html += field('color', tr('Color'), 'color') + templateRows(ctx, 'tasks', data.tasks || [], prefix, 'task');
     else if (type === 'habit') {
-      html += field('minimumTarget', 'Minimum target (blank = default)', 'number') + field('idealTarget', 'Ideal target (blank = default)', 'number') + field('graceDays', 'Grace days', 'number');
-      html += field('trackingType', 'Tracking', 'text', [['checkbox', 'Checkbox'], ['numeric', 'Numeric']]) + field('targetValue', 'Target', 'number') + field('unit', 'Unit') + field('quickValues', 'Quick values (comma separated)', 'numbers') + field('frequencyType', 'Frequency', 'text', [['daily', 'Daily'], ['weekdays', 'Selected weekdays'], ['timesPerWeek', 'X times per week'], ['everyNDays', 'Every N days']]) + field('weekdays', 'Weekdays (0 = Sun, 1 = Mon … 6 = Sat)', 'numbers') + field('timesPerWeek', 'Times per week', 'number') + field('everyNDays', 'Every N days', 'number') + field('continuation', 'Continuation', 'text', [['automatic', 'Repeat automatically'], ['askEachPeriod', 'Ask each period'], ['onePeriod', 'One period only']]) + field('endType', 'End condition', 'text', [['never', 'Never'], ['date', 'On relative date'], ['successfulPeriods', 'After successful periods']]) + field('endOffsetDays', 'End day offset (blank = none)', 'number') + field('successfulPeriodsTarget', 'Successful periods', 'number') + templateRows(ctx, 'reminders', data.reminders || [], prefix, 'reminder');
+      html += field('minimumTarget', tr('Minimum target (blank = default)'), 'number') + field('idealTarget', tr('Ideal target (blank = default)'), 'number') + field('graceDays', tr('Grace days'), 'number');
+      html += field('trackingType', tr('Tracking'), 'text', [['checkbox', tr('Checkbox')], ['numeric', tr('Numeric')]]) + field('targetValue', tr('Target value'), 'number') + field('unit', tr('Unit')) + field('quickValues', tr('Quick values (comma separated)'), 'numbers') + field('frequencyType', tr('Frequency'), 'text', [['daily', tr('Daily')], ['weekdays', tr('Selected weekdays')], ['timesPerWeek', tr('X times per week')], ['everyNDays', tr('Every N days')]]) + field('weekdays', tr('Weekdays (0 = Sun, 1 = Mon … 6 = Sat)'), 'numbers') + field('timesPerWeek', tr('Times per week'), 'number') + field('everyNDays', tr('Every N days'), 'number') + field('continuation', tr('Continuation'), 'text', [['automatic', tr('Repeat automatically')], ['askEachPeriod', tr('Ask each period')], ['onePeriod', tr('One period only')]]) + field('endType', tr('End condition'), 'text', [['never', tr('Never')], ['date', tr('On relative date')], ['successfulPeriods', tr('After successful periods')]]) + field('endOffsetDays', tr('End day offset (blank = none)'), 'number') + field('successfulPeriodsTarget', tr('Successful periods'), 'number') + templateRows(ctx, 'reminders', data.reminders || [], prefix, 'reminder');
     } else {
-      html += field('progressMode', 'Progress source', 'text', [['manual', 'Manual'], ['linkedTasks', 'Linked tasks'], ['linkedHabits', 'Linked habits']]) + field('progressType', 'Progress type', 'text', [['percentage', 'Percentage'], ['numeric', 'Numeric target']]) + field('targetValue', 'Target value', 'number') + field('unit', 'Unit') + field('targetOffsetDays', 'Target day offset (blank = none)', 'number') + templateRows(ctx, 'milestones', data.milestones || [], prefix, 'milestone');
+      html += field('progressMode', tr('Progress source'), 'text', [['manual', tr('Manual')], ['linkedTasks', tr('Linked tasks')], ['linkedHabits', tr('Linked habits')]]) + field('progressType', tr('Progress type'), 'text', [['percentage', tr('Percentage')], ['numeric', tr('Numeric target')]]) + field('targetValue', tr('Target value'), 'number') + field('unit', tr('Unit')) + field('targetOffsetDays', tr('Target day offset (blank = none)'), 'number') + templateRows(ctx, 'milestones', data.milestones || [], prefix, 'milestone');
       const reminders = data.reminders || {};
-      html += ['sevenDaysBefore', 'threeDaysBefore', 'oneDayBefore', 'onTargetDate'].map((key, index) => templateField(ctx, reminders, key, ['7 days before', '3 days before', '1 day before', 'On target date'][index], 'boolean', null, `${prefix}reminders.`)).join('') + templateField(ctx, reminders, 'time', 'Reminder time', 'time', null, `${prefix}reminders.`);
+      const reminderLabels = [trn(7, '{count} day before', '{count} days before'), trn(3, '{count} day before', '{count} days before'), trn(1, '{count} day before', '{count} days before'), tr('On target date')];
+      html += ['sevenDaysBefore', 'threeDaysBefore', 'oneDayBefore', 'onTargetDate'].map((key, index) => templateField(ctx, reminders, key, reminderLabels[index], 'boolean', null, `${prefix}reminders.`)).join('') + templateField(ctx, reminders, 'time', tr('Reminder time'), 'time', null, `${prefix}reminders.`);
     }
     if (type === 'project' || type === 'habit') {
       data.goalLinkConfigs = (data.goalIds || []).map(goalId => (data.goalLinkConfigs || []).find(config => config.goalId === goalId) || (type === 'project' ? { goalId, contributionMode: 'allTasks', selectedTaskIndices: [] } : { goalId, metric: 'totalCheckins', target: type === 'habit' && data.trackingType === 'numeric' ? data.targetValue || 1 : 1 }));
-      html += data.goalLinkConfigs.map((config, index) => `<fieldset class="template-rows"><legend>${esc(getGoal(config.goalId)?.title || 'Linked Goal')}</legend>${type === 'project' ? templateField(ctx, config, 'contributionMode', 'Project contribution', 'text', [['allTasks', 'All predefined tasks'], ['selectedTasks', 'Selected predefined tasks']], `${prefix}goalLinkConfigs.${index}.`) + templateField(ctx, config, 'selectedTaskIndices', 'Contributing tasks (select multiple)', 'indices', (data.tasks || []).map((task, taskIndex) => [taskIndex, task.title || `Task ${taskIndex + 1}`]), `${prefix}goalLinkConfigs.${index}.`) : templateField(ctx, config, 'metric', 'Habit metric', 'text', [['totalCheckins', 'Check-ins'], ['streak', 'Streak'], ['successfulPeriods', 'Successful periods']], `${prefix}goalLinkConfigs.${index}.`) + templateField(ctx, config, 'target', 'Goal contribution target', 'number', null, `${prefix}goalLinkConfigs.${index}.`)}</fieldset>`).join('');
+      html += data.goalLinkConfigs.map((config, index) => `<fieldset class="template-rows"><legend>${esc(getGoal(config.goalId)?.title || tr('Linked Goal'))}</legend>${type === 'project' ? templateField(ctx, config, 'contributionMode', tr('Project contribution'), 'text', [['allTasks', tr('All predefined tasks')], ['selectedTasks', tr('Selected predefined tasks')]], `${prefix}goalLinkConfigs.${index}.`) + templateField(ctx, config, 'selectedTaskIndices', tr('Contributing tasks (select multiple)'), 'indices', (data.tasks || []).map((task, taskIndex) => [taskIndex, task.title || tr('Task {number}', { number: taskIndex + 1 })]), `${prefix}goalLinkConfigs.${index}.`) : templateField(ctx, config, 'metric', tr('Habit metric'), 'text', [['totalCheckins', tr('Check-ins')], ['streak', tr('Streak')], ['successfulPeriods', tr('Successful periods')]], `${prefix}goalLinkConfigs.${index}.`) + templateField(ctx, config, 'target', tr('Goal contribution target'), 'number', null, `${prefix}goalLinkConfigs.${index}.`)}</fieldset>`).join('');
     }
     return html;
   }
 
   function templateRows(ctx, key, rows, prefix, kind) {
     const path = prefix + key;
-    return `<fieldset class="template-rows"><legend>${ctx.templateLabel(key)}</legend>${rows.map((row, index) => `<div class="template-row">${kind === 'task' ? templateFields(ctx, 'task', row, `${path}.${index}.`) : kind === 'reminder' ? templateField(ctx, row, 'time', 'Time', 'time', null, `${path}.${index}.`) + templateField(ctx, row, 'enabled', 'Enabled', 'boolean', null, `${path}.${index}.`) : templateField(ctx, row, 'title', 'Title', 'text', null, `${path}.${index}.`) + (kind === 'milestone' ? templateField(ctx, row, 'dateOffsetDays', 'Day offset (blank = none)', 'number', null, `${path}.${index}.`) : '')}<button class="btn btn-ghost" type="button" data-action="template-remove-row" data-path="${path}" data-index="${index}">Remove ${kind}</button></div>`).join('')}<button class="btn btn-ghost" type="button" data-action="template-add-row" data-path="${path}" data-kind="${kind}">Add ${kind}</button></fieldset>`;
+    const [addLabel, removeLabel] = (ROW_ACTIONS[kind] || []).map(text => tr(text));
+    return `<fieldset class="template-rows"><legend>${ROW_LABELS[key] ? tr(ROW_LABELS[key]) : ctx.templateLabel(key)}</legend>${rows.map((row, index) => `<div class="template-row">${kind === 'task' ? templateFields(ctx, 'task', row, `${path}.${index}.`) : kind === 'reminder' ? templateField(ctx, row, 'time', tr('Time'), 'time', null, `${path}.${index}.`) + templateField(ctx, row, 'enabled', tr('Enabled'), 'boolean', null, `${path}.${index}.`) : templateField(ctx, row, 'title', tr('Title'), 'text', null, `${path}.${index}.`) + (kind === 'milestone' ? templateField(ctx, row, 'dateOffsetDays', tr('Day offset (blank = none)'), 'number', null, `${path}.${index}.`) : '')}<button class="btn btn-ghost" type="button" data-action="template-remove-row" data-path="${path}" data-index="${index}">${removeLabel}</button></div>`).join('')}<button class="btn btn-ghost" type="button" data-action="template-add-row" data-path="${path}" data-kind="${kind}">${addLabel}</button></fieldset>`;
   }
 
   function renderTemplateModal(ctx) {
-    const { modalState, modalFrame, templateLabel, esc } = ctx, draft = modalState.draft;
-    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">${modalState.templateId ? 'Edit' : 'New'} ${templateLabel(draft.type)} template</h2><button class="btn-icon" data-action="close-modal" aria-label="Close"><i class="ph ph-x"></i></button></div><div class="form-stack"><label class="field-label">Template name<input id="template-name" class="input" value="${esc(draft.name)}"></label><p class="area-empty-copy">Use {{date}}, {{today}} or {{tomorrow}} in titles and notes. Day offsets are relative to the day you create an item.</p>${templateFields(ctx, draft.type, draft.data)}${modalState.error ? `<p class="validation" role="alert">${esc(modalState.error)}</p>` : ''}</div><div class="modal-footer"><span></span><button class="btn btn-primary" type="button" data-action="save-template">Save template</button></div></div>`, 'quick');
+    const { modalState, modalFrame, esc } = ctx, draft = modalState.draft;
+    const titles = EDITOR_TITLES[draft.type] || [msg('New template'), msg('Edit template')];
+    const hint = tr('Use {date}, {today} or {tomorrow} in titles and notes. Day offsets are relative to the day you create an item.', { date: '{{date}}', today: '{{today}}', tomorrow: '{{tomorrow}}' });
+    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">${tr(titles[modalState.templateId ? 1 : 0])}</h2><button class="btn-icon" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div><div class="form-stack"><label class="field-label">${tr('Template name')}<input id="template-name" class="input" value="${esc(draft.name)}"></label><p class="area-empty-copy">${hint}</p>${templateFields(ctx, draft.type, draft.data)}${modalState.error ? `<p class="validation" role="alert">${esc(modalState.error)}</p>` : ''}</div><div class="modal-footer"><span></span><button class="btn btn-primary" type="button" data-action="save-template">${tr('Save template')}</button></div></div>`, 'quick');
   }
 
   function templatePath(data, path, create = false) {
@@ -87,38 +110,38 @@
   }
 
   function templateDataProblem(type, data) {
-    if (type === 'task' && data.durationMinutes != null && (!Number.isInteger(data.durationMinutes) || data.durationMinutes <= 0)) return 'Duration must be a positive whole number of minutes.';
+    if (type === 'task' && data.durationMinutes != null && (!Number.isInteger(data.durationMinutes) || data.durationMinutes <= 0)) return tr('Duration must be a positive whole number of minutes.');
     if (type === 'habit') {
       const fractional = data.trackingType === 'numeric' && data.frequencyType !== 'timesPerWeek';
-      for (const key of ['minimumTarget', 'idealTarget']) if (data[key] != null && (!Number.isFinite(data[key]) || data[key] <= 0 || (!fractional && !Number.isInteger(data[key])))) return 'Habit targets must be positive numbers; count targets must be whole numbers.';
-      if (data.minimumTarget != null && data.idealTarget != null && data.idealTarget < data.minimumTarget) return 'Ideal target must be at least the minimum target.';
-      if (data.graceDays != null && (!Number.isInteger(data.graceDays) || data.graceDays < 0)) return 'Grace days must be zero or a positive whole number.';
+      for (const key of ['minimumTarget', 'idealTarget']) if (data[key] != null && (!Number.isFinite(data[key]) || data[key] <= 0 || (!fractional && !Number.isInteger(data[key])))) return tr('Habit targets must be positive numbers; count targets must be whole numbers.');
+      if (data.minimumTarget != null && data.idealTarget != null && data.idealTarget < data.minimumTarget) return tr('Ideal target must be at least the minimum target.');
+      if (data.graceDays != null && (!Number.isInteger(data.graceDays) || data.graceDays < 0)) return tr('Grace days must be zero or a positive whole number.');
     }
     const relativeProblem = value => value && typeof value === 'object' && Object.entries(value).some(([key, item]) => key.endsWith('OffsetDays') ? item !== null && !Number.isInteger(item) : typeof item === 'object' && relativeProblem(item));
-    if (relativeProblem(data)) return 'Day offsets must be whole numbers.';
+    if (relativeProblem(data)) return tr('Day offsets must be whole numbers.');
     const schedule = String(data.scheduleDate || ''), parsedSchedule = /^\d{4}-\d{2}-\d{2}$/.test(schedule) ? new Date(`${schedule}T00:00:00Z`) : null;
-    if (type === 'task' && data.scheduleEnabled && (!parsedSchedule || Number.isNaN(parsedSchedule.getTime()) || parsedSchedule.toISOString().slice(0, 10) !== schedule)) return 'Automatic creation needs a valid date.';
-    if (type === 'task' && data.recurrence?.frequency && (!Number.isInteger(data.recurrence.interval) || data.recurrence.interval < 1 || data.recurrence.endType === 'afterOccurrences' && (!Number.isInteger(data.recurrence.endAfterOccurrences) || data.recurrence.endAfterOccurrences < 1))) return 'Repeat interval and occurrence count must be positive whole numbers.';
-    if (type === 'task' && data.recurrence?.frequency && data.recurrence.endType === 'date' && !Number.isInteger(data.recurrence.endOffsetDays)) return 'Provide a whole-number repeat end day offset.';
-    if (type === 'task' && (data.subtasks || []).some(subtask => !String(subtask.title || '').trim())) return 'Subtasks need a title.';
-    if (type === 'project') for (const task of data.tasks || []) { if (!String(task.title || '').trim()) return 'Predefined tasks need a title.'; const error = templateDataProblem('task', task); if (error) return error; }
-    if (type === 'goal' && (data.milestones || []).some(milestone => !String(milestone.title || '').trim())) return 'Milestones need a title.';
-    if ((type === 'habit' && data.trackingType === 'numeric' || type === 'goal' && data.progressType === 'numeric') && !(data.targetValue > 0)) return 'Numeric targets must be above zero.';
-    if (type === 'habit' && data.frequencyType === 'weekdays' && (!(data.weekdays || []).length || data.weekdays.some(day => !Number.isInteger(day) || day < 0 || day > 6))) return 'Select valid weekdays from 0 to 6.';
-    if (type === 'habit' && data.frequencyType === 'timesPerWeek' && (!Number.isInteger(data.timesPerWeek) || data.timesPerWeek < 1 || data.timesPerWeek > 7)) return 'Times per week must be a positive whole number up to 7.';
-    if (type === 'habit' && data.frequencyType === 'everyNDays' && (!Number.isInteger(data.everyNDays) || data.everyNDays < 1)) return 'Every N days must be a positive whole number.';
-    if (type === 'habit' && data.endType === 'successfulPeriods' && (!Number.isInteger(data.successfulPeriodsTarget) || data.successfulPeriodsTarget < 1)) return 'Successful periods must be a positive whole number.';
-    if (type === 'habit' && data.endType === 'date' && !Number.isInteger(data.endOffsetDays)) return 'Provide a whole-number end day offset.';
-    if (type === 'habit' && (data.goalLinkConfigs || []).some(config => !(config.target > 0))) return 'Goal contribution targets must be above zero.';
+    if (type === 'task' && data.scheduleEnabled && (!parsedSchedule || Number.isNaN(parsedSchedule.getTime()) || parsedSchedule.toISOString().slice(0, 10) !== schedule)) return tr('Automatic creation needs a valid date.');
+    if (type === 'task' && data.recurrence?.frequency && (!Number.isInteger(data.recurrence.interval) || data.recurrence.interval < 1 || data.recurrence.endType === 'afterOccurrences' && (!Number.isInteger(data.recurrence.endAfterOccurrences) || data.recurrence.endAfterOccurrences < 1))) return tr('Repeat interval and occurrence count must be positive whole numbers.');
+    if (type === 'task' && data.recurrence?.frequency && data.recurrence.endType === 'date' && !Number.isInteger(data.recurrence.endOffsetDays)) return tr('Provide a whole-number repeat end day offset.');
+    if (type === 'task' && (data.subtasks || []).some(subtask => !String(subtask.title || '').trim())) return tr('Subtasks need a title.');
+    if (type === 'project') for (const task of data.tasks || []) { if (!String(task.title || '').trim()) return tr('Predefined tasks need a title.'); const error = templateDataProblem('task', task); if (error) return error; }
+    if (type === 'goal' && (data.milestones || []).some(milestone => !String(milestone.title || '').trim())) return tr('Milestones need a title.');
+    if ((type === 'habit' && data.trackingType === 'numeric' || type === 'goal' && data.progressType === 'numeric') && !(data.targetValue > 0)) return tr('Numeric targets must be above zero.');
+    if (type === 'habit' && data.frequencyType === 'weekdays' && (!(data.weekdays || []).length || data.weekdays.some(day => !Number.isInteger(day) || day < 0 || day > 6))) return tr('Select valid weekdays from 0 to 6.');
+    if (type === 'habit' && data.frequencyType === 'timesPerWeek' && (!Number.isInteger(data.timesPerWeek) || data.timesPerWeek < 1 || data.timesPerWeek > 7)) return tr('Times per week must be a positive whole number up to 7.');
+    if (type === 'habit' && data.frequencyType === 'everyNDays' && (!Number.isInteger(data.everyNDays) || data.everyNDays < 1)) return tr('Every N days must be a positive whole number.');
+    if (type === 'habit' && data.endType === 'successfulPeriods' && (!Number.isInteger(data.successfulPeriodsTarget) || data.successfulPeriodsTarget < 1)) return tr('Successful periods must be a positive whole number.');
+    if (type === 'habit' && data.endType === 'date' && !Number.isInteger(data.endOffsetDays)) return tr('Provide a whole-number end day offset.');
+    if (type === 'habit' && (data.goalLinkConfigs || []).some(config => !(config.target > 0))) return tr('Goal contribution targets must be above zero.');
     return null;
   }
 
   function save(ctx) {
     readDraft(ctx); const { modalState, renderModal, saveTemplateRecord } = ctx, draft = modalState.draft;
-    if (!draft.name.trim() || !String(draft.data.title || draft.data.name || '').trim()) { modalState.error = 'Template and item need a name.'; renderModal(); return; }
+    if (!draft.name.trim() || !String(draft.data.title || draft.data.name || '').trim()) { modalState.error = tr('Template and item need a name.'); renderModal(); return; }
     const problem = templateDataProblem(draft.type, draft.data);
     if (problem) { modalState.error = problem; renderModal(); return; }
-    if (!saveTemplateRecord(modalState.templateId, draft)) { modalState.error = 'This template was changed or deleted. Reopen it and try again.'; renderModal(); }
+    if (!saveTemplateRecord(modalState.templateId, draft)) { modalState.error = tr('This template was changed or deleted. Reopen it and try again.'); renderModal(); }
   }
 
   function editRow(ctx, button, remove = false) {
@@ -136,7 +159,7 @@
     };
     const focusPath = ctx.$('[data-template-field]:focus')?.dataset.templateField;
     const restoreEditor = () => { ctx.setModalState(editor); ctx.renderModal(); requestAnimationFrame(() => ctx.$(`[data-template-field="${focusPath || button.dataset.path + '.' + index + '.title'}"]`)?.focus()); };
-    ctx.openConfirm({ title: 'Remove template row?', message: 'This changes only the template draft.', onConfirm: () => { parent[last].splice(index, 1); adjustSelections(editor.draft.data); restoreEditor(); ctx.setUndo('Template row removed', () => {
+    ctx.openConfirm({ title: tr('Remove template row?'), message: tr('This changes only the template draft.'), onConfirm: () => { parent[last].splice(index, 1); adjustSelections(editor.draft.data); restoreEditor(); ctx.setUndo(tr('Template row removed'), () => {
       if (ctx.modalState === editor) readDraft(ctx);
       parent[last].splice(Math.min(index, parent[last].length), 0, ctx.copyTemplate(snapshot)); adjustSelections(editor.draft.data, true);
       const saved = ctx.state.templates.find(template => template.id === editor.savedTemplateId);

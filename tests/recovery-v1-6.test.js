@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
+const { withI18n, runInNewContextWithI18n } = require('./support/i18n.js');
 
 const Core = global.TodoCore = require('../js/core.js');
 global.__TODO_TEST_MEMORY_DB__ = true;
@@ -25,7 +26,7 @@ function recoveryApp(state) {
     setToastMessage: message => { ctx.message = message; }, setUndo: (message, fn) => { ctx.undo = fn; },
     refreshHabitMetrics: async () => {}, $: () => input,
   };
-  vm.createContext(ctx); vm.runInContext(code, ctx);
+  vm.createContext(withI18n(ctx)); vm.runInContext(code, ctx);
   ctx.downloadBackup = blob => { ctx.download = blob; };
   return { ctx, input, begin: file => ctx.beginGlobalOperation('restore', file), commit: () => ctx.commitGlobalOperation(ctx.globalOperation) };
 }
@@ -38,7 +39,7 @@ function startupRecoveryApp() {
     recovery: null, globalOperation: null, globalRecoveryNotice: null, normalizeState: Core.normalizeState,
     globalNotice(message, retry) { ctx.globalRecoveryNotice = { message, retry }; }, renderToast() {},
     console, saveState() { const raw = JSON.stringify(ctx.state); localStorage.setItem('todoAppData', raw); ctx.canonicalRaw = raw; } };
-  vm.createContext(ctx); vm.runInContext(`${status}\n${load}`, ctx);
+  vm.createContext(withI18n(ctx)); vm.runInContext(`${status}\n${load}`, ctx);
   return ctx;
 }
 

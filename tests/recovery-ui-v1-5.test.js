@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
+const { withI18n, runInNewContextWithI18n } = require('./support/i18n.js');
 const source = fs.readFileSync(require.resolve('../js/app.js'), 'utf8');
 
 function functionSource(name, nextName) {
@@ -13,7 +14,7 @@ function functionSource(name, nextName) {
 test('Recovery chooser shows loading, failure, empty and one-entity restore controls', () => {
   const code = functionSource('renderLocalSnapshotsModal', 'downloadBackup');
   const context = { modalState: { type: 'local-snapshots', loading: true, snapshots: [] }, esc: String, modalFrame: value => value };
-  vm.createContext(context);
+  vm.createContext(withI18n(context));
   assert.match(vm.runInContext(`${code}\nrenderLocalSnapshotsModal()`, context), /Loading/);
   context.modalState.loading = false;
   assert.match(vm.runInContext('renderLocalSnapshotsModal()', context), /No automatic snapshots/);
@@ -29,7 +30,7 @@ test('Recovery chooser shows loading, failure, empty and one-entity restore cont
 test('Storage warning distinguishes unsaved changes from snapshot failure and offers retry', () => {
   const code = functionSource('storageWarningHtml', 'renderMain');
   const context = { storageError: true, automaticSnapshotError: null, esc: String };
-  vm.createContext(context);
+  vm.createContext(withI18n(context));
   assert.match(vm.runInContext(`${code}\nstorageWarningHtml()`, context), /Changes couldn't be saved/);
   assert.match(vm.runInContext('storageWarningHtml()', context), /data-action="retry-save"/);
   context.storageError = false; context.automaticSnapshotError = 'Quota exceeded';

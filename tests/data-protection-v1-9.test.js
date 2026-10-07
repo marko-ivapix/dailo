@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { withI18n, runInNewContextWithI18n } = require('./support/i18n.js');
 
 const Core = require('../js/core.js');
 global.TodoCore = Core;
@@ -26,7 +27,7 @@ const emptyState = (extra = {}) => Core.normalizeState({ version: 3, tasks: [], 
 
 function renderSettings(settings, ctxExtra = {}) {
   let adapter;
-  vm.runInNewContext(read('js/settings-ui.js'), { window: { TodoDomainModules: { register: value => { adapter = value; } } } });
+  runInNewContextWithI18n(read('js/settings-ui.js'), { window: { TodoDomainModules: { register: value => { adapter = value; } } } });
   return adapter.renderRoute({ type: 'settings' }, {
     state: { settings: { shortcuts: {}, compactDensity: true, todayFocusFilter: 'all', todayVisibleSections: [], ...settings } },
     pageHeader: () => '', shortcutLabels: {}, shortcutError: () => '', notificationButtonLabel: () => 'Enable', esc: value => String(value),
@@ -105,7 +106,7 @@ function reminderApp(state, stored = {}) {
     localStorage: { getItem: key => values.get(key) ?? null, setItem: (key, value) => values.set(key, String(value)), removeItem: key => values.delete(key) },
     navigator: {},
   };
-  vm.createContext(ctx);
+  vm.createContext(withI18n(ctx));
   vm.runInContext(appRegion('  function backupReminderNotice(', '  async function exportBackupAction('), ctx);
   return { ctx, values };
 }
@@ -133,7 +134,7 @@ test('Today shows one backup notice with export and snooze actions only when the
 test('storage persistence is requested only on demand and reports unsupported browsers', async () => {
   const run = async (navigatorValue, request) => {
     const ctx = { state: emptyState(), Core, esc: String, nowIso: () => NOW, localStorage: { getItem: () => null, setItem() {} }, navigator: navigatorValue };
-    vm.createContext(ctx);
+    vm.createContext(withI18n(ctx));
     vm.runInContext(appRegion('  function backupReminderNotice(', '  async function exportBackupAction('), ctx);
     // The status object comes from another realm; compare plain data.
     return JSON.parse(JSON.stringify(await ctx.refreshStoragePersistence(request)));

@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
+const { withI18n, runInNewContextWithI18n } = require('./support/i18n.js');
 const Core = require('../js/core.js');
 
 function taskState(tasks, focusTaskIds = []) {
@@ -18,7 +19,7 @@ test('load/save normalizes focus IDs to three existing open tasks in requested o
   let persisted;
   const context = { state, Core, globalOperation: null, STORAGE_KEY: 'state', reportStorageFailure: error => { throw error; },
     localStorage: { setItem(key, value) { persisted = JSON.parse(value); } }, scheduleAutomaticSnapshot() {} };
-  vm.createContext(context);
+  vm.createContext(withI18n(context));
   assert.equal(vm.runInContext(`${save}\nsaveState()`, context), true);
   assert.deepEqual(persisted.settings.focusTaskIds, ['a', 'b', 'c']);
   assert.deepEqual(Array.from(state.settings.focusTaskIds), ['a', 'b', 'c']);
@@ -37,7 +38,7 @@ test('Add another retains implicit Today and resets explicit times before parsin
     draft: { title: 'First today 09:30', explicitPlan: false, plannedDate: today, plannedTime: '14:00', dueTime: '15:00', explicitPlannedTime: true, subtasks: [] } },
     syncQuickDraftFromDom() {}, uid: () => 'task', nowIso: () => new Date().toISOString(), nextOrder: () => 0,
     saveState() {}, closeModal() {}, render() {}, renderModal() {}, requestAnimationFrame() {}, $() {} };
-  vm.createContext(context);
+  vm.createContext(withI18n(context));
   vm.runInContext(`${parse}\n${create}\ncreateTask(true)`, context);
   assert.equal(context.modalState.draft.explicitPlan, false);
   assert.equal(context.modalState.draft.plannedTime, null);
@@ -56,7 +57,7 @@ test('Add another retains implicit Today and resets explicit times before parsin
 
 test('Task module renders duration, daily focus controls and inline Today completion', () => {
   let module;
-  vm.runInNewContext(fs.readFileSync(require.resolve('../js/tasks-ui.js'), 'utf8'), {
+  runInNewContextWithI18n(fs.readFileSync(require.resolve('../js/tasks-ui.js'), 'utf8'), {
     window: { TodoDomainModules: { register(value) { module = value; } } },
   });
   const task = { id: 'a', title: 'Read', durationMinutes: 30, tagIds: [] };
@@ -79,7 +80,7 @@ test('Today rendering caps focus at three and derives Daily Review from actual t
   const renderToday = source.slice(source.indexOf('  function renderToday()'), source.indexOf('  function renderInbox()'));
   const context = { state, Core, esc: String, getTask: id => tasks.find(task => task.id === id),
     pageHeader: () => '', formatPageToday: String, emptyState: () => '', backupReminderNotice: () => '', taskRow: (task, view) => `<article data-view="${view}">${task.id}</article>` };
-  vm.createContext(context);
+  vm.createContext(withI18n(context));
   const html = vm.runInContext(`${renderToday}\nrenderToday()`, context);
   assert.equal((html.match(/data-view="focus"/g) || []).length, 3);
   assert.match(html, /data-daily-review-completed>1 completed today/);

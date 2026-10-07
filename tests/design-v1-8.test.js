@@ -326,7 +326,7 @@ test('backup and snapshot surfaces use the panel and warning-tint language', () 
 
 test('the data-loading surface is an announced, busy status with a motion-safe indicator', () => {
   const app = read('js/app.js');
-  assert.match(app, /<div class="recovery recovery--loading" role="status" aria-busy="true"><div class="recovery-card"><span class="recovery-spinner" aria-hidden="true"><\/span><h1>Preparing your local data…<\/h1>/);
+  assert.match(app, /<div class="recovery recovery--loading" role="status" aria-busy="true"><div class="recovery-card"><span class="recovery-spinner" aria-hidden="true"><\/span><h1>\$\{tr\('Preparing your local data…'\)\}<\/h1>/);
   assert.match(rule(v18, '.recovery-spinner'), /animation:\s*v18-spin/);
   assert.match(rule(media(v18, '(prefers-reduced-motion: reduce)'), '.recovery-spinner'), /animation:\s*none/);
   assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{\n  \*, \*::before, \*::after \{ animation-duration: 1ms !important;/);

@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { withI18n, runInNewContextWithI18n } = require('./support/i18n.js');
 
 const Core = require('../js/core.js');
 
@@ -11,7 +12,7 @@ const read = file => fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
 
 function registerModule(file) {
   let adapter;
-  vm.runInNewContext(read(file), { window: { TodoDomainModules: { register: value => { adapter = value; } } } });
+  runInNewContextWithI18n(read(file), { window: { TodoDomainModules: { register: value => { adapter = value; } } } });
   return adapter;
 }
 

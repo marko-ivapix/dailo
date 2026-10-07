@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
+const { withI18n, runInNewContextWithI18n } = require('./support/i18n.js');
 
 const Core = require('../js/core.js');
 const appSource = fs.readFileSync(require.resolve('../js/app.js'), 'utf8');
@@ -59,7 +60,7 @@ function habitApp({ saveResults = [true], refresh = async () => {}, afterSave = 
     canonicalRaw: 'owned', localStorage: { getItem: () => raw }, STORAGE_KEY: 'todoAppData',
     structuredClone,
   };
-  vm.createContext(ctx);
+  vm.createContext(withI18n(ctx));
   vm.runInContext(functionSource('async function setHabitLog(', 'async function evaluateHabitBoundaries('), ctx);
   return { ctx, habit, records, errors, get saves() { return saves; } };
 }
@@ -145,7 +146,7 @@ test('mobile More sheet suppresses global shortcuts behind its modal overlay', (
     callDomainHook: () => undefined, openSearch: () => { searches++; }, openQuickAdd() {}, navigate() {},
     $: () => null,
   };
-  vm.createContext(ctx);
+  vm.createContext(withI18n(ctx));
   vm.runInContext(functionSource('function handleKeydown(', 'function handleAreaTabKeydown('), ctx);
   const event = {
     key: 'k', code: 'KeyK', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false,

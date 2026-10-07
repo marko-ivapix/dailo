@@ -22,6 +22,8 @@ const SHELL_FILES = [
   'vendor/phosphor/fill.css',
   'vendor/phosphor/Phosphor-Fill.woff2',
   'js/release.js',
+  'js/i18n.js',
+  'js/i18n-sr.js',
   'js/core.js',
   'js/storage.js',
   'js/attachments.js',

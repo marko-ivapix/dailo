@@ -2,11 +2,12 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
+const { withI18n, runInNewContextWithI18n } = require('./support/i18n.js');
 const Core = require('../js/core.js');
 
 function fixture(type = 'resource') {
   let adapter;
-  vm.runInNewContext(fs.readFileSync(require.resolve('../js/knowledge.js'), 'utf8'), {
+  runInNewContextWithI18n(fs.readFileSync(require.resolve('../js/knowledge.js'), 'utf8'), {
     window: { TodoDomainModules: { register: value => { adapter = value; } } },
     requestAnimationFrame: fn => fn(), URL,
   });

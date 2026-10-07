@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
+const { withI18n, runInNewContextWithI18n } = require('./support/i18n.js');
 
 const Core = require('../js/core.js');
 
@@ -67,7 +68,7 @@ test('analytics retains recorded pre-today pause-boundary logs as historical evi
 test('habit detail renders a compact read-only analytics summary, chart, and heatmap', () => {
   const adapters = {};
   const window = { TodoDomainModules: { register: adapter => { adapters[adapter.name] = adapter; } } };
-  vm.runInNewContext(fs.readFileSync(require.resolve('../js/habits-ui.js'), 'utf8'), { window, requestAnimationFrame: fn => fn() });
+  runInNewContextWithI18n(fs.readFileSync(require.resolve('../js/habits-ui.js'), 'utf8'), { window, requestAnimationFrame: fn => fn() });
   const habit = { id: 'h', name: 'Read', status: 'active', trackingType: 'checkbox', targetValue: 1, startDate: '2026-09-14', frequencyType: 'daily', routine: 'daily', quickValues: [], minimumTarget: null, idealTarget: null, graceDays: 0 };
   const logs = [{ habitId: 'h', date: '2026-09-14', status: 'done' }, { habitId: 'h', date: '2026-09-15', status: 'done' }];
   const ctx = {

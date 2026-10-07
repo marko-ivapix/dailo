@@ -2,10 +2,11 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
+const { withI18n, runInNewContextWithI18n } = require('./support/i18n.js');
 
 function renderSettings(backupStatus) {
   let adapter;
-  vm.runInNewContext(fs.readFileSync(require.resolve('../js/settings-ui.js'), 'utf8'), {
+  runInNewContextWithI18n(fs.readFileSync(require.resolve('../js/settings-ui.js'), 'utf8'), {
     window: { TodoDomainModules: { register: value => { adapter = value; } } },
   });
   return adapter.renderRoute({ type: 'settings' }, {
