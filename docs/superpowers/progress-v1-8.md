@@ -21,6 +21,7 @@
 - [x] Phase 9 — Templates, Settings and More
 - [x] Phase 10 — Empty, loading, error, focus and reduced motion
 - [x] Final verification and handoff docs
+- [x] V1.8 distributable packaged (2026-10-07)
 
 ## Baseline evidence (before V1.8 changes)
 
@@ -83,9 +84,25 @@ Additional checks: CSS structural lint (balanced braces, no malformed declaratio
 5. Completed-goal progress turns mint via `:has()`; browsers without `:has()` keep the accent fill.
 6. Hairlines are decorative (below 3:1); controls are identified by fill, label and border together, and hover/focus states exceed 3:1.
 7. Space Grotesk, Geist and Phosphor still load from CDNs; offline rendering falls back to system fonts and missing icons.
-8. No V1.8 distributable was built (V1.8 was committed as `4cfab6c` on `feature/todo-v1-3` and pushed to `https://github.com/marko-ivapix/dailo` after this verification, at the user's request); `Dailo-v1.7-distributable.zip` remains the latest package.
+8. V1.8 was committed as `4cfab6c` on `feature/todo-v1-3` and pushed to `https://github.com/marko-ivapix/dailo` after this verification, at the user's request. The V1.8 distributable was built later the same day (see **Distributable** below); packaging adds no browser evidence.
 
 **Search and no-bulk constraints:** preserved. Search behavior, scope, ranking and code are unchanged (CSS-only restyle of the existing Search modal); no bulk-selection or bulk-action UI, markup or selectors exist (`v1-7-polish` and V1.8 contracts green).
+
+## Distributable
+
+**Packaging (2026-10-07).** Re-ran the verification block in a fresh cloud checkout of `cf0a4bc` (code unchanged since `4cfab6c`; only docs differ) with Node v22.22.0 and Python 3.13.16. There is no `.venv` in that checkout, so the adapter and registry checks ran with the system `python3`.
+
+| Check | Result |
+| --- | ---: |
+| `node --test tests/*.test.js` | **288 passed, 0 failed, 0 skipped** |
+| JavaScript syntax (`js/*.js vendor/*.js tests/*.js`) | **53/53** |
+| Python AST (`tests/*.py`) | **19/19** |
+| `tests/test_browser_path_adapter.py` | **2/2** |
+| `tests/test_browser_regression_registry.py` | **3/3** (functions invoked explicitly) |
+| `tests/run-browser-regressions.py --dry-run` | **10/10** static contracts (2 + 3 + 5); browser launch skipped |
+| `git diff --check` | passed |
+
+Built `Dailo-v1.8-distributable.zip` from the commit immediately before the package commit (it includes the cloud-session notes merged into `CLAUDE.md` from `feature/todo-v1-3`), using the reproducible recipe in `docs/claude/TESTING_AND_RELEASE.md`: **46 regular files** (the V1.7 layout of 42 plus `docs/claude/CONTINUATION.md` and the V1.8 spec, plan and this ledger), no directory entries. `unzip -t` passed; two independent builds were byte-identical; every extracted file is byte-identical to the source commit. The SHA-256 is recorded only in `Dailo-v1.8-distributable.zip.sha256`. The package commit is on branch `ccr-95f6062b-lgg2fr`, pending merge into `feature/todo-v1-3`. No browser was opened.
 
 ## Manual browser gate
 

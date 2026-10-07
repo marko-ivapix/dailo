@@ -3,7 +3,7 @@
 **Updated:** 2026-10-07  
 **Product:** Dailo local-first productivity prototype  
 **Current release:** V1.7 stabilization (behavior baseline)  
-**In the working tree:** V1.8 Quiet Graphite / Swiss Compact visual redesign — implemented, automated checks green, committed on `feature/todo-v1-3` (`4cfab6c`) and pushed to `origin` (`https://github.com/marko-ivapix/dailo`), not packaged, native visual acceptance manual-pending
+**In the working tree:** V1.8 Quiet Graphite / Swiss Compact visual redesign — implemented, automated checks green, committed on `feature/todo-v1-3` (`4cfab6c`) and pushed to `origin` (`https://github.com/marko-ivapix/dailo`), packaged as `Dailo-v1.8-distributable.zip`, native visual acceptance manual-pending
 
 This is the shortest reliable handoff for continuing the project in Claude Code. Read it after `AGENTS.md` and before opening individual modules.
 
@@ -22,12 +22,11 @@ The last verified source checkpoint before this documentation sync was `5b1b8f6`
 ## Current status
 
 - V1.7 stabilization is implemented in the source tree.
-- The release artifact is `Dailo-v1.7-distributable.zip`.
-- The recorded SHA-256 is `a322d4a854b1171b088e10759af5310a5e0c4d54d00bff46aad1a746ef61f85d`.
-- The release contains 42 regular ZIP files and passed `unzip -t`.
+- The V1.7 release artifact is `Dailo-v1.7-distributable.zip` (SHA-256 `a322d4a854b1171b088e10759af5310a5e0c4d54d00bff46aad1a746ef61f85d`, 42 regular ZIP files, `unzip -t` passed).
+- The current artifact is `Dailo-v1.8-distributable.zip` (46 regular files, `unzip -t` passed, reproducible from its source commit; SHA-256 in the `.sha256` sidecar). Build recipe: `docs/claude/TESTING_AND_RELEASE.md`.
 - V1.8 visual redesign is implemented in the working tree (2026-10-07). The three earlier boards were never stored in the repository; no direction was selected, so the brief's default **Quiet Graphite / Swiss Compact** was specified in `docs/superpowers/specs/2026-10-07-todo-v1-8-design.md` and implemented per `docs/superpowers/plans/2026-10-07-todo-v1-8.md`. Evidence per phase is in `docs/superpowers/progress-v1-8.md`.
 - V1.8 changes are presentation-only: `css/styles.css` (top `:root` token system with every V1.7 token kept as an alias, plus one appended `V1.8 Quiet Graphite / Swiss Compact` layer organized by surface, with the phone touch-target guard kept as the final rule), `index.html` (title/theme color), `js/app.js` (brand tooltip string; loading-surface `role="status"`/`aria-busy`/indicator), `js/tasks-ui.js` (one inline style replaced by a class) and `tests/design-v1-8.test.js`. `js/core.js`, `js/storage.js`, `js/backup.js`, `js/attachments.js` and all Search code are unchanged.
-- The V1.8 work is committed (`4cfab6c`) and pushed; GitHub's default branch `main` is older and does not contain it. No V1.8 distributable has been built; `Dailo-v1.7-distributable.zip` remains the latest package.
+- The V1.8 work is committed (`4cfab6c`) and pushed; GitHub's default branch `main` is older and does not contain it. `Dailo-v1.8-distributable.zip` was packaged on 2026-10-07 on branch `ccr-95f6062b-lgg2fr` (pending merge into `feature/todo-v1-3`); evidence is in `docs/superpowers/progress-v1-8.md`.
 
 ## Verified automated baseline
 
@@ -91,7 +90,7 @@ Native browser acceptance is **manual-pending**. The maintained Python scenarios
 ## Recommended next work after V1.8
 
 1. **User-owned-browser visual acceptance of V1.8** at desktop (≥1024px), tablet (701–1023px) and phone (≤700px) widths: sidebar expanded/collapsed, bottom navigation + More sheet, Quick Add, Today, Inbox, Task Properties, Calendar Week/Month/Day Detail, Goals, Habits tracker, Areas, Notes/Resources, Templates, Settings, empty/loading/error states, keyboard focus visibility, reduced motion, `prefers-contrast: more` and forced colors. Record exactly what was observed in `docs/superpowers/progress-v1-8.md`.
-2. Build and checksum a V1.8 distributable if wanted; decide with the user whether `feature/todo-v1-3` should become/merge into `main` (they have diverged: `main` has 5 commits not on the feature branch).
+2. Decide with the user whether `feature/todo-v1-3` should become/merge into `main` (they have diverged: `main` has 5 commits not on the feature branch).
 3. Optional follow-up: consolidate the V1.3–V1.7 CSS layers into the V1.8 token system once a visual baseline exists (deferred deliberately in V1.8 to avoid unverified layout regressions).
 
 Keep behavior and persistence unchanged in visual work. Do not mix a visual change with a schema or Search change unless a new approved spec explicitly requires it.
