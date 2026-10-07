@@ -1,11 +1,11 @@
 # Dailo V1.9 Design Specification — Beta-ready
 
 **Date:** 2026-10-07
-**Status:** Draft — waiting for user approval of the open questions below
+**Status:** Approved by the user 2026-10-07 (answers recorded under "User decisions")
 **Baseline:** V1.8 on `main` (`5e4ba82`)
 **Roadmap:** `docs/superpowers/plans/2026-10-07-release-roadmap.md` (Phase 1)
-**Plan:** `docs/superpowers/plans/2026-10-07-todo-v1-9.md` (written after approval)
-**Ledger:** `docs/superpowers/progress-v1-9.md` (created with the plan)
+**Plan:** `docs/superpowers/plans/2026-10-07-todo-v1-9.md`
+**Ledger:** `docs/superpowers/progress-v1-9.md`
 
 ## Goal
 
@@ -19,6 +19,11 @@ Make Dailo safe to hand to a small Serbian-speaking beta group on iPhone Safari:
 | UI language | Serbian, Latin script (`sr-Latn`) |
 | Backend | None in V1.9 |
 | Beta timing | After V1.9 and the manual acceptance pass |
+| Problem reports | E-mail (`mailto:`); the receiving address is supplied by the user before the beta |
+| Glossary | Approved as proposed below |
+| Search labels | Translating the Search modal's fixed strings is approved (behavior untouched) |
+| Backup reminder | Every 7 days by default |
+| Language switch | None for now: the UI is Serbian only; English stays the source language in code and Node tests |
 
 ## Non-negotiable constraints
 
@@ -28,7 +33,7 @@ V1.9 keeps every V1.8 contract (`docs/superpowers/specs/2026-10-07-todo-v1-8-des
 | --- | --- |
 | Architecture | Static HTML/CSS/vanilla JavaScript, classic scripts, no framework, no build step. New files are classic scripts (`js/i18n.js`, `js/i18n-sr.js`), a service worker (`sw.js`), a manifest, icons and vendored font/icon assets. No new runtime library. |
 | Persistence | `todoAppData` V3 schema and IndexedDB `todoAppDB` v1 unchanged; ZIP stays `backupVersion: 2`. New settings fields are optional, have no default in `normalizeV16Settings` and are validated in `js/backup.js`. No key or ID renamed. |
-| Search | Scope, ranking, grouping and keyboard behavior unchanged. **Exception (needs approval):** the Search modal's fixed UI strings may be wrapped in `t()` so the beta UI is fully Serbian. |
+| Search | Scope, ranking, grouping and keyboard behavior unchanged. **Approved exception:** the Search modal's fixed UI strings are wrapped in `t()` so the beta UI is fully Serbian. |
 | Typed confirmations | The typed words stay exactly `RESET` and `RESTORE`; only the surrounding explanation is translated. |
 | Bulk actions, deletion, navigation, capture, Task Properties, density, accessibility | Unchanged. |
 
@@ -101,7 +106,7 @@ V1.9 keeps every V1.8 contract (`docs/superpowers/specs/2026-10-07-todo-v1-8-des
   - the version;
   - "Prijavi problem";
   - a one-line privacy note: "Podaci ostaju samo na ovom uređaju".
-- "Prijavi problem" opens a prefilled report with version, user agent, standalone yes/no and the persistence state. It never includes app data. The channel is an open question.
+- "Prijavi problem" opens a `mailto:` message to the configured report address with a prefilled subject ("Dailo <version> — prijava problema") and body (version, user agent, standalone yes/no, persistence state, plus space for the description). It never includes app data. Until the address is configured the row is hidden, and a Node test fails the release check while it is empty.
 
 ### F. Serbian localization (`sr-Latn`)
 
@@ -129,10 +134,10 @@ Design:
    - Modules and `js/app.js` read `const t = globalThis.TodoI18n?.t ?? (s => s)`, so code run in `vm` stubs without i18n stays English and does not throw.
    - Where a test slices a single function that uses `t`, add `t: s => s` to that test's stub. Never weaken an assertion.
    - Function boundary markers that tests slice on stay in place.
-3. **Locale preference.**
-   - A new optional setting `language` (`'sr'` | `'en'`) is read as `'sr'` when missing. It is validated in `js/backup.js` and switched in Settings → "Jezik".
-   - `<html lang>` updates to `sr-Latn` / `en`.
-   - Node tests run in English because the catalog is not loaded there.
+3. **Locale.**
+   - The browser UI is Serbian only (user decision). There is no language setting and nothing new is persisted for it.
+   - `index.html` is translated directly and declares `<html lang="sr-Latn">`.
+   - `TodoI18n.setLocale` exists for tests and future use only. Node tests run in English because the catalog is not loaded there; tests that load the catalog assert Serbian output.
 4. **Dates and numbers.**
    - Replace `undefined` and `'en'` locale arguments with `TodoI18n.locale` (`sr-Latn-RS` or `en`).
    - Replace hard-coded weekday/month arrays with `Intl`-derived names.
@@ -157,7 +162,7 @@ Design:
 10. **Glossary.**
     - A fixed term list keeps translations consistent (proposal below; the user approves it).
     - Translation is done by Claude. The user reviews it during manual acceptance.
-11. **Python browser scenarios** keep using English selectors. They run with `language: 'en'`, and this is documented.
+11. **Python browser scenarios** use English selectors and are not part of release verification. They are out of date for the Serbian UI until they are updated; this is documented.
 12. **Rollout by surface**, one commit each, full suite green after every step:
     1. shell and navigation;
     2. Today, Inbox and task rows;
@@ -172,7 +177,7 @@ Design:
     11. toasts and errors;
     12. sample content.
 
-Proposed glossary (user approval needed):
+Glossary (approved by the user 2026-10-07):
 
 | English | Serbian |
 | --- | --- |
@@ -219,7 +224,7 @@ Automated (Node), each written failing first:
 - `makeUuid` with and without `randomUUID`/`getRandomValues`.
 - Backup reminder:
   - due/not-due/snoozed/never-exported/no-data cases;
-  - `backupReminderDays` and `language` validation in backup import;
+  - `backupReminderDays` validation in backup import;
   - round trip.
 - Persistence status rendering for granted, denied and unsupported.
 - Localization:
@@ -252,13 +257,9 @@ Manual on iPhone Safari (recorded in `docs/superpowers/progress-v1-9.md`):
 - Icon subsetting.
 - Changing the historical backup `appVersion`.
 
-## Open questions for the user
+## Remaining input
 
-1. **Problem reports:** GitHub issue (needs a GitHub account), e-mail to an address you choose, or a form (e.g. Google Forms)?
-2. **Glossary:** approve or change the proposed terms above (for example "Inbox" vs "Prijemno", "Etapa" vs "Prekretnica").
-3. **Search exception:** allow translating the Search modal's fixed labels (behavior untouched)?
-4. **Backup reminder default:** every 7 days?
-5. **Language switch:** keep English selectable in Settings (useful for testing), or Serbian only?
+- The e-mail address that receives problem reports. It becomes visible in the public repository and in the app.
 
 ## Implementation order
 
