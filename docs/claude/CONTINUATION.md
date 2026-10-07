@@ -91,6 +91,8 @@ Native browser acceptance is **manual-pending**. The maintained Python scenarios
 
 ## Recommended next work after V1.8
 
+The agreed release path (V1.9 beta-ready → manual acceptance → small beta → features → V2.0 mobile app + Supabase sync) is in `docs/superpowers/plans/2026-10-07-release-roadmap.md`. The items below remain valid inside it.
+
 1. **User-owned-browser visual acceptance of V1.8** at desktop (≥1024px), tablet (701–1023px) and phone (≤700px) widths: sidebar expanded/collapsed, bottom navigation + More sheet, Quick Add, Today, Inbox, Task Properties, Calendar Week/Month/Day Detail, Goals, Habits tracker, Areas, Notes/Resources, Templates, Settings, empty/loading/error states, keyboard focus visibility, reduced motion, `prefers-contrast: more` and forced colors. Record exactly what was observed in `docs/superpowers/progress-v1-8.md`.
 2. Optional follow-up: consolidate the V1.3–V1.7 CSS layers into the V1.8 token system once a visual baseline exists (deferred deliberately in V1.8 to avoid unverified layout regressions).
 
