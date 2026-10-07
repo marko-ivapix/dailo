@@ -1,4 +1,4 @@
-# Dailo Release Roadmap — Beta to Sync
+# Dailo Release Roadmap — Beta to Mobile App and Sync
 
 **Date:** 2026-10-07
 **Baseline:** V1.8 on `main` (`29d1774`), served by GitHub Pages at `https://marko-ivapix.github.io/dailo/` (repository made public for Pages).
@@ -10,6 +10,7 @@
 | --- | --- |
 | Audience | Small beta group (friends/colleagues) |
 | Sync | Automatic multi-device sync is wanted, delivered as **V2.0** |
+| Sync timing | The database is connected **together with the mobile app** (V2.0), not before; until then Dailo stays local-first |
 | Order | Beta starts **before** sync, on the local-first build |
 | Sync backend | **Supabase** (auth, Postgres, storage; works from a static site) |
 | Priorities before beta | Data protection, manual acceptance, then new features |
@@ -61,11 +62,14 @@ Each item gets its own spec; existing behavior was checked in source on 2026-10-
 - [ ] **Smart Quick Add.** Exists: `parseQuickPlanPhrase` (English `today`/`tomorrow`/weekday, `HH:MM`), `#tag`, `!priority`. Missing: due-date syntax, duration (`30m`, `1h`), project/Area syntax, relative dates, Serbian keywords (if chosen), live preview chips; voice input to be investigated per browser.
 - [ ] **Weekly review.** Exists: Today "Daily review" stats card. Missing: a guided weekly flow (Inbox to zero, overdue, next week, Goal progress, Habit stats, Area check) with a completion record.
 
-## Phase 5 — V2.0 Sync (Supabase)
+## Phase 5 — V2.0 Mobile app + Supabase sync
+
+The mobile app and the database ship together (user decision, 2026-10-07). Wrapping the web app (e.g. Capacitor, same codebase) gives the app its own storage, so browser data does not carry over on its own; sync is therefore also the migration path from the web/PWA build into the app. A native app also removes the iOS Safari 7-day storage eviction and enables real notifications when the app is closed. Store accounts are needed: Apple Developer Program (USD 99/year) and Google Play (USD 25 one-time).
 
 Requires an approved V2.0 spec that explicitly amends the "No backend, accounts or cloud sync" rule in `AGENTS.md`.
 
 Spec must decide:
+- [ ] Mobile packaging: Capacitor wrapper vs. alternatives; native storage for local data; native notifications; store listing and review requirements.
 - [ ] Auth (Supabase Auth, e-mail magic link) and Row Level Security per user.
 - [ ] Data mapping for canonical entities, Habit logs, Goal history and attachments (Supabase Storage); tombstones for deletes.
 - [ ] Sync model: the local store stays the UI source of truth; background push/pull with an offline queue; conflict policy (per-entity last-write-wins on `updatedAt` as a starting point).
