@@ -107,9 +107,21 @@
     return {type,data};
   }
 
+  // crypto.randomUUID only exists in secure contexts (HTTPS/localhost); getRandomValues works everywhere.
+  function makeUuid(cryptoSource = globalThis.crypto) {
+    if (typeof cryptoSource?.randomUUID === 'function') return cryptoSource.randomUUID();
+    const bytes = new Uint8Array(16);
+    if (typeof cryptoSource?.getRandomValues === 'function') cryptoSource.getRandomValues(bytes);
+    else for (let index = 0; index < bytes.length; index += 1) bytes[index] = Math.floor(Math.random() * 256);
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    const hex = Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+  }
+
   function instantiateTemplate(template, contextDate, ids = {}) {
     const d = resolveTemplateVariables(templateCopy(template.data || {}), contextDate);
-    const makeId = ids.makeId || (prefix => `${prefix}_${globalThis.crypto.randomUUID()}`);
+    const makeId = ids.makeId || (prefix => `${prefix}_${makeUuid()}`);
     const ts = ids.nowIso || new Date().toISOString();
     const resolve = offset => Number.isInteger(offset) ? addDays(contextDate,offset) : null;
     const live = (key,id) => id && (!ids.state || (ids.state[key] || []).some(e => e.id === id)) ? id : null;
@@ -371,7 +383,7 @@
     const clone=templateCopy(task),sourceRule=(baseline || task).recurrence;
     const rule=normalizeRecurrenceV3(changes.recurrence===undefined?sourceRule:changes.recurrence?{...sourceRule,...changes.recurrence}:null);
     Object.assign(clone,templateCopy(changes));
-    clone.recurrence=rule?{...rule,seriesId:`${task.id}_branch_${effectiveDate}_${globalThis.crypto.randomUUID()}`}:null;
+    clone.recurrence=rule?{...rule,seriesId:`${task.id}_branch_${effectiveDate}_${makeUuid()}`}:null;
     clone.recurrenceBaseline=baseline?{...templateCopy(baseline),...templateCopy(changes),recurrence:templateCopy(clone.recurrence)}:null;
     if(clone.recurrenceBaseline) {
       for(const key of ['plannedDate','dueDate'])if(changes[key] && task[key] && baseline[key])clone.recurrenceBaseline[key]=addDays(baseline[key],templateOffset(changes[key],task[key]));
@@ -817,10 +829,15 @@
     return Math.round((b.getTime() - a.getTime()) / 86400000);
   }
 
+  // Settings stores 'monday'/'sunday'; older data and defaults use 0 (Sunday) or 1 (Monday).
+  function weekStartKey(value) {
+    return value === 'sunday' || value === 0 ? 'sunday' : 'monday';
+  }
+
   function weekStartFor(date, weekStartsOn = 'monday') {
     const parsed = parseDateOnly(date);
     if (!parsed) return null;
-    const firstDay = weekStartsOn === 'sunday' ? 0 : 1;
+    const firstDay = weekStartKey(weekStartsOn) === 'sunday' ? 0 : 1;
     return addDays(date, -((parsed.getDay() - firstDay + 7) % 7));
   }
 
@@ -1439,6 +1456,8 @@
     normalizeRecurrenceV3,
     shouldGenerateRecurrence,
     splitRecurrenceForFuture,
+    makeUuid,
+    weekStartKey,
     buildNextRecurringTask,
     isReminderDue,
     filterCompleted,

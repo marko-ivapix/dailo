@@ -3114,7 +3114,7 @@
     const byHabit = {};
     for (const log of logs) (byHabit[log.habitId] ||= []).push(log);
     state.habitLogCache = byHabit;
-    state.habitMetrics = Object.fromEntries((state.habits || []).map(habit => [habit.id, Core.deriveHabitMetrics(habit, byHabit[habit.id] || [], Core.dateOnly(), state.settings.weekStartsOn || 'monday')]));
+    state.habitMetrics = Object.fromEntries((state.habits || []).map(habit => [habit.id, Core.deriveHabitMetrics(habit, byHabit[habit.id] || [], Core.dateOnly(), Core.weekStartKey(state.settings.weekStartsOn))]));
   }
 
   function readHabitDraft() {
@@ -3191,7 +3191,7 @@
 
   async function evaluateHabitBoundaries() {
     if (!state || globalOperation || modalState?.type === 'habit-finished') return;
-    const today = Core.dateOnly(); const weekStartsOn = state.settings.weekStartsOn || 'monday';
+    const today = Core.dateOnly(); const weekStartsOn = Core.weekStartKey(state.settings.weekStartsOn);
     for (const habit of state.habits || []) {
       if (habit.status !== 'active') continue;
       const metrics = habitMetrics(habit);
@@ -3659,7 +3659,7 @@
     const dueGoals = state.goals.flatMap(goal => Core.goalReminderDueMoments(goal, now).map(moment => ({ goal, moment })));
     const today = Core.dateOnly(new Date(now));
     const dueHabits = state.habits.flatMap(habit => {
-      if (!Core.habitReminderActive(habit, state.habitLogCache?.[habit.id] || [], now, state.settings.weekStartsOn || 'monday')) return [];
+      if (!Core.habitReminderActive(habit, state.habitLogCache?.[habit.id] || [], now, Core.weekStartKey(state.settings.weekStartsOn))) return [];
       const nowTime = new Date(now).getTime(); const pending = habit.pendingSnoozeAt && new Date(habit.pendingSnoozeAt).getTime();
       // A snooze is a distinct notification, not merely a suppression of the
       // original moment. Lifecycle and weekly-target suppression apply first.

@@ -49,7 +49,7 @@
     const { state, Core, calendarDate, calendarLogs, parseLocalDate, formatDate, pageHeader, esc } = ctx;
     const date = calendarDate(); const view = state.ui.calendarView === 'month' ? 'month' : 'week';
     const visibility = { tasks: true, habits: true, goals: true, milestones: true, ...(state.ui.calendarVisibility || {}) };
-    const weekStart = Core.habitPeriodKey({ frequencyType: 'timesPerWeek' }, date, state.settings.weekStartsOn || 'monday');
+    const weekStart = Core.habitPeriodKey({ frequencyType: 'timesPerWeek' }, date, Core.weekStartKey(state.settings.weekStartsOn));
     const month = date.slice(0, 7);
     const period = view === 'month' ? new Intl.DateTimeFormat('en', { month: 'long', year: 'numeric' }).format(parseLocalDate(`${month}-01`)) : `${formatDate(weekStart)} – ${formatDate(Core.addDays(weekStart, 6))}, ${parseLocalDate(date).getFullYear()}`;
     let html = pageHeader('Calendar', 'Plan tasks, goals and habits by date.', { add: false, actionHtml: `<button class="btn btn-primary" type="button" data-action="calendar-add" data-date="${date}"><i class="ph ph-plus"></i> Add</button>` });
@@ -63,7 +63,7 @@
       const days = Core.deriveCalendarMonthSummary(state, calendarLogs(), month);
       const counts = days.reduce((summary, day) => { for (const [type, count] of Object.entries(day.counts)) summary[type] += count; return summary; }, { tasks: 0, habits: 0, goals: 0, milestones: 0 });
       html += `<div class="calendar-summary v17-sticky-context"><strong>${calendarCountTotal(counts)} planned this month</strong><div>${calendarCounts(counts)}</div><span class="calendar-legend"><i class="calendar-legend-dot calendar-legend-dot--tasks"></i> Tasks <i class="calendar-legend-dot calendar-legend-dot--habits"></i> Habits <i class="calendar-legend-dot calendar-legend-dot--goals"></i> Goals <i class="calendar-legend-dot calendar-legend-dot--milestones"></i> Milestones</span></div>`;
-      const startDay = parseLocalDate(days[0].date).getDay(); const firstWeekday = state.settings.weekStartsOn === 'sunday' ? 0 : 1;
+      const startDay = parseLocalDate(days[0].date).getDay(); const firstWeekday = Core.weekStartKey(state.settings.weekStartsOn) === 'sunday' ? 0 : 1;
       const offset = (startDay - firstWeekday + 7) % 7;
       html += `<div class="calendar-month">${Array.from({ length: 7 }, (_, i) => `<div class="calendar-weekday">${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][(firstWeekday + i) % 7]}</div>`).join('')}${Array.from({ length: offset }, () => '<div class="calendar-month-blank" aria-hidden="true"></div>').join('')}${days.map(day => { const total = calendarCountTotal(day.counts); return `<button class="calendar-month-day ${day.date === Core.dateOnly() ? 'is-today' : ''} ${day.date === date ? 'is-selected' : ''}" type="button" data-calendar-date="${day.date}" data-action="calendar-detail" data-date="${day.date}"><strong>${parseLocalDate(day.date).getDate()}</strong>${total ? `<span class="calendar-month-total">${total} planned</span><span class="calendar-counts">${calendarCounts(day.counts)}</span>` : ''}</button>`; }).join('')}</div>`;
     }

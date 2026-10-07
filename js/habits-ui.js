@@ -163,7 +163,7 @@
   function trackerCompletion(ctx, habit, dates) {
     const logs = ctx.state.habitLogCache?.[habit.id] || [];
     const today = ctx.Core.dateOnly();
-    return ctx.Core.habitCompletionForDates(habit, logs, dates.filter(entry => entry.valid && entry.date).map(entry => entry.date), today, ctx.state.settings.weekStartsOn || 'monday');
+    return ctx.Core.habitCompletionForDates(habit, logs, dates.filter(entry => entry.valid && entry.date).map(entry => entry.date), today, ctx.Core.weekStartKey(ctx.state.settings.weekStartsOn));
   }
 
   function renderHabitDashboard(ctx, habits) {
@@ -240,7 +240,7 @@
     const current = new Date(`${today}T12:00:00`);
     const days = new Date(current.getFullYear(), current.getMonth() + 1, 0).getDate();
     const dates = Array.from({ length: days }, (_, index) => `${today.slice(0, 8)}${String(index + 1).padStart(2, '0')}`);
-    const analytics = Core.habitAnalytics(habit, logs, { today, dates, weekStartsOn: state.settings.weekStartsOn || 'monday' });
+    const analytics = Core.habitAnalytics(habit, logs, { today, dates, weekStartsOn: Core.weekStartKey(state.settings.weekStartsOn) });
     const chart = habit.frequencyType === 'timesPerWeek'
       ? analytics.weeklySeries.map((point, index) => ({ label: `W${index + 1}`, ...point }))
       : analytics.monthlySeries.slice(-7).map(point => ({ label: point.date.slice(-2), ...point }));
@@ -554,7 +554,7 @@
     else if (action === 'save-habit-total') setHabitLog(el.dataset.habitId, Core.dateOnly(), 'done', Number($('#habit-direct-total')?.value || 0));
     else if (action === 'save-habit-history') { const habit = getHabit(el.dataset.habitId); const date = el.dataset.habitDate; const value = habit?.trackingType === 'numeric' ? Number($(`[data-habit-history-value][data-habit-date="${CSS.escape(date)}"]`)?.value || 0) : null; const status = habit?.trackingType === 'numeric' ? 'done' : $(`[data-habit-history-status][data-habit-date="${CSS.escape(date)}"]`)?.value || 'missed'; setHabitLog(el.dataset.habitId, date, status, value); }
     else if (action === 'save-habit-history-date') { const habit = getHabit(el.dataset.habitId); const date = $('#habit-history-date')?.value; const value = habit?.trackingType === 'numeric' ? Number($('#habit-history-new-value')?.value || 0) : null; const status = habit?.trackingType === 'numeric' ? 'done' : $('#habit-history-new-status')?.value || 'missed'; setHabitLog(el.dataset.habitId, date, status, value); }
-    else if (action === 'continue-habit') { const habit = getHabit(el.dataset.habitId || ctx.modalState?.habitId); if (habit) { const boundary = el.dataset.boundary || ctx.modalState?.boundary; const prior = habitMetrics(habit).periods?.filter(period => !period.isCurrent).at(-1); habit.lastContinuationPeriod = prior?.key || Core.habitPeriodKey(habit, Core.dateOnly(), state.settings.weekStartsOn || 'monday'); if (boundary === 'onePeriod') habit.continuation = 'automatic'; if (boundary === 'end') { habit.endType = 'never'; habit.endDate = null; habit.successfulPeriodsTarget = null; } habit.updatedAt = nowIso(); saveState(); } closeModal(); refreshHabitMetrics().then(render); }
+    else if (action === 'continue-habit') { const habit = getHabit(el.dataset.habitId || ctx.modalState?.habitId); if (habit) { const boundary = el.dataset.boundary || ctx.modalState?.boundary; const prior = habitMetrics(habit).periods?.filter(period => !period.isCurrent).at(-1); habit.lastContinuationPeriod = prior?.key || Core.habitPeriodKey(habit, Core.dateOnly(), Core.weekStartKey(state.settings.weekStartsOn)); if (boundary === 'onePeriod') habit.continuation = 'automatic'; if (boundary === 'end') { habit.endType = 'never'; habit.endDate = null; habit.successfulPeriodsTarget = null; } habit.updatedAt = nowIso(); saveState(); } closeModal(); refreshHabitMetrics().then(render); }
     else if (action === 'pause-habit') updateHabitStatus(el.dataset.habitId || ctx.modalState?.habitId, 'paused');
     else if (action === 'archive-habit') updateHabitStatus(el.dataset.habitId, 'archived');
     else if (action === 'resume-habit' || action === 'restore-habit') updateHabitStatus(el.dataset.habitId, 'active');

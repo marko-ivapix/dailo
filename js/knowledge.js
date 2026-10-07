@@ -7,7 +7,7 @@
   const RESOURCE_STATUSES = { unread: 'Unread', reading: 'Reading', completed: 'Completed' };
 
   function favoriteButton(context, type, item) {
-    return `<button class="btn-icon knowledge-favorite ${item.favorite ? 'is-favorite' : ''}" type="button" data-action="toggle-knowledge-favorite" data-owner-type="${type}" data-owner-id="${context.esc(item.id)}" aria-label="${item.favorite ? 'Remove from favorites' : 'Add to favorites'}" aria-pressed="${Boolean(item.favorite)}"><i class="ph ${item.favorite ? 'ph-star-fill' : 'ph-star'}"></i></button>`;
+    return `<button class="btn-icon knowledge-favorite ${item.favorite ? 'is-favorite' : ''}" type="button" data-action="toggle-knowledge-favorite" data-owner-type="${type}" data-owner-id="${context.esc(item.id)}" aria-label="${item.favorite ? 'Remove from favorites' : 'Add to favorites'}" aria-pressed="${Boolean(item.favorite)}"><i class="${item.favorite ? 'ph-fill ph-star' : 'ph ph-star'}"></i></button>`;
   }
 
   function selectOptions(context, options, value) {

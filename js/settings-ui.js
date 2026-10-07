@@ -9,10 +9,6 @@
       <section class="settings-card">
         <h2>General</h2>
         <div class="settings-row">
-          <div class="settings-label"><strong>Week starts on</strong><span>Used for date grouping and future calendar behavior.</span></div>
-          <button class="btn btn-secondary" type="button" disabled aria-disabled="true">Monday</button>
-        </div>
-        <div class="settings-row">
           <div class="settings-label"><strong>Theme</strong><span>Dark is the approved MVP theme.</span></div>
           <button class="btn btn-secondary" type="button" disabled aria-disabled="true">Dark</button>
         </div>
