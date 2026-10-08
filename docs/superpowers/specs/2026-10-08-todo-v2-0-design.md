@@ -1,6 +1,6 @@
 # Dailo V2.0 — Mobile app and Supabase sync (DRAFT)
 
-**Status:** **DRAFT — not approved.** It needs the user's decisions (section "Decisions for the user") and accounts (section "What the user provides") before any code is written.
+**Status:** **DRAFT — decisions recorded 2026-10-08, not yet approved.** All six decisions are answered (section "Decisions for the user"). Before any code is written it still needs the user's explicit approval to start and the accounts (section "What the user provides").
 **Baseline:** V1.12 (Phase 4 done).
 **Roadmap:** `docs/superpowers/plans/2026-10-07-release-roadmap.md`, Phase 5. The user decided on 2026-10-07 that the mobile app and the database ship together.
 **Rule change:** this spec, once approved, amends `AGENTS.md` "No backend, accounts or cloud sync" for V2.0 only. Until then that rule stands, and no backend code, keys or accounts are added to the repository.
@@ -42,7 +42,7 @@ Two problems that V1.x cannot solve go away:
   - `records(id text, user_id uuid, type text, data jsonb, updated_at timestamptz, deleted_at timestamptz, primary key (user_id, type, id))`;
   - `type` is one of: tasks, projects, areas, tags, goals, habits, notes, resources, templates, savedViews, cleaning, settings.
 - **History tables:** `habit_logs(...)` and `goal_history(...)` mirror the IndexedDB stores.
-- **Attachments:** attachment files go to Supabase Storage (`attachments/<user_id>/<id>`). Metadata travels with its owner record.
+- **Attachments:** not synced in V2.0 (decision 4); they stay on the device where they were added. V2.1 moves the files to Supabase Storage (`attachments/<user_id>/<id>`), and their metadata travels with the owner record.
 - **Row Level Security:** on every table, `user_id = auth.uid()`.
 - **Deletes:** they become tombstones (`deleted_at`), so other devices learn about them; tombstones are purged after 90 days.
 
@@ -91,12 +91,12 @@ Each phase gets its plan, failing tests first, and a ledger, as V1.x did.
 
 ## Decisions for the user
 
-1. **Platforms first:** iPhone only, or iPhone and Android together? Recommendation: iPhone first (TestFlight), Android right after.
+1. **Platforms.** **Decided 2026-10-08:** iPhone and Android together (TestFlight and Play internal testing in parallel).
 2. ~~**Sign-in method.**~~ **Decided 2026-10-08:** e-mail without a password (one-time code), and only with V2.0.
-3. **Conflict policy:** is last-write-wins per record, with the losing version kept in recovery snapshots, acceptable for the beta?
-4. **Attachments in sync:** include files from the start (Storage costs and upload time), or sync records first and attachments in V2.1? Recommendation: records first.
-5. **App name and identifier:** "Dailo" with bundle id `cloud.ivapix.dailo` (proposal, derived from the report e-mail domain)?
-6. **Hosting the privacy page:** GitHub Pages next to the app (recommended).
+3. **Conflict policy.** **Decided 2026-10-08:** last-write-wins per record, with the losing version kept in recovery snapshots.
+4. **Attachments.** **Decided 2026-10-08:** sync records first; attachments follow in V2.1.
+5. **App name and identifier.** **Decided 2026-10-08:** "Dailo", bundle/application id `cloud.ivapix.dailo`.
+6. **Privacy page.** **Decided 2026-10-08:** it is written and published later, before the store release (phase V2.0-c); it is not needed for V2.0-a and V2.0-b.
 
 ## What the user provides (I cannot create these)
 
