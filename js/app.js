@@ -8,6 +8,8 @@
   const Attachments = window.TodoAttachments;
   const Backup = window.TodoBackup;
   const Release = window.DailoRelease || { APP_VERSION: '', REPORT_EMAIL: '', problemReportMailto: () => null };
+  // The Capacitor app (V2.0-b); on the web the bridge is inert.
+  const Native = window.DailoNative?.createBridge?.() || { isNative: false };
   // Optional sync (V2.0-a): on only when js/sync-config.js has the project URL and public key.
   const Sync = window.DailoSync || null;
   const syncConfig = window.DailoSyncConfig || {};
@@ -557,6 +559,7 @@
       storageError = false;
       scheduleAutomaticSnapshot();
       scheduleSync();
+      scheduleNativeReminders();
       return true;
     } catch (error) {
       reportStorageFailure(error);
@@ -684,11 +687,14 @@
       shortcutLabels: SHORTCUT_LABELS,
       release: Release,
       environmentInfo() {
-        return { userAgent: navigator.userAgent || '', standalone: navigator.standalone === true || Boolean(window.matchMedia?.('(display-mode: standalone)').matches), persistence: storagePersistence.state };
+        return { userAgent: navigator.userAgent || '', standalone: Native.isNative || navigator.standalone === true || Boolean(window.matchMedia?.('(display-mode: standalone)').matches), persistence: storagePersistence.state };
       },
       storagePersistence: () => storagePersistence,
       shortcutError: () => shortcutError,
+      nativeApp: Native.isNative,
+      guideUrl: Native.isNative ? 'https://marko-ivapix.github.io/dailo/uputstvo.html' : 'uputstvo.html',
       notificationButtonLabel() {
+        if (Native.isNative) return nativePermission === 'granted' ? tr('Enabled') : nativePermission === 'denied' ? tr('Blocked') : tr('Enable');
         return typeof Notification === 'undefined' ? tr('Unavailable') : (Notification.permission === 'granted' ? tr('Enabled') : Notification.permission === 'denied' ? tr('Blocked') : tr('Enable'));
       },
       saveShortcut,
@@ -3397,6 +3403,35 @@
     return requestTaskEdit(task.id,changes,after);
   }
 
+  // Native app (V2.0-b): reminders as local notifications (they arrive while Dailo is closed), resume and notification taps.
+  const NATIVE_REMINDER_BODIES = { task: msg('Task reminder'), goal: msg('Goal reminder'), habit: msg('Habit reminder') };
+  let nativeReminderTimer = null;
+  let nativePermission = 'unknown';
+
+  function scheduleNativeReminders(delay = 2000) {
+    if (!Native.isNative) return;
+    clearTimeout(nativeReminderTimer);
+    nativeReminderTimer = setTimeout(() => {
+      nativeReminderTimer = null;
+      if (!state || recovery || globalOperation || startupPromise) return;
+      const bodies = Object.fromEntries(Object.entries(NATIVE_REMINDER_BODIES).map(([kind, text]) => [kind, tr(text)]));
+      const reminders = Core.upcomingReminders(state, nowIso(), { logs: state.habitLogCache || {} });
+      Native.scheduleReminders(Native.toNotifications(reminders, bodies)).catch(console.error);
+    }, delay);
+  }
+
+  async function refreshNativePermission() {
+    try { nativePermission = await Native.permission(); } catch (_) { nativePermission = 'unknown'; }
+    return nativePermission;
+  }
+
+  function startNative() {
+    if (!Native.isNative) return;
+    Native.onResume(() => { checkReminders(); scheduleSync(500); scheduleNativeReminders(0); });
+    Native.onNotificationTap(extra => { if (/^#[a-z-]+$/.test(extra?.route || '')) location.hash = extra.route; });
+    refreshNativePermission().then(() => { scheduleNativeReminders(0); if (currentRoute().type === 'settings') render(); });
+  }
+
   // Optional sync (V2.0-a). The session, shadow and cursor stay on this device under their own key, never in state or backups.
   const SYNC_META_KEY = 'dailoSync';
   const SYNC_DEFERRED = 'sync-deferred';
@@ -3620,6 +3655,7 @@
 
   // Asks the browser to keep Dailo's storage only when request is true (after user activity).
   async function refreshStoragePersistence(request = false) {
+    if (Native.isNative) return { state: 'native' };
     const storage = typeof navigator === 'undefined' ? null : navigator.storage;
     if (!storage || typeof storage.persisted !== 'function') return { state: 'unsupported' };
     try {
@@ -3634,6 +3670,7 @@
 
   // Offline shell (V1.9). Service workers need HTTPS or localhost.
   function registerServiceWorker() {
+    if (Native.isNative) return;
     const secure = location.protocol === 'https:' || ['localhost', '127.0.0.1'].includes(location.hostname);
     if (!secure || typeof navigator === 'undefined' || !navigator.serviceWorker) return;
     // Without a controller this is the first install, which activates on its own: nothing to offer.
@@ -3671,7 +3708,9 @@
     setToastMessage(tr('Preparing backup...'));
     try {
       const blob = await Backup.exportBackupV3(state, TodoStorage, nowIso());
-      downloadBackup(blob);
+      const delivered = await downloadBackup(blob);
+      if (delivered === false) { setToastMessage(tr('Backup export was cancelled')); return; }
+      if (delivered === null) return;
       updateBackupStatus({ lastExport: nowIso(), snapshotAvailable: await hasRetainedRecoverySnapshot(snapshotAvailable), validationResult: msg('Export verified') }, source);
       setToastMessage(tr('Backup exported'));
     } catch (error) { console.error(error); updateBackupStatus({ snapshotAvailable: await hasRetainedRecoverySnapshot(snapshotAvailable), validationResult: `${msg('Export failed')}: ${error.message}` }, source); setToastMessage(tr('Backup could not be created')); }
@@ -3718,9 +3757,16 @@
     return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">${tr('Local snapshots')}</h2><button class="btn-icon" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div><p class="area-empty-copy">${tr('Five recent automatic copies are kept on this device. Restore one item and its files and history. Linked items must still exist. A safety ZIP and typing RESTORE protect the replacement.')}</p>${body}</div>`, 'quick');
   }
 
+  // On the web the ZIP downloads. In the app a download link does nothing, so the share sheet saves or sends it:
+  // true when shared, false when cancelled, null when it failed (already reported).
   function downloadBackup(blob) {
+    const name = `todo-backup-${Core.dateOnly()}.zip`;
+    if (Native.isNative) {
+      return Native.shareFile(blob, name, tr('Dailo backup'))
+        .catch(error => { setToastMessage(tr('The backup could not be shared: {error}', { error: trMessage(error.message) })); return null; });
+    }
     const url = URL.createObjectURL(blob), anchor = document.createElement('a');
-    anchor.href = url; anchor.download = `todo-backup-${Core.dateOnly()}.zip`;
+    anchor.href = url; anchor.download = name;
     try { document.body.appendChild(anchor); anchor.click(); }
     finally { anchor.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000); }
   }
@@ -3983,6 +4029,14 @@
   }
 
   async function enableBrowserNotifications() {
+    if (Native.isNative) {
+      const current = await refreshNativePermission();
+      if (current === 'granted') { setToastMessage(tr('Notifications are already on')); return; }
+      if (current === 'denied') { setToastMessage(tr('Notifications are turned off in the phone settings')); return; }
+      nativePermission = await Native.requestPermission().catch(() => 'denied');
+      setToastMessage(nativePermission === 'granted' ? tr('Notifications are on') : tr('Notification permission was not granted'));
+      scheduleNativeReminders(0); render(); return;
+    }
     if (typeof Notification === 'undefined') { setToastMessage(tr('Browser notifications are unavailable')); return; }
     if (Notification.permission === 'granted') { setToastMessage(tr('Browser notifications are already enabled')); return; }
     if (Notification.permission === 'denied') { setToastMessage(tr('Browser notifications are blocked in browser settings')); return; }
@@ -4729,6 +4783,7 @@
     await startReady();
     scheduleAutomaticSnapshot();
     startSync();
+    startNative();
     updateStoragePersistence(false).catch(console.error);
     registerServiceWorker();
     if (!location.hash) location.hash = '#today';

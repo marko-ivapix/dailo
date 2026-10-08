@@ -328,7 +328,7 @@ test('the app wires sync into saving, startup, dialogs, actions and the domain c
   const app = read('js/app.js');
   assert.match(app, /const Sync = window\.DailoSync \|\| null;/);
   assert.match(app, /const syncClient = Sync\?\.isConfigured\(syncConfig\) \? Sync\.createClient\(\{ url: syncConfig\.url, anonKey: syncConfig\.anonKey \}\) : null;/);
-  assert.match(app, /scheduleAutomaticSnapshot\(\);\n\s+scheduleSync\(\);\n\s+return true;/, 'every successful save schedules a sync');
+  assert.match(app, /scheduleAutomaticSnapshot\(\);\n\s+scheduleSync\(\);\n/, 'every successful save schedules a sync');
   assert.match(app, /await startReady\(\);[\s\S]*?startSync\(\);[\s\S]*?registerServiceWorker\(\);/, 'sync starts after the data is ready');
   assert.match(app, /else if \(modalState\.type === 'sync-choice'\) root\.innerHTML = renderSyncChoice\(\);/);
   for (const action of ['sync-request-code', 'sync-verify-code', 'sync-change-email', 'sync-now', 'sync-sign-out', 'sync-delete-account', 'sync-choose']) {

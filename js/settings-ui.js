@@ -16,6 +16,7 @@
       granted: tr('On. The browser keeps Dailo data unless you delete it.'),
       denied: tr('Not granted yet. Install Dailo to the Home Screen and keep regular backups.'),
       unsupported: tr('Not supported in this browser. Keep regular backups.'),
+      native: tr('The app keeps its data in its own storage on this device. Keep regular backups.'),
     }[persistence.state] || tr('Checking…');
     const megabytes = bytes => `${new Intl.NumberFormat(I18n.locale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(bytes / 1048576)} MB`;
     const usage = Number.isFinite(persistence.usage) && Number.isFinite(persistence.quota) ? ` ${tr('{used} of {total} used.', { used: megabytes(persistence.usage), total: megabytes(persistence.quota) })}` : '';
@@ -81,7 +82,7 @@
       </section>
       <section class="settings-card">
         <h2>${tr('Notifications')}</h2>
-        <div class="settings-row"><div class="settings-label"><strong>${tr('Browser reminders')}</strong><span>${tr('Reminders appear while Dailo is open. Browser notifications are optional, and nothing arrives while the app is closed.')}</span></div><button class="btn btn-secondary" type="button" data-action="enable-notifications">${notificationButtonLabel()}</button></div>
+        <div class="settings-row"><div class="settings-label">${ctx.nativeApp ? `<strong>${tr('Reminders')}</strong><span>${tr('Task, goal and habit reminders arrive as notifications on this device, also when Dailo is closed.')}</span>` : `<strong>${tr('Browser reminders')}</strong><span>${tr('Reminders appear while Dailo is open. Browser notifications are optional, and nothing arrives while the app is closed.')}</span>`}</div><button class="btn btn-secondary" type="button" data-action="enable-notifications">${notificationButtonLabel()}</button></div>
       </section>
       <section class="settings-card">
         <h2>${tr('Data')}</h2>
@@ -100,7 +101,7 @@ ${syncCard}
         <h2>${tr('About')}</h2>
         <div class="settings-row"><div class="settings-label"><strong>${tr('Version')}</strong><span>Dailo ${esc(release.APP_VERSION || '')}</span></div></div>
         ${reportHref ? `<div class="settings-row"><div class="settings-label"><strong>${tr('Report a problem')}</strong><span>${tr('Opens an e-mail with the app version and device details. Your data is not attached.')}</span></div><a class="btn btn-secondary" href="${esc(reportHref)}" data-report-problem>${tr('Report a problem')}</a></div>` : ''}
-        <div class="settings-row"><div class="settings-label"><strong>${tr('Beta tester guide')}</strong><span>${tr('How to install Dailo, keep backups and report problems.')}</span></div><a class="btn btn-secondary" href="uputstvo.html" target="_blank" rel="noopener" data-beta-guide>${tr('Open guide')}</a></div>
+        <div class="settings-row"><div class="settings-label"><strong>${tr('Beta tester guide')}</strong><span>${tr('How to install Dailo, keep backups and report problems.')}</span></div><a class="btn btn-secondary" href="${esc(ctx.guideUrl || 'uputstvo.html')}" target="_blank" rel="noopener" data-beta-guide>${tr('Open guide')}</a></div>
         <div class="settings-row"><div class="settings-label"><strong>${tr('Privacy')}</strong><span data-privacy-note>${privacy}</span></div></div>
       </section>`;
   }

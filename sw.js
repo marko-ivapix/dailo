@@ -31,6 +31,7 @@ const SHELL_FILES = [
   'js/backup.js',
   'js/sync-config.js',
   'js/sync.js',
+  'js/native.js',
   'js/domain-modules.js',
   'js/knowledge.js',
   'js/goals-ui.js',
