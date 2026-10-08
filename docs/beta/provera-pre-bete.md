@@ -42,8 +42,17 @@ Rezultati se upisuju u `docs/superpowers/progress-v1-9.md` (tabela „Manual iPh
 - [ ] **B22.** Prečice: **N** novi zadatak, **T** Danas, **I** Inbox, **C** Kalendar, **Cmd+F** Pretraga.
 - [ ] **B23.** Prevuci zadatak na drugi dan u Kalendaru ili promeni redosled u listi.
 
+## Nove funkcije (V1.10–V1.12)
+
+- [ ] **B25.** Brzo dodavanje: upiši `Pošalji ponudu +ImeProjekta rok petak 45min sutra u 9:30` (ime postojećeg projekta). Ispod naslova odmah piše šta je prepoznato. Sačuvan zadatak ima projekat, rok u petak, 45 min i plan za sutra u 9:30.
+- [ ] **B26.** Čip **Trajanje** u Brzom dodavanju: izaberi 30 min; zadatak ga dobija.
+- [ ] **B27.** **Nedeljni pregled** (meni **Još** ili bočni meni): prođi korake i dodirni **Završi nedeljni pregled**. Petkom, subotom i nedeljom poziv na ekranu **Danas** posle toga nestaje.
+- [ ] **B28.** **Kalendar → Dan**: zadatku iz liste **Bez vremena** izaberi vreme; pojavljuje se u rasporedu. Dva zadatka u isto vreme dobijaju oznaku preklapanja.
+- [ ] **B29.** **Dnevni kapacitet** (Podešavanja): sa zadacima koji imaju trajanje, **Danas** prikazuje npr. „2 h 30 min / 6 h“, a kad se pređe, upozorenje.
+- [ ] **B30.** Mac: u dnevnom prikazu prevuci zadatak na drugi sat.
+
 ## Na kraju
 
 - [ ] **B24.** **Resetuj podatke aplikacije** (samo na Mac-u, ili posle izvoza): traži da upišeš `RESET`, pravi sigurnosnu kopiju i briše podatke. Posle toga **Uvezi rezervnu kopiju** vraća sve.
 
-Kad su B6–B24 prošli (ili su greške popravljene), Dailo je spreman za prve testere: pošalji im link na uputstvo `https://marko-ivapix.github.io/dailo/uputstvo.html`.
+Kad su B6–B30 prošli (ili su greške popravljene), Dailo je spreman za prve testere: pošalji im link na uputstvo `https://marko-ivapix.github.io/dailo/uputstvo.html`.

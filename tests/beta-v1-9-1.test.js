@@ -17,10 +17,13 @@ function renderSettings() {
   });
 }
 
+// Later releases bump the version; the newest release test pins the exact value.
+const atLeast = (version, minimum) => version.split('.').map(Number).reduce((order, part, index) => order || part - minimum.split('.').map(Number)[index], 0) >= 0;
+
 test('V1.9.1 ships the beta report address and a new version so installed apps see the update', () => {
-  assert.equal(Release.APP_VERSION, '1.9.1');
+  assert.ok(atLeast(Release.APP_VERSION, '1.9.1'), Release.APP_VERSION);
   assert.equal(Release.REPORT_EMAIL, 'marko.radicevic@ivapix.cloud');
-  assert.match(read('sw.js'), /const VERSION = '1\.9\.1';/);
+  assert.ok(read('sw.js').includes(`const VERSION = '${Release.APP_VERSION}';`), 'sw.js follows APP_VERSION');
 });
 
 test('Settings → About links the beta guide in a separate view and shows the report link', () => {

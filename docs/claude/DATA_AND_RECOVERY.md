@@ -1,6 +1,6 @@
 # Data, persistence and recovery
 
-This is the current storage contract inspected on 2026-10-07 (V1.9; rechecked 2026-10-08 for V1.9.1, which changes no storage) from `js/core.js`, `js/storage.js`, `js/attachments.js`, `js/backup.js`, `js/release.js` and the coordinating portions of `js/app.js` and `js/settings-ui.js`. V1.9 changes no schema: metadata `version: 3`, IndexedDB `todoAppDB` v1 and ZIP `backupVersion: 2` are unchanged, and no key or ID was renamed.
+This is the current storage contract inspected on 2026-10-07 (V1.9) and rechecked on 2026-10-08 for V1.9.1 and V1.10 (no storage change) and for V1.11 and V1.12 (two optional settings, `d00855b`), from `js/core.js`, `js/storage.js`, `js/attachments.js`, `js/backup.js`, `js/release.js` and the coordinating portions of `js/app.js` and `js/settings-ui.js`. V1.9–V1.12 change no schema: metadata `version: 3`, IndexedDB `todoAppDB` v1 and ZIP `backupVersion: 2` are unchanged, and no key or ID was renamed.
 
 ## Two persistence layers
 
@@ -30,7 +30,7 @@ Do not confuse these versions:
 | IndexedDB database | `1` | Object-store schema |
 | ZIP backup format | `2` | `backup.js` export/import manifest contract |
 | Application label in exported ZIP | `1.3` | Historical app version field |
-| Release version in exported ZIP | `1.9.1` | `releaseVersion` from `DailoRelease.APP_VERSION` (V1.9; `null` if release metadata is unavailable) |
+| Release version in exported ZIP | `1.12.0` | `releaseVersion` from `DailoRelease.APP_VERSION` (since V1.9; `null` if release metadata is unavailable) |
 
 `exportBackupV3` refers to the V3 state payload, not to ZIP format 3. The current implementation exports `backupVersion: 2` and accepts backup versions `1` and `2`. The manifest's historical `appVersion: '1.3'` is not the current product release label; since V1.9 the release label is the separate `releaseVersion` field. Older ZIPs without `releaseVersion` remain importable.
 
@@ -52,6 +52,13 @@ V1.9 settings and readings:
 - `settings.backupReminderDays` is an optional integer 0–90 (0 = off). `Core.backupReminderDays()` reads a missing or invalid value as 7. `normalizeV16Settings` gives it no default, because `tests/core-v1-6.test.js` compares the whole normalized object. Settings → Data writes only integers 0–90; backup import rejects other values (`Invalid backup: backupReminderDays`), and a ZIP round trip keeps the value.
 - `settings.weekStartsOn` keeps its stored values (`1` default, `0`, `'monday'`, `'sunday'`). `Core.weekStartKey()` interprets `0`/`'sunday'` as Sunday and everything else as Monday, so there is no data migration.
 - `backupStatus.validationResult` still stores English sentences. They are translated at display time with `trMessage` ("Prefix: detail" failures translate the prefix); there is no migration. Last export/import are shown as local dates in a `<time datetime="…">` element that keeps the raw ISO value.
+
+V1.11 and V1.12 settings (both optional, no normalization default, so `normalizeV16Settings` and "Reset personalization" keep whatever is stored; a ZIP round trip keeps them):
+
+- `settings.weeklyReviews` (V1.11): an array of `{ weekStart: 'YYYY-MM-DD', completedAt: ISO }`. `Core.weeklyReviewLog()` reads only valid entries, newest first, one per week, at most 26; `Core.recordWeeklyReview()` writes such a sanitized list when the user finishes a review. A missing field means "never reviewed". Backup export and import reject a present value that is not an array of at most 52 entries, each an object with a valid date `weekStart` and an ISO `completedAt` (`Invalid backup: weeklyReviews`).
+- `settings.dailyCapacityMinutes` (V1.12): an integer 0–1440 (0 = off). `Core.dailyCapacityMinutes()` reads a missing or invalid value as 360 (6 h). Settings → General "Dnevni kapacitet" writes only integers 0–1440, immediately on change; backup export and import reject other values (`Invalid backup: dailyCapacityMinutes`).
+- `ui.calendarView` (V1.12) may now be `day` besides `week` and `month`; any other value normalizes to `week`. UI preferences are not validated by backup import.
+- The day view's 30-minute estimate for a timed task without a duration is computed at render time; nothing is written to the Task.
 
 ## Automatic local snapshots
 

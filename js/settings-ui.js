@@ -28,6 +28,9 @@
     const todayFilters = [['all', msg('All')], ['open', msg('Open')], ['completed', msg('Completed')], ['important', msg('Important')], ['dueToday', msg('Due today')]];
     const todayCards = [['focus', msg('Daily focus')], ['review', msg('Daily review')], ['actions', msg('Daily actions')]];
     const sundayFirst = state.settings.weekStartsOn === 0 || state.settings.weekStartsOn === 'sunday';
+    const capacity = ctx.Core?.dailyCapacityMinutes ? ctx.Core.dailyCapacityMinutes(state.settings) : 360;
+    const capacityOptions = [...new Set([0, 120, 240, 300, 360, 420, 480, 600, 720, capacity])].sort((a, b) => a - b)
+      .map(minutes => `<option value="${minutes}"${minutes === capacity ? ' selected' : ''}>${minutes ? tr('{hours} h', { hours: new Intl.NumberFormat(I18n.locale(), { maximumFractionDigits: 1 }).format(minutes / 60) }) : tr('Off')}</option>`).join('');
     return `${pageHeader(tr('Settings'), tr('Preferences and local data'), { add: false })}
       <section class="settings-card">
         <h2>${tr('General')}</h2>
@@ -51,6 +54,7 @@
         <div class="settings-row"><label class="settings-label" for="preference-density"><strong>${tr('Compact density')}</strong><span>${tr('Keep task rows and controls tight.')}</span></label><input id="preference-density" type="checkbox" ${state.settings.compactDensity !== false ? 'checked' : ''}></div>
         <div class="settings-row"><label class="settings-label" for="preference-today-filter"><strong>${tr('Default Today filter')}</strong><span>${tr('Choose what Today shows when you return.')}</span></label><select class="input" id="preference-today-filter">${todayFilters.map(([value, label]) => `<option value="${value}"${state.settings.todayFocusFilter === value ? ' selected' : ''}>${tr(label)}</option>`).join('')}</select></div>
         <div class="settings-row"><label class="settings-label" for="preference-week-start"><strong>${tr('Week starts on')}</strong><span>${tr('Used by weekly views and habit periods.')}</span></label><select class="input" id="preference-week-start"><option value="monday"${!sundayFirst ? ' selected' : ''}>${tr('Monday')}</option><option value="sunday"${sundayFirst ? ' selected' : ''}>${tr('Sunday')}</option></select></div>
+        <div class="settings-row"><label class="settings-label" for="daily-capacity"><strong>${tr('Daily capacity')}</strong><span>${tr('Planned work per day, compared with task durations on Today and in the Calendar day view.')}</span></label><select class="input" id="daily-capacity">${capacityOptions}</select></div>
         <fieldset class="settings-row"><legend class="settings-label"><strong>${tr('Today cards')}</strong><span>${tr('Choose the dashboard cards you want to see.')}</span></legend>${todayCards.map(([value, label]) => `<label><input type="checkbox" data-preference-today-section value="${value}" ${(state.settings.todayVisibleSections || []).includes(value) ? 'checked' : ''}> ${tr(label)}</label>`).join('')}</fieldset>
         <div class="settings-row"><label class="settings-label" for="preference-focus-strip"><strong>${tr('Today summary')}</strong><span>${tr('Show the compact open, completed and planned summary.')}</span></label><input id="preference-focus-strip" type="checkbox" ${state.settings.todayFocusStrip !== false ? 'checked' : ''}></div>
         <button class="btn btn-secondary" type="button" data-action="save-personalization">${tr('Save preferences')}</button> <button class="btn btn-ghost" type="button" data-action="reset-personalization">${tr('Reset personalization')}</button>

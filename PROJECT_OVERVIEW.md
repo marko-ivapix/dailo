@@ -1,6 +1,6 @@
 # Dailo — pregled projekta i brainstorming
 
-> Current implementation: V1.7 behavior, V1.8 visual layer and V1.9 beta-ready additions (Serbian UI, install, offline, data protection; merged into `main` through PR #5), completed as V1.9.1 (problem-report address, tester guide `uputstvo.html`, beta checklist `docs/beta/provera-pre-bete.md`). For agent onboarding and verified source facts, read `CLAUDE.md` and `docs/claude/` first. The brainstorming questions below are ideas, not accepted requirements.
+> Current implementation: V1.7 behavior, V1.8 visual layer and V1.9 beta-ready additions (Serbian UI, install, offline, data protection; merged into `main` through PR #5), completed as V1.9.1 (problem-report address, tester guide `uputstvo.html`, beta checklist `docs/beta/provera-pre-bete.md`; merged through PR #6), plus roadmap Phase 4: V1.10 Smart Quick Add, V1.11 Weekly review and V1.12 Duration and time-blocking (version `1.12.0`), pending merge into `main` together through one PR and packaged as `Dailo-v1.12-distributable.zip`. The V2.0 spec (mobile app + Supabase sync) is a draft awaiting the user's decisions. For agent onboarding and verified source facts, read `CLAUDE.md` and `docs/claude/` first. The brainstorming questions below are ideas, not accepted requirements.
 
 Dailo je lokalna To-Do aplikacija za organizaciju zadataka, projekata, oblasti,
 ciljeva, navika, beleški i resursa. Osnovni tok je:
@@ -44,7 +44,61 @@ V1.7 status i tačni brojevi provera vode se u `docs/superpowers/progress-v1-7.m
 
 Detalji: `docs/superpowers/specs/2026-10-07-todo-v1-8-design.md` i `docs/superpowers/progress-v1-8.md`. Vizuelna provera u pravom browseru je **manual-pending**. Globalni Search ostaje nepromenjen, a bulk akcije nisu dodate.
 
-## V1.9 — spremno za beta testiranje (trenutno izdanje: V1.9.1)
+## V1.12 — trajanje i raspored dana (trenutno izdanje)
+
+Dan se vidi kao raspored: šta je planirano u koje vreme, šta još nema vreme i da li planirani posao staje u dan. Verzija je `1.12.0`.
+
+- **Kalendar → Dan.** Kalendar sada ima prikaze „Dan”, „Nedelja” i „Mesec”. Strelice u dnevnom prikazu pomeraju za jedan dan („Prethodni dan” / „Sledeći dan”), a „Danas” vraća na današnji dan. Kada su zadaci sakriveni u redu za prikaz tipova, ne vide se ni ovde.
+- **Raspored po satima.** Po jedan red za svaki sat (06:00–23:00, ranije ako neki zadatak počinje pre 06:00). Zadaci sa vremenom su blokovi postavljeni po početku i trajanju; dodir otvara zadatak. Otvoreni zadaci koji se preklapaju dobijaju oznaku upozorenja, zadatak bez trajanja se crta isprekidano kao procena od 30 minuta (ništa se ne upisuje u zadatak), a završeni zadaci su prigušeni. Na računaru se zadatak prevlači na drugi sat (postojeće prevlačenje u Kalendaru).
+- **„Bez vremena”.** Otvoreni zadaci planirani za taj dan bez vremena stoje iznad rasporeda, svaki sa poljem za vreme: kad se izabere vreme, zadatak prelazi u raspored. Na računaru se mogu i prevući na sat.
+- **Dnevni kapacitet.** Podešavanja → Opšte → „Dnevni kapacitet” (Isključeno / 2 / 4 / 5 / 6 / 7 / 8 / 10 / 12 h, podrazumevano 6 h) govori koliko planiranog rada staje u dan. Kad bar jedan otvoren zadatak za taj dan ima trajanje, dnevni prikaz pokazuje „Planirano {planned} od {capacity}” sa trakom, a sažetak na ekranu Danas npr. „2 h 30 min / 6 h”. Oba upozoravaju kad je dan prepunjen.
+- **Čip „Trajanje”.** Brzo dodavanje ima čip sa 15 / 30 / 45 / 60 / 90 / 120 min i „Ukloni trajanje”. Izabrana vrednost je jača od trajanja upisanog u naslov (`45min`).
+- **Prazan dan.** „Nema planiranih zadataka za ovaj dan.” i dugme „Dodaj zadatak”, koje otvara brzo dodavanje za taj datum.
+- `uputstvo.html` ima odeljak „Raspored dana”. Van opsega: raspored po satima za više dana (nedelja ostaje lista), menjanje dužine bloka prevlačenjem, navike i ciljevi u rasporedu, automatsko raspoređivanje i spoljni kalendari.
+
+Detalji: `docs/superpowers/specs/2026-10-08-todo-v1-12-design.md`, `docs/superpowers/plans/2026-10-08-todo-v1-12.md` i `docs/superpowers/progress-v1-12.md`. Automatske provere su prošle (367 Node testova, svih 367 prošlo, 0 grešaka, 0 na čekanju). Šema podataka se ne menja: `settings.dailyCapacityMinutes` je opcioni ceo broj 0–1440 i proverava se pri uvozu rezervne kopije. Prevlačenje, polja za vreme, izgled rasporeda i kapacitet na iPhone-u i Mac-u su **manual-pending** (provera B26, B28–B30).
+
+## V1.11 — nedeljni pregled
+
+Jednom nedeljno jedna vođena stranica prolazi kroz sve što se tokom nedelje nagomila i završava se zabeleženim pregledom. Verzija je bila `1.11.0`.
+
+- **Gde.** „Nedeljni pregled” u bočnom meniju (grupa NAPREDAK) i u meniju „Još” na telefonu (ruta `#review`). Poslednja tri dana u nedelji (petak–nedelja kad nedelja počinje ponedeljkom) ekran Danas prikazuje nenametljivo obaveštenje „Vreme je za nedeljni pregled” sa dugmetom „Započni pregled”, dok se pregled za tu nedelju ne završi. Nikad nije modalni prozor.
+- **Šest koraka**, svaki sa postojećim akcijama ili linkovima i jednim redom teksta kad nema šta da se radi:
+  1. „Isprazni Inbox”: zadaci iz Inbox-a sa brzim akcijama za Inbox;
+  2. „Kasni i propušteno”: zakasneli zadaci, pa propušteni planovi, sa brzim akcijama za zakasnele;
+  3. „Sledećih 7 dana”: broj planiranih zadataka i rokova po danu, uz „Otvori Predstojeće”;
+  4. „Ciljevi”: aktivni ciljevi sa napretkom i stanjem;
+  5. „Navike”: aktivne navike sa trenutnim nizom i procentom ispunjenja;
+  6. „Oblasti”: oblasti sa brojem otvorenih zadataka.
+- **Završetak.** „Završi nedeljni pregled” beleži nedelju i prikazuje „Pregled za ovu nedelju je završen {date}.” uz najviše četiri prethodna pregleda. Dnevnik pregleda (`settings.weeklyReviews`) čuva najviše 26 nedelja i proverava se pri uvozu rezervne kopije; šema podataka se ne menja.
+- `uputstvo.html` ima odeljak „Nedeljni pregled”. Van opsega: čarobnjak korak po korak sa čuvanjem svakog koraka, beleške uz pregled, grafikoni i obaveštenja dok je aplikacija zatvorena.
+
+Detalji: `docs/superpowers/specs/2026-10-08-todo-v1-11-design.md`, `docs/superpowers/plans/2026-10-08-todo-v1-11.md` i `docs/superpowers/progress-v1-11.md`. Automatske provere su prošle (357 Node testova, svih 357 prošlo). Korišćenje pregleda na iPhone-u i Mac-u je **manual-pending** (provera B27).
+
+## V1.10 — pametno brzo dodavanje
+
+Ceo zadatak može da stane u jedan red brzog dodavanja, na srpskom ili engleskom, a ispod naslova se odmah vidi šta je Dailo prepoznao. Verzija je `1.10.0`.
+
+```text
+Pošalji ponudu +Klijenti #posao !visok rok petak 45min sutra u 9:30
+```
+
+Rezultat: naslov „Pošalji ponudu”, projekat Klijenti, oznaka `posao`, visok prioritet, rok u petak, trajanje 45 minuta, planirano za sutra u 9:30.
+
+- **Na kraju naslova**, bilo kojim redom i po jedan od svake vrste:
+  - kada: `danas`, `sutra`, `prekosutra`, dani u nedelji (`u sredu`), `za 3 dana`, `za 2 nedelje`, `15.10.`, `15.10.2026.`; na engleskom `today`, `tomorrow`, `in 3 days`, `2026-10-15`;
+  - vreme: `u 9:30`, `at 09:30`;
+  - rok: `rok petak`, `do petka`, `do sutra`, `do 15.10.`, `due friday`;
+  - trajanje: `45min`, `45 min`, `45m`, `1h`, `1,5h`, `1h30`, `1h 30min`, `2 sata` (od 1 do 1440 minuta).
+- **Bilo gde u naslovu:** `#oznaka`, `!visok`/`!srednji`/`!nizak` (i `!high`/`!medium`/`!low`), `+projekat`, `@oblast`. Imena se porede slobodno: velika i mala slova, razmaci, `_`, `-` i dijakritici se zanemaruju, pa `+kucni_projekat` nalazi „Kućni projekat”. Arhivirani projekti i oblasti se preskaču. Nepoznato ime ostaje u naslovu i ništa se ne pravi automatski. Važi prvi prioritet u naslovu, a projekat ima prednost nad oblašću.
+- **Šta ostaje kako je napisano:** čitanje staje na prvoj običnoj reči, a bar jedna reč uvek ostaje naslov. Neispravna vrednost (`25:00`, `31.02.`, `0min`) ostavlja kraj naslova netaknut. `do 17:00` i dan posle `za` (`za nedelju`) se ne prepoznaju.
+- **Izbor u brzom dodavanju ima prednost.** Datum, vreme, rok, trajanje, projekat ili oblast izabrani dugmićima ispod naslova jači su od prepoznatog teksta. Zadatak sa prepoznatim projektom ili datumom ne ide u Inbox.
+- **Pregled uživo.** Dok se kuca, ispod naslova se prikazuje šta je prepoznato („Prepoznato u naslovu”): datum i vreme, rok, trajanje, projekat ili oblast, oznake i prioritet. Kada ništa nije prepoznato, ovaj red se ne vidi.
+- `uputstvo.html` opisuje novu sintaksu. Glasovni unos nije u planu: diktiranje na iPhone tastaturi već upisuje tekst u polje naslova.
+
+Detalji: `docs/superpowers/specs/2026-10-08-todo-v1-10-design.md`, `docs/superpowers/plans/2026-10-08-todo-v1-10.md` i `docs/superpowers/progress-v1-10.md`. Automatske provere su prošle (348 Node testova, svih 348 prošlo). V1.10 stiže u `main` zajedno sa V1.11 i V1.12 kroz jedan PR. V1.10 nema svoj ZIP paket; nalazi se u `Dailo-v1.12-distributable.zip`. Upotreba nove sintakse i pregleda na iPhone-u je **manual-pending** (provera B25).
+
+## V1.9 — spremno za beta testiranje (V1.9.1)
 
 Cilj je mala beta grupa na iPhone-u (Safari), i dalje bez backend-a, naloga i sinhronizacije; to stiže sa V2.0 mobilnom aplikacijom.
 
@@ -52,12 +106,12 @@ Cilj je mala beta grupa na iPhone-u (Safari), i dalje bez backend-a, naloga i si
 - **Rad bez interneta.** Fontovi i Phosphor ikonice su lokalni, sa licencama; CDN se više ne koristi. Service worker čuva osnovne fajlove aplikacije u kešu označenom verzijom. Nova verzija čeka dok korisnik ne dodirne „Osveži”; stranica se nikad ne osvežava sama.
 - **Zaštita podataka.** Aplikacija traži od browsera trajno čuvanje (`navigator.storage.persist()`) pri prvom dodiru u sesiji ili iz Podešavanja → Podaci → Trajno čuvanje, gde se vidi i status. Today prikazuje podsetnik kada je poslednja rezervna kopija starija od zadatog broja dana (podrazumevano 7; Isključeno / 3 / 7 / 14 / 30), sa izvozom jednim dodirom i opcijom „Podseti me sutra” (24 sata).
 - **Srpski interfejs.** Sve je na srpskom (latinica, `sr-Latn`), uključujući natpise u Search prozoru; ponašanje Search-a je isto. Datumi i brojevi koriste `sr-Latn-RS`. Potvrde i dalje traže kucanje `RESET` i `RESTORE`.
-- **Quick Add na srpskom.** Na kraju naslova se prepoznaju `danas`, `sutra` i dani u nedelji, sa i bez dijakritika, i posle `u` (npr. `u sredu`, `cetvrtak`), kao i vreme `u 9:30`. Engleske reči i dalje rade.
-- **Verzija i prijava problema.** Verzija `1.9.1` se vidi u kartici Podešavanja → O aplikaciji. „Prijavi problem” otvara e-mail na adresu `marko.radicevic@ivapix.cloud` (zadata u V1.9.1) sa verzijom i podacima o uređaju, bez podataka iz aplikacije.
-- **Uputstvo i provera pre bete (V1.9.1).** Podešavanja → O aplikaciji → „Uputstvo za beta testere” otvara `uputstvo.html`: kratko uputstvo na srpskom (instalacija na iPhone, podaci na uređaju, rezervne kopije, brzo dodavanje, rad bez interneta i nove verzije, ograničenja, prijava problema). Stranica nije u kešu service worker-a, pa se otvara samo sa internetom. `docs/beta/provera-pre-bete.md` je ručna provera B1–B24 pre slanja testerima.
+- **Quick Add na srpskom.** Na kraju naslova se prepoznaju `danas`, `sutra` i dani u nedelji, sa i bez dijakritika, i posle `u` (npr. `u sredu`, `cetvrtak`), kao i vreme `u 9:30`. Engleske reči i dalje rade. V1.10 proširuje ovu sintaksu (gore).
+- **Verzija i prijava problema.** Verzija (`1.9.1` u tom izdanju, sada `1.12.0`) se vidi u kartici Podešavanja → O aplikaciji. „Prijavi problem” otvara e-mail na adresu `marko.radicevic@ivapix.cloud` (zadata u V1.9.1) sa verzijom i podacima o uređaju, bez podataka iz aplikacije.
+- **Uputstvo i provera pre bete (V1.9.1).** Podešavanja → O aplikaciji → „Uputstvo za beta testere” otvara `uputstvo.html`: kratko uputstvo na srpskom (instalacija na iPhone, podaci na uređaju, rezervne kopije, brzo dodavanje, rad bez interneta i nove verzije, ograničenja, prijava problema). Stranica nije u kešu service worker-a, pa se otvara samo sa internetom. `docs/beta/provera-pre-bete.md` je ručna provera B1–B24 pre slanja testerima (od V1.12 i B25–B30 za nove funkcije V1.10–V1.12).
 - **Ispravke.** V1.9.1 prevodi još dva engleska teksta: oznaku „Planiraj za” u brzom dodavanju dok se kuca i red „Provera:” u Podešavanja → Podaci posle uvoza ili resetovanja. Zvezdica omiljene beleške ili resursa ponovo se vidi; početak nedelje se svuda tumači isto; uklonjen je zastareli red o početku nedelje iz opštih podešavanja; ID-jevi se prave i bez `crypto.randomUUID` (npr. na lokalnoj HTTP adresi).
 
-Detalji: `docs/superpowers/specs/2026-10-07-todo-v1-9-design.md`, `docs/superpowers/plans/2026-10-07-todo-v1-9.md` i `docs/superpowers/progress-v1-9.md`. Automatske provere su prošle (335 Node testova, svih 335 prošlo, 0 na čekanju). Korisnik je 2026-10-08 na iPhone-u potvrdio instalaciju, raspored, rad u avionskom režimu, srpski interfejs i brzo dodavanje, zvezdicu, trajno čuvanje i izvoz/uvoz ZIP-a (B1–B5). Ponuda nove verzije (B6), ostatak provere (B7–B24) i podsetnik za rezervnu kopiju (pojavljuje se tek 7 dana posle izvoza) su **manual-pending**. Paket je `Dailo-v1.9.1-distributable.zip` (V1.9.0 nije pakovan).
+Detalji: `docs/superpowers/specs/2026-10-07-todo-v1-9-design.md`, `docs/superpowers/plans/2026-10-07-todo-v1-9.md` i `docs/superpowers/progress-v1-9.md`. Automatske provere su prošle (335 Node testova, svih 335 prošlo, 0 na čekanju). Korisnik je 2026-10-08 na iPhone-u potvrdio instalaciju, raspored, rad u avionskom režimu, srpski interfejs i brzo dodavanje, zvezdicu, trajno čuvanje i izvoz/uvoz ZIP-a (B1–B5). Ponuda nove verzije (B6), ostatak provere (B7–B30) i podsetnik za rezervnu kopiju (pojavljuje se tek 7 dana posle izvoza) su **manual-pending**. Paket je `Dailo-v1.9.1-distributable.zip` (V1.9.0 nije pakovan).
 
 ## 1. Today i Upcoming
 
@@ -139,6 +193,7 @@ raspored?
 - Planirani i due termini imaju odvojeno značenje.
 - Drag-and-drop i forme za Calendar mogu da kreiraju ili pomere stavke.
 - Conflict hints ukazuju na preklapanje termina.
+- Od V1.12 prikaz **Dan** prikazuje jedan dan po satima, listu „Bez vremena” i dnevni kapacitet (vidi V1.12 gore).
 
 **Za brainstorming:** da li dodati time-blocking, trajanje taska, kalendar po
 Area/Project boji, radno vreme, vremenske zone ili sinhronizaciju sa spoljnim
@@ -190,6 +245,9 @@ varijable, automatsko kreiranje po rasporedu ili deljenje Saved View-a?
 - Na užim ekranima je donja navigacija stalno dostupna i nalazi se ispred
   sadržaja, dok je Quick Add pozicioniran iznad nje.
 - Task se može završiti swipe gestom udesno.
+- Od V1.10 naslov u brzom dodavanju prepoznaje datum, vreme, rok, trajanje,
+  `+projekat`, `@oblast`, `#oznaku` i `!prioritet`, uz pregled prepoznatog ispod
+  naslova.
 - Focus stanje, tastatura i modalni prozori imaju pristupačne focus stilove.
 
 **Za brainstorming:** da li dodati glasovni unos, predloge na osnovu teksta,
@@ -223,17 +281,25 @@ quick-add komande poput `tomorrow`, skeniranje slike ili offline queue?
 python3 -m http.server 8080
 ```
 
-Zatim otvoriti `http://localhost:8080`. Service worker se registruje samo na `https:` ili `localhost`. GitHub Pages verzija je na `https://marko-ivapix.github.io/dailo/` i prikazuje `main`: V1.9 je tamo od PR #5, a V1.9.1 stiže posle spajanja u `main`. Uputstvo za testere: `https://marko-ivapix.github.io/dailo/uputstvo.html`.
+Zatim otvoriti `http://localhost:8080`. Service worker se registruje samo na `https:` ili `localhost`. GitHub Pages verzija je na `https://marko-ivapix.github.io/dailo/` i prikazuje `main`: V1.9.1 je tamo od PR #6, a V1.10–V1.12 stižu posle spajanja u `main` kroz jedan zajednički PR. Uputstvo za testere: `https://marko-ivapix.github.io/dailo/uputstvo.html`.
 
 ## Trenutni status
 
-V1.9 je završen kao V1.9.1 (koraci 1–7) i proveren automatskim testovima prema
-`docs/superpowers/progress-v1-9.md` (335 Node testova, 0 grešaka); paket je
-`Dailo-v1.9.1-distributable.zip`. Sledi provera pre bete sa korisnikom
-(`docs/beta/provera-pre-bete.md`, B6–B24) i pozivanje testera, a paralelno
-V1.10 pametno brzo dodavanje, V1.11 nedeljni pregled, V1.12 trajanje i vremenski
-blokovi i nacrt specifikacije za V2.0 (mobilna aplikacija + Supabase
-sinhronizacija). V1.7 osnova ostaje zabeležena u
+V1.9 je završen kao V1.9.1 (koraci 1–7), spojen u `main` kroz PR #6 i proveren
+automatskim testovima prema `docs/superpowers/progress-v1-9.md` (335 Node
+testova, 0 grešaka); taj paket, `Dailo-v1.9.1-distributable.zip`, sada je
+prethodni. Faza 4 plana izdanja je urađena: V1.10 pametno brzo dodavanje,
+V1.11 nedeljni pregled i V1.12 trajanje i raspored dana. Provereno prema
+`docs/superpowers/progress-v1-12.md` (367 Node testova, svih 367 prošlo,
+0 grešaka); sve tri verzije čekaju spajanje u `main` kroz jedan PR, a trenutni
+paket je `Dailo-v1.12-distributable.zip`. Sa korisnikom ostaju provera pre bete
+(`docs/beta/provera-pre-bete.md`, B6–B30) i pozivanje testera. Sledeći korak je
+specifikacija za V2.0 (mobilna aplikacija + Supabase sinhronizacija):
+`docs/superpowers/specs/2026-10-08-todo-v2-0-design.md` je nacrt koji čeka
+odluke korisnika i naloge (Supabase projekat u EU, Apple Developer nalog,
+potpisivanje na korisnikovom Mac-u, odobren tekst o privatnosti). Dok nacrt
+nije odobren, važi pravilo iz `AGENTS.md`: bez backend-a, naloga i
+sinhronizacije. V1.7 osnova ostaje zabeležena u
 `docs/superpowers/progress-v1-7.md`. Tačni brojevi Node, syntax, Python/static i
 ZIP provera upisuju se tek posle stvarnog pokretanja komandi; browser/visual i
 iPhone acceptance ostaju **manual-pending** dok ih korisnik ne izvrši.
