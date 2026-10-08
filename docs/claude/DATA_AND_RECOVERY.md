@@ -1,6 +1,6 @@
 # Data, persistence and recovery
 
-This is the current storage contract inspected on 2026-10-07 (V1.9) and rechecked on 2026-10-08 for V1.9.1 and V1.10 (no storage change) for V1.11 and V1.12 (two optional settings, `d00855b`) and for V2.0-a (one device-local sync key, `7a834db`), from `js/core.js`, `js/storage.js`, `js/attachments.js`, `js/backup.js`, `js/release.js`, `js/sync.js` and the coordinating portions of `js/app.js` and `js/settings-ui.js`. V1.9–V2.0-a change no schema: metadata `version: 3`, IndexedDB `todoAppDB` v1 and ZIP `backupVersion: 2` are unchanged, and no key or ID was renamed.
+This is the current storage contract inspected on 2026-10-07 (V1.9) and rechecked on 2026-10-08 for V1.9.1 and V1.10 (no storage change) for V1.11 and V1.12 (two optional settings, `d00855b`) for V2.0-a (one device-local sync key, `7a834db`) and for V2.0-b (no storage change; the native app keeps the same stores inside its own WebView, `2bfc2d0`), from `js/core.js`, `js/storage.js`, `js/attachments.js`, `js/backup.js`, `js/release.js`, `js/sync.js` and the coordinating portions of `js/app.js` and `js/settings-ui.js`. V1.9–V2.0-a change no schema: metadata `version: 3`, IndexedDB `todoAppDB` v1 and ZIP `backupVersion: 2` are unchanged, and no key or ID was renamed.
 
 ## Two persistence layers
 
@@ -77,6 +77,13 @@ Snapshots can include normalized metadata, attachment records/Blobs, Habit logs 
 - **Local safety.** Pulled data goes through the same `saveState` path, so automatic snapshots keep running. The first-sync choice takes a forced automatic snapshot first (`{ force: true }`), and the ZIP backup, Undo and selective restore stay available.
 - **Reset or ZIP restore while signed in:** a committed full reset or restore clears the shadow and cursor (`forgetSyncShadow`, the session stays), so the next sync is a first sync. After a reset (empty device) the account data comes back; after a restore, with data on both sides, the choice dialog opens. Nothing is deleted on the server by a reset; removing the server data takes "Obriši nalog". A selective restore of one item syncs like a normal edit.
 - **Account deletion** (`delete_my_account()`) removes the server rows, history and auth user; local data stays.
+
+## Native app storage (V2.0-b)
+
+- **Separate stores.** The Capacitor app keeps `localStorage` and IndexedDB inside its own WebView: on iOS under `capacitor://localhost`, on Android under `https://localhost`. These stores are separate from Safari and from the installed PWA, and Safari's 7-day eviction does not apply.
+- **Moving data.** Data moves between the web build and the app only through a ZIP backup or the optional sync.
+- **Backups.** ZIP export and the safety ZIP of a reset or restore are written to the app cache and offered through the share sheet. A cancelled share is not recorded as an export. Recovery snapshots and Undo are unchanged.
+- **Android auto-backup.** `android:allowBackup="true"` (template default) lets Android back up app data to the user's Google account. The privacy page (V2.0-c) must mention it, or the release turns it off.
 
 ## Device storage protection (V1.9)
 

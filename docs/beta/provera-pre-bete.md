@@ -62,8 +62,17 @@ Dok Supabase nije podešen (`docs/v2/podesavanje-supabase.md`), kartica **Sinhro
 - [ ] **B35.** U avionskom režimu napravi zadatak. Isključi avionski režim i vrati se u aplikaciju: zadatak stiže na drugi uređaj.
 - [ ] **B36.** **Odjavi se**: podaci ostaju na uređaju. Zatim se prijavi ponovo i dodirni **Obriši nalog** (traži da upišeš `OBRIŠI`): nalog i podaci na serveru su obrisani, a podaci na uređaju ostaju.
 
+## Aplikacija za iPhone i Android (V2.0-b, kad je napraviš po `docs/v2/izrada-aplikacije.md`)
+
+- [ ] **B37.** iPhone: aplikacija se pokreće iz Xcode-a i otvara Dailo. Ništa ne ide ispod statusne trake ni ispod donje linije.
+- [ ] **B38.** **Podešavanja → Obaveštenja → Podsetnici → Uključi** i dozvoli obaveštenja. Napravi zadatak sa podsetnikom za 2–3 minuta i potpuno zatvori aplikaciju: obaveštenje stiže, a dodir na njega otvara Dailo.
+- [ ] **B39.** Navika sa podsetnikom: obaveštenje stiže u zadato vreme, i posle restarta telefona.
+- [ ] **B40.** **Izvezi ZIP** otvara meni za deljenje. Sačuvaj fajl u Fajlove; **Uvezi ZIP** iz Fajlova vraća podatke.
+- [ ] **B41.** Android: isto kao B37–B40, a dugme **Nazad** vraća na prethodni ekran.
+- [ ] **B42.** Zatvori aplikaciju i otvori je ponovo (i posle restarta telefona): svi podaci su tu.
+
 ## Na kraju
 
 - [ ] **B24.** **Resetuj podatke aplikacije** (samo na Mac-u, ili posle izvoza): traži da upišeš `RESET`, pravi sigurnosnu kopiju i briše podatke. Posle toga **Uvezi rezervnu kopiju** vraća sve.
 
-Kad su B6–B30 prošli (i B31–B36, kad je sinhronizacija uključena), ili su greške popravljene, Dailo je spreman za prve testere: pošalji im link na uputstvo `https://marko-ivapix.github.io/dailo/uputstvo.html`.
+Kad su B6–B30 prošli (i B31–B36, kad je sinhronizacija uključena, i B37–B42 za aplikaciju), ili su greške popravljene, Dailo je spreman za prve testere: pošalji im link na uputstvo `https://marko-ivapix.github.io/dailo/uputstvo.html`.

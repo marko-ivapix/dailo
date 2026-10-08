@@ -1,6 +1,6 @@
 # Dailo V2.0 — Mobile app and Supabase sync
 
-**Status:** **APPROVED 2026-10-08** ("da") with all six decisions answered (section "Decisions for the user"). Work starts with phase V2.0-a; the accounts (section "What the user provides") are needed for real use, not for writing and testing the code. V2.0-a is implemented (`docs/superpowers/progress-v2-0a.md`); sections D, E and decision 3 were aligned with it on 2026-10-08.
+**Status:** **APPROVED 2026-10-08** ("da") with all six decisions answered (section "Decisions for the user"). Work starts with phase V2.0-a; the accounts (section "What the user provides") are needed for real use, not for writing and testing the code. V2.0-a is implemented (`docs/superpowers/progress-v2-0a.md`); sections D, E and decision 3 were aligned with it on 2026-10-08. V2.0-b (Capacitor shell, `docs/superpowers/progress-v2-0b.md`) is implemented too; real builds on the user's Mac and phones are pending.
 **Baseline:** V1.12 (Phase 4 done).
 **Roadmap:** `docs/superpowers/plans/2026-10-07-release-roadmap.md`, Phase 5. The user decided on 2026-10-07 that the mobile app and the database ship together.
 **Rule change:** this approved spec amends `AGENTS.md` "No backend, accounts or cloud sync" for V2.0: optional Supabase sync is allowed as described here, and the app must keep working fully without an account. The service-role key never enters the repository. The project URL and the public anon key go into `js/sync-config.js` only when the user supplies them. The anon key is public by Supabase design; Row Level Security protects the data.
@@ -93,7 +93,7 @@ Two problems that V1.x cannot solve go away:
    - `js/sync.js` (shadow diff, push, pull, conflicts) with Node tests against a fake server;
    - optional sign-in in Settings.
    - The beta testers try it on the PWA first.
-2. **V2.0-b, Capacitor shell:**
+2. **V2.0-b, Capacitor shell** (implemented 2026-10-08: Capacitor 8 with Swift Package Manager; plugins Local Notifications, App, Filesystem and Share; ZIP export through the share sheet; `tools/build-www.mjs`):
    - `ios/` and `android/` projects, icons and splash, local notifications for reminders;
    - the same `www` built from the repository with no bundler (copy step only).
 3. **V2.0-c, store release:** privacy page, store texts in Serbian, TestFlight beta, App Store review, Play internal testing.

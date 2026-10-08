@@ -366,3 +366,83 @@ test('Settings in the app shows phone reminders, app storage and the online guid
   assert.doesNotMatch(native, /data-action="request-storage-persistence"/);
   assert.match(native, /href="https:\/\/marko-ivapix\.github\.io\/dailo\/uputstvo\.html" target="_blank"/);
 });
+
+// --- Step 3: assets and native settings --------------------------------------------------
+
+const { readPng } = require('./support/png.js');
+const BLUE = [6, 25, 254];
+const DARK = [15, 17, 20];
+const near = (actual, expected) => expected.every((value, index) => Math.abs(actual[index] - value) <= 2);
+const DENSITIES = { mdpi: 1, hdpi: 1.5, xhdpi: 2, xxhdpi: 3, xxxhdpi: 4 };
+
+test('the native app icons and splash screens are the Dailo mark on its colors', () => {
+  const icon = readPng(path.join(root, 'ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png'));
+  assert.deepEqual([icon.width, icon.height, icon.channels], [1024, 1024, 3], 'the App Store icon has no alpha channel');
+  assert.ok(near(icon.pixel(4, 4), BLUE), 'full-bleed blue');
+  for (const file of ['splash-2732x2732.png', 'splash-2732x2732-1.png', 'splash-2732x2732-2.png']) {
+    const splash = readPng(path.join(root, 'ios/App/App/Assets.xcassets/Splash.imageset', file));
+    assert.deepEqual([splash.width, splash.height], [2732, 2732]);
+    assert.ok(near(splash.pixel(10, 10), DARK), `${file} is dark`);
+    assert.ok(near(splash.pixel(1366 - 270, 1366), BLUE), `${file} shows the blue tile in the middle`);
+  }
+  for (const [density, scale] of Object.entries(DENSITIES)) {
+    const res = `android/app/src/main/res`;
+    const launcher = readPng(path.join(root, res, `mipmap-${density}/ic_launcher.png`));
+    assert.equal(launcher.width, 48 * scale);
+    assert.ok(near(launcher.pixel(Math.round(2 * scale), Math.round(24 * scale)), BLUE));
+    const round = readPng(path.join(root, res, `mipmap-${density}/ic_launcher_round.png`));
+    assert.equal(round.width, 48 * scale);
+    assert.equal(round.pixel(0, 0)[3], 0, 'the round icon has transparent corners');
+    const foreground = readPng(path.join(root, res, `mipmap-${density}/ic_launcher_foreground.png`));
+    assert.equal(foreground.width, 108 * scale);
+    assert.equal(foreground.pixel(Math.round(10 * scale), Math.round(54 * scale))[3], 0, 'the adaptive foreground stays inside the safe zone');
+    const port = readPng(path.join(root, res, `drawable-port-${density}/splash.png`));
+    assert.ok(near(port.pixel(2, 2), DARK), `${density} splash is dark`);
+    assert.ok(near(port.pixel(Math.round(port.width / 2) - Math.round(port.width * 0.11), Math.round(port.height / 2)), BLUE));
+  }
+  assert.match(read('android/app/src/main/res/values/ic_launcher_background.xml'), /<color name="ic_launcher_background">#0619FE<\/color>/);
+});
+
+test('the Android notification icon is a white silhouette on transparency at every density', () => {
+  for (const [density, scale] of Object.entries(DENSITIES)) {
+    const image = readPng(path.join(root, `android/app/src/main/res/drawable-${density}/ic_stat_dailo.png`));
+    assert.deepEqual([image.width, image.height, image.channels], [24 * scale, 24 * scale, 4]);
+    let visible = 0;
+    for (let y = 0; y < image.height; y += 1) {
+      for (let x = 0; x < image.width; x += 1) {
+        const [r, g, b, a] = image.pixel(x, y);
+        if (a) { visible += 1; assert.deepEqual([r, g, b], [255, 255, 255], `${density} (${x},${y}) is white`); }
+      }
+    }
+    assert.ok(visible > image.width * image.height * 0.1, `${density} draws the mark`);
+    assert.equal(image.pixel(0, 0)[3], 0);
+  }
+});
+
+test('the native projects carry the version, the dark style and the store settings', () => {
+  const plist = read('ios/App/App/Info.plist');
+  for (const [key, value] of [['CFBundleDisplayName', '<string>Dailo</string>'], ['UIUserInterfaceStyle', '<string>Dark</string>'], ['ITSAppUsesNonExemptEncryption', '<false/>'], ['CFBundleAllowMixedLocalizations', '<true/>']]) {
+    assert.match(plist, new RegExp(`<key>${key}</key>\\s*${value}`), key);
+  }
+  const project = read('ios/App/App.xcodeproj/project.pbxproj');
+  assert.equal((project.match(/MARKETING_VERSION = 2\.0\.0;/g) || []).length, 2, 'Debug and Release');
+  assert.doesNotMatch(project, /MARKETING_VERSION = 1\.0;/);
+  const gradle = read('android/app/build.gradle');
+  assert.match(gradle, /versionCode 1\n/);
+  assert.match(gradle, /versionName "2\.0\.0"/);
+  assert.match(read('android/app/src/main/res/values/styles.xml'), /<item name="windowSplashScreenBackground">#0F1114<\/item>/);
+  assert.match(read('tools/generate-icons.py'), /--native/);
+});
+
+test('the Serbian build guide covers both platforms with the repository commands', () => {
+  const guide = read('docs/v2/izrada-aplikacije.md');
+  for (const command of ['npm ci', 'npm run sync', 'npx cap open ios', 'npx cap open android', 'git checkout ccr-95f6062b-lgg2fr']) assert.ok(guide.includes(command), command);
+  for (const step of ['Signing & Capabilities', 'Režim za programere', 'USB otklanjanje grešaka', 'Obaveštenja → Podsetnici → Uključi', 'Izvezi ZIP']) assert.ok(guide.includes(step), step);
+  assert.doesNotMatch(guide, /[Ѐ-ӿ]/, 'Latin script only');
+});
+
+test('V2.0-b is released as 2.0.0-alpha.2', () => {
+  assert.equal(Release.APP_VERSION, '2.0.0-alpha.2');
+  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.2';/);
+  assert.equal(JSON.parse(read('package.json')).version, '2.0.0', 'the native marketing version');
+});

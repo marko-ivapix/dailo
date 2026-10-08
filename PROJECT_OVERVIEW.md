@@ -1,6 +1,6 @@
 # Dailo — pregled projekta i brainstorming
 
-> Current implementation: V1.7 behavior, V1.8 visual layer and V1.9 beta-ready additions (Serbian UI, install, offline, data protection; merged into `main` through PR #5), completed as V1.9.1 (problem-report address, tester guide `uputstvo.html`, beta checklist `docs/beta/provera-pre-bete.md`; merged through PR #6), plus roadmap Phase 4: V1.10 Smart Quick Add, V1.11 Weekly review and V1.12 Duration and time-blocking (version `1.12.0`), merged into `main` together through PR #7 (`31fb23d`) and packaged as `Dailo-v1.12-distributable.zip`. The V2.0 spec (mobile app + Supabase sync) was approved on 2026-10-08, and V2.0-a (optional sync in the web app, version `2.0.0-alpha.1`) is implemented on branch `ccr-95f6062b-lgg2fr`; sync stays off until the Supabase project URL and public key are supplied. For agent onboarding and verified source facts, read `CLAUDE.md` and `docs/claude/` first. The brainstorming questions below are ideas, not accepted requirements.
+> Current implementation: V1.7 behavior, V1.8 visual layer and V1.9 beta-ready additions (Serbian UI, install, offline, data protection; merged into `main` through PR #5), completed as V1.9.1 (problem-report address, tester guide `uputstvo.html`, beta checklist `docs/beta/provera-pre-bete.md`; merged through PR #6), plus roadmap Phase 4: V1.10 Smart Quick Add, V1.11 Weekly review and V1.12 Duration and time-blocking (version `1.12.0`), merged into `main` together through PR #7 (`31fb23d`) and packaged as `Dailo-v1.12-distributable.zip`. The V2.0 spec (mobile app + Supabase sync) was approved on 2026-10-08, V2.0-a (optional sync in the web app) and V2.0-b (Capacitor app for iPhone and Android, version `2.0.0-alpha.2`) are implemented on branch `ccr-95f6062b-lgg2fr`; sync stays off until the Supabase project URL and public key are supplied, and the app is built on the user's Mac (`docs/v2/izrada-aplikacije.md`). For agent onboarding and verified source facts, read `CLAUDE.md` and `docs/claude/` first. The brainstorming questions below are ideas, not accepted requirements.
 
 Dailo je lokalna To-Do aplikacija za organizaciju zadataka, projekata, oblasti,
 ciljeva, navika, beleški i resursa. Osnovni tok je:
@@ -302,8 +302,14 @@ sva prošla), urađena je: prijava kodom na e-poštu bez lozinke, kartica
 „Sinhronizacija“ u Podešavanjima i SQL za server. Sinhronizacija je isključena
 dok korisnik ne napravi Supabase projekat (`docs/v2/podesavanje-supabase.md`)
 i ne pošalje adresu projekta i javni ključ. Ključ `service_role` nikad ne ide u
-repozitorijum. Posle toga slede V2.0-b (aplikacija za iPhone i Android) i
-V2.0-c (objava u prodavnicama). V1.7 osnova ostaje zabeležena u
+repozitorijum. V2.0-b, aplikacija za iPhone i Android (Capacitor, verzija
+`2.0.0-alpha.2`, `docs/superpowers/progress-v2-0b.md`, 413 Node testova, sva
+prošla), takođe je urađena. Podsetnici stižu i kad je aplikacija zatvorena,
+rezervna kopija se izvozi preko menija za deljenje, a ikonice i početni ekrani
+su napravljeni od Dailo znaka. Aplikaciju korisnik pravi na svom Mac-u po
+uputstvu `docs/v2/izrada-aplikacije.md` i proverava stavkama B37–B42.
+Sledi V2.0-c (stranica o privatnosti, tekstovi za prodavnice, TestFlight i
+interno testiranje na Google Play-u). V1.7 osnova ostaje zabeležena u
 `docs/superpowers/progress-v1-7.md`. Tačni brojevi Node, syntax, Python/static i
 ZIP provera upisuju se tek posle stvarnog pokretanja komandi; browser/visual i
 iPhone acceptance ostaju **manual-pending** dok ih korisnik ne izvrši.
