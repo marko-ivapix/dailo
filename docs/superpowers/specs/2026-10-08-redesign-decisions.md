@@ -104,6 +104,7 @@ Images 3–9: "Edit task", and the Project, Planned date, Priority, Reminder, Ta
 
 **H4, revised 2026-10-08:**
 - **Week rings at the top** of the screen, under the title and above the "Dan / Nedelja" switch, in both views and without a heading. This week's rings (image 12) show the percentage inside (the "%" sign smaller and muted); a full ring shows a small green check instead of "100%", and future days a dash. A day's percentage counts only habits scheduled that day, without skipped ones.
+- **Tapping a ring opens that day in Dan,** from either view, so a forgotten habit can be marked. The selected day gets a quiet background, and the list starts with that day's name and date ("Utorak, 6. oktobar"). A past day toggles done and missed; a skipped day becomes done. Future days are inactive. Tapping today's ring returns to today, and opening the screen always starts at today.
 - **"Napredak" under the list,** in both views: the per-habit bars (H7), then a line chart for the **calendar month** with arrows (image 11) and the y axis up to 100%. Only today's value is labelled on the line, so a past month has no label; touching or hovering shows any day's value.
 
 ## New habit (image 13)
