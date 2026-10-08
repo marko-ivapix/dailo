@@ -1646,6 +1646,23 @@
     }
   }
 
+  // What the title will set, shown under it while typing (V1.10). Empty when nothing is recognized.
+  function quickParsePreview(parsed) {
+    const item = (icon, text) => `<span class="quick-parse-item"><i class="ph ${icon}" aria-hidden="true"></i>${esc(text)}</span>`;
+    const items = [];
+    if (parsed.plannedDate) items.push(item('ph-calendar-check', parsed.plannedTime ? `${relativeDateLabel(parsed.plannedDate)} ${parsed.plannedTime}` : relativeDateLabel(parsed.plannedDate)));
+    else if (parsed.plannedTime) items.push(item('ph-clock', parsed.plannedTime));
+    if (parsed.dueDate) items.push(item('ph-flag', tr('Due {date}', { date: relativeDateLabel(parsed.dueDate) })));
+    if (parsed.durationMinutes) items.push(item('ph-timer', tr('{minutes} min', { minutes: parsed.durationMinutes })));
+    const project = parsed.projectId && getProject(parsed.projectId);
+    if (project) items.push(item('ph-folder-simple', project.name));
+    const area = !project && parsed.areaId && getArea(parsed.areaId);
+    if (area) items.push(item('ph-squares-four', area.name));
+    for (const tag of (parsed.tagIds || []).map(getTag).filter(Boolean)) items.push(item('ph-hash', tag.name));
+    if (parsed.priority) items.push(item('ph-arrow-fat-up', priorityLabel(parsed.priority)));
+    return items.length ? `<div class="quick-parse-preview" data-quick-preview role="group" aria-label="${tr('Recognized in title')}">${items.join('')}</div>` : '';
+  }
+
   function renderQuickModal() {
     const d = modalState.draft;
     const project = getProject(d.projectId);
@@ -1654,6 +1671,7 @@
     return modalFrame(`<div class="modal-inner">
       <input id="quick-title" class="quick-title-input ${modalState.error ? 'is-error' : ''}" type="text" maxlength="500" autocomplete="off" placeholder="${tr('What needs to be done?')}" value="${esc(d.title)}" aria-label="${tr('Task title')}" />
       ${modalState.error ? `<div class="validation">${esc(modalState.error)}</div>` : ''}
+      <div class="quick-parse-slot" data-quick-preview-slot aria-live="polite">${quickParsePreview(parseQuickAddTitle(d.title, !d.explicitPlan))}</div>
       <div class="quick-properties">
         <button class="property-chip" type="button" data-action="quick-project-picker"><i class="ph ph-folder-simple"></i>${project ? `<span class="project-dot" style="--project-color:${esc(project.color)}"></span>${esc(project.name)}` : tr('Project')}</button>
         <button class="property-chip" type="button" data-action="quick-plan-picker"><i class="ph ph-calendar-check"></i>${effectivePlan ? esc(relativeDateLabel(effectivePlan)) : tr('Plan for')}</button>
@@ -2279,15 +2297,17 @@
       modalState.error = tr('Task needs a title.');
       renderModal(); requestAnimationFrame(() => $('#quick-title')?.focus()); return;
     }
-    const isInbox = modalState.defaults.processed ? false : !(d.projectId || resolvedPlan);
+    // Picker values win over parsed ones; a project wins over an Area.
+    const projectId = d.projectId || parsed.projectId || null;
+    const isInbox = modalState.defaults.processed ? false : !(projectId || resolvedPlan);
     const task = {
-      id: uid('task'), title, notes: d.notes || '', projectId: d.projectId || null, areaId: d.projectId ? null : (d.areaId || null), goalIds: [...(d.goalIds || [])], plannedTime: d.explicitPlannedTime ? d.plannedTime : (d.plannedTime || parsed.plannedTime || null), dueTime: d.dueTime || null, durationMinutes: d.durationMinutes || null,
-      plannedDate: resolvedPlan || null, dueDate: d.dueDate || null,
+      id: uid('task'), title, notes: d.notes || '', projectId, areaId: projectId ? null : (d.areaId || parsed.areaId || null), goalIds: [...(d.goalIds || [])], plannedTime: d.explicitPlannedTime ? d.plannedTime : (d.plannedTime || parsed.plannedTime || null), dueTime: d.dueTime || null, durationMinutes: d.durationMinutes || parsed.durationMinutes || null,
+      plannedDate: resolvedPlan || null, dueDate: d.dueDate || parsed.dueDate || null,
       reminderAt: d.reminderAt || null, reminderFiredAt: null, recurrence: d.recurrence || null, tagIds: [...new Set([...(d.tagIds || []), ...parsed.tagIds])], priority: parsed.priority || d.priority || 'none', attachmentIds: [], isInbox,
       isImportant: false, isUrgent: false, isCompleted: false, completedAt: null,
       subtasks: d.subtasks.map((s, i) => ({ ...s, order: i })),
       todayOrder: resolvedPlan === Core.dateOnly() ? nextOrder('today') : null,
-      projectOrder: d.projectId ? nextOrder(`project:${d.projectId}`) : null,
+      projectOrder: projectId ? nextOrder(`project:${projectId}`) : null,
       inboxOrder: isInbox ? nextOrder('inbox', true) : null,
       createdAt: nowIso(), updatedAt: nowIso(),
     };
@@ -2311,29 +2331,7 @@
   }
 
   function parseQuickAddTitle(rawTitle, parsePlan = true) {
-    const original = String(rawTitle || '');
-    const tagIds = [];
-    let priority = null;
-    const tokenFree = original.replace(/(^|\s)(#[^\s#]+|!(?:high|medium|low))(?=\s|$)/gi, (match, prefix, token) => {
-      if (token[0] === '#') {
-        const name = token.slice(1).toLocaleLowerCase();
-        const tag = (state.tags || []).find(item => Core.normalizeTagName(item.name).toLocaleLowerCase() === name);
-        if (!tag) return match;
-        tagIds.push(tag.id);
-      } else {
-        priority = token.slice(1).toLocaleLowerCase();
-      }
-      return prefix;
-    });
-    let parsedPlan;
-    if (parsePlan) parsedPlan = Core.parseQuickPlanPhrase(tokenFree, Core.dateOnly());
-    else {
-      const timed = Core.splitQuickTime(tokenFree);
-      const plannedTime = timed && timed.plannedTime;
-      parsedPlan = { title: plannedTime ? timed.rest : tokenFree, plannedDate: null, plannedTime: plannedTime || null };
-    }
-    const title = parsedPlan.title.replace(/\s{2,}/g, ' ').trim();
-    return { title, plannedDate: parsedPlan.plannedDate, plannedTime: parsedPlan.plannedTime || null, tagIds: [...new Set(tagIds)], priority };
+    return Core.parseQuickAdd(rawTitle, { today: Core.dateOnly(), tags: state.tags || [], projects: state.projects || [], areas: state.areas || [], parsePlan });
   }
 
   function nextOrder(context, atTop = false) {
@@ -4040,7 +4038,7 @@
     if (globalOperation) return;
     if (callDomainHook('handleInput', event) !== undefined) return;
     if (modalState?.type === 'quick') {
-      if (event.target.id === 'quick-title') { modalState.draft.title = event.target.value; modalState.error = ''; if (!modalState.draft.explicitPlan) { const parsed=parseQuickAddTitle(event.target.value); modalState.draft.parsedPlanDate=parsed.plannedDate; const b=document.querySelector('[data-action="quick-plan-picker"]'); if(b) b.innerHTML=`<i class="ph ph-calendar-check"></i>${parsed.plannedDate ? esc(relativeDateLabel(parsed.plannedDate)) : tr('Plan for')}`; } }
+      if (event.target.id === 'quick-title') { modalState.draft.title = event.target.value; modalState.error = ''; const parsed=parseQuickAddTitle(event.target.value, !modalState.draft.explicitPlan); const slot=document.querySelector('[data-quick-preview-slot]'); if(slot) slot.innerHTML=quickParsePreview(parsed); if (!modalState.draft.explicitPlan) { modalState.draft.parsedPlanDate=parsed.plannedDate; const b=document.querySelector('[data-action="quick-plan-picker"]'); if(b) b.innerHTML=`<i class="ph ph-calendar-check"></i>${parsed.plannedDate ? esc(relativeDateLabel(parsed.plannedDate)) : tr('Plan for')}`; } }
       else if (event.target.id === 'quick-notes') modalState.draft.notes = event.target.value;
     }
     if (modalState?.type === 'task') {

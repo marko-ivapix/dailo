@@ -1373,6 +1373,9 @@
     "Rename / color": "Preimenuj / boja",
     "Delete project": "Obriši projekat",
 
+    // V1.10 Smart Quick Add (js/app.js)
+    "Recognized in title": "Prepoznato u naslovu",
+
     // Data, storage, backup and recovery errors shown to the user (js/backup.js, js/storage.js, js/core.js, js/app.js)
     "Interrupted operation": "Prekinuta operacija",
     "Undo failed": "Poništavanje nije uspelo",

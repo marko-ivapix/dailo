@@ -52,7 +52,9 @@ test('Quick Add without date parsing reads the same Serbian and English time phr
   const parseTitle = source.slice(source.indexOf('  function parseQuickAddTitle('), source.indexOf('  function nextOrder('));
   const context = vm.createContext({ Core, state: { tags: [] } });
   vm.runInContext(parseTitle, context);
-  const result = text => JSON.parse(JSON.stringify(vm.runInContext(`parseQuickAddTitle(${JSON.stringify(text)}, false)`, context)));
+  // V1.10 adds more fields; this test keeps checking the V1.9 ones.
+  const pick = ({ title, plannedDate, plannedTime, tagIds, priority }) => ({ title, plannedDate, plannedTime, tagIds, priority });
+  const result = text => pick(JSON.parse(JSON.stringify(vm.runInContext(`parseQuickAddTitle(${JSON.stringify(text)}, false)`, context))));
   assert.deepEqual(result('Sastanak u 9:30'), { title: 'Sastanak', plannedDate: null, plannedTime: '09:30', tagIds: [], priority: null });
   assert.deepEqual(result('Read at 18:45'), { title: 'Read', plannedDate: null, plannedTime: '18:45', tagIds: [], priority: null });
   assert.deepEqual(result('Zubar sutra'), { title: 'Zubar sutra', plannedDate: null, plannedTime: null, tagIds: [], priority: null });

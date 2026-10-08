@@ -1054,41 +1054,154 @@
     return (tasks || []).filter(task => !task.isCompleted && Array.isArray(task.tagIds) && task.tagIds.includes(tagId));
   }
 
-  // Quick Add day words. "u" may precede a Serbian weekday ("u sredu"); Serbian words work with and without diacritics.
-  const QUICK_DAY_OFFSETS = { today: 0, tomorrow: 1, danas: 0, sutra: 1 };
+  // Quick Add (V1.10). Trailing clauses are read right to left; English and Serbian words work,
+  // Serbian with or without diacritics. See docs/superpowers/specs/2026-10-08-todo-v1-10-design.md.
+  const own = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
+  const QUICK_DAY_OFFSETS = { today: 0, tomorrow: 1, danas: 0, sutra: 1, prekosutra: 2 };
   const QUICK_WEEKDAYS = { sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6 };
   const QUICK_WEEKDAYS_SR = { nedelja: 0, nedelju: 0, ponedeljak: 1, utorak: 2, sreda: 3, sredu: 3, četvrtak: 4, cetvrtak: 4, petak: 5, subota: 6, subotu: 6 };
+  // "do petka" = by Friday: weekdays in the genitive case.
+  const QUICK_WEEKDAYS_SR_GENITIVE = { nedelje: 0, ponedeljka: 1, utorka: 2, srede: 3, četvrtka: 4, cetvrtka: 4, petka: 5, subote: 6 };
+  const QUICK_PRIORITIES = { high: 'high', medium: 'medium', low: 'low', visok: 'high', srednji: 'medium', nizak: 'low' };
+  const QUICK_DAY_UNITS = { dan: 1, dana: 1, day: 1, days: 1, nedelju: 7, nedelje: 7, nedelja: 7, week: 7, weeks: 7 };
+  const QUICK_HOUR_WORDS = new Set(['h', 'sat', 'sata', 'sati']);
+  const QUICK_MINUTE_WORDS = new Set(['min', 'minut', 'minuta']);
+  const INVALID = 'invalid';
 
-  // Splits a trailing "HH:MM", "at HH:MM" or "u H:MM" off a title; plannedTime is null when the time is invalid.
-  function splitQuickTime(text) {
-    const timed = String(text || '').trim().match(/^(.*?\S)\s+(?:(?:at|u)\s+)?(\d{1,2}):(\d{2})$/i);
-    if (!timed) return null;
-    return { rest: timed[1], plannedTime: normalizeTime(`${timed[2].padStart(2, '0')}:${timed[3]}`) };
+  // Matches names case-insensitively, ignoring spaces, "_", "-" and diacritics ("đ" as "dj").
+  function looseName(value) {
+    return String(value || '').toLocaleLowerCase().replace(/đ/g, 'dj').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[\s_-]+/g, '');
   }
 
-  function parseQuickPlanPhrase(rawTitle, today) {
-    const original = String(rawTitle || '');
-    const trimmed = original.trim();
-    if (!trimmed) return { title: original, plannedDate: null };
-    const timed = splitQuickTime(trimmed);
-    if (timed) {
-      if (!timed.plannedTime) return { title: original, plannedDate: null };
-      return { ...parseQuickPlanPhrase(timed.rest, today), plannedTime: timed.plannedTime };
-    }
-    const match = trimmed.match(/^(.*\S)\s+(\p{L}+)$/u);
-    if (!match) return { title: original, plannedDate: null };
-    const token = match[2].toLocaleLowerCase();
-    const serbianWeekday = Object.prototype.hasOwnProperty.call(QUICK_WEEKDAYS_SR, token);
-    const title = (serbianWeekday ? match[1].replace(/(?:^|\s+)u$/i, '') : match[1]).trim();
-    if (!title) return { title: original, plannedDate: null };
-    if (Object.prototype.hasOwnProperty.call(QUICK_DAY_OFFSETS, token)) return { title, plannedDate: QUICK_DAY_OFFSETS[token] ? addDays(today, QUICK_DAY_OFFSETS[token]) : today };
-    const weekdays = serbianWeekday ? QUICK_WEEKDAYS_SR : QUICK_WEEKDAYS;
-    if (!Object.prototype.hasOwnProperty.call(weekdays, token)) return { title: original, plannedDate: null };
+  function nextWeekday(today, weekday) {
     const base = parseDateOnly(today);
-    if (!base) return { title: original, plannedDate: null };
-    let delta = (weekdays[token] - base.getDay() + 7) % 7;
-    if (delta === 0) delta = 7;
-    return { title, plannedDate: addDays(today, delta) };
+    if (!base) return INVALID;
+    const delta = (weekday - base.getDay() + 7) % 7 || 7;
+    return addDays(today, delta);
+  }
+
+  // A day word or calendar date: a YYYY-MM-DD string, INVALID for a malformed date, or null when the word is not a day.
+  function quickDay(word, today, weekdays) {
+    const token = word.toLocaleLowerCase();
+    if (own(QUICK_DAY_OFFSETS, token)) return QUICK_DAY_OFFSETS[token] ? addDays(today, QUICK_DAY_OFFSETS[token]) : today;
+    if (own(weekdays, token)) return nextWeekday(today, weekdays[token]);
+    const local = token.match(/^(\d{1,2})\.(\d{1,2})\.(?:(\d{4})\.?)?$/);
+    const iso = token.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!local && !iso) return null;
+    const year = iso ? iso[1] : local[3] || today.slice(0, 4);
+    const value = iso ? token : `${year}-${local[2].padStart(2, '0')}-${local[1].padStart(2, '0')}`;
+    const parsed = parseDateOnly(value);
+    if (!parsed || dateOnly(parsed) !== value) return INVALID;
+    if (local && !local[3] && value < today) return quickDay(`${local[1]}.${local[2]}.${Number(year) + 1}.`, today, weekdays);
+    return value;
+  }
+
+  function quickMinutes(value) {
+    const minutes = Math.round(value);
+    return minutes >= 1 && minutes <= 1440 ? minutes : INVALID;
+  }
+
+  // Duration in the last one or two words: 45min, 45 min, 45m, 1h, 1,5h, 1h30, 1h30m, 1h 30min, 2 sata.
+  function quickDuration(words) {
+    const last = words[words.length - 1].toLocaleLowerCase();
+    const before = words.length > 1 ? words[words.length - 2].toLocaleLowerCase() : '';
+    const hours = text => Number(text.replace(',', '.'));
+    const splitHours = before.match(/^(\d+)h$/);
+    const splitMinutes = last.match(/^(\d+)(?:m|min)$/);
+    if (splitHours && splitMinutes) return { consumed: 2, value: quickMinutes(Number(splitHours[1]) * 60 + Number(splitMinutes[1])) };
+    let match;
+    if (/^\d+(?:[.,]\d+)?$/.test(before) && QUICK_HOUR_WORDS.has(last)) return { consumed: 2, value: quickMinutes(hours(before) * 60) };
+    if (/^\d+$/.test(before) && QUICK_MINUTE_WORDS.has(last)) return { consumed: 2, value: quickMinutes(Number(before)) };
+    if ((match = last.match(/^(\d+)(?:min|m)$/))) return { consumed: 1, value: quickMinutes(Number(match[1])) };
+    if ((match = last.match(/^(\d+(?:[.,]\d+)?)h$/))) return { consumed: 1, value: quickMinutes(hours(match[1]) * 60) };
+    if ((match = last.match(/^(\d+)h(\d+)(?:m|min)?$/))) return { consumed: 1, value: quickMinutes(Number(match[1]) * 60 + Number(match[2])) };
+    return null;
+  }
+
+  // The trailing clause at the end of `words`: { slot, value, consumed }, { stop: true } or INVALID.
+  function quickClause(words, today, parsePlan) {
+    const n = words.length;
+    const lower = words.map(word => word.toLocaleLowerCase());
+    const last = lower[n - 1];
+    const before = n > 1 ? lower[n - 2] : '';
+    if (before === 'rok' || before === 'due') {
+      const day = quickDay(last, today, { ...QUICK_WEEKDAYS, ...QUICK_WEEKDAYS_SR });
+      if (day) return day === INVALID ? INVALID : { slot: 'dueDate', value: day, consumed: 2 };
+    }
+    if (before === 'do') {
+      const day = quickDay(last, today, QUICK_WEEKDAYS_SR_GENITIVE);
+      if (day) return day === INVALID ? INVALID : { slot: 'dueDate', value: day, consumed: 2 };
+    }
+    if (n >= 3 && (lower[n - 3] === 'za' || lower[n - 3] === 'in') && /^\d+$/.test(before) && own(QUICK_DAY_UNITS, last)) {
+      if (!parsePlan) return { stop: true };
+      const days = Number(before) * QUICK_DAY_UNITS[last];
+      return days >= 1 && days <= 366 ? { slot: 'plannedDate', value: addDays(today, days), consumed: 3 } : INVALID;
+    }
+    const time = last.match(/^(\d{1,2}):(\d{2})$/);
+    if (time) {
+      if (before === 'do') return { stop: true };
+      const value = normalizeTime(`${time[1].padStart(2, '0')}:${time[2]}`);
+      if (!value) return INVALID;
+      return { slot: 'plannedTime', value, consumed: before === 'u' || before === 'at' ? 2 : 1 };
+    }
+    const duration = quickDuration(words);
+    if (duration) return duration.value === INVALID ? INVALID : { slot: 'durationMinutes', value: duration.value, consumed: duration.consumed };
+    const serbianWeekday = own(QUICK_WEEKDAYS_SR, last);
+    const day = quickDay(last, today, serbianWeekday ? QUICK_WEEKDAYS_SR : QUICK_WEEKDAYS);
+    if (!day) return { stop: true };
+    if (!parsePlan || (serbianWeekday && before === 'za')) return { stop: true };
+    if (day === INVALID) return INVALID;
+    return { slot: 'plannedDate', value: day, consumed: serbianWeekday && before === 'u' ? 2 : 1 };
+  }
+
+  // Parses a Quick Add title into task fields. Pure: `tags`, `projects` and `areas` are the existing records to match.
+  function parseQuickAdd(rawTitle, { today = dateOnly(), tags = [], projects = [], areas = [], parsePlan = true, tokens = true, slots = null } = {}) {
+    const original = String(rawTitle || '');
+    const result = { title: original, plannedDate: null, plannedTime: null, dueDate: null, durationMinutes: null, priority: null, tagIds: [], projectId: null, areaId: null };
+    let text = original;
+    if (tokens) {
+      const findLoose = (records, name) => (records || []).find(record => record && !record.isArchived && looseName(record.name) === looseName(name));
+      text = original.replace(/(^|\s)(#[^\s#]+|![^\s!]+|[+@][^\s+@#!]+)(?=\s|$)/g, (match, prefix, token) => {
+        const sigil = token[0];
+        const name = token.slice(1);
+        if (sigil === '#') {
+          const tag = (tags || []).find(item => item && normalizeTagName(item.name).toLocaleLowerCase() === name.toLocaleLowerCase());
+          if (!tag) return match;
+          if (!result.tagIds.includes(tag.id)) result.tagIds.push(tag.id);
+        } else if (sigil === '!') {
+          const priority = QUICK_PRIORITIES[name.toLocaleLowerCase()];
+          if (!priority || result.priority) return match;
+          result.priority = priority;
+        } else {
+          const key = sigil === '+' ? 'projectId' : 'areaId';
+          const record = findLoose(sigil === '+' ? projects : areas, name);
+          if (!record || result[key]) return match;
+          result[key] = record.id;
+        }
+        return prefix;
+      });
+      if (result.projectId) result.areaId = null;
+    }
+    const tokenFree = text.replace(/\s{2,}/g, ' ').trim();
+    const words = tokenFree ? tokenFree.split(' ') : [];
+    const found = {};
+    while (words.length) {
+      const clause = quickClause(words, today, parsePlan);
+      if (clause === INVALID) return { ...result, title: tokens ? tokenFree : original };
+      if (clause.stop || own(found, clause.slot) || (slots && !slots.includes(clause.slot)) || clause.consumed >= words.length) break;
+      found[clause.slot] = clause.value;
+      words.splice(words.length - clause.consumed, clause.consumed);
+    }
+    if (!Object.keys(found).length) return { ...result, title: tokens ? tokenFree : original };
+    return { ...result, ...found, title: words.join(' ') };
+  }
+
+  // V1.5 API kept for its tests: only the trailing plan date and time.
+  function parseQuickPlanPhrase(rawTitle, today) {
+    const parsed = parseQuickAdd(rawTitle, { today, tokens: false, slots: ['plannedDate', 'plannedTime'] });
+    const result = { title: parsed.title, plannedDate: parsed.plannedDate };
+    if (parsed.plannedTime) result.plannedTime = parsed.plannedTime;
+    return result;
   }
 
   function cloneTaskForDuplicate(task, newId, nowIso) {
@@ -1549,7 +1662,7 @@
     habitReminderActive,
     tasksForTag,
     parseQuickPlanPhrase,
-    splitQuickTime,
+    parseQuickAdd,
     cloneTaskForDuplicate,
   };
 });
