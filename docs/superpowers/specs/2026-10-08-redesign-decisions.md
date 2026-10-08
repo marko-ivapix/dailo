@@ -16,7 +16,7 @@
 
 | # | Decision | Status |
 | --- | --- | --- |
-| G1 | **Phone bottom navigation:** Danas, Inbox, Zadaci, Kalendar, Navike, Još (six items). Goals and the other routes move under "Još". What "Zadaci" shows is decided in Z1–Z6; still open: whether six labels fit at 320–375 px. | decided |
+| G1 | **Phone bottom navigation:** Danas, Inbox, Zadaci, Kalendar, Navike, Još (six items). Goals and the other routes move under "Još". What "Zadaci" shows is decided in Z1–Z7; still open: whether six labels fit at 320–375 px. | decided |
 | G2 | **Adding:** one floating "+" at the bottom right (as today). No "+" in screen headers. | decided |
 | G3 | **Background:** neutral graphite (the current `#0F1114` family), not the navy of image 1. The user left it to Claude's recommendation: the blue accent and the red, amber and green status colors read more clearly on a neutral base. | decided |
 | G4 | **Font:** Geist for now; it may change later. | decided |
