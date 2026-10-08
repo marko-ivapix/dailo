@@ -1,6 +1,6 @@
 # Dailo feature inventory
 
-Inspected 2026-10-07 against the current V1.9 source and tests (branch `ccr-95f6062b-lgg2fr`), the V1.9 progress ledger and the V1.7 release ledger. **Implemented** means code exists. **Automated coverage** means relevant assertions exist; some UI assertions inspect source strings rather than drive a browser. **Manual-pending** means native-browser acceptance remains outstanding. Nothing here converts prototype behavior into production/backend verification.
+Inspected 2026-10-07 against the current V1.9 source and tests, the V1.9 progress ledger and the V1.7 release ledger. **Implemented** means code exists. **Automated coverage** means relevant assertions exist; some UI assertions inspect source strings rather than drive a browser. **Manual-pending** means native-browser acceptance remains outstanding. Nothing here converts prototype behavior into production/backend verification.
 
 ## Implemented features and evidence
 

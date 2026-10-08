@@ -20,7 +20,7 @@
 
 - V1.3–V1.7 behavior and the V1.8 visual layer are implemented and covered by automated checks (288 Node tests). Native-browser acceptance is still **manual-pending**: 126 historical items in `docs/codex/ACCEPTANCE.md` are unchecked and the V1.8 manual gate in `docs/superpowers/progress-v1-8.md` is open.
 - First manual result (user, 2026-10-07): on the user's phone the Pages site loads and a new task persists after reload. Recorded later as iPhone, Safari tab (`docs/superpowers/progress-v1-8.md`).
-- **V1.9 update (2026-10-07):** Phase 1 is implemented (V1.9 plan Steps 1–6) on branch `ccr-95f6062b-lgg2fr`, with automated checks green: 330 Node tests, 329 passed, 1 todo, the release gate for the problem-report address. Still open: the report address, `Dailo-v1.9-distributable.zip`, the PR into `main` and the manual iPhone pass. Evidence: `docs/superpowers/progress-v1-9.md`.
+- **V1.9 update (2026-10-07):** Phase 1 is implemented (V1.9 plan Steps 1–6) and merged into `main` through PR #5, with automated checks green: 330 Node tests, 329 passed, 1 todo, the release gate for the problem-report address. Still open: the report address, `Dailo-v1.9-distributable.zip` and the manual iPhone pass. Evidence: `docs/superpowers/progress-v1-9.md`.
 - Release risks found while planning:
   1. **Data loss on iOS Safari.** WebKit deletes script-writable storage (localStorage, IndexedDB) for sites not opened for 7 days unless the site is added to the Home Screen. Dailo has no web app manifest and never calls `navigator.storage.persist()`.
   2. **Offline gaps.** Geist, Space Grotesk and Phosphor icons load from CDNs; there is no service worker, so the app does not open offline and icons disappear without network.
@@ -80,4 +80,4 @@ Spec must decide:
 
 ## Next step
 
-V1.9 is implemented per `docs/superpowers/specs/2026-10-07-todo-v1-9-design.md` and `docs/superpowers/plans/2026-10-07-todo-v1-9.md`. Finish its Step 7 (report address, package, PR into `main`, manual iPhone checklist), then start Phase 2.
+V1.9 is implemented per `docs/superpowers/specs/2026-10-07-todo-v1-9-design.md` and `docs/superpowers/plans/2026-10-07-todo-v1-9.md`. Finish its Step 7 (report address, package, manual iPhone checklist), then start Phase 2.

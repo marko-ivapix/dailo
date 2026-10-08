@@ -1,6 +1,6 @@
 # Current implementation project map
 
-This map describes the V1.9 source inspected on 2026-10-07 (branch `ccr-95f6062b-lgg2fr`). It is an onboarding aid for Claude, not a replacement for `AGENTS.md`, the versioned specifications, or acceptance evidence. The directory name still says V1.3; README describes V1.9 functionality. Inspect source before making version or completion claims.
+This map describes the V1.9 source inspected on 2026-10-07. It is an onboarding aid for Claude, not a replacement for `AGENTS.md`, the versioned specifications, or acceptance evidence. The directory name still says V1.3; README describes V1.9 functionality. Inspect source before making version or completion claims.
 
 ## Runtime files
 

@@ -19,7 +19,7 @@ Then open `http://localhost:8080`.
 
 - The service worker registers only on `https:` or `localhost`/`127.0.0.1`. On a plain-HTTP LAN address the app still works, without offline caching.
 - Shell files are served cache-first until `sw.js` changes. While developing on localhost, bypass or unregister the worker in the browser's developer tools to see edited files.
-- GitHub Pages serves the repository over HTTPS at `https://marko-ivapix.github.io/dailo/`. All paths and the manifest/service-worker scope are relative (`./`), so install and offline start are designed to work under the `/dailo/` sub-path (not yet confirmed on a device). Pages publishes `main`, so V1.9 appears there once its PR is merged.
+- GitHub Pages serves the repository over HTTPS at `https://marko-ivapix.github.io/dailo/`. All paths and the manifest/service-worker scope are relative (`./`), so install and offline start are designed to work under the `/dailo/` sub-path (not yet confirmed on a device). Pages publishes `main`, which carries V1.9 since PR #5.
 
 ## V1.9 beta-ready
 

@@ -3,13 +3,13 @@
 **Updated:** 2026-10-07  
 **Product:** Dailo local-first productivity prototype  
 **Current release on `main`:** V1.8 Quiet Graphite / Swiss Compact visual layer over the V1.7 behavior baseline — merged (`994ac71`) at `https://github.com/marko-ivapix/dailo`, packaged as `Dailo-v1.8-distributable.zip`, native visual acceptance manual-pending\
-**In progress:** V1.9 Beta-ready — Steps 1–6 implemented and automated checks green on branch `ccr-95f6062b-lgg2fr`; Step 7 (report address, package, PR into `main`, manual iPhone pass) open
+**In progress:** V1.9 Beta-ready — Steps 1–6 implemented, automated checks green and merged into `main` through PR #5; Step 7 (report address, package, manual iPhone pass) open
 
 This is the shortest reliable handoff for continuing the project in Claude Code. Read it after `AGENTS.md` and before opening individual modules.
 
 ## Where to work
 
-Work on branch `main` (the GitHub default branch). `feature/todo-v1-3` was merged into `main` on 2026-10-07 and is historical; do not develop on it. Until the V1.9 PR is merged, the V1.9 source lives on branch `ccr-95f6062b-lgg2fr`; finish Step 7 there or on its PR.
+Work on branch `main` (the GitHub default branch). `feature/todo-v1-3` was merged into `main` on 2026-10-07 and is historical; do not develop on it. V1.9 was developed on branch `ccr-95f6062b-lgg2fr` and merged into `main` through PR #5; finish Step 7 on `main` (or a branch from it).
 
 Use the repository root that contains `index.html`, `css/`, `js/`, `tests/` and `docs/`. In the original local workspace this was the isolated worktree:
 
@@ -108,7 +108,7 @@ Native browser acceptance is **manual-pending**. The maintained Python scenarios
 1. **Report address.** When the user supplies the beta problem-report e-mail address, set `REPORT_EMAIL` in `js/release.js`. The release-gate test in `tests/release-v1-9.test.js` then turns from `todo` into a real assertion, and the Settings → About "Report a problem" link appears. Never guess an address and never use the user's account e-mail.
 2. **Full verification.** Re-run the block above and record it in `docs/superpowers/progress-v1-9.md` (expected: 330 passed, 0 failed, 0 todo).
 3. **Package.** Build `Dailo-v1.9-distributable.zip` with the V1.9 recipe in `docs/claude/TESTING_AND_RELEASE.md`, plus its `.sha256` sidecar.
-4. **PR into `main`.** Open a PR from `ccr-95f6062b-lgg2fr`. GitHub Pages serves `main`, so the beta URL updates only after the merge.
+4. **Publish.** Merge the Step 7 changes into `main`; GitHub Pages serves `main`, so the beta URL updates only after that merge.
 5. **Manual iPhone checklist** (spec "Acceptance", recorded only from the user's report): install, standalone layout clear of the status bar and home indicator, airplane-mode launch after one online visit, update prompt after a new deploy, persistence status, backup reminder plus export and import into the installed app, full Serbian walkthrough of every route, Serbian Quick Add and the favorite star.
 
 ## Recommended next work after V1.9

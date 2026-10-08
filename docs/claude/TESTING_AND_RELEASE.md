@@ -4,7 +4,7 @@ This document records the current verification path. It does not turn source ins
 
 ## Run the local automated suite
 
-From the repository root (branch `main`; until the V1.9 PR is merged, V1.9 is on `ccr-95f6062b-lgg2fr`):
+From the repository root (branch `main`):
 
 ```bash
 node --test tests/*.test.js

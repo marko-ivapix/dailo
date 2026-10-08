@@ -1,6 +1,6 @@
 # Dailo — Claude project guide
 
-> Documentation synchronized on 2026-10-07 against the V1.9 source, tests and progress ledger. V1.7 is the behavior baseline and V1.8 (Quiet Graphite) the visual layer; both are on `main` (`994ac71`) at `https://github.com/marko-ivapix/dailo`, with `Dailo-v1.8-distributable.zip` as the current artifact. V1.9 "Beta-ready" (installable PWA, offline shell, data protection, Serbian UI, version and problem report) is implemented and verified by automated/static checks on branch `ccr-95f6062b-lgg2fr`, pending a PR into `main`. `Dailo-v1.9-distributable.zip` is not built yet: it waits for the beta problem-report e-mail address. Native iPhone and browser acceptance is manual-pending.
+> Documentation synchronized on 2026-10-07 against the V1.9 source, tests and progress ledger. V1.7 is the behavior baseline and V1.8 (Quiet Graphite) the visual layer; both are on `main` (`994ac71`) at `https://github.com/marko-ivapix/dailo`, with `Dailo-v1.8-distributable.zip` as the current artifact. V1.9 "Beta-ready" (installable PWA, offline shell, data protection, Serbian UI, version and problem report) is implemented and verified by automated/static checks and merged into `main` through PR #5. `Dailo-v1.9-distributable.zip` is not built yet: it waits for the beta problem-report e-mail address. Native iPhone and browser acceptance is manual-pending.
 
 This file is the entry point for Claude and other coding agents working in this repository.
 
@@ -73,11 +73,11 @@ python3 tests/run-browser-regressions.py --dry-run
 ## Current handoff boundary
 
 - V1.7 behavior is implemented and locally verified. The V1.8 visual redesign is implemented in `css/styles.css` (token system + one appended layer) with minimal markup hooks, verified by automated/static checks only; it is on `main` and packaged as `Dailo-v1.8-distributable.zip` (recipe in `docs/claude/TESTING_AND_RELEASE.md`).
-- V1.9 Beta-ready is implemented on branch `ccr-95f6062b-lgg2fr` (Steps 1–6 of its plan) and verified by automated/static checks only: Node 330 tests, 329 passed, 0 failed, 1 todo. The todo is the release gate for the problem-report address.
+- V1.9 Beta-ready is implemented and merged into `main` through PR #5 (Steps 1–6 of its plan) and verified by automated/static checks only: Node 330 tests, 329 passed, 0 failed, 1 todo. The todo is the release gate for the problem-report address.
 - The browser UI is Serbian only (`sr-Latn`, no language switch). English source strings are the translation keys, and Node tests stay English (`js/i18n.js`, `js/i18n-sr.js`, `tests/support/i18n.js`).
 - Dailo installs to the iPhone Home Screen from Safari (`manifest.webmanifest`, `icons/`) and starts offline through a versioned service worker (`sw.js`, cache `dailo-shell-<APP_VERSION>`). Fonts and icons are vendored; no CDN is used at runtime.
 - Data protection: persistent-storage request and status, a 7-day backup reminder on Today (24 h snooze) and a backup manifest `releaseVersion`. Schema V3, IndexedDB v1 and ZIP `backupVersion: 2` are unchanged.
-- Still open (plan Step 7): set `REPORT_EMAIL` in `js/release.js` when the user supplies it, build `Dailo-v1.9-distributable.zip`, open the PR into `main`, run the manual iPhone checklist. Never publish an address the user has not supplied.
+- Still open (plan Step 7): set `REPORT_EMAIL` in `js/release.js` when the user supplies it, build `Dailo-v1.9-distributable.zip`, run the manual iPhone checklist. Never publish an address the user has not supplied.
 - The app remains static HTML/CSS/vanilla JavaScript with localStorage + IndexedDB; there is no backend, account system, cloud sync or production REST API.
 - Global Search behavior and the no-bulk-actions rule are compatibility constraints. V1.9 translated the Search modal's fixed labels only (approved exception).
 - Native browser, iPhone install/standalone/offline, mobile touch, real IndexedDB/file chooser, Serbian wording and visual acceptance remain **manual-pending**. Never report them as green from Node/static checks.

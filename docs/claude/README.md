@@ -1,6 +1,6 @@
 # Claude documentation index
 
-These files are the current implementation handoff for Claude and other agents. They were synchronized on 2026-10-07 against the V1.9 source, tests and progress ledger (branch `ccr-95f6062b-lgg2fr`, pending a PR into `main`).
+These files are the current implementation handoff for Claude and other agents. They were synchronized on 2026-10-07 against the V1.9 source, tests and progress ledger (merged into `main` through PR #5).
 
 | File | Use it for |
 | --- | --- |
