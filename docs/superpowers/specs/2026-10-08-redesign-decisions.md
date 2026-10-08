@@ -107,13 +107,27 @@ Images 3–9: "Edit task", and the Project, Planned date, Priority, Reminder, Ta
 - **Tapping a ring opens that day in Dan,** from either view, so a forgotten habit can be marked. The selected day gets a quiet background, and the list starts with that day's name and date ("Utorak, 6. oktobar"). A past day toggles done and missed; a skipped day becomes done. Future days are inactive. Tapping today's ring returns to today, and opening the screen always starts at today.
 - **"Napredak" under the list,** in both views: the per-habit bars (H7), then a line chart for the **calendar month** with arrows (image 11) and the y axis up to 100%. Only today's value is labelled on the line, so a past month has no label; touching or hovering shows any day's value.
 
-## New habit (image 13)
+## New habit (images 13 and 16–18)
 
 | # | Decision | Status |
 | --- | --- | --- |
 | N1 | **A window/panel** like the task window and Quick Add, not a full-screen page. A big "Napravi naviku" button at the bottom. | decided |
-| N2 | **First screen:** name, area (optional), routine (Jutro / Dan / Veče, default Dan), tracking (Kvadratić / Brojevno, default Kvadratić), frequency (default "Svaki dan"), reminder time, and "Više". | decided |
-| N3 | **Numeric tracking:** choosing "Brojevno" shows the target and unit right below (e.g. 2 l, 20 min). | accepted as the basis (no objection) |
-| N4 | **Under "Više":** start, end, minimum and ideal targets, grace days, linked goals. | accepted as the basis (no objection) |
+| N2 | **First screen:** name, area (optional), routine (Jutro / Dan / Veče, default Dan), tracking (Kvadratić / Brojevno, default Kvadratić), frequency (default "Svaki dan"), reminder, and "Više". The reminder can hold several times ("+ Dodaj vreme"). Without a name, "Napravi naviku" asks for one. | decided |
+| N3 | **Numeric tracking:** choosing "Brojevno" shows the target and unit right below, per day ("Cilj 2 l po danu"). | decided |
+| N4 | **Under "Više"** (revised 2026-10-08): rows with "›" that open a small sheet, as in the task window. Details below the table. | decided |
 | N5 | **Segmented choices** highlight the selected option in neutral gray, like the other switches; blue is only for the main button. | accepted as the basis (no objection) |
-| N6 | **The frequency sheet** works like the task repeat sheet: Svaki dan / Određeni dani / X puta nedeljno / Na svakih N dana. | accepted as the basis (no objection) |
+| N6 | **The frequency sheet** (images 16–18): Svaki dan / Određeni dani / X puta nedeljno / Na svakih N dana, with the habit name under the title. Details below the table. | decided |
+
+**N4, decided 2026-10-08 (prototype `nova-navika.html`):**
+- **Početak:** default Danas; the date sheet as in the task window (Danas / Sutra / Sledeće nedelje, month grid).
+- **Kraj:** Nikad / Na datum / after a number of successful periods (days, or weeks for "X puta nedeljno"), like the end of a task repeat.
+- **Minimalna i idealna:** only for "Brojevno" and "X puta nedeljno"; blank means the same as the target, and the ideal must be at least the minimum. For "X puta nedeljno" both count check-ins per week, as in the current app. Changing the tracking or switching to or from "X puta nedeljno" clears them.
+- **Brze vrednosti:** only for "Brojevno". They are suggested from the target (2 l → +0,25 +0,5 +1; 20 min → +5 +10 +20) until the person changes them, and they appear in the value sheet (H6).
+- **Povezani ciljevi:** multiple choice, like tags.
+- **Moved to the habit details:** "Nastavak" (continuation) and "Dani tolerancije" (grace days) leave the new habit window. A note under "Više" says where they are.
+
+**N6, decided 2026-10-08:**
+- One "Primeni" button; X closes without a change (no "Cancel" / "Save frequency" pair).
+- **Određeni dani:** seven day buttons, the working days by default, and at least one day is required.
+- **X puta nedeljno:** a stepper and the note that a day counts once and the weekly target can be exceeded.
+- **Na svakih N dana:** the stepper in one row ("Na svaka 3 dana"), the start date (the same date as "Početak") and the next three dates. No repeated summary sentence.
