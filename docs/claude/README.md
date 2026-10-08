@@ -1,6 +1,6 @@
 # Claude documentation index
 
-These files are the current implementation handoff for Claude and other agents. They were synchronized on 2026-10-08 against the V1.12 source, tests and progress ledgers (V1.10 Smart Quick Add at `c64bd81`, V1.11 Weekly review at `5bbd820` and V1.12 Duration and time-blocking at `d00855b`, pending merge into `main` together through one PR; V1.9 merged through PR #5 and V1.9.1, which completes its Step 7, through PR #6).
+These files are the current implementation handoff for Claude and other agents. They were synchronized on 2026-10-08 against the V1.12 source, tests and progress ledgers (V1.10 Smart Quick Add at `c64bd81`, V1.11 Weekly review at `5bbd820` and V1.12 Duration and time-blocking at `d00855b`, merged into `main` together through PR #7 (`31fb23d`); V1.9 merged through PR #5 and V1.9.1, which completes its Step 7, through PR #6).
 
 | File | Use it for |
 | --- | --- |

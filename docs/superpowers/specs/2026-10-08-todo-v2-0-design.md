@@ -25,10 +25,15 @@ Two problems that V1.x cannot solve go away:
   - App, for resume events that trigger a sync.
 - **Web build:** the PWA on GitHub Pages stays and gets the same sync after sign-in.
 
-### B. Accounts: Supabase Auth with an e-mail magic link
+### B. Accounts: Supabase Auth, e-mail without a password (decided 2026-10-08)
 
+- **When:** sign-in arrives only with V2.0, together with the app and sync (user decision 2026-10-08). The V1.x web app gets no sign-in.
 - **Sign-in:** optional. Without signing in, Dailo behaves exactly as V1.12 (local only).
-- **Method:** an e-mail magic link (no passwords). Sign in with Apple is not required by App Store rules when the app offers no third-party social login.
+- **Method:** the user types an e-mail address and enters a 6-digit one-time code sent to that address (Supabase e-mail OTP). There is no password.
+  - **Code, not link:** on iPhone a link in the e-mail opens Safari, not the installed app, so a code typed into the app is more reliable.
+  - **Session:** it stays on the device until the user signs out, so the code is needed only once per device.
+  - **Not an option:** remembering the address without verifying it. Anyone who typed someone else's address would get that person's data.
+  - **Sign in with Apple:** not required by App Store rules when the app offers no third-party social login.
 - **Account deletion:** required by the App Store. It deletes the account and all its rows and files, from Settings.
 
 ### C. Data mapping (Postgres + Row Level Security)
@@ -87,7 +92,7 @@ Each phase gets its plan, failing tests first, and a ledger, as V1.x did.
 ## Decisions for the user
 
 1. **Platforms first:** iPhone only, or iPhone and Android together? Recommendation: iPhone first (TestFlight), Android right after.
-2. **Sign-in method:** e-mail magic link only (recommended), or also Sign in with Apple?
+2. ~~**Sign-in method.**~~ **Decided 2026-10-08:** e-mail without a password (one-time code), and only with V2.0.
 3. **Conflict policy:** is last-write-wins per record, with the losing version kept in recovery snapshots, acceptable for the beta?
 4. **Attachments in sync:** include files from the start (Storage costs and upload time), or sync records first and attachments in V2.1? Recommendation: records first.
 5. **App name and identifier:** "Dailo" with bundle id `cloud.ivapix.dailo` (proposal, derived from the report e-mail domain)?

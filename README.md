@@ -19,7 +19,7 @@ Then open `http://localhost:8080`.
 
 - The service worker registers only on `https:` or `localhost`/`127.0.0.1`. On a plain-HTTP LAN address the app still works, without offline caching.
 - Shell files are served cache-first until `sw.js` changes. While developing on localhost, bypass or unregister the worker in the browser's developer tools to see edited files.
-- GitHub Pages serves the repository over HTTPS at `https://marko-ivapix.github.io/dailo/`. All paths and the manifest/service-worker scope are relative (`./`), so install and offline start work under the `/dailo/` sub-path; the user confirmed both on iPhone from this URL on 2026-10-08. Pages publishes `main`, which carries V1.9.1 since PR #6; V1.10, V1.11 and V1.12 appear there once they are merged into `main` together through one PR.
+- GitHub Pages serves the repository over HTTPS at `https://marko-ivapix.github.io/dailo/`. All paths and the manifest/service-worker scope are relative (`./`), so install and offline start work under the `/dailo/` sub-path; the user confirmed both on iPhone from this URL on 2026-10-08. Pages publishes `main`, which carries V1.9.1 since PR #6; V1.10, V1.11 and V1.12 are there since PR #7.
 - The Serbian beta tester guide is at `https://marko-ivapix.github.io/dailo/uputstvo.html` (also linked from Settings → About). It is not precached, so it opens only online.
 
 ## V1.12 Duration and time-blocking (current release)
@@ -74,7 +74,7 @@ This saves "Pošalji ponudu" in the project Klijenti, with the tag `posao`, high
 - **Live preview.** Pills under the title ("Prepoznato u naslovu") list the recognized plan date and time, due date, duration, project or Area, tags and priority, and update on every keystroke. Nothing is shown when nothing is recognized.
 - The beta guide `uputstvo.html` lists the new syntax. Voice input stays out of scope: iOS keyboard dictation already types into the title field.
 
-Spec: `docs/superpowers/specs/2026-10-08-todo-v1-10-design.md`. Plan: `docs/superpowers/plans/2026-10-08-todo-v1-10.md`. Evidence: `docs/superpowers/progress-v1-10.md` (348 Node tests, 348 passed). V1.10 is pending merge into `main` together with V1.11 and V1.12 through one PR. V1.10 has no ZIP of its own; it is in `Dailo-v1.12-distributable.zip`. Typing the new syntax and the preview on a real iPhone are **manual-pending** (beta checklist B25).
+Spec: `docs/superpowers/specs/2026-10-08-todo-v1-10-design.md`. Plan: `docs/superpowers/plans/2026-10-08-todo-v1-10.md`. Evidence: `docs/superpowers/progress-v1-10.md` (348 Node tests, 348 passed). V1.10 was merged into `main` together with V1.11 and V1.12 through PR #7. V1.10 has no ZIP of its own; it is in `Dailo-v1.12-distributable.zip`. Typing the new syntax and the preview on a real iPhone are **manual-pending** (beta checklist B25).
 
 ## V1.9 beta-ready (V1.9.1)
 
