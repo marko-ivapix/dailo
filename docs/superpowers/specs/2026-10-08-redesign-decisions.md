@@ -131,3 +131,15 @@ Images 3–9: "Edit task", and the Project, Planned date, Priority, Reminder, Ta
 - **Određeni dani:** seven day buttons, the working days by default, and at least one day is required.
 - **X puta nedeljno:** a stepper and the note that a day counts once and the weekly target can be exceeded.
 - **Na svakih N dana:** the stepper in one row ("Na svaka 3 dana"), the start date (the same date as "Početak") and the next three dates. No repeated summary sentence.
+
+## Goals (Claude's proposal, prototype `ciljevi-predlog.html`)
+
+| # | Decision | Status |
+| --- | --- | --- |
+| GO1 | **List:** the "Ciljevi" title with one summary line ("6 aktivnih · 1 u riziku · 1 kasni") instead of the "Pregled ciljeva" dashboard and the Aktivne / Sve / Arhivirane / Po mesecima tabs. | accepted as the basis (no objection) |
+| GO2 | **Grouping:** a "Horizont / Rok" switch; Horizont (Kratkoročno, Srednjoročno, Dugoročno) is the default, and Rok groups by the month of the target date, with "Bez datuma" last. | decided |
+| GO3 | **Goal row:** title, percentage, a thin bar and a meta line (progress such as "14 od 20 zadataka", and the date). The bar is green when on track, amber "U riziku" (the target date within seven days and progress below 75%) and red "Kasni" (the date has passed); the words appear only for those two states. | accepted as the basis (no objection) |
+| GO4 | **Finished and paused goals** fold at the bottom ("Ostvareni · N", "Pauzirani · N"), as on the Habits screen (H5). | accepted as the basis (no objection) |
+| GO5 | **Goal window** like the task window (D1): title and area link; a progress card with the big percentage, the bar and the goal state; Etape with round checks and "+ Dodaj etapu"; linked tasks (with checkboxes) or the habit contributions; Planiranje (Ciljni datum, Horizont, Izvor napretka, Podsetnik), Organizacija (Oblast, Povezano) and "Više opcija" (Istorija, pauza, arhiva). A manual goal has "Ažuriraj napredak" with quick values. | accepted as the basis (no objection) |
+| GO6 | **"Označi kao ostvaren"** at the bottom of the goal window stays gray until the goal reaches 100% and turns blue then; "Vrati kao aktivan" for a finished goal. | decided |
+| GO7 | **New goal window** like the new habit window (N1): name, area, Horizont (default Kratkoročno), Napredak (Ručno / Zadaci / Navike; Ručno offers Procenat / Broj with a target and unit), Ciljni datum (quick choices: Za mesec dana, Za 3 meseca, Kraj godine), and "Više" (Etape, Podsetnik, links). The floating "+" on this screen opens it. | accepted as the basis (no objection) |
