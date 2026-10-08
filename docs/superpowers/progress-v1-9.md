@@ -184,9 +184,10 @@ Checks: focused i18n 9/9 and Quick Add 5/5; full Node **329 pass, 0 fail, 1 todo
 | 2026-10-08 | iPhone, Safari, then installed to the Home Screen | GitHub Pages `https://marko-ivapix.github.io/dailo/` at `5554877` (PR #5) | V1.9 works on the phone; the app was installed to the Home Screen | Passed (reported by the user) |
 | 2026-10-08 | iPhone, installed app | same | The installed app works in airplane mode; the interface is entirely in Serbian | Passed (reported by the user) |
 | 2026-10-08 | iPhone, installed app | same | Serbian Quick Add works; the favorite star is visible | Passed (reported by the user) |
+| 2026-10-08 | iPhone, installed app | same | Standalone layout looks right; content does not go under the status bar | Passed (reported by the user) |
 
 Only the items in this table were observed. Still **manual-pending**:
-- standalone layout clear of the status bar and home indicator;
+- bottom edge clear of the home indicator (not reported separately);
 - update prompt after a new deploy;
 - persistence status;
 - backup reminder plus export and import into the installed app.
