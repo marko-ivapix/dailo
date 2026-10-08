@@ -49,7 +49,7 @@
 | --- | --- | --- |
 | D1 | **The task stays a modal/popup,** not a full-screen page. | decided |
 | D2 | **Content basis from image 1:** a title with a checkbox, a project link, Planned, Due and Priority rows, subtasks with a count, notes, attachments and "More details". | accepted as the basis (no objection; the user can still change it) |
-| D3 | **Fixes:** one completion control instead of two; a "›" on editable rows; a different icon for Due than for Planned. | decided |
+| D3 | **Fixes:** one completion control instead of two, the large "Završi zadatak" button at the bottom of the task window (no checkbox by the title; "Vrati kao otvoren" when done); a "›" on editable rows; a different icon for Due than for Planned. Shown in the task prototype on 2026-10-08. | decided |
 | D4 | **Reminder and duration** outside "More details". | decided |
 
 ## Quick add (image 1, right)
