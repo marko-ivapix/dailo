@@ -133,7 +133,7 @@ test('Today shows one backup notice with export and snooze actions only when the
 
 test('storage persistence is requested only on demand and reports unsupported browsers', async () => {
   const run = async (navigatorValue, request) => {
-    const ctx = { state: emptyState(), Core, esc: String, nowIso: () => NOW, localStorage: { getItem: () => null, setItem() {} }, navigator: navigatorValue, Native: { isNative: false } };
+    const ctx = { state: emptyState(), Core, esc: String, nowIso: () => NOW, localStorage: { getItem: () => null, setItem() {} }, navigator: navigatorValue };
     vm.createContext(withI18n(ctx));
     vm.runInContext(appRegion('  function backupReminderNotice(', '  async function exportBackupAction('), ctx);
     // The status object comes from another realm; compare plain data.

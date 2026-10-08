@@ -328,7 +328,7 @@ test('the app wires sync into saving, startup, dialogs, actions and the domain c
   const app = read('js/app.js');
   assert.match(app, /const Sync = window\.DailoSync \|\| null;/);
   assert.match(app, /const syncClient = Sync\?\.isConfigured\(syncConfig\) \? Sync\.createClient\(\{ url: syncConfig\.url, anonKey: syncConfig\.anonKey \}\) : null;/);
-  assert.match(app, /scheduleAutomaticSnapshot\(\);\n\s+scheduleSync\(\);\n/, 'every successful save schedules a sync');
+  assert.match(app, /scheduleAutomaticSnapshot\(\);\n\s+scheduleSync\(\);\n\s+return true;/, 'every successful save schedules a sync');
   assert.match(app, /await startReady\(\);[\s\S]*?startSync\(\);[\s\S]*?registerServiceWorker\(\);/, 'sync starts after the data is ready');
   assert.match(app, /else if \(modalState\.type === 'sync-choice'\) root\.innerHTML = renderSyncChoice\(\);/);
   for (const action of ['sync-request-code', 'sync-verify-code', 'sync-change-email', 'sync-now', 'sync-sign-out', 'sync-delete-account', 'sync-choose']) {
@@ -372,10 +372,9 @@ test('a fired text save clears its timer, so a finished edit does not hold the s
   assert.equal(context.saves, 1, 'nothing is left to flush');
 });
 
-// The newest release test pins the exact version; this one only requires a V2 release.
-test('V2.0-a shipped as 2.0.0-alpha.1 or later', () => {
-  assert.match(Release.APP_VERSION, /^2\.\d+\.\d+/);
-  assert.ok(read('sw.js').includes(`const VERSION = '${Release.APP_VERSION}';`), 'sw.js follows APP_VERSION');
+test('V2.0-a is released as 2.0.0-alpha.1', () => {
+  assert.equal(Release.APP_VERSION, '2.0.0-alpha.1');
+  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.1';/);
 });
 
 test('after a reset or a restored backup the next sync asks again instead of pushing deletions', async () => {

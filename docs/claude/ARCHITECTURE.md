@@ -1,10 +1,10 @@
 # Current implementation architecture
 
-This document records the V1.9 implementation inspected on 2026-10-07, the V1.10 Quick Add parser (`c64bd81`), the V1.11 weekly review (`5bbd820`), the V1.12 time-blocking (`d00855b`) the V2.0-a sync (`65aeabf`, `7a834db`) and the V2.0-b Capacitor shell (`51c098f`, `2bfc2d0`), inspected on 2026-10-08. It describes mechanisms present in source, not proof of functional, visual or native-browser acceptance. Read `AGENTS.md` and the applicable versioned spec before changing behavior.
+This document records the V1.9 implementation inspected on 2026-10-07, the V1.10 Quick Add parser (`c64bd81`), the V1.11 weekly review (`5bbd820`), the V1.12 time-blocking (`d00855b`) and the V2.0-a sync (`65aeabf`, `7a834db`), inspected on 2026-10-08. It describes mechanisms present in source, not proof of functional, visual or native-browser acceptance. Read `AGENTS.md` and the applicable versioned spec before changing behavior.
 
 ## Composition and module boundaries
 
-The app is a static HTML/CSS/vanilla JavaScript browser application using classic scripts, not ES modules or a framework. `index.html` loads since V2.0-b the Capacitor runtime (`vendor/capacitor/capacitor.js`), then JSZip, Release (`js/release.js`), I18n (`js/i18n.js`), the Serbian catalog (`js/i18n-sr.js`), Core, Storage, Attachments, Backup, since V2.0-a the sync config (`js/sync-config.js`) and Sync (`js/sync.js`), since V2.0-b the native bridge (`js/native.js`), the domain registry, UI adapters, and finally `app.js`, in that order. Shared APIs live on `window`/`globalThis`; Release, I18n, Core, Storage, Attachments, Backup and Sync also expose CommonJS exports for tests.
+The app is a static HTML/CSS/vanilla JavaScript browser application using classic scripts, not ES modules or a framework. `index.html` loads JSZip, Release (`js/release.js`), I18n (`js/i18n.js`), the Serbian catalog (`js/i18n-sr.js`), Core, Storage, Attachments, Backup, since V2.0-a the sync config (`js/sync-config.js`) and Sync (`js/sync.js`), the domain registry, UI adapters, and finally `app.js`, in that order. Shared APIs live on `window`/`globalThis`; Release, I18n, Core, Storage, Attachments, Backup and Sync also expose CommonJS exports for tests.
 
 UI adapters register `renderRoute`, `handleAction`, `handleInput`, or additional hooks with `TodoDomainModules`. `app.js` calls adapters in registration order and accepts the first result that is neither `undefined` nor `false`. A handler returns `true` when it has consumed an event; renderers return HTML. Task rows additionally use the `renderTaskRow` hook.
 
@@ -113,27 +113,6 @@ Automatic captures are scheduled after one idle second, rate limited to five min
 - **Reset and restore.** A committed full reset or ZIP restore calls `forgetSyncShadow()` (drops `shadow` and `cursor`, keeps the session), so the next round is a first sync and never pushes tombstones for everything that disappeared.
 - **Triggers.** `startSync()` in `init` adds `visibilitychange` (visible → 0.5 s) and `online` (0.5 s), a 5-minute interval and a first sync after 1 s; `saveState` calls `scheduleSync()` (3 s, debounced). "Sinhronizuj sada" calls `runSync()` directly.
 
-## Native app (V2.0-b)
-
-- **Build.**
-  - `npm run build` (`tools/build-www.mjs`) copies exactly `SHELL_FILES` into `www/`; `npx cap sync` copies `www/` into the iOS and Android projects.
-  - The app runs the same classic scripts as the web build. Capacitor serves them from `capacitor://localhost` (iOS) or `https://localhost` (Android).
-- **Runtime.**
-  - `vendor/capacitor/capacitor.js` completes the native bridge with `Capacitor.registerPlugin`.
-  - `js/native.js` `createBridge()` returns an inert object on the web; in the app it holds the plugin proxies (`LocalNotifications`, `App`, `Filesystem`, `Share`).
-  - `app.js` creates `Native` once at load.
-- **Reminders.**
-  - `scheduleNativeReminders(delay = 2000)` computes `Core.upcomingReminders(state, now, { logs: state.habitLogCache })`: at most 60 moments in 14 days, under the iOS limit of 64 pending notifications.
-  - `toNotifications` maps them with stable ids. `scheduleReminders` replaces the pending set only with permission and skips an unchanged set.
-  - It runs after every successful `saveState`, at once on start (`startNative`) and on resume.
-  - The in-app `checkReminders` still marks fired moments and shows in-app notices; the next schedule drops them.
-- **Events.** The App `resume` listener runs `checkReminders`, `scheduleSync(500)` and `scheduleNativeReminders(0)`. A notification tap opens `extra.route` (only `#route` values).
-- **Files.** `downloadBackup` writes the ZIP into the Filesystem cache and opens the share sheet. The safety ZIP of a reset or restore does the same without waiting. Import uses the web file input, which the WebView maps to the system file picker.
-- **App-only states.**
-  - No service worker. Storage persistence reports `native`, and `environmentInfo().standalone` is true.
-  - The Settings notification button uses native permission, and the guide link opens the online `uputstvo.html`.
-  - Android `SystemBars` (`insetsHandling: css`) keeps `env(safe-area-inset-*)` correct for the existing CSS; iOS uses `contentInset: never` for the same.
-
 ## Routes, rendering and events
 
 `currentRoute()` parses `location.hash`; supported list routes include Today, Inbox, Upcoming, Calendar, Anytime, Tags, Areas, Notes, Resources, Goals, Habits, Templates, Projects, Cleaning, Saved Views, Archived, Completed, Review (`#review`, V1.11) and Settings. Detail routes use `project/`, `area/`, `goal/`, `habit/`, `note/`, `resource/` and `saved-view/` IDs. Missing records fall back according to route type. Task detail opens as a modal rather than a task hash route.
@@ -166,6 +145,6 @@ Planned date/time and due date/time are independent metadata. Manual ordering fi
 
 Normal deletion uses confirmation and the app's Undo/delete lifecycle, with owned records/files retained or restored as appropriate. Reset, ZIP replacement and selective restore coordinate a downloaded safety ZIP, internal recovery snapshot, typed confirmation, guarded writes, verification and rollback. Post-commit cleanup failures retain recovery information instead of treating a verified replacement as uncommitted. Selective restore preparation reconciles supported reciprocal links; missing dependencies can stop replacement. Inspect `backup.js`, `storage.js` and coordinating app operations together before changing this contract.
 
-Browser integrations are localStorage, IndexedDB, file inputs/drag-drop, Blob/object-URL downloads/opening, optional Notification permission, dates/timers, hash navigation and, since V1.9, the Storage API (`navigator.storage`), a service worker with Cache Storage and `mailto:` links. Fonts, Phosphor icons and JSZip are vendored; no CDN is used at runtime. Since V2.0-a, `js/sync.js` uses `fetch` against the optional Supabase project (only when configured and signed in). Since V2.0-b, inside the native app only, Capacitor plugins provide local notifications, file writing, the share sheet and app lifecycle events. No other HTTP business API, WordPress integration, external calendar synchronization or push notification is supplied by these runtime files. The service worker caches the app shell only; reminders and scheduled templates still run only while the page is open.
+Browser integrations are localStorage, IndexedDB, file inputs/drag-drop, Blob/object-URL downloads/opening, optional Notification permission, dates/timers, hash navigation and, since V1.9, the Storage API (`navigator.storage`), a service worker with Cache Storage and `mailto:` links. Fonts, Phosphor icons and JSZip are vendored; no CDN is used at runtime. Since V2.0-a, `js/sync.js` uses `fetch` against the optional Supabase project (only when configured and signed in). No other HTTP business API, WordPress integration, external calendar synchronization or push notification is supplied by these runtime files. The service worker caches the app shell only; reminders and scheduled templates still run only while the page is open.
 
 Node tests exercise pure rules, storage/backup logic and selected controller/adapter behavior with doubles; Python scenarios exercise browser paths when actually run in an available browser. Existing progress documents distinguish automated release checks from deferred browser/visual acceptance. This documentation change does not verify persistence, keyboard, mobile or visual behavior in a native browser.

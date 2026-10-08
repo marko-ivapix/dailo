@@ -1135,54 +1135,6 @@
     return habit.frequencyType !== 'timesPerWeek' || metrics.currentPeriodCount < metrics.currentPeriodTarget;
   }
 
-  // Native reminders (V2.0-b): the next reminder moments, scheduled as local notifications so they
-  // arrive while the app is closed. Mirrors the in-app checker: open tasks' reminderAt, active goals'
-  // reminder moments, and habit reminder times on scheduled days (a snooze silences the moments before
-  // it; a met weekly target silences the rest of the current week). Fired and past moments are skipped.
-  function upcomingReminders(state, now, { days = 14, limit = 60, logs = {} } = {}) {
-    const start = new Date(now).getTime();
-    if (!state || !Number.isFinite(start)) return [];
-    const end = start + days * 86400000;
-    const list = [];
-    const add = (kind, item, at, key, title) => {
-      const time = new Date(at).getTime();
-      if (Number.isFinite(time) && time > start && time <= end) list.push({ key, kind, id: item.id, at: new Date(time).toISOString(), title });
-    };
-    for (const task of state.tasks || []) {
-      if (!task.isCompleted && task.reminderAt && !task.reminderFiredAt) add('task', task, task.reminderAt, `task:${task.id}:${task.reminderAt}`, task.title);
-    }
-    for (const goal of state.goals || []) {
-      if (goal.status !== 'active') continue;
-      const fired = new Set(Array.isArray(goal.reminderFiredMoments) ? goal.reminderFiredMoments : []);
-      for (const moment of goalReminderMoments(goal)) if (!fired.has(moment)) add('goal', goal, moment, `goal:${goal.id}:${moment}`, goal.title);
-    }
-    const weekStartsOn = weekStartKey(state.settings?.weekStartsOn);
-    const today = dateOnly(new Date(start));
-    for (const habit of state.habits || []) {
-      if (habit.status !== 'active') continue;
-      if (habit.pendingSnoozeAt) add('habit', habit, habit.pendingSnoozeAt, `habit:${habit.id}:snooze:${habit.pendingSnoozeAt}`, habit.name);
-      const times = (habit.reminders || []).filter(reminder => reminder?.enabled && normalizeTime(reminder.time)).map(reminder => normalizeTime(reminder.time));
-      if (!times.length) continue;
-      const fired = new Set(habit.reminderFiredMoments || []);
-      const snoozedUntil = habit.snoozedUntil ? new Date(habit.snoozedUntil).getTime() : null;
-      let quietWeek = null;
-      if (habit.frequencyType === 'timesPerWeek') {
-        const metrics = deriveHabitMetrics(habit, logs[habit.id] || [], today, weekStartsOn);
-        if (metrics.currentPeriodCount >= metrics.currentPeriodTarget) quietWeek = weekStartFor(today, weekStartsOn);
-      }
-      for (let offset = 0; offset <= days; offset += 1) {
-        const date = addDays(today, offset);
-        if (!habitScheduledOn(habit, date) || (quietWeek && weekStartFor(date, weekStartsOn) === quietWeek)) continue;
-        for (const time of times) {
-          const moment = combineDateTime(date, time);
-          if (!moment || fired.has(moment) || (snoozedUntil && new Date(moment).getTime() < snoozedUntil)) continue;
-          add('habit', habit, moment, `habit:${habit.id}:${moment}`, habit.name);
-        }
-      }
-    }
-    return list.sort((a, b) => a.at.localeCompare(b.at) || a.key.localeCompare(b.key)).slice(0, limit);
-  }
-
   function tasksForTag(tasks, tagId) {
     return (tasks || []).filter(task => !task.isCompleted && Array.isArray(task.tagIds) && task.tagIds.includes(tagId));
   }
@@ -1773,7 +1725,6 @@
     backupReminderDays,
     weeklyReviewLog,
     dailyCapacityMinutes,
-    upcomingReminders,
     dayLoad,
     daySchedule,
     recordWeeklyReview,

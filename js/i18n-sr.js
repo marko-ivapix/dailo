@@ -1458,16 +1458,6 @@
     "Your data is on this device and in your sync account on a server in the EU. Attachments stay only on this device.": "Tvoji podaci su na ovom uređaju i na nalogu za sinhronizaciju, na serveru u EU. Prilozi ostaju samo na ovom uređaju.",
     "Your data stays only on this device until you sign in to sync.": "Tvoji podaci ostaju samo na ovom uređaju dok se ne prijaviš za sinhronizaciju.",
 
-    // V2.0-b Native app (js/native.js, js/settings-ui.js, js/app.js)
-    "Dailo backup": "Dailo rezervna kopija",
-    "The backup could not be shared: {error}": "Rezervna kopija nije podeljena: {error}",
-    "Backup export was cancelled": "Izvoz rezervne kopije je otkazan.",
-    "Notifications are already on": "Obaveštenja su već uključena",
-    "Notifications are turned off in the phone settings": "Obaveštenja su isključena u podešavanjima telefona",
-    "Notifications are on": "Obaveštenja su uključena",
-    "The app keeps its data in its own storage on this device. Keep regular backups.": "Aplikacija čuva podatke u sopstvenom prostoru na ovom uređaju. Redovno pravi rezervne kopije.",
-    "Task, goal and habit reminders arrive as notifications on this device, also when Dailo is closed.": "Podsetnici za zadatke, ciljeve i navike stižu kao obaveštenja na ovaj uređaj, i kad je Dailo zatvoren.",
-
     // Data, storage, backup and recovery errors shown to the user (js/backup.js, js/storage.js, js/core.js, js/app.js)
     "Interrupted operation": "Prekinuta operacija",
     "Undo failed": "Poništavanje nije uspelo",

@@ -66,7 +66,7 @@ function scheduler() {
   let date = '2026-09-17', index = 0;
   const ctx = { state: state(), Core: { ...Core, dateOnly: () => date }, uid: kind => `${kind}-${++index}`, nowIso: () => `${date}T12:00:00Z`, nextOrder: () => 0,
     globalOperation: null, recovery: null, startupPromise: null, structuredClone, copyTemplate: clean, modalState: {}, saveState: () => true, closeModal() {}, render() {},
-    lastToday: date, attachEvents() {}, startReady: async () => {}, scheduleAutomaticSnapshot() {}, startSync() {}, startNative() {}, updateStoragePersistence: async () => ({ state: 'unsupported' }), registerServiceWorker() {}, location: { hash: '#today' }, checkReminders() {}, refreshHabitDateBoundary: async () => {}, console,
+    lastToday: date, attachEvents() {}, startReady: async () => {}, scheduleAutomaticSnapshot() {}, startSync() {}, updateStoragePersistence: async () => ({ state: 'unsupported' }), registerServiceWorker() {}, location: { hash: '#today' }, checkReminders() {}, refreshHabitDateBoundary: async () => {}, console,
     setInterval: callback => { ctx.tick = callback; }, getGoal: id => ctx.state.goals.find(goal => goal.id === id) };
   vm.createContext(withI18n(ctx)); vm.runInContext(functions(app, ['runScheduledTaskTemplates', 'syncTemplateEntityGoalLinks', 'saveTemplateRecord', 'init']), ctx);
   return { ctx, date: value => { date = value; } };
