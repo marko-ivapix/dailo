@@ -166,3 +166,14 @@ Images 3–9: "Edit task", and the Project, Planned date, Priority, Reminder, Ta
 | Z5 | **Kad stignem view:** the tasks grouped by project ("Bez projekta" first), in the Today row style (T3). | accepted as the basis (no objection) |
 | Z6 | **Projekti view:** a "Bez projekta" row on top, then the projects **grouped by area**; each row has the project color dot, the open count, the nearest due date in the G6 colors and a thin bar of done tasks; "+ Novi projekat" at the end. | decided (grouping); accepted as the basis (row) |
 | Z7 | **Project screen:** "‹ Zadaci", color, name, area, open and done counts, the linked goal ("Cilj: …"); open tasks, "+ Dodaj zadatak", done tasks folded at the bottom; "⋯" with Preimenuj i boja, Oblast, Povezani cilj, Sačuvaj kao šablon, Arhiviraj, Obriši. The floating "+" adds a task to the open project. | accepted as the basis (no objection) |
+
+## Inbox (Claude's proposal, prototype `inbox-predlog.html`)
+
+| # | Decision | Status |
+| --- | --- | --- |
+| I1 | **Screen top:** the "Inbox" title and one line ("8 stavki čeka razvrstavanje"); the Inbox item in the bottom navigation shows the count in a small gray badge (not red, to avoid pressure). | decided |
+| I2 | **"Razvrstaj redom"** opens one item at a time in a sheet with large buttons: for a task Danas, Sutra, Kad stignem, Projekat…; for a note, resource, goal or habit Otvori, Oblast…, Razvrstano. "Preskoči", a counter ("3 od 6"), and "Gotovo" at the end. Deleting is not offered here; it stays in the task window. | decided |
+| I3 | **Filters** (Sve, Zadaci, Beleške, …) show only the types present in Inbox, with counts, instead of always six tabs. | accepted as the basis (no objection) |
+| I4 | **Groups by capture time** stay: Danas, Juče, Ove nedelje, Ranije. | accepted as the basis (no objection) |
+| I5 | **Quick buttons under every row stay:** a task gets Danas / Sutra / Kad stignem / Projekat…; another item gets Otvori / Oblast… / Razvrstano. "Ukloni" is renamed "Razvrstano", because it only takes the item out of Inbox. A new "Oblast…" sorts a non-task item into an area. | decided |
+| I6 | **Every sorting action** shows a message with "Poništi". An empty Inbox shows a check and "Sve je razvrstano". | accepted as the basis (no objection) |
