@@ -265,6 +265,7 @@
         || new Set(state.settings.todayVisibleSections).size !== state.settings.todayVisibleSections.length)) fail('todayVisibleSections');
       if (state.settings.weekStartsOn != null && ![0, 1, 'monday', 'sunday'].includes(state.settings.weekStartsOn)) fail('weekStartsOn');
       if (state.settings.backupReminderDays != null && !(Number.isInteger(state.settings.backupReminderDays) && state.settings.backupReminderDays >= 0 && state.settings.backupReminderDays <= 90)) fail('backupReminderDays');
+      if (state.settings.dailyCapacityMinutes != null && !(Number.isInteger(state.settings.dailyCapacityMinutes) && state.settings.dailyCapacityMinutes >= 0 && state.settings.dailyCapacityMinutes <= 1440)) fail('dailyCapacityMinutes');
       if (state.settings.weeklyReviews != null && (!Array.isArray(state.settings.weeklyReviews) || state.settings.weeklyReviews.length > 52
         || state.settings.weeklyReviews.some(entry => !object(entry) || !date(entry.weekStart) || !root.TodoCore.isIsoTimestamp(entry.completedAt)))) fail('weeklyReviews');
     }

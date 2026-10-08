@@ -179,7 +179,9 @@ test('the app routes, links, notices and records the weekly review', () => {
   assert.match(app, /html \+= weeklyReviewNotice\(\);/);
 });
 
-test('V1.11 is released as 1.11.0 so installed apps get the update notice', () => {
-  assert.equal(require('../js/release.js').APP_VERSION, '1.11.0');
-  assert.match(read('sw.js'), /const VERSION = '1\.11\.0';/);
+test('V1.11 shipped as 1.11.0 or later so installed apps get the update notice', () => {
+  const version = require('../js/release.js').APP_VERSION;
+  const [major, minor] = version.split('.').map(Number);
+  assert.ok(major > 1 || minor >= 11, version);
+  assert.ok(read('sw.js').includes(`const VERSION = '${version}';`));
 });

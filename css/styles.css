@@ -2219,6 +2219,31 @@ a.btn { text-decoration: none; }
 .weekly-review-notice { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; margin: 0 0 var(--space-4); padding: var(--space-3) var(--space-4); border: 1px solid var(--line-2); border-left: 2px solid var(--primary-focus); border-radius: var(--radius-md); background: var(--graphite-850); }
 .weekly-review-notice-icon { flex: none; color: var(--primary-focus); font-size: 20px; }
 
+/* V1.12 Calendar day view: capacity, tasks without a time, and an hour grid with absolutely placed blocks. */
+.day-view { --hour-height: 52px; display: grid; gap: var(--space-4); margin-top: var(--space-3); }
+.day-capacity { display: grid; gap: 6px; padding: var(--space-3) var(--space-4); border: 1px solid var(--line-2); border-radius: var(--radius-md); background: var(--graphite-850); color: var(--ink-2); font-size: 13px; }
+.day-capacity-bar { display: block; height: 6px; border-radius: 999px; background: var(--graphite-750); overflow: hidden; }
+.day-capacity-bar > span { display: block; height: 100%; border-radius: inherit; background: var(--mint-400); }
+.day-capacity.is-over { border-left: 2px solid var(--warning); }
+.day-capacity.is-over .day-capacity-bar > span { background: var(--warning); }
+.day-capacity strong { color: var(--warning); font-weight: 600; }
+.day-unscheduled .section-header { margin-bottom: 4px; }
+.day-unscheduled-item { display: flex; align-items: center; gap: var(--space-3); padding: 6px 0; border-bottom: 1px solid var(--line-1); cursor: grab; }
+.day-unscheduled-title { flex: 1 1 auto; min-width: 0; color: var(--ink-1); text-align: left; overflow-wrap: anywhere; }
+.day-grid { position: relative; }
+.day-grid-rows { position: relative; }
+.day-grid-hour { position: relative; height: var(--hour-height); border-top: 1px solid var(--line-1); }
+.day-grid-hour.is-drop-target { background: color-mix(in srgb, var(--primary-focus) 12%, transparent); }
+.day-grid-label { position: absolute; top: 4px; left: 0; width: 48px; color: var(--ink-4); font-size: 11px; font-variant-numeric: tabular-nums; }
+.day-grid-blocks { position: absolute; inset: 0 0 0 56px; pointer-events: none; }
+.day-grid-block { position: absolute; left: 0; right: 0; display: flex; flex-direction: column; gap: 2px; min-height: 22px; padding: 4px 8px; overflow: hidden; border: 1px solid color-mix(in srgb, var(--primary-focus) 45%, transparent); border-left: 3px solid var(--primary-focus); border-radius: var(--radius-sm); background: color-mix(in srgb, var(--primary-focus) 14%, var(--graphite-850)); color: var(--ink-1); font-size: 12px; text-align: left; pointer-events: auto; cursor: pointer; }
+.day-grid-block span { color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.day-grid-block.is-estimated { border-style: dashed; }
+.day-grid-block.has-conflict { border-left-color: var(--warning); }
+.day-grid-block.is-completed { opacity: 0.55; text-decoration: line-through; }
+.today-capacity { color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.today-capacity.is-over { color: var(--warning); font-weight: 600; }
+
 /* Keep primary compact actions touchable after all density rules. */
 @media (max-width: 700px) {
   .task-actions .btn-icon,

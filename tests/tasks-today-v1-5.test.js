@@ -79,7 +79,7 @@ test('Today rendering caps focus at three and derives Daily Review from actual t
   const source = fs.readFileSync(require.resolve('../js/app.js'), 'utf8');
   const renderToday = source.slice(source.indexOf('  function renderToday()'), source.indexOf('  function renderInbox()'));
   const context = { state, Core, esc: String, getTask: id => tasks.find(task => task.id === id),
-    pageHeader: () => '', formatPageToday: String, emptyState: () => '', backupReminderNotice: () => '', weeklyReviewNotice: () => '', taskRow: (task, view) => `<article data-view="${view}">${task.id}</article>` };
+    pageHeader: () => '', formatPageToday: String, emptyState: () => '', backupReminderNotice: () => '', weeklyReviewNotice: () => '', todayCapacityItem: () => '', taskRow: (task, view) => `<article data-view="${view}">${task.id}</article>` };
   vm.createContext(withI18n(context));
   const html = vm.runInContext(`${renderToday}\nrenderToday()`, context);
   assert.equal((html.match(/data-view="focus"/g) || []).length, 3);

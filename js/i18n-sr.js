@@ -1399,6 +1399,23 @@
     "Finish weekly review": "Završi nedeljni pregled",
     "{count} due": { one: "{count} rok", few: "{count} roka", other: "{count} rokova" },
 
+    // V1.12 Duration and time-blocking (js/calendar-ui.js, js/app.js, js/settings-ui.js)
+    "{hours} h {minutes} min": "{hours} h {minutes} min",
+    "{hours} h": "{hours} h",
+    "Over capacity: {load} of {capacity}": "Preko kapaciteta: {load} od {capacity}",
+    "Duration": "Trajanje",
+    "Remove duration": "Ukloni trajanje",
+    "Previous day": "Prethodni dan",
+    "Next day": "Sledeći dan",
+    "Day": "Dan",
+    "Planned {planned} of {capacity}": "Planirano {planned} od {capacity}",
+    "Over capacity by {over}": "Preko kapaciteta za {over}",
+    "No tasks planned for this day.": "Nema planiranih zadataka za ovaj dan.",
+    "No time yet": "Bez vremena",
+    "Time for {title}": "Vreme za {title}",
+    "Daily capacity": "Dnevni kapacitet",
+    "Planned work per day, compared with task durations on Today and in the Calendar day view.": "Koliko rada planiraš dnevno; poredi se sa trajanjem zadataka na ekranu Danas i u dnevnom prikazu Kalendara.",
+
     // Data, storage, backup and recovery errors shown to the user (js/backup.js, js/storage.js, js/core.js, js/app.js)
     "Interrupted operation": "Prekinuta operacija",
     "Undo failed": "Poništavanje nije uspelo",

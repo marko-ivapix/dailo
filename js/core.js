@@ -788,6 +788,38 @@
     return { current, minimumTarget, idealTarget, minimumMet, idealMet, status: idealMet ? 'ideal' : minimumMet ? 'minimum' : 'below-minimum' };
   }
 
+  // Time-blocking (V1.12). Capacity is a device-wide preference in minutes; 0 turns it off, missing means 6 h.
+  function dailyCapacityMinutes(settings) {
+    const value = settings?.dailyCapacityMinutes;
+    return Number.isInteger(value) && value >= 0 && value <= 1440 ? value : 360;
+  }
+
+  function dayLoad(tasks, date) {
+    const open = (tasks || []).filter(task => task && !task.isCompleted && task.plannedDate === date);
+    const durations = open.map(task => positiveIntegerOrNull(task.durationMinutes));
+    return { minutes: durations.reduce((total, minutes) => total + (minutes || 0), 0), withDuration: durations.filter(Boolean).length, withoutDuration: durations.filter(minutes => !minutes).length };
+  }
+
+  // One day as a schedule: timed blocks (a missing duration is estimated), tasks without a time, and the hour range to draw.
+  function daySchedule(tasks, date, { defaultMinutes = 30 } = {}) {
+    const planned = (tasks || []).filter(task => task && task.plannedDate === date);
+    const blocks = planned.flatMap(task => {
+      const time = normalizeTime(task.plannedTime);
+      if (!time) return [];
+      const [hours, minutes] = time.split(':').map(Number);
+      const duration = positiveIntegerOrNull(task.durationMinutes);
+      const startMinutes = hours * 60 + minutes;
+      const durationMinutes = duration || defaultMinutes;
+      return [{ task, startMinutes, durationMinutes, endMinutes: startMinutes + durationMinutes, estimated: !duration }];
+    }).sort((a, b) => a.startMinutes - b.startMinutes || String(a.task.id).localeCompare(String(b.task.id)));
+    const overlaps = (block, other) => block.startMinutes < other.endMinutes && other.startMinutes < block.endMinutes;
+    const withConflicts = blocks.map(block => ({ ...block, conflict: !block.task.isCompleted && blocks.some(other => other !== block && !other.task.isCompleted && overlaps(block, other)) }));
+    const unscheduled = planned.filter(task => !task.isCompleted && !normalizeTime(task.plannedTime))
+      .sort((a, b) => byOrder('todayOrder')(a, b) || String(a.title).localeCompare(String(b.title)));
+    const earliest = blocks.length ? Math.floor(blocks[0].startMinutes / 60) : 6;
+    return { blocks: withConflicts, unscheduled, range: { startHour: Math.min(6, earliest), endHour: 24 } };
+  }
+
   function getTimedTaskBlocks(tasks, date) {
     const blocks = (tasks || []).flatMap(task => {
       const durationMinutes = positiveIntegerOrNull(task?.durationMinutes);
@@ -1692,6 +1724,9 @@
     resetV16Settings,
     backupReminderDays,
     weeklyReviewLog,
+    dailyCapacityMinutes,
+    dayLoad,
+    daySchedule,
     recordWeeklyReview,
     weeklyReviewDue,
     deriveWeeklyReview,
