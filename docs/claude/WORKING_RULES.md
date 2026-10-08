@@ -3,14 +3,14 @@
 ## Before editing
 
 1. Read `CLAUDE.md`, `AGENTS.md` and `docs/claude/CONTINUATION.md`.
-2. Inspect the current source, relevant tests and the current progress ledger (`docs/superpowers/progress-v1-10.md`; `docs/superpowers/progress-v1-9.md` holds the user's iPhone results; V1.7 remains the behavior baseline ledger).
+2. Inspect the current source, relevant tests and the current progress ledger (`docs/superpowers/progress-v1-12.md`; V1.10 and V1.11 have `progress-v1-10.md` and `progress-v1-11.md`; `docs/superpowers/progress-v1-9.md` holds the user's iPhone results; V1.7 remains the behavior baseline ledger).
 3. Identify whether the requested behavior already exists in a different UI module or derived view.
-4. Preserve existing V1.2–V1.6 behavior unless the approved V1.7 design explicitly changes it. Treat any V1.8 redesign as a visual change until a new spec says otherwise. V1.9 changes only what its approved spec lists (install, offline, data protection, Serbian UI, version/problem report, fixes G1–G3); V1.9.1 completes its Step 7 (report address, tester guide, beta checklist). Phase 4 features (V1.10+) each need their own approved spec; V1.10 changes only Quick Add parsing, saving precedence and its preview.
+4. Preserve existing V1.2–V1.6 behavior unless the approved V1.7 design explicitly changes it. Treat any V1.8 redesign as a visual change until a new spec says otherwise. V1.9 changes only what its approved spec lists (install, offline, data protection, Serbian UI, version/problem report, fixes G1–G3); V1.9.1 completes its Step 7 (report address, tester guide, beta checklist). Phase 4 features (V1.10–V1.12) each have their own approved spec: V1.10 changes only Quick Add parsing, saving precedence and its preview; V1.11 adds the weekly review page, its Today notice and the `settings.weeklyReviews` log; V1.12 adds the Calendar day view, the daily capacity (`settings.dailyCapacityMinutes`, Today and Settings) and the Quick Add duration chip. Anything beyond them needs a new approved spec.
 
 ## Product constraints
 
 - Keep the app static, local-first and framework-free.
-- Do not add a backend, accounts, cloud sync or speculative dependencies.
+- Do not add a backend, accounts, cloud sync or speculative dependencies. The V2.0 spec (`docs/superpowers/specs/2026-10-08-todo-v2-0-design.md`) is a draft awaiting the user's decisions; it changes nothing until the user approves it, and no backend code, keys or accounts go into the repository before that.
 - Do not change the existing global Search scope, ranking or semantics.
 - Do not add bulk-selection or bulk-action UI.
 - Keep Tasks, Projects, Areas, Goals, Habits, Notes, Resources, Templates and Saved Views as separate object types.
@@ -30,17 +30,19 @@
 - Prefer small additive changes over broad rewrites of `js/app.js`.
 - Add every new runtime file (script, stylesheet, font, icon) to `SHELL_FILES` in `sw.js`; `tests/offline-v1-9.test.js` fails otherwise.
 - Bump `APP_VERSION` in `js/release.js` and `VERSION` in `sw.js` together for a release.
-- Pin the exact version only in the newest release test (since V1.10: `tests/quick-add-v1-10.test.js`). When releasing, move the pin into the new release's test and relax the previous one to "this version or later"; older release tests keep checking that `sw.js` follows `APP_VERSION`.
+- Pin the exact version only in the newest release test (since V1.12: `tests/time-blocking-v1-12.test.js`). When releasing, move the pin into the new release's test and relax the previous one to "this version or later"; older release tests keep checking that `sw.js` follows `APP_VERSION`.
 - `REPORT_EMAIL` in `js/release.js` holds only an address the user supplied; never guess or change it on your own.
 - `uputstvo.html` is a standalone page outside the precache (online only). It may reference local files only; `tests/beta-v1-9-1.test.js` checks that.
-- New CSS goes into the newest version layer (V1.10 Quick Add preview at the time of writing) or a new later layer, before the phone touch-target guard, which stays the final rule.
+- New CSS goes into the newest version layer (V1.12 Calendar day view at the time of writing) or a new later layer, before the phone touch-target guard, which stays the final rule.
+- New settings stay optional with a tolerant Core reader (missing or invalid means the default) and get backup validation in `js/backup.js` plus a round-trip test, as `backupReminderDays`, `weeklyReviews` and `dailyCapacityMinutes` do; do not add a `normalizeV16Settings` default, because `tests/core-v1-6.test.js` compares the whole normalized object.
+- A test that slices `renderToday()` in a VM needs stubs for helpers it does not load (since V1.11/V1.12: `weeklyReviewNotice`, `todayCapacityItem`); add a stub, never weaken the assertion.
 ## Localization (i18n) rules
 
 - Every user-visible string goes through `tr()`, `trn()` or `msg()` with a quoted literal English key, e.g. `tr('Export backup')`. Template-literal keys are rejected by `tests/i18n-v1-9.test.js`.
 - Use `{name}` placeholders for values (`tr('Last backup: {date}.', { date })`); never splice Serbian sentences from fragments or build plurals with `${word}s`.
 - Plurals use `trn(count, one, other, params)` and a catalog entry keyed by the English "other" form with Serbian `one`/`few`/`other`.
 - Use `msg()` for keys that are stored or thrown (lookup-table labels, `validationResult` sentences, errors) and translate them where they are shown with `tr()` or `trMessage()`. Dynamic errors use the "Prefix: detail" shape so the prefix can be translated.
-- Add the Serbian (Latin script) entry to `js/i18n-sr.js` in the same change. The completeness test rejects missing keys, unused entries and placeholder mismatches.
+- Add the Serbian (Latin script) entry to `js/i18n-sr.js` in the same change. The completeness test rejects missing keys, unused entries and placeholder mismatches, and since V1.11 any Cyrillic letter in the catalog.
 - The untranslated-text audit in `tests/i18n-v1-9.test.js` fails on literal English in markup: text nodes and `aria-label`/`aria-description`/`title`/`placeholder`/`alt` values in `js/*.js` may contain only `${…}` expressions and the allowlisted words `Dailo`, `https`, `ZIP`, `JSON`, `RESET`, `RESTORE`. Since V1.9.1 it also rejects capitalized English string literals inside `${…}` that are not `tr`/`msg`/`trn`/`trMessage` arguments (e.g. `${label || 'Plan for'}`; key names `Alt`/`Shift`/`Ctrl`/`Cmd`/`Enter`/`Esc`/`Tab`/`Space` are allowed), and every `validationResult:` literal must be `msg()`-marked. `index.html` is written in Serbian directly.
 - Use the approved glossary in `docs/superpowers/specs/2026-10-07-todo-v1-9-design.md` (section F) for product terms.
 - Format dates and numbers with `I18n.locale()` (`sr-Latn-RS` in the browser), never `undefined` or `'en'`.

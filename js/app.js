@@ -3385,7 +3385,6 @@
     return requestTaskEdit(task.id,changes,after);
   }
 
-  // Today notice when the last ZIP export is older than the reminder interval (V1.9).
   // Weekly review prompt (V1.11): on the last three days of the week until the review is recorded.
   function weeklyReviewNotice() {
     if (!Core.weeklyReviewDue(state.settings, Core.dateOnly(), state.settings.weekStartsOn)) return '';
@@ -3399,6 +3398,7 @@
     render();
   }
 
+  // Today notice when the last ZIP export is older than the reminder interval (V1.9).
   function backupReminderNotice() {
     let snoozedUntil = null;
     try { snoozedUntil = localStorage.getItem('todoAppBackupReminderSnoozedUntil'); } catch (error) { snoozedUntil = null; }

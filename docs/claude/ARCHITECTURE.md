@@ -1,6 +1,6 @@
 # Current implementation architecture
 
-This document records the V1.9 implementation inspected on 2026-10-07 and the V1.10 Quick Add parser inspected on 2026-10-08 (`c64bd81`). It describes mechanisms present in source, not proof of functional, visual or native-browser acceptance. Read `AGENTS.md` and the applicable versioned spec before changing behavior.
+This document records the V1.9 implementation inspected on 2026-10-07, the V1.10 Quick Add parser (`c64bd81`), the V1.11 weekly review (`5bbd820`) and the V1.12 time-blocking (`d00855b`), inspected on 2026-10-08. It describes mechanisms present in source, not proof of functional, visual or native-browser acceptance. Read `AGENTS.md` and the applicable versioned spec before changing behavior.
 
 ## Composition and module boundaries
 
@@ -73,10 +73,29 @@ Automatic captures are scheduled after one idle second, rate limited to five min
   - The `quick-title` input handler re-parses on every keystroke: it replaces the `data-quick-preview-slot` content with `quickParsePreview(parsed)` and, without an explicit plan, updates the Plan chip. `renderQuickModal()` renders the same slot.
   - `createTask()` re-parses at save time. Picker values win (an explicitly chosen plan date — a parsed plan date still beats a context default — time, due date, duration, project, Area); a project wins over an Area. `isInbox` and `projectOrder` use the resolved project, and parsed priority wins over the default `none`.
 - **Preview.** Read-only pills (`.quick-parse-item`) inside `data-quick-preview` (`role="group"`, `aria-label` "Recognized in title") in a slot with `aria-live="polite"`; the slot is empty and hidden (`:empty`) when nothing is recognized. Labels reuse `relativeDateLabel`, `priorityLabel` and the catalog keys "Due {date}" and "{minutes} min".
+- **Duration chip (V1.12).** The "Trajanje" property chip (`quick-duration-picker`) opens a popover of 15/30/45/60/90/120 min, plus "Ukloni trajanje" when a value is set; `set-duration` writes `modalState.draft.durationMinutes`, and `createTask` uses `d.durationMinutes || parsed.durationMinutes`, so the chip wins.
+
+## Weekly review (V1.11)
+
+- **Core (pure).** `Core.deriveWeeklyReview(state, today, weekStartsOn)` returns `{ weekStart, inbox, overdue, missedPlans, nextDays, goals, habits, areas }`. Overdue uses `isOverdue` (oldest due first); missed plans are open tasks with a past `plannedDate` that are not overdue (oldest first); `nextDays` holds seven `{ date, planned, due }` counts of open tasks; goals carry `getGoalHealth`; Areas carry `areaSummary(...).openTasks`. The week start uses the same `weekStartFor` rule as Settings.
+- **Log.** `Core.weeklyReviewLog(settings)` sanitizes `settings.weeklyReviews` (valid `weekStart` date and ISO `completedAt`, newest first, one per week, at most 26). `Core.recordWeeklyReview(settings, { today, now, weekStartsOn })` returns the new list with this week added or replaced. `Core.weeklyReviewDue(settings, today, weekStartsOn)` is true from week start + 4 days until this week has an entry.
+- **Page.** `js/review-ui.js` registers the domain module `review`; its `renderRoute` answers only `{ type: 'review' }`. Rows come from `ctx.reviewTaskRow(task, context, options)` (the controller's `taskRow`): Inbox rows use context `inbox` with `{ inbox: true }`, overdue and missed rows context `today` with `{ overdue: true }`, so their existing quick actions apply. Goals, Habits and Areas are `data-route` links; habit metrics come from `ctx.habitMetrics`.
+- **App.** `weeklyReviewNotice()` renders on Today after `backupReminderNotice()` (a `role="status"` section with a `data-route="review"` button, never a modal). The `complete-weekly-review` action calls `completeWeeklyReview()`: record, `saveState()`, toast, `render()`.
+
+## Time-blocking and capacity (V1.12)
+
+- **Core (pure).**
+  - `Core.daySchedule(tasks, date, { defaultMinutes = 30 })` returns `{ blocks, unscheduled, range }`. Blocks are tasks planned on `date` with a valid `plannedTime`, sorted by start: `{ task, startMinutes, endMinutes, durationMinutes, estimated, conflict }`; a missing duration uses `defaultMinutes` and sets `estimated`; `conflict` compares open blocks only, so completed blocks never conflict. `unscheduled` lists open untimed tasks by `todayOrder`, then title. `range` is `{ startHour: min(6, first block hour), endHour: 24 }`.
+  - `Core.dayLoad(tasks, date)` returns `{ minutes, withDuration, withoutDuration }` for open tasks planned on `date`.
+  - `Core.dailyCapacityMinutes(settings)` returns an integer 0–1440 from `settings.dailyCapacityMinutes`, otherwise 360; 0 means off.
+- **Calendar day view.** `renderCalendar` accepts `day` besides `week`/`month`; `renderDayView(ctx, date, visibility)` draws the capacity bar, the "Bez vremena" section (`data-calendar-date`, rows with `data-calendar-drag="task"` and a time input `data-task-time="plannedTime"`), and the grid: `data-calendar-date` wraps hour rows `data-calendar-time="HH:00"` and absolutely positioned block buttons (`top`/`height` as `calc(var(--hour-height) * hours)`, `--hour-height` 52px). Blocks are also `data-calendar-drag="task"` and open the task on click.
+- **Reused handlers.** The existing `handleDrop` finds the nearest `[data-calendar-time], [data-calendar-date]` target and calls `updateTask(id, { plannedDate, plannedTime? })`, so a drop on an hour row sets date and hour and a drop on "Bez vremena" sets only the date. The existing `[data-task-time]` change handler writes `Core.normalizeTime(value)`. No new event store or drag type.
+- **State and navigation.** The app's `normalizeState` keeps `ui.calendarView` in `day`/`week`/`month` (default `week`); `navigateCalendar(direction)` moves one day in the day view, seven days in the week view and one month in the month view.
+- **Today and Settings.** `todayCapacityItem()` uses `Core.dayLoad` for today and `durationLabel`, and renders inside the focus strip (`settings.todayFocusStrip`). Settings → General `#daily-capacity` is handled in the change listener: an integer 0–1440 is stored with `saveAndRender()`.
 
 ## Routes, rendering and events
 
-`currentRoute()` parses `location.hash`; supported list routes include Today, Inbox, Upcoming, Calendar, Anytime, Tags, Areas, Notes, Resources, Goals, Habits, Templates, Projects, Cleaning, Saved Views, Archived, Completed and Settings. Detail routes use `project/`, `area/`, `goal/`, `habit/`, `note/`, `resource/` and `saved-view/` IDs. Missing records fall back according to route type. Task detail opens as a modal rather than a task hash route.
+`currentRoute()` parses `location.hash`; supported list routes include Today, Inbox, Upcoming, Calendar, Anytime, Tags, Areas, Notes, Resources, Goals, Habits, Templates, Projects, Cleaning, Saved Views, Archived, Completed, Review (`#review`, V1.11) and Settings. Detail routes use `project/`, `area/`, `goal/`, `habit/`, `note/`, `resource/` and `saved-view/` IDs. Missing records fall back according to route type. Task detail opens as a modal rather than a task hash route.
 
 `navigate()` closes overlays and updates the hash. A hash change closes overlays and renders. `render()` chooses recovery or the normal sidebar/main surface. `renderMain()` asks adapters first, falls back to controller-owned daily task/Tags/Completed screens, and replaces main content with generated HTML. Sidebar and modal content are also regenerated. Today personalization is applied after its markup is inserted.
 
@@ -94,7 +113,8 @@ Mutations typically update a shared record, save, and re-render affected surface
 | Anytime | Core-selected processed active Tasks without a planned date. |
 | Project / Tag / Area | Filters and relationships over shared collections. A Project Task's effective Area comes from its Project. |
 | Completed | Shared completed Tasks with Project/period filtering and completion ordering. |
-| Calendar | Events derived from planned/due Tasks, Goal dates, milestones and Habit schedules. Planned Task time/duration provides overlap hints; there is no separate persisted calendar-event collection. Drag operations change shared dates. |
+| Calendar | Events derived from planned/due Tasks, Goal dates, milestones and Habit schedules. Planned Task time/duration provides overlap hints; there is no separate persisted calendar-event collection. Drag operations change shared dates. The V1.12 day view projects only Tasks through `Core.daySchedule`/`Core.dayLoad`. |
+| Weekly review | `Core.deriveWeeklyReview` over shared Tasks, Goals, Habits and Areas; the only persisted output is the `settings.weeklyReviews` log. |
 | Saved View | Core applies the saved filters to exactly one of Tasks, Goals or Habits. It does not replace global Search. |
 | Goal progress / Habit insights | Calculated from current links and stored logs/history; hydrated caches are runtime aids rather than another persisted task/goal store. |
 | Cleaning | Active marked room Projects and their ordinary Tasks, grouped by room and open/completed state. |
