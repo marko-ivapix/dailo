@@ -99,4 +99,15 @@ Images 3–9: "Edit task", and the Project, Planned date, Priority, Reminder, Ta
 | H3 | **Nedelja (proposal 2):** a table with the habits as rows and the days of the week as columns. Tapping a circle records today or a past day; future days and days the habit is not scheduled are inactive. A legend for done, missed, skipped and not scheduled. | decided |
 | H4 | **"Napredak" under both views:** this week's rings (image 12) with the percentage inside, and a line chart for the **calendar month** with arrows (image 11), y axis up to 100%. Only today's value is labelled on the line; touching or hovering shows any day's value. A day's percentage counts only habits scheduled that day, without skipped ones. | decided |
 | H5 | **Paused and archived habits** fold at the bottom ("Pauzirane · N") instead of the current Aktivne / Sve / Arhivirane tabs. | accepted as the basis (no objection) |
-| H6 | **Numeric habits on Today and in Dan:** the circle fills with progress (e.g. 1,5 / 2 l), and a tap opens a small value sheet with quick values. | proposed |
+| H6 | **Numeric habits on Today and in Dan:** the circle fills with progress (e.g. 1,5 / 2 l), and a tap opens a small value sheet with quick values. | decided |
+
+## New habit (image 13)
+
+| # | Decision | Status |
+| --- | --- | --- |
+| N1 | **A window/panel** like the task window and Quick Add, not a full-screen page. A big "Napravi naviku" button at the bottom. | decided |
+| N2 | **First screen:** name, area (optional), routine (Jutro / Dan / Veče, default Dan), tracking (Kvadratić / Brojevno, default Kvadratić), frequency (default "Svaki dan"), reminder time, and "Više". | decided |
+| N3 | **Numeric tracking:** choosing "Brojevno" shows the target and unit right below (e.g. 2 l, 20 min). | accepted as the basis (no objection) |
+| N4 | **Under "Više":** start, end, minimum and ideal targets, grace days, linked goals. | accepted as the basis (no objection) |
+| N5 | **Segmented choices** highlight the selected option in neutral gray, like the other switches; blue is only for the main button. | accepted as the basis (no objection) |
+| N6 | **The frequency sheet** works like the task repeat sheet: Svaki dan / Određeni dani / X puta nedeljno / Na svakih N dana. | accepted as the basis (no objection) |
