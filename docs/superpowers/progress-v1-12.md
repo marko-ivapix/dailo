@@ -53,3 +53,8 @@ Checks (Node v22.22.0, Python 3.13.16):
 - `git diff --check` passed.
 
 Drag, native time inputs and the grid layout on a real phone and desktop browser are **manual-pending**.
+
+**Package (2026-10-08).** `Dailo-v1.12-distributable.zip` plus `Dailo-v1.12-distributable.zip.sha256`, built with the V1.12 recipe in `docs/claude/TESTING_AND_RELEASE.md` from `5fa586b`, the docs commit.
+- 85 regular files and no directory entries; `unzip -t` passed.
+- Every extracted file matches the commit, and a second build gives the same SHA-256 (recorded only in the sidecar).
+- It closes roadmap Phase 4. V1.10–V1.12 go into `main` together through one PR.
