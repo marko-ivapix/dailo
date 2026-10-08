@@ -97,10 +97,14 @@ Images 3–9: "Edit task", and the Project, Planned date, Priority, Reminder, Ta
 | H1 | **A "Dan / Nedelja" switch;** Dan is the default view when the screen opens. | decided |
 | H2 | **Dan (proposal 1):** habits grouped by routine (Jutro, Dan, Veče), with the round check, frequency and streak, or "2/4 ove nedelje" for a weekly target. Done habits move to the bottom of their group. | decided |
 | H3 | **Nedelja (proposal 2):** a table with the habits as rows and the days of the week as columns. Tapping a circle records today or a past day; future days and days the habit is not scheduled are inactive. A legend for done, missed, skipped and not scheduled. | decided |
-| H4 | **"Napredak" under both views:** this week's rings (image 12) with the percentage inside (the "%" sign smaller and muted; a full ring shows a small green check instead of "100%"; future days a dash), and a line chart for the **calendar month** with arrows (image 11), y axis up to 100%. Only today's value is labelled on the line; touching or hovering shows any day's value. A day's percentage counts only habits scheduled that day, without skipped ones. | decided |
+| H4 | **Progress** (revised 2026-10-08, image 15): the week rings at the top of the screen, and "Napredak" with the bars and the month chart under the list. Details below the table. | decided |
 | H5 | **Paused and archived habits** fold at the bottom ("Pauzirane · N") instead of the current Aktivne / Sve / Arhivirane tabs. | accepted as the basis (no objection) |
 | H6 | **Numeric habits on Today and in Dan:** the circle fills with progress (e.g. 1,5 / 2 l), and a tap opens a small value sheet with quick values. | decided |
-| H7 | **"Po navici · ova nedelja"** in "Napredak", between the rings and the chart: the habits stacked one below another, each with its name, a count ("3/7") and a thin bar up to 100%. A bar measures the done days against the week's plan: the scheduled days, or the target of an "X puta nedeljno" habit, without skipped days. So it fills during the week. A full bar shows a small green check instead of the count. Habits in routine order. | proposed |
+| H7 | **"Po navici · ova nedelja"** at the top of "Napredak", above the chart, in both views: the habits stacked one below another, each with its name, a count ("3/7") and a thin bar up to 100%. A bar measures the done days against the week's plan: the scheduled days, or the target of an "X puta nedeljno" habit, without skipped days. So it fills during the week. A full bar shows a small green check instead of the count. Habits in routine order. | decided |
+
+**H4, revised 2026-10-08:**
+- **Week rings at the top** of the screen, under the title and above the "Dan / Nedelja" switch, in both views and without a heading. This week's rings (image 12) show the percentage inside (the "%" sign smaller and muted); a full ring shows a small green check instead of "100%", and future days a dash. A day's percentage counts only habits scheduled that day, without skipped ones.
+- **"Napredak" under the list,** in both views: the per-habit bars (H7), then a line chart for the **calendar month** with arrows (image 11) and the y axis up to 100%. Only today's value is labelled on the line, so a past month has no label; touching or hovering shows any day's value.
 
 ## New habit (image 13)
 
