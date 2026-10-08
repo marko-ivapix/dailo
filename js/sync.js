@@ -183,7 +183,12 @@
       },
       async ensureSession(session) {
         if (!session?.accessToken) throw new SyncError(msg('Not signed in'), 401);
-        return session.expiresAt - 60000 > now() ? session : this.refresh(session);
+        if (session.expiresAt - 60000 > now()) return session;
+        try { return await this.refresh(session); } catch (error) {
+          // A rejected refresh token means the sign-in is over; network and server failures stay retryable.
+          if ([400, 401, 403].includes(error?.status)) throw new SyncError(msg('Session expired'), 401);
+          throw error;
+        }
       },
       async signOut(session) {
         try { await request('/auth/v1/logout', { method: 'POST', token: session?.accessToken }); } catch (_) { /* signing out locally is enough */ }
@@ -249,7 +254,12 @@
           shadow = Object.fromEntries(live.map(row => [keyOf(row.type, row.id), hashRecord(row.data)]));
           cursor = latest(remoteRows, null);
         } else {
+          // Merge: a record on both sides keeps its newer `updatedAt`; otherwise this device's version wins.
           shadow = {};
+          for (const row of live) {
+            const mine = records.get(keyOf(row.type, row.id));
+            if (mine && Date.parse(row.data?.updatedAt) > Date.parse(mine.data?.updatedAt)) shadow[keyOf(row.type, row.id)] = hashRecord(mine.data);
+          }
           cursor = null;
         }
       }

@@ -18,7 +18,7 @@ test('load/save normalizes focus IDs to three existing open tasks in requested o
   const save = source.slice(source.indexOf('  function saveState()'), source.indexOf('  function saveAndRender()'));
   let persisted;
   const context = { state, Core, globalOperation: null, STORAGE_KEY: 'state', reportStorageFailure: error => { throw error; },
-    localStorage: { setItem(key, value) { persisted = JSON.parse(value); } }, scheduleAutomaticSnapshot() {} };
+    localStorage: { setItem(key, value) { persisted = JSON.parse(value); } }, scheduleAutomaticSnapshot() {}, scheduleSync() {} };
   vm.createContext(withI18n(context));
   assert.equal(vm.runInContext(`${save}\nsaveState()`, context), true);
   assert.deepEqual(persisted.settings.focusTaskIds, ['a', 'b', 'c']);

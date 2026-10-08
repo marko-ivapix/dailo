@@ -8,6 +8,10 @@
   const Attachments = window.TodoAttachments;
   const Backup = window.TodoBackup;
   const Release = window.DailoRelease || { APP_VERSION: '', REPORT_EMAIL: '', problemReportMailto: () => null };
+  // Optional sync (V2.0-a): on only when js/sync-config.js has the project URL and public key.
+  const Sync = window.DailoSync || null;
+  const syncConfig = window.DailoSyncConfig || {};
+  const syncClient = Sync?.isConfigured(syncConfig) ? Sync.createClient({ url: syncConfig.url, anonKey: syncConfig.anonKey }) : null;
   const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
   const MAX_ATTACHMENTS_PER_TASK = 10;
   const STORAGE_KEY = 'todoAppData';
@@ -71,6 +75,11 @@
   let mobileMoreReturnFocus = null;
   let mobileMoreOpen = false;
   const knowledgeAttachmentCache = new Map();
+  let syncMeta = null;
+  let syncUi = { step: 'email', email: '', busy: false, error: '' };
+  let syncTimer = null;
+  let syncRunning = false;
+  let applyingSync = false;
 
   function captureModalReturnFocus() {
     const active = document.activeElement;
@@ -547,6 +556,7 @@
       }
       storageError = false;
       scheduleAutomaticSnapshot();
+      scheduleSync();
       return true;
     } catch (error) {
       reportStorageFailure(error);
@@ -561,7 +571,7 @@
 
   function scheduleTextSave() {
     clearTimeout(textSaveTimer);
-    textSaveTimer = setTimeout(() => saveState(), 220);
+    textSaveTimer = setTimeout(() => { textSaveTimer = null; saveState(); }, 220);
   }
 
   function flushTextSave() {
@@ -636,6 +646,7 @@
       templateTypes: TEMPLATE_TYPES, templateLabel, openTemplateEditorFromSource, saveTemplateRecord, duplicateTemplateRecord,
       captureModalReturnFocus,
       durationLabel,
+      syncView,
       reviewTaskRow(task, context, options = {}) {
         return taskRow(task, context, options);
       },
@@ -1515,6 +1526,7 @@
     else if (modalState.type === 'local-snapshots') root.innerHTML = renderLocalSnapshotsModal();
     else if (modalState.type === 'template-picker') root.innerHTML = renderTemplatePicker();
     else if (modalState.type === 'recurrence-scope') root.innerHTML = renderRecurrenceScope();
+    else if (modalState.type === 'sync-choice') root.innerHTML = renderSyncChoice();
     if (['quick','project','habit','goal'].includes(modalState.type) && !modalState.taskId && !modalState.projectId && !modalState.habitId && !modalState.goalId) {
       $('.modal-inner',root)?.insertAdjacentHTML('afterbegin',`<button class="btn btn-ghost" type="button" data-action="from-template"><i class="ph ph-copy"></i> ${tr('From template')}</button>`);
     }
@@ -3385,6 +3397,188 @@
     return requestTaskEdit(task.id,changes,after);
   }
 
+  // Optional sync (V2.0-a). The session, shadow and cursor stay on this device under their own key, never in state or backups.
+  const SYNC_META_KEY = 'dailoSync';
+  const SYNC_DEFERRED = 'sync-deferred';
+
+  function loadSyncMeta() {
+    try {
+      const value = JSON.parse(localStorage.getItem(SYNC_META_KEY) || 'null');
+      return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+    } catch (_) { return {}; }
+  }
+
+  function saveSyncMeta() {
+    try { localStorage.setItem(SYNC_META_KEY, JSON.stringify(syncMeta || {})); } catch (error) { console.error(error); }
+  }
+
+  function syncView() {
+    const meta = syncMeta || loadSyncMeta();
+    return { configured: Boolean(syncClient), signedIn: Boolean(meta.session?.accessToken), ...syncUi, email: meta.session?.user?.email || syncUi.email,
+      running: syncRunning, lastSyncAt: meta.lastSyncAt || null, lastError: meta.lastError || '' };
+  }
+
+  function editingText() {
+    const active = document.activeElement;
+    return Boolean(active?.matches?.('input:not([type="checkbox"]):not([type="radio"]):not([type="button"]), textarea, select, [contenteditable="true"]'));
+  }
+
+  // Pulled data is applied only when nothing on screen holds unsaved or reversible work.
+  function syncWaiting() {
+    return Boolean(modalState || undoState || undoHold || textSaveTimer || dragState || editingText());
+  }
+
+  function refreshSyncCard() {
+    if (currentRoute().type === 'settings' && !editingText()) render();
+  }
+
+  function scheduleSync(delay = 3000) {
+    if (!syncClient || applyingSync) return;
+    clearTimeout(syncTimer);
+    syncTimer = setTimeout(() => { syncTimer = null; runSync().catch(console.error); }, delay);
+  }
+
+  async function runSync(mode = null) {
+    if (!syncClient || syncRunning) return;
+    const meta = loadSyncMeta();
+    syncMeta = meta;
+    if (!meta.session?.accessToken) return;
+    if (!state || recovery || globalOperation || startupPromise || storageError || staleDataNotice) return;
+    if (syncWaiting()) { scheduleSync(15000); return; }
+    syncRunning = true;
+    refreshSyncCard();
+    let result;
+    try {
+      result = await Sync.syncOnce({
+        client: syncClient, meta, mode,
+        readLocal: async () => { const habitLogs = await TodoStorage.habitLogs.listAll(); return { state, habitLogs }; },
+        writeLocal: applySyncResult,
+      });
+      if (result.status === 'error' && result.error === SYNC_DEFERRED) { meta.lastError = null; scheduleSync(15000); }
+      else if (result.status === 'error' && result.code === 401) delete meta.session;
+    } finally {
+      syncRunning = false;
+      // A sign-out during the round replaced the record; never bring the old one back.
+      if (syncMeta === meta) saveSyncMeta();
+    }
+    if (result.status === 'choose' && syncMeta === meta) openSyncChoice();
+    refreshSyncCard();
+  }
+
+  async function applySyncResult(result) {
+    if (syncWaiting() || globalOperation || recovery) throw new Error(SYNC_DEFERRED);
+    const previous = state;
+    applyingSync = true;
+    try {
+      state = normalizeState(result.state);
+      if (!saveState()) { state = previous; throw new Error(msg('Changes could not be saved locally. Try again.')); }
+    } finally { applyingSync = false; }
+    if (result.habitLogDeletes.length) await TodoStorage.habitLogs.deleteMany(result.habitLogDeletes);
+    for (const log of result.habitLogPuts) await TodoStorage.habitLogs.put(log);
+    await refreshHabitMetrics();
+    render();
+  }
+
+  async function requestSyncCode() {
+    if (!syncClient || syncUi.busy) return;
+    const email = String($('#sync-email')?.value ?? syncUi.email).trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { syncUi = { ...syncUi, email, error: msg('Enter a valid e-mail address.') }; render(); return; }
+    syncUi = { ...syncUi, email, busy: true, error: '' };
+    render();
+    try {
+      await syncClient.requestCode(email);
+      syncUi = { step: 'code', email, busy: false, error: '' };
+    } catch (error) {
+      syncUi = { ...syncUi, busy: false, error: error.status === 429 ? msg('Too many requests. Wait a minute and try again.') : error.message };
+    }
+    render();
+    if (syncUi.step === 'code') requestAnimationFrame(() => $('#sync-code')?.focus());
+  }
+
+  async function verifySyncCode() {
+    if (!syncClient || syncUi.busy) return;
+    const code = String($('#sync-code')?.value || '').replace(/\s+/g, '');
+    if (!/^\d{6,10}$/.test(code)) { syncUi = { ...syncUi, error: msg('Enter the code from the e-mail.') }; render(); return; }
+    syncUi = { ...syncUi, busy: true, error: '' };
+    render();
+    let session;
+    try { session = await syncClient.verifyCode(syncUi.email, code); }
+    catch (error) {
+      syncUi = { ...syncUi, busy: false, error: error.status >= 400 && error.status < 500 ? msg('The code is wrong or has expired.') : error.message };
+      render();
+      return;
+    }
+    // The shadow describes one account; another account on this device starts again with the first-sync choice.
+    const previous = loadSyncMeta();
+    syncMeta = previous.userId === session.user.id ? { ...previous, session, lastError: null } : { userId: session.user.id, session };
+    saveSyncMeta();
+    syncUi = { step: 'email', email: '', busy: false, error: '' };
+    render();
+    await runSync();
+  }
+
+  async function signOutSync() {
+    const meta = loadSyncMeta();
+    clearTimeout(syncTimer);
+    syncMeta = {};
+    try { localStorage.removeItem(SYNC_META_KEY); } catch (error) { console.error(error); }
+    syncUi = { step: 'email', email: '', busy: false, error: '' };
+    render();
+    if (meta.session && syncClient) await syncClient.signOut(meta.session);
+  }
+
+  function deleteSyncAccount() {
+    const word = 'OBRIŠI';
+    const plain = value => String(value || '').normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toUpperCase();
+    openConfirm({ title: msg('Delete your sync account?'), message: msg('This deletes your account and all synced data on the server. Data on this device stays.'),
+      phrase: word, confirmLabel: msg('Delete account'),
+      onConfirm: async () => {
+        if (plain($('#global-confirm-phrase')?.value) !== plain(word)) { setToastMessage(tr('Type {word} exactly to continue.', { word })); return; }
+        modalState = null; renderModal();
+        try { await syncClient.deleteAccount(await syncClient.ensureSession(loadSyncMeta().session)); }
+        catch (error) { setToastMessage(tr('The account could not be deleted: {error}', { error: trMessage(error.message) })); return; }
+        clearTimeout(syncTimer);
+        syncMeta = {};
+        try { localStorage.removeItem(SYNC_META_KEY); } catch (error) { console.error(error); }
+        render();
+        setToastMessage(tr('The account and its synced data were deleted. Data on this device stays.'));
+      } });
+  }
+
+  // First sync on a device when both the device and the account have data.
+  function openSyncChoice() {
+    if (modalState) return; // The next sync asks again.
+    captureModalReturnFocus(); closePopover();
+    modalState = { type: 'sync-choice', onCancel: async () => { modalState = null; renderModal(); await signOutSync(); } };
+    renderModal();
+  }
+
+  function renderSyncChoice() {
+    const option = (mode, title, copy) => `<button class="sync-choice-option" type="button" data-action="sync-choose" data-mode="${mode}"><strong>${title}</strong><span>${copy}</span></button>`;
+    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">${tr('Data on this device and in your account')}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close dialog')}"><i class="ph ph-x"></i></button></div>
+      <p class="dialog-copy">${tr('This device and your account both have data. Choose what to keep. A local recovery copy is made first.')}</p>
+      ${option('merge', tr('Merge'), tr('Keep everything. When an item was changed in both places, the newer change wins.'))}
+      ${option('server', tr('Keep the account data'), tr('This device gets the data from your account. Items that exist only on this device are removed.'))}
+      ${option('device', tr('Keep this device’s data'), tr('Your account gets the data from this device. Items that exist only in the account are removed.'))}
+      <div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">${tr('Cancel and sign out')}</button></div></div></div>`);
+  }
+
+  async function chooseSyncMode(mode) {
+    if (!['merge', 'server', 'device'].includes(mode) || modalState?.type !== 'sync-choice') return;
+    modalState = null; renderModal();
+    try { await TodoStorage.createAutomaticSnapshot(state, new Date(), { force: true }); }
+    catch (error) { setToastMessage(tr('Sync did not start because the recovery copy failed: {error}', { error: trMessage(error.message) })); return; }
+    await runSync(mode);
+  }
+
+  function startSync() {
+    if (!syncClient) return;
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') scheduleSync(500); });
+    window.addEventListener('online', () => scheduleSync(500));
+    setInterval(() => scheduleSync(0), 5 * 60 * 1000);
+    scheduleSync(1000);
+  }
+
   // Weekly review prompt (V1.11): on the last three days of the week until the review is recorded.
   function weeklyReviewNotice() {
     if (!Core.weeklyReviewDue(state.settings, Core.dateOnly(), state.settings.weekStartsOn)) return '';
@@ -4012,6 +4206,13 @@
     else if (action === 'select-tag-color') { modalState.draft.color = el.dataset.color; renderModal(); }
     else if (action === 'save-tag') saveTagModal();
     else if (action === 'confirm-action') { const fn = modalState.onConfirm; if (typeof fn === 'function') fn(); }
+    else if (action === 'sync-request-code') requestSyncCode();
+    else if (action === 'sync-verify-code') verifySyncCode();
+    else if (action === 'sync-change-email') { syncUi = { step: 'email', email: syncUi.email, busy: false, error: '' }; render(); }
+    else if (action === 'sync-now') runSync().catch(console.error);
+    else if (action === 'sync-sign-out') signOutSync();
+    else if (action === 'sync-delete-account') deleteSyncAccount();
+    else if (action === 'sync-choose') chooseSyncMode(el.dataset.mode);
     else if (action === 'undo') doUndo();
     else if (action === 'retry-delete-recovery') retryFailedDeleteRecovery();
     else if (action === 'enable-notifications') enableBrowserNotifications();
@@ -4219,6 +4420,7 @@
 
     if (modalState?.type === 'task' && ['detail-title', 'detail-duration-minutes'].includes(target?.id) && event.key === 'Enter') { event.preventDefault(); target.blur(); return; }
     if (modalState?.type === 'task' && target?.id === 'detail-subtask' && event.key === 'Enter') { event.preventDefault(); addDetailSubtask(target.dataset.taskId, target.value); return; }
+    if (['sync-email', 'sync-code'].includes(target?.id) && event.key === 'Enter' && !event.isComposing) { event.preventDefault(); if (target.id === 'sync-email') requestSyncCode(); else verifySyncCode(); return; }
   }
 
   function handleAreaTabKeydown(event) {
@@ -4514,6 +4716,7 @@
     if (typeof setMobileQuickAddOpen === 'function') setMobileQuickAddOpen(false);
     await startReady();
     scheduleAutomaticSnapshot();
+    startSync();
     updateStoragePersistence(false).catch(console.error);
     registerServiceWorker();
     if (!location.hash) location.hash = '#today';

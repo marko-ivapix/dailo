@@ -658,7 +658,8 @@
       if (byteBudget <= 0) throw new Error(msg('Automatic snapshot budget must be positive.'));
       const previous = (await recoverySnapshots.listAll()).filter(item => item.reason === 'automatic')
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-      if (previous.length && timestamp.getTime() - Date.parse(previous[0].createdAt) < 300000) return null;
+      // `force` skips the five-minute pause: the first-sync choice (V2.0-a) always gets a fresh copy.
+      if (!options.force && previous.length && timestamp.getTime() - Date.parse(previous[0].createdAt) < 300000) return null;
       const prepared = await buildRecoverySnapshot('automatic', state, null, { maxBytes: byteBudget });
       const snapshot = prepared.snapshot;
       try {

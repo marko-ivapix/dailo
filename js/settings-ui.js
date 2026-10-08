@@ -31,6 +31,26 @@
     const capacity = ctx.Core?.dailyCapacityMinutes ? ctx.Core.dailyCapacityMinutes(state.settings) : 360;
     const capacityOptions = [...new Set([0, 120, 240, 300, 360, 420, 480, 600, 720, capacity])].sort((a, b) => a - b)
       .map(minutes => `<option value="${minutes}"${minutes === capacity ? ' selected' : ''}>${minutes ? tr('{hours} h', { hours: new Intl.NumberFormat(I18n.locale(), { maximumFractionDigits: 1 }).format(minutes / 60) }) : tr('Off')}</option>`).join('');
+    const sync = ctx.syncView?.() || { configured: false };
+    const busy = sync.busy ? ' disabled' : '';
+    const syncError = sync.error ? `<p class="validation" role="alert">${esc(trMessage(sync.error))}</p>` : '';
+    const syncCard = !sync.configured ? '' : `
+      <section class="settings-card" data-settings-sync>
+        <h2>${tr('Sync')}</h2>
+        ${sync.signedIn ? `<div class="settings-row"><div class="settings-label"><strong>${tr('Account')}</strong><span>${esc(sync.email)}</span></div></div>
+        <div class="settings-row"><div class="settings-label"><strong>${tr('Last sync')}</strong><span data-sync-status>${sync.running ? tr('Syncing…') : statusTime(sync.lastSyncAt)}${sync.lastError ? `<br><span class="validation" role="alert">${esc(trMessage(sync.lastError))}</span>` : ''}</span></div><button class="btn btn-secondary" type="button" data-action="sync-now"${sync.running ? ' disabled' : ''}><i class="ph ph-arrows-clockwise"></i> ${tr('Sync now')}</button></div>
+        <p class="area-empty-copy">${tr('Tasks, projects, goals, habits, notes and settings sync between your devices. Attachments stay on the device where they were added.')}</p>
+        <div class="sync-actions"><button class="btn btn-secondary" type="button" data-action="sync-sign-out">${tr('Sign out')}</button><button class="btn btn-ghost" type="button" data-action="sync-delete-account" style="color:var(--danger)">${tr('Delete account')}</button></div>`
+        : sync.step === 'code' ? `<div class="settings-row"><label class="settings-label" for="sync-code"><strong>${tr('Code from the e-mail')}</strong><span>${tr('A code was sent to {email}. It is valid for a short time.', { email: esc(sync.email) })}</span></label><input class="input" id="sync-code" inputmode="numeric" autocomplete="one-time-code" maxlength="10" /></div>
+        ${syncError}
+        <div class="sync-actions"><button class="btn btn-secondary" type="button" data-action="sync-verify-code"${busy}>${tr('Confirm')}</button><button class="btn btn-ghost" type="button" data-action="sync-request-code"${busy}>${tr('Send a new code')}</button><button class="btn btn-ghost" type="button" data-action="sync-change-email">${tr('Change e-mail')}</button></div>`
+        : `<div class="settings-row"><label class="settings-label" for="sync-email"><strong>${tr('Sign in')}</strong><span>${tr('Optional. Enter your e-mail address to get a sign-in code. No password is needed. Without signing in, everything stays only on this device.')}</span></label><input class="input" id="sync-email" type="email" inputmode="email" autocomplete="email" value="${esc(sync.email)}" /></div>
+        ${syncError}
+        <div class="sync-actions"><button class="btn btn-secondary" type="button" data-action="sync-request-code"${busy}>${tr('Send code')}</button></div>`}
+      </section>`;
+    const privacy = !sync.configured ? tr('Your data stays only on this device. Dailo has no server or account.')
+      : sync.signedIn ? tr('Your data is on this device and in your sync account on a server in the EU. Attachments stay only on this device.')
+        : tr('Your data stays only on this device until you sign in to sync.');
     return `${pageHeader(tr('Settings'), tr('Preferences and local data'), { add: false })}
       <section class="settings-card">
         <h2>${tr('General')}</h2>
@@ -75,12 +95,13 @@
         <div class="settings-row"><div class="settings-label"><strong>${tr('Clear completed tasks')}</strong><span>${tr('Permanently delete all completed tasks and their attachments.')}</span></div><button class="btn btn-secondary" type="button" data-action="clear-completed">${tr('Clear')}</button></div>
         <div class="settings-row"><div class="settings-label"><strong>${tr('Reset app data')}</strong><span>${tr('A safety ZIP is created first, then local tasks, projects, tags, attachments and preferences are cleared.')}</span></div><button class="btn btn-ghost" type="button" data-action="reset-app" style="color:var(--danger)">${tr('Reset')}</button></div>
       </section>
+${syncCard}
       <section class="settings-card" data-settings-about>
         <h2>${tr('About')}</h2>
         <div class="settings-row"><div class="settings-label"><strong>${tr('Version')}</strong><span>Dailo ${esc(release.APP_VERSION || '')}</span></div></div>
         ${reportHref ? `<div class="settings-row"><div class="settings-label"><strong>${tr('Report a problem')}</strong><span>${tr('Opens an e-mail with the app version and device details. Your data is not attached.')}</span></div><a class="btn btn-secondary" href="${esc(reportHref)}" data-report-problem>${tr('Report a problem')}</a></div>` : ''}
         <div class="settings-row"><div class="settings-label"><strong>${tr('Beta tester guide')}</strong><span>${tr('How to install Dailo, keep backups and report problems.')}</span></div><a class="btn btn-secondary" href="uputstvo.html" target="_blank" rel="noopener" data-beta-guide>${tr('Open guide')}</a></div>
-        <div class="settings-row"><div class="settings-label"><strong>${tr('Privacy')}</strong><span data-privacy-note>${tr('Your data stays only on this device. Dailo has no server or account.')}</span></div></div>
+        <div class="settings-row"><div class="settings-label"><strong>${tr('Privacy')}</strong><span data-privacy-note>${privacy}</span></div></div>
       </section>`;
   }
 

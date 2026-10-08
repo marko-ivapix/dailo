@@ -28,6 +28,8 @@ const SHELL_FILES = [
   'js/storage.js',
   'js/attachments.js',
   'js/backup.js',
+  'js/sync-config.js',
+  'js/sync.js',
   'js/domain-modules.js',
   'js/knowledge.js',
   'js/goals-ui.js',

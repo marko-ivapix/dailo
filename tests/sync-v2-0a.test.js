@@ -166,6 +166,31 @@ test('first sign-in with data on both sides asks, then merges, keeps the server 
   }
 });
 
+test('merging on first sign-in keeps the newer version of a record that exists on both sides', async () => {
+  const fake = createFakeSupabase();
+  const first = device(fake, baseState({ tasks: [task('a', { title: 'server newer', updatedAt: '2026-10-08T12:00:00.000Z' }), task('b', { title: 'server older', updatedAt: '2026-10-08T08:00:00.000Z' })] }));
+  await first.signIn('ana@example.com'); await first.sync();
+  const second = device(fake, baseState({ tasks: [task('a', { title: 'device older', updatedAt: '2026-10-08T10:00:00.000Z' }), task('b', { title: 'device newer', updatedAt: '2026-10-08T10:00:00.000Z' })] }));
+  await second.signIn('ana@example.com');
+  assert.equal((await second.sync('merge')).status, 'ok');
+  const titles = store => Object.fromEntries(store.state.tasks.map(item => [item.id, item.title]));
+  assert.deepEqual(titles(second.store), { a: 'server newer', b: 'device newer' });
+  await first.sync();
+  assert.deepEqual(titles(first.store), { a: 'server newer', b: 'device newer' }, 'both devices keep the newer versions');
+});
+
+test('a session that can no longer be refreshed is reported as expired', async () => {
+  const fake = createFakeSupabase();
+  const phone = device(fake, baseState({ tasks: [task('t1')] }));
+  await phone.signIn('ana@example.com');
+  const stale = { ...phone.meta.session, refreshToken: 'revoked', expiresAt: 0 };
+  await assert.rejects(phone.client.ensureSession(stale), error => error instanceof Sync.SyncError && error.status === 401 && /Session expired/.test(error.message));
+  phone.meta.session = stale;
+  const result = await phone.sync();
+  assert.equal(result.status, 'error');
+  assert.equal(result.code, 401);
+});
+
 test('pulls are paged, errors are reported without losing the pending changes, and accounts can be deleted', async () => {
   const fake = createFakeSupabase();
   const many = baseState({ tasks: Array.from({ length: 7 }, (_, index) => task(`t${index}`)) });
