@@ -142,7 +142,8 @@ test('the Quick Add preview lists what the title will set and hides when nothing
   assert.equal(vm.runInContext("quickParsePreview(parseQuickAddTitle('Samo naslov'))", context), '');
 });
 
-test('V1.10 is released as 1.10.0 so installed apps get the update notice', () => {
-  assert.equal(Release.APP_VERSION, '1.10.0');
-  assert.match(fs.readFileSync(require.resolve('../sw.js'), 'utf8'), /const VERSION = '1\.10\.0';/);
+test('V1.10 shipped as 1.10.0 or later so installed apps get the update notice', () => {
+  const [major, minor] = Release.APP_VERSION.split('.').map(Number);
+  assert.ok(major > 1 || minor >= 10, Release.APP_VERSION);
+  assert.ok(fs.readFileSync(require.resolve('../sw.js'), 'utf8').includes(`const VERSION = '${Release.APP_VERSION}';`));
 });

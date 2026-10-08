@@ -63,7 +63,7 @@ const { withI18n, runInNewContextWithI18n } = require('./support/i18n.js');
   const state = Core.normalizeState({ version: 3, tasks, projects: [], tags: [], areas: [], goals: [], habits: [], notes: [], resources: [], templates: [], savedViews: [], settings: { todayFocusStrip: true }, ui: {} });
   const source = fs.readFileSync(require.resolve('../js/app.js'), 'utf8');
   const renderToday = source.slice(source.indexOf('  function renderToday()'), source.indexOf('  function renderInbox()'));
-  const context = { state, Core, esc: String, getTask: id => tasks.find(task => task.id === id), pageHeader: () => '', formatPageToday: String, emptyState: () => '', backupReminderNotice: () => '', taskRow: () => '' };
+  const context = { state, Core, esc: String, getTask: id => tasks.find(task => task.id === id), pageHeader: () => '', formatPageToday: String, emptyState: () => '', backupReminderNotice: () => '', weeklyReviewNotice: () => '', taskRow: () => '' };
   vm.createContext(withI18n(context));
   const html = vm.runInContext(`${renderToday}\nrenderToday()`, context);
   assert.match(html, /data-today-open-count>3 open/);

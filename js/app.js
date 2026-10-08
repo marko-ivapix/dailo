@@ -25,7 +25,7 @@
     ['tags', msg('Tags'), 'ph-tag'], ['notes', msg('Notes'), 'ph-note'],
     ['resources', msg('Resources'), 'ph-link'], ['cleaning', msg('Cleaning'), 'ph-broom'],
     ['templates', msg('Templates'), 'ph-copy'], ['saved-views', msg('Saved Views'), 'ph-funnel'],
-    ['completed', msg('Completed'), 'ph-check-circle'], ['archived', msg('Archived Projects'), 'ph-archive'],
+    ['review', msg('Weekly review'), 'ph-clipboard-text'], ['completed', msg('Completed'), 'ph-check-circle'], ['archived', msg('Archived Projects'), 'ph-archive'],
     ['search', msg('Search'), 'ph-magnifying-glass'], ['settings', msg('Settings'), 'ph-gear']
   ];
   const INBOX_FILTERS = [['all', msg('All')], ['tasks', msg('Tasks')], ['goals', msg('Goals')], ['habits', msg('Habits')], ['notes', msg('Notes')], ['resources', msg('Resources')]];
@@ -635,6 +635,9 @@
       openCalendarDetail, navigateCalendar, openPlanPicker, calendarHabitAction, openCalendarValue, openCalendarGoalProgress,
       templateTypes: TEMPLATE_TYPES, templateLabel, openTemplateEditorFromSource, saveTemplateRecord, duplicateTemplateRecord,
       captureModalReturnFocus,
+      reviewTaskRow(task, context, options = {}) {
+        return taskRow(task, context, options);
+      },
       renderProjectTaskRow(task, projectId, options = {}) {
         return taskRow(task, options.completed ? 'completed' : `project:${projectId}`, options);
       },
@@ -694,7 +697,7 @@
 
   function currentRoute() {
     const hash = location.hash.replace(/^#/, '') || 'today';
-    if (['today', 'inbox', 'upcoming', 'calendar', 'anytime', 'tags', 'areas', 'notes', 'resources', 'goals', 'habits', 'templates', 'projects', 'cleaning', 'saved-views', 'archived', 'completed', 'settings'].includes(hash)) return { type: hash };
+    if (['today', 'inbox', 'upcoming', 'calendar', 'anytime', 'tags', 'areas', 'notes', 'resources', 'goals', 'habits', 'templates', 'projects', 'cleaning', 'saved-views', 'archived', 'completed', 'review', 'settings'].includes(hash)) return { type: hash };
     for (const type of ['note', 'resource']) if (hash.startsWith(type + '/')) {
       const id = decodeURIComponent(hash.slice(type.length + 1));
       return attachmentOwner({ ownerType: type, ownerId: id }) ? { type, id } : { type: knowledgeCollection(type) };
@@ -891,7 +894,7 @@
             <i class="ph ph-plus"></i><span>${tr('New project')}</span>
           </button>
           ${link('areas','ph-squares-four',tr('Areas'))}${link('notes','ph-note',tr('Notes'))}${link('resources','ph-link',tr('Resources'))}${link('tags','ph-tag',tr('Tags'))}${link('cleaning','ph-broom',tr('Cleaning'))}`)}
-        ${group('progress',tr('PROGRESS'),link('goals','ph-target',tr('Goals'))+link('habits','ph-repeat',tr('Habits')))}
+        ${group('progress',tr('PROGRESS'),link('goals','ph-target',tr('Goals'))+link('habits','ph-repeat',tr('Habits'))+link('review','ph-clipboard-text',tr('Weekly review')))}
         ${group('tools',tr('TOOLS'),link('templates','ph-copy',tr('Templates'))+link('saved-views','ph-funnel',tr('Saved Views')))}
         ${group('pinned-areas',tr('PINNED AREAS'),`<div class="pinned-areas-list">${pinnedAreas.map(area => `<button class="sidebar-action pinned-area ${route.type === 'area' && route.id === area.id ? 'is-active' : ''}" type="button" data-route="area/${esc(area.id)}" title="${esc(area.name)}"><i class="ph ${esc(area.icon)}" style="color:${esc(area.color)}"></i><span>${esc(area.name)}</span></button>`).join('')}</div>`)}
         ${group('pinned-views',tr('PINNED VIEWS'),state.savedViews.filter(v=>v.isPinned).map(v=>link('saved-view/'+esc(v.id),'ph-funnel',esc(v.name))).join(''))}
@@ -1060,6 +1063,7 @@
     if (state.settings.todayFocusStrip !== false) html += `<section class="today-focus-strip" data-today-focus-strip aria-label="${tr('Today focus')}"><div class="today-focus-strip-summary"><span class="today-context-date"><i class="ph ph-calendar-blank"></i>${esc(formatPageToday(today))}</span><span class="today-focus-strip-count" data-today-open-count>${trn(openTodayCount, '{count} open', '{count} open')}</span><span class="today-focus-strip-count" data-today-completed-count>${trn(completedTodayCount, '{count} completed', '{count} completed')}</span>${plannedMinutes ? `<span class="today-focus-strip-count">${tr('{minutes} min planned', { minutes: plannedMinutes })}</span>` : ''}</div><div class="today-focus-strip-controls"><label class="today-filter">${tr('Show')} <select class="filter-select" data-today-filter aria-label="${tr('Filter Today tasks')}">${[['all', msg('All')], ['open', msg('Open')], ['completed', msg('Completed')], ['important', msg('Important')], ['dueToday', msg('Due today')]].map(([value, label]) => `<option value="${value}"${todayFocusFilter === value ? ' selected' : ''}>${tr(label)}</option>`).join('')}</select></label><button class="btn btn-primary" type="button" data-action="quick-add" data-today="true"><i class="ph ph-plus"></i>${tr('Add task')}</button></div></section>`;
     html += `<div class="today-context" data-today-context="true">${contextCounts ? `<span class="today-context-summary">${esc(contextCounts)}</span>` : ''}</div>`;
     html += backupReminderNotice();
+    html += weeklyReviewNotice();
     const focusIds = Core.selectFocusTasks(state.tasks, state.settings.focusTaskIds);
     const focusTasks = focusIds.map(getTask);
     const completedToday = state.tasks.filter(task => task.isCompleted && String(task.completedAt || '').slice(0, 10) === today);
@@ -3347,6 +3351,19 @@
   }
 
   // Today notice when the last ZIP export is older than the reminder interval (V1.9).
+  // Weekly review prompt (V1.11): on the last three days of the week until the review is recorded.
+  function weeklyReviewNotice() {
+    if (!Core.weeklyReviewDue(state.settings, Core.dateOnly(), state.settings.weekStartsOn)) return '';
+    return `<section class="weekly-review-notice" data-weekly-review-notice role="status" aria-label="${tr('Weekly review')}"><i class="ph ph-clipboard-text weekly-review-notice-icon" aria-hidden="true"></i><div class="backup-reminder-copy"><strong>${tr('Time for the weekly review')}</strong><span>${tr('A few minutes to empty the Inbox, catch up on overdue tasks and look at the week ahead.')}</span></div><button class="btn btn-primary" type="button" data-route="review">${tr('Start review')}</button></section>`;
+  }
+
+  function completeWeeklyReview() {
+    state.settings.weeklyReviews = Core.recordWeeklyReview(state.settings, { today: Core.dateOnly(), now: nowIso(), weekStartsOn: state.settings.weekStartsOn });
+    saveState();
+    setToastMessage(msg('Weekly review completed.'));
+    render();
+  }
+
   function backupReminderNotice() {
     let snoozedUntil = null;
     try { snoozedUntil = localStorage.getItem('todoAppBackupReminderSnoozedUntil'); } catch (error) { snoozedUntil = null; }
@@ -3964,6 +3981,7 @@
     else if (action === 'enable-notifications') enableBrowserNotifications();
     else if (action === 'export-backup') exportBackupAction();
     else if (action === 'snooze-backup-reminder') { snoozeBackupReminder(); render(); }
+    else if (action === 'complete-weekly-review') completeWeeklyReview();
     else if (action === 'apply-app-update') applyAppUpdate();
     else if (action === 'request-storage-persistence') updateStoragePersistence(true).catch(console.error);
     else if (action === 'import-backup') chooseImportBackup();

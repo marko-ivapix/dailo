@@ -3,7 +3,7 @@
    a changed sw.js is how installed apps learn about a new version. */
 'use strict';
 
-const VERSION = '1.10.0';
+const VERSION = '1.11.0';
 const CACHE_PREFIX = 'dailo-shell-';
 const CACHE_NAME = `${CACHE_PREFIX}${VERSION}`;
 // Every runtime file index.html, its stylesheets and the manifest reference (tests keep this complete).
@@ -40,6 +40,7 @@ const SHELL_FILES = [
   'js/calendar-ui.js',
   'js/tasks-ui.js',
   'js/cleaning-ui.js',
+  'js/review-ui.js',
   'js/app.js',
   'icons/icon.svg',
   'icons/apple-touch-icon.png',

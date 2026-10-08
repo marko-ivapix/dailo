@@ -603,6 +603,59 @@
     return Number.isInteger(value) && value >= 0 && value <= 90 ? value : 7;
   }
 
+  // Weekly review (V1.11). settings.weeklyReviews holds one { weekStart, completedAt } per week, newest first.
+  const WEEKLY_REVIEW_LOG_LIMIT = 26;
+
+  function validWeeklyReviewEntry(entry) {
+    return Boolean(entry && typeof entry === 'object' && typeof entry.weekStart === 'string'
+      && parseDateOnly(entry.weekStart) && dateOnly(parseDateOnly(entry.weekStart)) === entry.weekStart && isIsoTimestamp(entry.completedAt));
+  }
+
+  function weeklyReviewLog(settings) {
+    const seen = new Set();
+    return (Array.isArray(settings?.weeklyReviews) ? settings.weeklyReviews : [])
+      .filter(validWeeklyReviewEntry)
+      .sort((a, b) => b.weekStart.localeCompare(a.weekStart) || b.completedAt.localeCompare(a.completedAt))
+      .filter(entry => !seen.has(entry.weekStart) && seen.add(entry.weekStart))
+      .slice(0, WEEKLY_REVIEW_LOG_LIMIT)
+      .map(entry => ({ weekStart: entry.weekStart, completedAt: entry.completedAt }));
+  }
+
+  function recordWeeklyReview(settings, { today = dateOnly(), now = new Date().toISOString(), weekStartsOn = 'monday' } = {}) {
+    const weekStart = weekStartFor(today, weekStartsOn);
+    return weeklyReviewLog({ weeklyReviews: [{ weekStart, completedAt: now }, ...weeklyReviewLog(settings).filter(entry => entry.weekStart !== weekStart)] });
+  }
+
+  // Due on the last three days of the week until this week has a record.
+  function weeklyReviewDue(settings, today = dateOnly(), weekStartsOn = 'monday') {
+    const weekStart = weekStartFor(today, weekStartsOn);
+    if (!weekStart || today < addDays(weekStart, 4)) return false;
+    return !weeklyReviewLog(settings).some(entry => entry.weekStart === weekStart);
+  }
+
+  function deriveWeeklyReview(state, today = dateOnly(), weekStartsOn = 'monday') {
+    const source = state || {};
+    const open = (source.tasks || []).filter(task => task && !task.isCompleted);
+    const byDate = key => (a, b) => String(a[key]).localeCompare(String(b[key])) || String(a.title).localeCompare(String(b.title));
+    const overdue = open.filter(task => isOverdue(task, today)).sort(byDate('dueDate'));
+    const overdueIds = new Set(overdue.map(task => task.id));
+    const nextDays = Array.from({ length: 7 }, (_, index) => {
+      const date = addDays(today, index + 1);
+      return { date, planned: open.filter(task => task.plannedDate === date).length, due: open.filter(task => task.dueDate === date).length };
+    });
+    const now = parseDateOnly(today) || new Date();
+    return {
+      weekStart: weekStartFor(today, weekStartsOn),
+      inbox: open.filter(isInboxActive),
+      overdue,
+      missedPlans: open.filter(task => !overdueIds.has(task.id) && task.plannedDate && task.plannedDate < today).sort(byDate('plannedDate')),
+      nextDays,
+      goals: (source.goals || []).filter(goal => goal && (!goal.status || goal.status === 'active')).map(goal => ({ goal, health: getGoalHealth(goal, now) })),
+      habits: (source.habits || []).filter(habit => habit && habit.status === 'active'),
+      areas: (source.areas || []).filter(Boolean).map(area => ({ area, open: areaSummary(area.id, source).openTasks })),
+    };
+  }
+
   function oldestCreatedAt(state) {
     let oldest = null;
     for (const key of ['tasks', 'goals', 'habits', 'notes', 'resources']) {
@@ -1638,6 +1691,10 @@
     normalizeV16Settings,
     resetV16Settings,
     backupReminderDays,
+    weeklyReviewLog,
+    recordWeeklyReview,
+    weeklyReviewDue,
+    deriveWeeklyReview,
     backupReminderDue,
     oldestCreatedAt,
     migrateStateV16,

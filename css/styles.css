@@ -2204,6 +2204,21 @@ a.btn { text-decoration: none; }
 .quick-parse-item { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; padding: 3px 9px; border: 1px solid var(--line-2); border-radius: 999px; background: var(--graphite-850); color: var(--ink-2); font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; }
 .quick-parse-item i { color: var(--primary-focus); font-size: 13px; }
 
+/* V1.11 Weekly review: numbered steps built from existing sections, rows and Area object links. */
+.weekly-review { display: grid; gap: var(--space-2); }
+.weekly-review-number { display: inline-grid; place-items: center; width: 20px; height: 20px; margin-right: 8px; border-radius: 999px; background: var(--graphite-750); color: var(--ink-2); font-size: 11px; font-weight: 600; }
+.weekly-review-link { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; text-align: left; }
+.weekly-review-link span { color: var(--ink-3); font-size: 13px; }
+.weekly-review-days { display: grid; gap: 4px; margin: 0 0 var(--space-3); padding: 0; list-style: none; }
+.weekly-review-day { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--line-1); color: var(--ink-2); font-size: 13px; }
+.weekly-review-day span:last-child { color: var(--ink-3); }
+.weekly-review-finish { display: grid; justify-items: start; gap: var(--space-2); margin: var(--space-4) 0; color: var(--ink-2); }
+.weekly-review-finish > i { color: var(--mint-400); font-size: 22px; }
+.weekly-review-finish p { margin: 0; }
+.weekly-review-history { color: var(--ink-3); font-size: 13px; }
+.weekly-review-notice { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; margin: 0 0 var(--space-4); padding: var(--space-3) var(--space-4); border: 1px solid var(--line-2); border-left: 2px solid var(--primary-focus); border-radius: var(--radius-md); background: var(--graphite-850); }
+.weekly-review-notice-icon { flex: none; color: var(--primary-focus); font-size: 20px; }
+
 /* Keep primary compact actions touchable after all density rules. */
 @media (max-width: 700px) {
   .task-actions .btn-icon,

@@ -220,6 +220,11 @@ test('every translation key used in code has a Serbian entry with the same place
   assert.deepEqual(problems, []);
 });
 
+test('the Serbian catalog is Latin script only', () => {
+  const cyrillic = Object.entries(I18n.catalog('sr')).filter(([, value]) => /[\u0400-\u04FF]/.test(JSON.stringify(value))).map(([key]) => key);
+  assert.deepEqual(cyrillic, []);
+});
+
 test('translation calls use literal keys, never template literals', () => {
   for (const { file, text } of sources()) assert.doesNotMatch(text, /\b(?:tr|msg)\(\s*`/, `${file} must pass a quoted key`);
 });
