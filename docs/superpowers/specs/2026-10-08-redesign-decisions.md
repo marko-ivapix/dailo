@@ -143,3 +143,14 @@ Images 3–9: "Edit task", and the Project, Planned date, Priority, Reminder, Ta
 | GO5 | **Goal window** like the task window (D1): title and area link; a progress card with the big percentage, the bar and the goal state; Etape with round checks and "+ Dodaj etapu"; linked tasks (with checkboxes) or the habit contributions; Planiranje (Ciljni datum, Horizont, Izvor napretka, Podsetnik), Organizacija (Oblast, Povezano) and "Više opcija" (Istorija, pauza, arhiva). A manual goal has "Ažuriraj napredak" with quick values. | accepted as the basis (no objection) |
 | GO6 | **"Označi kao ostvaren"** at the bottom of the goal window stays gray until the goal reaches 100% and turns blue then; "Vrati kao aktivan" for a finished goal. | decided |
 | GO7 | **New goal window** like the new habit window (N1): name, area, Horizont (default Kratkoročno), Napredak (Ručno / Zadaci / Navike; Ručno offers Procenat / Broj with a target and unit), Ciljni datum (quick choices: Za mesec dana, Za 3 meseca, Kraj godine), and "Više" (Etape, Podsetnik, links). The floating "+" on this screen opens it. | accepted as the basis (no objection) |
+
+## More ("Još") and Settings (images 19–20, prototype `jos-podesavanja.html`)
+
+| # | Decision | Status |
+| --- | --- | --- |
+| M1 | **Projects and "Bilo kad" (Anytime) live under "Zadaci",** not under "Još" (part of the open G1 question about what "Zadaci" shows). | decided |
+| M2 | **Notes and Resources stay** in the app, under "Još". | decided |
+| M3 | **The "Today cards" and "Default Today filter" settings are removed:** the simpler Today (T2) has nothing for them to choose. | decided |
+| M4 | **"Još" groups as cards:** Zakačeno (pinned areas and saved views as ordinary rows, without the amber pin), Planiranje (Ciljevi, Oblasti, Čišćenje, Nedeljni pregled), Biblioteka (Beleške, Resursi, Oznake, Šabloni, Sačuvani prikazi), Arhiva (Završeni zadaci, Arhivirani projekti), and Podešavanja with the sync state underneath. Upcoming moved to the Calendar (C9), Search is on Today (T1). The active bottom item uses the light-blue icon and label, not a filled blue background. | proposed |
+| M5 | **Settings groups:** Nalog (Sinhronizacija); Opšte (Prvi dan nedelje, Dnevni kapacitet, Podsetnici); Podaci (Rezervna kopija with the backup reminder inside, Vrati iz kopije, Lokalni snimci, Trajno čuvanje, Popuni primerima, Resetuj aplikaciju in red); Pomoć (Uputstvo, Prijavi problem, Instaliraj aplikaciju while not installed, Privatnost, O aplikaciji with the version). Keyboard shortcuts and compact density only on desktop. "‹ Još" at the top left. | proposed |
+| M6 | **Settings that leave:** "Izgled / Tema" (dark is the only theme), "Today summary" (the simpler Today has no summary strip), and "Obriši završene zadatke" moves to the Završeni zadaci screen. | proposed |
