@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
+const { withI18n, runInNewContextWithI18n } = require('./support/i18n.js');
 global.__TODO_TEST_MEMORY_DB__ = true;
 const Core = global.TodoCore = require('../js/core.js');
 const Storage = require('../js/storage.js');
@@ -34,7 +35,7 @@ function appRecovery(state) {
     setToastMessage: message => { ctx.message = message; }, setUndo: (message, fn) => { ctx.undo = fn; },
     refreshHabitMetrics: async () => {}, $: () => input,
   };
-  vm.createContext(ctx); vm.runInContext(code, ctx);
+  vm.createContext(withI18n(ctx)); vm.runInContext(code, ctx);
   return { ctx, input, begin: selection => ctx.beginGlobalOperation('restore', null, selection), commit: () => ctx.commitGlobalOperation(ctx.globalOperation) };
 }
 

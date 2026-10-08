@@ -9,10 +9,10 @@ const areas = fs.readFileSync(require.resolve('../js/areas-ui.js'), 'utf8');
 const css = fs.readFileSync(require.resolve('../css/styles.css'), 'utf8');
 
 test('icon-only task and subtask controls expose item-specific accessible names', () => {
-  assert.match(tasks, /data-action="task-menu"[\s\S]*?aria-label="Task actions/);
-  assert.match(tasks, /data-action="toggle-subtask"[\s\S]*?aria-label="\$\{[\s\S]*?\} subtask/);
-  assert.match(tasks, /data-action="delete-subtask"[\s\S]*?aria-label="Delete subtask/);
-  assert.match(app, /data-action="quick-delete-subtask"[\s\S]*?aria-label="Delete subtask/);
+  assert.match(tasks, /data-action="task-menu"[\s\S]*?aria-label="\$\{tr\('Task actions'\)\}"/);
+  assert.match(tasks, /data-action="toggle-subtask"[\s\S]*?aria-label="\$\{subtask\.isCompleted \? tr\('Mark subtask incomplete'\) : tr\('Complete subtask'\)\}"/);
+  assert.match(tasks, /data-action="delete-subtask"[\s\S]*?aria-label="\$\{tr\('Delete subtask'\)\}"/);
+  assert.match(app, /data-action="quick-delete-subtask"[\s\S]*?aria-label="\$\{tr\('Delete subtask'\)\}"/);
 });
 
 test('dialogs use visible headings as accessible names and modal focus hooks', () => {
@@ -48,8 +48,8 @@ test('primary compact mobile controls retain 44px touch targets', () => {
 
 test('popover headings stay labelled after repeat and reminder content swaps', () => {
   assert.match(app, /function setPopoverContent\(html\)/);
-  assert.match(app, /setPopoverContent\(`<div class="popover-title">Reminder/);
-  assert.match(app, /setPopoverContent\(`<div class="popover-title">Custom repeat/);
+  assert.match(app, /setPopoverContent\(`<div class="popover-title">\$\{tr\('Reminder'\)\}/);
+  assert.match(app, /setPopoverContent\(`<div class="popover-title">\$\{tr\('Custom repeat'\)\}/);
   assert.match(app, /setPopoverContent[\s\S]*?requestAnimationFrame\(\(\) => popoverEl\?\.querySelector\('input, select, textarea, button'\)\?\.focus\(\)\)/);
   assert.match(app, /closePopover\(\)[\s\S]*?openerIsActive[\s\S]*?focusRoot\?\.querySelector\(returnFocus\.selector\)/);
   assert.match(app, /function popoverFocusTarget\(/);

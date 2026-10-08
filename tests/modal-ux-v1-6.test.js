@@ -23,10 +23,11 @@ test('task editor keeps optional sections collapsed and exposes compact essentia
 });
 
 test('mobile quick add offers all supported item types and modal sheets have mobile layout hooks', () => {
-  for (const type of ['Task', 'Goal', 'Habit', 'Note', 'Resource', 'Project']) assert.match(html, new RegExp(`>${type}<`));
+  // index.html is translated directly (Serbian-only UI): Task, Goal, Habit, Note, Resource, Project.
+  for (const type of ['Zadatak', 'Cilj', 'Navika', 'Beleška', 'Resurs', 'Projekat']) assert.match(html, new RegExp(`>${type}<`));
   assert.match(app, /const frameClass = cls \? ` modal-backdrop-\$\{cls\}`/);
   assert.match(app, /modalState\.draft\.moreOpen \? \(\$\('#quick-notes'\)/);
-  assert.match(app, /aria-label=\"Dailo dialog\"/);
+  assert.match(app, /aria-label="\$\{tr\('Dailo dialog'\)\}"/);
   assert.match(css, /\.modal-backdrop-task-detail-modal/);
   assert.match(css, /\.task-detail-modal \.modal-header \.complete-control[^}]*width: 44px/);
   assert.match(css, /\.modal-backdrop-quick/);

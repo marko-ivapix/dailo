@@ -2,12 +2,13 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
+const { withI18n, runInNewContextWithI18n } = require('./support/i18n.js');
 const Core = require('../js/core.js');
 
 function fixture() {
   const adapters = {};
   const window = { TodoDomainModules: { register: adapter => { adapters[adapter.name] = adapter; } } };
-  for (const name of ['goals', 'habits']) vm.runInNewContext(fs.readFileSync(require.resolve(`../js/${name}-ui.js`), 'utf8'), { window, requestAnimationFrame: fn => fn() });
+  for (const name of ['goals', 'habits']) runInNewContextWithI18n(fs.readFileSync(require.resolve(`../js/${name}-ui.js`), 'utf8'), { window, requestAnimationFrame: fn => fn() });
   const goal = { id: 'g', title: 'Read', status: 'active', progressMode: 'manual', progressType: 'numeric', currentValue: 2.5, targetValue: 10, unit: 'books', targetDate: '2026-09-20', milestones: [], habitLinks: [], taskIds: [], projectLinks: [], reminders: {} };
   const habit = { id: 'h', name: 'Read daily', status: 'active', trackingType: 'numeric', targetValue: 4, startDate: '2026-09-14', frequencyType: 'daily', quickValues: [], minimumTarget: 2, idealTarget: 4, graceDays: 1 };
   const state = { goals: [goal], habits: [habit], tasks: [], projects: [], areas: [], ui: {}, settings: {}, habitLogCache: {}, habitMetrics: {} };
@@ -124,6 +125,6 @@ test('Goal habit contributions cap each link and escape names', () => {
   f.state.habitMetrics.h = { totalCheckins: 4 };
   const html = f.adapters.goals.renderRoute({ type: 'goal', id: 'g' }, f.ctx);
   assert.match(html, /data-goal-health="complete"/);
-  assert.match(html, /4 \/ 2 totalCheckins · 100%/);
+  assert.match(html, /4 \/ 2 Check-ins · 100%/);
   assert.doesNotMatch(html, /<img src=x>/);
 });

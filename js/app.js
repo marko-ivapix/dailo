@@ -1,33 +1,36 @@
 (function () {
   'use strict';
 
+  const I18n = window.TodoI18n;
+  const { tr, trn, trMessage, msg } = I18n;
   const Core = window.TodoCore;
   const TodoStorage = window.TodoStorage;
   const Attachments = window.TodoAttachments;
   const Backup = window.TodoBackup;
+  const Release = window.DailoRelease || { APP_VERSION: '', REPORT_EMAIL: '', problemReportMailto: () => null };
   const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
   const MAX_ATTACHMENTS_PER_TASK = 10;
   const STORAGE_KEY = 'todoAppData';
   const VERSION = 3;
   const PROJECT_COLORS = ['#5362FF', '#30CBAD', '#A879FF', '#4CC9F0', '#F5B942', '#FF8A5B', '#F06A8A', '#8FD14F'];
   const AREA_ICONS = ['ph-briefcase', 'ph-house', 'ph-heart', 'ph-chart-line-up', 'ph-graduation-cap', 'ph-palette', 'ph-plant', 'ph-airplane'];
-  const DATE_FMT = new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
-  const SHORT_DATE_FMT = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' });
-  const WEEKDAY_FMT = new Intl.DateTimeFormat(undefined, { weekday: 'long' });
+  const DATE_FMT = new Intl.DateTimeFormat(I18n.locale(), { weekday: 'long', month: 'long', day: 'numeric' });
+  const SHORT_DATE_FMT = new Intl.DateTimeFormat(I18n.locale(), { month: 'short', day: 'numeric' });
+  const WEEKDAY_FMT = new Intl.DateTimeFormat(I18n.locale(), { weekday: 'long' });
   const SHORTCUT_DEFAULTS = { newTask:'N', search:'Ctrl/Cmd+F', today:'T', inbox:'I', upcoming:'U', calendar:'C', goals:'G', habits:'H', templates:'Shift+T' };
-  const SHORTCUT_LABELS = {newTask:'New task',search:'Search',today:'Today',inbox:'Inbox',upcoming:'Upcoming',calendar:'Calendar',goals:'Goals',habits:'Habits',templates:'Templates'};
+  const SHORTCUT_LABELS = {newTask:msg('New task'),search:msg('Search'),today:msg('Today'),inbox:msg('Inbox'),upcoming:msg('Upcoming'),calendar:msg('Calendar'),goals:msg('Goals'),habits:msg('Habits'),templates:msg('Templates')};
   const MOBILE_MORE_ROUTES = [
-    ['upcoming', 'Upcoming', 'ph-calendar-dots'], ['anytime', 'Anytime', 'ph-infinity'],
-    ['projects', 'Projects', 'ph-folder'], ['areas', 'Areas', 'ph-squares-four'],
-    ['tags', 'Tags', 'ph-tag'], ['notes', 'Notes', 'ph-note'],
-    ['resources', 'Resources', 'ph-link'], ['cleaning', 'Cleaning', 'ph-broom'],
-    ['templates', 'Templates', 'ph-copy'], ['saved-views', 'Saved Views', 'ph-funnel'],
-    ['completed', 'Completed', 'ph-check-circle'], ['archived', 'Archived Projects', 'ph-archive'],
-    ['search', 'Search', 'ph-magnifying-glass'], ['settings', 'Settings', 'ph-gear']
+    ['upcoming', msg('Upcoming'), 'ph-calendar-dots'], ['anytime', msg('Anytime'), 'ph-infinity'],
+    ['projects', msg('Projects'), 'ph-folder'], ['areas', msg('Areas'), 'ph-squares-four'],
+    ['tags', msg('Tags'), 'ph-tag'], ['notes', msg('Notes'), 'ph-note'],
+    ['resources', msg('Resources'), 'ph-link'], ['cleaning', msg('Cleaning'), 'ph-broom'],
+    ['templates', msg('Templates'), 'ph-copy'], ['saved-views', msg('Saved Views'), 'ph-funnel'],
+    ['completed', msg('Completed'), 'ph-check-circle'], ['archived', msg('Archived Projects'), 'ph-archive'],
+    ['search', msg('Search'), 'ph-magnifying-glass'], ['settings', msg('Settings'), 'ph-gear']
   ];
-  const INBOX_FILTERS = [['all', 'All'], ['tasks', 'Tasks'], ['goals', 'Goals'], ['habits', 'Habits'], ['notes', 'Notes'], ['resources', 'Resources']];
+  const INBOX_FILTERS = [['all', msg('All')], ['tasks', msg('Tasks')], ['goals', msg('Goals')], ['habits', msg('Habits')], ['notes', msg('Notes')], ['resources', msg('Resources')]];
   let shortcutError = '';
-  const DATE_TIME_FMT = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  const DATE_TIME_FMT = new Intl.DateTimeFormat(I18n.locale(), { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 
   let state = null;
   let recovery = null;
@@ -36,6 +39,10 @@
   let storageError = false;
   let automaticSnapshotError = null;
   let automaticSnapshotTimer = null;
+  let storagePersistence = { state: 'unknown' };
+  let storagePersistenceRequested = false;
+  let waitingServiceWorker = null;
+  let appUpdateRequested = false;
   let globalOperation = null;
   let globalRecoveryNotice = null;
   let modalState = null;
@@ -84,7 +91,7 @@
     if (!root || !toggle || !menu) return;
     root.classList.toggle('is-open', open);
     toggle.setAttribute('aria-expanded', String(open));
-    toggle.setAttribute('aria-label', open ? 'Close quick add menu' : 'Open quick add menu');
+    toggle.setAttribute('aria-label', open ? tr('Close quick add menu') : tr('Open quick add menu'));
     menu.hidden = !open;
   }
 
@@ -101,7 +108,7 @@
     trigger.setAttribute('aria-expanded', String(mobileMoreOpen));
     if (!mobileMoreOpen || recovery || !state) { root.innerHTML = ''; return; }
     const current = currentRoute();
-    root.innerHTML = `<div class="mobile-more-backdrop" data-action="close-mobile-more"><section id="mobile-more-sheet" class="mobile-more-sheet" role="dialog" aria-modal="true" aria-labelledby="mobile-more-title"><div class="mobile-more-header"><h2 id="mobile-more-title">More</h2><button class="btn-icon" type="button" data-action="close-mobile-more" aria-label="Close More"><i class="ph ph-x"></i></button></div><div class="mobile-more-list">${MOBILE_MORE_ROUTES.map(([route, label, icon]) => { const active = mobileMoreRouteActive(route, current); const action = route === 'search' ? ' data-action="open-search"' : ''; return `<button class="mobile-more-route${active ? ' is-selected' : ''}" type="button" data-mobile-more-route="${route}"${action}${active ? ' aria-current="page"' : ''}><i class="ph ${icon}" aria-hidden="true"></i><span>${label}</span>${active ? '<i class="ph ph-check mobile-more-check" aria-hidden="true"></i>' : ''}</button>`; }).join('')}</div></section></div>`;
+    root.innerHTML = `<div class="mobile-more-backdrop" data-action="close-mobile-more"><section id="mobile-more-sheet" class="mobile-more-sheet" role="dialog" aria-modal="true" aria-labelledby="mobile-more-title"><div class="mobile-more-header"><h2 id="mobile-more-title">${tr('More')}</h2><button class="btn-icon" type="button" data-action="close-mobile-more" aria-label="${tr('Close More')}"><i class="ph ph-x"></i></button></div><div class="mobile-more-list">${MOBILE_MORE_ROUTES.map(([route, label, icon]) => { const active = mobileMoreRouteActive(route, current); const action = route === 'search' ? ' data-action="open-search"' : ''; return `<button class="mobile-more-route${active ? ' is-selected' : ''}" type="button" data-mobile-more-route="${route}"${action}${active ? ' aria-current="page"' : ''}><i class="ph ${icon}" aria-hidden="true"></i><span>${tr(label)}</span>${active ? '<i class="ph ph-check mobile-more-check" aria-hidden="true"></i>' : ''}</button>`; }).join('')}</div></section></div>`;
     requestAnimationFrame(() => root.querySelector('.mobile-more-route, [data-action="close-mobile-more"]')?.focus());
   }
 
@@ -176,16 +183,16 @@
 
   function relativeDateLabel(value, today = Core.dateOnly()) {
     if (!value) return '';
-    if (value === today) return 'Today';
-    if (value === Core.addDays(today, 1)) return 'Tomorrow';
-    if (value === Core.addDays(today, -1)) return 'Yesterday';
+    if (value === today) return tr('Today');
+    if (value === Core.addDays(today, 1)) return tr('Tomorrow');
+    if (value === Core.addDays(today, -1)) return tr('Yesterday');
     return formatDate(value);
   }
 
   function formatReminder(value) {
-    if (!value) return 'No reminder';
+    if (!value) return tr('No reminder');
     const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return 'No reminder';
+    if (Number.isNaN(date.getTime())) return tr('No reminder');
     return DATE_TIME_FMT.format(date);
   }
 
@@ -203,11 +210,12 @@
   }
 
   function recurrenceLabel(recurrence) {
-    if (!recurrence) return 'Does not repeat';
+    if (!recurrence) return tr('Does not repeat');
     const interval = Math.max(1, Number(recurrence.interval) || 1);
-    const unit = recurrence.frequency === 'daily' ? 'day' : recurrence.frequency === 'weekly' ? 'week' : 'month';
-    if (interval === 1) return `Every ${unit}`;
-    return `Every ${interval} ${unit}s`;
+    // Interval 1 has its own wording: Serbian plural "one" also covers 21, 31 …
+    if (recurrence.frequency === 'daily') return interval === 1 ? tr('Every day') : trn(interval, 'Every {count} day', 'Every {count} days');
+    if (recurrence.frequency === 'weekly') return interval === 1 ? tr('Every week') : trn(interval, 'Every {count} week', 'Every {count} weeks');
+    return interval === 1 ? tr('Every month') : trn(interval, 'Every {count} month', 'Every {count} months');
   }
 
   function createEmptyState() {
@@ -245,9 +253,9 @@
     const state = createEmptyState();
     const ts = nowIso();
     const projects = [
-      { id: 'project_client', name: 'Client Website', color: PROJECT_COLORS[0], order: 0, areaId: null, goalIds: [], isArchived: false, createdAt: ts, updatedAt: ts },
-      { id: 'project_portfolio', name: 'Portfolio', color: PROJECT_COLORS[2], order: 1, areaId: null, goalIds: [], isArchived: false, createdAt: ts, updatedAt: ts },
-      { id: 'project_personal', name: 'Personal', color: PROJECT_COLORS[1], order: 2, areaId: null, goalIds: [], isArchived: false, createdAt: ts, updatedAt: ts },
+      { id: 'project_client', name: tr('Client Website'), color: PROJECT_COLORS[0], order: 0, areaId: null, goalIds: [], isArchived: false, createdAt: ts, updatedAt: ts },
+      { id: 'project_portfolio', name: tr('Portfolio'), color: PROJECT_COLORS[2], order: 1, areaId: null, goalIds: [], isArchived: false, createdAt: ts, updatedAt: ts },
+      { id: 'project_personal', name: tr('Personal'), color: PROJECT_COLORS[1], order: 2, areaId: null, goalIds: [], isArchived: false, createdAt: ts, updatedAt: ts },
     ];
     const mkTask = (id, title, extras = {}) => ({
       id,
@@ -277,24 +285,24 @@
     });
     state.projects = projects;
     state.tasks = [
-      mkTask('task_homepage', 'Finish homepage', {
+      mkTask('task_homepage', tr('Finish homepage'), {
         projectId: 'project_client', plannedDate: today, dueDate: Core.addDays(today, 3), todayOrder: 0, projectOrder: 0,
-        notes: 'Finish responsive pass before sending the preview link.',
+        notes: tr('Finish responsive pass before sending the preview link.'),
         subtasks: [
-          { id: 'sub_mobile', title: 'Test responsive layout', isCompleted: false, order: 0 },
-          { id: 'sub_form', title: 'Check contact form', isCompleted: true, order: 1 },
-          { id: 'sub_link', title: 'Send preview link', isCompleted: false, order: 2 },
+          { id: 'sub_mobile', title: tr('Test responsive layout'), isCompleted: false, order: 0 },
+          { id: 'sub_form', title: tr('Check contact form'), isCompleted: true, order: 1 },
+          { id: 'sub_link', title: tr('Send preview link'), isCompleted: false, order: 2 },
         ],
       }),
-      mkTask('task_invoice', 'Send client invoice', { projectId: 'project_client', dueDate: Core.addDays(today, -1), projectOrder: 1 }),
-      mkTask('task_groceries', 'Buy groceries', { projectId: 'project_personal', plannedDate: today, todayOrder: 1, projectOrder: 0 }),
-      mkTask('task_plugin', 'Check plugin update', { isInbox: true, dueDate: Core.addDays(today, 2), inboxOrder: 0 }),
-      mkTask('task_accountant', 'Call accountant', { isInbox: true, inboxOrder: 1 }),
-      mkTask('task_copy', 'Review portfolio copy', { projectId: 'project_portfolio', plannedDate: Core.addDays(today, -1), dueDate: Core.addDays(today, 2), projectOrder: 0 }),
-      mkTask('task_hosting', 'Renew hosting', { projectId: 'project_personal', dueDate: Core.addDays(today, 1), projectOrder: 1 }),
-      mkTask('task_portfolio', 'Update portfolio case study', { projectId: 'project_portfolio', plannedDate: Core.addDays(today, 3), dueDate: Core.addDays(today, 7), projectOrder: 1 }),
-      mkTask('task_done_today', 'Reply to client feedback', { projectId: 'project_client', isCompleted: true, completedAt: new Date().toISOString(), projectOrder: 2 }),
-      mkTask('task_done_yesterday', 'Create homepage wireframe', { projectId: 'project_client', isCompleted: true, completedAt: new Date(Date.now() - 86400000).toISOString(), projectOrder: 3 }),
+      mkTask('task_invoice', tr('Send client invoice'), { projectId: 'project_client', dueDate: Core.addDays(today, -1), projectOrder: 1 }),
+      mkTask('task_groceries', tr('Buy groceries'), { projectId: 'project_personal', plannedDate: today, todayOrder: 1, projectOrder: 0 }),
+      mkTask('task_plugin', tr('Check plugin update'), { isInbox: true, dueDate: Core.addDays(today, 2), inboxOrder: 0 }),
+      mkTask('task_accountant', tr('Call accountant'), { isInbox: true, inboxOrder: 1 }),
+      mkTask('task_copy', tr('Review portfolio copy'), { projectId: 'project_portfolio', plannedDate: Core.addDays(today, -1), dueDate: Core.addDays(today, 2), projectOrder: 0 }),
+      mkTask('task_hosting', tr('Renew hosting'), { projectId: 'project_personal', dueDate: Core.addDays(today, 1), projectOrder: 1 }),
+      mkTask('task_portfolio', tr('Update portfolio case study'), { projectId: 'project_portfolio', plannedDate: Core.addDays(today, 3), dueDate: Core.addDays(today, 7), projectOrder: 1 }),
+      mkTask('task_done_today', tr('Reply to client feedback'), { projectId: 'project_client', isCompleted: true, completedAt: new Date().toISOString(), projectOrder: 2 }),
+      mkTask('task_done_yesterday', tr('Create homepage wireframe'), { projectId: 'project_client', isCompleted: true, completedAt: new Date(Date.now() - 86400000).toISOString(), projectOrder: 3 }),
     ];
     return state;
   }
@@ -420,7 +428,7 @@
       if (interrupted) {
         const op = { snapshotId: interrupted.id, reason: interrupted.reason, token: null };
         globalOperation = op; recovery = 'global-recovery';
-        globalNotice(`An interrupted operation needs recovery. ${interrupted.operationError || ''} ${interrupted.rollbackError || ''} Recovery copy retained. Retry recovery.`, () => rollbackGlobalOperation(op, new Error(interrupted.operationError || 'Interrupted operation')));
+        globalNotice(tr('An interrupted operation needs recovery. {operationError} {rollbackError} Recovery copy retained. Retry recovery.', { operationError: trMessage(interrupted.operationError), rollbackError: trMessage(interrupted.rollbackError) }), () => rollbackGlobalOperation(op, new Error(interrupted.operationError || msg('Interrupted operation'))));
         return;
       }
       function finishLoadedState(loadedSource) {
@@ -428,11 +436,11 @@
         // Status belongs to the validated state just loaded, including when
         // cleanup finishes asynchronously after another tab has changed it.
         const statusSource = { ...captureStatusSource(), raw: loadedSource };
-        updateBackupStatus({ snapshotAvailable: true, validationResult: 'Recovery copy retained; cleanup is required' }, statusSource);
-        globalNotice('A temporary recovery copy remains after a completed or canceled operation. Retry cleanup.', async () => {
+        updateBackupStatus({ snapshotAvailable: true, validationResult: msg('Recovery copy retained; cleanup is required') }, statusSource);
+        globalNotice(tr('A temporary recovery copy remains after a completed or canceled operation. Retry cleanup.'), async () => {
           const cleanupSource = captureStatusSource();
           await TodoStorage.recoverySnapshots.deleteMany(retained.map(item => item.id));
-          updateBackupStatus({ snapshotAvailable: false, validationResult: 'Recovery copy removed' }, cleanupSource);
+          updateBackupStatus({ snapshotAvailable: false, validationResult: msg('Recovery copy removed') }, cleanupSource);
           if (globalOperation?.reason === 'cleanup') globalOperation = null;
           globalRecoveryNotice = null; renderToast();
         });
@@ -450,7 +458,7 @@
         await TodoStorage.open();
         if (localStorage.getItem(STORAGE_KEY) !== sourceAtStart) {
           if (sourceRetries < 3) return loadState(undefined, sourceRetries + 1);
-          throw new Error('Local data keeps changing in another tab; retry migration.');
+          throw new Error(msg('Local data keeps changing in another tab; retry migration.'));
         }
         recovery = null;
         state = normalizeState(createSampleState());
@@ -471,7 +479,7 @@
       if (!validation.ok) throw new Error(validation.reason);
       if (localStorage.getItem(STORAGE_KEY) !== sourceAtStart) {
         if (sourceRetries < 3) return loadState(undefined, sourceRetries + 1);
-        throw new Error('Local data keeps changing in another tab; retry migration.');
+        throw new Error(msg('Local data keeps changing in another tab; retry migration.'));
       }
       let committedSource = sourceAtStart;
       const focusSelectionChanged = JSON.stringify(parsed.settings?.focusTaskIds) !== JSON.stringify(prepared.settings.focusTaskIds);
@@ -488,7 +496,7 @@
       catch (error) { console.warn('Migration complete; safety snapshot cleanup will retry on reload.', error); }
       if (localStorage.getItem(STORAGE_KEY) !== committedSource) {
         if (sourceRetries < 3) return loadState(undefined, sourceRetries + 1);
-        throw new Error('Local data keeps changing in another tab; retry migration.');
+        throw new Error(msg('Local data keeps changing in another tab; retry migration.'));
       }
       recovery = null;
       state = prepared;
@@ -531,9 +539,9 @@
       else {
         const canRead = typeof localStorage.getItem === 'function';
         const before = canRead ? localStorage.getItem(STORAGE_KEY) : null;
-        if (expectedRaw !== null && before !== expectedRaw) throw new Error('Canonical data changed in another tab; refresh before saving.');
+        if (expectedRaw !== null && before !== expectedRaw) throw new Error(msg('Canonical data changed in another tab; refresh before saving.'));
         const raw = JSON.stringify(persisted);
-        if (canRead && localStorage.getItem(STORAGE_KEY) !== before) throw new Error('Canonical data changed in another tab; refresh before saving.');
+        if (canRead && localStorage.getItem(STORAGE_KEY) !== before) throw new Error(msg('Canonical data changed in another tab; refresh before saving.'));
         localStorage.setItem(STORAGE_KEY, raw);
         if (typeof canonicalRaw !== 'undefined') canonicalRaw = raw;
       }
@@ -659,9 +667,14 @@
         view.isPinned = !view.isPinned; view.updatedAt = nowIso(); saveAndRender();
       },
       shortcutLabels: SHORTCUT_LABELS,
+      release: Release,
+      environmentInfo() {
+        return { userAgent: navigator.userAgent || '', standalone: navigator.standalone === true || Boolean(window.matchMedia?.('(display-mode: standalone)').matches), persistence: storagePersistence.state };
+      },
+      storagePersistence: () => storagePersistence,
       shortcutError: () => shortcutError,
       notificationButtonLabel() {
-        return typeof Notification === 'undefined' ? 'Unavailable' : (Notification.permission === 'granted' ? 'Enabled' : Notification.permission === 'denied' ? 'Blocked' : 'Enable');
+        return typeof Notification === 'undefined' ? tr('Unavailable') : (Notification.permission === 'granted' ? tr('Enabled') : Notification.permission === 'denied' ? tr('Blocked') : tr('Enable'));
       },
       saveShortcut,
       disableShortcut,
@@ -766,7 +779,7 @@
   function removeInboxRecord(type, id) {
     if (!removeInboxRecordFromState(state, type, id, nowIso())) return;
     saveAndRender();
-    setToastMessage('Item removed from Inbox.');
+    setToastMessage(tr('Item removed from Inbox.'));
   }
 
   function inboxGroupForDate(value, today = Core.dateOnly()) {
@@ -776,21 +789,22 @@
     const dateOnlyValue = /^\d{4}-\d{2}-\d{2}$/.test(raw);
     const parsedValue = dateOnlyValue ? null : new Date(value);
     const date = parsedValue && !Number.isNaN(parsedValue.getTime()) ? Core.dateOnly(parsedValue) : raw.slice(0, 10);
-    if (date === today) return 'Today';
-    if (date === Core.addDays(today, -1)) return 'Yesterday';
+    if (date === today) return msg('Today');
+    if (date === Core.addDays(today, -1)) return msg('Yesterday');
     const parsed = Core.parseDateOnly(today);
     const mondayOffset = (parsed.getDay() + 6) % 7;
     const startOfWeek = Core.addDays(today, -mondayOffset);
-    if (date >= startOfWeek && date <= today) return 'This week';
-    return 'Earlier';
+    if (date >= startOfWeek && date <= today) return msg('This week');
+    return msg('Earlier');
   }
 
   function renderInboxRecord(record) {
     if (record.type === 'task') return taskRow(record.item, 'inbox', { draggable: true, inbox: true });
     const item = record.item;
-    const label = record.type[0].toUpperCase() + record.type.slice(1);
-    const title = item.title || item.name || label;
-    return `<article class="inbox-mixed-row" data-inbox-type="${esc(record.type)}" data-inbox-id="${esc(item.id)}"><button class="inbox-mixed-open" type="button" data-route="${esc(record.type)}/${esc(item.id)}"><span class="inbox-mixed-icon"><i class="ph ${record.type === 'goal' ? 'ph-target' : record.type === 'habit' ? 'ph-repeat' : record.type === 'note' ? 'ph-note' : 'ph-link'}"></i></span><span><strong>${esc(title)}</strong><small>${esc(label)} · Needs organizing</small></span></button><span class="inbox-mixed-actions"><button class="quick-chip" type="button" data-action="inbox-remove" data-inbox-type="${esc(record.type)}" data-inbox-id="${esc(item.id)}">Remove</button><button class="btn-icon" type="button" data-route="${esc(record.type)}/${esc(item.id)}" aria-label="Open ${esc(label)}"><i class="ph ph-arrow-up-right"></i></button></span></article>`;
+    const label = { goal: msg('Goal'), habit: msg('Habit'), note: msg('Note'), resource: msg('Resource') }[record.type] || msg('Item');
+    const openLabel = { goal: msg('Open goal'), habit: msg('Open habit'), note: msg('Open note'), resource: msg('Open resource') }[record.type] || msg('Open item');
+    const title = item.title || item.name || tr(label);
+    return `<article class="inbox-mixed-row" data-inbox-type="${esc(record.type)}" data-inbox-id="${esc(item.id)}"><button class="inbox-mixed-open" type="button" data-route="${esc(record.type)}/${esc(item.id)}"><span class="inbox-mixed-icon"><i class="ph ${record.type === 'goal' ? 'ph-target' : record.type === 'habit' ? 'ph-repeat' : record.type === 'note' ? 'ph-note' : 'ph-link'}"></i></span><span><strong>${esc(title)}</strong><small>${esc(tr(label))} · ${tr('Needs organizing')}</small></span></button><span class="inbox-mixed-actions"><button class="quick-chip" type="button" data-action="inbox-remove" data-inbox-type="${esc(record.type)}" data-inbox-id="${esc(item.id)}">${tr('Remove')}</button><button class="btn-icon" type="button" data-route="${esc(record.type)}/${esc(item.id)}" aria-label="${esc(tr(openLabel))}"><i class="ph ph-arrow-up-right"></i></button></span></article>`;
   }
 
   function projectTasks(projectId, completed = false) {
@@ -847,25 +861,25 @@
     const group = (key,label,body) => `<section class="sidebar-section" data-sidebar-section="${key}"><button class="sidebar-section-title sidebar-section-toggle" type="button" data-action="toggle-sidebar-section" data-section="${key}" aria-expanded="${!state.ui.sidebarSections[key]}" aria-controls="sidebar-${key}" title="${label}"><span>${label}</span><i class="ph ${state.ui.sidebarSections[key]?'ph-caret-right':'ph-caret-down'}"></i></button><div class="sidebar-section-body" id="sidebar-${key}" ${state.ui.sidebarSections[key]?'hidden':''}>${body}</div></section>`;
     $('#sidebar').innerHTML = `
       <div class="sidebar-header">
-        <div class="brand" title="Dailo v1.8 prototype">
+        <div class="brand" title="Dailo ${esc(Release.APP_VERSION)}">
           <span class="brand-mark" aria-hidden="true"></span>
           <span class="brand-name">Dailo</span>
         </div>
-        <button class="btn-icon sidebar-collapse" type="button" data-action="toggle-sidebar" aria-label="${collapsed ? 'Expand sidebar' : 'Collapse sidebar'}" title="${collapsed ? 'Expand sidebar' : 'Collapse sidebar'}">
+        <button class="btn-icon sidebar-collapse" type="button" data-action="toggle-sidebar" aria-label="${collapsed ? tr('Expand sidebar') : tr('Collapse sidebar')}" title="${collapsed ? tr('Expand sidebar') : tr('Collapse sidebar')}">
           <i class="ph ph-sidebar-simple"></i>
         </button>
       </div>
       <div class="sidebar-scroll">
-        <nav class="nav-group" aria-label="Task views">
-          ${navItem('today', 'ph-sun', 'Today', route.type === 'today', '', 'data-drop-plan="today"')}
-          ${navItem('inbox', 'ph-tray', 'Inbox', route.type === 'inbox', inboxCount || '')}
-          ${navItem('upcoming', 'ph-calendar-dots', 'Upcoming', route.type === 'upcoming')}
-          ${navItem('calendar', 'ph-calendar-blank', 'Calendar', route.type === 'calendar')}
-          <div class="task-context-drop tomorrow-drop-target" data-drop-plan="tomorrow" aria-label="Drop task to plan for tomorrow"><i class="ph ph-arrow-bend-down-right"></i><span>Tomorrow</span></div>
+        <nav class="nav-group" aria-label="${tr('Task views')}">
+          ${navItem('today', 'ph-sun', tr('Today'), route.type === 'today', '', 'data-drop-plan="today"')}
+          ${navItem('inbox', 'ph-tray', tr('Inbox'), route.type === 'inbox', inboxCount || '')}
+          ${navItem('upcoming', 'ph-calendar-dots', tr('Upcoming'), route.type === 'upcoming')}
+          ${navItem('calendar', 'ph-calendar-blank', tr('Calendar'), route.type === 'calendar')}
+          <div class="task-context-drop tomorrow-drop-target" data-drop-plan="tomorrow" aria-label="${tr('Drop task to plan for tomorrow')}"><i class="ph ph-arrow-bend-down-right"></i><span>${tr('Tomorrow')}</span></div>
         </nav>
 
-        ${group('work','WORK',`
-          ${link('projects','ph-folder','Projects')}
+        ${group('work',tr('WORK'),`
+          ${link('projects','ph-folder',tr('Projects'))}
           <div class="projects-list" data-drop-context="projects">
             ${projects.map(project => `
               <button class="project-item ${route.type === 'project' && route.id === project.id ? 'is-active' : ''}" type="button" data-route="project/${esc(project.id)}" data-project-id="${esc(project.id)}" data-drop-project-id="${esc(project.id)}" draggable="true" title="${esc(project.name)}">
@@ -873,22 +887,22 @@
                 <span class="project-name">${esc(project.name)}</span>
               </button>`).join('')}
           </div>
-          <button class="sidebar-action sidebar-new-project" type="button" data-action="new-project" title="New project">
-            <i class="ph ph-plus"></i><span>New project</span>
+          <button class="sidebar-action sidebar-new-project" type="button" data-action="new-project" title="${tr('New project')}">
+            <i class="ph ph-plus"></i><span>${tr('New project')}</span>
           </button>
-          ${link('areas','ph-squares-four','Areas')}${link('notes','ph-note','Notes')}${link('resources','ph-link','Resources')}${link('tags','ph-tag','Tags')}${link('cleaning','ph-broom','Cleaning')}`)}
-        ${group('progress','PROGRESS',link('goals','ph-target','Goals')+link('habits','ph-repeat','Habits'))}
-        ${group('tools','TOOLS',link('templates','ph-copy','Templates')+link('saved-views','ph-funnel','Saved Views'))}
-        ${group('pinned-areas','PINNED AREAS',`<div class="pinned-areas-list">${pinnedAreas.map(area => `<button class="sidebar-action pinned-area ${route.type === 'area' && route.id === area.id ? 'is-active' : ''}" type="button" data-route="area/${esc(area.id)}" title="${esc(area.name)}"><i class="ph ${esc(area.icon)}" style="color:${esc(area.color)}"></i><span>${esc(area.name)}</span></button>`).join('')}</div>`)}
-        ${group('pinned-views','PINNED VIEWS',state.savedViews.filter(v=>v.isPinned).map(v=>link('saved-view/'+esc(v.id),'ph-funnel',esc(v.name))).join(''))}
-        ${group('more','MORE',link('completed','ph-check-circle','Completed')+link('archived','ph-archive','Archived Projects')+link('settings','ph-gear','Settings'))}
+          ${link('areas','ph-squares-four',tr('Areas'))}${link('notes','ph-note',tr('Notes'))}${link('resources','ph-link',tr('Resources'))}${link('tags','ph-tag',tr('Tags'))}${link('cleaning','ph-broom',tr('Cleaning'))}`)}
+        ${group('progress',tr('PROGRESS'),link('goals','ph-target',tr('Goals'))+link('habits','ph-repeat',tr('Habits')))}
+        ${group('tools',tr('TOOLS'),link('templates','ph-copy',tr('Templates'))+link('saved-views','ph-funnel',tr('Saved Views')))}
+        ${group('pinned-areas',tr('PINNED AREAS'),`<div class="pinned-areas-list">${pinnedAreas.map(area => `<button class="sidebar-action pinned-area ${route.type === 'area' && route.id === area.id ? 'is-active' : ''}" type="button" data-route="area/${esc(area.id)}" title="${esc(area.name)}"><i class="ph ${esc(area.icon)}" style="color:${esc(area.color)}"></i><span>${esc(area.name)}</span></button>`).join('')}</div>`)}
+        ${group('pinned-views',tr('PINNED VIEWS'),state.savedViews.filter(v=>v.isPinned).map(v=>link('saved-view/'+esc(v.id),'ph-funnel',esc(v.name))).join(''))}
+        ${group('more',tr('MORE'),link('completed','ph-check-circle',tr('Completed'))+link('archived','ph-archive',tr('Archived Projects'))+link('settings','ph-gear',tr('Settings')))}
 
         <div class="sidebar-footer">
-          <button class="sidebar-action" type="button" data-action="open-search" title="Search">
-            <i class="ph ph-magnifying-glass"></i><span>Search</span>
+          <button class="sidebar-action" type="button" data-action="open-search" title="${tr('Search')}">
+            <i class="ph ph-magnifying-glass"></i><span>${tr('Search')}</span>
           </button>
-          <button class="sidebar-action" type="button" data-action="more-menu" title="More">
-            <i class="ph ph-dots-three-outline"></i><span>More</span>
+          <button class="sidebar-action" type="button" data-action="more-menu" title="${tr('More')}">
+            <i class="ph ph-dots-three-outline"></i><span>${tr('More')}</span>
           </button>
         </div>
       </div>`;
@@ -901,8 +915,8 @@
   }
 
   function storageWarningHtml() {
-    if (storageError) return `<div class="global-warning" role="alert">Changes couldn't be saved locally. Refreshing may cause data loss. <button class="btn btn-secondary" data-action="retry-save">Retry save</button></div>`;
-    if (automaticSnapshotError) return `<div class="global-warning" role="alert">Automatic snapshot failed: ${esc(automaticSnapshotError)}. Your last saved app data remains available. <button class="btn btn-secondary" data-action="retry-snapshot">Retry snapshot</button></div>`;
+    if (storageError) return `<div class="global-warning" role="alert">${tr("Changes couldn't be saved locally. Refreshing may cause data loss.")} <button class="btn btn-secondary" data-action="retry-save">${tr('Retry save')}</button></div>`;
+    if (automaticSnapshotError) return `<div class="global-warning" role="alert">${tr('Automatic snapshot failed: {error}. Your last saved app data remains available.', { error: esc(trMessage(automaticSnapshotError)) })} <button class="btn btn-secondary" data-action="retry-snapshot">${tr('Retry snapshot')}</button></div>`;
     return '';
   }
 
@@ -949,13 +963,13 @@
   }
 
   function pageHeader(title, subtitle, options = {}) {
-    const addButton = options.add !== false ? `<button class="btn btn-primary" type="button" data-action="quick-add" ${options.contextProjectId ? `data-project-id="${esc(options.contextProjectId)}"` : ''} ${options.contextToday ? 'data-today="true"' : ''} ${options.contextAnytime ? 'data-anytime="true"' : ''}><i class="ph ph-plus"></i> Add task</button>` : '';
-    const projectMenu = options.projectMenu ? `<button class="btn-icon" type="button" data-action="project-menu" data-project-id="${esc(options.projectMenu)}" aria-label="Project menu"><i class="ph ph-dots-three"></i></button>` : '';
+    const addButton = options.add !== false ? `<button class="btn btn-primary" type="button" data-action="quick-add" ${options.contextProjectId ? `data-project-id="${esc(options.contextProjectId)}"` : ''} ${options.contextToday ? 'data-today="true"' : ''} ${options.contextAnytime ? 'data-anytime="true"' : ''}><i class="ph ph-plus"></i> ${tr('Add task')}</button>` : '';
+    const projectMenu = options.projectMenu ? `<button class="btn-icon" type="button" data-action="project-menu" data-project-id="${esc(options.projectMenu)}" aria-label="${tr('Project menu')}"><i class="ph ph-dots-three"></i></button>` : '';
     const actionHtml = options.actionHtml || '';
     return `<header class="page-header">
       <div><h1 class="page-title">${esc(title)}</h1>${subtitle ? `<p class="page-subtitle">${esc(subtitle)}</p>` : ''}</div>
       <div class="page-actions">
-        <button class="btn btn-secondary" type="button" data-action="open-search"><i class="ph ph-magnifying-glass"></i> Search</button>
+        <button class="btn btn-secondary" type="button" data-action="open-search"><i class="ph ph-magnifying-glass"></i> ${tr('Search')}</button>
         ${actionHtml}${projectMenu}${addButton}
       </div>
     </header>`;
@@ -1027,10 +1041,10 @@
     const goalCount = sections.goals.length + sections.overdueGoals.length;
     const overdueCount = sections.overdue.length + sections.overdueMilestones.length + sections.overdueGoals.length;
     const contextCounts = [
-      total && `${total} ${total === 1 ? 'task' : 'tasks'} planned`,
-      sections.habits.length && `${sections.habits.length} ${sections.habits.length === 1 ? 'routine' : 'routines'}`,
-      goalCount && `${goalCount} ${goalCount === 1 ? 'goal' : 'goals'}`,
-      overdueCount && `${overdueCount} overdue`,
+      total && trn(total, '{count} task planned', '{count} tasks planned'),
+      sections.habits.length && trn(sections.habits.length, '{count} routine', '{count} routines'),
+      goalCount && trn(goalCount, '{count} goal', '{count} goals'),
+      overdueCount && trn(overdueCount, '{count} overdue', '{count} overdue'),
     ].filter(Boolean).join(' · ');
     const openTodayCount = (() => {
       const taskIds = new Set();
@@ -1042,43 +1056,44 @@
     })();
     const completedTodayCount = derivedSections.completed.length;
     const plannedMinutes = derivedSections.today.reduce((sum, task) => sum + (task.durationMinutes || 0), 0);
-    let html = pageHeader('Today', '', { contextToday: true, add: false, actionHtml: `<button class="btn btn-secondary" type="button" data-action="dashboard-focus-toggle"><i class="ph ph-faders-horizontal"></i>${state.settings.dashboard?.focusedMode ? 'Full Today' : 'Focus View'}</button><button class="btn btn-secondary" type="button" data-action="open-focus"><i class="ph ph-crosshair"></i> Focus</button>` });
-    if (state.settings.todayFocusStrip !== false) html += `<section class="today-focus-strip" data-today-focus-strip aria-label="Today focus"><div class="today-focus-strip-summary"><span class="today-context-date"><i class="ph ph-calendar-blank"></i>${esc(formatPageToday(today))}</span><span class="today-focus-strip-count" data-today-open-count>${openTodayCount} open</span><span class="today-focus-strip-count" data-today-completed-count>${completedTodayCount} completed</span>${plannedMinutes ? `<span class="today-focus-strip-count">${plannedMinutes} min planned</span>` : ''}</div><div class="today-focus-strip-controls"><label class="today-filter">Show <select class="filter-select" data-today-filter aria-label="Filter Today tasks">${[['all', 'All'], ['open', 'Open'], ['completed', 'Completed'], ['important', 'Important'], ['dueToday', 'Due today']].map(([value, label]) => `<option value="${value}"${todayFocusFilter === value ? ' selected' : ''}>${label}</option>`).join('')}</select></label><button class="btn btn-primary" type="button" data-action="quick-add" data-today="true"><i class="ph ph-plus"></i>Add task</button></div></section>`;
+    let html = pageHeader(tr('Today'), '', { contextToday: true, add: false, actionHtml: `<button class="btn btn-secondary" type="button" data-action="dashboard-focus-toggle"><i class="ph ph-faders-horizontal"></i>${state.settings.dashboard?.focusedMode ? tr('Full Today') : tr('Focus View')}</button><button class="btn btn-secondary" type="button" data-action="open-focus"><i class="ph ph-crosshair"></i> ${tr('Focus')}</button>` });
+    if (state.settings.todayFocusStrip !== false) html += `<section class="today-focus-strip" data-today-focus-strip aria-label="${tr('Today focus')}"><div class="today-focus-strip-summary"><span class="today-context-date"><i class="ph ph-calendar-blank"></i>${esc(formatPageToday(today))}</span><span class="today-focus-strip-count" data-today-open-count>${trn(openTodayCount, '{count} open', '{count} open')}</span><span class="today-focus-strip-count" data-today-completed-count>${trn(completedTodayCount, '{count} completed', '{count} completed')}</span>${plannedMinutes ? `<span class="today-focus-strip-count">${tr('{minutes} min planned', { minutes: plannedMinutes })}</span>` : ''}</div><div class="today-focus-strip-controls"><label class="today-filter">${tr('Show')} <select class="filter-select" data-today-filter aria-label="${tr('Filter Today tasks')}">${[['all', msg('All')], ['open', msg('Open')], ['completed', msg('Completed')], ['important', msg('Important')], ['dueToday', msg('Due today')]].map(([value, label]) => `<option value="${value}"${todayFocusFilter === value ? ' selected' : ''}>${tr(label)}</option>`).join('')}</select></label><button class="btn btn-primary" type="button" data-action="quick-add" data-today="true"><i class="ph ph-plus"></i>${tr('Add task')}</button></div></section>`;
     html += `<div class="today-context" data-today-context="true">${contextCounts ? `<span class="today-context-summary">${esc(contextCounts)}</span>` : ''}</div>`;
+    html += backupReminderNotice();
     const focusIds = Core.selectFocusTasks(state.tasks, state.settings.focusTaskIds);
     const focusTasks = focusIds.map(getTask);
     const completedToday = state.tasks.filter(task => task.isCompleted && String(task.completedAt || '').slice(0, 10) === today);
-    const dashboardTools = id => `<span class="dashboard-tools"><button class="btn-icon" type="button" data-action="dashboard-move" data-dashboard-section="${id}" data-direction="up" aria-label="Move section up"><i class="ph ph-caret-up"></i></button><button class="btn-icon ${state.settings.dashboard?.pinnedSectionIds?.includes(id) ? 'is-active' : ''}" type="button" data-action="dashboard-pin" data-dashboard-section="${id}" aria-label="Pin section" aria-pressed="${state.settings.dashboard?.pinnedSectionIds?.includes(id) ? 'true' : 'false'}"><i class="ph ph-push-pin"></i></button><button class="btn-icon" type="button" data-action="dashboard-move" data-dashboard-section="${id}" data-direction="down" aria-label="Move section down"><i class="ph ph-caret-down"></i></button></span>`;
-    html += `<section class="section today-focus" data-today-focus data-dashboard-section="focus" aria-labelledby="today-focus-heading"><div class="section-header"><h2 class="section-label" id="today-focus-heading">Daily focus</h2><span class="section-count">${focusTasks.length} / 3</span>${dashboardTools('focus')}</div>${focusTasks.length ? `<div class="task-list">${focusTasks.map(task => taskRow(task, 'focus')).join('')}</div>` : '<p class="area-empty-copy">Choose up to three open tasks using the focus button or Task properties.</p>'}</section>`;
-    html += `<section class="section daily-review" data-daily-review data-dashboard-section="review" aria-labelledby="daily-review-heading"><div class="section-header"><h2 class="section-label" id="daily-review-heading">Daily review</h2>${dashboardTools('review')}</div><div class="daily-review-stats"><span data-daily-review-completed>${completedToday.length} completed today</span><span data-daily-review-open>${sections.today.length} unfinished planned tasks</span><span>${plannedMinutes} min planned remaining</span></div></section>`;
-    html += `<section class="today-actions" data-today-actions="true" data-dashboard-section="actions" aria-labelledby="today-actions-heading"><div class="section-header"><h2 class="section-label" id="today-actions-heading">Daily actions</h2>${dashboardTools('actions')}</div><div class="today-actions-grid"><button class="today-action" type="button" data-route="inbox"><i class="ph ph-tray"></i><span>Inbox</span></button><button class="today-action" type="button" data-action="quick-add" data-today="true"><i class="ph ph-plus-circle"></i><span>Quick Add</span></button><button class="today-action" type="button" data-action="open-focus"><i class="ph ph-crosshair"></i><span>Focus</span></button><button class="today-action" type="button" data-route="calendar"><i class="ph ph-calendar"></i><span>Calendar</span></button><button class="today-action" type="button" data-action="add-starter-examples"><i class="ph ph-sparkle"></i><span>Populate workspace</span></button></div></section>`;
+    const dashboardTools = id => `<span class="dashboard-tools"><button class="btn-icon" type="button" data-action="dashboard-move" data-dashboard-section="${id}" data-direction="up" aria-label="${tr('Move section up')}"><i class="ph ph-caret-up"></i></button><button class="btn-icon ${state.settings.dashboard?.pinnedSectionIds?.includes(id) ? 'is-active' : ''}" type="button" data-action="dashboard-pin" data-dashboard-section="${id}" aria-label="${tr('Pin section')}" aria-pressed="${state.settings.dashboard?.pinnedSectionIds?.includes(id) ? 'true' : 'false'}"><i class="ph ph-push-pin"></i></button><button class="btn-icon" type="button" data-action="dashboard-move" data-dashboard-section="${id}" data-direction="down" aria-label="${tr('Move section down')}"><i class="ph ph-caret-down"></i></button></span>`;
+    html += `<section class="section today-focus" data-today-focus data-dashboard-section="focus" aria-labelledby="today-focus-heading"><div class="section-header"><h2 class="section-label" id="today-focus-heading">${tr('Daily focus')}</h2><span class="section-count">${focusTasks.length} / 3</span>${dashboardTools('focus')}</div>${focusTasks.length ? `<div class="task-list">${focusTasks.map(task => taskRow(task, 'focus')).join('')}</div>` : `<p class="area-empty-copy">${tr('Choose up to three open tasks using the focus button or Task properties.')}</p>`}</section>`;
+    html += `<section class="section daily-review" data-daily-review data-dashboard-section="review" aria-labelledby="daily-review-heading"><div class="section-header"><h2 class="section-label" id="daily-review-heading">${tr('Daily review')}</h2>${dashboardTools('review')}</div><div class="daily-review-stats"><span data-daily-review-completed>${trn(completedToday.length, '{count} completed today', '{count} completed today')}</span><span data-daily-review-open>${trn(sections.today.length, '{count} unfinished planned task', '{count} unfinished planned tasks')}</span><span>${tr('{minutes} min planned remaining', { minutes: plannedMinutes })}</span></div></section>`;
+    html += `<section class="today-actions" data-today-actions="true" data-dashboard-section="actions" aria-labelledby="today-actions-heading"><div class="section-header"><h2 class="section-label" id="today-actions-heading">${tr('Daily actions')}</h2>${dashboardTools('actions')}</div><div class="today-actions-grid"><button class="today-action" type="button" data-route="inbox"><i class="ph ph-tray"></i><span>${tr('Inbox')}</span></button><button class="today-action" type="button" data-action="quick-add" data-today="true"><i class="ph ph-plus-circle"></i><span>${tr('Quick Add')}</span></button><button class="today-action" type="button" data-action="open-focus"><i class="ph ph-crosshair"></i><span>${tr('Focus')}</span></button><button class="today-action" type="button" data-route="calendar"><i class="ph ph-calendar"></i><span>${tr('Calendar')}</span></button><button class="today-action" type="button" data-action="add-starter-examples"><i class="ph ph-sparkle"></i><span>${tr('Populate workspace')}</span></button></div></section>`;
 
     if (sections.overdue.length) {
-      html += `<section class="section today-section today-section--overdue" data-today-section="overdue-tasks"><div class="section-header"><h2 class="section-label danger">Overdue Tasks</h2><span class="section-count">${sections.overdue.length}</span></div><div class="task-list">${sections.overdue.map(t => taskRow(t, 'today', { overdue: true })).join('')}</div></section>`;
+      html += `<section class="section today-section today-section--overdue" data-today-section="overdue-tasks"><div class="section-header"><h2 class="section-label danger">${tr('Overdue Tasks')}</h2><span class="section-count">${sections.overdue.length}</span></div><div class="task-list">${sections.overdue.map(t => taskRow(t, 'today', { overdue: true })).join('')}</div></section>`;
     }
 
     if (sections.today.length || sections.suggestions.length) {
-      html += `<section class="section today-section today-section--tasks" data-today-section="tasks"><div class="section-header"><h2 class="section-label">Tasks</h2><span class="section-count">${sections.today.length}</span></div>`;
+      html += `<section class="section today-section today-section--tasks" data-today-section="tasks"><div class="section-header"><h2 class="section-label">${tr('Tasks')}</h2><span class="section-count">${sections.today.length}</span></div>`;
       if (sections.today.length) html += `<div class="task-list" data-list-context="today">${sections.today.map(t => taskRow(t, 'today', { draggable: true })).join('')}</div>`;
-      html += `<button class="inline-add" type="button" data-action="quick-add" data-today="true"><i class="ph ph-plus"></i> Add task</button>`;
+      html += `<button class="inline-add" type="button" data-action="quick-add" data-today="true"><i class="ph ph-plus"></i> ${tr('Add task')}</button>`;
       if (sections.suggestions.length) {
         const open = state.ui.suggestionsExpanded;
-        html += `<div><button class="collapsible-trigger" type="button" data-action="toggle-suggestions" aria-expanded="${open}"><span class="left"><i class="ph ph-sparkle"></i> Suggested for today</span><span>${sections.suggestions.length} <i class="ph ph-caret-${open ? 'up' : 'down'}"></i></span></button>`;
-        if (open) html += `<div class="task-list">${sections.suggestions.map(item => taskRow(item.task, 'suggestion', { suggestionReason: item.reason })).join('')}</div><button class="btn btn-ghost" type="button" data-action="add-all-suggestions"><i class="ph ph-plus-circle"></i> Add all to Today</button>`;
+        html += `<div><button class="collapsible-trigger" type="button" data-action="toggle-suggestions" aria-expanded="${open}"><span class="left"><i class="ph ph-sparkle"></i> ${tr('Suggested for today')}</span><span>${sections.suggestions.length} <i class="ph ph-caret-${open ? 'up' : 'down'}"></i></span></button>`;
+        if (open) html += `<div class="task-list">${sections.suggestions.map(item => taskRow(item.task, 'suggestion', { suggestionReason: item.reason })).join('')}</div><button class="btn btn-ghost" type="button" data-action="add-all-suggestions"><i class="ph ph-plus-circle"></i> ${tr('Add all to Today')}</button>`;
         html += `</div>`;
       }
       html += `</section>`;
     }
-    if (sections.habits.length) html += `<section class="section today-section today-section--habits" data-today-section="habits"><div class="section-header"><h2 class="section-label">Habits</h2><span class="section-count">${sections.habits.length}</span></div><div class="habit-list">${sections.habits.map(item => renderHabitRow(item.habit, item.status)).join('')}</div></section>`;
-    if (sections.overdueMilestones.length) html += `<section class="section today-section today-section--overdue" data-today-section="overdue-milestones"><div class="section-header"><h2 class="section-label danger">Overdue Milestones</h2><span class="section-count">${sections.overdueMilestones.length}</span></div><div class="milestone-list">${sections.overdueMilestones.map(({ goal, milestone }) => `<div class="milestone-row"><button class="task-check" type="button" data-action="toggle-milestone" data-goal-id="${esc(goal.id)}" data-milestone-id="${esc(milestone.id)}" aria-label="Complete milestone"><i class="ph ph-circle"></i></button><button class="btn btn-ghost" type="button" data-route="goal/${esc(goal.id)}">${esc(milestone.title)} · ${esc(goal.title)}</button><small>${esc(relativeDateLabel(milestone.date))}</small></div>`).join('')}</div></section>`;
-    for (const [label, goals, danger] of [['Overdue Goals', sections.overdueGoals, true], ['Goals', sections.goals, false]]) {
-      if (goals.length) html += `<section class="section today-section today-section--${danger ? 'overdue' : 'goals'}" data-today-section="${danger ? 'overdue-goals' : 'goals'}"><div class="section-header"><h2 class="section-label${danger ? ' danger' : ''}">${label}</h2><span class="section-count">${goals.length}</span></div><div class="goal-list">${goals.map(renderGoalRow).join('')}</div></section>`;
+    if (sections.habits.length) html += `<section class="section today-section today-section--habits" data-today-section="habits"><div class="section-header"><h2 class="section-label">${tr('Habits')}</h2><span class="section-count">${sections.habits.length}</span></div><div class="habit-list">${sections.habits.map(item => renderHabitRow(item.habit, item.status)).join('')}</div></section>`;
+    if (sections.overdueMilestones.length) html += `<section class="section today-section today-section--overdue" data-today-section="overdue-milestones"><div class="section-header"><h2 class="section-label danger">${tr('Overdue Milestones')}</h2><span class="section-count">${sections.overdueMilestones.length}</span></div><div class="milestone-list">${sections.overdueMilestones.map(({ goal, milestone }) => `<div class="milestone-row"><button class="task-check" type="button" data-action="toggle-milestone" data-goal-id="${esc(goal.id)}" data-milestone-id="${esc(milestone.id)}" aria-label="${tr('Complete milestone')}"><i class="ph ph-circle"></i></button><button class="btn btn-ghost" type="button" data-route="goal/${esc(goal.id)}">${esc(milestone.title)} · ${esc(goal.title)}</button><small>${esc(relativeDateLabel(milestone.date))}</small></div>`).join('')}</div></section>`;
+    for (const [label, goals, danger] of [[msg('Overdue Goals'), sections.overdueGoals, true], [msg('Goals'), sections.goals, false]]) {
+      if (goals.length) html += `<section class="section today-section today-section--${danger ? 'overdue' : 'goals'}" data-today-section="${danger ? 'overdue-goals' : 'goals'}"><div class="section-header"><h2 class="section-label${danger ? ' danger' : ''}">${tr(label)}</h2><span class="section-count">${goals.length}</span></div><div class="goal-list">${goals.map(renderGoalRow).join('')}</div></section>`;
     }
-    if (!sections.today.length && !sections.overdue.length && !sections.habits.length && !sections.overdueMilestones.length && !sections.overdueGoals.length && !sections.goals.length && !sections.completed.length && !sections.suggestions.length) html += emptyState('Nothing planned for today.', 'Add a task when you are ready.', 'Add task', 'quick-add', { today: true });
+    if (!sections.today.length && !sections.overdue.length && !sections.habits.length && !sections.overdueMilestones.length && !sections.overdueGoals.length && !sections.goals.length && !sections.completed.length && !sections.suggestions.length) html += emptyState(tr('Nothing planned for today.'), tr('Add a task when you are ready.'), tr('Add task'), 'quick-add', { today: true });
 
     if (sections.completed.length) {
       const open = state.ui.todayCompletedExpanded;
-      html += `<section class="section today-section today-section--completed" data-today-section="completed"><button class="collapsible-trigger" type="button" data-action="toggle-today-completed" aria-expanded="${open}"><span class="left"><i class="ph ph-check-circle"></i> Completed</span><span>${sections.completed.length} <i class="ph ph-caret-${open ? 'up' : 'down'}"></i></span></button>`;
+      html += `<section class="section today-section today-section--completed" data-today-section="completed"><button class="collapsible-trigger" type="button" data-action="toggle-today-completed" aria-expanded="${open}"><span class="left"><i class="ph ph-check-circle"></i> ${tr('Completed')}</span><span>${sections.completed.length} <i class="ph ph-caret-${open ? 'up' : 'down'}"></i></span></button>`;
       if (open) html += `<div class="task-list">${sections.completed.map(t => taskRow(t, 'completed')).join('')}</div>`;
       html += `</section>`;
     }
@@ -1089,30 +1104,31 @@
     const filter = INBOX_FILTERS.some(([value]) => value === state.ui.inboxFilter) ? state.ui.inboxFilter : 'all';
     const records = activeInboxRecords(filter);
     const counts = Object.fromEntries(INBOX_FILTERS.map(([value]) => [value, activeInboxRecords(value).length]));
-    let html = pageHeader('Inbox', `${records.length} ${records.length === 1 ? 'item' : 'items'} waiting to be organized`, {});
-    html += `<section class="inbox-toolbar" aria-label="Inbox filters"><div class="inbox-filter-tabs" role="tablist" aria-label="Filter Inbox">${INBOX_FILTERS.map(([value, label]) => `<button class="inbox-filter-tab ${filter === value ? 'is-active' : ''}" type="button" role="tab" aria-selected="${filter === value}" data-action="inbox-filter" data-inbox-filter="${value}">${label}<span class="inbox-filter-count">${counts[value]}</span></button>`).join('')}</div><p class="inbox-triage-hint"><i class="ph ph-sparkle"></i> Process one item at a time: plan it, assign it or keep it in Anytime.</p></section>`;
-    if (!records.length) return html + emptyState(filter === 'all' ? 'Inbox zero.' : `No ${INBOX_FILTERS.find(([value]) => value === filter)?.[1].toLowerCase()} in Inbox.`, filter === 'all' ? 'Everything has been organized.' : 'New items of this type will appear here when captured for Inbox.', 'Add task', 'quick-add');
+    let html = pageHeader(tr('Inbox'), trn(records.length, '{count} item waiting to be organized', '{count} items waiting to be organized'), {});
+    html += `<section class="inbox-toolbar" aria-label="${tr('Inbox filters')}"><div class="inbox-filter-tabs" role="tablist" aria-label="${tr('Filter Inbox')}">${INBOX_FILTERS.map(([value, label]) => `<button class="inbox-filter-tab ${filter === value ? 'is-active' : ''}" type="button" role="tab" aria-selected="${filter === value}" data-action="inbox-filter" data-inbox-filter="${value}">${tr(label)}<span class="inbox-filter-count">${counts[value]}</span></button>`).join('')}</div><p class="inbox-triage-hint"><i class="ph ph-sparkle"></i> ${tr('Process one item at a time: plan it, assign it or keep it in Anytime.')}</p></section>`;
+    const emptyTitle = { all: msg('Inbox zero.'), tasks: msg('No tasks in Inbox.'), goals: msg('No goals in Inbox.'), habits: msg('No habits in Inbox.'), notes: msg('No notes in Inbox.'), resources: msg('No resources in Inbox.') }[filter] || msg('Inbox zero.');
+    if (!records.length) return html + emptyState(tr(emptyTitle), filter === 'all' ? tr('Everything has been organized.') : tr('New items of this type will appear here when captured for Inbox.'), tr('Add task'), 'quick-add');
     const groups = new Map();
     for (const record of records) {
       const group = inboxGroupForDate(record.item.createdAt);
       if (!groups.has(group)) groups.set(group, []);
       groups.get(group).push(record);
     }
-    const order = ['Today', 'Yesterday', 'This week', 'Earlier'];
+    const order = [msg('Today'), msg('Yesterday'), msg('This week'), msg('Earlier')];
     for (const label of order) {
       const items = groups.get(label);
       if (!items?.length) continue;
-      html += `<section class="inbox-group" aria-labelledby="inbox-group-${label.replace(/ /g, '-').toLowerCase()}"><div class="inbox-group-label" id="inbox-group-${label.replace(/ /g, '-').toLowerCase()}"><strong>${label}</strong><span>${items.length}</span></div><div class="inbox-group-items">${items.map(renderInboxRecord).join('')}</div></section>`;
+      html += `<section class="inbox-group" aria-labelledby="inbox-group-${label.replace(/ /g, '-').toLowerCase()}"><div class="inbox-group-label" id="inbox-group-${label.replace(/ /g, '-').toLowerCase()}"><strong>${tr(label)}</strong><span>${items.length}</span></div><div class="inbox-group-items">${items.map(renderInboxRecord).join('')}</div></section>`;
     }
     return html;
   }
 
   function renderAnytime() {
     const tasks = Core.deriveAnytime(state.tasks);
-    let html = pageHeader('Anytime', `${tasks.length} active ${tasks.length === 1 ? 'task' : 'tasks'} without a plan date`, { contextAnytime: true });
-    if (!tasks.length) return html + emptyState('Nothing waiting in Anytime.', 'Processed tasks without a planned date will appear here.', 'Add task', 'quick-add', { anytime: true });
+    let html = pageHeader(tr('Anytime'), trn(tasks.length, '{count} active task without a plan date', '{count} active tasks without a plan date'), { contextAnytime: true });
+    if (!tasks.length) return html + emptyState(tr('Nothing waiting in Anytime.'), tr('Processed tasks without a planned date will appear here.'), tr('Add task'), 'quick-add', { anytime: true });
     html += `<div class="task-list">${tasks.map(t => taskRow(t, 'anytime')).join('')}</div>`;
-    html += `<button class="inline-add" type="button" data-action="quick-add" data-anytime="true"><i class="ph ph-plus"></i> Add task</button>`;
+    html += `<button class="inline-add" type="button" data-action="quick-add" data-anytime="true"><i class="ph ph-plus"></i> ${tr('Add task')}</button>`;
     return html;
   }
 
@@ -1120,15 +1136,15 @@
     const tags = [...(state.tags || [])].sort((a, b) => String(a.name).localeCompare(String(b.name)));
     const selected = getTag(state.ui.selectedTagId) || tags[0] || null;
     if (selected && state.ui.selectedTagId !== selected.id) state.ui.selectedTagId = selected.id;
-    let html = pageHeader('Tags', `${tags.length} global ${tags.length === 1 ? 'tag' : 'tags'}`, { add: false, actionHtml: '<button class="btn btn-primary" type="button" data-action="new-tag"><i class="ph ph-plus"></i> New tag</button>' });
-    if (!tags.length) return html + emptyState('No tags yet.', 'Create a global tag and reuse it across tasks.', 'New tag', 'new-tag');
+    let html = pageHeader(tr('Tags'), trn(tags.length, '{count} global tag', '{count} global tags'), { add: false, actionHtml: `<button class="btn btn-primary" type="button" data-action="new-tag"><i class="ph ph-plus"></i> ${tr('New tag')}</button>` });
+    if (!tags.length) return html + emptyState(tr('No tags yet.'), tr('Create a global tag and reuse it across tasks.'), tr('New tag'), 'new-tag');
     html += `<div class="tags-layout"><div class="tag-list">${tags.map(tag => {
       const count = Core.tasksForTag(state.tasks, tag.id).length;
-      return `<div class="tag-row ${selected?.id === tag.id ? 'is-selected' : ''}" data-tag-id="${esc(tag.id)}"><button class="tag-select" type="button" data-action="select-tag" data-tag-id="${esc(tag.id)}"><span class="tag-dot" style="--tag-color:${esc(tag.color)}"></span><span class="tag-name">${esc(tag.name)}</span><span class="tag-count">${count} ${count === 1 ? 'task' : 'tasks'}</span></button><button class="btn-icon" type="button" data-action="tag-menu" data-tag-id="${esc(tag.id)}" aria-label="Tag actions"><i class="ph ph-dots-three"></i></button></div>`;
+      return `<div class="tag-row ${selected?.id === tag.id ? 'is-selected' : ''}" data-tag-id="${esc(tag.id)}"><button class="tag-select" type="button" data-action="select-tag" data-tag-id="${esc(tag.id)}"><span class="tag-dot" style="--tag-color:${esc(tag.color)}"></span><span class="tag-name">${esc(tag.name)}</span><span class="tag-count">${trn(count, '{count} task', '{count} tasks')}</span></button><button class="btn-icon" type="button" data-action="tag-menu" data-tag-id="${esc(tag.id)}" aria-label="${tr('Tag actions')}"><i class="ph ph-dots-three"></i></button></div>`;
     }).join('')}</div>`;
     if (selected) {
       const tasks = Core.tasksForTag(state.tasks, selected.id);
-      html += `<section class="selected-tag-section"><div class="section-header"><div><h2 class="selected-tag-title"><span class="tag-dot" style="--tag-color:${esc(selected.color)}"></span>${esc(selected.name)}</h2><p class="page-subtitle">${tasks.length} active ${tasks.length === 1 ? 'task' : 'tasks'}</p></div></div>${tasks.length ? `<div class="task-list">${tasks.map(t => taskRow(t, 'tags')).join('')}</div>` : emptyState('No active tasks with this tag.', 'Assign this tag from Quick Add or Task Detail.')}</section>`;
+      html += `<section class="selected-tag-section"><div class="section-header"><div><h2 class="selected-tag-title"><span class="tag-dot" style="--tag-color:${esc(selected.color)}"></span>${esc(selected.name)}</h2><p class="page-subtitle">${trn(tasks.length, '{count} active task', '{count} active tasks')}</p></div></div>${tasks.length ? `<div class="task-list">${tasks.map(t => taskRow(t, 'tags')).join('')}</div>` : emptyState(tr('No active tasks with this tag.'), tr('Assign this tag from Quick Add or Task Detail.'))}</section>`;
     }
     html += '</div>';
     return html;
@@ -1145,13 +1161,14 @@
   function goalProgressLabel(goal) {
     const progress = Core.computeGoalProgress(goal, state, state.habitMetrics || {});
     if (goal.progressMode === 'manual' && goal.progressType === 'numeric') return `${progress.current} / ${progress.target}${goal.unit ? ` ${esc(goal.unit)}` : ''}`;
-    if (goal.progressMode === 'linkedTasks') return `${progress.current} / ${progress.target} tasks`;
+    if (goal.progressMode === 'linkedTasks') return tr('{current} / {target} tasks', { current: progress.current, target: progress.target });
     return `${Math.round(progress.percent)}%`;
   }
 
   function goalStatusLabel(goal, today = Core.dateOnly()) {
-    if (Core.isGoalOverdue(goal, today)) return 'Overdue';
-    return goal.status[0].toUpperCase() + goal.status.slice(1);
+    if (Core.isGoalOverdue(goal, today)) return tr('Overdue');
+    const labels = { active: msg('Active'), paused: msg('Paused'), completed: msg('Completed'), archived: msg('Archived') };
+    return labels[goal.status] ? tr(labels[goal.status]) : goal.status[0].toUpperCase() + goal.status.slice(1);
   }
 
   function habitMetrics(habit) {
@@ -1184,13 +1201,13 @@
       }
     }
     const groups = [...groupsByDate.values()].filter(group => group.items.length || group.goals.length || group.habits.length || group.milestones.length).sort((a, b) => a.date.localeCompare(b.date));
-    let html = pageHeader('Upcoming', 'Planned work and upcoming deadlines', {});
-    if (!groups.length) return html + emptyState('Nothing scheduled.', 'Tasks you plan or set a due date for will appear here.');
+    let html = pageHeader(tr('Upcoming'), tr('Planned work and upcoming deadlines'), {});
+    if (!groups.length) return html + emptyState(tr('Nothing scheduled.'), tr('Tasks you plan or set a due date for will appear here.'));
     for (const group of groups) {
       const d = parseLocalDate(group.date);
       const rel = relativeDateLabel(group.date, today);
       const dayName = [today, Core.addDays(today, 1)].includes(group.date) ? rel : WEEKDAY_FMT.format(d);
-      html += `<section class="upcoming-group"><div class="group-date"><strong>${esc(dayName)}</strong><span>${esc(formatDate(group.date))}</span></div>${group.items.length ? `<div class="task-list">${group.items.map(item => taskRow(item.task, 'upcoming', { upcomingReason: item.displayReason, upcoming: true })).join('')}</div>` : ''}${group.habits.length ? `<div class="upcoming-subgroup"><h2 class="section-label">Habits</h2><div class="habit-list">${group.habits.map(item => renderHabitRow(item.habit)).join('')}</div></div>` : ''}${group.goals.length ? `<div class="upcoming-subgroup"><h2 class="section-label">Goals</h2><div class="goal-list">${group.goals.map(renderGoalRow).join('')}</div></div>` : ''}${group.milestones.length ? `<div class="upcoming-subgroup"><h2 class="section-label">Milestones</h2><div class="milestone-list">${group.milestones.map(({ goal, milestone }) => `<div class="milestone-row"><button class="check-toggle" type="button" data-action="toggle-milestone" data-goal-id="${esc(goal.id)}" data-milestone-id="${esc(milestone.id)}" aria-label="Complete milestone"><i class="ph ph-circle"></i></button><span><strong>${esc(milestone.title)}</strong><small>${esc(goal.title)}</small></span></div>`).join('')}</div></div>` : ''}</section>`;
+      html += `<section class="upcoming-group"><div class="group-date"><strong>${esc(dayName)}</strong><span>${esc(formatDate(group.date))}</span></div>${group.items.length ? `<div class="task-list">${group.items.map(item => taskRow(item.task, 'upcoming', { upcomingReason: item.displayReason, upcoming: true })).join('')}</div>` : ''}${group.habits.length ? `<div class="upcoming-subgroup"><h2 class="section-label">${tr('Habits')}</h2><div class="habit-list">${group.habits.map(item => renderHabitRow(item.habit)).join('')}</div></div>` : ''}${group.goals.length ? `<div class="upcoming-subgroup"><h2 class="section-label">${tr('Goals')}</h2><div class="goal-list">${group.goals.map(renderGoalRow).join('')}</div></div>` : ''}${group.milestones.length ? `<div class="upcoming-subgroup"><h2 class="section-label">${tr('Milestones')}</h2><div class="milestone-list">${group.milestones.map(({ goal, milestone }) => `<div class="milestone-row"><button class="check-toggle" type="button" data-action="toggle-milestone" data-goal-id="${esc(goal.id)}" data-milestone-id="${esc(milestone.id)}" aria-label="${tr('Complete milestone')}"><i class="ph ph-circle"></i></button><span><strong>${esc(milestone.title)}</strong><small>${esc(goal.title)}</small></span></div>`).join('')}</div></div>` : ''}</section>`;
     }
     return html;
   }
@@ -1199,10 +1216,10 @@
     const projectId = state.ui.completedProjectFilter || null;
     const periodDays = Number(state.ui.completedPeriod) || 0;
     const tasks = Core.filterCompleted(state.tasks, { projectId, periodDays }, nowIso());
-    let html = pageHeader('Completed', 'A simple history of finished work', { add: false });
-    const projectOptions = allProjects().map(project => `<option value="${esc(project.id)}" ${project.id === projectId ? 'selected' : ''}>${esc(project.name)}${project.isArchived ? ' (Archived)' : ''}</option>`).join('');
-    html += `<div class="filter-bar"><label>Project<select id="completed-project-filter" class="filter-select"><option value="">All projects</option>${projectOptions}</select></label><label>Period<select id="completed-period-filter" class="filter-select"><option value="0" ${periodDays === 0 ? 'selected' : ''}>All time</option><option value="7" ${periodDays === 7 ? 'selected' : ''}>Last 7 days</option><option value="30" ${periodDays === 30 ? 'selected' : ''}>Last 30 days</option></select></label></div>`;
-    if (!tasks.length) return html + emptyState('No completed tasks match these filters.', 'Try a different project or time period.');
+    let html = pageHeader(tr('Completed'), tr('A simple history of finished work'), { add: false });
+    const projectOptions = allProjects().map(project => `<option value="${esc(project.id)}" ${project.id === projectId ? 'selected' : ''}>${esc(project.name)}${project.isArchived ? ` (${tr('Archived')})` : ''}</option>`).join('');
+    html += `<div class="filter-bar"><label>${tr('Project')}<select id="completed-project-filter" class="filter-select"><option value="">${tr('All projects')}</option>${projectOptions}</select></label><label>${tr('Period')}<select id="completed-period-filter" class="filter-select"><option value="0" ${periodDays === 0 ? 'selected' : ''}>${tr('All time')}</option><option value="7" ${periodDays === 7 ? 'selected' : ''}>${tr('Last 7 days')}</option><option value="30" ${periodDays === 30 ? 'selected' : ''}>${tr('Last 30 days')}</option></select></label></div>`;
+    if (!tasks.length) return html + emptyState(tr('No completed tasks match these filters.'), tr('Try a different project or time period.'));
     const groups = new Map();
     for (const task of tasks) {
       const date = String(task.completedAt || '').slice(0, 10) || 'unknown';
@@ -1211,7 +1228,7 @@
     }
     for (const [date, items] of groups) {
       const label = relativeDateLabel(date);
-      html += `<section class="upcoming-group"><div class="group-date"><strong>${esc(label)}</strong>${['Today','Yesterday'].includes(label) ? `<span>${esc(formatDate(date))}</span>` : ''}</div><div class="task-list">${items.map(t => taskRow(t, 'completed')).join('')}</div></section>`;
+      html += `<section class="upcoming-group"><div class="group-date"><strong>${esc(label)}</strong>${[tr('Today'), tr('Yesterday')].includes(label) ? `<span>${esc(formatDate(date))}</span>` : ''}</div><div class="task-list">${items.map(t => taskRow(t, 'completed')).join('')}</div></section>`;
     }
     return html;
   }
@@ -1226,11 +1243,11 @@
   }
 
   function renderRecovery() {
-    if (recovery === 'global-recovery') return '<div class="recovery"><div class="recovery-card"><h1>Recovery is required.</h1><p>An interrupted global operation retained its internal recovery copy. Use Retry recovery below before continuing.</p></div></div>';
-    if (recovery === 'migration-loading') return '<div class="recovery recovery--loading" role="status" aria-busy="true"><div class="recovery-card"><span class="recovery-spinner" aria-hidden="true"></span><h1>Preparing your local data…</h1><p>Please wait while local storage is checked.</p></div></div>';
-    if (recovery === 'migration-error') return '<div class="recovery"><div class="recovery-card"><h1>Local data migration could not finish.</h1><p>Your saved data and original files have not been overwritten. Check available storage and close other app tabs, then retry.</p><div class="recovery-actions"><button class="btn btn-secondary" type="button" data-action="retry-load">Retry</button></div></div></div>';
+    if (recovery === 'global-recovery') return `<div class="recovery"><div class="recovery-card"><h1>${tr('Recovery is required.')}</h1><p>${tr('An interrupted global operation retained its internal recovery copy. Use Retry recovery below before continuing.')}</p></div></div>`;
+    if (recovery === 'migration-loading') return `<div class="recovery recovery--loading" role="status" aria-busy="true"><div class="recovery-card"><span class="recovery-spinner" aria-hidden="true"></span><h1>${tr('Preparing your local data…')}</h1><p>${tr('Please wait while local storage is checked.')}</p></div></div>`;
+    if (recovery === 'migration-error') return `<div class="recovery"><div class="recovery-card"><h1>${tr('Local data migration could not finish.')}</h1><p>${tr('Your saved data and original files have not been overwritten. Check available storage and close other app tabs, then retry.')}</p><div class="recovery-actions"><button class="btn btn-secondary" type="button" data-action="retry-load">${tr('Retry')}</button></div></div></div>`;
     const unsupported = recovery === 'unsupported-version';
-    return `<div class="recovery"><div class="recovery-card"><h1>${unsupported ? 'This data is from a newer version.' : "We couldn't load your local data."}</h1><p>${unsupported ? "The prototype can't safely read this saved format." : 'Your saved data appears to be invalid. Nothing has been overwritten.'}</p><div class="recovery-actions"><button class="btn btn-secondary" type="button" data-action="retry-load">Retry</button><button class="btn btn-danger" type="button" data-action="recovery-reset">Reset local data</button></div></div></div>`;
+    return `<div class="recovery"><div class="recovery-card"><h1>${unsupported ? tr('This data is from a newer version.') : tr("We couldn't load your local data.")}</h1><p>${unsupported ? tr("Dailo can't safely read this saved format.") : tr('Your saved data appears to be invalid. Nothing has been overwritten.')}</p><div class="recovery-actions"><button class="btn btn-secondary" type="button" data-action="retry-load">${tr('Retry')}</button><button class="btn btn-danger" type="button" data-action="recovery-reset">${tr('Reset local data')}</button></div></div></div>`;
   }
 
   function openQuickAdd(context = {}) {
@@ -1295,7 +1312,7 @@
     const elapsed = $('#focus-elapsed');
     const toggle = $('[data-action="focus-toggle-timer"]');
     if (elapsed) elapsed.textContent = formatFocusElapsed(focusElapsedMs(timer));
-    if (toggle) toggle.textContent = timer.isRunning ? 'Pause' : 'Resume';
+    if (toggle) toggle.textContent = timer.isRunning ? tr('Pause') : tr('Resume');
   }
 
   function startFocusTimer() {
@@ -1331,7 +1348,7 @@
 
   function openFocusMode(taskId = null) {
     const task = taskId ? getTask(taskId) : focusableTasks()[0];
-    if (!task || task.isCompleted) { setToastMessage('No open overdue or Today tasks to focus on'); return; }
+    if (!task || task.isCompleted) { setToastMessage(tr('No open overdue or Today tasks to focus on')); return; }
     captureModalReturnFocus();
     closePopover();
     modalState = { type: 'focus', taskId: task.id, timer: createFocusTimer() };
@@ -1343,7 +1360,7 @@
   function focusNextTask(currentTaskId = modalState?.taskId) {
     stopFocusTimer();
     const tasks = focusableTasks();
-    if (!tasks.length) { closeModal(); setToastMessage('All overdue and Today tasks are complete'); return; }
+    if (!tasks.length) { closeModal(); setToastMessage(tr('All overdue and Today tasks are complete')); return; }
     const currentIndex = tasks.findIndex(task => task.id === currentTaskId);
     modalState = { type: 'focus', taskId: (tasks[currentIndex + 1] || tasks[0]).id, timer: createFocusTimer() };
     renderModal();
@@ -1474,7 +1491,7 @@
     else if (modalState.type === 'template-picker') root.innerHTML = renderTemplatePicker();
     else if (modalState.type === 'recurrence-scope') root.innerHTML = renderRecurrenceScope();
     if (['quick','project','habit','goal'].includes(modalState.type) && !modalState.taskId && !modalState.projectId && !modalState.habitId && !modalState.goalId) {
-      $('.modal-inner',root)?.insertAdjacentHTML('afterbegin','<button class="btn btn-ghost" type="button" data-action="from-template"><i class="ph ph-copy"></i> From template</button>');
+      $('.modal-inner',root)?.insertAdjacentHTML('afterbegin',`<button class="btn btn-ghost" type="button" data-action="from-template"><i class="ph ph-copy"></i> ${tr('From template')}</button>`);
     }
     if (['confirm','recurrence-scope'].includes(modalState?.type)) requestAnimationFrame(() => root.querySelector('.modal button, .modal [href], .modal input, .modal select, .modal textarea, .modal [tabindex]:not([tabindex="-1"])')?.focus());
     if (['goal', 'goal-source', 'goal-links', 'goal-reminders', 'goal-history', 'milestone', 'habit-settings'].includes(modalState?.type)) requestAnimationFrame(() => ([...root.querySelectorAll('input, select, textarea')].find(el => el.offsetParent !== null) || root.querySelector('.modal-footer [data-action="close-modal"]'))?.focus());
@@ -1488,7 +1505,7 @@
       if (/<h[12][^>]*>/.test(dialogContent)) {
         dialogContent = dialogContent.replace(/<h[12](?![^>]*\bid=)([^>]*)>/, '<h2 id="dialog-title"$1>');
         accessibleName = 'aria-labelledby="dialog-title"';
-      } else accessibleName = 'aria-label="Dailo dialog"';
+      } else accessibleName = `aria-label="${tr('Dailo dialog')}"`;
     }
     return `<div class="modal-backdrop${frameClass}" data-action="modal-backdrop"><section class="modal ${cls}" role="dialog" aria-modal="true" ${accessibleName}>${dialogContent}</section></div>`;
   }
@@ -1498,24 +1515,24 @@
     if (!task || task.isCompleted) {
       const next = focusableTasks()[0];
       if (next) { modalState = { type: 'focus', taskId: next.id, timer: createFocusTimer() }; startFocusTimer(); return renderFocusModal(); }
-      return modalFrame('<div class="modal-inner focus-modal"><div class="modal-header"><div><p class="focus-kicker">Focus mode</p><h2 class="modal-title">Nothing left to focus on</h2></div></div><div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-primary" type="button" data-action="close-modal">Exit</button></div></div></div>', 'focus-modal');
+      return modalFrame(`<div class="modal-inner focus-modal"><div class="modal-header"><div><p class="focus-kicker">${tr('Focus mode')}</p><h2 class="modal-title">${tr('Nothing left to focus on')}</h2></div></div><div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-primary" type="button" data-action="close-modal">${tr('Exit')}</button></div></div></div>`, 'focus-modal');
     }
     const today = Core.dateOnly();
     const project = getProject(task.projectId);
     const metadata = [];
     if (project) metadata.push(`<span><span class="project-dot" style="--project-color:${esc(project.color)}"></span>${esc(project.name)}</span>`);
-    if (task.dueDate) metadata.push(`<span class="${task.dueDate < today ? 'danger' : task.dueDate === today ? 'warning' : ''}">${esc(task.dueDate < today ? `Overdue · ${relativeDateLabel(task.dueDate, today)}` : `Due ${relativeDateLabel(task.dueDate, today)}`)}</span>`);
-    if (task.plannedDate) metadata.push(`<span>Planned ${esc(relativeDateLabel(task.plannedDate, today))}</span>`);
-    if (task.priority && task.priority !== 'none') metadata.push(`<span>${priorityIcon(task.priority)}${esc(priorityLabel(task.priority))} priority</span>`);
+    if (task.dueDate) metadata.push(`<span class="${task.dueDate < today ? 'danger' : task.dueDate === today ? 'warning' : ''}">${esc(task.dueDate < today ? tr('Overdue · {date}', { date: relativeDateLabel(task.dueDate, today) }) : tr('Due {date}', { date: relativeDateLabel(task.dueDate, today) }))}</span>`);
+    if (task.plannedDate) metadata.push(`<span>${esc(tr('Planned {date}', { date: relativeDateLabel(task.plannedDate, today) }))}</span>`);
+    if (task.priority && task.priority !== 'none') metadata.push(`<span>${priorityIcon(task.priority)}${esc(tr('{priority} priority', { priority: priorityLabel(task.priority) }))}</span>`);
     const subtasks = [...(task.subtasks || [])].sort((a, b) => clampOrder(a.order) - clampOrder(b.order));
     const completed = subtasks.filter(subtask => subtask.isCompleted).length;
     return modalFrame(`<div class="modal-inner focus-modal">
-      <div class="modal-header"><div><p class="focus-kicker">Focus mode</p><h2 class="modal-title">${esc(task.title)}</h2></div><button class="btn-icon" type="button" data-action="close-modal" aria-label="Exit focus mode"><i class="ph ph-x"></i></button></div>
+      <div class="modal-header"><div><p class="focus-kicker">${tr('Focus mode')}</p><h2 class="modal-title">${esc(task.title)}</h2></div><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Exit focus mode')}"><i class="ph ph-x"></i></button></div>
       ${metadata.length ? `<div class="focus-meta">${metadata.join('<span class="separator">·</span>')}</div>` : ''}
-      <div class="focus-timer" aria-live="off"><span class="focus-timer-label">Elapsed</span><strong id="focus-elapsed">${formatFocusElapsed(focusElapsedMs())}</strong><div class="focus-timer-actions"><button class="btn btn-secondary" type="button" data-action="focus-toggle-timer">${modalState.timer?.isRunning ? 'Pause' : 'Resume'}</button><button class="btn btn-ghost" type="button" data-action="focus-reset-timer">Reset</button></div></div>
+      <div class="focus-timer" aria-live="off"><span class="focus-timer-label">${tr('Elapsed')}</span><strong id="focus-elapsed">${formatFocusElapsed(focusElapsedMs())}</strong><div class="focus-timer-actions"><button class="btn btn-secondary" type="button" data-action="focus-toggle-timer">${modalState.timer?.isRunning ? tr('Pause') : tr('Resume')}</button><button class="btn btn-ghost" type="button" data-action="focus-reset-timer">${tr('Reset')}</button></div></div>
       ${task.notes ? `<p class="focus-notes">${esc(task.notes)}</p>` : ''}
-      ${subtasks.length ? `<section class="focus-subtasks"><div class="detail-heading"><span>Subtasks</span><span>${completed} / ${subtasks.length}</span></div><div class="subtask-list">${subtasks.map(subtask => `<div class="subtask-row ${subtask.isCompleted ? 'is-completed' : ''}"><span class="complete-control ${subtask.isCompleted ? 'is-completed' : ''}">${subtask.isCompleted ? '<i class="ph ph-check"></i>' : ''}</span><span class="subtask-title">${esc(subtask.title)}</span></div>`).join('')}</div></section>` : ''}
-      <div class="modal-footer"><button class="btn btn-ghost" type="button" data-action="close-modal">Exit</button><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="focus-next" data-task-id="${esc(task.id)}">Next task</button><button class="btn btn-secondary" type="button" data-action="focus-open-details" data-task-id="${esc(task.id)}">Open details</button><button class="btn btn-secondary" type="button" data-action="focus-tomorrow" data-task-id="${esc(task.id)}">Tomorrow</button><button class="btn btn-primary" type="button" data-action="focus-complete" data-task-id="${esc(task.id)}"><i class="ph ph-check"></i> Complete</button></div></div>
+      ${subtasks.length ? `<section class="focus-subtasks"><div class="detail-heading"><span>${tr('Subtasks')}</span><span>${completed} / ${subtasks.length}</span></div><div class="subtask-list">${subtasks.map(subtask => `<div class="subtask-row ${subtask.isCompleted ? 'is-completed' : ''}"><span class="complete-control ${subtask.isCompleted ? 'is-completed' : ''}">${subtask.isCompleted ? '<i class="ph ph-check"></i>' : ''}</span><span class="subtask-title">${esc(subtask.title)}</span></div>`).join('')}</div></section>` : ''}
+      <div class="modal-footer"><button class="btn btn-ghost" type="button" data-action="close-modal">${tr('Exit')}</button><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="focus-next" data-task-id="${esc(task.id)}">${tr('Next task')}</button><button class="btn btn-secondary" type="button" data-action="focus-open-details" data-task-id="${esc(task.id)}">${tr('Open details')}</button><button class="btn btn-secondary" type="button" data-action="focus-tomorrow" data-task-id="${esc(task.id)}">${tr('Tomorrow')}</button><button class="btn btn-primary" type="button" data-action="focus-complete" data-task-id="${esc(task.id)}"><i class="ph ph-check"></i> ${tr('Complete task')}</button></div></div>
     </div>`, 'focus-modal');
   }
 
@@ -1523,8 +1540,8 @@
   function saveShortcut(command) {
     const raw=$(`[data-shortcut="${command}"]`).value,value=Core.normalizeShortcut(raw);
     shortcutError='';
-    if(!value)shortcutError='Use a letter or digit with optional Ctrl/Cmd, Alt and Shift, or choose Disable.';
-    else {const conflict=Object.keys(SHORTCUT_DEFAULTS).find(key=>key!==command && Core.normalizeShortcut(state.settings.shortcuts[key])===value);if(conflict)shortcutError=`Already assigned to ${SHORTCUT_LABELS[conflict]}. Choose another shortcut.`;}
+    if(!value)shortcutError=tr('Use a letter or digit with optional Ctrl/Cmd, Alt and Shift, or choose Disable.');
+    else {const conflict=Object.keys(SHORTCUT_DEFAULTS).find(key=>key!==command && Core.normalizeShortcut(state.settings.shortcuts[key])===value);if(conflict)shortcutError=tr('Already assigned to {command}. Choose another shortcut.', { command: tr(SHORTCUT_LABELS[conflict]) });}
     if(shortcutError){render();return;}
     state.settings.shortcuts[command]=value;saveAndRender();
   }
@@ -1543,7 +1560,8 @@
   }
   function resetPersonalization() { state.settings = Core.resetV16Settings(state.settings); saveAndRender(); }
   const copyTemplate = value => JSON.parse(JSON.stringify(value));
-  const templateLabel = type => type[0].toUpperCase() + type.slice(1);
+  const TYPE_LABELS = { task: msg('Task'), project: msg('Project'), habit: msg('Habit'), goal: msg('Goal'), note: msg('Note'), resource: msg('Resource'), area: msg('Area'), tag: msg('Tag'), template: msg('Template') };
+  const templateLabel = type => (TYPE_LABELS[type] ? tr(TYPE_LABELS[type]) : type[0].toUpperCase() + type.slice(1));
   function openTemplateEditorFromSource(type, id) {
     const source = type === 'task' ? getTask(id) : type === 'project' ? getProject(id) : type === 'habit' ? getHabit(id) : getGoal(id);
     const adapter = window.TodoDomainModules?.getAdapters().find(item => item.name === 'templates');
@@ -1577,7 +1595,7 @@
   }
   function renderTemplatePicker() {
     const rows=state.templates.filter(t=>t.type===modalState.kind);
-    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">From ${templateLabel(modalState.kind)} template</h2><button class="btn-icon" data-action="template-picker-back" aria-label="Back"><i class="ph ph-x"></i></button></div>${rows.length?rows.map(t=>`<button class="btn btn-secondary template-choice" data-action="choose-template" data-template-id="${esc(t.id)}">${esc(t.name)}</button>`).join(''):'<p class="area-empty-copy">No templates of this type yet.</p>'}</div>`,'quick');
+    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">${tr({ task: msg('From task template'), project: msg('From project template'), habit: msg('From habit template'), goal: msg('From goal template') }[modalState.kind] || msg('From template'))}</h2><button class="btn-icon" data-action="template-picker-back" aria-label="${tr('Back')}"><i class="ph ph-x"></i></button></div>${rows.length?rows.map(t=>`<button class="btn btn-secondary template-choice" data-action="choose-template" data-template-id="${esc(t.id)}">${esc(t.name)}</button>`).join(''):`<p class="area-empty-copy">${tr('No templates of this type yet.')}</p>`}</div>`,'quick');
   }
   function chooseTemplate(id) {
     const template=state.templates.find(t=>t.id===id); if(!template)return;
@@ -1615,7 +1633,7 @@
     return tasks.length;
   }
   function templateMenuEntry(type,id) {
-    return `<button class="popover-option" type="button" data-pop-action="save-template" data-template-source-type="${type}" data-template-source-id="${esc(id)}"><i class="ph ph-copy"></i>Save as template</button>`;
+    return `<button class="popover-option" type="button" data-pop-action="save-template" data-template-source-type="${type}" data-template-source-id="${esc(id)}"><i class="ph ph-copy"></i>${tr('Save as template')}</button>`;
   }
   function syncTemplateEntityGoalLinks(kind,item,configs=[]) {
     for(const id of item.goalIds || []) {
@@ -1634,33 +1652,33 @@
     const effectivePlan = d.explicitPlan ? d.plannedDate : (d.parsedPlanDate || d.plannedDate);
     const assignedTags = (d.tagIds || []).map(getTag).filter(Boolean);
     return modalFrame(`<div class="modal-inner">
-      <input id="quick-title" class="quick-title-input ${modalState.error ? 'is-error' : ''}" type="text" maxlength="500" autocomplete="off" placeholder="What needs to be done?" value="${esc(d.title)}" aria-label="Task title" />
+      <input id="quick-title" class="quick-title-input ${modalState.error ? 'is-error' : ''}" type="text" maxlength="500" autocomplete="off" placeholder="${tr('What needs to be done?')}" value="${esc(d.title)}" aria-label="${tr('Task title')}" />
       ${modalState.error ? `<div class="validation">${esc(modalState.error)}</div>` : ''}
       <div class="quick-properties">
-        <button class="property-chip" type="button" data-action="quick-project-picker"><i class="ph ph-folder-simple"></i>${project ? `<span class="project-dot" style="--project-color:${esc(project.color)}"></span>${esc(project.name)}` : 'Project'}</button>
-        <button class="property-chip" type="button" data-action="quick-plan-picker"><i class="ph ph-calendar-check"></i>${effectivePlan ? esc(relativeDateLabel(effectivePlan)) : 'Plan for'}</button>
-        <button class="property-chip" type="button" data-action="quick-due-picker"><i class="ph ph-flag"></i>${d.dueDate ? `Due ${esc(relativeDateLabel(d.dueDate))}` : 'Due date'}</button>
-        <button class="property-chip" type="button" data-action="quick-reminder-picker"><i class="ph ph-bell"></i>${d.reminderAt ? esc(formatReminder(d.reminderAt)) : 'Reminder'}</button>
-        <button class="property-chip" type="button" data-action="quick-repeat-picker"><i class="ph ph-arrows-clockwise"></i>${d.recurrence ? esc(recurrenceLabel(d.recurrence)) : 'Repeat'}</button>
+        <button class="property-chip" type="button" data-action="quick-project-picker"><i class="ph ph-folder-simple"></i>${project ? `<span class="project-dot" style="--project-color:${esc(project.color)}"></span>${esc(project.name)}` : tr('Project')}</button>
+        <button class="property-chip" type="button" data-action="quick-plan-picker"><i class="ph ph-calendar-check"></i>${effectivePlan ? esc(relativeDateLabel(effectivePlan)) : tr('Plan for')}</button>
+        <button class="property-chip" type="button" data-action="quick-due-picker"><i class="ph ph-flag"></i>${d.dueDate ? esc(tr('Due {date}', { date: relativeDateLabel(d.dueDate) })) : tr('Due date')}</button>
+        <button class="property-chip" type="button" data-action="quick-reminder-picker"><i class="ph ph-bell"></i>${d.reminderAt ? esc(formatReminder(d.reminderAt)) : tr('Reminder')}</button>
+        <button class="property-chip" type="button" data-action="quick-repeat-picker"><i class="ph ph-arrows-clockwise"></i>${d.recurrence ? esc(recurrenceLabel(d.recurrence)) : tr('Repeat')}</button>
       </div>
-      <button class="btn btn-ghost quick-more" type="button" data-action="toggle-quick-more"><i class="ph ph-caret-${d.moreOpen ? 'up' : 'down'}"></i> More</button>
-      ${d.moreOpen ? `<div class="quick-extra"><div><label class="field-label" for="quick-notes">Notes</label><textarea id="quick-notes" class="textarea" placeholder="Add notes...">${esc(d.notes)}</textarea></div><div class="quick-advanced-grid"><button class="property-row compact-property" type="button" data-action="quick-tags-picker"><span class="property-key">Tags</span><span class="property-value">${assignedTags.length ? assignedTags.map(t => `<span class="tag-inline"><span class="tag-dot" style="--tag-color:${esc(t.color)}"></span>${esc(t.name)}</span>`).join(' ') : 'No tags'}</span></button><button class="property-row compact-property" type="button" data-action="quick-priority-picker"><span class="property-key">Priority</span><span class="property-value">${esc(priorityLabel(d.priority))}</span></button></div><div><div class="detail-heading"><span>Subtasks</span><span>${d.subtasks.length}</span></div><div class="subtask-list">${d.subtasks.map(s => quickDraftSubtaskRow(s)).join('')}</div><div class="add-subtask-input"><span></span><input id="quick-subtask" class="input" type="text" placeholder="Add subtask..." /></div></div></div>` : ''}
-      ${d.moreOpen ? `<div class="quick-advanced-grid"><label class="property-row" for="quick-planned-time"><span class="property-key">Planned time</span><input id="quick-planned-time" class="input task-time-input" type="time" value="${esc(d.plannedTime || '')}"></label><label class="property-row" for="quick-due-time"><span class="property-key">Due time</span><input id="quick-due-time" class="input task-time-input" type="time" value="${esc(d.dueTime || '')}"></label></div>` : ''}
-      <div class="modal-footer"><span class="shortcut-hint">↵ Add · ⇧↵ Add another</span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">Cancel</button><button class="btn btn-primary" type="button" data-action="create-task">Add task</button></div></div>
+      <button class="btn btn-ghost quick-more" type="button" data-action="toggle-quick-more"><i class="ph ph-caret-${d.moreOpen ? 'up' : 'down'}"></i> ${tr('More')}</button>
+      ${d.moreOpen ? `<div class="quick-extra"><div><label class="field-label" for="quick-notes">${tr('Notes')}</label><textarea id="quick-notes" class="textarea" placeholder="${tr('Add notes...')}">${esc(d.notes)}</textarea></div><div class="quick-advanced-grid"><button class="property-row compact-property" type="button" data-action="quick-tags-picker"><span class="property-key">${tr('Tags')}</span><span class="property-value">${assignedTags.length ? assignedTags.map(t => `<span class="tag-inline"><span class="tag-dot" style="--tag-color:${esc(t.color)}"></span>${esc(t.name)}</span>`).join(' ') : tr('No tags')}</span></button><button class="property-row compact-property" type="button" data-action="quick-priority-picker"><span class="property-key">${tr('Priority')}</span><span class="property-value">${esc(priorityLabel(d.priority))}</span></button></div><div><div class="detail-heading"><span>${tr('Subtasks')}</span><span>${d.subtasks.length}</span></div><div class="subtask-list">${d.subtasks.map(s => quickDraftSubtaskRow(s)).join('')}</div><div class="add-subtask-input"><span></span><input id="quick-subtask" class="input" type="text" placeholder="${tr('Add subtask...')}" /></div></div></div>` : ''}
+      ${d.moreOpen ? `<div class="quick-advanced-grid"><label class="property-row" for="quick-planned-time"><span class="property-key">${tr('Planned time')}</span><input id="quick-planned-time" class="input task-time-input" type="time" value="${esc(d.plannedTime || '')}"></label><label class="property-row" for="quick-due-time"><span class="property-key">${tr('Due time')}</span><input id="quick-due-time" class="input task-time-input" type="time" value="${esc(d.dueTime || '')}"></label></div>` : ''}
+      <div class="modal-footer"><span class="shortcut-hint">${tr('↵ Add · ⇧↵ Add another')}</span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">${tr('Cancel')}</button><button class="btn btn-primary" type="button" data-action="create-task">${tr('Add task')}</button></div></div>
     </div>`, 'quick');
   }
 
   function quickDraftSubtaskRow(subtask) {
-    return `<div class="subtask-row"><button class="complete-control ${subtask.isCompleted ? 'is-completed' : ''}" type="button" data-action="quick-toggle-subtask" data-subtask-id="${esc(subtask.id)}" aria-label="${subtask.isCompleted ? 'Mark incomplete' : 'Complete'} subtask">${subtask.isCompleted ? '<i class="ph ph-check"></i>' : ''}</button><span class="subtask-title">${esc(subtask.title)}</span><button class="btn-icon" type="button" data-action="quick-delete-subtask" data-subtask-id="${esc(subtask.id)}" aria-label="Delete subtask"><i class="ph ph-x"></i></button></div>`;
+    return `<div class="subtask-row"><button class="complete-control ${subtask.isCompleted ? 'is-completed' : ''}" type="button" data-action="quick-toggle-subtask" data-subtask-id="${esc(subtask.id)}" aria-label="${subtask.isCompleted ? tr('Mark subtask incomplete') : tr('Complete subtask')}">${subtask.isCompleted ? '<i class="ph ph-check"></i>' : ''}</button><span class="subtask-title">${esc(subtask.title)}</span><button class="btn-icon" type="button" data-action="quick-delete-subtask" data-subtask-id="${esc(subtask.id)}" aria-label="${tr('Delete subtask')}"><i class="ph ph-x"></i></button></div>`;
   }
 
   function priorityLabel(value) {
-    return value === 'high' ? 'High' : value === 'medium' ? 'Medium' : value === 'low' ? 'Low' : 'None';
+    return value === 'high' ? tr('High') : value === 'medium' ? tr('Medium') : value === 'low' ? tr('Low') : tr('None');
   }
 
   function priorityIcon(value) {
     if (!value || value === 'none') return '';
-    return `<i class="ph ph-flag priority-flag priority-${esc(value)}" title="${esc(priorityLabel(value))} priority" aria-label="${esc(priorityLabel(value))} priority"></i>`;
+    return `<i class="ph ph-flag priority-flag priority-${esc(value)}" title="${esc(tr('{priority} priority', { priority: priorityLabel(value) }))}" aria-label="${esc(tr('{priority} priority', { priority: priorityLabel(value) }))}"></i>`;
   }
 
   function tagSummary(tagIds, limit = 3) {
@@ -1670,27 +1688,28 @@
 
   function formatBytes(bytes) {
     const n = Number(bytes) || 0;
+    const number = (value, digits) => new Intl.NumberFormat(I18n.locale(), { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(value);
     if (n < 1024) return `${n} B`;
-    if (n < 1024 * 1024) return `${(n / 1024).toFixed(n < 10240 ? 1 : 0)} KB`;
-    return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+    if (n < 1024 * 1024) return `${number(n / 1024, n < 10240 ? 1 : 0)} KB`;
+    return `${number(n / (1024 * 1024), 1)} MB`;
   }
 
   function fileTypeLabel(record) {
     const name = String(record.fileName || 'file');
     const ext = name.includes('.') ? name.split('.').pop().toUpperCase() : '';
-    return ext || String(record.mimeType || 'File').split('/').pop().toUpperCase() || 'FILE';
+    return ext || String(record.mimeType || tr('File')).split('/').pop().toUpperCase() || tr('File').toUpperCase();
   }
 
   function renderAttachmentRow(record, owner) {
-    return `<div class="attachment-row" data-attachment-id="${esc(record.id)}"><i class="ph ph-file attachment-file-icon"></i><div class="attachment-main"><strong title="${esc(record.fileName)}">${esc(record.fileName)}</strong><small>${esc(fileTypeLabel(record))} · ${esc(formatBytes(record.size))}</small></div><button class="btn-icon" type="button" data-action="attachment-menu" data-attachment-id="${esc(record.id)}" data-owner-type="${esc(owner.ownerType)}" data-owner-id="${esc(owner.ownerId)}" aria-label="Attachment actions"><i class="ph ph-dots-three"></i></button></div>`;
+    return `<div class="attachment-row" data-attachment-id="${esc(record.id)}"><i class="ph ph-file attachment-file-icon"></i><div class="attachment-main"><strong title="${esc(record.fileName)}">${esc(record.fileName)}</strong><small>${esc(fileTypeLabel(record))} · ${esc(formatBytes(record.size))}</small></div><button class="btn-icon" type="button" data-action="attachment-menu" data-attachment-id="${esc(record.id)}" data-owner-type="${esc(owner.ownerType)}" data-owner-id="${esc(owner.ownerId)}" aria-label="${tr('Attachment actions')}"><i class="ph ph-dots-three"></i></button></div>`;
   }
 
   function renderAttachmentsSection(owner) {
     const item = attachmentOwner(owner)?.item;
     const count = item ? item.attachmentIds.length : modalState.pendingFiles.length;
     const attrs = `data-owner-type="${esc(owner.ownerType)}" data-owner-id="${esc(owner.ownerId || '')}"${owner.ownerType === 'task' ? ` data-task-id="${esc(owner.ownerId)}"` : ''}`;
-    const imageControl = owner.ownerType === 'task' ? `<button class="btn btn-secondary" type="button" data-action="attachment-image-picker"><i class="ph ph-image" aria-hidden="true"></i>Add image</button><input id="attachment-image-input" type="file" accept="image/*" multiple hidden ${attrs}>` : '';
-    return `<div class="detail-section attachments-section"><div class="detail-heading"><span>Attachments</span><span>${count} / ${MAX_ATTACHMENTS_PER_TASK}</span></div><label class="attachment-drop-zone" ${attrs}><i class="ph ph-paperclip"></i><span><strong>Drop files here</strong><small>or choose files · max 10 MB each</small></span><span class="btn btn-secondary attachment-add-button">Add attachment</span><input id="attachment-input" type="file" multiple hidden ${attrs}></label>${imageControl}${modalState.attachmentMessage ? `<div class="attachment-message" role="status">${esc(modalState.attachmentMessage)}</div>` : ''}<div class="attachment-list">${(modalState.attachmentRecords || []).map(record => renderAttachmentRow(record, owner)).join('')}</div></div>`;
+    const imageControl = owner.ownerType === 'task' ? `<button class="btn btn-secondary" type="button" data-action="attachment-image-picker"><i class="ph ph-image" aria-hidden="true"></i>${tr('Add image')}</button><input id="attachment-image-input" type="file" accept="image/*" multiple hidden ${attrs}>` : '';
+    return `<div class="detail-section attachments-section"><div class="detail-heading"><span>${tr('Attachments')}</span><span>${count} / ${MAX_ATTACHMENTS_PER_TASK}</span></div><label class="attachment-drop-zone" ${attrs}><i class="ph ph-paperclip"></i><span><strong>${tr('Drop files here')}</strong><small>${tr('or choose files · max 10 MB each')}</small></span><span class="btn btn-secondary attachment-add-button">${tr('Add attachment')}</span><input id="attachment-input" type="file" multiple hidden ${attrs}></label>${imageControl}${modalState.attachmentMessage ? `<div class="attachment-message" role="status">${esc(modalState.attachmentMessage)}</div>` : ''}<div class="attachment-list">${(modalState.attachmentRecords || []).map(record => renderAttachmentRow(record, owner)).join('')}</div></div>`;
   }
 
   async function readOwnerAttachments(owner) {
@@ -1718,12 +1737,12 @@
       if (source === state && attachmentOwner(descriptor)?.item === owner.item && attachmentModalMatches(owner)) { modalState.attachmentRecords = records; renderModal(); }
     } catch (error) {
       console.error(error);
-      if (source === state && attachmentModalMatches(owner)) { modalState.attachmentMessage = 'Attachments are unavailable in this browser.'; renderModal(); }
+      if (source === state && attachmentModalMatches(owner)) { modalState.attachmentMessage = tr('Attachments are unavailable in this browser.'); renderModal(); }
     }
   }
 
   async function addAttachments(descriptor, files) {
-    const owner = attachmentOwner(descriptor); if (!owner || !Attachments || undoHold) return { message: 'Attachments are unavailable in this browser.', added: 0, failed: 1 };
+    const owner = attachmentOwner(descriptor); if (!owner || !Attachments || undoHold) return { message: tr('Attachments are unavailable in this browser.'), added: 0, failed: 1 };
     const task = owner.item, source = state;
     const { valid, tooLarge, countRejected } = selectAttachmentFiles(files, task.attachmentIds.length);
     let added = 0, failed = 0;
@@ -1732,12 +1751,12 @@
       const identity = owner.type === 'task' ? { taskId: task.id } : { ownerType: owner.type, ownerId: task.id };
       const record = { id, ...identity, fileName: file.name || 'attachment', mimeType: file.type || 'application/octet-stream', size: file.size, blob: file, createdAt: ts, updatedAt: ts, pendingDeleteUntil: null };
       try {
-        if (source !== state || attachmentOwner({ ownerType: owner.type, ownerId: task.id })?.item !== task || undoHold || task.attachmentIds.length >= MAX_ATTACHMENTS_PER_TASK) throw new Error('Attachment owner changed. Reopen the item.');
+        if (source !== state || attachmentOwner({ ownerType: owner.type, ownerId: task.id })?.item !== task || undoHold || task.attachmentIds.length >= MAX_ATTACHMENTS_PER_TASK) throw new Error(msg('Attachment owner changed. Reopen the item.'));
         const stored = await Attachments.putOwned(record, () => {
           if (source !== state || attachmentOwner({ ownerType: owner.type, ownerId: task.id })?.item !== task || undoHold || task.attachmentIds.length >= MAX_ATTACHMENTS_PER_TASK)
-            throw new Error('Attachment owner changed. Reopen the item.');
+            throw new Error(msg('Attachment owner changed. Reopen the item.'));
         });
-        if (!stored.added) throw stored.error || new Error('Attachment could not be stored.');
+        if (!stored.added) throw stored.error || new Error(msg('Attachment could not be stored.'));
         task.attachmentIds = [...(task.attachmentIds || []), id];
         task.updatedAt = nowIso();
         added++;
@@ -1746,7 +1765,7 @@
     if (source === state && !descriptor.deferSave) saveState();
     knowledgeAttachmentCache.delete(owner.type + ':' + task.id);
     const parts = attachmentMessages(added, tooLarge, countRejected);
-    if (failed) parts.push('Attachments are unavailable in this browser.');
+    if (failed) parts.push(tr('Attachments are unavailable in this browser.'));
     if (attachmentModalMatches(owner)) {
       modalState.attachmentMessage = parts.join(' ');
       await loadOwnerAttachments({ ownerType: owner.type, ownerId: task.id });
@@ -1767,9 +1786,9 @@
 
   function attachmentMessages(added, tooLarge, countRejected) {
     const parts = [];
-    if (added) parts.push(`${added} ${added === 1 ? 'file' : 'files'} added.`);
-    if (tooLarge) parts.push(`${tooLarge} ${tooLarge === 1 ? 'file is' : 'files are'} larger than 10 MB.`);
-    if (countRejected) parts.push(`${countRejected} couldn't be added because the limit is 10.`);
+    if (added) parts.push(trn(added, '{count} file added.', '{count} files added.'));
+    if (tooLarge) parts.push(trn(tooLarge, '{count} file is larger than 10 MB.', '{count} files are larger than 10 MB.'));
+    if (countRejected) parts.push(trn(countRejected, "{count} couldn't be added because the limit is 10.", "{count} couldn't be added because the limit is 10."));
     return parts;
   }
 
@@ -1785,7 +1804,7 @@
   }
 
   function openAttachmentMenu(anchor, attachmentId) {
-    const html = `<button class="popover-option" type="button" data-pop-action="attachment-open" data-attachment-id="${esc(attachmentId)}"><i class="ph ph-arrow-square-out"></i>Open</button><button class="popover-option" type="button" data-pop-action="attachment-download" data-attachment-id="${esc(attachmentId)}"><i class="ph ph-download-simple"></i>Download</button><div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="attachment-delete" data-attachment-id="${esc(attachmentId)}" data-owner-type="${esc(anchor.dataset.ownerType)}" data-owner-id="${esc(anchor.dataset.ownerId)}" style="color:var(--danger)"><i class="ph ph-trash"></i>Delete</button>`;
+    const html = `<button class="popover-option" type="button" data-pop-action="attachment-open" data-attachment-id="${esc(attachmentId)}"><i class="ph ph-arrow-square-out"></i>${tr('Open file')}</button><button class="popover-option" type="button" data-pop-action="attachment-download" data-attachment-id="${esc(attachmentId)}"><i class="ph ph-download-simple"></i>${tr('Download')}</button><div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="attachment-delete" data-attachment-id="${esc(attachmentId)}" data-owner-type="${esc(anchor.dataset.ownerType)}" data-owner-id="${esc(anchor.dataset.ownerId)}" style="color:var(--danger)"><i class="ph ph-trash"></i>${tr('Delete')}</button>`;
     openPopover(anchor, html, { type: 'attachment-menu', attachmentId });
   }
 
@@ -1801,25 +1820,25 @@
   async function deleteAttachment(attachmentId, descriptor) {
     const owner = attachmentOwner(descriptor), located = locateDeleteEntity('attachment', attachmentId);
     if (!owner || located?.parent !== owner.item || located.ownerType !== owner.type) {
-      setToastMessage('Attachment owner changed. Reopen the current item.'); return;
+      setToastMessage(tr('Attachment owner changed. Reopen the current item.')); return;
     }
     requestDeleteEntity('attachment', attachmentId);
   }
 
   function renderSearchModal() {
-    return modalFrame(`<div class="modal-inner"><div class="search-box"><i class="ph ph-magnifying-glass"></i><input id="search-query" class="search-input" type="search" autocomplete="off" placeholder="Search tasks and projects..." value="${esc(modalState.query || '')}" /><button class="btn-icon" type="button" data-action="close-modal" aria-label="Close Search"><i class="ph ph-x"></i></button></div><div id="search-results" class="search-results">${searchResultsHtml(modalState.query || '')}</div></div>`, 'search-modal');
+    return modalFrame(`<div class="modal-inner"><div class="search-box"><i class="ph ph-magnifying-glass"></i><input id="search-query" class="search-input" type="search" autocomplete="off" placeholder="${tr('Search tasks and projects...')}" value="${esc(modalState.query || '')}" /><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close Search')}"><i class="ph ph-x"></i></button></div><div id="search-results" class="search-results">${searchResultsHtml(modalState.query || '')}</div></div>`, 'search-modal');
   }
 
   function searchResultsHtml(query) {
-    if (!String(query).trim()) return `<div class="empty-state" style="border:0;padding:38px 12px"><h3>Search tasks and projects</h3><p>Type a task title, note or project name.</p></div>`;
+    if (!String(query).trim()) return `<div class="empty-state" style="border:0;padding:38px 12px"><h3>${tr('Search tasks and projects')}</h3><p>${tr('Type a task title, note or project name.')}</p></div>`;
     const result = Core.searchItems(state.tasks, state.projects, query);
-    if (!result.tasks.length && !result.projects.length) return `<div class="empty-state" style="border:0;padding:38px 12px"><h3>No results for “${esc(query)}”</h3></div>`;
+    if (!result.tasks.length && !result.projects.length) return `<div class="empty-state" style="border:0;padding:38px 12px"><h3>${tr('No results for “{query}”', { query: esc(query) })}</h3></div>`;
     let html = '';
     if (result.tasks.length) {
-      html += `<div class="search-section-title">Tasks</div>${result.tasks.map(({ task }) => searchTaskResult(task)).join('')}`;
+      html += `<div class="search-section-title">${tr('Tasks')}</div>${result.tasks.map(({ task }) => searchTaskResult(task)).join('')}`;
     }
     if (result.projects.length) {
-      html += `<div class="search-section-title">Projects</div>${result.projects.map(project => `<button class="search-result" type="button" data-route="project/${esc(project.id)}"><span class="search-result-icon"><span class="project-dot" style="--project-color:${esc(project.color)}"></span></span><span><span class="search-result-title">${esc(project.name)}</span><span class="search-result-meta">Project</span></span></button>`).join('')}`;
+      html += `<div class="search-section-title">${tr('Projects')}</div>${result.projects.map(project => `<button class="search-result" type="button" data-route="project/${esc(project.id)}"><span class="search-result-icon"><span class="project-dot" style="--project-color:${esc(project.color)}"></span></span><span><span class="search-result-title">${esc(project.name)}</span><span class="search-result-meta">${tr('Project')}</span></span></button>`).join('')}`;
     }
     return html;
   }
@@ -1828,31 +1847,31 @@
     const project = getProject(task.projectId);
     const parts = [];
     if (project) parts.push(project.name);
-    if (task.isCompleted && task.completedAt) parts.push(`Completed ${relativeDateLabel(String(task.completedAt).slice(0,10))}`);
-    else if (task.plannedDate === Core.dateOnly()) parts.push('Today');
-    if (task.dueDate) parts.push(`Due ${relativeDateLabel(task.dueDate)}`);
-    return `<button class="search-result" type="button" data-action="open-task" data-task-id="${esc(task.id)}"><span class="search-result-icon">${task.isCompleted ? '<i class="ph-fill ph-check-circle" style="color:var(--success)"></i>' : '<i class="ph ph-circle"></i>'}</span><span><span class="search-result-title">${esc(task.title)}</span><span class="search-result-meta">${esc(parts.join(' · ') || 'Task')}</span></span></button>`;
+    if (task.isCompleted && task.completedAt) parts.push(tr('Completed {date}', { date: relativeDateLabel(String(task.completedAt).slice(0,10)) }));
+    else if (task.plannedDate === Core.dateOnly()) parts.push(tr('Today'));
+    if (task.dueDate) parts.push(tr('Due {date}', { date: relativeDateLabel(task.dueDate) }));
+    return `<button class="search-result" type="button" data-action="open-task" data-task-id="${esc(task.id)}"><span class="search-result-icon">${task.isCompleted ? '<i class="ph-fill ph-check-circle" style="color:var(--success)"></i>' : '<i class="ph ph-circle"></i>'}</span><span><span class="search-result-title">${esc(task.title)}</span><span class="search-result-meta">${esc(parts.join(' · ') || tr('Task'))}</span></span></button>`;
   }
 
   function renderTagModal() {
     const editing = Boolean(modalState.tagId);
     const d = modalState.draft;
-    return modalFrame(`<div class="modal-inner"><div class="modal-header"><div><h2 class="dialog-title">${editing ? 'Edit tag' : 'New tag'}</h2></div><button class="btn-icon" type="button" data-action="close-modal" aria-label="Close"><i class="ph ph-x"></i></button></div><div class="form-stack"><label class="field-label" for="tag-name">Name</label><input id="tag-name" class="input ${modalState.error ? 'is-error' : ''}" type="text" maxlength="80" value="${esc(d.name)}" placeholder="Tag name" />${modalState.error ? `<div class="validation">${esc(modalState.error)}</div>` : ''}<div class="field-label">Color</div><div class="color-grid">${PROJECT_COLORS.map(c => `<button class="color-swatch ${c === d.color ? 'is-selected' : ''}" type="button" data-action="select-tag-color" data-color="${c}" style="--swatch:${c}" aria-label="Select color"></button>`).join('')}</div></div><div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">Cancel</button><button class="btn btn-primary" type="button" data-action="save-tag">${editing ? 'Save' : 'Create'}</button></div></div></div>`, 'small-modal');
+    return modalFrame(`<div class="modal-inner"><div class="modal-header"><div><h2 class="dialog-title">${editing ? tr('Edit tag') : tr('New tag')}</h2></div><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div><div class="form-stack"><label class="field-label" for="tag-name">${tr('Name')}</label><input id="tag-name" class="input ${modalState.error ? 'is-error' : ''}" type="text" maxlength="80" value="${esc(d.name)}" placeholder="${tr('Tag name')}" />${modalState.error ? `<div class="validation">${esc(modalState.error)}</div>` : ''}<div class="field-label">${tr('Color')}</div><div class="color-grid">${PROJECT_COLORS.map(c => `<button class="color-swatch ${c === d.color ? 'is-selected' : ''}" type="button" data-action="select-tag-color" data-color="${c}" style="--swatch:${c}" aria-label="${tr('Select color')}"></button>`).join('')}</div></div><div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">${tr('Cancel')}</button><button class="btn btn-primary" type="button" data-action="save-tag">${editing ? tr('Save') : tr('Create')}</button></div></div></div>`, 'small-modal');
   }
 
   function renderAreaLinkedModal() {
-    const label = modalState.kind === 'goal' ? 'Goal' : 'Habit';
-    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">New ${label}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="Close"><i class="ph ph-x"></i></button></div><label class="field-label" for="area-linked-name">Name</label><input id="area-linked-name" class="input ${modalState.error ? 'is-error' : ''}" type="text" maxlength="100" value="${esc(modalState.draft.name)}" placeholder="${label} name" />${modalState.error ? `<div class="validation">${esc(modalState.error)}</div>` : ''}<div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">Cancel</button><button class="btn btn-primary" type="button" data-action="save-area-linked">Create ${label.toLowerCase()}</button></div></div></div>`, 'quick');
+    const goal = modalState.kind === 'goal';
+    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">${goal ? tr('New goal') : tr('New habit')}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div><label class="field-label" for="area-linked-name">${tr('Name')}</label><input id="area-linked-name" class="input ${modalState.error ? 'is-error' : ''}" type="text" maxlength="100" value="${esc(modalState.draft.name)}" placeholder="${goal ? tr('Goal name') : tr('Habit name')}" />${modalState.error ? `<div class="validation">${esc(modalState.error)}</div>` : ''}<div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">${tr('Cancel')}</button><button class="btn btn-primary" type="button" data-action="save-area-linked">${goal ? tr('Create goal') : tr('Create habit')}</button></div></div></div>`, 'quick');
   }
 
   function renderDuplicateModal() {
     const task = getTask(modalState.taskId); if (!task) return '';
     const count = (task.attachmentIds || []).length;
-    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="dialog-title">Duplicate task</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="Close Duplicate task"><i class="ph ph-x"></i></button></div><p class="dialog-copy">This task has ${count} ${count === 1 ? 'attachment' : 'attachments'}. Copy attachments too?</p><div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">Cancel</button><button class="btn btn-secondary" type="button" data-action="duplicate-without-files" data-task-id="${esc(task.id)}">Without files</button><button class="btn btn-primary" type="button" data-action="duplicate-with-files" data-task-id="${esc(task.id)}">Copy files</button></div></div></div>`, 'small-modal');
+    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="dialog-title">${tr('Duplicate task')}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close Duplicate task')}"><i class="ph ph-x"></i></button></div><p class="dialog-copy">${trn(count, 'This task has {count} attachment. Copy attachments too?', 'This task has {count} attachments. Copy attachments too?')}</p><div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">${tr('Cancel')}</button><button class="btn btn-secondary" type="button" data-action="duplicate-without-files" data-task-id="${esc(task.id)}">${tr('Without files')}</button><button class="btn btn-primary" type="button" data-action="duplicate-with-files" data-task-id="${esc(task.id)}">${tr('Copy files')}</button></div></div></div>`, 'small-modal');
   }
 
   function renderConfirmModal() {
-    return modalFrame(`<div class="modal-inner"><div class="modal-header"><div><h2 class="modal-title">${esc(modalState.title)}</h2>${modalState.message ? `<p class="page-subtitle" style="margin-top:10px;max-width:380px">${esc(modalState.message)}</p>` : ''}</div><button class="btn-icon" type="button" data-action="close-modal" aria-label="Close dialog"><i class="ph ph-x"></i></button></div>${modalState.phrase ? `<label>Type ${esc(modalState.phrase)} to continue<input id="global-confirm-phrase" class="input" autocomplete="off" /></label>` : ''}<div class="modal-footer" style="border:0;padding-top:0"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">Cancel</button><button class="btn btn-danger" type="button" data-action="confirm-action">${esc(modalState.confirmLabel || 'Delete')}</button></div></div></div>`, 'confirm-modal');
+    return modalFrame(`<div class="modal-inner"><div class="modal-header"><div><h2 class="modal-title">${esc(tr(modalState.title))}</h2>${modalState.message ? `<p class="page-subtitle" style="margin-top:10px;max-width:380px">${esc(tr(modalState.message))}</p>` : ''}</div><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close dialog')}"><i class="ph ph-x"></i></button></div>${modalState.phrase ? `<label>${tr('Type {word} to continue', { word: esc(modalState.phrase) })}<input id="global-confirm-phrase" class="input" autocomplete="off" /></label>` : ''}<div class="modal-footer" style="border:0;padding-top:0"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">${tr('Cancel')}</button><button class="btn btn-danger" type="button" data-action="confirm-action">${esc(tr(modalState.confirmLabel || msg('Delete')))}</button></div></div></div>`, 'confirm-modal');
   }
 
   function nextProjectColor() {
@@ -1862,14 +1881,14 @@
   function openProjectPicker(anchor, target) {
     const currentId = target.type === 'quick' ? modalState?.draft.projectId : getTask(target.taskId)?.projectId;
     const projects = sortedProjects();
-    const html = `<div class="popover-title">Project</div><button class="popover-option ${!currentId ? 'is-selected' : ''}" type="button" data-pop-action="set-project" data-project-id="" data-target-type="${target.type}" ${target.taskId ? `data-task-id="${esc(target.taskId)}"` : ''}><i class="ph ph-minus-circle"></i>No project${!currentId ? '<i class="ph ph-check spacer"></i>' : ''}</button>${projects.map(p => `<button class="popover-option ${p.id === currentId ? 'is-selected' : ''}" type="button" data-pop-action="set-project" data-project-id="${esc(p.id)}" data-target-type="${target.type}" ${target.taskId ? `data-task-id="${esc(target.taskId)}"` : ''}><span class="project-dot" style="--project-color:${esc(p.color)}"></span>${esc(p.name)}${p.id === currentId ? '<i class="ph ph-check spacer"></i>' : ''}</button>`).join('')}<div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="inline-new-project" data-target-type="${target.type}" ${target.taskId ? `data-task-id="${esc(target.taskId)}"` : ''}><i class="ph ph-plus"></i>New project</button>`;
+    const html = `<div class="popover-title">${tr('Project')}</div><button class="popover-option ${!currentId ? 'is-selected' : ''}" type="button" data-pop-action="set-project" data-project-id="" data-target-type="${target.type}" ${target.taskId ? `data-task-id="${esc(target.taskId)}"` : ''}><i class="ph ph-minus-circle"></i>${tr('No project')}${!currentId ? '<i class="ph ph-check spacer"></i>' : ''}</button>${projects.map(p => `<button class="popover-option ${p.id === currentId ? 'is-selected' : ''}" type="button" data-pop-action="set-project" data-project-id="${esc(p.id)}" data-target-type="${target.type}" ${target.taskId ? `data-task-id="${esc(target.taskId)}"` : ''}><span class="project-dot" style="--project-color:${esc(p.color)}"></span>${esc(p.name)}${p.id === currentId ? '<i class="ph ph-check spacer"></i>' : ''}</button>`).join('')}<div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="inline-new-project" data-target-type="${target.type}" ${target.taskId ? `data-task-id="${esc(target.taskId)}"` : ''}><i class="ph ph-plus"></i>${tr('New project')}</button>`;
     openPopover(anchor, html, { type: 'project', target });
   }
 
   function openPlanPicker(anchor, target) {
     const task = target.type === 'quick' ? modalState.draft : getTask(target.taskId);
     const today = Core.dateOnly();
-    const html = `<div class="popover-title">Plan for</div>${dateOption('Today', today, task.plannedDate, 'set-plan', target)}${dateOption('Tomorrow', Core.addDays(today,1), task.plannedDate, 'set-plan', target)}<button class="popover-option" type="button" data-pop-action="show-custom-date" data-date-kind="plan" data-target-type="${target.type}" ${target.taskId ? `data-task-id="${esc(target.taskId)}"` : ''}><i class="ph ph-calendar-blank"></i>Pick a date...</button>${task.plannedDate ? `<div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="set-plan" data-date="" data-target-type="${target.type}" ${target.taskId ? `data-task-id="${esc(target.taskId)}"` : ''}><i class="ph ph-x"></i>Remove plan</button>` : ''}`;
+    const html = `<div class="popover-title">${tr('Plan for')}</div>${dateOption(tr('Today'), today, task.plannedDate, 'set-plan', target)}${dateOption(tr('Tomorrow'), Core.addDays(today,1), task.plannedDate, 'set-plan', target)}<button class="popover-option" type="button" data-pop-action="show-custom-date" data-date-kind="plan" data-target-type="${target.type}" ${target.taskId ? `data-task-id="${esc(target.taskId)}"` : ''}><i class="ph ph-calendar-blank"></i>${tr('Pick a date...')}</button>${task.plannedDate ? `<div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="set-plan" data-date="" data-target-type="${target.type}" ${target.taskId ? `data-task-id="${esc(target.taskId)}"` : ''}><i class="ph ph-x"></i>${tr('Remove plan')}</button>` : ''}`;
     openPopover(anchor, html, { type: 'plan', target });
   }
 
@@ -1877,20 +1896,20 @@
     const task = target.type === 'quick' ? modalState.draft : getTask(target.taskId);
     const today = Core.dateOnly();
     const weekend = nextWeekend(today);
-    const html = `<div class="popover-title">Due date</div>${dateOption('Today', today, task.dueDate, 'set-due', target)}${dateOption('Tomorrow', Core.addDays(today,1), task.dueDate, 'set-due', target)}${dateOption('This weekend', weekend, task.dueDate, 'set-due', target)}<button class="popover-option" type="button" data-pop-action="show-custom-date" data-date-kind="due" data-target-type="${target.type}" ${target.taskId ? `data-task-id="${esc(target.taskId)}"` : ''}><i class="ph ph-calendar-blank"></i>Pick a date...</button>${task.dueDate ? `<div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="set-due" data-date="" data-target-type="${target.type}" ${target.taskId ? `data-task-id="${esc(target.taskId)}"` : ''}><i class="ph ph-x"></i>Clear due date</button>` : ''}`;
+    const html = `<div class="popover-title">${tr('Due date')}</div>${dateOption(tr('Today'), today, task.dueDate, 'set-due', target)}${dateOption(tr('Tomorrow'), Core.addDays(today,1), task.dueDate, 'set-due', target)}${dateOption(tr('This weekend'), weekend, task.dueDate, 'set-due', target)}<button class="popover-option" type="button" data-pop-action="show-custom-date" data-date-kind="due" data-target-type="${target.type}" ${target.taskId ? `data-task-id="${esc(target.taskId)}"` : ''}><i class="ph ph-calendar-blank"></i>${tr('Pick a date...')}</button>${task.dueDate ? `<div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="set-due" data-date="" data-target-type="${target.type}" ${target.taskId ? `data-task-id="${esc(target.taskId)}"` : ''}><i class="ph ph-x"></i>${tr('Clear due date')}</button>` : ''}`;
     openPopover(anchor, html, { type: 'due', target });
   }
 
   function openTagPicker(anchor, target) {
     const selected = target.type === 'quick' ? (modalState.draft.tagIds || []) : (getTask(target.taskId)?.tagIds || []);
     const options = (state.tags || []).map(tag => `<button class="popover-option ${selected.includes(tag.id) ? 'is-selected' : ''}" type="button" data-pop-action="toggle-tag" data-tag-id="${esc(tag.id)}" data-target-type="${target.type}" ${target.taskId ? `data-task-id="${esc(target.taskId)}"` : ''}><span class="tag-dot" style="--tag-color:${esc(tag.color)}"></span>${esc(tag.name)}${selected.includes(tag.id) ? '<i class="ph ph-check spacer"></i>' : ''}</button>`).join('');
-    const html = `<div class="popover-title">Tags</div>${options || '<div class="popover-empty">No tags yet</div>'}<div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="inline-new-tag" data-target-type="${target.type}" ${target.taskId ? `data-task-id="${esc(target.taskId)}"` : ''}><i class="ph ph-plus"></i>New tag</button>`;
+    const html = `<div class="popover-title">${tr('Tags')}</div>${options || `<div class="popover-empty">${tr('No tags yet')}</div>`}<div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="inline-new-tag" data-target-type="${target.type}" ${target.taskId ? `data-task-id="${esc(target.taskId)}"` : ''}><i class="ph ph-plus"></i>${tr('New tag')}</button>`;
     openPopover(anchor, html, { type: 'tag-picker' });
   }
 
   function openPriorityPicker(anchor, target) {
     const current = target.type === 'quick' ? (modalState.draft.priority || 'none') : (getTask(target.taskId)?.priority || 'none');
-    const html = `<div class="popover-title">Priority</div>${['none','low','medium','high'].map(value => `<button class="popover-option ${current === value ? 'is-selected' : ''}" type="button" data-pop-action="set-priority" data-priority="${value}" data-target-type="${target.type}" ${target.taskId ? `data-task-id="${esc(target.taskId)}"` : ''}>${value === 'none' ? '<i class="ph ph-minus"></i>' : priorityIcon(value)}${esc(priorityLabel(value))}${current === value ? '<i class="ph ph-check spacer"></i>' : ''}</button>`).join('')}`;
+    const html = `<div class="popover-title">${tr('Priority')}</div>${['none','low','medium','high'].map(value => `<button class="popover-option ${current === value ? 'is-selected' : ''}" type="button" data-pop-action="set-priority" data-priority="${value}" data-target-type="${target.type}" ${target.taskId ? `data-task-id="${esc(target.taskId)}"` : ''}>${value === 'none' ? '<i class="ph ph-minus"></i>' : priorityIcon(value)}${esc(priorityLabel(value))}${current === value ? '<i class="ph ph-check spacer"></i>' : ''}</button>`).join('')}`;
     openPopover(anchor, html, { type: 'priority-picker' });
   }
 
@@ -1933,7 +1952,7 @@
   function inlineNewTag(button) {
     const targetType = button.dataset.targetType; const taskId = button.dataset.taskId || ''; const color = PROJECT_COLORS[(state.tags || []).length % PROJECT_COLORS.length];
     if (!popoverEl) return;
-    setPopoverContent(`<div class="popover-title">New tag</div><div class="popover-inline-form"><input id="inline-tag-name" class="input" type="text" maxlength="80" placeholder="Tag name" /><div class="color-grid">${PROJECT_COLORS.map(c=>`<button class="color-swatch ${c===color?'is-selected':''}" type="button" data-pop-action="inline-select-tag-color" data-color="${c}" style="--swatch:${c}"></button>`).join('')}</div><div id="inline-tag-error" class="validation" hidden></div><div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn btn-ghost" type="button" data-pop-action="inline-tag-cancel">Cancel</button><button class="btn btn-primary" type="button" data-pop-action="inline-tag-create" data-target-type="${targetType}" ${taskId ? `data-task-id="${esc(taskId)}"` : ''} data-color="${color}">Create</button></div></div>`);
+    setPopoverContent(`<div class="popover-title">${tr('New tag')}</div><div class="popover-inline-form"><input id="inline-tag-name" class="input" type="text" maxlength="80" placeholder="${tr('Tag name')}" /><div class="color-grid">${PROJECT_COLORS.map(c=>`<button class="color-swatch ${c===color?'is-selected':''}" type="button" data-pop-action="inline-select-tag-color" data-color="${c}" style="--swatch:${c}"></button>`).join('')}</div><div id="inline-tag-error" class="validation" hidden></div><div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn btn-ghost" type="button" data-pop-action="inline-tag-cancel">${tr('Cancel')}</button><button class="btn btn-primary" type="button" data-pop-action="inline-tag-create" data-target-type="${targetType}" ${taskId ? `data-task-id="${esc(taskId)}"` : ''} data-color="${color}">${tr('Create')}</button></div></div>`);
     requestAnimationFrame(()=>$('#inline-tag-name',popoverEl)?.focus());
   }
 
@@ -1945,7 +1964,7 @@
     tomorrow.setDate(tomorrow.getDate() + 1);
     tomorrow.setHours(9, 0, 0, 0);
     const targetAttrs = `data-target-type="${target.type}" ${target.taskId ? `data-task-id="${esc(target.taskId)}"` : ''}`;
-    const html = `<div class="popover-title">Reminder</div><button class="popover-option" type="button" data-pop-action="set-reminder" data-reminder="${esc(later)}" ${targetAttrs}><i class="ph ph-clock"></i>Later today</button><button class="popover-option" type="button" data-pop-action="set-reminder" data-reminder="${esc(tomorrow.toISOString())}" ${targetAttrs}><i class="ph ph-sun-horizon"></i>Tomorrow morning</button><button class="popover-option" type="button" data-pop-action="show-custom-reminder" ${targetAttrs}><i class="ph ph-calendar-blank"></i>Custom date & time...</button>${task.reminderAt ? `<div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="set-reminder" data-reminder="" ${targetAttrs}><i class="ph ph-x"></i>Clear reminder</button>` : ''}`;
+    const html = `<div class="popover-title">${tr('Reminder')}</div><button class="popover-option" type="button" data-pop-action="set-reminder" data-reminder="${esc(later)}" ${targetAttrs}><i class="ph ph-clock"></i>${tr('Later today')}</button><button class="popover-option" type="button" data-pop-action="set-reminder" data-reminder="${esc(tomorrow.toISOString())}" ${targetAttrs}><i class="ph ph-sun-horizon"></i>${tr('Tomorrow morning')}</button><button class="popover-option" type="button" data-pop-action="show-custom-reminder" ${targetAttrs}><i class="ph ph-calendar-blank"></i>${tr('Custom date & time...')}</button>${task.reminderAt ? `<div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="set-reminder" data-reminder="" ${targetAttrs}><i class="ph ph-x"></i>${tr('Clear reminder')}</button>` : ''}`;
     openPopover(anchor, html, { type: 'reminder', target });
   }
 
@@ -1954,10 +1973,10 @@
     if (!task) return;
     const current = task.recurrence;
     const attrs = `${target.taskId ? `data-task-id="${esc(target.taskId)}"` : ''} data-target-type="${target.type}"`;
-    const option = (label, frequency) => `<button class="popover-option ${current?.frequency === frequency && Number(current?.interval || 1) === 1 ? 'is-selected' : ''}" type="button" data-pop-action="set-repeat" data-frequency="${frequency || ''}" data-interval="1" ${attrs}>${label}${current?.frequency === frequency && Number(current?.interval || 1) === 1 ? '<i class="ph ph-check spacer"></i>' : ''}</button>`;
+    const option = (label, frequency) => `<button class="popover-option ${current?.frequency === frequency && Number(current?.interval || 1) === 1 ? 'is-selected' : ''}" type="button" data-pop-action="set-repeat" data-frequency="${frequency || ''}" data-interval="1" ${attrs}>${tr(label)}${current?.frequency === frequency && Number(current?.interval || 1) === 1 ? '<i class="ph ph-check spacer"></i>' : ''}</button>`;
     const operational=taskRecurrence(task);
-    const management=operational && target.type!=='quick' ? `<div class="popover-separator"></div><p class="popover-empty">Controls apply to this and pending recurrence. Skip affects the next generated occurrence, not already-created tasks.</p><button class="popover-option" data-pop-action="${operational.status==='paused'?'resume-recurrence':'pause-recurrence'}" ${attrs}>${operational.status==='paused'?'Resume recurrence':'Pause recurrence'}</button><button class="popover-option" data-pop-action="skip-recurrence" ${attrs}>Skip next occurrence${operational.skipNext?' (scheduled)':''}</button><button class="popover-option" data-pop-action="end-recurrence" ${attrs}>End recurrence</button>`:'';
-    const html = `<div class="popover-title">Repeat</div>${option('Does not repeat', '')}${option('Every day', 'daily')}${option('Every week', 'weekly')}${option('Every month', 'monthly')}<div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="show-custom-repeat" ${attrs}><i class="ph ph-sliders-horizontal"></i>${current?'Edit recurrence / End on date / End after N occurrences':'Custom interval...'}</button>${management}`;
+    const management=operational && target.type!=='quick' ? `<div class="popover-separator"></div><p class="popover-empty">${tr('Controls apply to this and pending recurrence. Skip affects the next generated occurrence, not already-created tasks.')}</p><button class="popover-option" data-pop-action="${operational.status==='paused'?'resume-recurrence':'pause-recurrence'}" ${attrs}>${operational.status==='paused'?tr('Resume recurrence'):tr('Pause recurrence')}</button><button class="popover-option" data-pop-action="skip-recurrence" ${attrs}>${operational.skipNext?tr('Skip next occurrence (scheduled)'):tr('Skip next occurrence')}</button><button class="popover-option" data-pop-action="end-recurrence" ${attrs}>${tr('End recurrence')}</button>`:'';
+    const html = `<div class="popover-title">${tr('Repeat')}</div>${option(msg('Does not repeat'), '')}${option(msg('Every day'), 'daily')}${option(msg('Every week'), 'weekly')}${option(msg('Every month'), 'monthly')}<div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="show-custom-repeat" ${attrs}><i class="ph ph-sliders-horizontal"></i>${current?tr('Edit recurrence / End on date / End after N occurrences'):tr('Custom interval...')}</button>${management}`;
     openPopover(anchor, html, { type: 'repeat', target });
   }
 
@@ -1967,7 +1986,7 @@
     const taskId = button.dataset.taskId || '';
     const source = targetType === 'quick' ? modalState.draft : getTask(taskId);
     const value = toLocalDateTimeValue(source?.reminderAt || new Date(Date.now() + 60 * 60 * 1000).toISOString());
-    setPopoverContent(`<div class="popover-title">Reminder</div><div class="popover-inline-form"><input id="custom-reminder-input" class="date-native" type="datetime-local" value="${esc(value)}" /><div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn btn-ghost" type="button" data-pop-action="custom-reminder-cancel">Cancel</button><button class="btn btn-primary" type="button" data-pop-action="custom-reminder-apply" data-target-type="${targetType}" ${taskId ? `data-task-id="${esc(taskId)}"` : ''}>Apply</button></div></div>`);
+    setPopoverContent(`<div class="popover-title">${tr('Reminder')}</div><div class="popover-inline-form"><input id="custom-reminder-input" class="date-native" type="datetime-local" value="${esc(value)}" /><div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn btn-ghost" type="button" data-pop-action="custom-reminder-cancel">${tr('Cancel')}</button><button class="btn btn-primary" type="button" data-pop-action="custom-reminder-apply" data-target-type="${targetType}" ${taskId ? `data-task-id="${esc(taskId)}"` : ''}>${tr('Apply')}</button></div></div>`);
   }
 
   function showCustomRepeat(button) {
@@ -1976,8 +1995,8 @@
     const taskId = button.dataset.taskId || '';
     const source = targetType === 'quick' ? modalState.draft : getTask(taskId);
     const current = source?.recurrence || { frequency: 'weekly', interval: 2 };
-    setPopoverContent(`<div class="popover-title">Custom repeat</div><div class="popover-inline-form"><label class="field-label" for="repeat-interval">Repeat every</label><div class="repeat-custom-row"><input id="repeat-interval" class="input" type="number" min="1" max="99" value="${Math.max(1, Number(current.interval) || 1)}" /><select id="repeat-frequency" class="input"><option value="daily" ${current.frequency === 'daily' ? 'selected' : ''}>days</option><option value="weekly" ${current.frequency === 'weekly' ? 'selected' : ''}>weeks</option><option value="monthly" ${current.frequency === 'monthly' ? 'selected' : ''}>months</option></select></div><div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn btn-ghost" type="button" data-pop-action="custom-repeat-cancel">Cancel</button><button class="btn btn-primary" type="button" data-pop-action="custom-repeat-apply" data-target-type="${targetType}" ${taskId ? `data-task-id="${esc(taskId)}"` : ''}>Apply</button></div></div>`);
-    $('.repeat-custom-row',popoverEl).insertAdjacentHTML('afterend',`<label class="field-label">End condition<select id="repeat-end-type" class="input"><option value="never" ${!current.endType || current.endType==='never'?'selected':''}>Never</option><option value="date" ${current.endType==='date'?'selected':''}>End on date</option><option value="afterOccurrences" ${current.endType==='afterOccurrences'?'selected':''}>End after N occurrences (including initial)</option></select></label><label class="field-label">End date<input id="repeat-end-date" class="input" type="date" value="${esc(current.endDate || '')}"></label><label class="field-label">Total occurrences<input id="repeat-end-count" class="input" type="number" min="1" step="1" value="${esc(current.endAfterOccurrences || '')}"></label><p class="validation" role="alert" id="repeat-error" hidden></p>`);
+    setPopoverContent(`<div class="popover-title">${tr('Custom repeat')}</div><div class="popover-inline-form"><label class="field-label" for="repeat-interval">${tr('Repeat every')}</label><div class="repeat-custom-row"><input id="repeat-interval" class="input" type="number" min="1" max="99" value="${Math.max(1, Number(current.interval) || 1)}" /><select id="repeat-frequency" class="input"><option value="daily" ${current.frequency === 'daily' ? 'selected' : ''}>${tr('days')}</option><option value="weekly" ${current.frequency === 'weekly' ? 'selected' : ''}>${tr('weeks')}</option><option value="monthly" ${current.frequency === 'monthly' ? 'selected' : ''}>${tr('months')}</option></select></div><div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn btn-ghost" type="button" data-pop-action="custom-repeat-cancel">${tr('Cancel')}</button><button class="btn btn-primary" type="button" data-pop-action="custom-repeat-apply" data-target-type="${targetType}" ${taskId ? `data-task-id="${esc(taskId)}"` : ''}>${tr('Apply')}</button></div></div>`);
+    $('.repeat-custom-row',popoverEl).insertAdjacentHTML('afterend',`<label class="field-label">${tr('End condition')}<select id="repeat-end-type" class="input"><option value="never" ${!current.endType || current.endType==='never'?'selected':''}>${tr('Never')}</option><option value="date" ${current.endType==='date'?'selected':''}>${tr('End on date')}</option><option value="afterOccurrences" ${current.endType==='afterOccurrences'?'selected':''}>${tr('End after N occurrences (including initial)')}</option></select></label><label class="field-label">${tr('End date')}<input id="repeat-end-date" class="input" type="date" value="${esc(current.endDate || '')}"></label><label class="field-label">${tr('Total occurrences')}<input id="repeat-end-count" class="input" type="number" min="1" step="1" value="${esc(current.endAfterOccurrences || '')}"></label><p class="validation" role="alert" id="repeat-error" hidden></p>`);
   }
 
   function setReminder(targetType, taskId, value) {
@@ -2016,20 +2035,20 @@
   function openTaskMenu(anchor, taskId) {
     const task = getTask(taskId); if (!task) return;
     const today = Core.dateOnly();
-    const todayAction = task.plannedDate === today ? '' : `<button class="popover-option" type="button" data-pop-action="task-add-today" data-task-id="${esc(taskId)}"><i class="ph ph-sun"></i>Add to Today</button>`;
-    const html = `${todayAction}<button class="popover-option" type="button" data-pop-action="task-move-tomorrow" data-task-id="${esc(taskId)}"><i class="ph ph-arrow-right"></i>Move to Tomorrow</button><button class="popover-option" type="button" data-pop-action="task-move-anytime" data-task-id="${esc(taskId)}"><i class="ph ph-infinity"></i>Move to Anytime</button><button class="popover-option" type="button" data-pop-action="task-open-plan" data-task-id="${esc(taskId)}"><i class="ph ph-calendar-check"></i>Plan for...</button><button class="popover-option" type="button" data-pop-action="task-open-due" data-task-id="${esc(taskId)}"><i class="ph ph-flag"></i>Change due date</button><button class="popover-option" type="button" data-pop-action="task-open-project" data-task-id="${esc(taskId)}"><i class="ph ph-folder-simple"></i>Move to project</button><button class="popover-option" type="button" data-pop-action="task-duplicate" data-task-id="${esc(taskId)}"><i class="ph ph-copy"></i>Duplicate</button><div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="task-delete" data-task-id="${esc(taskId)}" style="color:var(--danger)"><i class="ph ph-trash"></i>Delete</button>`;
+    const todayAction = task.plannedDate === today ? '' : `<button class="popover-option" type="button" data-pop-action="task-add-today" data-task-id="${esc(taskId)}"><i class="ph ph-sun"></i>${tr('Add to Today')}</button>`;
+    const html = `${todayAction}<button class="popover-option" type="button" data-pop-action="task-move-tomorrow" data-task-id="${esc(taskId)}"><i class="ph ph-arrow-right"></i>${tr('Move to Tomorrow')}</button><button class="popover-option" type="button" data-pop-action="task-move-anytime" data-task-id="${esc(taskId)}"><i class="ph ph-infinity"></i>${tr('Move to Anytime')}</button><button class="popover-option" type="button" data-pop-action="task-open-plan" data-task-id="${esc(taskId)}"><i class="ph ph-calendar-check"></i>${tr('Plan for...')}</button><button class="popover-option" type="button" data-pop-action="task-open-due" data-task-id="${esc(taskId)}"><i class="ph ph-flag"></i>${tr('Change due date')}</button><button class="popover-option" type="button" data-pop-action="task-open-project" data-task-id="${esc(taskId)}"><i class="ph ph-folder-simple"></i>${tr('Move to project')}</button><button class="popover-option" type="button" data-pop-action="task-duplicate" data-task-id="${esc(taskId)}"><i class="ph ph-copy"></i>${tr('Duplicate')}</button><div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="task-delete" data-task-id="${esc(taskId)}" style="color:var(--danger)"><i class="ph ph-trash"></i>${tr('Delete')}</button>`;
     openPopover(anchor, templateMenuEntry('task',taskId)+html, { type: 'task-menu', taskId });
   }
 
   function openTagMenu(anchor, tagId) {
     const tag = getTag(tagId); if (!tag) return;
-    const html = `<button class="popover-option" type="button" data-pop-action="edit-tag" data-tag-id="${esc(tagId)}"><i class="ph ph-pencil-simple"></i>Edit tag</button><button class="popover-option" type="button" data-pop-action="delete-tag" data-tag-id="${esc(tagId)}" style="color:var(--danger)"><i class="ph ph-trash"></i>Delete tag</button>`;
+    const html = `<button class="popover-option" type="button" data-pop-action="edit-tag" data-tag-id="${esc(tagId)}"><i class="ph ph-pencil-simple"></i>${tr('Edit tag')}</button><button class="popover-option" type="button" data-pop-action="delete-tag" data-tag-id="${esc(tagId)}" style="color:var(--danger)"><i class="ph ph-trash"></i>${tr('Delete tag')}</button>`;
     openPopover(anchor, html, { type: 'tag-menu', tagId });
   }
 
   function openMoreMenu(anchor) {
     const route = currentRoute();
-    const html = `<button class="popover-option ${route.type === 'anytime' ? 'is-selected' : ''}" type="button" data-route="anytime"><i class="ph ph-infinity"></i>Anytime</button><button class="popover-option ${route.type === 'archived' ? 'is-selected' : ''}" type="button" data-action="more-route" data-more-route="archived"><i class="ph ph-archive"></i>Archived Projects</button><div class="popover-separator"></div><button class="popover-option ${route.type === 'completed' ? 'is-selected' : ''}" type="button" data-action="more-route" data-more-route="completed"><i class="ph ph-check-circle"></i>Completed</button><button class="popover-option ${route.type === 'settings' ? 'is-selected' : ''}" type="button" data-action="more-route" data-more-route="settings"><i class="ph ph-gear"></i>Settings</button>`;
+    const html = `<button class="popover-option ${route.type === 'anytime' ? 'is-selected' : ''}" type="button" data-route="anytime"><i class="ph ph-infinity"></i>${tr('Anytime')}</button><button class="popover-option ${route.type === 'archived' ? 'is-selected' : ''}" type="button" data-action="more-route" data-more-route="archived"><i class="ph ph-archive"></i>${tr('Archived Projects')}</button><div class="popover-separator"></div><button class="popover-option ${route.type === 'completed' ? 'is-selected' : ''}" type="button" data-action="more-route" data-more-route="completed"><i class="ph ph-check-circle"></i>${tr('Completed')}</button><button class="popover-option ${route.type === 'settings' ? 'is-selected' : ''}" type="button" data-action="more-route" data-more-route="settings"><i class="ph ph-gear"></i>${tr('Settings')}</button>`;
     openPopover(anchor, html, { type: 'more' });
   }
 
@@ -2045,7 +2064,7 @@
     if (title) {
       title.id = title.id || `popover-title-${Date.now().toString(36)}`;
       el.setAttribute('aria-labelledby', title.id);
-    } else el.setAttribute('aria-label', 'Menu');
+    } else el.setAttribute('aria-label', tr('Menu'));
     popoverReturnFocus = popoverFocusTarget(anchor);
     el.returnFocus = popoverReturnFocus;
     document.body.appendChild(el);
@@ -2098,7 +2117,7 @@
     const targetType = popButton.dataset.targetType;
     const taskId = popButton.dataset.taskId || '';
     if (!popoverEl) return;
-    setPopoverContent(`<div class="popover-title">${kind === 'plan' ? 'Plan for' : 'Due date'}</div><div class="popover-inline-form"><input id="custom-date-input" class="date-native" type="date" /><div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn btn-ghost" type="button" data-pop-action="custom-date-cancel">Cancel</button><button class="btn btn-primary" type="button" data-pop-action="custom-date-apply" data-date-kind="${kind}" data-target-type="${targetType}" ${taskId ? `data-task-id="${esc(taskId)}"` : ''}>Apply</button></div></div>`);
+    setPopoverContent(`<div class="popover-title">${kind === 'plan' ? tr('Plan for') : tr('Due date')}</div><div class="popover-inline-form"><input id="custom-date-input" class="date-native" type="date" /><div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn btn-ghost" type="button" data-pop-action="custom-date-cancel">${tr('Cancel')}</button><button class="btn btn-primary" type="button" data-pop-action="custom-date-apply" data-date-kind="${kind}" data-target-type="${targetType}" ${taskId ? `data-task-id="${esc(taskId)}"` : ''}>${tr('Apply')}</button></div></div>`);
     requestAnimationFrame(() => $('#custom-date-input', popoverEl)?.focus());
   }
 
@@ -2107,7 +2126,7 @@
     const taskId = button.dataset.taskId || '';
     if (!popoverEl) return;
     const color = nextProjectColor();
-    setPopoverContent(`<div class="popover-title">New project</div><div class="popover-inline-form"><input id="inline-project-name" class="input" type="text" maxlength="100" placeholder="Project name" /><div class="color-grid">${PROJECT_COLORS.map(c => `<button class="color-swatch ${c === color ? 'is-selected' : ''}" type="button" data-pop-action="inline-select-color" data-color="${c}" style="--swatch:${c}"></button>`).join('')}</div><div id="inline-project-error" class="validation" hidden>Project needs a name.</div><div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn btn-ghost" type="button" data-pop-action="inline-project-cancel">Cancel</button><button class="btn btn-primary" type="button" data-pop-action="inline-project-create" data-target-type="${targetType}" ${taskId ? `data-task-id="${esc(taskId)}"` : ''} data-color="${color}">Create</button></div></div>`);
+    setPopoverContent(`<div class="popover-title">${tr('New project')}</div><div class="popover-inline-form"><input id="inline-project-name" class="input" type="text" maxlength="100" placeholder="${tr('Project name')}" /><div class="color-grid">${PROJECT_COLORS.map(c => `<button class="color-swatch ${c === color ? 'is-selected' : ''}" type="button" data-pop-action="inline-select-color" data-color="${c}" style="--swatch:${c}"></button>`).join('')}</div><div id="inline-project-error" class="validation" hidden>${tr('Project needs a name.')}</div><div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn btn-ghost" type="button" data-pop-action="inline-project-cancel">${tr('Cancel')}</button><button class="btn btn-primary" type="button" data-pop-action="inline-project-create" data-target-type="${targetType}" ${taskId ? `data-task-id="${esc(taskId)}"` : ''} data-color="${color}">${tr('Create')}</button></div></div>`);
     requestAnimationFrame(() => $('#inline-project-name', popoverEl)?.focus());
   }
 
@@ -2125,7 +2144,7 @@
   }
   function taskRecurrence(task) {return task?.recurrenceBaseline?.recurrence || task?.recurrence;}
   function renderRecurrenceScope() {
-    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">Edit recurring task</h2><button class="btn-icon" data-action="close-modal" aria-label="Cancel"><i class="ph ph-x"></i></button></div><p class="dialog-copy">Apply these changes to this occurrence only, or this and pending future occurrences? Past and completed siblings stay unchanged.</p><div class="modal-footer"><button class="btn btn-secondary" data-action="recurrence-scope" data-scope="occurrence">This occurrence</button><button class="btn btn-primary" data-action="recurrence-scope" data-scope="future">This and future</button></div></div>`,'small-modal');
+    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">${tr('Edit recurring task')}</h2><button class="btn-icon" data-action="close-modal" aria-label="${tr('Cancel')}"><i class="ph ph-x"></i></button></div><p class="dialog-copy">${tr('Apply these changes to this occurrence only, or this and pending future occurrences? Past and completed siblings stay unchanged.')}</p><div class="modal-footer"><button class="btn btn-secondary" data-action="recurrence-scope" data-scope="occurrence">${tr('This occurrence')}</button><button class="btn btn-primary" data-action="recurrence-scope" data-scope="future">${tr('This and future')}</button></div></div>`,'small-modal');
   }
   function cancelRecurrenceScope() {
     const pending=modalState;if(pending?.type!=='recurrence-scope')return;
@@ -2257,7 +2276,7 @@
     const title = String(parsed.title || '').trim();
     const resolvedPlan = d.explicitPlan ? d.plannedDate : (parsed.plannedDate || d.plannedDate);
     if (!title) {
-      modalState.error = 'Task needs a title.';
+      modalState.error = tr('Task needs a title.');
       renderModal(); requestAnimationFrame(() => $('#quick-title')?.focus()); return;
     }
     const isInbox = modalState.defaults.processed ? false : !(d.projectId || resolvedPlan);
@@ -2309,9 +2328,9 @@
     let parsedPlan;
     if (parsePlan) parsedPlan = Core.parseQuickPlanPhrase(tokenFree, Core.dateOnly());
     else {
-      const timed = tokenFree.trim().match(/^(.*?\S)\s+(?:at\s+)?(\d{2}:\d{2})$/i);
-      const plannedTime = timed && Core.normalizeTime(timed[2]);
-      parsedPlan = { title: plannedTime ? timed[1] : tokenFree, plannedDate: null, plannedTime: plannedTime || null };
+      const timed = Core.splitQuickTime(tokenFree);
+      const plannedTime = timed && timed.plannedTime;
+      parsedPlan = { title: plannedTime ? timed.rest : tokenFree, plannedDate: null, plannedTime: plannedTime || null };
     }
     const title = parsedPlan.title.replace(/\s{2,}/g, ' ').trim();
     return { title, plannedDate: parsedPlan.plannedDate, plannedTime: parsedPlan.plannedTime || null, tagIds: [...new Set(tagIds)], priority };
@@ -2342,7 +2361,7 @@
     task.isCompleted = true; task.completedAt = completedAt; task.updatedAt = completedAt;
     const generatedId=taskRecurrence(task)?generateRecurringSuccessor(task,completedAt):null;
     saveState();
-    setUndo('Task completed', () => {
+    setUndo(msg('Task completed'), () => {
       const current = getTask(taskId); if (!current) return;
       Object.assign(current,copyTemplate(previous),{updatedAt:nowIso()});
       if (generatedId) {state.tasks = state.tasks.filter(item => item.id !== generatedId);removeCloneGoalLinks(generatedId);}
@@ -2368,10 +2387,10 @@
         copy.attachmentIds = createdIds;
       }
       state.tasks.push(copy);syncTemplateEntityGoalLinks('task',copy); saveState(); closeModal(); closePopover(); render();
-      setUndo('Task duplicated', async () => { state.tasks = state.tasks.filter(t=>t.id!==copy.id);removeCloneGoalLinks(copy.id); if(createdIds.length) await Attachments.deleteMany(createdIds); saveState(); render(); });
+      setUndo(msg('Task duplicated'), async () => { state.tasks = state.tasks.filter(t=>t.id!==copy.id);removeCloneGoalLinks(copy.id); if(createdIds.length) await Attachments.deleteMany(createdIds); saveState(); render(); });
     } catch (error) {
       if (createdIds.length) await Attachments.deleteMany(createdIds);
-      setToastMessage('Task could not be duplicated');
+      setToastMessage(tr('Task could not be duplicated'));
     }
   }
 
@@ -2408,28 +2427,33 @@
     if (!state || undoHold) return;
     flushTextSave();
     const source = state, located = locateDeleteEntity(type, identity);
-    if (!located) { setToastMessage('Delete unavailable. Reopen the current item and try again.'); return; }
-    if (type === 'clear-completed' && !state.tasks.some(task => task.isCompleted)) { setToastMessage('No completed tasks to clear'); return; }
-    const label = type === 'saved-view' ? 'Saved view' : type === 'clear-completed' ? 'Completed tasks' : templateLabel(type);
+    if (!located) { setToastMessage(tr('Delete unavailable. Reopen the current item and try again.')); return; }
+    if (type === 'clear-completed' && !state.tasks.some(task => task.isCompleted)) { setToastMessage(tr('No completed tasks to clear')); return; }
+    // Whole messages per type: Serbian cannot splice a lowercase type name into a sentence.
+    const deletedMessages = { task: msg('Task deleted'), subtask: msg('Subtask deleted'), project: msg('Project deleted'), tag: msg('Tag deleted'), area: msg('Area deleted'), goal: msg('Goal deleted'), habit: msg('Habit deleted'), note: msg('Note deleted'), resource: msg('Resource deleted'), milestone: msg('Milestone deleted'), attachment: msg('Attachment deleted'), template: msg('Template deleted'), 'saved-view': msg('Saved view deleted'), 'clear-completed': msg('Completed tasks deleted') };
+    const confirmLabels = { task: msg('Delete task'), subtask: msg('Delete subtask'), project: msg('Delete project'), tag: msg('Delete tag'), area: msg('Delete area'), goal: msg('Delete goal'), habit: msg('Delete habit'), note: msg('Delete note'), resource: msg('Delete resource'), milestone: msg('Delete milestone'), attachment: msg('Delete attachment'), template: msg('Delete template'), 'saved-view': msg('Delete saved view'), 'clear-completed': msg('Delete completed') };
+    const deletedMessage = deletedMessages[type] || msg('Item deleted');
+    const projectTaskCount = state.tasks.filter(task => task.projectId === identity).length;
+    const completedTaskCount = state.tasks.filter(task => task.isCompleted).length;
     const messages = {
-      task: 'This task, its subtasks and attachment references will be removed.',
-      subtask: 'This subtask will be removed from its task.',
-      project: `This project contains ${state.tasks.filter(task => task.projectId === identity).length} tasks. All tasks in this project, their subtasks and attachments will also be deleted.`,
-      tag: 'Tasks will remain. Their assignments to this tag will be removed.',
-      area: 'Linked objects will remain. Their Area assignments will be removed.',
-      goal: 'Projects, tasks and habits will remain. Their Goal links, milestones and Goal history will be removed.',
-      habit: 'Its check-ins, history and reminders will be removed. Goals will remain.',
-      note: 'This Note will be removed. Its files are retained through the Undo window. Undo restores the Note and files.',
-      resource: 'This Resource and its relations will be removed. Its files are retained through the Undo window. Undo restores them.',
-      milestone: 'This milestone will be removed from its Goal.',
-      attachment: 'This attachment will be removed from its owner.',
-      template: 'Items created from this template will remain.',
-      'saved-view': 'Matching items will remain.',
-      'clear-completed': `${state.tasks.filter(task => task.isCompleted).length} completed tasks and their attachments will be removed. Undo restores them.`
+      task: msg('This task, its subtasks and attachment references will be removed.'),
+      subtask: msg('This subtask will be removed from its task.'),
+      project: trn(projectTaskCount, 'This project contains {count} task. All tasks in this project, their subtasks and attachments will also be deleted.', 'This project contains {count} tasks. All tasks in this project, their subtasks and attachments will also be deleted.'),
+      tag: msg('Tasks will remain. Their assignments to this tag will be removed.'),
+      area: msg('Linked objects will remain. Their Area assignments will be removed.'),
+      goal: msg('Projects, tasks and habits will remain. Their Goal links, milestones and Goal history will be removed.'),
+      habit: msg('Its check-ins, history and reminders will be removed. Goals will remain.'),
+      note: msg('This Note will be removed. Its files are retained through the Undo window. Undo restores the Note and files.'),
+      resource: msg('This Resource and its relations will be removed. Its files are retained through the Undo window. Undo restores them.'),
+      milestone: msg('This milestone will be removed from its Goal.'),
+      attachment: msg('This attachment will be removed from its owner.'),
+      template: msg('Items created from this template will remain.'),
+      'saved-view': msg('Matching items will remain.'),
+      'clear-completed': trn(completedTaskCount, '{count} completed task and its attachments will be removed. Undo restores them.', '{count} completed tasks and their attachments will be removed. Undo restores them.')
     };
     let dialog;
-    openConfirm({ title: type === 'clear-completed' ? 'Delete all completed tasks?' : `Delete “${type === 'attachment' ? 'attachment' : located.entity.name || located.entity.title}”?`,
-      message: messages[type], confirmLabel: type === 'clear-completed' ? 'Delete completed' : `Delete ${label.toLowerCase()}`,
+    openConfirm({ title: type === 'clear-completed' ? msg('Delete all completed tasks?') : type === 'attachment' ? msg('Delete this attachment?') : tr('Delete “{name}”?', { name: located.entity.name || located.entity.title }),
+      message: messages[type], confirmLabel: confirmLabels[type] || msg('Delete'),
       onConfirm: () => {
         if (dialog.busy) return;
         dialog.busy = true;
@@ -2437,17 +2461,17 @@
           try {
             const current = locateDeleteEntity(type, identity);
             if (undoHold || source !== state || modalState !== dialog || !current || current.entity !== located.entity || current.parent !== located.parent)
-              throw new Error('The item or its owner changed. Reopen the current item.');
+              throw new Error(msg('The item or its owner changed. Reopen the current item.'));
             const snapshot = await buildDeleteSnapshot(type, identity);
-            if (modalState !== dialog) throw new Error('Delete cancelled.');
+            if (modalState !== dialog) throw new Error(msg('Delete cancelled.'));
             await applyDeleteSnapshot(snapshot);
             closeModal(); render();
             const fallback = { project: 'today', area: 'areas', goal: 'goals', habit: 'habits', note: 'notes', resource: 'resources', 'saved-view': 'saved-views' }[type];
             if (fallback && currentRoute().id === (typeof identity === 'object' ? identity.id : identity)) navigate(fallback);
-            setUndo(`${label} deleted`, () => restoreDeleteSnapshot(snapshot), () => finalizeDeleteSnapshot(snapshot), snapshot);
+            setUndo(deletedMessage, () => restoreDeleteSnapshot(snapshot), () => finalizeDeleteSnapshot(snapshot), snapshot);
           } catch (error) {
             if (modalState === dialog) closeModal();
-            render(); setToastMessage(`Delete failed. ${error.message}`);
+            render(); setToastMessage(tr('Delete failed. {error}', { error: trMessage(error.message) }));
           }
         })();
         deleteOperations.add(operation);
@@ -2462,7 +2486,7 @@
 
   async function buildDeleteSnapshot(type, identity) {
     const located = locateDeleteEntity(type, identity);
-    if (!located) throw new Error('The item no longer exists.');
+    if (!located) throw new Error(msg('The item no longer exists.'));
     const snapshot = { type, identity, source: state, generation: undoGeneration, token: uid('delete'),
       deadline: Date.now() + 6500, eligibilityDeadline: performance.now() + 6500, entries: [], effects: [], attachments: [], pendingAttachments: [], habitLogs: [], goalHistory: [], applied: false, restored: false, finalized: false };
     const capture = (collection, entity, parent = null, field = null) => {
@@ -2508,16 +2532,16 @@
       arrayEffect(located.collection, located.parent, 'attachmentIds', id => id === identity);
     }
     const attachmentIds = type === 'attachment' ? [identity] : snapshot.entries.filter(entry => ['tasks', 'notes', 'resources'].includes(entry.collection) && !entry.field).flatMap(entry => entry.entity.attachmentIds || []);
-    if (new Set(attachmentIds).size !== attachmentIds.length) throw new Error('An attachment ID is reused.');
+    if (new Set(attachmentIds).size !== attachmentIds.length) throw new Error(msg('An attachment ID is reused.'));
     snapshot.fileOwners = attachmentIds.map(id => {
       const owners = TodoStorage.attachmentOwners(state).filter(owner => (owner.item.attachmentIds || []).includes(id));
-      if (owners.length !== 1) throw new Error('Attachment owner changed.');
+      if (owners.length !== 1) throw new Error(msg('Attachment owner changed.'));
       return { id, ...owners[0] };
     });
     snapshot.attachments = await Attachments.getMany(attachmentIds);
     for (const id of attachmentIds) {
       const record = snapshot.attachments.find(record => record.id === id), owners = TodoStorage.attachmentOwners(state).filter(owner => (owner.item.attachmentIds || []).includes(id));
-      if (!record || owners.length !== 1 || !TodoStorage.attachmentBelongsTo(record, owners[0]) || record.pendingDeleteUntil) throw new Error('Attachment owner or stored file changed.');
+      if (!record || owners.length !== 1 || !TodoStorage.attachmentBelongsTo(record, owners[0]) || record.pendingDeleteUntil) throw new Error(msg('Attachment owner or stored file changed.'));
     }
     if (type === 'habit') snapshot.habitLogs = await TodoStorage.habitLogs.listByHabit(identity);
     if (type === 'goal') snapshot.goalHistory = await TodoStorage.goalHistory.listByGoal(identity);
@@ -2527,33 +2551,33 @@
   }
 
   function validateDeleteSnapshot(snapshot, compareBefore = true) {
-    if (undoHold || snapshot.source !== state || snapshot.generation !== undoGeneration) throw new Error('The data source changed. Reopen the item.');
+    if (undoHold || snapshot.source !== state || snapshot.generation !== undoGeneration) throw new Error(msg('The data source changed. Reopen the item.'));
     if (compareBefore && ['project','clear-completed'].includes(snapshot.type)) {
       const current = state.tasks.filter(task => snapshot.type === 'project' ? task.projectId === snapshot.identity : task.isCompleted);
       const captured = snapshot.entries.filter(entry => entry.collection === 'tasks' && !entry.field);
-      if (current.length !== captured.length || current.some(task => !captured.some(entry => entry.source === task))) throw new Error('The task deletion scope changed. Reopen confirmation.');
+      if (current.length !== captured.length || current.some(task => !captured.some(entry => entry.source === task))) throw new Error(msg('The task deletion scope changed. Reopen confirmation.'));
     }
     for (const entry of snapshot.entries) if (!deleteEntryArray(entry)?.includes(entry.source)
-      || (compareBefore && JSON.stringify(entry.source) !== JSON.stringify(entry.entity))) throw new Error('The item or parent changed.');
+      || (compareBefore && JSON.stringify(entry.source) !== JSON.stringify(entry.entity))) throw new Error(msg('The item or parent changed.'));
     for (const effect of snapshot.effects) if (!state[effect.collection].includes(effect.owner)
-      || (effect.link && !(effect.owner.projectLinks || []).includes(effect.link))) throw new Error('A linked owner changed.');
+      || (effect.link && !(effect.owner.projectLinks || []).includes(effect.link))) throw new Error(msg('A linked owner changed.'));
     if (compareBefore) for (const effect of snapshot.effects)
-      if (JSON.stringify((effect.link || effect.owner)[effect.field] || (effect.scalar ? null : [])) !== JSON.stringify(effect.before)) throw new Error('A linked assignment changed.');
+      if (JSON.stringify((effect.link || effect.owner)[effect.field] || (effect.scalar ? null : [])) !== JSON.stringify(effect.before)) throw new Error(msg('A linked assignment changed.'));
     if (compareBefore) for (const [collection, field] of Object.entries({ tasks: 'relatedTaskIds', projects: 'relatedProjectIds', goals: 'relatedGoalIds', habits: 'relatedHabitIds' })) {
       const removed = new Set(snapshot.entries.filter(entry => entry.collection === collection && !entry.field).map(entry => entry.entity.id));
       if (!removed.size) continue;
       for (const resource of state.resources) if ((resource[field] || []).some(id => removed.has(id))
         && !snapshot.effects.some(effect => effect.owner === resource && effect.field === field))
-        throw new Error('Resource relations changed. Reopen confirmation.');
+        throw new Error(msg('Resource relations changed. Reopen confirmation.'));
     }
-    if (snapshot.attachmentOwner && !state[snapshot.attachmentOwnerCollection].includes(snapshot.attachmentOwner)) throw new Error('Attachment owner changed.');
+    if (snapshot.attachmentOwner && !state[snapshot.attachmentOwnerCollection].includes(snapshot.attachmentOwner)) throw new Error(msg('Attachment owner changed.'));
     for (const captured of snapshot.fileOwners) {
       const owners = TodoStorage.attachmentOwners(state).filter(owner => (owner.item.attachmentIds || []).includes(captured.id));
       const record = snapshot.attachments.find(item => item.id === captured.id);
       if (owners.length !== 1 || owners[0].item !== captured.item || owners[0].type !== captured.type
         || owners[0].item.attachmentIds.filter(id => id === captured.id).length !== 1
         || !TodoStorage.attachmentBelongsTo(record, owners[0]) || !(record.blob instanceof Blob) || record.size !== record.blob.size)
-        throw new Error('Attachment owner or stored file changed.');
+        throw new Error(msg('Attachment owner or stored file changed.'));
     }
   }
 
@@ -2575,7 +2599,7 @@
     const rollback = [];
     for (const entry of snapshot.entries) {
       const array = deleteEntryArray(entry);
-      if (!array) throw new Error('The parent changed.');
+      if (!array) throw new Error(msg('The parent changed.'));
       rollback.push(() => array.splice(0, array.length, ...entry.previous));
       entry.previous = [...array];
       if (restore) array.splice(Math.min(entry.index, array.length), 0, copyTemplate(entry.entity));
@@ -2606,17 +2630,17 @@
       if (snapshot.habitLogs.length) await TodoStorage.habitLogs.deleteMany(snapshot.habitLogs.map(record => record.id));
       if (snapshot.goalHistory.length) await TodoStorage.goalHistory.deleteMany(snapshot.goalHistory.map(record => record.id));
       snapshot.pendingAttachments = await Attachments.getMany(snapshot.attachments.map(record => record.id));
-      if (snapshot.pendingAttachments.length !== snapshot.attachments.length) throw new Error('Prepared files are missing.');
+      if (snapshot.pendingAttachments.length !== snapshot.attachments.length) throw new Error(msg('Prepared files are missing.'));
       for (const original of snapshot.attachments) {
         const actual = snapshot.pendingAttachments.find(record => record.id === original.id);
         const normalized = { ...actual, pendingDeleteUntil: original.pendingDeleteUntil, updatedAt: original.updatedAt };
         if (Object.hasOwn(original, 'pendingDeleteToken')) normalized.pendingDeleteToken = original.pendingDeleteToken; else delete normalized.pendingDeleteToken;
         if (actual.pendingDeleteToken !== snapshot.token || actual.pendingDeleteUntil !== new Date(snapshot.deadline).toISOString()
-          || !(await sameStoredAttachment(normalized, original))) throw new Error('Prepared file ownership or bytes changed.');
+          || !(await sameStoredAttachment(normalized, original))) throw new Error(msg('Prepared file ownership or bytes changed.'));
       }
       validateDeleteSnapshot(snapshot);
       rollback = mutateDeleteMetadata(snapshot, false);
-      if (!saveState()) throw new Error('Local metadata could not be saved.');
+      if (!saveState()) throw new Error(msg('Local metadata could not be saved.'));
       snapshot.applied = true;
       if (snapshot.type === 'habit') {
         delete state.habitLogCache?.[snapshot.identity]; delete state.habitMetrics?.[snapshot.identity];
@@ -2637,7 +2661,7 @@
         await TodoStorage.restoreDeleteRecords(owned, expected, () => validateDeleteSnapshot(snapshot, false));
       }
       catch (rollbackError) {
-        snapshot.recoveryError = `${error.message} Recovery failed: ${rollbackError.message}`;
+        snapshot.recoveryError = tr('{error} Recovery failed: {rollbackError}', { error: trMessage(error.message), rollbackError: trMessage(rollbackError.message) });
         failedDeleteSnapshots.add(snapshot);
         throw new Error(`${snapshot.recoveryError}. Full snapshot retained; retry recovery when storage is available.`);
       }
@@ -2655,7 +2679,7 @@
         if (snapshot.recoveryKind === 'undo') {
           await restoreDeleteSnapshot(snapshot);
           failedDeleteSnapshots.delete(snapshot);
-          renderToast(); setToastMessage('Undo recovery verified. Original item, files and history restored.');
+          renderToast(); setToastMessage(tr('Undo recovery verified. Original item, files and history restored.'));
           return;
         }
         validateDeleteSnapshot(snapshot, false);
@@ -2668,22 +2692,22 @@
           if (normalized) { if (Object.hasOwn(original, 'pendingDeleteToken')) normalized.pendingDeleteToken = original.pendingDeleteToken; else delete normalized.pendingDeleteToken; }
           if (!owner || !(owner.attachmentIds || []).includes(original.id) || !actual
             || (actual.pendingDeleteUntil && (actual.pendingDeleteToken !== snapshot.token || actual.pendingDeleteUntil !== new Date(snapshot.deadline).toISOString()))
-            || !(await sameStoredAttachment(normalized, original))) throw new Error('Retained file ownership changed; recovery was not applied.');
+            || !(await sameStoredAttachment(normalized, original))) throw new Error(msg('Retained file ownership changed; recovery was not applied.'));
           expected.push(actual);
         }
         for (const name of ['habitLogs','goalHistory']) for (const original of snapshot[name]) {
           const actual = await TodoStorage[name].get(original.id);
-          if (actual && JSON.stringify(actual) !== JSON.stringify(original)) throw new Error('Retained history ownership changed; recovery was not applied.');
+          if (actual && JSON.stringify(actual) !== JSON.stringify(original)) throw new Error(msg('Retained history ownership changed; recovery was not applied.'));
         }
         validateDeleteSnapshot(snapshot, false);
         await TodoStorage.restoreDeleteRecords(snapshot, expected, () => validateDeleteSnapshot(snapshot, false));
-        for (const original of snapshot.attachments) if (!(await sameStoredAttachment(await Attachments.get(original.id), original))) throw new Error('Restored file verification failed; snapshot retained.');
+        for (const original of snapshot.attachments) if (!(await sameStoredAttachment(await Attachments.get(original.id), original))) throw new Error(msg('Restored file verification failed; snapshot retained.'));
         for (const name of ['habitLogs','goalHistory']) for (const original of snapshot[name])
-          if (JSON.stringify(await TodoStorage[name].get(original.id)) !== JSON.stringify(original)) throw new Error('Restored history verification failed; snapshot retained.');
+          if (JSON.stringify(await TodoStorage[name].get(original.id)) !== JSON.stringify(original)) throw new Error(msg('Restored history verification failed; snapshot retained.'));
         failedDeleteSnapshots.delete(snapshot);
         if (snapshot.type === 'habit') await refreshHabitMetrics();
-        renderToast(); render(); setToastMessage('Delete recovery verified. Original files and history restored.');
-      } catch (error) { setToastMessage(`Recovery failed. ${error.message}`); }
+        renderToast(); render(); setToastMessage(tr('Delete recovery verified. Original files and history restored.'));
+      } catch (error) { setToastMessage(tr('Recovery failed. {error}', { error: trMessage(error.message) })); }
       finally { snapshot.recoveryBusy = false; }
     })();
     deleteOperations.add(operation);
@@ -2696,27 +2720,27 @@
   }
 
   function validateRestoreMetadata(snapshot) {
-    if (snapshot.source !== state || snapshot.generation !== undoGeneration) throw new Error('The data source changed.');
+    if (snapshot.source !== state || snapshot.generation !== undoGeneration) throw new Error(msg('The data source changed.'));
     for (const entry of snapshot.entries) {
       const array = deleteEntryArray(entry);
-      if (!array || array.some(item => item.id === entry.entity.id)) throw new Error('The item ID or parent is now in use.');
+      if (!array || array.some(item => item.id === entry.entity.id)) throw new Error(msg('The item ID or parent is now in use.'));
       if (entry.collection === 'tasks' && !entry.field && entry.entity.projectId
         && !snapshot.entries.some(parent => parent.collection === 'projects' && parent.entity.id === entry.entity.projectId)
-        && !state.projects.includes(entry.projectParent)) throw new Error('The Task Project parent changed.');
+        && !state.projects.includes(entry.projectParent)) throw new Error(msg('The Task Project parent changed.'));
       if (['notes', 'resources'].includes(entry.collection)) {
         const exists = (collection, id) => state[collection].some(item => item.id === id)
           || snapshot.entries.some(other => other.collection === collection && !other.field && other.entity.id === id);
-        if (entry.entity.areaId && !exists('areas', entry.entity.areaId)) throw new Error('The Area no longer exists. Restore it before retrying Undo.');
+        if (entry.entity.areaId && !exists('areas', entry.entity.areaId)) throw new Error(msg('The Area no longer exists. Restore it before retrying Undo.'));
         if (entry.collection === 'resources') for (const [field, collection] of Object.entries({ relatedTaskIds: 'tasks', relatedProjectIds: 'projects', relatedGoalIds: 'goals', relatedHabitIds: 'habits' }))
-          if (entry.entity[field].some(id => !exists(collection, id))) throw new Error('A related item no longer exists. Restore it before retrying Undo.');
+          if (entry.entity[field].some(id => !exists(collection, id))) throw new Error(msg('A related item no longer exists. Restore it before retrying Undo.'));
       }
     }
-    if (snapshot.attachmentOwner && !state[snapshot.attachmentOwnerCollection].includes(snapshot.attachmentOwner)) throw new Error('Attachment owner changed.');
-    if (snapshot.attachmentOwner && snapshot.attachmentOwner.attachmentIds?.includes(snapshot.identity)) throw new Error('The attachment ID is now in use.');
+    if (snapshot.attachmentOwner && !state[snapshot.attachmentOwnerCollection].includes(snapshot.attachmentOwner)) throw new Error(msg('Attachment owner changed.'));
+    if (snapshot.attachmentOwner && snapshot.attachmentOwner.attachmentIds?.includes(snapshot.identity)) throw new Error(msg('The attachment ID is now in use.'));
     const referenced = new Set(TodoStorage.attachmentOwners(state).flatMap(owner => owner.item.attachmentIds || []));
-    if (snapshot.attachments.some(record => referenced.has(record.id))) throw new Error('The attachment ID is now in use by an owner.');
+    if (snapshot.attachments.some(record => referenced.has(record.id))) throw new Error(msg('The attachment ID is now in use by an owner.'));
     for (const effect of snapshot.effects) if (!state[effect.collection].includes(effect.owner)
-      || (effect.link && !effect.owner.projectLinks?.includes(effect.link))) throw new Error('A linked owner changed.');
+      || (effect.link && !effect.owner.projectLinks?.includes(effect.link))) throw new Error(msg('A linked owner changed.'));
   }
 
   async function restoreDeleteSnapshot(snapshot) {
@@ -2730,14 +2754,14 @@
       if (!matches && snapshot.recoveryKind === 'undo') {
         matches = await sameStoredAttachment(actual, snapshot.attachments.find(record => record.id === pending.id)); validate();
       }
-      if (!matches) throw new Error('Retained file ownership changed; owner or bytes no longer match.');
+      if (!matches) throw new Error(msg('Retained file ownership changed; owner or bytes no longer match.'));
       expected.push(actual);
     }
     for (const name of ['habitLogs','goalHistory']) {
       history[name] = [];
       for (const original of snapshot[name]) {
         const actual = await TodoStorage[name].get(original.id); validate();
-        if (actual && (snapshot.recoveryKind !== 'undo' || JSON.stringify(actual) !== JSON.stringify(original))) throw new Error('Retained history ownership changed.');
+        if (actual && (snapshot.recoveryKind !== 'undo' || JSON.stringify(actual) !== JSON.stringify(original))) throw new Error(msg('Retained history ownership changed.'));
         history[name].push([original.id, actual || null]);
       }
     }
@@ -2747,13 +2771,13 @@
       snapshot.undoNativePhase = 'originals-restored';
       validate();
       const rollback = mutateDeleteMetadata(snapshot, true);
-      if (!saveState()) { rollback(); throw new Error('Local metadata could not be saved.'); }
+      if (!saveState()) { rollback(); throw new Error(msg('Local metadata could not be saved.')); }
     } catch (error) {
       if (snapshot.undoNativePhase === 'originals-restored') {
         try { await reapplyDeleteRecords(snapshot); }
         catch (compensationError) {
           snapshot.recoveryKind = 'undo';
-          snapshot.recoveryError = `Undo failed: ${error.message} Compensation failed: ${compensationError.message}`;
+          snapshot.recoveryError = tr('Undo failed: {error} Compensation failed: {compensationError}', { error: trMessage(error.message), compensationError: trMessage(compensationError.message) });
           failedDeleteSnapshots.add(snapshot);
           throw new Error(snapshot.recoveryError);
         }
@@ -2785,7 +2809,7 @@
       // hold; rejecting this in-flight one would strand recovery unnecessarily.
       if (snapshot.source !== state || snapshot.generation !== undoGeneration
         || TodoStorage.attachmentOwners(state).some(owner => (owner.item.attachmentIds || []).includes(record.id)))
-        throw new Error('File ownership changed. Retained files were kept.');
+        throw new Error(msg('File ownership changed. Retained files were kept.'));
     };
     for (const expected of snapshot.pendingAttachments)
       if (!(await sameStoredAttachment(await Attachments.get(expected.id), expected))) continue;
@@ -2801,15 +2825,15 @@
   const deleteLifecycle = {
     // Hold takes effect synchronously; callers MUST await its token before capture/export.
     async hold() {
-      if (undoHold) throw new Error('Normal Undo is already held.');
-      if (failedDeleteSnapshots.size || [...undoWork].some(work => work.snapshot && work.failedUndoError)) throw new Error('Retry Undo or delete recovery before starting a global operation.');
+      if (undoHold) throw new Error(msg('Normal Undo is already held.'));
+      if (failedDeleteSnapshots.size || [...undoWork].some(work => work.snapshot && work.failedUndoError)) throw new Error(msg('Retry Undo or delete recovery before starting a global operation.'));
       const token = { generation: undoGeneration, visible: undoState, source: state };
       undoHold = token; undoState = null;
       for (const work of undoWork) clearTimeout(work.timer);
       renderToast();
       try {
         await Promise.all([...deleteOperations, ...[...undoWork].map(work => work.busy).filter(Boolean)]);
-        if (failedDeleteSnapshots.size || [...undoWork].some(work => work.snapshot && work.failedUndoError)) throw new Error('Retry Undo or delete recovery before starting a global operation.');
+        if (failedDeleteSnapshots.size || [...undoWork].some(work => work.snapshot && work.failedUndoError)) throw new Error(msg('Retry Undo or delete recovery before starting a global operation.'));
         token.domain = undoDomain(); token.attachments = [];
         for (const work of undoWork) for (const record of work.snapshot?.pendingAttachments || [])
           token.attachments.push(await Attachments.get(record.id));
@@ -2821,17 +2845,17 @@
           undoHold = null;
           undoState = token.source === state && undoWork.has(token.visible) && performance.now() < token.visible.deadline ? token.visible : null;
           for (const work of undoWork) armUndo(work);
-          renderToast(); setToastMessage('Safety preparation failed. Normal Undo and retained files were kept.');
+          renderToast(); setToastMessage(tr('Safety preparation failed. Normal Undo and retained files were kept.'));
         }
         throw error;
       }
     },
     // Resume is ONLY for explicitly verified rollback/cancel, never automatic hydration.
     async resume(token) {
-      if (undoHold !== token || token.generation !== undoGeneration) throw new Error('Invalid Undo hold token.');
-      if (undoDomain() !== token.domain) throw new Error('The restored metadata does not match the held domain.');
+      if (undoHold !== token || token.generation !== undoGeneration) throw new Error(msg('Invalid Undo hold token.'));
+      if (undoDomain() !== token.domain) throw new Error(msg('The restored metadata does not match the held domain.'));
       for (const expected of token.attachments) if (expected && !(await sameStoredAttachment(await Attachments.get(expected.id), expected)))
-        throw new Error('The restored files do not match held ownership and bytes.');
+        throw new Error(msg('The restored files do not match held ownership and bytes.'));
       for (const work of undoWork) if (work.snapshot) {
         const snapshot = work.snapshot;
         snapshot.source = state;
@@ -2851,7 +2875,7 @@
       for (const work of [...undoWork]) { if (performance.now() >= work.deadline) await expireUndo(work); else armUndo(work); }
     },
     retire(token) {
-      if (undoHold !== token || token.generation !== undoGeneration) throw new Error('Invalid Undo hold token.');
+      if (undoHold !== token || token.generation !== undoGeneration) throw new Error(msg('Invalid Undo hold token.'));
       undoGeneration++;
       for (const work of undoWork) clearTimeout(work.timer);
       undoWork.clear(); failedDeleteSnapshots.clear(); undoState = null; undoHold = null; renderToast();
@@ -2867,7 +2891,7 @@
   function retainFailedUndo(work, error) {
     const snapshot = work.snapshot;
     snapshot.recoveryKind = 'undo';
-    snapshot.recoveryError ||= `Undo failed: ${error}`;
+    snapshot.recoveryError ||= `${msg('Undo failed')}: ${error}`;
     failedDeleteSnapshots.add(snapshot);
     clearTimeout(work.timer);
     if (undoState === work) undoState = null;
@@ -2886,7 +2910,7 @@
       if (finished === false) work.timer = setTimeout(() => expireUndo(work), Math.max(1, work.snapshot.deadline - Date.now()));
       else undoWork.delete(work);
     }
-    catch (_) { setToastMessage('File cleanup failed. Retained files will be retried.'); work.timer = setTimeout(() => expireUndo(work), 30000); }
+    catch (_) { setToastMessage(tr('File cleanup failed. Retained files will be retried.')); work.timer = setTimeout(() => expireUndo(work), 30000); }
     finally { work.busy = null; }
   }
 
@@ -2903,13 +2927,14 @@
     const root = $('#toast-root');
     const status = $('#global-status');
     if (status) status.textContent = toastMessage || globalRecoveryNotice?.message || '';
-    const undo = undoState ? `<div class="toast"><i class="ph-fill ph-check-circle toast-icon"></i><span class="toast-message">${esc(undoState.message)}</span><button class="toast-action" type="button" data-action="undo">Undo</button></div>` : '';
+    const undo = undoState ? `<div class="toast"><i class="ph-fill ph-check-circle toast-icon"></i><span class="toast-message">${esc(tr(undoState.message))}</span><button class="toast-action" type="button" data-action="undo">${tr('Undo')}</button></div>` : '';
     const info = toastMessage ? `<div class="toast"><i class="ph ph-info toast-icon" style="color:var(--info)"></i><span class="toast-message">${esc(toastMessage)}</span></div>` : '';
     const failed = [...failedDeleteSnapshots][0];
-    const recoveryNotice = failed && !undoHold ? `<div class="toast" role="alert"><i class="ph ph-warning toast-icon"></i><span class="toast-message">${esc(failed.recoveryError)} · Snapshot retained</span><button class="toast-action" type="button" data-action="retry-delete-recovery">Retry recovery</button></div>` : '';
-    const globalNotice = globalRecoveryNotice ? `<div class="toast" role="alert"><span class="toast-message">${esc(globalRecoveryNotice.message)}</span><button class="toast-action" data-action="retry-global-recovery">Retry</button></div>` : '';
-    const staleNotice = staleDataNotice ? `<div class="toast" role="alert"><i class="ph ph-arrows-clockwise toast-icon"></i><span class="toast-message">This workspace changed in another tab. Refresh to load the latest data.</span><button class="toast-action" type="button" data-action="refresh-stale-data">Refresh</button></div>` : '';
-    root.innerHTML = undo + info + recoveryNotice + globalNotice + staleNotice;
+    const recoveryNotice = failed && !undoHold ? `<div class="toast" role="alert"><i class="ph ph-warning toast-icon"></i><span class="toast-message">${esc(trMessage(failed.recoveryError))} · ${tr('Snapshot retained')}</span><button class="toast-action" type="button" data-action="retry-delete-recovery">${tr('Retry recovery')}</button></div>` : '';
+    const globalNotice = globalRecoveryNotice ? `<div class="toast" role="alert"><span class="toast-message">${esc(globalRecoveryNotice.message)}</span><button class="toast-action" data-action="retry-global-recovery">${tr('Retry')}</button></div>` : '';
+    const staleNotice = staleDataNotice ? `<div class="toast" role="alert"><i class="ph ph-arrows-clockwise toast-icon"></i><span class="toast-message">${tr('This workspace changed in another tab. Refresh to load the latest data.')}</span><button class="toast-action" type="button" data-action="refresh-stale-data">${tr('Refresh')}</button></div>` : '';
+    const updateNotice = waitingServiceWorker ? `<div class="toast" role="status"><i class="ph ph-arrow-circle-up toast-icon"></i><span class="toast-message">${tr('A new version of Dailo is available.')}</span><button class="toast-action" type="button" data-action="apply-app-update">${tr('Refresh')}</button></div>` : '';
+    root.innerHTML = undo + info + recoveryNotice + globalNotice + staleNotice + updateNotice;
   }
 
   async function doUndo() {
@@ -2926,8 +2951,8 @@
       work.failedUndoError = error.message;
       if (work.snapshot && (failedDeleteSnapshots.has(work.snapshot) || performance.now() >= work.deadline)) {
         retainFailedUndo(work, error.message);
-        setToastMessage('Undo failed. Snapshot retained; use Retry recovery.');
-      } else setToastMessage('Undo failed. Your recovery snapshot is retained; retry Undo.');
+        setToastMessage(tr('Undo failed. Snapshot retained; use Retry recovery.'));
+      } else setToastMessage(tr('Undo failed. Your recovery snapshot is retained; retry Undo.'));
     }
     finally { work.busy = null; if (undoWork.has(work)) armUndo(work); }
   }
@@ -2946,7 +2971,7 @@
     if(taskRecurrence(task)){requestTaskEdit(taskId,{plannedDate:Core.dateOnly(),isInbox:false,todayOrder:nextOrder('today')});return;}
     const prev = { plannedDate: task.plannedDate, isInbox: task.isInbox, todayOrder: task.todayOrder };
     task.plannedDate = Core.dateOnly(); task.isInbox = false; task.todayOrder = nextOrder('today'); task.updatedAt = nowIso(); saveState(); render();
-    setUndo('Task moved to Today', () => { const t = getTask(taskId); if (!t) return; Object.assign(t, prev, { updatedAt: nowIso() }); saveState(); render(); });
+    setUndo(msg('Task moved to Today'), () => { const t = getTask(taskId); if (!t) return; Object.assign(t, prev, { updatedAt: nowIso() }); saveState(); render(); });
   }
 
   function moveTaskToTomorrow(taskId) {
@@ -2955,7 +2980,7 @@
     const prev = { plannedDate: task.plannedDate, isInbox: task.isInbox, todayOrder: task.todayOrder };
     task.plannedDate = Core.addDays(Core.dateOnly(), 1); task.isInbox = false; task.todayOrder = null; task.updatedAt = nowIso();
     saveState(); render();
-    setUndo('Task moved to Tomorrow', () => { const current = getTask(taskId); if (!current) return; Object.assign(current, prev, { updatedAt: nowIso() }); saveState(); render(); });
+    setUndo(msg('Task moved to Tomorrow'), () => { const current = getTask(taskId); if (!current) return; Object.assign(current, prev, { updatedAt: nowIso() }); saveState(); render(); });
   }
 
   function moveTaskToAnytime(taskId) {
@@ -2964,7 +2989,7 @@
     const prev = { plannedDate: task.plannedDate, isInbox: task.isInbox, todayOrder: task.todayOrder };
     task.plannedDate = null; task.isInbox = false; task.todayOrder = null; task.updatedAt = nowIso();
     saveState(); render();
-    setUndo('Task moved to Anytime', () => { const current = getTask(taskId); if (!current) return; Object.assign(current, prev, { updatedAt: nowIso() }); saveState(); render(); });
+    setUndo(msg('Task moved to Anytime'), () => { const current = getTask(taskId); if (!current) return; Object.assign(current, prev, { updatedAt: nowIso() }); saveState(); render(); });
   }
 
   function nextProjectOrder() {
@@ -2976,7 +3001,7 @@
     if (modalState?.type !== 'tag') return;
     const name = Core.normalizeTagName(modalState.draft.name);
     const valid = Core.validateTagName(state.tags || [], name, modalState.tagId || null);
-    if (!valid.ok) { modalState.error = valid.reason === 'duplicate-tag' ? 'A tag with this name already exists.' : 'Tag needs a name.'; renderModal(); return; }
+    if (!valid.ok) { modalState.error = valid.reason === 'duplicate-tag' ? tr('A tag with this name already exists.') : tr('Tag needs a name.'); renderModal(); return; }
     if (modalState.tagId) {
       const tag = getTag(modalState.tagId); if (!tag) return;
       tag.name = name; tag.color = modalState.draft.color; tag.updatedAt = nowIso();
@@ -2995,7 +3020,7 @@
     const nameInput = $('#project-name');
     if (nameInput) modalState.draft.name = nameInput.value;
     const name = String(modalState.draft.name || '').trim();
-    if (!name) { modalState.error = 'Project needs a name.'; renderModal(); requestAnimationFrame(() => $('#project-name')?.focus()); return; }
+    if (!name) { modalState.error = tr('Project needs a name.'); renderModal(); requestAnimationFrame(() => $('#project-name')?.focus()); return; }
     if (modalState.projectId) {
       const project = getProject(modalState.projectId); if (!project) return;
       project.name = name; project.color = modalState.draft.color; project.updatedAt = nowIso();
@@ -3019,7 +3044,7 @@
     if (modalState?.type !== 'area-linked') return;
     const input = $('#area-linked-name');
     const name = String(input?.value || modalState.draft.name || '').trim();
-    if (!name) { modalState.error = `${modalState.kind === 'goal' ? 'Goal' : 'Habit'} needs a name.`; renderModal(); return; }
+    if (!name) { modalState.error = modalState.kind === 'goal' ? tr('Goal needs a name.') : tr('Habit needs a name.'); renderModal(); return; }
     const item = { id: uid(modalState.kind), name, areaId: modalState.areaId, status: 'active', createdAt: nowIso(), updatedAt: nowIso() };
     if (modalState.kind === 'goal') {
       state.goals.push({ ...goalDraft(null, modalState.areaId), ...item, title: name, projectLinks: [], taskIds: [], habitLinks: [], milestones: [], reminders: { sevenDaysBefore: false, threeDaysBefore: false, oneDayBefore: false, onTargetDate: false, time: '09:00' }, completedAt: null });
@@ -3044,7 +3069,7 @@
       renderModal();
     }).catch(error => {
       if (modalState?.type !== 'goal-history' || modalState.goalId !== goalId) return;
-      modalState.error = error?.message || 'Goal history could not be loaded.';
+      modalState.error = trMessage(error?.message || msg('Goal history could not be loaded.'));
       renderModal();
     });
   }
@@ -3101,7 +3126,7 @@
     const previous = { status: goal.status, completedAt: goal.completedAt };
     goal.status = status; goal.completedAt = status === 'completed' ? nowIso() : null; goal.updatedAt = nowIso();
     putGoalHistory(goal.id, 'statusChanged', { from: previous.status, to: status }); saveState(); closePopover(); closeModal(); render();
-    setUndo(`Goal ${status === 'completed' ? 'completed' : status === 'paused' ? 'paused' : 'restored'}`, () => {
+    setUndo(status === 'completed' ? msg('Goal completed') : status === 'paused' ? msg('Goal paused') : msg('Goal restored'), () => {
       const current = getGoal(goalId); if (!current) return;
       Object.assign(current, previous, { updatedAt: nowIso() });
       saveState(); render(); return putGoalHistory(goalId, 'statusChanged', { from: status, to: previous.status });
@@ -3114,7 +3139,7 @@
     const byHabit = {};
     for (const log of logs) (byHabit[log.habitId] ||= []).push(log);
     state.habitLogCache = byHabit;
-    state.habitMetrics = Object.fromEntries((state.habits || []).map(habit => [habit.id, Core.deriveHabitMetrics(habit, byHabit[habit.id] || [], Core.dateOnly(), state.settings.weekStartsOn || 'monday')]));
+    state.habitMetrics = Object.fromEntries((state.habits || []).map(habit => [habit.id, Core.deriveHabitMetrics(habit, byHabit[habit.id] || [], Core.dateOnly(), Core.weekStartKey(state.settings.weekStartsOn))]));
   }
 
   function readHabitDraft() {
@@ -3154,13 +3179,13 @@
     const ownsCanonical = () => localStorage.getItem(STORAGE_KEY) === canonicalRaw;
     if (!ownsCanonical()) {
       habit.updatedAt = previousUpdatedAt;
-      reportStorageFailure(new Error('Canonical data changed in another tab; refresh before checking in.'));
+      reportStorageFailure(new Error(msg('Canonical data changed in another tab; refresh before checking in.')));
       return null;
     }
     try {
       const putHabitLog = TodoStorage.habitLogs.putIfCurrent || TodoStorage.habitLogs.put;
       await putHabitLog.call(TodoStorage.habitLogs, record, existing || null);
-      if (!ownsCanonical()) throw new Error('Canonical data changed in another tab during Habit check-in.');
+      if (!ownsCanonical()) throw new Error(msg('Canonical data changed in another tab during Habit check-in.'));
       await refreshHabitMetrics();
     } catch (error) {
       let rollbackError = null;
@@ -3181,9 +3206,9 @@
         }
       } catch (failure) { rollbackError = failure; }
       habit.updatedAt = previousUpdatedAt;
-      if (ownsCanonical() && !saveState() && !rollbackError) rollbackError = new Error('Habit metadata rollback was rejected.');
+      if (ownsCanonical() && !saveState() && !rollbackError) rollbackError = new Error(msg('Habit metadata rollback was rejected.'));
       try { await refreshHabitMetrics(); } catch (failure) { rollbackError ||= failure; }
-      reportStorageFailure(rollbackError ? new AggregateError([error, rollbackError], 'Habit check-in failed and rollback needs attention.') : error);
+      reportStorageFailure(rollbackError ? new AggregateError([error, rollbackError], msg('Habit check-in failed and rollback needs attention.')) : error);
       return null;
     }
     evaluateGoalProgressChanges(before); await evaluateHabitBoundaries(); render(); return true;
@@ -3191,7 +3216,7 @@
 
   async function evaluateHabitBoundaries() {
     if (!state || globalOperation || modalState?.type === 'habit-finished') return;
-    const today = Core.dateOnly(); const weekStartsOn = state.settings.weekStartsOn || 'monday';
+    const today = Core.dateOnly(); const weekStartsOn = Core.weekStartKey(state.settings.weekStartsOn);
     for (const habit of state.habits || []) {
       if (habit.status !== 'active') continue;
       const metrics = habitMetrics(habit);
@@ -3221,7 +3246,7 @@
       habit.pauseStartedAt = null;
     }
     habit.status = status; habit.updatedAt = nowIso(); saveState(); closePopover(); if (modalState?.type === 'habit-finished') closeModal(); refreshHabitMetrics().then(render);
-    setUndo(`Habit ${status === 'paused' ? 'paused' : status === 'archived' ? 'archived' : 'restored'}`, () => { const current = getHabit(habitId); if (!current) return; Object.assign(current, snapshot); current.updatedAt = nowIso(); saveState(); return refreshHabitMetrics().then(render); });
+    setUndo(status === 'paused' ? msg('Habit paused') : status === 'archived' ? msg('Habit archived') : msg('Habit restored'), () => { const current = getHabit(habitId); if (!current) return; Object.assign(current, snapshot); current.updatedAt = nowIso(); saveState(); return refreshHabitMetrics().then(render); });
   }
 
   async function deleteHabit(habitId) {
@@ -3232,7 +3257,7 @@
     const habit = getHabit(habitId); if (!habit) return;
     const now = new Date(); const next = new Date(now);
     if (kind === '15m') next.setMinutes(next.getMinutes() + 15); else if (kind === '1h') next.setHours(next.getHours() + 1); else { next.setHours(now.getHours() >= 19 ? 21 : 19, 0, 0, 0); }
-    habit.snoozedUntil = next.toISOString(); habit.pendingSnoozeAt = next.toISOString(); habit.updatedAt = nowIso(); saveState(); setToastMessage(`Habit snoozed until ${formatReminder(habit.snoozedUntil)}`);
+    habit.snoozedUntil = next.toISOString(); habit.pendingSnoozeAt = next.toISOString(); habit.updatedAt = nowIso(); saveState(); setToastMessage(tr('Habit snoozed until {time}', { time: formatReminder(habit.snoozedUntil) }));
   }
 
   function deleteMilestone(goalId, milestoneId) {
@@ -3244,8 +3269,8 @@
     readGoalDraft(); const editor = modalState; const index = editor.draft.milestones.findIndex(m => m.id === id); if (index < 0) return;
     const milestone = copyTemplate(editor.draft.milestones[index]); const target = goalFocusTarget();
     const back = () => { modalState = editor; renderModal(); restoreGoalFocus(target); };
-    openConfirm({ title: 'Delete milestone?', message: 'This removes the milestone from this Goal draft.', onCancel: back, onConfirm: () => {
-      editor.draft.milestones.splice(index, 1); back(); setUndo('Milestone deleted', () => {
+    openConfirm({ title: msg('Delete milestone?'), message: msg('This removes the milestone from this Goal draft.'), onCancel: back, onConfirm: () => {
+      editor.draft.milestones.splice(index, 1); back(); setUndo(msg('Milestone deleted'), () => {
         editor.draft.milestones.splice(Math.min(index, editor.draft.milestones.length), 0, copyTemplate(milestone));
         const saved = editor.savedGoalSource;
         if (saved && getGoal(saved.id) === saved) { if (!saved.milestones.some(m => m.id === id)) saved.milestones.splice(Math.min(index, saved.milestones.length), 0, copyTemplate(milestone)); saveState(); render(); }
@@ -3266,14 +3291,14 @@
     closePopover();
     if (currentRoute().type === 'project' && currentRoute().id === projectId) navigate('today');
     else render();
-    setUndo('Project archived', () => { const current = getProject(projectId); if (!current) return; Object.assign(current, previous, { updatedAt: nowIso() }); saveState(); render(); });
+    setUndo(msg('Project archived'), () => { const current = getProject(projectId); if (!current) return; Object.assign(current, previous, { updatedAt: nowIso() }); saveState(); render(); });
   }
 
   function restoreProject(projectId) {
     const project = getProject(projectId); if (!project) return;
     project.isArchived = false; project.archivedAt = null; project.updatedAt = nowIso();
     saveState(); closePopover(); render();
-    setToastMessage('Project restored');
+    setToastMessage(tr('Project restored'));
   }
 
   function deleteProject(projectId) {
@@ -3323,17 +3348,78 @@
     return requestTaskEdit(task.id,changes,after);
   }
 
+  // Today notice when the last ZIP export is older than the reminder interval (V1.9).
+  function backupReminderNotice() {
+    let snoozedUntil = null;
+    try { snoozedUntil = localStorage.getItem('todoAppBackupReminderSnoozedUntil'); } catch (error) { snoozedUntil = null; }
+    const lastExport = state.settings.backupStatus?.lastExport || null;
+    const due = Core.backupReminderDue({ lastExport, reminderDays: Core.backupReminderDays(state.settings), snoozedUntil, oldestCreatedAt: Core.oldestCreatedAt(state), now: nowIso() });
+    if (!due) return '';
+    const last = lastExport && !Number.isNaN(Date.parse(lastExport)) ? tr('Last backup: {date}.', { date: new Date(lastExport).toLocaleDateString(I18n.locale()) }) : tr('No backup yet.');
+    return `<section class="backup-reminder" data-backup-reminder role="status" aria-label="${tr('Backup reminder')}"><i class="ph ph-shield-check backup-reminder-icon" aria-hidden="true"></i><div class="backup-reminder-copy"><strong>${tr('Back up your data')}</strong><span>${esc(last)} ${tr('Dailo keeps everything only on this device.')}</span></div><div class="backup-reminder-actions"><button class="btn btn-primary" type="button" data-action="export-backup">${tr('Export backup')}</button><button class="btn btn-ghost" type="button" data-action="snooze-backup-reminder">${tr('Remind me tomorrow')}</button></div></section>`;
+  }
+
+  function snoozeBackupReminder() {
+    try { localStorage.setItem('todoAppBackupReminderSnoozedUntil', new Date(Date.parse(nowIso()) + 86400000).toISOString()); } catch (error) { /* private mode: the notice simply returns */ }
+  }
+
+  // Asks the browser to keep Dailo's storage only when request is true (after user activity).
+  async function refreshStoragePersistence(request = false) {
+    const storage = typeof navigator === 'undefined' ? null : navigator.storage;
+    if (!storage || typeof storage.persisted !== 'function') return { state: 'unsupported' };
+    try {
+      let granted = await storage.persisted();
+      if (!granted && request && typeof storage.persist === 'function') granted = await storage.persist();
+      const estimate = typeof storage.estimate === 'function' ? await storage.estimate().catch(() => null) : null;
+      return { state: granted ? 'granted' : 'denied', usage: estimate?.usage ?? null, quota: estimate?.quota ?? null };
+    } catch (error) {
+      return { state: 'unknown' };
+    }
+  }
+
+  // Offline shell (V1.9). Service workers need HTTPS or localhost.
+  function registerServiceWorker() {
+    const secure = location.protocol === 'https:' || ['localhost', '127.0.0.1'].includes(location.hostname);
+    if (!secure || typeof navigator === 'undefined' || !navigator.serviceWorker) return;
+    // Without a controller this is the first install, which activates on its own: nothing to offer.
+    const offer = worker => { if (worker && navigator.serviceWorker.controller) { waitingServiceWorker = worker; renderToast(); } };
+    navigator.serviceWorker.register('sw.js').then(registration => {
+      offer(registration.waiting);
+      registration.addEventListener('updatefound', () => {
+        const worker = registration.installing;
+        worker?.addEventListener('statechange', () => { if (worker.state === 'installed') offer(worker); });
+      });
+    }).catch(error => console.error(error));
+    navigator.serviceWorker.addEventListener('controllerchange', () => { if (appUpdateRequested) { appUpdateRequested = false; location.reload(); } });
+  }
+
+  // Runs only from the "Refresh" button, so the page never reloads while the user is editing.
+  function applyAppUpdate() {
+    if (!waitingServiceWorker) return;
+    appUpdateRequested = true;
+    flushTextSave();
+    waitingServiceWorker.postMessage({ type: 'SKIP_WAITING' });
+  }
+
+  function updateStoragePersistence(request = false) {
+    return refreshStoragePersistence(request).then(status => {
+      storagePersistence = status;
+      if (currentRoute().type === 'settings' && !modalState) render();
+      return status;
+    });
+  }
+
   async function exportBackupAction() {
     const source = captureStatusSource();
     const snapshotAvailable = await hasRetainedRecoverySnapshot(source?.source?.settings?.backupStatus?.snapshotAvailable === true);
-    if (!Backup || !Attachments) { updateBackupStatus({ snapshotAvailable, validationResult: 'Export failed: backup is unavailable' }, source); setToastMessage('Backup is unavailable in this browser'); return; }
-    setToastMessage('Preparing backup...');
+    if (!Backup || !Attachments) { updateBackupStatus({ snapshotAvailable, validationResult: msg('Export failed: backup is unavailable') }, source); setToastMessage(tr('Backup is unavailable in this browser')); return; }
+    setToastMessage(tr('Preparing backup...'));
     try {
       const blob = await Backup.exportBackupV3(state, TodoStorage, nowIso());
       downloadBackup(blob);
-      updateBackupStatus({ lastExport: nowIso(), snapshotAvailable: await hasRetainedRecoverySnapshot(snapshotAvailable), validationResult: 'Export verified' }, source);
-      setToastMessage('Backup exported');
-    } catch (error) { console.error(error); updateBackupStatus({ snapshotAvailable: await hasRetainedRecoverySnapshot(snapshotAvailable), validationResult: `Export failed: ${error.message}` }, source); setToastMessage('Backup could not be created'); }
+      updateBackupStatus({ lastExport: nowIso(), snapshotAvailable: await hasRetainedRecoverySnapshot(snapshotAvailable), validationResult: msg('Export verified') }, source);
+      setToastMessage(tr('Backup exported'));
+    } catch (error) { console.error(error); updateBackupStatus({ snapshotAvailable: await hasRetainedRecoverySnapshot(snapshotAvailable), validationResult: `${msg('Export failed')}: ${error.message}` }, source); setToastMessage(tr('Backup could not be created')); }
   }
 
   function chooseImportBackup() {
@@ -3362,19 +3448,19 @@
     modalState = dialog; renderModal();
     try { dialog.snapshots = (await TodoStorage.recoverySnapshots.listAll()).filter(item => item.reason === 'automatic' || item.selective)
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt)); }
-    catch (error) { dialog.error = `Snapshots could not be loaded: ${error.message}`; }
+    catch (error) { dialog.error = tr('Snapshots could not be loaded: {error}', { error: trMessage(error.message) }); }
     dialog.loading = false;
     if (modalState === dialog) { renderModal(); requestAnimationFrame(() => $('#modal-root button')?.focus()); }
   }
 
   function renderLocalSnapshotsModal() {
     const dialog = modalState;
-    const collections = { tasks: 'Tasks', projects: 'Projects', areas: 'Areas', tags: 'Tags', goals: 'Goals', habits: 'Habits', notes: 'Notes', resources: 'Resources', templates: 'Templates', savedViews: 'Saved Views' };
-    let body = dialog.loading ? '<p role="status">Loading local snapshots…</p>' : dialog.error ? `<p role="alert">${esc(dialog.error)}</p><button class="btn btn-secondary" data-action="open-local-snapshots">Retry</button>` : !dialog.snapshots.length ? '<p>No automatic snapshots yet. A snapshot is created after a successful save, at most once every five minutes.</p>' : dialog.snapshots.map(snapshot => `<details class="snapshot-group"><summary>${esc(new Date(snapshot.createdAt).toLocaleString())}${snapshot.selective ? ' · Before selective restore' : ''}</summary>${Object.entries(collections).map(([collection, label]) => {
+    const collections = { tasks: msg('Tasks'), projects: msg('Projects'), areas: msg('Areas'), tags: msg('Tags'), goals: msg('Goals'), habits: msg('Habits'), notes: msg('Notes'), resources: msg('Resources'), templates: msg('Templates'), savedViews: msg('Saved Views') };
+    let body = dialog.loading ? `<p role="status">${tr('Loading local snapshots…')}</p>` : dialog.error ? `<p role="alert">${esc(tr(dialog.error))}</p><button class="btn btn-secondary" data-action="open-local-snapshots">${tr('Retry')}</button>` : !dialog.snapshots.length ? `<p>${tr('No automatic snapshots yet. A snapshot is created after a successful save, at most once every five minutes.')}</p>` : dialog.snapshots.map(snapshot => `<details class="snapshot-group"><summary>${esc(new Date(snapshot.createdAt).toLocaleString(I18n.locale()))}${snapshot.selective ? ` · ${tr('Before selective restore')}` : ''}</summary>${Object.entries(collections).map(([collection, label]) => {
       const items = snapshot.appData?.[collection] || [];
-      return items.length ? `<details><summary>${label} · ${items.length}</summary>${items.map(item => `<div class="snapshot-entity"><span>${esc(item.title || item.name)}</span><button class="btn btn-secondary" type="button" data-action="restore-snapshot-entity" data-snapshot-id="${esc(snapshot.id)}" data-collection="${collection}" data-entity-id="${esc(item.id)}">Restore</button></div>`).join('')}</details>` : '';
+      return items.length ? `<details><summary>${tr(label)} · ${items.length}</summary>${items.map(item => `<div class="snapshot-entity"><span>${esc(item.title || item.name)}</span><button class="btn btn-secondary" type="button" data-action="restore-snapshot-entity" data-snapshot-id="${esc(snapshot.id)}" data-collection="${collection}" data-entity-id="${esc(item.id)}">${tr('Restore')}</button></div>`).join('')}</details>` : '';
     }).join('')}</details>`).join('');
-    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">Local snapshots</h2><button class="btn-icon" data-action="close-modal" aria-label="Close"><i class="ph ph-x"></i></button></div><p class="area-empty-copy">Five recent automatic copies are kept on this device. Restore one entity and its files/history. Existing linked entities must still be present. A safety ZIP and typed RESTORE confirmation protect replacement.</p>${body}</div>`, 'quick');
+    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">${tr('Local snapshots')}</h2><button class="btn-icon" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div><p class="area-empty-copy">${tr('Five recent automatic copies are kept on this device. Restore one item and its files and history. Linked items must still exist. A safety ZIP and typing RESTORE protect the replacement.')}</p>${body}</div>`, 'quick');
   }
 
   function downloadBackup(blob) {
@@ -3403,7 +3489,7 @@
     if (!state || localStorage.getItem(STORAGE_KEY) !== expectedRaw
       || (op && (state !== op.source || compactState(state) !== op.stateText))) return false;
     state.settings ||= {};
-    state.settings.backupStatus = { lastExport: null, lastImport: null, snapshotAvailable: false, validationResult: 'Not yet validated', ...(state.settings.backupStatus || {}), ...patch };
+    state.settings.backupStatus = { lastExport: null, lastImport: null, snapshotAvailable: false, validationResult: msg('Not yet validated'), ...(state.settings.backupStatus || {}), ...patch };
     try {
       const persisted = Core.normalizeState(state);
       delete persisted.habitLogCache; delete persisted.habitMetrics;
@@ -3416,11 +3502,11 @@
 
   function assertGlobalSource(op) {
     if (globalOperation !== op || state !== op.source || compactState(state) !== op.stateText || localStorage.getItem(STORAGE_KEY) !== op.raw)
-      throw new Error('Source changed. Cancel and retry with a fresh safety backup.');
+      throw new Error(msg('Source changed. Cancel and retry with a fresh safety backup.'));
   }
 
   function globalNotice(message, retry) {
-    globalRecoveryNotice = { message, retry }; renderToast();
+    globalRecoveryNotice = { message: trMessage(message), retry }; renderToast();
   }
 
   async function cleanupGlobalSnapshot(op) {
@@ -3429,17 +3515,17 @@
 
   async function markGlobalSnapshot(op, phase, details = {}) {
     const snapshot = await TodoStorage.recoverySnapshots.get(op.snapshotId);
-    if (!snapshot) throw new Error('Recovery copy is missing.');
+    if (!snapshot) throw new Error(msg('Recovery copy is missing.'));
     await TodoStorage.recoverySnapshots.put({ ...snapshot, ...details, phase });
   }
 
   async function syncGlobalSnapshotStatus(op) {
     const snapshot = await TodoStorage.recoverySnapshots.get(op.snapshotId);
-    if (!snapshot) throw new Error('Recovery copy is missing.');
+    if (!snapshot) throw new Error(msg('Recovery copy is missing.'));
     await TodoStorage.recoverySnapshots.put({ ...snapshot, appData: structuredClone(state), rawAppData: localStorage.getItem(STORAGE_KEY) });
   }
 
-  async function abandonGlobalOperation(op, message = 'Operation canceled. Existing data was kept.', statusPatch = null) {
+  async function abandonGlobalOperation(op, message = msg('Operation canceled. Existing data was kept.'), statusPatch = null) {
     if (op.busy) return;
     op.busy = true;
     const returnFocus = modalReturnFocus;
@@ -3448,27 +3534,27 @@
     try { if (op.token) await deleteLifecycle.resume(op.token); }
     catch (error) {
       op.busy = false;
-      globalNotice(`${message} Normal Undo could not resume: ${error.message}. Retry recovery after resolving the changed source.`, () => abandonGlobalOperation(op, message));
+      globalNotice(tr('{message} Normal Undo could not resume: {error}. Retry recovery after resolving the changed source.', { message: tr(message), error: trMessage(error.message) }), () => abandonGlobalOperation(op, message));
       return;
     }
     try { await cleanupGlobalSnapshot(op); } catch (error) { cleanupError = error; }
     globalOperation = null;
     if (returnFocus?.isConnected) returnFocus.focus();
     if (cleanupError) {
-      const retained = `Recovery copy retained: ${cleanupError.message}`;
+      const retained = `${msg('Recovery copy retained')}: ${cleanupError.message}`;
       updateBackupStatus({ snapshotAvailable: true, validationResult: retained }, op);
-      globalNotice(`${message} Temporary backup cleanup failed: ${cleanupError.message}. Retry cleanup.`, async () => {
+      globalNotice(tr('{message} Temporary backup cleanup failed: {error}. Retry cleanup.', { message: tr(message), error: trMessage(cleanupError.message) }), async () => {
         try {
           await cleanupGlobalSnapshot(op);
-          updateBackupStatus({ snapshotAvailable: false, validationResult: 'Backup validation canceled; recovery copy removed' }, op);
+          updateBackupStatus({ snapshotAvailable: false, validationResult: msg('Backup validation canceled; recovery copy removed') }, op);
           globalRecoveryNotice = null; renderToast();
         } catch (error) {
-          updateBackupStatus({ snapshotAvailable: true, validationResult: `Recovery copy retained: ${error.message}` }, op);
+          updateBackupStatus({ snapshotAvailable: true, validationResult: `${msg('Recovery copy retained')}: ${error.message}` }, op);
           throw error;
         }
       });
     } else {
-      updateBackupStatus(statusPatch || { snapshotAvailable: false, validationResult: 'Backup validation canceled; recovery copy removed' }, op);
+      updateBackupStatus(statusPatch || { snapshotAvailable: false, validationResult: msg('Backup validation canceled; recovery copy removed') }, op);
       setToastMessage(message);
     }
   }
@@ -3477,7 +3563,7 @@
     if (!op.undoOperation) {
       if (globalOperation || compactState(state) !== op.committedText || localStorage.getItem(STORAGE_KEY) !== op.committedRaw) {
         op.keepRecovery = true;
-        throw new Error('Data changed after restore. Use Local snapshots to restore the desired entity; the safety copy is retained.');
+        throw new Error(msg('Data changed after restore. Use Local snapshots to restore the desired entity; the safety copy is retained.'));
       }
       op.undoOperation = { reason: 'restore', busy: true };
     }
@@ -3491,18 +3577,18 @@
       globalRecoveryNotice = null; render();
     } catch (error) {
       await markGlobalSnapshot(op, 'rollback-failed', { rollbackError: error.message }).catch(() => {});
-      globalNotice(`Undo recovery needs attention: ${error.message}. Safety copy retained.`, () => undoSelectiveRestore(op));
+      globalNotice(tr('Undo recovery needs attention: {error}. Safety copy retained.', { error: trMessage(error.message) }), () => undoSelectiveRestore(op));
       throw error;
     }
     try { await cleanupGlobalSnapshot(op); }
-    catch (error) { globalNotice(`Undo is verified. Safety-copy cleanup failed: ${error.message}. Retry cleanup.`, async () => { await cleanupGlobalSnapshot(op); globalRecoveryNotice = null; renderToast(); }); }
+    catch (error) { globalNotice(tr('Undo is verified. Safety-copy cleanup failed: {error}. Retry cleanup.', { error: trMessage(error.message) }), async () => { await cleanupGlobalSnapshot(op); globalRecoveryNotice = null; renderToast(); }); }
     refreshHabitMetrics().then(render).catch(error => setToastMessage(error.message));
   }
 
   async function beginGlobalOperation(reason, file = null, selection = null) {
     if (globalOperation) return;
     await (startupPromise || Promise.resolve());
-    if (!state || recovery) { globalNotice('Safety backup cannot represent this unreadable saved data. Nothing was changed. Use Retry after repairing or recovering the original local data.', () => startReady()); return; }
+    if (!state || recovery) { globalNotice(tr('Safety backup cannot represent this unreadable saved data. Nothing was changed. Use Retry after repairing or recovering the original local data.'), () => startReady()); return; }
     flushTextSave();
     const op = { reason, source: state, busy: false, selective: selection };
     globalOperation = op;
@@ -3515,27 +3601,28 @@
         habitLogs: { listAll: async () => op.payload.habitLogs }, goalHistory: { listAll: async () => op.payload.goalHistory } };
       const blob = await Backup.exportBackupV3(JSON.parse(op.stateText), frozenStorage, nowIso());
       assertGlobalSource(op);
-      if (!(await TodoStorage.sameUserData(await TodoStorage.captureUserData(), op.payload))) throw new Error('Stored data changed during export. Retry.');
+      if (!(await TodoStorage.sameUserData(await TodoStorage.captureUserData(), op.payload))) throw new Error(msg('Stored data changed during export. Retry.'));
       assertGlobalSource(op); downloadBackup(blob);
       op.snapshotId = await TodoStorage.createRecoverySnapshot(reason, state, TodoStorage);
       const snapshot = await TodoStorage.recoverySnapshots.get(op.snapshotId);
       assertGlobalSource(op);
-      if (snapshot.rawAppData !== op.raw || !(await TodoStorage.sameUserData(snapshot, op.payload))) throw new Error('Source changed during snapshot. Retry.');
+      if (snapshot.rawAppData !== op.raw || !(await TodoStorage.sameUserData(snapshot, op.payload))) throw new Error(msg('Source changed during snapshot. Retry.'));
       op.validated = selection ? Backup.prepareSelectiveRestore({ state: JSON.parse(op.stateText), attachmentRecords: op.payload.attachments, habitLogs: op.payload.habitLogs, goalHistory: op.payload.goalHistory }, selection.snapshot, selection.collection, selection.id)
         : reason === 'restore' ? structuredClone(await Backup.inspectBackupV3(file))
         : { state: createEmptyState(), attachmentRecords: [], habitLogs: [], goalHistory: [] };
       op.validated.state = JSON.parse(compactState(normalizeState(op.validated.state)));
       assertGlobalSource(op);
-      updateBackupStatus({ snapshotAvailable: true, validationResult: reason === 'restore' ? 'Backup validated and recovery copy ready' : 'Recovery copy ready' }, op);
+      updateBackupStatus({ snapshotAvailable: true, validationResult: reason === 'restore' ? msg('Backup validated and recovery copy ready') : msg('Recovery copy ready') }, op);
       await syncGlobalSnapshotStatus(op);
       assertGlobalSource(op);
       if (selection) await markGlobalSnapshot(op, 'prepared', { selective: true });
       const selectedItem = selection && op.validated.state[selection.collection].find(item => item.id === selection.id);
-      const summary = selection ? ` Restore “${selectedItem.title || selectedItem.name}” and its owned files/history. Other records stay current. Undo is available until further data changes.` : reason === 'restore' ? ` ${op.validated.state.tasks.length} tasks, ${op.validated.state.projects.length} projects, ${op.validated.state.goals.length} Goals, ${op.validated.state.habits.length} Habits, ${op.validated.state.notes.length} Notes, ${op.validated.state.resources.length} Resources, ${op.validated.attachmentRecords.length} files, ${op.validated.habitLogs.length} logs and ${op.validated.goalHistory.length} history events will be restored.` : '';
-      openConfirm({ title: reason === 'reset' ? 'Reset all app data?' : selection ? 'Restore selected entity?' : 'Restore backup?', message: 'A safety ZIP was downloaded and an internal recovery copy was created.' + summary,
-        phrase: reason.toUpperCase(), confirmLabel: reason === 'reset' ? 'Reset app' : 'Restore backup',
+      const summary = selection ? tr('Restore “{name}” and its owned files/history. Other records stay current. Undo is available until further data changes.', { name: selectedItem.title || selectedItem.name })
+        : reason === 'restore' ? tr('{tasks} tasks, {projects} projects, {goals} Goals, {habits} Habits, {notes} Notes, {resources} Resources, {files} files, {logs} logs and {events} history events will be restored.', { tasks: op.validated.state.tasks.length, projects: op.validated.state.projects.length, goals: op.validated.state.goals.length, habits: op.validated.state.habits.length, notes: op.validated.state.notes.length, resources: op.validated.state.resources.length, files: op.validated.attachmentRecords.length, logs: op.validated.habitLogs.length, events: op.validated.goalHistory.length }) : '';
+      openConfirm({ title: reason === 'reset' ? msg('Reset all app data?') : selection ? msg('Restore selected entity?') : msg('Restore backup?'), message: [tr('A safety ZIP was downloaded and an internal recovery copy was created.'), summary].filter(Boolean).join(' '),
+        phrase: reason.toUpperCase(), confirmLabel: reason === 'reset' ? msg('Reset app') : msg('Restore backup'),
         onConfirm: () => commitGlobalOperation(op), onCancel: () => abandonGlobalOperation(op) });
-    } catch (error) { await abandonGlobalOperation(op, `Safety preparation failed: ${error.message}. Nothing was replaced. Retry the operation.`, { snapshotAvailable: false, validationResult: `Recovery preparation failed: ${error.message}` }); }
+    } catch (error) { await abandonGlobalOperation(op, tr('Safety preparation failed: {error}. Nothing was replaced. Retry the operation.', { error: trMessage(error.message) }), { snapshotAvailable: false, validationResult: `${msg('Recovery preparation failed')}: ${error.message}` }); }
   }
 
   async function verifyGlobalReplacement(op) {
@@ -3545,7 +3632,7 @@
       || !(await TodoStorage.sameUserData(await TodoStorage.captureUserData(), { attachments: next.attachmentRecords, habitLogs: next.habitLogs, goalHistory: next.goalHistory }))
       || localStorage.getItem(STORAGE_KEY) !== JSON.stringify(next.state) || globalOperation !== op
       || state !== op.source || compactState(state) !== op.stateText)
-      throw new Error('Replacement verification failed.');
+      throw new Error(msg('Replacement verification failed.'));
   }
 
   async function rollbackGlobalOperation(op, cause) {
@@ -3559,7 +3646,7 @@
       // a durable safe classification. A denied phase write must stay retryable.
       await markGlobalSnapshot(op, 'rolled-back');
       const verified = await TodoStorage.verifyRecoverySnapshot(op.snapshotId);
-      if (globalOperation !== op || state !== source || compactState(state) !== sourceText) throw new Error('Recovery source changed during verification. Retry recovery.');
+      if (globalOperation !== op || state !== source || compactState(state) !== sourceText) throw new Error(msg('Recovery source changed during verification. Retry recovery.'));
       state = normalizeState(restored); canonicalRaw = localStorage.getItem(STORAGE_KEY); recovery = null;
       const resumedSource = state, resumedText = compactState(state);
       statusSource = captureStatusSource();
@@ -3568,16 +3655,16 @@
       // legitimately remove expired files, but cannot change metadata ownership.
       if (localStorage.getItem(STORAGE_KEY) !== verified.rawAppData || globalOperation !== op
         || state !== resumedSource || compactState(state) !== resumedText)
-        throw new Error('Recovery ownership changed during final Undo resume. Resolve the source and retry recovery.');
+        throw new Error(msg('Recovery ownership changed during final Undo resume. Resolve the source and retry recovery.'));
       globalRecoveryNotice = null;
       globalOperation = null; modalState = null; renderModal(); render();
-      updateBackupStatus({ snapshotAvailable: true, validationResult: `${op.reason === 'restore' ? 'Import' : 'Reset'} failed; original data restored and verified` }, statusSource);
+      updateBackupStatus({ snapshotAvailable: true, validationResult: op.reason === 'restore' ? msg('Import failed; original data restored and verified') : msg('Reset failed; original data restored and verified') }, statusSource);
       try {
         await cleanupGlobalSnapshot(op);
-        updateBackupStatus({ snapshotAvailable: false, validationResult: `${op.reason === 'restore' ? 'Import' : 'Reset'} failed; original data restored and verified` }, statusSource);
-        setToastMessage(`${cause.message}. Original data was restored and verified.`);
+        updateBackupStatus({ snapshotAvailable: false, validationResult: op.reason === 'restore' ? msg('Import failed; original data restored and verified') : msg('Reset failed; original data restored and verified') }, statusSource);
+        setToastMessage(tr('{error}. Original data was restored and verified.', { error: trMessage(cause.message) }));
       }
-      catch (cleanupError) { globalNotice(`${cause.message}. Original data was restored. Cleanup failed: ${cleanupError.message}. Retry cleanup.`, async () => { await cleanupGlobalSnapshot(op); updateBackupStatus({ snapshotAvailable: false, validationResult: `${op.reason === 'restore' ? 'Import' : 'Reset'} failed; original data restored and verified` }, statusSource); globalRecoveryNotice = null; renderToast(); }); }
+      catch (cleanupError) { globalNotice(tr('{error}. Original data was restored. Cleanup failed: {cleanupError}. Retry cleanup.', { error: trMessage(cause.message), cleanupError: trMessage(cleanupError.message) }), async () => { await cleanupGlobalSnapshot(op); updateBackupStatus({ snapshotAvailable: false, validationResult: op.reason === 'restore' ? msg('Import failed; original data restored and verified') : msg('Reset failed; original data restored and verified') }, statusSource); globalRecoveryNotice = null; renderToast(); }); }
     } catch (rollbackError) {
       // Resume may already have released its token. Re-hold the remaining work
       // synchronously before any bookkeeping await, keeping its original deadlines.
@@ -3588,19 +3675,19 @@
       op.busy = false; modalState = null; renderModal();
       try { await markGlobalSnapshot(op, 'rollback-failed', { operationError: cause.message, rollbackError: rollbackError.message }); }
       catch (_) { /* The original full recovery payload remains; mutating phase is already durable. */ }
-      updateBackupStatus({ snapshotAvailable: true, validationResult: `${op.reason === 'restore' ? 'Import' : 'Reset'} failed; recovery is required` }, statusSource);
-      globalNotice(`Operation failed: ${cause.message}. Recovery also failed: ${rollbackError.message}. The recovery snapshot is retained. Retry recovery.`, () => rollbackGlobalOperation(op, cause));
+      updateBackupStatus({ snapshotAvailable: true, validationResult: op.reason === 'restore' ? msg('Import failed; recovery is required') : msg('Reset failed; recovery is required') }, statusSource);
+      globalNotice(tr('Operation failed: {error}. Recovery also failed: {rollbackError}. The recovery snapshot is retained. Retry recovery.', { error: trMessage(cause.message), rollbackError: trMessage(rollbackError.message) }), () => rollbackGlobalOperation(op, cause));
     } finally { op.recovering = false; }
   }
 
   async function commitGlobalOperation(op) {
     if (globalOperation !== op || op.busy) return;
-    if ($('#global-confirm-phrase')?.value !== op.reason.toUpperCase()) { setToastMessage(`Type ${op.reason.toUpperCase()} exactly to continue.`); return; }
+    if ($('#global-confirm-phrase')?.value !== op.reason.toUpperCase()) { setToastMessage(tr('Type {word} exactly to continue.', { word: op.reason.toUpperCase() })); return; }
     op.busy = true;
     let mutationStarted = false;
     try {
       assertGlobalSource(op);
-      if (!(await TodoStorage.sameUserData(await TodoStorage.captureUserData(), op.payload))) throw new Error('Stored data changed during confirmation. Retry.');
+      if (!(await TodoStorage.sameUserData(await TodoStorage.captureUserData(), op.payload))) throw new Error(msg('Stored data changed during confirmation. Retry.'));
       assertGlobalSource(op);
       await markGlobalSnapshot(op, 'mutating', { destination: { rawAppData: JSON.stringify(op.validated.state),
         attachments: op.validated.attachmentRecords, habitLogs: op.validated.habitLogs, goalHistory: op.validated.goalHistory } });
@@ -3623,32 +3710,32 @@
         if (phaseError) throw phaseError;
         if (op.selective) {
           op.committedText = compactState(state); op.committedRaw = canonicalRaw;
-          setUndo('Selected entity restored', () => undoSelectiveRestore(op), () => op.keepRecovery ? true : cleanupGlobalSnapshot(op));
+          setUndo(msg('Selected entity restored'), () => undoSelectiveRestore(op), () => op.keepRecovery ? true : cleanupGlobalSnapshot(op));
         } else {
           await cleanupGlobalSnapshot(op);
           updateBackupStatus({ lastImport: op.reason === 'restore' ? nowIso() : state.settings.backupStatus?.lastImport || null, snapshotAvailable: false, validationResult: op.reason === 'restore' ? 'Import restored and verified' : 'Reset verified' }, committedSource);
-          setToastMessage(op.reason === 'reset' ? 'App data reset and verified.' : 'Backup restored and verified.');
+          setToastMessage(op.reason === 'reset' ? tr('App data reset and verified.') : tr('Backup restored and verified.'));
         }
       }
-      catch (error) { updateBackupStatus({ snapshotAvailable: true, validationResult: `Replacement verified; recovery cleanup failed: ${error.message}` }, committedSource); globalNotice(`New data is verified. Recovery copy cleanup failed: ${error.message}. Retry cleanup.`, async () => { await markGlobalSnapshot(op, 'committed'); await cleanupGlobalSnapshot(op); updateBackupStatus({ lastImport: op.reason === 'restore' ? nowIso() : state.settings.backupStatus?.lastImport || null, snapshotAvailable: false, validationResult: op.reason === 'restore' ? 'Import restored and verified' : 'Reset verified' }, committedSource); if (globalOperation === op) globalOperation = null; globalRecoveryNotice = null; renderToast(); }); }
-      refreshHabitMetrics().then(render).catch(error => setToastMessage(`History display could not refresh: ${error.message}. Reload to retry.`));
+      catch (error) { updateBackupStatus({ snapshotAvailable: true, validationResult: `${msg('Replacement verified; recovery cleanup failed')}: ${error.message}` }, committedSource); globalNotice(tr('New data is verified. Recovery copy cleanup failed: {error}. Retry cleanup.', { error: trMessage(error.message) }), async () => { await markGlobalSnapshot(op, 'committed'); await cleanupGlobalSnapshot(op); updateBackupStatus({ lastImport: op.reason === 'restore' ? nowIso() : state.settings.backupStatus?.lastImport || null, snapshotAvailable: false, validationResult: op.reason === 'restore' ? 'Import restored and verified' : 'Reset verified' }, committedSource); if (globalOperation === op) globalOperation = null; globalRecoveryNotice = null; renderToast(); }); }
+      refreshHabitMetrics().then(render).catch(error => setToastMessage(tr('History display could not refresh: {error}. Reload to retry.', { error: trMessage(error.message) })));
     } catch (error) {
       op.busy = false;
       if (mutationStarted) await rollbackGlobalOperation(op, error);
-      else await abandonGlobalOperation(op, `Operation stopped: ${error.message}. Nothing was replaced.`);
+      else await abandonGlobalOperation(op, tr('Operation stopped: {error}. Nothing was replaced.', { error: trMessage(error.message) }));
     }
   }
 
   async function enableBrowserNotifications() {
-    if (typeof Notification === 'undefined') { setToastMessage('Browser notifications are unavailable'); return; }
-    if (Notification.permission === 'granted') { setToastMessage('Browser notifications are already enabled'); return; }
-    if (Notification.permission === 'denied') { setToastMessage('Browser notifications are blocked in browser settings'); return; }
+    if (typeof Notification === 'undefined') { setToastMessage(tr('Browser notifications are unavailable')); return; }
+    if (Notification.permission === 'granted') { setToastMessage(tr('Browser notifications are already enabled')); return; }
+    if (Notification.permission === 'denied') { setToastMessage(tr('Browser notifications are blocked in browser settings')); return; }
     try {
       const permission = await Notification.requestPermission();
-      setToastMessage(permission === 'granted' ? 'Browser notifications enabled' : 'Notification permission was not granted');
+      setToastMessage(permission === 'granted' ? tr('Browser notifications enabled') : tr('Notification permission was not granted'));
       render();
     } catch (_) {
-      setToastMessage('Browser notifications could not be enabled');
+      setToastMessage(tr('Browser notifications could not be enabled'));
     }
   }
 
@@ -3659,7 +3746,7 @@
     const dueGoals = state.goals.flatMap(goal => Core.goalReminderDueMoments(goal, now).map(moment => ({ goal, moment })));
     const today = Core.dateOnly(new Date(now));
     const dueHabits = state.habits.flatMap(habit => {
-      if (!Core.habitReminderActive(habit, state.habitLogCache?.[habit.id] || [], now, state.settings.weekStartsOn || 'monday')) return [];
+      if (!Core.habitReminderActive(habit, state.habitLogCache?.[habit.id] || [], now, Core.weekStartKey(state.settings.weekStartsOn))) return [];
       const nowTime = new Date(now).getTime(); const pending = habit.pendingSnoozeAt && new Date(habit.pendingSnoozeAt).getTime();
       // A snooze is a distinct notification, not merely a suppression of the
       // original moment. Lifecycle and weekly-target suppression apply first.
@@ -3673,14 +3760,14 @@
       task.reminderFiredAt = now;
       task.updatedAt = now;
       if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-        try { new Notification(task.title, { body: task.dueDate ? `Due ${relativeDateLabel(task.dueDate)}` : 'Task reminder' }); } catch (_) { /* in-app reminder remains */ }
+        try { new Notification(task.title, { body: task.dueDate ? tr('Due {date}', { date: relativeDateLabel(task.dueDate) }) : tr('Task reminder') }); } catch (_) { /* in-app reminder remains */ }
       }
     }
     for (const { goal, moment } of dueGoals) {
       goal.reminderFiredMoments = [...new Set([...(goal.reminderFiredMoments || []), moment])];
       goal.updatedAt = now;
       if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-        try { new Notification(goal.title, { body: goal.targetDate ? `Goal target ${relativeDateLabel(goal.targetDate)}` : 'Goal reminder' }); } catch (_) { /* in-app reminder remains */ }
+        try { new Notification(goal.title, { body: goal.targetDate ? tr('Goal target {date}', { date: relativeDateLabel(goal.targetDate) }) : tr('Goal reminder') }); } catch (_) { /* in-app reminder remains */ }
       }
     }
     for (const { habit, moment, snooze } of dueHabits) {
@@ -3688,18 +3775,19 @@
       if (snooze) { habit.pendingSnoozeAt = null; habit.snoozedUntil = null; }
       habit.updatedAt = now;
       if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-        try { new Notification(habit.name, { body: 'Habit reminder' }); } catch (_) { /* in-app reminder remains */ }
+        try { new Notification(habit.name, { body: tr('Habit reminder') }); } catch (_) { /* in-app reminder remains */ }
       }
     }
     saveState();
     const total = dueTasks.length + dueGoals.length + dueHabits.length;
-    if (total === 1) setToastMessage(`Reminder: ${dueTasks[0]?.title || dueGoals[0]?.goal.title || dueHabits[0].habit.name}`);
-    else setToastMessage(`${total} reminders are due`);
+    if (total === 1) setToastMessage(tr('Reminder: {title}', { title: dueTasks[0]?.title || dueGoals[0]?.goal.title || dueHabits[0].habit.name }));
+    else setToastMessage(trn(total, '{count} reminder is due', '{count} reminders are due'));
   }
 
+  // Messages are English catalog keys or already translated text; tr() leaves the latter unchanged.
   function setToastMessage(message) {
     clearTimeout(toastMessageTimer);
-    toastMessage = message;
+    toastMessage = message == null ? message : trMessage(message);
     renderToast();
     // Information has its own lifetime; it must never replace/finalize Undo.
     toastMessageTimer = setTimeout(() => {
@@ -3716,6 +3804,7 @@
   function showTaskRepeatPicker(taskId, anchor) { openRepeatPicker(anchor, { type: 'task', taskId }); }
 
   function handleClick(event) {
+    if (!storagePersistenceRequested && state && !startupPromise) { storagePersistenceRequested = true; updateStoragePersistence(true).catch(console.error); }
     if (event.target.closest('[data-action="refresh-stale-data"]')) {
       const notice = staleDataNotice;
       staleDataNotice = null;
@@ -3731,7 +3820,7 @@
       return;
     }
     if (event.target.closest('[data-action="retry-global-recovery"]')) {
-      Promise.resolve(globalRecoveryNotice?.retry()).catch(error => globalNotice(`Retry failed: ${error.message}. Recovery copy retained. Retry again.`, globalRecoveryNotice.retry)); return;
+      Promise.resolve(globalRecoveryNotice?.retry()).catch(error => globalNotice(tr('Retry failed: {error}. Recovery copy retained. Retry again.', { error: trMessage(error.message) }), globalRecoveryNotice.retry)); return;
     }
     if (globalOperation && !event.target.closest('#modal-root [data-action="confirm-action"], #modal-root [data-action="close-modal"]')) return;
     const mobileQuickAdd = event.target.closest('#mobile-quick-add');
@@ -3804,7 +3893,7 @@
       const ids = Core.selectFocusTasks(state.tasks, state.settings.focusTaskIds);
       if (ids.includes(task.id)) state.settings.focusTaskIds = ids.filter(id => id !== task.id);
       else if (ids.length < 3) state.settings.focusTaskIds = [...ids, task.id];
-      else { setToastMessage('Daily focus has room for three tasks. Remove one first.'); return; }
+      else { setToastMessage(tr('Daily focus has room for three tasks. Remove one first.')); return; }
       saveAndRender(); if (modalState?.type === 'task') renderModal();
     }
     else if (action === 'open-focus') openFocusMode();
@@ -3876,6 +3965,9 @@
     else if (action === 'retry-delete-recovery') retryFailedDeleteRecovery();
     else if (action === 'enable-notifications') enableBrowserNotifications();
     else if (action === 'export-backup') exportBackupAction();
+    else if (action === 'snooze-backup-reminder') { snoozeBackupReminder(); render(); }
+    else if (action === 'apply-app-update') applyAppUpdate();
+    else if (action === 'request-storage-persistence') updateStoragePersistence(true).catch(console.error);
     else if (action === 'import-backup') chooseImportBackup();
     else if (action === 'restore-backup') restoreImportedBackup();
     else if (action === 'clear-completed') clearCompleted();
@@ -3907,7 +3999,7 @@
     else if (['pause-recurrence','resume-recurrence','skip-recurrence','end-recurrence'].includes(action)) manageRecurrence(button.dataset.taskId,action);
     else if (action === 'custom-repeat-apply') {
       const interval=Number($('#repeat-interval',popoverEl)?.value),frequency=$('#repeat-frequency',popoverEl)?.value || 'weekly',endType=$('#repeat-end-type',popoverEl)?.value || 'never',endDate=$('#repeat-end-date',popoverEl)?.value || null,endAfterOccurrences=Number($('#repeat-end-count',popoverEl)?.value) || null;
-      if(!Number.isInteger(interval) || interval<1 || endType==='afterOccurrences' && (!Number.isInteger(endAfterOccurrences) || endAfterOccurrences<1) || endType==='date' && !endDate){const error=$('#repeat-error',popoverEl);error.hidden=false;error.textContent='Provide a positive whole-number interval/count and a valid end date.';return;}
+      if(!Number.isInteger(interval) || interval<1 || endType==='afterOccurrences' && (!Number.isInteger(endAfterOccurrences) || endAfterOccurrences<1) || endType==='date' && !endDate){const error=$('#repeat-error',popoverEl);error.hidden=false;error.textContent=tr('Provide a positive whole-number interval/count and a valid end date.');return;}
       setRecurrence(button.dataset.targetType,button.dataset.taskId,{frequency,interval,endType,endDate,endAfterOccurrences});
     }
     else if (action === 'show-custom-date') showCustomDate(button);
@@ -3916,7 +4008,7 @@
     else if (action === 'inline-new-tag') inlineNewTag(button);
     else if (action === 'inline-select-tag-color') { $$('.color-swatch', popoverEl).forEach(s => s.classList.toggle('is-selected', s === button)); const create = $('[data-pop-action="inline-tag-create"]', popoverEl); if (create) create.dataset.color = button.dataset.color; }
     else if (action === 'inline-tag-cancel') closePopover();
-    else if (action === 'inline-tag-create') { const name = Core.normalizeTagName($('#inline-tag-name',popoverEl)?.value); const valid=Core.validateTagName(state.tags||[],name); if(!valid.ok){const er=$('#inline-tag-error',popoverEl); if(er){er.hidden=false;er.textContent=valid.reason==='duplicate-tag'?'A tag with this name already exists.':'Tag needs a name.';} return;} const tag={id:uid('tag'),name,color:button.dataset.color||PROJECT_COLORS[0],createdAt:nowIso(),updatedAt:nowIso()}; state.tags.push(tag); saveState(); toggleTag(button.dataset.targetType, button.dataset.taskId, tag.id); render(); }
+    else if (action === 'inline-tag-create') { const name = Core.normalizeTagName($('#inline-tag-name',popoverEl)?.value); const valid=Core.validateTagName(state.tags||[],name); if(!valid.ok){const er=$('#inline-tag-error',popoverEl); if(er){er.hidden=false;er.textContent=valid.reason==='duplicate-tag'?tr('A tag with this name already exists.'):tr('Tag needs a name.');} return;} const tag={id:uid('tag'),name,color:button.dataset.color||PROJECT_COLORS[0],createdAt:nowIso(),updatedAt:nowIso()}; state.tags.push(tag); saveState(); toggleTag(button.dataset.targetType, button.dataset.taskId, tag.id); render(); }
     else if (action === 'inline-new-project') inlineNewProject(button);
     else if (action === 'inline-select-color') { $$('.color-swatch', popoverEl).forEach(s => s.classList.toggle('is-selected', s === button)); const create = $('[data-pop-action="inline-project-create"]', popoverEl); if (create) create.dataset.color = button.dataset.color; }
     else if (action === 'inline-project-cancel') closePopover();
@@ -3986,6 +4078,7 @@
     if (event.target.matches('[data-task-time]')) { updateTask(event.target.dataset.taskId, { [event.target.dataset.taskTime]: Core.normalizeTime(event.target.value) }, false); render(); return; }
     if (event.target.matches('[data-task-flag]')) { const task = getTask(event.target.dataset.taskId); const field = event.target.dataset.taskFlag; if (task && ['isImportant', 'isUrgent'].includes(field)) { task[field] = event.target.checked; task.updatedAt = nowIso(); saveState(); render(); } return; }
     if (['attachment-input', 'attachment-image-input'].includes(event.target.id)) { receiveAttachmentFiles(event.target.dataset, [...event.target.files]); event.target.value=''; return; }
+    if (event.target.id === 'backup-reminder-days') { const days = Number(event.target.value); if (Number.isInteger(days) && days >= 0 && days <= 90) { state.settings.backupReminderDays = days; saveAndRender(); } return; }
     if (event.target.id === 'backup-import-input') { const file=event.target.files?.[0]; event.target.value=''; if(file) inspectImportBackup(file); return; }
     if (event.target.id === 'completed-project-filter') {
       state.ui.completedProjectFilter = event.target.value || '';
@@ -4001,7 +4094,7 @@
       const task = getTask(modalState.taskId); if (!task) return;
       if(event.target.id==='detail-notes'){if(taskRecurrence(task))requestTaskEdit(task.id,taskDraftChanges(task));return;}
       const title = String(event.target.value || '').trim();
-      if (!title) { modalState.error = 'Task needs a title.'; modalState.titleDraft = task.title; renderModal(); return; }
+      if (!title) { modalState.error = tr('Task needs a title.'); modalState.titleDraft = task.title; renderModal(); return; }
       if(!taskRecurrence(task)){task.title=title;modalState.titleDraft=title;task.updatedAt=nowIso();saveState();render();return;}
       requestTaskEdit(task.id,{title});
     }
@@ -4232,15 +4325,15 @@
     let message = '';
     if (target.dataset.dropPlan === 'today') {
       if (task.plannedDate === Core.dateOnly() && !task.isInbox) return;
-      task.plannedDate = Core.dateOnly(); task.isInbox = false; task.todayOrder = nextOrder('today'); message = 'Task moved to Today';
+      task.plannedDate = Core.dateOnly(); task.isInbox = false; task.todayOrder = nextOrder('today'); message = msg('Task moved to Today');
     } else if (target.dataset.dropPlan === 'tomorrow') {
       const tomorrow = Core.addDays(Core.dateOnly(), 1);
       if (task.plannedDate === tomorrow && !task.isInbox) return;
-      task.plannedDate = tomorrow; task.isInbox = false; task.todayOrder = null; message = 'Task moved to Tomorrow';
+      task.plannedDate = tomorrow; task.isInbox = false; task.todayOrder = null; message = msg('Task moved to Tomorrow');
     } else if (target.dataset.dropProjectId) {
       const projectId = target.dataset.dropProjectId;
       if (!getProject(projectId) || (task.projectId === projectId && !task.isInbox)) return;
-      task.projectId = projectId; task.areaId = null; task.isInbox = false; task.projectOrder = nextOrder(`project:${projectId}`); message = 'Task moved to project';
+      task.projectId = projectId; task.areaId = null; task.isInbox = false; task.projectOrder = nextOrder(`project:${projectId}`); message = msg('Task moved to project');
     } else return;
     task.updatedAt = nowIso(); saveState(); render();
     setUndo(message, () => { const current = getTask(taskId); if (!current) return; Object.assign(current, prev, { updatedAt: nowIso() }); saveState(); render(); });
@@ -4339,8 +4432,8 @@
               || TodoStorage.attachmentOwners(state).some(owner => (owner.item.attachmentIds || []).includes(record.id))
               || [...failedDeleteSnapshots].some(snapshot => snapshot.attachments.some(file => file.id === record.id))
               || [...undoWork].some(work => work.snapshot?.attachments.some(file => file.id === record.id)))
-              throw new Error('File ownership changed during cleanup.');
-          }).catch(() => setToastMessage('File cleanup failed. Retained files were kept.'));
+              throw new Error(msg('File ownership changed during cleanup.'));
+          }).catch(() => setToastMessage(tr('File cleanup failed. Retained files were kept.')));
         }
       }
     } catch (error) { failure = error; }
@@ -4367,6 +4460,8 @@
     if (typeof setMobileQuickAddOpen === 'function') setMobileQuickAddOpen(false);
     await startReady();
     scheduleAutomaticSnapshot();
+    updateStoragePersistence(false).catch(console.error);
+    registerServiceWorker();
     if (!location.hash) location.hash = '#today';
     setInterval(() => {
       if (globalOperation || startupPromise || recovery || !state) return;

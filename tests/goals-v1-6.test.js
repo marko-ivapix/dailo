@@ -45,9 +45,10 @@ test('goal history keeps same-day snapshots in timestamp order and honors its se
 test('Goal history modal exposes an accessible Week or Month range control', () => {
   const fs = require('node:fs');
   const vm = require('node:vm');
+const { withI18n, runInNewContextWithI18n } = require('./support/i18n.js');
   const adapters = {};
   const window = { TodoDomainModules: { register: adapter => { adapters[adapter.name] = adapter; } } };
-  vm.runInNewContext(fs.readFileSync(require.resolve('../js/goals-ui.js'), 'utf8'), { window, requestAnimationFrame: fn => fn() });
+  runInNewContextWithI18n(fs.readFileSync(require.resolve('../js/goals-ui.js'), 'utf8'), { window, requestAnimationFrame: fn => fn() });
   const goal = { id: 'g1', title: 'Goal' };
   let renders = 0;
   const ctx = {

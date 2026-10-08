@@ -53,6 +53,7 @@ test('Today focus strip exposes counts and a single Today capture action', () =>
 
 test('Today open count includes distinct overdue and suggested task records', () => {
   const vm = require('node:vm');
+const { withI18n, runInNewContextWithI18n } = require('./support/i18n.js');
   const today = Core.dateOnly();
   const tasks = [
     { id: 'overdue', title: 'Overdue', dueDate: Core.addDays(today, -1) },
@@ -62,8 +63,8 @@ test('Today open count includes distinct overdue and suggested task records', ()
   const state = Core.normalizeState({ version: 3, tasks, projects: [], tags: [], areas: [], goals: [], habits: [], notes: [], resources: [], templates: [], savedViews: [], settings: { todayFocusStrip: true }, ui: {} });
   const source = fs.readFileSync(require.resolve('../js/app.js'), 'utf8');
   const renderToday = source.slice(source.indexOf('  function renderToday()'), source.indexOf('  function renderInbox()'));
-  const context = { state, Core, esc: String, getTask: id => tasks.find(task => task.id === id), pageHeader: () => '', formatPageToday: String, emptyState: () => '', taskRow: () => '' };
-  vm.createContext(context);
+  const context = { state, Core, esc: String, getTask: id => tasks.find(task => task.id === id), pageHeader: () => '', formatPageToday: String, emptyState: () => '', backupReminderNotice: () => '', taskRow: () => '' };
+  vm.createContext(withI18n(context));
   const html = vm.runInContext(`${renderToday}\nrenderToday()`, context);
   assert.match(html, /data-today-open-count>3 open/);
 });

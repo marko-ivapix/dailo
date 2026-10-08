@@ -11,9 +11,10 @@ def read(path):
 
 def test_knowledge_editor_uses_name_and_requires_a_source_for_both_views():
     source = read('js/knowledge.js')
-    assert 'Name<input id="knowledge-title"' in source
-    assert 's need a Name and at least one URL, image, or attached file.' in source
-    assert "type === 'note' ? 'Body' : 'Description'" in source
+    assert "tr('Name')}<input id=\"knowledge-title\"" in source
+    assert "tr('Notes need a Name and at least one URL, image, or attached file.')" in source
+    assert "tr('Resources need a Name and at least one URL, image, or attached file.')" in source
+    assert "type === 'note' ? tr('Body') : tr('Description')" in source
 
 
 def test_notes_and_resources_keep_separate_routes_and_shared_delete_undo_flow():
@@ -23,7 +24,8 @@ def test_notes_and_resources_keep_separate_routes_and_shared_delete_undo_flow():
     assert "route.type === 'note' || route.type === 'resource'" in source
     assert "requestDeleteEntity(el.dataset.ownerType, el.dataset.ownerId)" in source
     assert "note: 'notes', resource: 'resources'" in app
-    assert "setUndo(`${label} deleted`" in app
+    assert "note: msg('Note deleted'), resource: msg('Resource deleted')" in app
+    assert "setUndo(deletedMessage," in app
 
 
 def test_knowledge_attachment_reads_use_the_owner_snapshot_pipeline():

@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
+const { withI18n, runInNewContextWithI18n } = require('./support/i18n.js');
 
 process.env.TZ = 'Europe/Belgrade';
 
@@ -18,20 +19,20 @@ function inboxHelpers(sourceStart, sourceEnd) {
     },
     clampOrder: value => Number.isFinite(value) ? value : 999999,
   };
-  vm.createContext(context);
+  vm.createContext(withI18n(context));
   vm.runInContext(`${app.slice(app.indexOf(sourceStart), app.indexOf(sourceEnd))}`, context);
   return context;
 }
 
 test('Inbox exposes focused type filters without changing Search', () => {
   assert.match(app, /data-action="inbox-filter"/);
-  assert.match(app, /INBOX_FILTERS = \[\['all', 'All'\], \['tasks', 'Tasks'\], \['goals', 'Goals'\], \['habits', 'Habits'\], \['notes', 'Notes'\], \['resources', 'Resources'\]\]/);
+  assert.match(app, /INBOX_FILTERS = \[\['all', msg\('All'\)\], \['tasks', msg\('Tasks'\)\], \['goals', msg\('Goals'\)\], \['habits', msg\('Habits'\)\], \['notes', msg\('Notes'\)\], \['resources', msg\('Resources'\)\]\]/);
   assert.match(app, /function openSearch\(\)/);
   assert.match(app, /searchResultsHtml\(modalState\.query/);
 });
 
 test('Inbox groups captured items by Today, Yesterday and This week', () => {
-  assert.match(app, /const order = \['Today', 'Yesterday', 'This week', 'Earlier'\]/);
+  assert.match(app, /const order = \[msg\('Today'\), msg\('Yesterday'\), msg\('This week'\), msg\('Earlier'\)\]/);
   assert.match(app, /class="inbox-group-label"/);
   assert.match(app, /state\.ui\.inboxFilter/);
 });

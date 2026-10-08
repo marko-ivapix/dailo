@@ -1,0 +1,35 @@
+(function (root, factory) {
+  const api = factory(root);
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  root.DailoRelease = api;
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (root) {
+  'use strict';
+
+  // js/i18n.js loads after this file, so look it up when a report is built.
+  const tr = (text, params) => (root.TodoI18n ? root.TodoI18n.tr(text, params) : String(text).replace(/\{(\w+)\}/g, (match, key) => (params && key in params ? String(params[key]) : match)));
+
+  // Single source for the release version. sw.js repeats it in its cache name; tests keep them equal.
+  const APP_VERSION = '1.9.0';
+  // Beta problem reports go to this address by e-mail. Empty hides the report link.
+  const REPORT_EMAIL = '';
+  const EMAIL_PATTERN = /^[^\s@?&#]+@[^\s@?&#]+\.[^\s@?&#]+$/;
+
+  // Builds a mailto: link with version and device details only; app data is never included.
+  function problemReportMailto({ email, version = APP_VERSION, userAgent = '', standalone = false, persistence = 'unknown' } = {}) {
+    if (typeof email !== 'string' || !EMAIL_PATTERN.test(email)) return null;
+    const subject = tr('Dailo {version} — problem report', { version });
+    const body = [
+      tr('Describe what happened and what you expected:'),
+      '',
+      '',
+      '---',
+      tr('Version: {version}', { version }),
+      tr('Device: {device}', { device: userAgent }),
+      tr('Installed (standalone): {value}', { value: standalone ? tr('yes') : tr('no') }),
+      tr('Persistent storage: {value}', { value: persistence }),
+    ].join('\r\n');
+    return `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  }
+
+  return Object.freeze({ APP_VERSION, REPORT_EMAIL, problemReportMailto });
+});

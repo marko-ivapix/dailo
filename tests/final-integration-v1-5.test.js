@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
+const { withI18n, runInNewContextWithI18n } = require('./support/i18n.js');
 global.__TODO_TEST_MEMORY_DB__ = true;
 const Core = global.TodoCore = require('../js/core.js');
 const Storage = require('../js/storage.js');
@@ -26,7 +27,7 @@ test('Dashboard preserves preamble, saved order, move directions and pinned-firs
   const content = { children: [node('header'), node('context'), ...cards, node('tasks')], classList: { toggle() {} }, querySelectorAll: () => cards,
     insertBefore(item, anchor) { this.children.splice(this.children.indexOf(item), 1); this.children.splice(anchor ? this.children.indexOf(anchor) : this.children.length, 0, item); } };
   const ctx = { state: state(), main: { querySelector: () => content }, saveAndRender() {} };
-  vm.createContext(ctx); vm.runInContext(functions(app, ['applyTodayDashboard']), ctx);
+  vm.createContext(withI18n(ctx)); vm.runInContext(functions(app, ['applyTodayDashboard']), ctx);
   const order = () => { vm.runInContext('applyTodayDashboard(main)', ctx); return content.children.map(item => item.id); };
   ctx.state.settings.dashboard.sectionOrder = ['actions', 'focus', 'review'];
   assert.deepEqual(order(), ['header', 'context', 'actions', 'focus', 'review', 'tasks']);
@@ -49,7 +50,7 @@ test('Calendar Week and Day Detail honor hidden Tasks and retain combined planne
   const source = fs.readFileSync(require.resolve('../js/calendar-ui.js'), 'utf8');
   const ctx = { state: state(), Core, calendarDate: () => '2026-09-17', calendarLogs: () => [], parseLocalDate: value => new Date(`${value}T12:00:00`), formatDate: String, esc: String, pageHeader: () => '', modalFrame: value => value, modalState: { date: '2026-09-17' } };
   ctx.state.tasks = [{ id: 'timed', title: 'Visible timed Task', plannedDate: '2026-09-17', dueDate: '2026-09-17', plannedTime: '09:00', dueTime: '11:00', durationMinutes: 45 }];
-  const sandbox = { ctx }; vm.createContext(sandbox);
+  const sandbox = { ctx }; vm.createContext(withI18n(sandbox));
   vm.runInContext(functions(source, ['minutesLabel', 'calendarItem', 'timedEntries', 'calendarCounts', 'calendarCountTotal', 'renderCalendar', 'renderCalendarDetail']), sandbox);
   for (const render of ['renderCalendar', 'renderCalendarDetail']) {
     ctx.state.ui.calendarVisibility = { tasks: false };
@@ -65,9 +66,9 @@ function scheduler() {
   let date = '2026-09-17', index = 0;
   const ctx = { state: state(), Core: { ...Core, dateOnly: () => date }, uid: kind => `${kind}-${++index}`, nowIso: () => `${date}T12:00:00Z`, nextOrder: () => 0,
     globalOperation: null, recovery: null, startupPromise: null, structuredClone, copyTemplate: clean, modalState: {}, saveState: () => true, closeModal() {}, render() {},
-    lastToday: date, attachEvents() {}, startReady: async () => {}, scheduleAutomaticSnapshot() {}, location: { hash: '#today' }, checkReminders() {}, refreshHabitDateBoundary: async () => {}, console,
+    lastToday: date, attachEvents() {}, startReady: async () => {}, scheduleAutomaticSnapshot() {}, updateStoragePersistence: async () => ({ state: 'unsupported' }), registerServiceWorker() {}, location: { hash: '#today' }, checkReminders() {}, refreshHabitDateBoundary: async () => {}, console,
     setInterval: callback => { ctx.tick = callback; }, getGoal: id => ctx.state.goals.find(goal => goal.id === id) };
-  vm.createContext(ctx); vm.runInContext(functions(app, ['runScheduledTaskTemplates', 'syncTemplateEntityGoalLinks', 'saveTemplateRecord', 'init']), ctx);
+  vm.createContext(withI18n(ctx)); vm.runInContext(functions(app, ['runScheduledTaskTemplates', 'syncTemplateEntityGoalLinks', 'saveTemplateRecord', 'init']), ctx);
   return { ctx, date: value => { date = value; } };
 }
 const schedule = date => ({ id: 'template', name: 'Scheduled', type: 'task', data: { title: 'Work {{date}}', goalIds: ['goal'], plannedOffsetDays: 0, scheduleEnabled: true, scheduleDate: date } });
@@ -128,7 +129,7 @@ test('V1.5 template settings survive snapshot, ZIP, instantiation and Habit crea
   let index = 0; const instances = restored.state.templates.map(template => Core.instantiateTemplate(template, '2026-09-17', { state: s, makeId: kind => `${kind}-${++index}` }));
   assert.equal(instances[0].task.durationMinutes, 45); assert.equal(instances[2].tasks[0].durationMinutes, 45);
   assert.equal(instances[0].task.isCompleted, false); assert.deepEqual(instances[0].task.attachmentIds, []); assert.notEqual(instances[0].task.id, task.id);
-  const ctx = { Core }; vm.createContext(ctx); vm.runInContext(functions(app, ['habitDraft']), ctx);
+  const ctx = { Core }; vm.createContext(withI18n(ctx)); vm.runInContext(functions(app, ['habitDraft']), ctx);
   const draft = ctx.habitDraft(instances[1].habit);
   for (const key of ['minimumTarget', 'idealTarget', 'graceDays']) assert.equal(draft[key], habit[key]);
   assert.equal(instances[1].habit.status, 'active'); assert.deepEqual(instances[1].habit.pauseIntervals, []); assert.deepEqual(instances[1].habit.reminderFiredMoments, []);
@@ -136,7 +137,7 @@ test('V1.5 template settings survive snapshot, ZIP, instantiation and Habit crea
 
 test('Template UI and backup validation enforce duration and fractional-versus-count Habit targets', () => {
   const source = fs.readFileSync(require.resolve('../js/templates-ui.js'), 'utf8');
-  const ctx = {}; vm.createContext(ctx); vm.runInContext(functions(source, ['templateDataProblem']), ctx);
+  const ctx = {}; vm.createContext(withI18n(ctx)); vm.runInContext(functions(source, ['templateDataProblem']), ctx);
   for (const [type, data, field] of [['task', { title: 'Task', durationMinutes: -1 }, 'duration'], ['task', { title: 'Task', durationMinutes: 0.5 }, 'duration'], ['habit', { name: 'Habit', trackingType: 'checkbox', minimumTarget: 0.5 }, 'target'], ['habit', { name: 'Habit', trackingType: 'numeric', frequencyType: 'timesPerWeek', minimumTarget: 0.5 }, 'target'], ['habit', { name: 'Habit', idealTarget: 1, minimumTarget: 2 }, 'target'], ['habit', { name: 'Habit', graceDays: -1 }, 'grace']]) {
     assert.match(ctx.templateDataProblem(type, data), new RegExp(field, 'i'));
     const s = state(); s.templates = [{ id: 'bad', name: 'Bad', type, data }];
