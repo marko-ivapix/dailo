@@ -1,6 +1,6 @@
 # Dailo — pregled projekta i brainstorming
 
-> Current implementation: V1.7 behavior, V1.8 visual layer and V1.9 beta-ready additions (Serbian UI, install, offline, data protection; merged into `main` through PR #5), completed as V1.9.1 (problem-report address, tester guide `uputstvo.html`, beta checklist `docs/beta/provera-pre-bete.md`; merged through PR #6), plus roadmap Phase 4: V1.10 Smart Quick Add, V1.11 Weekly review and V1.12 Duration and time-blocking (version `1.12.0`), merged into `main` together through PR #7 (`31fb23d`) and packaged as `Dailo-v1.12-distributable.zip`. The V2.0 spec (mobile app + Supabase sync) is a draft awaiting the user's decisions. For agent onboarding and verified source facts, read `CLAUDE.md` and `docs/claude/` first. The brainstorming questions below are ideas, not accepted requirements.
+> Current implementation: V1.7 behavior, V1.8 visual layer and V1.9 beta-ready additions (Serbian UI, install, offline, data protection; merged into `main` through PR #5), completed as V1.9.1 (problem-report address, tester guide `uputstvo.html`, beta checklist `docs/beta/provera-pre-bete.md`; merged through PR #6), plus roadmap Phase 4: V1.10 Smart Quick Add, V1.11 Weekly review and V1.12 Duration and time-blocking (version `1.12.0`), merged into `main` together through PR #7 (`31fb23d`) and packaged as `Dailo-v1.12-distributable.zip`. The V2.0 spec (mobile app + Supabase sync) was approved on 2026-10-08, and V2.0-a (optional sync in the web app, version `2.0.0-alpha.1`) is implemented on branch `ccr-95f6062b-lgg2fr`; sync stays off until the Supabase project URL and public key are supplied. For agent onboarding and verified source facts, read `CLAUDE.md` and `docs/claude/` first. The brainstorming questions below are ideas, not accepted requirements.
 
 Dailo je lokalna To-Do aplikacija za organizaciju zadataka, projekata, oblasti,
 ciljeva, navika, beleški i resursa. Osnovni tok je:
@@ -100,7 +100,7 @@ Detalji: `docs/superpowers/specs/2026-10-08-todo-v1-10-design.md`, `docs/superpo
 
 ## V1.9 — spremno za beta testiranje (V1.9.1)
 
-Cilj je mala beta grupa na iPhone-u (Safari), i dalje bez backend-a, naloga i sinhronizacije; to stiže sa V2.0 mobilnom aplikacijom.
+Cilj je mala beta grupa na iPhone-u (Safari), bez backend-a, naloga i sinhronizacije u V1.x; opciona sinhronizacija stiže sa V2.0 (V2.0-a je urađena, ali isključena dok se ne podesi Supabase).
 
 - **Instalacija na početni ekran.** U Safariju: Deli → Dodaj na početni ekran → Dodaj. Podešavanja → Opšte → Instaliraj aplikaciju prikazuje ove korake ili potvrdu da je aplikacija instalirana. Safari i instalirana aplikacija čuvaju podatke odvojeno: prvo instalirati, pa tek onda koristiti; postojeći podaci se prenose ZIP izvozom i uvozom.
 - **Rad bez interneta.** Fontovi i Phosphor ikonice su lokalni, sa licencama; CDN se više ne koristi. Service worker čuva osnovne fajlove aplikacije u kešu označenom verzijom. Nova verzija čeka dok korisnik ne dodirne „Osveži”; stranica se nikad ne osvežava sama.
@@ -267,7 +267,7 @@ quick-add komande poput `tomorrow`, skeniranje slike ili offline queue?
 
 ## Kako je projekat napravljen
 
-- Vanilla HTML/CSS/JavaScript, bez frameworka i backend-a.
+- Vanilla HTML/CSS/JavaScript, bez frameworka i bez sopstvenog backend-a (od V2.0-a opciona Supabase sinhronizacija).
 - Metadata je u `localStorage`, a fajlovi, Habit logs i Goal history u
   IndexedDB.
 - `js/core.js` sadrži pravila i izračunavanja.
@@ -291,15 +291,19 @@ testova, 0 grešaka); taj paket, `Dailo-v1.9.1-distributable.zip`, sada je
 prethodni. Faza 4 plana izdanja je urađena: V1.10 pametno brzo dodavanje,
 V1.11 nedeljni pregled i V1.12 trajanje i raspored dana. Provereno prema
 `docs/superpowers/progress-v1-12.md` (367 Node testova, svih 367 prošlo,
-0 grešaka); sve tri verzije čekaju spajanje u `main` kroz jedan PR, a trenutni
+0 grešaka); sve tri verzije su spojene u `main` kroz PR #7, a trenutni
 paket je `Dailo-v1.12-distributable.zip`. Sa korisnikom ostaju provera pre bete
-(`docs/beta/provera-pre-bete.md`, B6–B30) i pozivanje testera. Sledeći korak je
-specifikacija za V2.0 (mobilna aplikacija + Supabase sinhronizacija):
-`docs/superpowers/specs/2026-10-08-todo-v2-0-design.md` je nacrt koji čeka
-odluke korisnika i naloge (Supabase projekat u EU, Apple Developer nalog,
-potpisivanje na korisnikovom Mac-u, odobren tekst o privatnosti). Dok nacrt
-nije odobren, važi pravilo iz `AGENTS.md`: bez backend-a, naloga i
-sinhronizacije. V1.7 osnova ostaje zabeležena u
+(`docs/beta/provera-pre-bete.md`, B6–B30, a B31–B36 kad se uključi
+sinhronizacija) i pozivanje testera. Specifikacija za V2.0 (mobilna aplikacija
++ Supabase sinhronizacija, `docs/superpowers/specs/2026-10-08-todo-v2-0-design.md`)
+odobrena je 2026-10-08. V2.0-a, opciona sinhronizacija u veb aplikaciji
+(verzija `2.0.0-alpha.1`, `docs/superpowers/progress-v2-0a.md`, 393 Node testa,
+sva prošla), urađena je: prijava kodom na e-poštu bez lozinke, kartica
+„Sinhronizacija“ u Podešavanjima i SQL za server. Sinhronizacija je isključena
+dok korisnik ne napravi Supabase projekat (`docs/v2/podesavanje-supabase.md`)
+i ne pošalje adresu projekta i javni ključ. Ključ `service_role` nikad ne ide u
+repozitorijum. Posle toga slede V2.0-b (aplikacija za iPhone i Android) i
+V2.0-c (objava u prodavnicama). V1.7 osnova ostaje zabeležena u
 `docs/superpowers/progress-v1-7.md`. Tačni brojevi Node, syntax, Python/static i
 ZIP provera upisuju se tek posle stvarnog pokretanja komandi; browser/visual i
 iPhone acceptance ostaju **manual-pending** dok ih korisnik ne izvrši.

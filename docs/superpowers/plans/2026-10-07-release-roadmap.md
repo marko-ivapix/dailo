@@ -65,8 +65,8 @@ Constraints: no Search change, no bulk actions, delete/Undo and typed RESET/REST
 Each item gets its own spec; existing behavior was checked in source on 2026-10-07. Order and version numbers requested by the user on 2026-10-08: **V1.10 Smart Quick Add**, **V1.11 Weekly review**, **V1.12 Duration + time-blocking**.
 
 - [x] **Smart Quick Add (V1.10).** Before: `parseQuickPlanPhrase` (English `today`/`tomorrow`/weekday, `HH:MM`), `#tag`, `!priority`; V1.9 added Serbian day/time keywords. Done in V1.10 (spec `docs/superpowers/specs/2026-10-08-todo-v1-10-design.md`, ledger `docs/superpowers/progress-v1-10.md`): `Core.parseQuickAdd` with due-date syntax (`rok petak`, `do petka`, `due friday`), duration (`45min`, `1h`, `1,5h`, `2 sata`), `+project`/`@area`, relative and calendar dates (`prekosutra`, `za 3 dana`, `in 2 weeks`, `15.10.`), Serbian priorities and live preview pills under the title. Voice input stays out of scope: iOS keyboard dictation already types into the title field. Merged into `main` with V1.11 and V1.12 through PR #7; iPhone use is manual-pending (B25).
-- [x] **Weekly review (V1.11).** Before: Today "Daily review" stats card. Done in V1.11 (spec `docs/superpowers/specs/2026-10-08-todo-v1-11-design.md`, ledger `docs/superpowers/progress-v1-11.md`): `#review` page (`js/review-ui.js`) with six numbered steps — Inbox, overdue and missed plans, next 7 days, Goals with health, Habits with streak and completion, Areas with open tasks — using the existing row actions; "Završi nedeljni pregled" records the week in `settings.weeklyReviews` (validated on backup import); a Today notice on the last three days of the week; sidebar PROGRESS and "Još" entries. Pending merge; iPhone and Mac use is manual-pending (B27).
-- [x] **Duration + time-blocking (V1.12).** Before: `durationMinutes`, same-day planned-time blocks and overlap detection (`js/core.js`); since V1.10 Quick Add reads durations (`45min`, `1h30`). Done in V1.12 (spec `docs/superpowers/specs/2026-10-08-todo-v1-12-design.md`, ledger `docs/superpowers/progress-v1-12.md`): Calendar "Dan" view with a capacity bar, a "Bez vremena" list (native time inputs, drag) and an hour grid on the existing drag/drop (conflict, estimated and completed blocks); daily capacity (`settings.dailyCapacityMinutes`, default 6 h) in Settings and on Today; a Quick Add "Trajanje" chip. The week stays a list (no multi-day grid). Packaged as `Dailo-v1.12-distributable.zip`, which closes Phase 4. Pending merge; drag, time inputs and capacity on iPhone and Mac are manual-pending (B26, B28–B30).
+- [x] **Weekly review (V1.11).** Before: Today "Daily review" stats card. Done in V1.11 (spec `docs/superpowers/specs/2026-10-08-todo-v1-11-design.md`, ledger `docs/superpowers/progress-v1-11.md`): `#review` page (`js/review-ui.js`) with six numbered steps — Inbox, overdue and missed plans, next 7 days, Goals with health, Habits with streak and completion, Areas with open tasks — using the existing row actions; "Završi nedeljni pregled" records the week in `settings.weeklyReviews` (validated on backup import); a Today notice on the last three days of the week; sidebar PROGRESS and "Još" entries. Merged through PR #7; iPhone and Mac use is manual-pending (B27).
+- [x] **Duration + time-blocking (V1.12).** Before: `durationMinutes`, same-day planned-time blocks and overlap detection (`js/core.js`); since V1.10 Quick Add reads durations (`45min`, `1h30`). Done in V1.12 (spec `docs/superpowers/specs/2026-10-08-todo-v1-12-design.md`, ledger `docs/superpowers/progress-v1-12.md`): Calendar "Dan" view with a capacity bar, a "Bez vremena" list (native time inputs, drag) and an hour grid on the existing drag/drop (conflict, estimated and completed blocks); daily capacity (`settings.dailyCapacityMinutes`, default 6 h) in Settings and on Today; a Quick Add "Trajanje" chip. The week stays a list (no multi-day grid). Packaged as `Dailo-v1.12-distributable.zip`, which closes Phase 4. Merged through PR #7; drag, time inputs and capacity on iPhone and Mac are manual-pending (B26, B28–B30).
 
 ## Phase 5 — V2.0 Mobile app + Supabase sync
 
@@ -74,16 +74,27 @@ The mobile app and the database ship together (user decision, 2026-10-07). Wrapp
 
 Requires an approved V2.0 spec that explicitly amends the "No backend, accounts or cloud sync" rule in `AGENTS.md`.
 
-**Draft (2026-10-08):** `docs/superpowers/specs/2026-10-08-todo-v2-0-design.md`, status **DRAFT — not approved**. It proposes a Capacitor wrapper around the existing web app, optional Supabase sign-in by e-mail magic link, a generic `records` table with Row Level Security, local-first outbox sync with last-write-wins per record, an EU (Frankfurt) project and three sub-phases (V2.0-a web sync, V2.0-b Capacitor shell, V2.0-c store release). It awaits the user's six decisions (platforms, sign-in method, conflict policy, attachments in sync, app name and bundle id, privacy-page hosting) and what only the user can provide: a Supabase EU project, Apple Developer membership (and Google Play Console for Android), signing on the user's Mac, and approval of the privacy text. Until it is approved, the `AGENTS.md` no-backend rule still applies.
+**Approved (2026-10-08):** `docs/superpowers/specs/2026-10-08-todo-v2-0-design.md`, with the user's six decisions:
+- iPhone and Android together;
+- e-mail one-time code without a password, only with V2.0;
+- last-write-wins per record;
+- attachments in V2.1;
+- "Dailo" with the id `cloud.ivapix.dailo`;
+- the privacy page before the store release.
 
-Spec must decide:
-- [ ] Mobile packaging: Capacitor wrapper vs. alternatives; native storage for local data; native notifications; store listing and review requirements.
-- [ ] Auth (Supabase Auth, e-mail magic link) and Row Level Security per user.
-- [ ] Data mapping for canonical entities, Habit logs, Goal history and attachments (Supabase Storage); tombstones for deletes.
-- [ ] Sync model: the local store stays the UI source of truth; background push/pull with an offline queue; conflict policy (per-entity last-write-wins on `updatedAt` as a starting point).
-- [ ] First sign-in migration of existing local data; ZIP backup stays available.
-- [ ] Privacy note, account/data deletion, and free-tier limits (free projects pause after inactivity).
+`AGENTS.md` was amended: optional sync is allowed, the app works fully without an account, and the service-role key never enters the repository.
+
+- [x] **Spec decisions:**
+  - packaging: Capacitor around the web app;
+  - auth: Supabase e-mail OTP and Row Level Security per user;
+  - data mapping: one `records` table, tombstones, server history; attachments and goal history in V2.1;
+  - sync model: local-first shadow diff, push then pull, last-write-wins;
+  - first sign-in: merge, server or device, after a safety snapshot;
+  - privacy and account deletion; free-tier limits.
+- [x] **V2.0-a sync in the web app** (`2.0.0-alpha.1`, plan `docs/superpowers/plans/2026-10-08-todo-v2-0a.md`, ledger `docs/superpowers/progress-v2-0a.md`): `supabase/migrations/0001_sync.sql`, `js/sync.js`, `js/sync-config.js`, the Settings "Sinhronizacija" card and the setup guide `docs/v2/podesavanje-supabase.md`. It is not yet merged into `main`. Sync stays off until the user supplies the Supabase project URL and public key; real use is manual-pending (B31–B36).
+- [ ] **V2.0-b Capacitor shell:** `ios/`, `android/`, icons and splash, local notifications for reminders.
+- [ ] **V2.0-c store release:** privacy page, store texts, TestFlight and Play internal testing.
 
 ## Next step
 
-Phase 1 is done (V1.9.1, on `main` since PR #6), and Phase 4 is done (V1.10–V1.12, packaged as `Dailo-v1.12-distributable.zip`, merged into `main` through PR #7). Phase 2 and Phase 3 remain user actions: the beta gate (`docs/beta/provera-pre-bete.md`, B6–B30) on the user's iPhone and Mac, and inviting testers; fixes ship as patches with a failing test first. Next for Phase 5: the V2.0 spec draft (`docs/superpowers/specs/2026-10-08-todo-v2-0-design.md`) needs the user's decisions and accounts before approval; it amends the no-backend rule only once the user approves it.
+Phase 1 is done (V1.9.1, on `main` since PR #6), and Phase 4 is done (V1.10–V1.12, packaged as `Dailo-v1.12-distributable.zip`, merged into `main` through PR #7). Phase 2 and Phase 3 remain user actions: the beta gate (`docs/beta/provera-pre-bete.md`, B6–B30, and B31–B36 once sync is configured) on the user's iPhone and Mac, and inviting testers; fixes ship as patches with a failing test first. Phase 5: the V2.0 spec is approved and V2.0-a is implemented. Next, the user creates the Supabase project (`docs/v2/podesavanje-supabase.md`) and sends the project URL and public key, then runs checks B31–B36; then comes V2.0-b (Capacitor shell).

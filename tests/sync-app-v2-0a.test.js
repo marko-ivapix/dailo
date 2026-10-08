@@ -371,3 +371,27 @@ test('a fired text save clears its timer, so a finished edit does not hold the s
   vm.runInContext('flushTextSave()', context);
   assert.equal(context.saves, 1, 'nothing is left to flush');
 });
+
+test('V2.0-a is released as 2.0.0-alpha.1', () => {
+  assert.equal(Release.APP_VERSION, '2.0.0-alpha.1');
+  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.1';/);
+});
+
+test('after a reset or a restored backup the next sync asks again instead of pushing deletions', async () => {
+  const fake = createFakeSupabase();
+  const laptop = await signedInHarness({ fake, state: baseState({ tasks: [task('t1'), task('t2')] }) });
+  await vm.runInContext('runSync()', laptop.context);
+  const phone = await signedInHarness({ fake, state: baseState() });
+  await vm.runInContext('runSync()', phone.context);
+  assert.deepEqual(phone.context.state.tasks.map(item => item.id), ['t1', 't2']);
+  // A reset leaves the device empty; without a fresh start the next sync would delete both tasks on the server.
+  phone.context.state = baseState();
+  vm.runInContext('forgetSyncShadow()', phone.context);
+  assert.equal(phone.meta().shadow, undefined);
+  assert.equal(phone.meta().cursor, undefined);
+  assert.ok(phone.meta().session, 'the account stays signed in');
+  await vm.runInContext('runSync()', phone.context);
+  assert.deepEqual(fake.rowsFor('ana@example.com').filter(row => row.type === 'tasks' && !row.deleted).map(row => row.id), ['t1', 't2'], 'nothing is deleted on the server');
+  assert.deepEqual(phone.context.state.tasks.map(item => item.id), ['t1', 't2'], 'an empty device takes the account data');
+  assert.match(read('js/app.js'), /state = normalizeState\(op\.validated\.state\); canonicalRaw = localStorage\.getItem\(STORAGE_KEY\); recovery = null; modalState = null;\n\s+if \(!op\.selective\) forgetSyncShadow\(\);/);
+});

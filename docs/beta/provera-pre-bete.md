@@ -11,7 +11,7 @@ Rezultati se upisuju u `docs/superpowers/progress-v1-9.md` (tabela „Manual iPh
 - [x] ✅ **B3.** Rad u avionskom režimu posle jednog otvaranja sa internetom.
 - [x] ✅ **B4.** Podešavanja → Podaci → Trajno čuvanje piše „odobreno“.
 - [x] ✅ **B5.** Izvoz rezervne kopije i uvoz nazad; zadaci ostaju.
-- [ ] **B6.** Nova verzija: posle objave V1.9.1 pojavi se „Dostupna je nova verzija Dailo-a.“ sa dugmetom **Osveži**. Posle osvežavanja, u Podešavanja → O aplikaciji piše verzija **1.9.1** i vidi se **Prijavi problem**.
+- [ ] **B6.** Nova verzija: posle objave nove verzije pojavi se „Dostupna je nova verzija Dailo-a.“ sa dugmetom **Osveži**. Posle osvežavanja, u Podešavanja → O aplikaciji piše nova verzija (npr. **2.0.0-alpha.1**) i vidi se **Prijavi problem**.
 - [ ] **B7.** **Prijavi problem** otvara e-poruku sa verzijom i uređajem.
 - [ ] **B8.** Zatvori aplikaciju (prevuci je iz liste otvorenih) i otvori ponovo: sve je tu.
 
@@ -51,8 +51,19 @@ Rezultati se upisuju u `docs/superpowers/progress-v1-9.md` (tabela „Manual iPh
 - [ ] **B29.** **Dnevni kapacitet** (Podešavanja): sa zadacima koji imaju trajanje, **Danas** prikazuje npr. „2 h 30 min / 6 h“, a kad se pređe, upozorenje.
 - [ ] **B30.** Mac: u dnevnom prikazu prevuci zadatak na drugi sat.
 
+## Sinhronizacija (V2.0-a, tek kad se podesi Supabase)
+
+Dok Supabase nije podešen (`docs/v2/podesavanje-supabase.md`), kartica **Sinhronizacija** se ne vidi i ove stavke se preskaču.
+
+- [ ] **B31.** Podešavanja → **Sinhronizacija**: upiši e-adresu i dodirni **Pošalji kod**. Kod stiže e-poštom; upiši ga i dodirni **Potvrdi**. Vide se nalog i vreme poslednje sinhronizacije.
+- [ ] **B32.** Na Mac-u se prijavi istom e-adresom. Ako oba uređaja već imaju podatke, pojavi se izbor; izaberi **Spoji**. Posle toga su isti zadaci na oba uređaja.
+- [ ] **B33.** Napravi zadatak na iPhone-u. Na Mac-u se pojavi posle **Sinhronizuj sada**, ili sam za najviše 5 minuta.
+- [ ] **B34.** Izmeni jedan i obriši drugi zadatak na Mac-u. Kad se vratiš u aplikaciju na iPhone-u, obe promene su i tu.
+- [ ] **B35.** U avionskom režimu napravi zadatak. Isključi avionski režim i vrati se u aplikaciju: zadatak stiže na drugi uređaj.
+- [ ] **B36.** **Odjavi se**: podaci ostaju na uređaju. Zatim se prijavi ponovo i dodirni **Obriši nalog** (traži da upišeš `OBRIŠI`): nalog i podaci na serveru su obrisani, a podaci na uređaju ostaju.
+
 ## Na kraju
 
 - [ ] **B24.** **Resetuj podatke aplikacije** (samo na Mac-u, ili posle izvoza): traži da upišeš `RESET`, pravi sigurnosnu kopiju i briše podatke. Posle toga **Uvezi rezervnu kopiju** vraća sve.
 
-Kad su B6–B30 prošli (ili su greške popravljene), Dailo je spreman za prve testere: pošalji im link na uputstvo `https://marko-ivapix.github.io/dailo/uputstvo.html`.
+Kad su B6–B30 prošli (i B31–B36, kad je sinhronizacija uključena), ili su greške popravljene, Dailo je spreman za prve testere: pošalji im link na uputstvo `https://marko-ivapix.github.io/dailo/uputstvo.html`.

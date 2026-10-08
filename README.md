@@ -1,4 +1,4 @@
-# Dailo — HTML Prototype v1.12
+# Dailo — HTML Prototype v2.0-alpha
 
 Desktop-first, local-first functional prototype for a personal/freelancer task tracker. The product keeps a simple workflow:
 
@@ -19,10 +19,33 @@ Then open `http://localhost:8080`.
 
 - The service worker registers only on `https:` or `localhost`/`127.0.0.1`. On a plain-HTTP LAN address the app still works, without offline caching.
 - Shell files are served cache-first until `sw.js` changes. While developing on localhost, bypass or unregister the worker in the browser's developer tools to see edited files.
-- GitHub Pages serves the repository over HTTPS at `https://marko-ivapix.github.io/dailo/`. All paths and the manifest/service-worker scope are relative (`./`), so install and offline start work under the `/dailo/` sub-path; the user confirmed both on iPhone from this URL on 2026-10-08. Pages publishes `main`, which carries V1.9.1 since PR #6; V1.10, V1.11 and V1.12 are there since PR #7.
+- GitHub Pages serves the repository over HTTPS at `https://marko-ivapix.github.io/dailo/`. All paths and the manifest/service-worker scope are relative (`./`), so install and offline start work under the `/dailo/` sub-path; the user confirmed both on iPhone from this URL on 2026-10-08. Pages publishes `main`, which carries V1.9.1 since PR #6; V1.10, V1.11 and V1.12 are there since PR #7. V2.0-a is on branch `ccr-95f6062b-lgg2fr` until it is merged.
 - The Serbian beta tester guide is at `https://marko-ivapix.github.io/dailo/uputstvo.html` (also linked from Settings → About). It is not precached, so it opens only online.
 
-## V1.12 Duration and time-blocking (current release)
+## V2.0-a Sync in the web app (current release)
+
+Version `2.0.0-alpha.1`. Optional sync between devices through Supabase, with sign-in by a one-time code sent by e-mail (no password). **It is off in this build:** until the Supabase project exists and its URL and public key are in `js/sync-config.js`, the Settings card is hidden and Dailo works exactly as V1.12.
+
+- **Settings → Sinhronizacija** (only when configured):
+  - type an e-mail address, get a code, type the code;
+  - afterwards the card shows the account, the last sync and errors, with "Sinhronizuj sada", "Odjavi se" and "Obriši nalog" (typed `OBRIŠI`; data on the device stays).
+- **What syncs:** tasks, projects, tags, Areas, goals, habits and their logs, notes, resources, templates, saved views and the shared settings.
+  - **Stays on the device:** attachments (V2.1), goal history (V2.1), the UI state, the backup status and the density setting.
+- **When:** at start, when the app comes back to the screen or online, a few seconds after a change, every five minutes, and on demand.
+  - **Waiting:** a sync waits while a dialog, Undo, a drag or typing is in progress.
+  - **Conflicts:** the last write wins per record, and the server keeps the replaced version in `record_history`.
+- **First sign-in on a device that already has data:** if the account also has data, a dialog offers "Spoji" (the newer change wins), "Zadrži podatke sa naloga" or "Zadrži podatke sa ovog uređaja". A local recovery copy is made first.
+- **Safety:**
+  - a full reset or ZIP restore makes the next sync start fresh instead of deleting data on the server;
+  - the ZIP backup, Undo and local snapshots work as before.
+- **Server:**
+  - `supabase/migrations/0001_sync.sql`: one `records` table with Row Level Security, server time, history and account deletion;
+  - setup steps for the owner: `docs/v2/podesavanje-supabase.md` (Serbian);
+  - the `service_role` key never enters the repository.
+
+Spec: `docs/superpowers/specs/2026-10-08-todo-v2-0-design.md` (approved 2026-10-08). Plan: `docs/superpowers/plans/2026-10-08-todo-v2-0a.md`. Evidence: `docs/superpowers/progress-v2-0a.md` (393 Node tests, 393 passed, against an in-memory fake Supabase). Real sign-in and two-device sync are **manual-pending** (beta checklist B31–B36) until the Supabase project exists. There is no ZIP for the alpha; next come V2.0-b (iPhone and Android app with Capacitor) and V2.0-c (store release).
+
+## V1.12 Duration and time-blocking
 
 Version `1.12.0`. A day can be seen as a schedule: what is planned at which hour, what still has no time, and whether the planned work fits into the day.
 
@@ -78,7 +101,7 @@ Spec: `docs/superpowers/specs/2026-10-08-todo-v1-10-design.md`. Plan: `docs/supe
 
 ## V1.9 beta-ready (V1.9.1)
 
-Local-first build for a small Serbian-speaking beta on iPhone Safari. There is still no backend, account or sync; those arrive with the V2.0 mobile app.
+Local-first build for a small Serbian-speaking beta on iPhone Safari. V1.x has no backend, account or sync; the optional sync arrives with V2.0 (V2.0-a above).
 
 - **Install to the iPhone Home Screen.** In Safari tap Share → Add to Home Screen → Add. Settings → General shows these steps, or confirms that Dailo is installed. Safari and the installed app keep separate data: install first, then use; move existing Safari data with ZIP export and import.
 - **Offline start.** Geist, Space Grotesk and Phosphor icons are vendored with their licenses (`vendor/fonts/`, `vendor/phosphor/`); no CDN is used. `sw.js` precaches the app shell in a versioned cache. Docs, downloads and other requests go to the network.
@@ -88,7 +111,7 @@ Local-first build for a small Serbian-speaking beta on iPhone Safari. There is s
 - **Serbian interface (`sr-Latn`).** Every screen, dialog, toast, Undo message, recovery screen and the Search modal's labels are Serbian. Dates and numbers use `sr-Latn-RS`. Search behavior is unchanged, and the typed confirmations stay `RESET` and `RESTORE`.
 - **Serbian Quick Add.** Trailing `danas`, `sutra` and weekdays (`ponedeljak` … `nedelja`, with or without diacritics, optionally after `u`, e.g. `u sredu`) set the plan date; `u 9:30` sets the time. English keywords keep working. V1.10 extends this syntax (above).
 - **Version and problem report.** The version (`1.9.1` in that release, `1.12.0` now) appears in Settings → About and the brand tooltip; the backup manifest records `releaseVersion`. "Report a problem" opens an e-mail to the beta address `marko.radicevic@ivapix.cloud` (configured in V1.9.1) with the version and device details only, never app data.
-- **Beta tester guide and checklist (V1.9.1).** Settings → About → "Beta tester guide" opens `uputstvo.html`, a short Serbian page: install on iPhone, data on the device, backups, Quick Add, offline use and the update notice, limitations and how to report a problem. `docs/beta/provera-pre-bete.md` is the Serbian beta checklist (B1–B24, plus B25–B30 for the V1.10–V1.12 features since V1.12) to run before inviting testers.
+- **Beta tester guide and checklist (V1.9.1).** Settings → About → "Beta tester guide" opens `uputstvo.html`, a short Serbian page: install on iPhone, data on the device, backups, Quick Add, offline use and the update notice, limitations and how to report a problem. `docs/beta/provera-pre-bete.md` is the Serbian beta checklist (B1–B24, plus B25–B30 for the V1.10–V1.12 features since V1.12 and B31–B36 for the sync once it is configured) to run before inviting testers.
 - **Fixes.** V1.9.1 translates two remaining English fallbacks: the live Quick Add plan chip and the Settings → Data "Validation" line after an import or reset. The favorite star icon renders again (G1); a stored week start of `0` now behaves as Sunday everywhere (G2); the stale disabled "Week starts on" row is gone from Settings → General (G3). `Core.makeUuid()` falls back to `crypto.getRandomValues` or `Math.random` where `crypto.randomUUID` is unavailable, such as plain-HTTP LAN addresses.
 
 Spec: `docs/superpowers/specs/2026-10-07-todo-v1-9-design.md`. Plan: `docs/superpowers/plans/2026-10-07-todo-v1-9.md`. Evidence: `docs/superpowers/progress-v1-9.md`. The user reported install, standalone layout, airplane-mode launch, the Serbian UI and Quick Add, the favorite star, persistent storage and ZIP export/import as working on iPhone (2026-10-08). The update notice, the problem-report e-mail, the backup reminder notice (only 7 days after an export) and the rest of the beta checklist are **manual-pending**.
@@ -127,7 +150,7 @@ Spec: `docs/superpowers/specs/2026-10-07-todo-v1-9-design.md`. Plan: `docs/super
 
 Spec: `docs/superpowers/specs/2026-10-07-todo-v1-8-design.md`. Plan: `docs/superpowers/plans/2026-10-07-todo-v1-8.md`. Evidence: `docs/superpowers/progress-v1-8.md`. V1.8 visual, responsive, touch, keyboard and assistive-technology acceptance in a native browser is **manual-pending**.
 
-The V1.12, V1.11 and V1.10 evidence ledgers are `docs/superpowers/progress-v1-12.md`, `progress-v1-11.md` and `progress-v1-10.md`; the V1.9 ledger `docs/superpowers/progress-v1-9.md` also holds the user's iPhone results; the V1.7 release ledger is `docs/superpowers/progress-v1-7.md`. Native browser acceptance is **manual-pending** unless that ledger explicitly records a user-owned-browser run; static checks and Node tests do not imply visual or browser acceptance.
+The V2.0-a, V1.12, V1.11 and V1.10 evidence ledgers are `docs/superpowers/progress-v2-0a.md`, `docs/superpowers/progress-v1-12.md`, `progress-v1-11.md` and `progress-v1-10.md`; the V1.9 ledger `docs/superpowers/progress-v1-9.md` also holds the user's iPhone results; the V1.7 release ledger is `docs/superpowers/progress-v1-7.md`. Native browser acceptance is **manual-pending** unless that ledger explicitly records a user-owned-browser run; static checks and Node tests do not imply visual or browser acceptance.
 
 For Claude Code continuation, start with `CLAUDE.md` and `docs/claude/CONTINUATION.md`. Historical versioned specs remain traceability documents; current source and focused tests are the factual implementation baseline.
 
@@ -147,7 +170,7 @@ Storage failures distinguish unsaved changes from an automatic snapshot failure 
 
 ### Verification status
 
-The latest verification is recorded in `docs/superpowers/progress-v1-12.md` (V1.12: 367 Node tests, 367 passed, 0 failed, 0 todo; JavaScript syntax 70/70); V1.11 (357 tests) and V1.10 (348 tests) are in their own ledgers, and the V1.9.1 record (335 tests) is in `docs/superpowers/progress-v1-9.md`. The release package is `Dailo-v1.12-distributable.zip` with a `.sha256` sidecar (recipe in `docs/claude/TESTING_AND_RELEASE.md`); it carries V1.10–V1.12 and closes roadmap Phase 4. `Dailo-v1.9.1-distributable.zip` is the previous package. V1.7 release evidence stays in `docs/superpowers/progress-v1-7.md`. Both distinguish automated evidence from the **manual-pending** user-owned-browser and iPhone gate; no isolated Chromium or personal Chrome is opened by the implementation workflow.
+The latest verification is recorded in `docs/superpowers/progress-v2-0a.md` (V2.0-a: 393 Node tests, 393 passed, 0 failed, 0 todo; JavaScript syntax 75/75); V1.12 (367 tests) is in `docs/superpowers/progress-v1-12.md`, V1.11 (357 tests) and V1.10 (348 tests) are in their own ledgers, and the V1.9.1 record (335 tests) is in `docs/superpowers/progress-v1-9.md`. The release package is `Dailo-v1.12-distributable.zip` with a `.sha256` sidecar (recipe in `docs/claude/TESTING_AND_RELEASE.md`); it carries V1.10–V1.12 and closes roadmap Phase 4. `Dailo-v1.9.1-distributable.zip` is the previous package. V1.7 release evidence stays in `docs/superpowers/progress-v1-7.md`. Both distinguish automated evidence from the **manual-pending** user-owned-browser and iPhone gate; no isolated Chromium or personal Chrome is opened by the implementation workflow.
 
 ## V1.4 foundation
 
@@ -162,7 +185,7 @@ V1.4 keeps the V1.3 data model and adds a faster daily-planning flow:
 
 V1.4 does not change global Search, add bulk actions, or introduce a backend. Existing V1.3/V3 state and ZIP backups remain readable; no persisted schema bump was needed.
 
-Since V1.9, Space Grotesk, Geist and the Phosphor icon styles are vendored under `vendor/fonts/` and `vendor/phosphor/` with their license files (V1.4–V1.8 loaded them from public CDNs). The application itself has no backend or account requirement.
+Since V1.9, Space Grotesk, Geist and the Phosphor icon styles are vendored under `vendor/fonts/` and `vendor/phosphor/` with their license files (V1.4–V1.8 loaded them from public CDNs). The application itself has no backend or account requirement; the V2.0-a sync is optional.
 
 ## What is included
 
@@ -422,7 +445,7 @@ Goal creation keeps milestones, reminders and source-specific links under More. 
 - multi-day hourly grid, block resizing and automatic scheduling (V1.12 adds a single-day hour grid in Calendar → Dan)
 - elapsed-time tracking (optional planned Task duration is supported)
 - comments / collaboration
-- accounts / backend / cloud sync (planned for V2.0; its spec `docs/superpowers/specs/2026-10-08-todo-v2-0-design.md` is a draft awaiting the user's decisions)
+- sync of attachments and goal history (V2.1), native iPhone/Android apps (V2.0-b), password or social sign-in, sharing between users
 - AI planning
 - integrations
 - inline image/PDF attachment preview

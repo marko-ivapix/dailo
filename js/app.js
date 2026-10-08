@@ -3479,6 +3479,17 @@
     render();
   }
 
+  // A reset or a restored backup is a new starting point: the next sync asks again (or takes the account data
+  // on an empty device) instead of pushing deletions for everything that is gone.
+  function forgetSyncShadow() {
+    const meta = loadSyncMeta();
+    if (!meta.shadow) return;
+    delete meta.shadow;
+    delete meta.cursor;
+    syncMeta = meta;
+    saveSyncMeta();
+  }
+
   async function requestSyncCode() {
     if (!syncClient || syncUi.busy) return;
     const email = String($('#sync-email')?.value ?? syncUi.email).trim();
@@ -3948,6 +3959,7 @@
       await verifyGlobalReplacement(op);
       deleteLifecycle.retire(op.token);
       state = normalizeState(op.validated.state); canonicalRaw = localStorage.getItem(STORAGE_KEY); recovery = null; modalState = null;
+      if (!op.selective) forgetSyncShadow();
       const committedSource = captureStatusSource();
       globalOperation = phaseError ? op : null; renderModal(); location.hash = '#today'; render();
       try {

@@ -172,7 +172,9 @@ test('Quick Add has a duration chip with preset values that wins over the parsed
   assert.match(app, /action === 'set-duration'\) setQuickDuration\(button\.dataset\.minutes\)/);
 });
 
-test('V1.12 is released as 1.12.0', () => {
-  assert.equal(Release.APP_VERSION, '1.12.0');
-  assert.match(read('sw.js'), /const VERSION = '1\.12\.0';/);
+// The newest release test pins the exact version; this one only requires V1.12 or later.
+test('V1.12 shipped as 1.12.0 or later', () => {
+  const [major, minor] = Release.APP_VERSION.split('.').map(Number);
+  assert.ok(major > 1 || minor >= 12, Release.APP_VERSION);
+  assert.ok(read('sw.js').includes(`const VERSION = '${Release.APP_VERSION}';`), 'sw.js follows APP_VERSION');
 });

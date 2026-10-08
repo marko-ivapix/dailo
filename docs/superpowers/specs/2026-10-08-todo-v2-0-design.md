@@ -1,6 +1,6 @@
-# Dailo V2.0 — Mobile app and Supabase sync (DRAFT)
+# Dailo V2.0 — Mobile app and Supabase sync
 
-**Status:** **APPROVED 2026-10-08** ("da") with all six decisions answered (section "Decisions for the user"). Work starts with phase V2.0-a; the accounts (section "What the user provides") are needed for real use, not for writing and testing the code.
+**Status:** **APPROVED 2026-10-08** ("da") with all six decisions answered (section "Decisions for the user"). Work starts with phase V2.0-a; the accounts (section "What the user provides") are needed for real use, not for writing and testing the code. V2.0-a is implemented (`docs/superpowers/progress-v2-0a.md`); sections D, E and decision 3 were aligned with it on 2026-10-08.
 **Baseline:** V1.12 (Phase 4 done).
 **Roadmap:** `docs/superpowers/plans/2026-10-07-release-roadmap.md`, Phase 5. The user decided on 2026-10-07 that the mobile app and the database ship together.
 **Rule change:** this approved spec amends `AGENTS.md` "No backend, accounts or cloud sync" for V2.0: optional Supabase sync is allowed as described here, and the app must keep working fully without an account. The service-role key never enters the repository. The project URL and the public anon key go into `js/sync-config.js` only when the user supplies them. The anon key is public by Supabase design; Row Level Security protects the data.
@@ -67,8 +67,8 @@ Two problems that V1.x cannot solve go away:
 
 ### E. First sign-in and migration
 
-- **Choice on a non-empty account:** at the first sign-in on a device that already has local data and an account that already has data, the user picks one: "Spoji" (merge, last write wins), "Zadrži podatke sa servera" or "Zadrži podatke sa ovog uređaja".
-- **Safety snapshot:** a safety snapshot is taken first, as for ZIP import.
+- **Choice on a non-empty account:** at the first sign-in on a device that already has local data and an account that already has data, the user picks one: "Spoji" (merge: a record on both sides keeps its newer `updatedAt`, otherwise this device's version), "Zadrži podatke sa naloga" or "Zadrži podatke sa ovog uređaja". "Otkaži i odjavi se" leaves both sides unchanged.
+- **Safety snapshot:** a local automatic snapshot is always taken first, outside the usual five-minute pause; if it fails, the sync does not start.
 - **Moving from the PWA:** this is also how a user moves from the PWA or Safari to the App Store app: sign in on both.
 
 ### F. Privacy and compliance
@@ -90,7 +90,7 @@ Two problems that V1.x cannot solve go away:
 
 1. **V2.0-a, sync in the web app:**
    - schema and Row Level Security migrations (SQL files in `supabase/`);
-   - `js/sync.js` (outbox, push, pull, conflicts) with Node tests against a fake client;
+   - `js/sync.js` (shadow diff, push, pull, conflicts) with Node tests against a fake server;
    - optional sign-in in Settings.
    - The beta testers try it on the PWA first.
 2. **V2.0-b, Capacitor shell:**
@@ -104,7 +104,7 @@ Each phase gets its plan, failing tests first, and a ledger, as V1.x did.
 
 1. **Platforms.** **Decided 2026-10-08:** iPhone and Android together (TestFlight and Play internal testing in parallel).
 2. ~~**Sign-in method.**~~ **Decided 2026-10-08:** e-mail without a password (one-time code), and only with V2.0.
-3. **Conflict policy.** **Decided 2026-10-08:** last-write-wins per record, with the losing version kept in recovery snapshots.
+3. **Conflict policy.** **Decided 2026-10-08:** last-write-wins per record. The replaced version is kept on the server in `record_history`; local recovery snapshots stay available on each device.
 4. **Attachments.** **Decided 2026-10-08:** sync records first; attachments follow in V2.1.
 5. **App name and identifier.** **Decided 2026-10-08:** "Dailo", bundle/application id `cloud.ivapix.dailo`.
 6. **Privacy page.** **Decided 2026-10-08:** it is written and published later, before the store release (phase V2.0-c); it is not needed for V2.0-a and V2.0-b.

@@ -1,6 +1,6 @@
 # Data, persistence and recovery
 
-This is the current storage contract inspected on 2026-10-07 (V1.9) and rechecked on 2026-10-08 for V1.9.1 and V1.10 (no storage change) and for V1.11 and V1.12 (two optional settings, `d00855b`), from `js/core.js`, `js/storage.js`, `js/attachments.js`, `js/backup.js`, `js/release.js` and the coordinating portions of `js/app.js` and `js/settings-ui.js`. V1.9–V1.12 change no schema: metadata `version: 3`, IndexedDB `todoAppDB` v1 and ZIP `backupVersion: 2` are unchanged, and no key or ID was renamed.
+This is the current storage contract inspected on 2026-10-07 (V1.9) and rechecked on 2026-10-08 for V1.9.1 and V1.10 (no storage change) for V1.11 and V1.12 (two optional settings, `d00855b`) and for V2.0-a (one device-local sync key, `7a834db`), from `js/core.js`, `js/storage.js`, `js/attachments.js`, `js/backup.js`, `js/release.js`, `js/sync.js` and the coordinating portions of `js/app.js` and `js/settings-ui.js`. V1.9–V2.0-a change no schema: metadata `version: 3`, IndexedDB `todoAppDB` v1 and ZIP `backupVersion: 2` are unchanged, and no key or ID was renamed.
 
 ## Two persistence layers
 
@@ -12,6 +12,8 @@ This is the current storage contract inspected on 2026-10-07 (V1.9) and rechecke
 - Transient runtime caches such as `habitLogCache` and `habitMetrics` are not persisted.
 - `saveState()` normalizes before writing and preserves IDs; it does not silently repair invalid future data.
 - Device-local key `todoAppBackupReminderSnoozedUntil` (V1.9): an ISO time 24 h after "Remind me tomorrow". It is not part of `todoAppData`, snapshots or ZIP backups, so a restore or another device never carries it. Reads and writes are wrapped in `try`; in private mode the notice simply returns.
+
+- Device-local key `dailoSync` (V2.0-a): `{ userId, session, shadow, cursor, lastSyncAt, lastError }` for the optional sync. `session` holds the Supabase access and refresh tokens and the account e-mail; `shadow` maps `type/id` to the hash last synced; `cursor` is the newest server `updated_at` seen. It is not part of `todoAppData`, snapshots or ZIP backups. Sign-out and account deletion remove it; an expired session removes only `session`.
 
 ### IndexedDB
 
@@ -65,6 +67,16 @@ V1.11 and V1.12 settings (both optional, no normalization default, so `normalize
 After successful saves, the app attempts an automatic snapshot after an idle delay, rate-limited to at most one capture every five minutes. Startup also schedules capture. Five automatic snapshots are retained. Interrupted global operations use separate recovery snapshots and are not pruned as ordinary automatic history.
 
 Snapshots can include normalized metadata, attachment records/Blobs, Habit logs and Goal history. They consume the same browser storage quota and are not a replacement for an exported ZIP.
+
+## Sync and the server copy (V2.0-a)
+
+- **Off by default.** Sync is optional and off until `js/sync-config.js` has the project URL and public key. Without it nothing leaves the device.
+- **What reaches the server:** the records of the ten collections, the settings without `backupStatus` and `compactDensity`, and the habit logs. Attachments (and `attachmentIds`), goal history, `ui` and recovery snapshots stay on the device (V2.1 adds attachments and goal history).
+- **Deletes** become tombstones (`deleted = true`, `data = null`), so other devices remove the record.
+- **Server history.** Every update replaces a row and copies the previous version into `record_history`. It can be read only by its owner and is recovered on the server, not through the app.
+- **Local safety.** Pulled data goes through the same `saveState` path, so automatic snapshots keep running. The first-sync choice takes a forced automatic snapshot first (`{ force: true }`), and the ZIP backup, Undo and selective restore stay available.
+- **Reset or ZIP restore while signed in:** a committed full reset or restore clears the shadow and cursor (`forgetSyncShadow`, the session stays), so the next sync is a first sync. After a reset (empty device) the account data comes back; after a restore, with data on both sides, the choice dialog opens. Nothing is deleted on the server by a reset; removing the server data takes "Obriši nalog". A selective restore of one item syncs like a normal edit.
+- **Account deletion** (`delete_my_account()`) removes the server rows, history and auth user; local data stays.
 
 ## Device storage protection (V1.9)
 
