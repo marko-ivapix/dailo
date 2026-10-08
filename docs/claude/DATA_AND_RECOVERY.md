@@ -1,6 +1,6 @@
 # Data, persistence and recovery
 
-This is the current storage contract inspected on 2026-10-07 (V1.9) from `js/core.js`, `js/storage.js`, `js/attachments.js`, `js/backup.js`, `js/release.js` and the coordinating portions of `js/app.js` and `js/settings-ui.js`. V1.9 changes no schema: metadata `version: 3`, IndexedDB `todoAppDB` v1 and ZIP `backupVersion: 2` are unchanged, and no key or ID was renamed.
+This is the current storage contract inspected on 2026-10-07 (V1.9; rechecked 2026-10-08 for V1.9.1, which changes no storage) from `js/core.js`, `js/storage.js`, `js/attachments.js`, `js/backup.js`, `js/release.js` and the coordinating portions of `js/app.js` and `js/settings-ui.js`. V1.9 changes no schema: metadata `version: 3`, IndexedDB `todoAppDB` v1 and ZIP `backupVersion: 2` are unchanged, and no key or ID was renamed.
 
 ## Two persistence layers
 
@@ -30,7 +30,7 @@ Do not confuse these versions:
 | IndexedDB database | `1` | Object-store schema |
 | ZIP backup format | `2` | `backup.js` export/import manifest contract |
 | Application label in exported ZIP | `1.3` | Historical app version field |
-| Release version in exported ZIP | `1.9.0` | `releaseVersion` from `DailoRelease.APP_VERSION` (V1.9; `null` if release metadata is unavailable) |
+| Release version in exported ZIP | `1.9.1` | `releaseVersion` from `DailoRelease.APP_VERSION` (V1.9; `null` if release metadata is unavailable) |
 
 `exportBackupV3` refers to the V3 state payload, not to ZIP format 3. The current implementation exports `backupVersion: 2` and accepts backup versions `1` and `2`. The manifest's historical `appVersion: '1.3'` is not the current product release label; since V1.9 the release label is the separate `releaseVersion` field. Older ZIPs without `releaseVersion` remain importable.
 

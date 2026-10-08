@@ -24,19 +24,19 @@ git diff --check
 
 These checks need no Python packages. Where a local `.venv` exists (gitignored, so not in cloud clones), `./.venv/bin/python` can replace `python3`.
 
-Current V1.9 evidence (2026-10-07, after Step 6; see `docs/superpowers/progress-v1-9.md`). The same results were reproduced when these docs were synchronized:
+Current V1.9.1 evidence (2026-10-08, V1.9 plan Step 7; see `docs/superpowers/progress-v1-9.md`), Node v22.22.0 and Python 3.13.16:
 
 | Check | Result |
 | --- | ---: |
-| Complete Node suite | **330 tests: 329 passed, 0 failed, 1 todo** (288 from V1.8 plus 42 in seven `tests/*-v1-9.test.js` files). The todo is the release gate in `tests/release-v1-9.test.js`, waiting for the problem-report address. |
-| JavaScript syntax | **63 files passed** (`js/*.js vendor/*.js tests/*.js`) plus `tests/support/i18n.js` and `sw.js` |
+| Complete Node suite | **335 tests: 335 passed, 0 failed, 0 todo** (288 from V1.8 plus 47 in eight V1.9/V1.9.1 files: seven `tests/*-v1-9.test.js` and `tests/beta-v1-9-1.test.js`). The release gate in `tests/release-v1-9.test.js` is a real assertion now that `REPORT_EMAIL` is set. |
+| JavaScript syntax | **66 files passed**: 64 (`js/*.js vendor/*.js tests/*.js`) plus `tests/support/i18n.js` and `sw.js` |
 | Python AST parsing | **19 files passed** (`tests/*.py`) |
-| Static browser contracts | **10/10 passed** (`--dry-run`) |
+| Static browser contracts | **10/10 passed** (`--dry-run`: 2 + 3 + 5) |
 | Browser-regression registry contracts | **3/3 passed** (functions invoked explicitly) |
 | Browser-path adapter unittest | **2/2 passed** |
-| `git diff --check` | passed |
+| `git diff --check` | passed (new untracked files checked against a temporary copy of the index) |
 
-When `REPORT_EMAIL` is set, the release gate becomes a real assertion and the expected Node result is 330 passed, 0 failed, 0 todo.
+V1.9 Step 6 (2026-10-07) recorded 330 tests: 329 passed, 0 failed, 1 todo (the release gate while the address was empty), and 63 + 2 JavaScript files.
 
 V1.8 evidence (2026-10-07, after the visual redesign; see `docs/superpowers/progress-v1-8.md`):
 
@@ -70,7 +70,7 @@ V1.7 release evidence (re-run 2026-10-07, before V1.8):
 
 ## Test scope
 
-Node tests cover pure Core rules, migrations, storage/backup validation, Goal and Habit calculations, Calendar projections, Today projections, templates, Notes/Resources, recovery status and selected controller/adapter behavior. The V1.9 files add the fixes and `makeUuid` (`fixes`), release metadata and the report gate (`release`), backup reminder and persistence (`data-protection`), manifest/icons/meta (`install`), vendored assets and the service worker (`offline`), the i18n mechanism, catalog completeness and untranslated-text audit (`i18n`), and Serbian Quick Add (`quick-add`). Node runs in English: only `tests/i18n-v1-9.test.js` loads `js/i18n-sr.js` to assert Serbian output (each test file runs in its own process), and VM sandboxes get the English `I18n` from `tests/support/i18n.js`. Several tests use VM contexts, memory storage doubles or static source/CSS assertions. They are valuable regression checks but do not prove native browser persistence or visual layout.
+Node tests cover pure Core rules, migrations, storage/backup validation, Goal and Habit calculations, Calendar projections, Today projections, templates, Notes/Resources, recovery status and selected controller/adapter behavior. The V1.9 files add the fixes and `makeUuid` (`fixes`), release metadata and the report gate (`release`), backup reminder and persistence (`data-protection`), manifest/icons/meta (`install`), vendored assets and the service worker (`offline`), the i18n mechanism, catalog completeness and untranslated-text audit (`i18n`; since V1.9.1 also English fallbacks inside `${…}` expressions and `msg()`-only `validationResult:` literals), and Serbian Quick Add (`quick-add`). `tests/beta-v1-9-1.test.js` (V1.9.1) checks the version and report address, the About guide and report links, and the guide page `uputstvo.html` (Serbian Latin, headings, local-only references). Node runs in English: only `tests/i18n-v1-9.test.js` loads `js/i18n-sr.js` to assert Serbian output (each test file runs in its own process), and VM sandboxes get the English `I18n` from `tests/support/i18n.js`. Several tests use VM contexts, memory storage doubles or static source/CSS assertions. They are valuable regression checks but do not prove native browser persistence or visual layout.
 
 `tests/ui-*.py` contains browser scenarios. `tests/browser_test_support/` contains the test-only adapter. `tests/run-browser-regressions.py --dry-run` lists the maintained groups and runs only static entries; it never launches a browser. The optional historical harness requires the pinned dependency in `requirements-browser-tests.txt`; it is not run as part of this release verification.
 
@@ -80,11 +80,45 @@ The Playwright scenarios in `tests/ui-*.py` select elements by English text, so 
 
 ## Browser acceptance policy
 
-No isolated Chromium was launched for the V1.7 release, the V1.8 visual redesign or V1.9. The user's personal Chrome was not opened or modified. The V1.9 iPhone checklist (spec "Acceptance") is recorded only from the user's own report and is **manual-pending**. Native browser acceptance remains **manual-pending**: real reload persistence, IndexedDB behavior, attachment chooser interactions, focus/keyboard behavior, responsive layout and mobile gestures must be checked in a user-owned browser when desired.
+No isolated Chromium was launched for the V1.7 release, the V1.8 visual redesign, V1.9 or V1.9.1. The user's personal Chrome was not opened or modified. iPhone results are recorded only from the user's own report: B1–B5 of `docs/beta/provera-pre-bete.md` passed on 2026-10-08 (table in `docs/superpowers/progress-v1-9.md`); B6 (update notice) to B24 are **manual-pending**. Native browser acceptance remains **manual-pending**: real reload persistence, IndexedDB behavior, attachment chooser interactions, focus/keyboard behavior, responsive layout and mobile gestures must be checked in a user-owned browser when desired.
 
 ## Distributable ZIP
 
-Current artifact (V1.8, packaged 2026-10-07):
+Current artifact (V1.9.1, 2026-10-08):
+
+```text
+Dailo-v1.9.1-distributable.zip
+SHA-256: recorded only in the adjacent `Dailo-v1.9.1-distributable.zip.sha256` sidecar (`sha256sum -c` format)
+Source: the commit that contains the V1.9.1 docs; the ZIP and sidecar are added in the next commit
+Archive entries: 75 regular files, no directory entries (dry run, 2026-10-08)
+Archive validation: `unzip -t` passed (dry run)
+```
+
+V1.9.0 was never packaged; V1.9.1 is the V1.9 release artifact. The layout is the V1.8 package plus the V1.9 runtime files and assets (`js/release.js`, `js/i18n.js`, `js/i18n-sr.js`, `manifest.webmanifest`, `sw.js`, `vendor/fonts/*` and `vendor/phosphor/*` with their license files, `icons/*`), `tools/generate-icons.py`, the V1.9 spec, plan and ledger, the release roadmap, and since V1.9.1 the guide page `uputstvo.html` and the Serbian beta checklist `docs/beta/*.md`. Tests stay excluded.
+
+Build (reproducible: the archive is made from a commit, file times are that commit's time, entries are sorted and zip extra fields are omitted). `git archive` packages committed files only. `SRC=HEAD` when packaging freshly committed docs/source; to re-verify the published package, use the parent of the commit that added it, `SRC=$(git rev-list -1 HEAD -- Dailo-v1.9.1-distributable.zip)^`.
+
+```bash
+SRC=HEAD
+OUT="$PWD/Dailo-v1.9.1-distributable.zip"; STAGE=$(mktemp -d); rm -f "$OUT"
+git archive "$SRC" -- .gitignore AGENTS.md CLAUDE.md PROJECT_OVERVIEW.md README.md index.html uputstvo.html \
+  manifest.webmanifest sw.js requirements-browser-tests.txt css/styles.css 'js/*.js' vendor/jszip.min.js \
+  'vendor/fonts/*' 'vendor/phosphor/*' 'icons/*' tools/generate-icons.py \
+  'docs/claude/*.md' 'docs/codex/*.md' 'docs/beta/*.md' \
+  docs/superpowers/specs/2026-09-22-todo-v1-7-design.md docs/superpowers/plans/2026-09-22-todo-v1-7.md \
+  docs/superpowers/progress-v1-7.md docs/superpowers/specs/2026-10-07-todo-v1-8-design.md \
+  docs/superpowers/plans/2026-10-07-todo-v1-8.md docs/superpowers/progress-v1-8.md \
+  docs/superpowers/specs/2026-10-07-todo-v1-9-design.md docs/superpowers/plans/2026-10-07-todo-v1-9.md \
+  docs/superpowers/progress-v1-9.md docs/superpowers/plans/2026-10-07-release-roadmap.md | tar -x -C "$STAGE"
+(cd "$STAGE" && find . -type f | sed 's|^\./||' | LC_ALL=C sort | TZ=UTC zip -X -D -q "$OUT" -@)
+unzip -t "$OUT" && sha256sum Dailo-v1.9.1-distributable.zip > Dailo-v1.9.1-distributable.zip.sha256
+```
+
+- `vendor/jszip.min.js` is named explicitly; git pathspecs let `*` cross `/`, so `vendor/*.js` would also match future nested scripts.
+- Dry run (2026-10-08): the working tree with the uncommitted V1.9.1 changes was written to a temporary copy of the index (`GIT_INDEX_FILE`, `git add -A`, `git write-tree`), so the real index stayed untouched, and the recipe ran on that tree into a scratch directory outside the repository. Result: **75 regular files** (V1.8's 46 plus 29: the V1.9 runtime, assets and docs, `uputstvo.html` and `docs/beta/provera-pre-bete.md`), no directory entries, `unzip -t` passed. All 38 files of the `sw.js` precache list are in the archive. Offline start of the unzipped folder has not been tried in a browser (manual-pending).
+- The SHA-256 lives only in the sidecar so the packaged ledger and guides stay byte-identical to the release artifact. The packaged docs are a snapshot of the source commit; later documentation edits are not in the ZIP until a new package is built.
+
+### V1.8 package (previous artifact)
 
 ```text
 Dailo-v1.8-distributable.zip
@@ -111,31 +145,7 @@ unzip -t "$OUT" && sha256sum Dailo-v1.8-distributable.zip > Dailo-v1.8-distribut
 
 The SHA-256 lives only in the sidecar so the packaged ledger and guides stay byte-identical to the release artifact. The packaged docs are a snapshot of the source commit; later documentation edits on `main` (such as the branch notes after the 2026-10-07 merge) are not in the ZIP until a new package is built.
 
-### V1.9 package (recipe ready, not yet built)
-
-`Dailo-v1.9-distributable.zip` is built in plan Step 7, after `REPORT_EMAIL` is set and the V1.9 docs and source are committed. `git archive` packages committed files only. The layout is the V1.8 package plus the V1.9 runtime files and assets (`js/release.js`, `js/i18n.js`, `js/i18n-sr.js`, `manifest.webmanifest`, `sw.js`, `vendor/fonts/*` and `vendor/phosphor/*` with their license files, `icons/*`), `tools/generate-icons.py`, the V1.9 spec, plan and ledger, and the release roadmap. Tests stay excluded.
-
-```bash
-SRC=HEAD
-OUT="$PWD/Dailo-v1.9-distributable.zip"; STAGE=$(mktemp -d); rm -f "$OUT"
-git archive "$SRC" -- .gitignore AGENTS.md CLAUDE.md PROJECT_OVERVIEW.md README.md index.html \
-  manifest.webmanifest sw.js requirements-browser-tests.txt css/styles.css 'js/*.js' vendor/jszip.min.js \
-  'vendor/fonts/*' 'vendor/phosphor/*' 'icons/*' tools/generate-icons.py \
-  'docs/claude/*.md' 'docs/codex/*.md' \
-  docs/superpowers/specs/2026-09-22-todo-v1-7-design.md docs/superpowers/plans/2026-09-22-todo-v1-7.md \
-  docs/superpowers/progress-v1-7.md docs/superpowers/specs/2026-10-07-todo-v1-8-design.md \
-  docs/superpowers/plans/2026-10-07-todo-v1-8.md docs/superpowers/progress-v1-8.md \
-  docs/superpowers/specs/2026-10-07-todo-v1-9-design.md docs/superpowers/plans/2026-10-07-todo-v1-9.md \
-  docs/superpowers/progress-v1-9.md docs/superpowers/plans/2026-10-07-release-roadmap.md | tar -x -C "$STAGE"
-(cd "$STAGE" && find . -type f | sed 's|^\./||' | LC_ALL=C sort | TZ=UTC zip -X -D -q "$OUT" -@)
-unzip -t "$OUT" && sha256sum Dailo-v1.9-distributable.zip > Dailo-v1.9-distributable.zip.sha256
-```
-
-- `vendor/jszip.min.js` is named explicitly; git pathspecs let `*` cross `/`, so `vendor/*.js` would also match future nested scripts.
-- Dry run (2026-10-07, `SRC=HEAD` at `22f9625`, output in a scratch directory outside the repository): **73 regular files** (V1.8's 46 plus 27), no directory entries, `unzip -t` passed. Every file in the `sw.js` precache list is in the archive. Offline start of the unzipped folder has not been tried in a browser (manual-pending).
-- Record the final file count and the SHA-256 sidecar in `docs/superpowers/progress-v1-9.md` when the package is built. To re-verify it later, use `SRC=$(git rev-list -1 HEAD -- Dailo-v1.9-distributable.zip)^`.
-
-Previous artifact: `Dailo-v1.7-distributable.zip` (42 regular files, `unzip -t` passed, SHA-256 in `Dailo-v1.7-distributable.zip.sha256`) remains in the repository as the V1.7 release.
+Older artifact: `Dailo-v1.7-distributable.zip` (42 regular files, `unzip -t` passed, SHA-256 in `Dailo-v1.7-distributable.zip.sha256`) remains in the repository as the V1.7 release.
 
 ## Acceptance checklist boundary
 

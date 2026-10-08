@@ -20,7 +20,8 @@
 
 - V1.3–V1.7 behavior and the V1.8 visual layer are implemented and covered by automated checks (288 Node tests). Native-browser acceptance is still **manual-pending**: 126 historical items in `docs/codex/ACCEPTANCE.md` are unchecked and the V1.8 manual gate in `docs/superpowers/progress-v1-8.md` is open.
 - First manual result (user, 2026-10-07): on the user's phone the Pages site loads and a new task persists after reload. Recorded later as iPhone, Safari tab (`docs/superpowers/progress-v1-8.md`).
-- **V1.9 update (2026-10-07):** Phase 1 is implemented (V1.9 plan Steps 1–6) and merged into `main` through PR #5, with automated checks green: 330 Node tests, 329 passed, 1 todo, the release gate for the problem-report address. Still open: the report address, `Dailo-v1.9-distributable.zip` and the manual iPhone pass. Evidence: `docs/superpowers/progress-v1-9.md`.
+- **V1.9 update (2026-10-07):** Phase 1 is implemented (V1.9 plan Steps 1–6) and merged into `main` through PR #5, with automated checks green: 330 Node tests, 329 passed, 1 todo, the release gate for the problem-report address. Evidence: `docs/superpowers/progress-v1-9.md`.
+- **V1.9.1 update (2026-10-08):** Phase 1 is done. V1.9.1 sets the problem-report address the user supplied, adds the Serbian tester guide `uputstvo.html` (linked from Settings → About) and the beta checklist `docs/beta/provera-pre-bete.md`, and is packaged as `Dailo-v1.9.1-distributable.zip`. Automated checks: 335 Node tests, 335 passed, 0 todo. The user reported B1–B5 (install, layout, airplane mode, persistent storage, ZIP export/import) as passed on iPhone; B6–B24 are open.
 - Release risks found while planning:
   1. **Data loss on iOS Safari.** WebKit deletes script-writable storage (localStorage, IndexedDB) for sites not opened for 7 days unless the site is added to the Home Screen. Dailo has no web app manifest and never calls `navigator.storage.persist()`.
   2. **Offline gaps.** Geist, Space Grotesk and Phosphor icons load from CDNs; there is no service worker, so the app does not open offline and icons disappear without network.
@@ -29,7 +30,7 @@
   5. **No feedback channel** for beta users and no visible app version.
   6. **Pages serves the whole repository**, including docs, tests and release ZIPs. Acceptable for a public repo, optional to narrow.
 
-## Phase 1 — V1.9 "Beta-ready" (local-first, no backend) — implemented, pending report address, package and merge
+## Phase 1 — V1.9 "Beta-ready" (local-first, no backend) — done (V1.9.1, 2026-10-08)
 
 Goal: beta users can install Dailo, use it offline and not lose data.
 
@@ -38,7 +39,7 @@ Goal: beta users can install Dailo, use it offline and not lose data.
 - [x] Backup reminder: record the last successful ZIP export and offer a one-tap export after a configurable number of days (default 7).
 - [x] Self-host fonts and icons (check OFL/MIT licenses) and add a service worker that caches the app shell for offline start.
 - [x] Fallback ID generator when `crypto.randomUUID` is unavailable.
-- [x] "Report a problem" entry (GitHub issue template or form) and app version in Settings. V1.9 chose an e-mail (`mailto:`) report; the link stays hidden until the user supplies the address.
+- [x] "Report a problem" entry (GitHub issue template or form) and app version in Settings. V1.9 chose an e-mail (`mailto:`) report; the address the user supplied is set in V1.9.1, so the link is visible.
 - [ ] Optional: deploy only runtime files to Pages through a GitHub Actions workflow. Not part of V1.9; the service worker does not intercept docs or release ZIPs.
 - [x] Added by the V1.9 spec: Serbian (`sr-Latn`) UI with Serbian Quick Add keywords, and fixes G1–G3.
 
@@ -46,23 +47,23 @@ Constraints: no Search change, no bulk actions, delete/Undo and typed RESET/REST
 
 ## Phase 2 — Manual acceptance (together with the user)
 
-- [ ] Define a **beta gate** subset of `ACCEPTANCE.md` + the V1.8 gate: install/offline, reload persistence, task create/edit/complete/delete + Undo, Today/Inbox/Calendar, Habit check-in, Goal progress, ZIP export/import/restore/reset, phone touch targets and navigation.
-- [ ] Run it on the user's phone and Mac browser; record each item with device/browser in the progress ledger.
+- [x] Define a **beta gate** subset of `ACCEPTANCE.md` + the V1.8 gate: install/offline, reload persistence, task create/edit/complete/delete + Undo, Today/Inbox/Calendar, Habit check-in, Goal progress, ZIP export/import/restore/reset, phone touch targets and navigation. Defined in V1.9.1 as `docs/beta/provera-pre-bete.md` (Serbian, B1–B24).
+- [ ] Run it on the user's phone and Mac browser; record each item with device/browser in the progress ledger. B1–B5 passed on iPhone (2026-10-08); B6 (update notice after V1.9.1 reaches `main`) is next; B6–B24 are open.
 - [ ] Fix blocking findings as V1.9.x patches (failing test first).
 
 ## Phase 3 — Beta launch
 
-- [ ] Short onboarding page: install to Home Screen, data lives on the device, export backups regularly, known limitations (single device until V2, reminders only while open).
+- [x] Short onboarding page: install to Home Screen, data lives on the device, export backups regularly, known limitations (single device until V2, reminders only while open). Done in V1.9.1: `uputstvo.html` (Serbian), `https://marko-ivapix.github.io/dailo/uputstvo.html`, linked from Settings → About; it opens only online.
 - [ ] Invite 5–10 people; triage feedback weekly and re-rank Phase 4.
 - [x] Open question: UI language for beta. Resolved in V1.9: Serbian Latin only, with Serbian Quick Add keywords.
 
 ## Phase 4 — Features (V1.10+, alongside the beta)
 
-Each item gets its own spec; existing behavior was checked in source on 2026-10-07.
+Each item gets its own spec; existing behavior was checked in source on 2026-10-07. Order and version numbers requested by the user on 2026-10-08: **V1.10 Smart Quick Add**, **V1.11 Weekly review**, **V1.12 Duration + time-blocking**.
 
-- [ ] **Duration + time-blocking.** Exists: `durationMinutes`, same-day planned-time blocks and overlap detection (`js/core.js`). Missing: duration entry in Quick Add, an hourly Day/Week grid (previously deferred), drag into time slots, daily capacity.
-- [ ] **Smart Quick Add.** Exists: `parseQuickPlanPhrase` (English `today`/`tomorrow`/weekday, `HH:MM`), `#tag`, `!priority`. V1.9 added Serbian day/time keywords. Missing: due-date syntax, duration (`30m`, `1h`), project/Area syntax, relative dates, live preview chips; voice input to be investigated per browser.
-- [ ] **Weekly review.** Exists: Today "Daily review" stats card. Missing: a guided weekly flow (Inbox to zero, overdue, next week, Goal progress, Habit stats, Area check) with a completion record.
+- [ ] **Smart Quick Add (V1.10).** Exists: `parseQuickPlanPhrase` (English `today`/`tomorrow`/weekday, `HH:MM`), `#tag`, `!priority`. V1.9 added Serbian day/time keywords. Missing: due-date syntax, duration (`30m`, `1h`), project/Area syntax, relative dates, live preview chips; voice input to be investigated per browser.
+- [ ] **Weekly review (V1.11).** Exists: Today "Daily review" stats card. Missing: a guided weekly flow (Inbox to zero, overdue, next week, Goal progress, Habit stats, Area check) with a completion record.
+- [ ] **Duration + time-blocking (V1.12).** Exists: `durationMinutes`, same-day planned-time blocks and overlap detection (`js/core.js`). Missing: duration entry in Quick Add, an hourly Day/Week grid (previously deferred), drag into time slots, daily capacity.
 
 ## Phase 5 — V2.0 Mobile app + Supabase sync
 
@@ -80,4 +81,4 @@ Spec must decide:
 
 ## Next step
 
-V1.9 is implemented per `docs/superpowers/specs/2026-10-07-todo-v1-9-design.md` and `docs/superpowers/plans/2026-10-07-todo-v1-9.md`. Finish its Step 7 (report address, package, manual iPhone checklist), then start Phase 2.
+Phase 1 is done (V1.9.1). The user runs the beta gate (`docs/beta/provera-pre-bete.md`, B6–B24) and invites testers; fixes ship as V1.9.x patches with a failing test first. In parallel, Phase 4 starts at the user's request (2026-10-08): V1.10 Smart Quick Add, V1.11 Weekly review and V1.12 Duration + time-blocking, each with its own versioned spec and plan, plus a V2.0 spec draft for Phase 5 (it amends the no-backend rule only once the user approves it).

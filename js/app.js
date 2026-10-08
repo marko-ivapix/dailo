@@ -3713,11 +3713,11 @@
           setUndo(msg('Selected entity restored'), () => undoSelectiveRestore(op), () => op.keepRecovery ? true : cleanupGlobalSnapshot(op));
         } else {
           await cleanupGlobalSnapshot(op);
-          updateBackupStatus({ lastImport: op.reason === 'restore' ? nowIso() : state.settings.backupStatus?.lastImport || null, snapshotAvailable: false, validationResult: op.reason === 'restore' ? 'Import restored and verified' : 'Reset verified' }, committedSource);
+          updateBackupStatus({ lastImport: op.reason === 'restore' ? nowIso() : state.settings.backupStatus?.lastImport || null, snapshotAvailable: false, validationResult: op.reason === 'restore' ? msg('Import restored and verified') : msg('Reset verified') }, committedSource);
           setToastMessage(op.reason === 'reset' ? tr('App data reset and verified.') : tr('Backup restored and verified.'));
         }
       }
-      catch (error) { updateBackupStatus({ snapshotAvailable: true, validationResult: `${msg('Replacement verified; recovery cleanup failed')}: ${error.message}` }, committedSource); globalNotice(tr('New data is verified. Recovery copy cleanup failed: {error}. Retry cleanup.', { error: trMessage(error.message) }), async () => { await markGlobalSnapshot(op, 'committed'); await cleanupGlobalSnapshot(op); updateBackupStatus({ lastImport: op.reason === 'restore' ? nowIso() : state.settings.backupStatus?.lastImport || null, snapshotAvailable: false, validationResult: op.reason === 'restore' ? 'Import restored and verified' : 'Reset verified' }, committedSource); if (globalOperation === op) globalOperation = null; globalRecoveryNotice = null; renderToast(); }); }
+      catch (error) { updateBackupStatus({ snapshotAvailable: true, validationResult: `${msg('Replacement verified; recovery cleanup failed')}: ${error.message}` }, committedSource); globalNotice(tr('New data is verified. Recovery copy cleanup failed: {error}. Retry cleanup.', { error: trMessage(error.message) }), async () => { await markGlobalSnapshot(op, 'committed'); await cleanupGlobalSnapshot(op); updateBackupStatus({ lastImport: op.reason === 'restore' ? nowIso() : state.settings.backupStatus?.lastImport || null, snapshotAvailable: false, validationResult: op.reason === 'restore' ? msg('Import restored and verified') : msg('Reset verified') }, committedSource); if (globalOperation === op) globalOperation = null; globalRecoveryNotice = null; renderToast(); }); }
       refreshHabitMetrics().then(render).catch(error => setToastMessage(tr('History display could not refresh: {error}. Reload to retry.', { error: trMessage(error.message) })));
     } catch (error) {
       op.busy = false;
@@ -4040,7 +4040,7 @@
     if (globalOperation) return;
     if (callDomainHook('handleInput', event) !== undefined) return;
     if (modalState?.type === 'quick') {
-      if (event.target.id === 'quick-title') { modalState.draft.title = event.target.value; modalState.error = ''; if (!modalState.draft.explicitPlan) { const parsed=parseQuickAddTitle(event.target.value); modalState.draft.parsedPlanDate=parsed.plannedDate; const b=document.querySelector('[data-action="quick-plan-picker"]'); if(b) b.innerHTML=`<i class="ph ph-calendar-check"></i>${parsed.plannedDate ? esc(relativeDateLabel(parsed.plannedDate)) : 'Plan for'}`; } }
+      if (event.target.id === 'quick-title') { modalState.draft.title = event.target.value; modalState.error = ''; if (!modalState.draft.explicitPlan) { const parsed=parseQuickAddTitle(event.target.value); modalState.draft.parsedPlanDate=parsed.plannedDate; const b=document.querySelector('[data-action="quick-plan-picker"]'); if(b) b.innerHTML=`<i class="ph ph-calendar-check"></i>${parsed.plannedDate ? esc(relativeDateLabel(parsed.plannedDate)) : tr('Plan for')}`; } }
       else if (event.target.id === 'quick-notes') modalState.draft.notes = event.target.value;
     }
     if (modalState?.type === 'task') {

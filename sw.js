@@ -3,7 +3,7 @@
    a changed sw.js is how installed apps learn about a new version. */
 'use strict';
 
-const VERSION = '1.9.0';
+const VERSION = '1.9.1';
 const CACHE_PREFIX = 'dailo-shell-';
 const CACHE_NAME = `${CACHE_PREFIX}${VERSION}`;
 // Every runtime file index.html, its stylesheets and the manifest reference (tests keep this complete).

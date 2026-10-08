@@ -62,8 +62,12 @@ test('trMessage translates whole messages and "Prefix: detail" errors, and passe
 
 // Static text of every template literal and quoted markup string; each ${…} becomes \u0000.
 // A small lexer skips comments, strings and regex literals so that only real templates are read.
+// It also collects quoted literals inside ${…} that are not arguments of tr()/msg()/trn()/trMessage(),
+// such as `${value ? label : 'Plan for'}`, in chunks.expressionLiterals.
+const TRANSLATORS = new Set(['tr', 'msg', 'trn', 'trMessage']);
 function markupChunks(source) {
   const chunks = [];
+  chunks.expressionLiterals = [];
   let i = 0;
   let previous = '';
   const regexAllowed = () => !previous || /[(,=:[!&|?{};+\-*%<>~^]$/.test(previous) || /^(?:return|typeof|case|in|of|void|delete|throw)$/.test(previous);
@@ -73,6 +77,7 @@ function markupChunks(source) {
     const text = source.slice(start, i);
     i += 1;
     if (/<[a-z]/i.test(text) && text.includes('>')) chunks.push(text);
+    return text;
   };
   const readRegex = () => {
     let inClass = false;
@@ -96,11 +101,19 @@ function markupChunks(source) {
     }
   };
   const readCode = depth => {
+    const calls = [];
     while (i < source.length) {
       const c = source[i];
       if (c === '/' && source[i + 1] === '/') { while (i < source.length && source[i] !== '\n') i += 1; continue; }
       if (c === '/' && source[i + 1] === '*') { i = source.indexOf('*/', i + 2) + 2; continue; }
-      if (c === '\'' || c === '"') { readString(c); previous = 'x'; continue; }
+      if (c === '\'' || c === '"') {
+        const text = readString(c);
+        if (depth > 0 && !TRANSLATORS.has(calls[calls.length - 1])) chunks.expressionLiterals.push(text);
+        previous = 'x';
+        continue;
+      }
+      if (c === '(') calls.push(/^[\w$]+$/.test(previous) ? previous : '');
+      if (c === ')') calls.pop();
       if (c === '`') { readTemplate(); previous = 'x'; continue; }
       if (c === '/' && regexAllowed()) { readRegex(); previous = 'x'; continue; }
       if (c === '{' && depth > 0) depth += 1;
@@ -124,6 +137,8 @@ function visibleTexts(chunk) {
 
 // Words allowed to stay as written: the brand, the URL hint and fixed technical tokens.
 const UNTRANSLATED_ALLOWLIST = new Set(['Dailo', 'https', 'ZIP', 'JSON', 'RESET', 'RESTORE']);
+// A capitalized English word or phrase used as display text (key names such as Alt/Shift are allowed).
+const isEnglishFallback = text => /^[A-Z][a-z]+(?:[ -][A-Za-z]+)*[.…!?]?$/.test(text) && !['Alt', 'Shift', 'Ctrl', 'Cmd', 'Enter', 'Esc', 'Tab', 'Space', 'Dailo'].includes(text);
 const untranslatedWords = text => (text.replace(/\u0000/g, ' ').replace(/&(?:[a-z]+|#\d+);/gi, ' ').match(/[A-Za-z]{2,}/g) || []).filter(word => !UNTRANSLATED_ALLOWLIST.has(word));
 
 test('untranslated-text audit: the scanner finds literal English in templates, nested templates and markup strings', () => {
@@ -147,6 +162,24 @@ test('untranslated-text audit: rendered markup in js/*.js shows only tr() text a
     }
   }
   assert.ok(scanned > 1000, `the scanner reads the app templates (${scanned} texts)`);
+  assert.deepEqual(problems, []);
+});
+
+test('untranslated-text audit: English fallbacks inside ${…} expressions go through tr()', () => {
+  const sample = 'const a = `<b>${ok ? tr(\'Fine\') : \'Plan for\'}</b>${tr(TYPES[x] || \'Article\')}${key === \'Alt\' ? \'x\' : \'\'}`;';
+  assert.deepEqual(markupChunks(sample).expressionLiterals.filter(isEnglishFallback), ['Plan for']);
+  const problems = [];
+  for (const { file, text } of sources().filter(({ file }) => file.endsWith('.js') && !/^js\/i18n/.test(file))) {
+    for (const literal of markupChunks(text).expressionLiterals.filter(isEnglishFallback)) problems.push(`${file}: ${JSON.stringify(literal)}`);
+  }
+  assert.deepEqual(problems, []);
+});
+
+test('persisted Settings status sentences are catalog keys', () => {
+  const problems = [];
+  for (const { file, text } of sources().filter(({ file }) => file.endsWith('.js'))) {
+    for (const match of text.matchAll(/validationResult:\s*(?:[^,}?]*\?\s*)?(['"])([^'"]+)\1/g)) problems.push(`${file}: ${match[2]}`);
+  }
   assert.deepEqual(problems, []);
 });
 
