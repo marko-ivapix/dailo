@@ -187,7 +187,8 @@ Checks: focused i18n 9/9 and Quick Add 5/5; full Node **329 pass, 0 fail, 1 todo
 | 2026-10-08 | iPhone, installed app | same | Standalone layout looks right; content does not go under the status bar | Passed (reported by the user) |
 | 2026-10-08 | iPhone, installed app | same | The bottom navigation stays clear of the home indicator | Passed (reported by the user) |
 | 2026-10-08 | iPhone, installed app | same | Settings → Data shows persistent storage as granted ("odobreno") | Passed (reported by the user) |
+| 2026-10-08 | iPhone, installed app | same | ZIP export and import back into the installed app work; the tasks are still there | Passed (reported by the user) |
 
 Only the items in this table were observed. Still **manual-pending**:
 - update prompt after a new deploy;
-- backup reminder plus export and import into the installed app.
+- the backup reminder notice on Today. It can only appear 7 days after the last export.
