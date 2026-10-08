@@ -67,8 +67,8 @@
 | C1 | **Phone calendar = one month grid with dates only.** No task content inside the cells. Tapping a day lists that day's items below the grid. No Week/Month switch, no "Danas" button and no "Predstojeće" link. Arrows change the month. | decided |
 | C2 | **No habits in the calendar;** they live on the Habits screen. | decided |
 | C3 | **Desktop keeps the week in 7 columns,** with drag and drop to another day. | decided |
-| C4 | **The day list under the grid** uses the Today rows: tasks by time, untimed at the end; goal and milestone deadlines with the target icon. | proposed |
-| C5 | **Days with items get a small dot** under the date; the dot is not task content. | proposed |
-| C6 | **Schedule ("Raspored")**, today the V1.12 Calendar "Dan" view: an hour grid with blocks by duration, untimed tasks above it, and capacity, all for the selected day. Options: a "Lista / Raspored" switch above the day list, or dropping the schedule and the capacity. Explained with a mock on 2026-10-08. | open |
-| C7 | **No filter (funnel):** with habits gone, the calendar shows only tasks and goal deadlines. | proposed |
-| C8 | **The floating "+"** adds a task planned for the selected day. | proposed |
+| C4 | **The day list under the grid** uses the Today rows: tasks by time, untimed at the end; goal and milestone deadlines with the target icon. | accepted as the basis (shown in the mock; no objection) |
+| C5 | **Days with items get a small dot** under the date; the dot is not task content. | decided |
+| C6 | **Schedule ("Raspored")**, today the V1.12 Calendar "Dan" view, for the selected day: an hour grid with blocks by duration, untimed tasks above it, and capacity. A small "Lista / Raspored" switch next to the day title; "Lista" is the default. Desktop drag to another hour stays. | decided |
+| C7 | **No filter (funnel):** with habits gone, the calendar shows only tasks and goal deadlines. | decided |
+| C8 | **The floating "+"** adds a task planned for the selected day. | decided |
