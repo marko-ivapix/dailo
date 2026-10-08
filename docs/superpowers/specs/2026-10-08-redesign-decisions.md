@@ -64,7 +64,7 @@
 
 | # | Decision | Status |
 | --- | --- | --- |
-| C1 | **Phone calendar = one month grid with dates only.** No task content inside the cells. Tapping a day lists that day's items below the grid. No Week/Month switch, no "Danas" button and no "Predstojeće" link. Arrows change the month. | decided |
+| C1 | **Phone calendar views** (image 10, revised 2026-10-08): a "Nedelja / Mesec / Predstojeće" switch at the top. No "Danas" button, no filter, no "+" in the header. Arrows change the week or month. In the month grid, only dates and dots (C5), never task content or count icons. Tapping a day in the week strip or the month grid lists that day's items below. | decided |
 | C2 | **No habits in the calendar;** they live on the Habits screen. | decided |
 | C3 | **Desktop keeps the week in 7 columns,** with drag and drop to another day. | decided |
 | C4 | **The day list under the grid** uses the Today rows: tasks by time, untimed at the end; goal and milestone deadlines with the target icon. | accepted as the basis (shown in the mock; no objection) |
@@ -72,6 +72,7 @@
 | C6 | **Schedule ("Raspored")**, today the V1.12 Calendar "Dan" view, for the selected day: an hour grid with blocks by duration, untimed tasks above it, and capacity. A small "Lista / Raspored" switch next to the day title; "Lista" is the default. Desktop drag to another hour stays. | decided |
 | C7 | **No filter (funnel):** with habits gone, the calendar shows only tasks and goal deadlines. | decided |
 | C8 | **The floating "+"** adds a task planned for the selected day. | decided |
+| C9 | **View contents:** Nedelja is a strip of 7 days with the selected day's list below. Mesec is the grid with the selected day's list below. Predstojeće is a list of the coming days, grouped by day; it replaces the separate Upcoming screen under "Još". The "Lista / Raspored" switch (C6) applies to the selected day in Nedelja and Mesec. | accepted as the basis (no objection) |
 
 ## Task editing and pickers (images 3–9)
 
