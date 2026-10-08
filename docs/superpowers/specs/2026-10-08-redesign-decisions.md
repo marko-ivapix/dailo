@@ -59,3 +59,16 @@
 | Q1 | **Bottom sheet:** title field, date and project selectors, "More options" and an "Add task" button; the same arrow style on both selectors. | accepted as the basis (no objection; the user can still change it) |
 | Q2 | **Keep the Smart Quick Add preview** ("Prepoznato u naslovu", V1.10) under the field. | accepted as the basis (no objection; the user can still change it) |
 | Q3 | **The return key** is not a design element: it belongs to the keyboard and differs between keyboards. | decided |
+
+## Calendar (image 2)
+
+| # | Decision | Status |
+| --- | --- | --- |
+| C1 | **Phone calendar = one month grid with dates only.** No task content inside the cells. Tapping a day lists that day's items below the grid. No Week/Month switch, no "Danas" button and no "Predstojeće" link. Arrows change the month. | decided |
+| C2 | **No habits in the calendar;** they live on the Habits screen. | decided |
+| C3 | **Desktop keeps the week in 7 columns,** with drag and drop to another day. | decided |
+| C4 | **The day list under the grid** uses the Today rows: tasks by time, untimed at the end; goal and milestone deadlines with the target icon. | proposed |
+| C5 | **Days with items get a small dot** under the date; the dot is not task content. | proposed |
+| C6 | **Schedule ("Raspored")**, today the V1.12 Calendar "Dan" view: an hour grid with blocks by duration, untimed tasks above it, and capacity, all for the selected day. Options: a "Lista / Raspored" switch above the day list, or dropping the schedule and the capacity. Explained with a mock on 2026-10-08. | open |
+| C7 | **No filter (funnel):** with habits gone, the calendar shows only tasks and goal deadlines. | proposed |
+| C8 | **The floating "+"** adds a task planned for the selected day. | proposed |
