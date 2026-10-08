@@ -31,7 +31,7 @@
 | T2 | **A simpler Today:** the Focus queue, the Daily review and Daily actions cards, goals and milestones, and the capacity item leave Today. | decided |
 | T2a | **Where they go:** Claude's proposal below, accepted by the user. | decided |
 | T3 | **Task rows** keep two labels on the right (priority and due date), with shorter text. | decided |
-| T4 | **Habits are binary,** done or not; "20 min" is part of the name, not a value to enter. The current app also has numeric habits (`trackingType: numeric`); whether numeric tracking goes away is decided with the Habits screen. | decided |
+| T4 | **Habit tracking** (revised 2026-10-08): both checkbox and numeric habits stay; a new habit defaults to checkbox and every day (7 days a week). Today shows a checkbox habit as a round check (T5); how a numeric habit is shown on Today is open (H6). | decided |
 | T5 | **Habits:** variant B (compact), but stacked one below another. Low rows with a round check instead of a square: one tap marks the habit done, and a long press offers skip and details. A weekly habit shows "2/4 nedeljno". Done habits move to the bottom. | decided |
 | T6 | **Conditional notices** (backup reminder, weekly review prompt) stay at the top, only while they apply. | decided |
 | T7 | **Limits:** at most 3 rows in Zakasnelo, 5 in Planirano danas and 5 in Navike. "Prikaži još N" opens the section in place, then "Prikaži manje". The choice is remembered on the device. Mock sent on 2026-10-08. | decided |
@@ -89,3 +89,14 @@ Images 3–9: "Edit task", and the Project, Planned date, Priority, Reminder, Ta
 | E7 | **Repeat:** quick choices Svaki dan, Radnim danima, Svake nedelje, Svakog meseca; frequency, "Na svakih N" (interval) and the day; a summary sentence; an end (never, on a date, after N times) whose field opens right below the choice. | decided |
 | E8 | **Project:** search, "Bez projekta", the area under each project name, and the note that the task takes the project's area; "+ Novi projekat" at the bottom. | decided |
 | E9 | **Tags:** search, colored dots, multiple choice, "+ Nova oznaka". | decided |
+
+## Habits screen (Claude's proposals 1 and 2, images 11–12)
+
+| # | Decision | Status |
+| --- | --- | --- |
+| H1 | **A "Dan / Nedelja" switch;** Dan is the default view when the screen opens. | decided |
+| H2 | **Dan (proposal 1):** habits grouped by routine (Jutro, Dan, Veče), with the round check, frequency and streak, or "2/4 ove nedelje" for a weekly target. Done habits move to the bottom of their group. | decided |
+| H3 | **Nedelja (proposal 2):** a table with the habits as rows and the days of the week as columns. Tapping a circle records today or a past day; future days and days the habit is not scheduled are inactive. A legend for done, missed, skipped and not scheduled. | decided |
+| H4 | **"Napredak" under both views:** this week's rings (image 12) with the percentage inside, and a line chart for the **calendar month** with arrows (image 11), y axis up to 100%. Only today's value is labelled on the line; touching or hovering shows any day's value. A day's percentage counts only habits scheduled that day, without skipped ones. | decided |
+| H5 | **Paused and archived habits** fold at the bottom ("Pauzirane · N") instead of the current Aktivne / Sve / Arhivirane tabs. | accepted as the basis (no objection) |
+| H6 | **Numeric habits on Today and in Dan:** the circle fills with progress (e.g. 1,5 / 2 l), and a tap opens a small value sheet with quick values. | proposed |
