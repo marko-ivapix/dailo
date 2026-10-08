@@ -21,18 +21,27 @@
 | G3 | **Background:** neutral graphite (the current `#0F1114` family), not the navy of image 1. The user left it to Claude's recommendation: the blue accent and the red, amber and green status colors read more clearly on a neutral base. | decided |
 | G4 | **Font:** Geist for now; it may change later. | decided |
 | G5 | **Density:** phone rows as in image 1 (large and easy to touch); a denser variant for desktop. | proposed |
-| G6 | **Status colors:** an overdue date red, due today amber, later dates gray; priority as a colored flag; green means done. | proposed |
+| G6 | **Status colors:** an overdue date red, due today amber, later dates gray; priority only as a flag icon (high red, medium amber); green means done. | decided |
 
 ## Today (image 1, left)
 
 | # | Decision | Status |
 | --- | --- | --- |
 | T1 | **Structure as in image 1:** the date above a large "Danas" title, the search icon at the top right, and sections with counts (Zakasnelo, Planirano danas, Navike, Završeno collapsed). | decided |
-| T2 | **A simpler Today:** the Focus queue, the Daily review and Daily actions cards, goals and milestones, and the capacity item leave Today. Where they go is open. | decided |
+| T2 | **A simpler Today:** the Focus queue, the Daily review and Daily actions cards, goals and milestones, and the capacity item leave Today. | decided |
+| T2a | **Where they go:** the user asked for Claude's opinion; see "T2a, Claude's proposal" below. | proposed |
 | T3 | **Task rows** keep two labels on the right (priority and due date), with shorter text. | decided |
 | T4 | **Habits are binary,** done or not; "20 min" is part of the name, not a value to enter. The current app also has numeric habits (`trackingType: numeric`); whether numeric tracking goes away is decided with the Habits screen. | decided |
-| T5 | **Habit rows:** Claude's variants A (a row with a round check) and B (compact pills), sent on 2026-10-08. | open |
+| T5 | **Habits:** variant B (compact), but stacked one below another. Low rows with a round check instead of a square: one tap marks the habit done, and a long press offers skip and details. A weekly habit shows "2/4 nedeljno". Done habits move to the bottom. | decided |
 | T6 | **Conditional notices** (backup reminder, weekly review prompt) stay at the top, only while they apply. | proposed |
+| T7 | **Limits:** at most 3 rows in Zakasnelo, 5 in Planirano danas and 5 in Navike. "Prikaži još N" opens the section in place, then "Prikaži manje". The choice is remembered on the device. Mock sent on 2026-10-08. | proposed |
+
+**T2a, Claude's proposal:**
+- **Focus:** the Focus card goes away; the order of "Planirano danas" does the same job. Focus mode (the timer) opens from the task menu ("Započni fokus").
+- **Daily review and actions:** the cards go away. The section counts and "Završeno · N" cover the day, and the weekly review stays under "Još".
+- **Goals and milestones:** a goal or milestone due today or overdue appears as an ordinary row in "Planirano danas" or "Zakasnelo", with a target icon instead of the checkbox.
+- **Capacity:** only in Calendar → Dan.
+- **Suggestions:** the section leaves Today; it can go to Inbox or Zadaci when those screens are designed.
 
 ## Task details (image 1, middle)
 
@@ -40,7 +49,8 @@
 | --- | --- | --- |
 | D1 | **The task stays a modal/popup,** not a full-screen page. | decided |
 | D2 | **Content basis from image 1:** a title with a checkbox, a project link, Planned, Due and Priority rows, subtasks with a count, notes, attachments and "More details". | proposed |
-| D3 | **Fixes:** one completion control instead of two; a "›" on editable rows; a different icon for Due than for Planned; reminder and duration outside "More details". | proposed |
+| D3 | **Fixes:** one completion control instead of two; a "›" on editable rows; a different icon for Due than for Planned. | decided |
+| D4 | **Reminder and duration** outside "More details". | proposed |
 
 ## Quick add (image 1, right)
 
