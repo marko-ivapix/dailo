@@ -24,7 +24,19 @@ git diff --check
 
 These checks need no Python packages. Where a local `.venv` exists (gitignored, so not in cloud clones), `./.venv/bin/python` can replace `python3`.
 
-Current V1.9.1 evidence (2026-10-08, V1.9 plan Step 7; see `docs/superpowers/progress-v1-9.md`), Node v22.22.0 and Python 3.13.16:
+Current V1.10 evidence (2026-10-08, commit `c64bd81`; see `docs/superpowers/progress-v1-10.md`), Node v22.22.0 and Python 3.13.16:
+
+| Check | Result |
+| --- | ---: |
+| Complete Node suite | **348 tests: 348 passed, 0 failed, 0 todo** (335 from V1.9.1 plus 13 in `tests/quick-add-v1-10.test.js`); 44 `tests/*.test.js` files |
+| JavaScript syntax | **67 files passed** (`js/*.js vendor/*.js tests/*.js tests/support/*.js sw.js`) |
+| Python AST parsing | **19 files passed** (`tests/*.py`) |
+| Static browser contracts | **10/10 passed** (`--dry-run`) |
+| Browser-regression registry contracts | **3/3 passed** (functions invoked explicitly) |
+| Browser-path adapter unittest | **2/2 passed** |
+| `git diff --check` | passed (staged) |
+
+V1.9.1 evidence (2026-10-08, V1.9 plan Step 7; see `docs/superpowers/progress-v1-9.md`):
 
 | Check | Result |
 | --- | ---: |
@@ -70,7 +82,11 @@ V1.7 release evidence (re-run 2026-10-07, before V1.8):
 
 ## Test scope
 
-Node tests cover pure Core rules, migrations, storage/backup validation, Goal and Habit calculations, Calendar projections, Today projections, templates, Notes/Resources, recovery status and selected controller/adapter behavior. The V1.9 files add the fixes and `makeUuid` (`fixes`), release metadata and the report gate (`release`), backup reminder and persistence (`data-protection`), manifest/icons/meta (`install`), vendored assets and the service worker (`offline`), the i18n mechanism, catalog completeness and untranslated-text audit (`i18n`; since V1.9.1 also English fallbacks inside `${…}` expressions and `msg()`-only `validationResult:` literals), and Serbian Quick Add (`quick-add`). `tests/beta-v1-9-1.test.js` (V1.9.1) checks the version and report address, the About guide and report links, and the guide page `uputstvo.html` (Serbian Latin, headings, local-only references). Node runs in English: only `tests/i18n-v1-9.test.js` loads `js/i18n-sr.js` to assert Serbian output (each test file runs in its own process), and VM sandboxes get the English `I18n` from `tests/support/i18n.js`. Several tests use VM contexts, memory storage doubles or static source/CSS assertions. They are valuable regression checks but do not prove native browser persistence or visual layout.
+Node tests cover pure Core rules, migrations, storage/backup validation, Goal and Habit calculations, Calendar projections, Today projections, templates, Notes/Resources, recovery status and selected controller/adapter behavior. The V1.9 files add the fixes and `makeUuid` (`fixes`), release metadata and the report gate (`release`), backup reminder and persistence (`data-protection`), manifest/icons/meta (`install`), vendored assets and the service worker (`offline`), the i18n mechanism, catalog completeness and untranslated-text audit (`i18n`; since V1.9.1 also English fallbacks inside `${…}` expressions and `msg()`-only `validationResult:` literals), and Serbian Quick Add (`quick-add`). `tests/beta-v1-9-1.test.js` (V1.9.1) checks the version and report address, the About guide and report links, and the guide page `uputstvo.html` (Serbian Latin, headings, local-only references). `tests/quick-add-v1-10.test.js` (V1.10, 13 tests) checks `Core.parseQuickAdd` (clause and token tables in Serbian and English, order independence, one clause per kind, invalid and look-alike phrases, loose name matching, `parsePlan: false`, unchanged V1.5/V1.9 results), `createTask` precedence and Inbox placement in a VM slice, the preview markup, and the version `1.10.0`.
+
+Release version convention (since V1.10): only the newest release test pins the exact `APP_VERSION` and `sw.js` `VERSION` (now `tests/quick-add-v1-10.test.js`). Older release tests require "this version or later": `tests/release-v1-9.test.js` requires V1.9 or later, and `tests/beta-v1-9-1.test.js` requires 1.9.1 or later and that `sw.js` follows `APP_VERSION`. A new release moves the exact pin into its own test.
+
+Node runs in English: only `tests/i18n-v1-9.test.js` loads `js/i18n-sr.js` to assert Serbian output (each test file runs in its own process), and VM sandboxes get the English `I18n` from `tests/support/i18n.js`. Several tests use VM contexts, memory storage doubles or static source/CSS assertions. They are valuable regression checks but do not prove native browser persistence or visual layout.
 
 `tests/ui-*.py` contains browser scenarios. `tests/browser_test_support/` contains the test-only adapter. `tests/run-browser-regressions.py --dry-run` lists the maintained groups and runs only static entries; it never launches a browser. The optional historical harness requires the pinned dependency in `requirements-browser-tests.txt`; it is not run as part of this release verification.
 
@@ -80,9 +96,11 @@ The Playwright scenarios in `tests/ui-*.py` select elements by English text, so 
 
 ## Browser acceptance policy
 
-No isolated Chromium was launched for the V1.7 release, the V1.8 visual redesign, V1.9 or V1.9.1. The user's personal Chrome was not opened or modified. iPhone results are recorded only from the user's own report: B1–B5 of `docs/beta/provera-pre-bete.md` passed on 2026-10-08 (table in `docs/superpowers/progress-v1-9.md`); B6 (update notice) to B24 are **manual-pending**. Native browser acceptance remains **manual-pending**: real reload persistence, IndexedDB behavior, attachment chooser interactions, focus/keyboard behavior, responsive layout and mobile gestures must be checked in a user-owned browser when desired.
+No isolated Chromium was launched for the V1.7 release, the V1.8 visual redesign, V1.9, V1.9.1 or V1.10. The user's personal Chrome was not opened or modified. iPhone results are recorded only from the user's own report: B1–B5 of `docs/beta/provera-pre-bete.md` passed on 2026-10-08 (table in `docs/superpowers/progress-v1-9.md`); B6 (update notice) to B24 and the V1.10 Quick Add syntax and preview are **manual-pending**. Native browser acceptance remains **manual-pending**: real reload persistence, IndexedDB behavior, attachment chooser interactions, focus/keyboard behavior, responsive layout and mobile gestures must be checked in a user-owned browser when desired.
 
 ## Distributable ZIP
+
+No ZIP is built for V1.10. The current artifact stays `Dailo-v1.9.1-distributable.zip`, a snapshot of the V1.9.1 source and docs; the next package is planned after V1.12. When it is built, add the V1.10–V1.12 specs, plans and ledgers (for example `docs/superpowers/specs/2026-10-08-todo-v1-10-design.md`, `docs/superpowers/plans/2026-10-08-todo-v1-10.md` and `docs/superpowers/progress-v1-10.md`) to the recipe below and rename the output.
 
 Current artifact (V1.9.1, 2026-10-08):
 

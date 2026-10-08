@@ -1,6 +1,6 @@
 # Dailo — pregled projekta i brainstorming
 
-> Current implementation: V1.7 behavior, V1.8 visual layer and V1.9 beta-ready additions (Serbian UI, install, offline, data protection; merged into `main` through PR #5), completed as V1.9.1 (problem-report address, tester guide `uputstvo.html`, beta checklist `docs/beta/provera-pre-bete.md`). For agent onboarding and verified source facts, read `CLAUDE.md` and `docs/claude/` first. The brainstorming questions below are ideas, not accepted requirements.
+> Current implementation: V1.7 behavior, V1.8 visual layer and V1.9 beta-ready additions (Serbian UI, install, offline, data protection; merged into `main` through PR #5), completed as V1.9.1 (problem-report address, tester guide `uputstvo.html`, beta checklist `docs/beta/provera-pre-bete.md`; merged through PR #6), plus V1.10 Smart Quick Add (version `1.10.0`, pending merge into `main` through its PR). For agent onboarding and verified source facts, read `CLAUDE.md` and `docs/claude/` first. The brainstorming questions below are ideas, not accepted requirements.
 
 Dailo je lokalna To-Do aplikacija za organizaciju zadataka, projekata, oblasti,
 ciljeva, navika, beleški i resursa. Osnovni tok je:
@@ -44,7 +44,30 @@ V1.7 status i tačni brojevi provera vode se u `docs/superpowers/progress-v1-7.m
 
 Detalji: `docs/superpowers/specs/2026-10-07-todo-v1-8-design.md` i `docs/superpowers/progress-v1-8.md`. Vizuelna provera u pravom browseru je **manual-pending**. Globalni Search ostaje nepromenjen, a bulk akcije nisu dodate.
 
-## V1.9 — spremno za beta testiranje (trenutno izdanje: V1.9.1)
+## V1.10 — pametno brzo dodavanje (trenutno izdanje)
+
+Ceo zadatak može da stane u jedan red brzog dodavanja, na srpskom ili engleskom, a ispod naslova se odmah vidi šta je Dailo prepoznao. Verzija je `1.10.0`.
+
+```text
+Pošalji ponudu +Klijenti #posao !visok rok petak 45min sutra u 9:30
+```
+
+Rezultat: naslov „Pošalji ponudu”, projekat Klijenti, oznaka `posao`, visok prioritet, rok u petak, trajanje 45 minuta, planirano za sutra u 9:30.
+
+- **Na kraju naslova**, bilo kojim redom i po jedan od svake vrste:
+  - kada: `danas`, `sutra`, `prekosutra`, dani u nedelji (`u sredu`), `za 3 dana`, `za 2 nedelje`, `15.10.`, `15.10.2026.`; na engleskom `today`, `tomorrow`, `in 3 days`, `2026-10-15`;
+  - vreme: `u 9:30`, `at 09:30`;
+  - rok: `rok petak`, `do petka`, `do sutra`, `do 15.10.`, `due friday`;
+  - trajanje: `45min`, `45 min`, `45m`, `1h`, `1,5h`, `1h30`, `1h 30min`, `2 sata` (od 1 do 1440 minuta).
+- **Bilo gde u naslovu:** `#oznaka`, `!visok`/`!srednji`/`!nizak` (i `!high`/`!medium`/`!low`), `+projekat`, `@oblast`. Imena se porede slobodno: velika i mala slova, razmaci, `_`, `-` i dijakritici se zanemaruju, pa `+kucni_projekat` nalazi „Kućni projekat”. Arhivirani projekti i oblasti se preskaču. Nepoznato ime ostaje u naslovu i ništa se ne pravi automatski. Važi prvi prioritet u naslovu, a projekat ima prednost nad oblašću.
+- **Šta ostaje kako je napisano:** čitanje staje na prvoj običnoj reči, a bar jedna reč uvek ostaje naslov. Neispravna vrednost (`25:00`, `31.02.`, `0min`) ostavlja kraj naslova netaknut. `do 17:00` i dan posle `za` (`za nedelju`) se ne prepoznaju.
+- **Izbor u brzom dodavanju ima prednost.** Datum, vreme, rok, trajanje, projekat ili oblast izabrani dugmićima ispod naslova jači su od prepoznatog teksta. Zadatak sa prepoznatim projektom ili datumom ne ide u Inbox.
+- **Pregled uživo.** Dok se kuca, ispod naslova se prikazuje šta je prepoznato („Prepoznato u naslovu”): datum i vreme, rok, trajanje, projekat ili oblast, oznake i prioritet. Kada ništa nije prepoznato, ovaj red se ne vidi.
+- `uputstvo.html` opisuje novu sintaksu. Glasovni unos nije u planu: diktiranje na iPhone tastaturi već upisuje tekst u polje naslova.
+
+Detalji: `docs/superpowers/specs/2026-10-08-todo-v1-10-design.md`, `docs/superpowers/plans/2026-10-08-todo-v1-10.md` i `docs/superpowers/progress-v1-10.md`. Automatske provere su prošle (348 Node testova, svih 348 prošlo). V1.10 stiže u `main` kroz svoj PR. Za V1.10 se ne pravi novi ZIP paket; sledeći je planiran posle V1.12. Upotreba nove sintakse i pregleda na iPhone-u je **manual-pending**.
+
+## V1.9 — spremno za beta testiranje (V1.9.1)
 
 Cilj je mala beta grupa na iPhone-u (Safari), i dalje bez backend-a, naloga i sinhronizacije; to stiže sa V2.0 mobilnom aplikacijom.
 
@@ -52,8 +75,8 @@ Cilj je mala beta grupa na iPhone-u (Safari), i dalje bez backend-a, naloga i si
 - **Rad bez interneta.** Fontovi i Phosphor ikonice su lokalni, sa licencama; CDN se više ne koristi. Service worker čuva osnovne fajlove aplikacije u kešu označenom verzijom. Nova verzija čeka dok korisnik ne dodirne „Osveži”; stranica se nikad ne osvežava sama.
 - **Zaštita podataka.** Aplikacija traži od browsera trajno čuvanje (`navigator.storage.persist()`) pri prvom dodiru u sesiji ili iz Podešavanja → Podaci → Trajno čuvanje, gde se vidi i status. Today prikazuje podsetnik kada je poslednja rezervna kopija starija od zadatog broja dana (podrazumevano 7; Isključeno / 3 / 7 / 14 / 30), sa izvozom jednim dodirom i opcijom „Podseti me sutra” (24 sata).
 - **Srpski interfejs.** Sve je na srpskom (latinica, `sr-Latn`), uključujući natpise u Search prozoru; ponašanje Search-a je isto. Datumi i brojevi koriste `sr-Latn-RS`. Potvrde i dalje traže kucanje `RESET` i `RESTORE`.
-- **Quick Add na srpskom.** Na kraju naslova se prepoznaju `danas`, `sutra` i dani u nedelji, sa i bez dijakritika, i posle `u` (npr. `u sredu`, `cetvrtak`), kao i vreme `u 9:30`. Engleske reči i dalje rade.
-- **Verzija i prijava problema.** Verzija `1.9.1` se vidi u kartici Podešavanja → O aplikaciji. „Prijavi problem” otvara e-mail na adresu `marko.radicevic@ivapix.cloud` (zadata u V1.9.1) sa verzijom i podacima o uređaju, bez podataka iz aplikacije.
+- **Quick Add na srpskom.** Na kraju naslova se prepoznaju `danas`, `sutra` i dani u nedelji, sa i bez dijakritika, i posle `u` (npr. `u sredu`, `cetvrtak`), kao i vreme `u 9:30`. Engleske reči i dalje rade. V1.10 proširuje ovu sintaksu (gore).
+- **Verzija i prijava problema.** Verzija (`1.9.1` u tom izdanju, sada `1.10.0`) se vidi u kartici Podešavanja → O aplikaciji. „Prijavi problem” otvara e-mail na adresu `marko.radicevic@ivapix.cloud` (zadata u V1.9.1) sa verzijom i podacima o uređaju, bez podataka iz aplikacije.
 - **Uputstvo i provera pre bete (V1.9.1).** Podešavanja → O aplikaciji → „Uputstvo za beta testere” otvara `uputstvo.html`: kratko uputstvo na srpskom (instalacija na iPhone, podaci na uređaju, rezervne kopije, brzo dodavanje, rad bez interneta i nove verzije, ograničenja, prijava problema). Stranica nije u kešu service worker-a, pa se otvara samo sa internetom. `docs/beta/provera-pre-bete.md` je ručna provera B1–B24 pre slanja testerima.
 - **Ispravke.** V1.9.1 prevodi još dva engleska teksta: oznaku „Planiraj za” u brzom dodavanju dok se kuca i red „Provera:” u Podešavanja → Podaci posle uvoza ili resetovanja. Zvezdica omiljene beleške ili resursa ponovo se vidi; početak nedelje se svuda tumači isto; uklonjen je zastareli red o početku nedelje iz opštih podešavanja; ID-jevi se prave i bez `crypto.randomUUID` (npr. na lokalnoj HTTP adresi).
 
@@ -190,6 +213,9 @@ varijable, automatsko kreiranje po rasporedu ili deljenje Saved View-a?
 - Na užim ekranima je donja navigacija stalno dostupna i nalazi se ispred
   sadržaja, dok je Quick Add pozicioniran iznad nje.
 - Task se može završiti swipe gestom udesno.
+- Od V1.10 naslov u brzom dodavanju prepoznaje datum, vreme, rok, trajanje,
+  `+projekat`, `@oblast`, `#oznaku` i `!prioritet`, uz pregled prepoznatog ispod
+  naslova.
 - Focus stanje, tastatura i modalni prozori imaju pristupačne focus stilove.
 
 **Za brainstorming:** da li dodati glasovni unos, predloge na osnovu teksta,
@@ -223,17 +249,19 @@ quick-add komande poput `tomorrow`, skeniranje slike ili offline queue?
 python3 -m http.server 8080
 ```
 
-Zatim otvoriti `http://localhost:8080`. Service worker se registruje samo na `https:` ili `localhost`. GitHub Pages verzija je na `https://marko-ivapix.github.io/dailo/` i prikazuje `main`: V1.9 je tamo od PR #5, a V1.9.1 stiže posle spajanja u `main`. Uputstvo za testere: `https://marko-ivapix.github.io/dailo/uputstvo.html`.
+Zatim otvoriti `http://localhost:8080`. Service worker se registruje samo na `https:` ili `localhost`. GitHub Pages verzija je na `https://marko-ivapix.github.io/dailo/` i prikazuje `main`: V1.9.1 je tamo od PR #6, a V1.10 stiže posle spajanja u `main` kroz svoj PR. Uputstvo za testere: `https://marko-ivapix.github.io/dailo/uputstvo.html`.
 
 ## Trenutni status
 
-V1.9 je završen kao V1.9.1 (koraci 1–7) i proveren automatskim testovima prema
-`docs/superpowers/progress-v1-9.md` (335 Node testova, 0 grešaka); paket je
-`Dailo-v1.9.1-distributable.zip`. Sledi provera pre bete sa korisnikom
+V1.9 je završen kao V1.9.1 (koraci 1–7), spojen u `main` kroz PR #6 i proveren
+automatskim testovima prema `docs/superpowers/progress-v1-9.md` (335 Node
+testova, 0 grešaka); paket je `Dailo-v1.9.1-distributable.zip`. V1.10 pametno
+brzo dodavanje je urađeno i provereno prema `docs/superpowers/progress-v1-10.md`
+(348 Node testova, 0 grešaka) i čeka spajanje u `main` kroz svoj PR; novi ZIP
+paket se pravi tek posle V1.12. Sledi provera pre bete sa korisnikom
 (`docs/beta/provera-pre-bete.md`, B6–B24) i pozivanje testera, a paralelno
-V1.10 pametno brzo dodavanje, V1.11 nedeljni pregled, V1.12 trajanje i vremenski
-blokovi i nacrt specifikacije za V2.0 (mobilna aplikacija + Supabase
-sinhronizacija). V1.7 osnova ostaje zabeležena u
+V1.11 nedeljni pregled, V1.12 trajanje i vremenski blokovi i nacrt
+specifikacije za V2.0 (mobilna aplikacija + Supabase sinhronizacija). V1.7 osnova ostaje zabeležena u
 `docs/superpowers/progress-v1-7.md`. Tačni brojevi Node, syntax, Python/static i
 ZIP provera upisuju se tek posle stvarnog pokretanja komandi; browser/visual i
 iPhone acceptance ostaju **manual-pending** dok ih korisnik ne izvrši.

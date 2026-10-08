@@ -18,10 +18,11 @@
 
 ## Where we are
 
-- V1.3–V1.7 behavior and the V1.8 visual layer are implemented and covered by automated checks (288 Node tests). Native-browser acceptance is still **manual-pending**: 126 historical items in `docs/codex/ACCEPTANCE.md` are unchecked and the V1.8 manual gate in `docs/superpowers/progress-v1-8.md` is open.
+- V1.3–V1.7 behavior and the V1.8 visual layer are implemented and covered by automated checks (288 Node tests at V1.8). Native-browser acceptance is still **manual-pending**: 126 historical items in `docs/codex/ACCEPTANCE.md` are unchecked and the V1.8 manual gate in `docs/superpowers/progress-v1-8.md` is open.
 - First manual result (user, 2026-10-07): on the user's phone the Pages site loads and a new task persists after reload. Recorded later as iPhone, Safari tab (`docs/superpowers/progress-v1-8.md`).
 - **V1.9 update (2026-10-07):** Phase 1 is implemented (V1.9 plan Steps 1–6) and merged into `main` through PR #5, with automated checks green: 330 Node tests, 329 passed, 1 todo, the release gate for the problem-report address. Evidence: `docs/superpowers/progress-v1-9.md`.
-- **V1.9.1 update (2026-10-08):** Phase 1 is done. V1.9.1 sets the problem-report address the user supplied, adds the Serbian tester guide `uputstvo.html` (linked from Settings → About) and the beta checklist `docs/beta/provera-pre-bete.md`, and is packaged as `Dailo-v1.9.1-distributable.zip`. Automated checks: 335 Node tests, 335 passed, 0 todo. The user reported B1–B5 (install, layout, airplane mode, persistent storage, ZIP export/import) as passed on iPhone; B6–B24 are open.
+- **V1.9.1 update (2026-10-08):** Phase 1 is done. V1.9.1 sets the problem-report address the user supplied, adds the Serbian tester guide `uputstvo.html` (linked from Settings → About) and the beta checklist `docs/beta/provera-pre-bete.md`, and is packaged as `Dailo-v1.9.1-distributable.zip`. Automated checks: 335 Node tests, 335 passed, 0 todo. The user reported B1–B5 (install, layout, airplane mode, persistent storage, ZIP export/import) as passed on iPhone; B6–B24 are open. V1.9.1 was merged into `main` through PR #6 (`3597343`).
+- **V1.10 update (2026-10-08):** Phase 4 started. V1.10 Smart Quick Add (`1.10.0`) is committed on branch `ccr-95f6062b-lgg2fr` and pending merge into `main` through its PR. Automated checks: 348 Node tests, 348 passed, 0 todo (`docs/superpowers/progress-v1-10.md`). It is not packaged; `Dailo-v1.9.1-distributable.zip` stays the current artifact, and the next ZIP is planned after V1.12. Use on iPhone is **manual-pending**.
 - Release risks found while planning:
   1. **Data loss on iOS Safari.** WebKit deletes script-writable storage (localStorage, IndexedDB) for sites not opened for 7 days unless the site is added to the Home Screen. Dailo has no web app manifest and never calls `navigator.storage.persist()`.
   2. **Offline gaps.** Geist, Space Grotesk and Phosphor icons load from CDNs; there is no service worker, so the app does not open offline and icons disappear without network.
@@ -48,7 +49,7 @@ Constraints: no Search change, no bulk actions, delete/Undo and typed RESET/REST
 ## Phase 2 — Manual acceptance (together with the user)
 
 - [x] Define a **beta gate** subset of `ACCEPTANCE.md` + the V1.8 gate: install/offline, reload persistence, task create/edit/complete/delete + Undo, Today/Inbox/Calendar, Habit check-in, Goal progress, ZIP export/import/restore/reset, phone touch targets and navigation. Defined in V1.9.1 as `docs/beta/provera-pre-bete.md` (Serbian, B1–B24).
-- [ ] Run it on the user's phone and Mac browser; record each item with device/browser in the progress ledger. B1–B5 passed on iPhone (2026-10-08); B6 (update notice after V1.9.1 reaches `main`) is next; B6–B24 are open.
+- [ ] Run it on the user's phone and Mac browser; record each item with device/browser in the progress ledger. B1–B5 passed on iPhone (2026-10-08); B6 (update notice; V1.9.1 has been on `main` since PR #6, and V1.10.0 follows after its merge) is next; B6–B24 are open.
 - [ ] Fix blocking findings as V1.9.x patches (failing test first).
 
 ## Phase 3 — Beta launch
@@ -61,9 +62,9 @@ Constraints: no Search change, no bulk actions, delete/Undo and typed RESET/REST
 
 Each item gets its own spec; existing behavior was checked in source on 2026-10-07. Order and version numbers requested by the user on 2026-10-08: **V1.10 Smart Quick Add**, **V1.11 Weekly review**, **V1.12 Duration + time-blocking**.
 
-- [ ] **Smart Quick Add (V1.10).** Exists: `parseQuickPlanPhrase` (English `today`/`tomorrow`/weekday, `HH:MM`), `#tag`, `!priority`. V1.9 added Serbian day/time keywords. Missing: due-date syntax, duration (`30m`, `1h`), project/Area syntax, relative dates, live preview chips; voice input to be investigated per browser.
+- [x] **Smart Quick Add (V1.10).** Before: `parseQuickPlanPhrase` (English `today`/`tomorrow`/weekday, `HH:MM`), `#tag`, `!priority`; V1.9 added Serbian day/time keywords. Done in V1.10 (spec `docs/superpowers/specs/2026-10-08-todo-v1-10-design.md`, ledger `docs/superpowers/progress-v1-10.md`): `Core.parseQuickAdd` with due-date syntax (`rok petak`, `do petka`, `due friday`), duration (`45min`, `1h`, `1,5h`, `2 sata`), `+project`/`@area`, relative and calendar dates (`prekosutra`, `za 3 dana`, `in 2 weeks`, `15.10.`), Serbian priorities and live preview pills under the title. Voice input stays out of scope: iOS keyboard dictation already types into the title field. Pending merge into `main` through its PR; iPhone use is manual-pending.
 - [ ] **Weekly review (V1.11).** Exists: Today "Daily review" stats card. Missing: a guided weekly flow (Inbox to zero, overdue, next week, Goal progress, Habit stats, Area check) with a completion record.
-- [ ] **Duration + time-blocking (V1.12).** Exists: `durationMinutes`, same-day planned-time blocks and overlap detection (`js/core.js`). Missing: duration entry in Quick Add, an hourly Day/Week grid (previously deferred), drag into time slots, daily capacity.
+- [ ] **Duration + time-blocking (V1.12).** Exists: `durationMinutes`, same-day planned-time blocks and overlap detection (`js/core.js`); since V1.10 Quick Add reads durations (`45min`, `1h30`). Missing: an hourly Day/Week grid (previously deferred), drag into time slots, daily capacity. The next ZIP is planned after V1.12.
 
 ## Phase 5 — V2.0 Mobile app + Supabase sync
 
@@ -81,4 +82,4 @@ Spec must decide:
 
 ## Next step
 
-Phase 1 is done (V1.9.1). The user runs the beta gate (`docs/beta/provera-pre-bete.md`, B6–B24) and invites testers; fixes ship as V1.9.x patches with a failing test first. In parallel, Phase 4 starts at the user's request (2026-10-08): V1.10 Smart Quick Add, V1.11 Weekly review and V1.12 Duration + time-blocking, each with its own versioned spec and plan, plus a V2.0 spec draft for Phase 5 (it amends the no-backend rule only once the user approves it).
+Phase 1 is done (V1.9.1, on `main` since PR #6). The user runs the beta gate (`docs/beta/provera-pre-bete.md`, B6–B24) and invites testers; fixes ship as patches with a failing test first. In parallel, Phase 4 runs at the user's request (2026-10-08): V1.10 Smart Quick Add is done and pending merge into `main` through its PR; next are V1.11 Weekly review and V1.12 Duration + time-blocking, each with its own versioned spec and plan, plus a V2.0 spec draft for Phase 5 (it amends the no-backend rule only once the user approves it).

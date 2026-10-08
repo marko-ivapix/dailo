@@ -3,9 +3,9 @@
 ## Before editing
 
 1. Read `CLAUDE.md`, `AGENTS.md` and `docs/claude/CONTINUATION.md`.
-2. Inspect the current source, relevant tests and the current progress ledger (`docs/superpowers/progress-v1-9.md`; V1.7 remains the behavior baseline ledger).
+2. Inspect the current source, relevant tests and the current progress ledger (`docs/superpowers/progress-v1-10.md`; `docs/superpowers/progress-v1-9.md` holds the user's iPhone results; V1.7 remains the behavior baseline ledger).
 3. Identify whether the requested behavior already exists in a different UI module or derived view.
-4. Preserve existing V1.2–V1.6 behavior unless the approved V1.7 design explicitly changes it. Treat any V1.8 redesign as a visual change until a new spec says otherwise. V1.9 changes only what its approved spec lists (install, offline, data protection, Serbian UI, version/problem report, fixes G1–G3); V1.9.1 completes its Step 7 (report address, tester guide, beta checklist). Phase 4 features (V1.10+) each need their own approved spec.
+4. Preserve existing V1.2–V1.6 behavior unless the approved V1.7 design explicitly changes it. Treat any V1.8 redesign as a visual change until a new spec says otherwise. V1.9 changes only what its approved spec lists (install, offline, data protection, Serbian UI, version/problem report, fixes G1–G3); V1.9.1 completes its Step 7 (report address, tester guide, beta checklist). Phase 4 features (V1.10+) each need their own approved spec; V1.10 changes only Quick Add parsing, saving precedence and its preview.
 
 ## Product constraints
 
@@ -30,10 +30,10 @@
 - Prefer small additive changes over broad rewrites of `js/app.js`.
 - Add every new runtime file (script, stylesheet, font, icon) to `SHELL_FILES` in `sw.js`; `tests/offline-v1-9.test.js` fails otherwise.
 - Bump `APP_VERSION` in `js/release.js` and `VERSION` in `sw.js` together for a release.
+- Pin the exact version only in the newest release test (since V1.10: `tests/quick-add-v1-10.test.js`). When releasing, move the pin into the new release's test and relax the previous one to "this version or later"; older release tests keep checking that `sw.js` follows `APP_VERSION`.
 - `REPORT_EMAIL` in `js/release.js` holds only an address the user supplied; never guess or change it on your own.
 - `uputstvo.html` is a standalone page outside the precache (online only). It may reference local files only; `tests/beta-v1-9-1.test.js` checks that.
-- New CSS goes into the V1.9 layer (or a later layer) before the phone touch-target guard, which stays the final rule.
-
+- New CSS goes into the newest version layer (V1.10 Quick Add preview at the time of writing) or a new later layer, before the phone touch-target guard, which stays the final rule.
 ## Localization (i18n) rules
 
 - Every user-visible string goes through `tr()`, `trn()` or `msg()` with a quoted literal English key, e.g. `tr('Export backup')`. Template-literal keys are rejected by `tests/i18n-v1-9.test.js`.

@@ -1,6 +1,6 @@
 # Current implementation architecture
 
-This document records the V1.9 implementation inspected on 2026-10-07. It describes mechanisms present in source, not proof of functional, visual or native-browser acceptance. Read `AGENTS.md` and the applicable versioned spec before changing behavior.
+This document records the V1.9 implementation inspected on 2026-10-07 and the V1.10 Quick Add parser inspected on 2026-10-08 (`c64bd81`). It describes mechanisms present in source, not proof of functional, visual or native-browser acceptance. Read `AGENTS.md` and the applicable versioned spec before changing behavior.
 
 ## Composition and module boundaries
 
@@ -60,6 +60,19 @@ Automatic captures are scheduled after one idle second, rate limited to five min
 - **Persistence.** `refreshStoragePersistence(request)` feature-detects `navigator.storage.persisted/persist/estimate` and reports `granted`, `denied`, `unsupported` or `unknown` with usage/quota. Startup only reads the status. The first user click of a session requests persistence once, and Settings → Data offers Request while the state is `denied`. The click trigger replaces the spec's "after the first successful save", because timer-driven saves can happen without user activity.
 - **Backup reminder.** `backupReminderNotice()` runs only from `renderToday()`, never inside modals. It asks `Core.backupReminderDue()` with `backupStatus.lastExport`, `Core.backupReminderDays(settings)`, the oldest record `createdAt` and the device-local snooze time. When due, it renders one `role="status"` panel with Export backup (the existing `export-backup` action) and Remind me tomorrow (snooze for 24 h in localStorage `todoAppBackupReminderSnoozedUntil`).
 - **Problem report.** `environmentInfo()` supplies the user agent, standalone flag and persistence state to `DailoRelease.problemReportMailto()`; app data is never included.
+
+## Quick Add parsing (V1.10)
+
+- **Core.** `Core.parseQuickAdd(text, { today, tags, projects, areas, parsePlan })` is pure and returns `{ title, plannedDate, plannedTime, dueDate, durationMinutes, priority, tagIds, projectId, areaId }` (`null` or `[]` when absent).
+  - **Tokens first.** `#tag`, `!priority` (English or Serbian), `+project` and `@area` are taken from anywhere in the title. Projects and Areas use a loose name match (case, spaces, `_`, `-` and diacritics ignored, `đ` as `dj`) and skip archived records; `#tag` matching is unchanged, and several tags can apply. For priority, project and Area the first token wins and later ones stay in the title; unknown tokens stay too. A project clears the Area.
+  - **Then trailing clauses.** The remaining words are read right to left; each step takes one clause (plan date, time, due date or duration) from the end. Parsing stops at the first ordinary word, at a second clause of a kind already found, or when a clause would consume every remaining word (at least one title word stays). A clause that matches but is invalid returns the token-free title without any clause fields.
+  - `parsePlan: false` (an explicit Plan date) stops at plan-date words, so they stay in the title; time, due date and duration still parse.
+  - `Core.parseQuickPlanPhrase` is a wrapper with tokens off and only the plan-date and time slots, keeping its V1.5/V1.9 results. V1.9's `Core.splitQuickTime` is gone.
+- **App.**
+  - `parseQuickAddTitle(title, parsePlan)` passes `Core.dateOnly()` and the live tags, projects and Areas.
+  - The `quick-title` input handler re-parses on every keystroke: it replaces the `data-quick-preview-slot` content with `quickParsePreview(parsed)` and, without an explicit plan, updates the Plan chip. `renderQuickModal()` renders the same slot.
+  - `createTask()` re-parses at save time. Picker values win (an explicitly chosen plan date — a parsed plan date still beats a context default — time, due date, duration, project, Area); a project wins over an Area. `isInbox` and `projectOrder` use the resolved project, and parsed priority wins over the default `none`.
+- **Preview.** Read-only pills (`.quick-parse-item`) inside `data-quick-preview` (`role="group"`, `aria-label` "Recognized in title") in a slot with `aria-live="polite"`; the slot is empty and hidden (`:empty`) when nothing is recognized. Labels reuse `relativeDateLabel`, `priorityLabel` and the catalog keys "Due {date}" and "{minutes} min".
 
 ## Routes, rendering and events
 

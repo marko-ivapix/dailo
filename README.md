@@ -1,4 +1,4 @@
-# Dailo — HTML Prototype v1.9.1
+# Dailo — HTML Prototype v1.10
 
 Desktop-first, local-first functional prototype for a personal/freelancer task tracker. The product keeps a simple workflow:
 
@@ -19,10 +19,33 @@ Then open `http://localhost:8080`.
 
 - The service worker registers only on `https:` or `localhost`/`127.0.0.1`. On a plain-HTTP LAN address the app still works, without offline caching.
 - Shell files are served cache-first until `sw.js` changes. While developing on localhost, bypass or unregister the worker in the browser's developer tools to see edited files.
-- GitHub Pages serves the repository over HTTPS at `https://marko-ivapix.github.io/dailo/`. All paths and the manifest/service-worker scope are relative (`./`), so install and offline start work under the `/dailo/` sub-path; the user confirmed both on iPhone from this URL on 2026-10-08. Pages publishes `main`, which carries V1.9 since PR #5; V1.9.1 appears there once it is merged into `main`.
+- GitHub Pages serves the repository over HTTPS at `https://marko-ivapix.github.io/dailo/`. All paths and the manifest/service-worker scope are relative (`./`), so install and offline start work under the `/dailo/` sub-path; the user confirmed both on iPhone from this URL on 2026-10-08. Pages publishes `main`, which carries V1.9.1 since PR #6; V1.10 appears there once it is merged into `main` through its PR.
 - The Serbian beta tester guide is at `https://marko-ivapix.github.io/dailo/uputstvo.html` (also linked from Settings → About). It is not precached, so it opens only online.
 
-## V1.9 beta-ready (current release: V1.9.1)
+## V1.10 Smart Quick Add (current release)
+
+Version `1.10.0`. One Quick Add line can describe the whole task, in Serbian or English, and Dailo shows what it recognized before you save. For example:
+
+```text
+Pošalji ponudu +Klijenti #posao !visok rok petak 45min sutra u 9:30
+```
+
+This saves "Pošalji ponudu" in the project Klijenti, with the tag `posao`, high priority, due Friday, 45 minutes, planned for tomorrow at 09:30.
+
+- **Trailing clauses** are read from the end of the title, in any order, one of each kind:
+  - plan date: `danas`/`today`, `sutra`/`tomorrow`, `prekosutra`, weekdays (`u sredu`, `friday`), `za 3 dana`, `za 2 nedelje`, `in 3 days`, `in 2 weeks`, `15.10.`, `15.10.2026.`, `2026-10-15`. Today's weekday means next week; a date without a year means its next occurrence;
+  - time: `u 9:30`, `at 09:30`, `9:30`;
+  - due date: `rok petak`, `do petka` (weekday in the genitive), `do sutra`, `do 15.10.`, `due friday`;
+  - duration: `45min`, `45 min`, `45m`, `1h`, `1,5h`, `1h30`, `1h30m`, `1h 30min`, `2 sata` (1–1440 minutes).
+- **Tokens anywhere:** `#tag`, `!high`/`!medium`/`!low` or `!visok`/`!srednji`/`!nizak`, `+project`, `@area`. Projects and Areas match existing, non-archived names loosely (case, spaces, `_`, `-` and diacritics are ignored), so `+kucni_projekat` finds "Kućni projekat". Unknown tokens stay in the title, and nothing is created. The first priority token wins (V1.5 took the last). A project wins over an Area.
+- **What stays as written:** parsing stops at the first ordinary word, and at least one word always remains as the title. An invalid clause (`25:00`, `31.02.`, `0min`) leaves the trailing part unchanged. `do 17:00` and a weekday after `za` (`za nedelju`) are not parsed; V1.9 parsed the latter.
+- **Pickers win.** A plan date, time, due date, duration, project or Area chosen in the Quick Add pickers beats the parsed value; with an explicit plan date, plan-date words stay in the title. A parsed project or plan date files the task outside the Inbox.
+- **Live preview.** Pills under the title ("Prepoznato u naslovu") list the recognized plan date and time, due date, duration, project or Area, tags and priority, and update on every keystroke. Nothing is shown when nothing is recognized.
+- The beta guide `uputstvo.html` lists the new syntax. Voice input stays out of scope: iOS keyboard dictation already types into the title field.
+
+Spec: `docs/superpowers/specs/2026-10-08-todo-v1-10-design.md`. Plan: `docs/superpowers/plans/2026-10-08-todo-v1-10.md`. Evidence: `docs/superpowers/progress-v1-10.md` (348 Node tests, 348 passed). V1.10 is pending merge into `main` through its PR. No ZIP is built for V1.10; `Dailo-v1.9.1-distributable.zip` stays the current package. Typing the new syntax and the preview on a real iPhone are **manual-pending**.
+
+## V1.9 beta-ready (V1.9.1)
 
 Local-first build for a small Serbian-speaking beta on iPhone Safari. There is still no backend, account or sync; those arrive with the V2.0 mobile app.
 
@@ -32,8 +55,8 @@ Local-first build for a small Serbian-speaking beta on iPhone Safari. There is s
 - **Persistent storage.** Dailo asks the browser to keep its data (`navigator.storage.persist()`) after the first tap in a session, or from Settings → Data → Persistent storage, which also shows the status and usage.
 - **Backup reminder.** When the last ZIP export is older than the interval (default 7 days), Today shows one notice with Export backup and Remind me tomorrow (24-hour snooze). Without any export, it counts from the oldest record; an empty workspace gets no reminder. The interval (Off / 3 / 7 / 14 / 30 days) is in Settings → Data.
 - **Serbian interface (`sr-Latn`).** Every screen, dialog, toast, Undo message, recovery screen and the Search modal's labels are Serbian. Dates and numbers use `sr-Latn-RS`. Search behavior is unchanged, and the typed confirmations stay `RESET` and `RESTORE`.
-- **Serbian Quick Add.** Trailing `danas`, `sutra` and weekdays (`ponedeljak` … `nedelja`, with or without diacritics, optionally after `u`, e.g. `u sredu`) set the plan date; `u 9:30` sets the time. English keywords keep working.
-- **Version and problem report.** Version `1.9.1` appears in Settings → About and the brand tooltip; the backup manifest records `releaseVersion`. "Report a problem" opens an e-mail to the beta address `marko.radicevic@ivapix.cloud` (configured in V1.9.1) with the version and device details only, never app data.
+- **Serbian Quick Add.** Trailing `danas`, `sutra` and weekdays (`ponedeljak` … `nedelja`, with or without diacritics, optionally after `u`, e.g. `u sredu`) set the plan date; `u 9:30` sets the time. English keywords keep working. V1.10 extends this syntax (above).
+- **Version and problem report.** The version (`1.9.1` in that release, `1.10.0` now) appears in Settings → About and the brand tooltip; the backup manifest records `releaseVersion`. "Report a problem" opens an e-mail to the beta address `marko.radicevic@ivapix.cloud` (configured in V1.9.1) with the version and device details only, never app data.
 - **Beta tester guide and checklist (V1.9.1).** Settings → About → "Beta tester guide" opens `uputstvo.html`, a short Serbian page: install on iPhone, data on the device, backups, Quick Add, offline use and the update notice, limitations and how to report a problem. `docs/beta/provera-pre-bete.md` is the Serbian beta checklist (B1–B24) to run before inviting testers.
 - **Fixes.** V1.9.1 translates two remaining English fallbacks: the live Quick Add plan chip and the Settings → Data "Validation" line after an import or reset. The favorite star icon renders again (G1); a stored week start of `0` now behaves as Sunday everywhere (G2); the stale disabled "Week starts on" row is gone from Settings → General (G3). `Core.makeUuid()` falls back to `crypto.getRandomValues` or `Math.random` where `crypto.randomUUID` is unavailable, such as plain-HTTP LAN addresses.
 
@@ -73,7 +96,7 @@ Spec: `docs/superpowers/specs/2026-10-07-todo-v1-9-design.md`. Plan: `docs/super
 
 Spec: `docs/superpowers/specs/2026-10-07-todo-v1-8-design.md`. Plan: `docs/superpowers/plans/2026-10-07-todo-v1-8.md`. Evidence: `docs/superpowers/progress-v1-8.md`. V1.8 visual, responsive, touch, keyboard and assistive-technology acceptance in a native browser is **manual-pending**.
 
-The V1.9 evidence ledger is `docs/superpowers/progress-v1-9.md`; the V1.7 release ledger is `docs/superpowers/progress-v1-7.md`. Native browser acceptance is **manual-pending** unless that ledger explicitly records a user-owned-browser run; static checks and Node tests do not imply visual or browser acceptance.
+The V1.10 evidence ledger is `docs/superpowers/progress-v1-10.md`; the V1.9 ledger `docs/superpowers/progress-v1-9.md` also holds the user's iPhone results; the V1.7 release ledger is `docs/superpowers/progress-v1-7.md`. Native browser acceptance is **manual-pending** unless that ledger explicitly records a user-owned-browser run; static checks and Node tests do not imply visual or browser acceptance.
 
 For Claude Code continuation, start with `CLAUDE.md` and `docs/claude/CONTINUATION.md`. Historical versioned specs remain traceability documents; current source and focused tests are the factual implementation baseline.
 
@@ -93,7 +116,7 @@ Storage failures distinguish unsaved changes from an automatic snapshot failure 
 
 ### Verification status
 
-The latest verification is recorded in `docs/superpowers/progress-v1-9.md` (V1.9.1, plan Step 7: 335 Node tests, 335 passed, 0 failed, 0 todo). The release package is `Dailo-v1.9.1-distributable.zip` with a `.sha256` sidecar (recipe in `docs/claude/TESTING_AND_RELEASE.md`). V1.7 release evidence stays in `docs/superpowers/progress-v1-7.md`. Both distinguish automated evidence from the **manual-pending** user-owned-browser and iPhone gate; no isolated Chromium or personal Chrome is opened by the implementation workflow.
+The latest verification is recorded in `docs/superpowers/progress-v1-10.md` (V1.10: 348 Node tests, 348 passed, 0 failed, 0 todo); the V1.9.1 record (335 tests) is in `docs/superpowers/progress-v1-9.md`. The release package is still `Dailo-v1.9.1-distributable.zip` with a `.sha256` sidecar (recipe in `docs/claude/TESTING_AND_RELEASE.md`); V1.10 is not packaged, and the next ZIP is planned after V1.12. V1.7 release evidence stays in `docs/superpowers/progress-v1-7.md`. Both distinguish automated evidence from the **manual-pending** user-owned-browser and iPhone gate; no isolated Chromium or personal Chrome is opened by the implementation workflow.
 
 ## V1.4 foundation
 
@@ -208,15 +231,17 @@ Cancel | Without files | Copy files
 
 ### V1.2/V1.3 — Faster planning
 
-Natural-language Quick Add recognizes only deterministic trailing planning phrases:
+Natural-language Quick Add recognizes only deterministic phrases: trailing clauses at the end of the title and a few tokens anywhere in it.
 
 ```text
 Send invoice tomorrow
 Call today
 Update homepage Friday
+Pošalji fakturu sutra u 9:30
+Izveštaj +Klijenti rok petak 1,5h
 ```
 
-Unsupported/non-trailing phrases are left untouched. An explicitly selected Plan date always wins over parsed text. V1.9 adds the Serbian keywords `danas`, `sutra`, weekdays (optionally after `u`) and `u H:MM`, for example `Pošalji fakturu sutra u 9:30`.
+Unsupported/non-trailing phrases are left untouched. An explicitly selected Plan date always wins over parsed text. V1.9 added the Serbian keywords `danas`, `sutra`, weekdays (optionally after `u`) and `u H:MM`. Since V1.10, `Core.parseQuickAdd` also reads due dates (`rok petak`, `do petka`, `due friday`), durations (`45min`, `1h30`, `2 sata`), relative and calendar plan dates (`prekosutra`, `za 3 dana`, `in 2 weeks`, `15.10.`), Serbian priorities (`!visok`, `!srednji`, `!nizak`), `+project` and `@area`, and the Quick Add dialog previews the recognized fields under the title. Values chosen in the Quick Add pickers still win; see the V1.10 section above.
 
 Task drag & drop now supports context moves in addition to same-list reordering:
 
