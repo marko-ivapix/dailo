@@ -16,7 +16,7 @@
 
 | # | Decision | Status |
 | --- | --- | --- |
-| G1 | **Phone bottom navigation:** Danas, Inbox, Zadaci, Kalendar, Navike, Još (six items). Goals and the other routes move under "Još". Still open: what "Zadaci" shows, and whether six labels fit at 320–375 px. | decided |
+| G1 | **Phone bottom navigation:** Danas, Inbox, Zadaci, Kalendar, Navike, Još (six items). Goals and the other routes move under "Još". What "Zadaci" shows is decided in Z1–Z6; still open: whether six labels fit at 320–375 px. | decided |
 | G2 | **Adding:** one floating "+" at the bottom right (as today). No "+" in screen headers. | decided |
 | G3 | **Background:** neutral graphite (the current `#0F1114` family), not the navy of image 1. The user left it to Claude's recommendation: the blue accent and the red, amber and green status colors read more clearly on a neutral base. | decided |
 | G4 | **Font:** Geist for now; it may change later. | decided |
@@ -41,7 +41,7 @@
 - **Daily review and actions:** the cards go away. The section counts and "Završeno · N" cover the day, and the weekly review stays under "Još".
 - **Goals and milestones:** a goal or milestone due today or overdue appears as an ordinary row in "Planirano danas" or "Zakasnelo", with a target icon instead of the checkbox.
 - **Capacity:** only in Calendar → Dan.
-- **Suggestions:** the section leaves Today; it can go to Inbox or Zadaci when those screens are designed.
+- **Suggestions:** the section leaves Today and goes to the top of Zadaci (Z2).
 
 ## Task details (image 1, middle)
 
@@ -154,3 +154,15 @@ Images 3–9: "Edit task", and the Project, Planned date, Priority, Reminder, Ta
 | M4 | **"Još" groups as cards:** Zakačeno (pinned areas and saved views as ordinary rows, without the amber pin), Planiranje (Ciljevi, Oblasti, Čišćenje, Nedeljni pregled), Biblioteka (Beleške, Resursi, Oznake, Šabloni, Sačuvani prikazi), Arhiva (Završeni zadaci, Arhivirani projekti), and Podešavanja with the sync state underneath. Upcoming moved to the Calendar (C9), Search is on Today (T1). The active bottom item uses the light-blue icon and label, not a filled blue background. | decided |
 | M5 | **Settings groups:** Nalog (Sinhronizacija); Opšte (Prvi dan nedelje, Dnevni kapacitet, Podsetnici); Podaci (Rezervna kopija with the backup reminder inside, Vrati iz kopije, Lokalni snimci, Trajno čuvanje, Popuni primerima, Resetuj aplikaciju in red); Pomoć (Uputstvo, Prijavi problem, Instaliraj aplikaciju while not installed, Privatnost, O aplikaciji with the version). Keyboard shortcuts and compact density only on desktop. "‹ Još" at the top left. | decided |
 | M6 | **Settings that leave:** "Izgled / Tema" (dark is the only theme), "Today summary" (the simpler Today has no summary strip), and "Obriši završene zadatke" moves to the Završeni zadaci screen. | decided |
+
+## Tasks ("Zadaci", Claude's proposal, prototype `zadaci-predlog.html`)
+
+| # | Decision | Status |
+| --- | --- | --- |
+| Z1 | **Screen top:** the "Zadaci" title with a search icon and one summary line ("14 otvorenih · 4 projekta"), then a "Kad stignem / Projekti" switch. "Kad stignem" is the default view. | decided |
+| Z2 | **"Predlozi za danas"** (the suggestions that left Today, T2a) sit at the top of Zadaci as a folded card with the count. The rules stay as today: due today, missed plan, due tomorrow, due within seven days. Each row has "+ Danas", and the card ends with "Dodaj sve u Danas". | decided |
+| Z3 | **"Bilo kad" is renamed "Kad stignem"** everywhere in the app (the Serbian label of Anytime, today "Bilo kada"). It holds sorted, open tasks without a plan date; a due date may exist. | decided |
+| Z4 | **Inbox stays a separate place** in the bottom navigation, for everything captured and not yet sorted (tasks, goals, habits, notes, resources). "Kad stignem" is sorted work waiting for a day and is never emptied like Inbox. | decided |
+| Z5 | **Kad stignem view:** the tasks grouped by project ("Bez projekta" first), in the Today row style (T3). | accepted as the basis (no objection) |
+| Z6 | **Projekti view:** a "Bez projekta" row on top, then the projects **grouped by area**; each row has the project color dot, the open count, the nearest due date in the G6 colors and a thin bar of done tasks; "+ Novi projekat" at the end. | decided (grouping); accepted as the basis (row) |
+| Z7 | **Project screen:** "‹ Zadaci", color, name, area, open and done counts, the linked goal ("Cilj: …"); open tasks, "+ Dodaj zadatak", done tasks folded at the bottom; "⋯" with Preimenuj i boja, Oblast, Povezani cilj, Sačuvaj kao šablon, Arhiviraj, Obriši. The floating "+" adds a task to the open project. | accepted as the basis (no objection) |
