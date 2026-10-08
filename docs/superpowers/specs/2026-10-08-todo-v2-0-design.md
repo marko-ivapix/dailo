@@ -1,9 +1,9 @@
 # Dailo V2.0 — Mobile app and Supabase sync (DRAFT)
 
-**Status:** **DRAFT — decisions recorded 2026-10-08, not yet approved.** All six decisions are answered (section "Decisions for the user"). Before any code is written it still needs the user's explicit approval to start and the accounts (section "What the user provides").
+**Status:** **APPROVED 2026-10-08** ("da") with all six decisions answered (section "Decisions for the user"). Work starts with phase V2.0-a; the accounts (section "What the user provides") are needed for real use, not for writing and testing the code.
 **Baseline:** V1.12 (Phase 4 done).
 **Roadmap:** `docs/superpowers/plans/2026-10-07-release-roadmap.md`, Phase 5. The user decided on 2026-10-07 that the mobile app and the database ship together.
-**Rule change:** this spec, once approved, amends `AGENTS.md` "No backend, accounts or cloud sync" for V2.0 only. Until then that rule stands, and no backend code, keys or accounts are added to the repository.
+**Rule change:** this approved spec amends `AGENTS.md` "No backend, accounts or cloud sync" for V2.0: optional Supabase sync is allowed as described here, and the app must keep working fully without an account. The service-role key never enters the repository. The project URL and the public anon key go into `js/sync-config.js` only when the user supplies them. The anon key is public by Supabase design; Row Level Security protects the data.
 
 ## Goal
 
@@ -39,20 +39,31 @@ Two problems that V1.x cannot solve go away:
 ### C. Data mapping (Postgres + Row Level Security)
 
 - **Records table:** one generic table keeps the client model unchanged:
-  - `records(id text, user_id uuid, type text, data jsonb, updated_at timestamptz, deleted_at timestamptz, primary key (user_id, type, id))`;
-  - `type` is one of: tasks, projects, areas, tags, goals, habits, notes, resources, templates, savedViews, cleaning, settings.
-- **History tables:** `habit_logs(...)` and `goal_history(...)` mirror the IndexedDB stores.
-- **Attachments:** not synced in V2.0 (decision 4); they stay on the device where they were added. V2.1 moves the files to Supabase Storage (`attachments/<user_id>/<id>`), and their metadata travels with the owner record.
+  - `records(user_id uuid, type text, id text, data jsonb, deleted boolean, updated_at timestamptz, primary key (user_id, type, id))`;
+  - `type` is one of: tasks, projects, tags, areas, goals, habits, notes, resources, templates, savedViews, settings, habitLogs.
+- **What syncs:**
+  - **Collections:** each record of the local state collections. `ui` is device-local and never syncs.
+  - **Settings:** they are one record (`settings/settings`) without the device-local keys `backupStatus` and `compactDensity`.
+  - **Habit logs:** one record each (`habitLogs/<id>`).
+  - **Goal history:** it stays on the device in V2.0 and syncs in V2.1, together with attachments.
+- **Attachments:** not synced in V2.0 (decision 4); they stay on the device where they were added.
+  - Their `attachmentIds` field is not sent, and a pulled record keeps the local device's `attachmentIds`.
+  - V2.1 moves the files to Supabase Storage (`attachments/<user_id>/<id>`).
 - **Row Level Security:** on every table, `user_id = auth.uid()`.
-- **Deletes:** they become tombstones (`deleted_at`), so other devices learn about them; tombstones are purged after 90 days.
+- **Server clock:** a trigger sets `updated_at = clock_timestamp()` on every insert and update.
+- **History:** a second trigger copies the replaced row into `record_history`, so a version that lost a conflict can be recovered on the server.
+- **Deletes:** they become tombstones (`deleted = true`, `data = null`), so other devices learn about them.
+- **Account deletion:** `delete_my_account()` is a `security definer` function. It removes the user's rows, history and auth user.
 
 ### D. Sync model
 
-- **Local store first:** the local store stays the UI source of truth. Every saved change is queued (outbox) with the record's `updatedAt`.
-- **Push:** outbox records are upserted when the app is online, on start, on resume and every few minutes.
-- **Pull:** records changed since the last server cursor are fetched; the cursor is `updated_at` from the server clock.
-- **Conflicts:** last write wins per record on the server `updated_at`. The losing version is kept in the existing local recovery snapshots, so nothing is lost silently. The spec review must accept this policy (see decisions).
-- **Status and safety:** Settings shows sync status (last sync, pending changes, errors). The ZIP backup stays available, and so do Undo and recovery snapshots.
+- **Local store first:** the local store stays the UI source of truth. Nothing in the save path changes.
+- **Change detection:** a device-local shadow (`dailoSync` in `localStorage`, never in backups) stores a hash of every record as last synced. A sync compares the current local records with the shadow: changed and new records are upserted, and missing records become tombstones. No per-save outbox is needed.
+- **Order:** every sync pushes first and then pulls the records changed since the last server cursor. Pulling uses a 5-second overlap, and identical records are skipped, so late commits are not missed.
+- **When:** on start, on resume, a few seconds after a local save, every five minutes, when the device comes back online, and on "Sinhronizuj sada".
+- **Conflicts:** last write wins per record (decision 3). The push that reaches the server last wins. The replaced version is kept in `record_history` on the server.
+- **Applying pulls:** a pull is applied only when no dialog is open and no global operation runs; otherwise it waits for the next sync. Pulled state is normalized and saved through the existing save path, and habit logs are written through `TodoStorage`. A pulled habit log for a habit and date that already has a different local log replaces it.
+- **Status and safety:** Settings shows sync status (account, last sync, errors). The ZIP backup, Undo and recovery snapshots stay available.
 
 ### E. First sign-in and migration
 

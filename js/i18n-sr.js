@@ -1416,6 +1416,11 @@
     "Daily capacity": "Dnevni kapacitet",
     "Planned work per day, compared with task durations on Today and in the Calendar day view.": "Koliko rada planiraš dnevno; poredi se sa trajanjem zadataka na ekranu Danas i u dnevnom prikazu Kalendara.",
 
+    // V2.0-a Sync (js/sync.js, js/settings-ui.js, js/app.js)
+    "Network unavailable": "Mreža nije dostupna",
+    "Server error": "Greška na serveru",
+    "Not signed in": "Nema prijave na nalog",
+
     // Data, storage, backup and recovery errors shown to the user (js/backup.js, js/storage.js, js/core.js, js/app.js)
     "Interrupted operation": "Prekinuta operacija",
     "Undo failed": "Poništavanje nije uspelo",

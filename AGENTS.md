@@ -35,7 +35,7 @@ If a summary document conflicts with current source/tests, document the discrepa
 - Static browser application.
 - HTML + CSS + vanilla JavaScript.
 - No framework migration unless explicitly approved.
-- No backend, accounts or cloud sync in V1.7.
+- No backend, accounts or cloud sync in V1.x. V2.0 (approved 2026-10-08, `docs/superpowers/specs/2026-10-08-todo-v2-0-design.md`) adds optional Supabase sync with e-mail one-time-code sign-in. The app must keep working fully without an account, and the service-role key never enters the repository.
 - Primary metadata state is local-first.
 - `localStorage` stores compact application state.
 - IndexedDB stores large/growing data such as attachments, Habit logs, Goal history and recovery snapshots.
