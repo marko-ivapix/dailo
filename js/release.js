@@ -9,9 +9,9 @@
   const tr = (text, params) => (root.TodoI18n ? root.TodoI18n.tr(text, params) : String(text).replace(/\{(\w+)\}/g, (match, key) => (params && key in params ? String(params[key]) : match)));
 
   // Single source for the release version. sw.js repeats it in its cache name; tests keep them equal.
-  const APP_VERSION = '1.9.0';
+  const APP_VERSION = '1.9.1';
   // Beta problem reports go to this address by e-mail. Empty hides the report link.
-  const REPORT_EMAIL = '';
+  const REPORT_EMAIL = 'marko.radicevic@ivapix.cloud';
   const EMAIL_PATTERN = /^[^\s@?&#]+@[^\s@?&#]+\.[^\s@?&#]+$/;
 
   // Builds a mailto: link with version and device details only; app data is never included.

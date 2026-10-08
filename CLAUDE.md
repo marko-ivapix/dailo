@@ -1,12 +1,12 @@
 # Dailo — Claude project guide
 
-> Documentation synchronized on 2026-10-07 against the V1.9 source, tests and progress ledger. V1.7 is the behavior baseline and V1.8 (Quiet Graphite) the visual layer; both are on `main` (`994ac71`) at `https://github.com/marko-ivapix/dailo`, with `Dailo-v1.8-distributable.zip` as the current artifact. V1.9 "Beta-ready" (installable PWA, offline shell, data protection, Serbian UI, version and problem report) is implemented and verified by automated/static checks and merged into `main` through PR #5. `Dailo-v1.9-distributable.zip` is not built yet: it waits for the beta problem-report e-mail address. Native iPhone and browser acceptance is manual-pending.
+> Documentation synchronized on 2026-10-08 against the V1.9.1 source, tests and progress ledger. V1.7 is the behavior baseline and V1.8 (Quiet Graphite) the visual layer at `https://github.com/marko-ivapix/dailo`. V1.9 "Beta-ready" (installable PWA, offline shell, data protection, Serbian UI, version and problem report) was merged into `main` through PR #5. **V1.9.1** completes V1.9 plan Step 7: the problem-report address is set, Settings → About links the Serbian beta tester guide `uputstvo.html`, and `docs/beta/provera-pre-bete.md` is the beta checklist (B1–B24). The current artifact is `Dailo-v1.9.1-distributable.zip` (`Dailo-v1.8-distributable.zip` is the previous one; V1.9.0 was never packaged). The user reported the first iPhone checks as passed (B1–B5). Still manual: the update notice (B6) and the rest of the beta checklist (B7–B24); the backup reminder notice itself can only appear 7 days after an export.
 
 This file is the entry point for Claude and other coding agents working in this repository.
 
 ## Communicating with the user
 
-Always reply to the user **in Serbian and briefly**: say what it is or what was done, and how it was done. No long reports or exhaustive lists unless the user asks. Code, file names, commands and repository documentation keep their existing language (repository docs are English; `PROJECT_OVERVIEW.md` is Serbian).
+Always reply to the user **in Serbian and briefly**: say what it is or what was done, and how it was done. No long reports or exhaustive lists unless the user asks. Code, file names, commands and repository documentation keep their existing language (repository docs are English; `PROJECT_OVERVIEW.md` and the user-facing beta material — `docs/beta/` and the guide page `uputstvo.html` — are Serbian).
 
 The work branch is `main` (the GitHub default branch). `feature/todo-v1-3` was merged into it on 2026-10-07 (PR #2, `994ac71`) and is historical; do not develop on it.
 
@@ -34,8 +34,9 @@ Then consult the primary project files:
 - `docs/superpowers/specs/2026-10-07-todo-v1-8-design.md` — V1.8 Quiet Graphite / Swiss Compact visual design (tokens, responsive rules, preserved behaviors).
 - `docs/superpowers/plans/2026-10-07-todo-v1-8.md` and `docs/superpowers/progress-v1-8.md` — V1.8 plan and per-phase evidence.
 - `docs/superpowers/specs/2026-10-07-todo-v1-9-design.md` — approved V1.9 Beta-ready design (PWA install, offline, data protection, Serbian UI, version/problem report, fixes G1–G3, glossary).
-- `docs/superpowers/plans/2026-10-07-todo-v1-9.md` and `docs/superpowers/progress-v1-9.md` — V1.9 plan and per-step evidence (Steps 1–6 done, Step 7 open).
+- `docs/superpowers/plans/2026-10-07-todo-v1-9.md` and `docs/superpowers/progress-v1-9.md` — V1.9 plan and per-step evidence (Steps 1–7 done; Step 7 shipped as V1.9.1; the manual beta checklist B6–B24 is open).
 - `docs/superpowers/plans/2026-10-07-release-roadmap.md` — agreed path from the beta to V2.0 (mobile app + Supabase sync).
+- `docs/beta/provera-pre-bete.md` — Serbian beta-gate checklist B1–B24 (roadmap Phase 2); `uputstvo.html` — Serbian guide page for beta testers.
 
 The historical V1.3/V1.4/V1.5/V1.6 specifications and progress ledgers remain useful for intent and regression context. They are not a replacement for current source inspection.
 
@@ -72,13 +73,14 @@ python3 tests/run-browser-regressions.py --dry-run
 
 ## Current handoff boundary
 
-- V1.7 behavior is implemented and locally verified. The V1.8 visual redesign is implemented in `css/styles.css` (token system + one appended layer) with minimal markup hooks, verified by automated/static checks only; it is on `main` and packaged as `Dailo-v1.8-distributable.zip` (recipe in `docs/claude/TESTING_AND_RELEASE.md`).
-- V1.9 Beta-ready is implemented and merged into `main` through PR #5 (Steps 1–6 of its plan) and verified by automated/static checks only: Node 330 tests, 329 passed, 0 failed, 1 todo. The todo is the release gate for the problem-report address.
+- V1.7 behavior is implemented and locally verified. The V1.8 visual redesign is implemented in `css/styles.css` (token system + one appended layer) with minimal markup hooks, verified by automated/static checks only; it is on `main` and packaged as `Dailo-v1.8-distributable.zip` (previous artifact).
+- V1.9 Beta-ready (Steps 1–6) was merged into `main` through PR #5. V1.9.1 completes Step 7: `APP_VERSION` and `sw.js` `VERSION` are `1.9.1`, `REPORT_EMAIL` is the address the user supplied on 2026-10-08 with an explicit request to use it (so "Report a problem" is visible; never change it to an address the user has not supplied), Settings → About links `uputstvo.html`, two English fallbacks are translated (the live Quick Add plan chip and the persisted import/reset "Validation" sentences, both now guarded by audit tests), and the package is `Dailo-v1.9.1-distributable.zip` (recipe in `docs/claude/TESTING_AND_RELEASE.md`). Automated/static checks: Node 335 tests, 335 passed, 0 failed, 0 todo; the release gate is now a real assertion.
 - The browser UI is Serbian only (`sr-Latn`, no language switch). English source strings are the translation keys, and Node tests stay English (`js/i18n.js`, `js/i18n-sr.js`, `tests/support/i18n.js`).
 - Dailo installs to the iPhone Home Screen from Safari (`manifest.webmanifest`, `icons/`) and starts offline through a versioned service worker (`sw.js`, cache `dailo-shell-<APP_VERSION>`). Fonts and icons are vendored; no CDN is used at runtime.
 - Data protection: persistent-storage request and status, a 7-day backup reminder on Today (24 h snooze) and a backup manifest `releaseVersion`. Schema V3, IndexedDB v1 and ZIP `backupVersion: 2` are unchanged.
-- Still open (plan Step 7): set `REPORT_EMAIL` in `js/release.js` when the user supplies it, build `Dailo-v1.9-distributable.zip`, run the manual iPhone checklist. Never publish an address the user has not supplied.
+- Next work (roadmap Phase 4, requested by the user on 2026-10-08), each with its own versioned spec and plan and a failing test first: **V1.10 Smart Quick Add**, **V1.11 Weekly review**, **V1.12 Duration + time-blocking**; plus a **V2.0 spec draft** (mobile app + Supabase sync), which may amend the no-backend rule only once the user approves it. Running the beta checklist (B6–B24) and inviting testers stay with the user; fixes from it ship as V1.9.x patches.
+- User-facing beta material is Serbian (`docs/beta/`, `uputstvo.html`), an exception to "repository docs are English" like `PROJECT_OVERVIEW.md`. `uputstvo.html` is not in the service-worker precache, so it opens only online.
 - The app remains static HTML/CSS/vanilla JavaScript with localStorage + IndexedDB; there is no backend, account system, cloud sync or production REST API.
 - Global Search behavior and the no-bulk-actions rule are compatibility constraints. V1.9 translated the Search modal's fixed labels only (approved exception).
-- Native browser, iPhone install/standalone/offline, mobile touch, real IndexedDB/file chooser, Serbian wording and visual acceptance remain **manual-pending**. Never report them as green from Node/static checks.
+- iPhone results count only when the user reports them: install, standalone layout, airplane-mode start, Serbian UI and Quick Add, favorite star, persistent storage and ZIP export/import passed on 2026-10-08 (B1–B5, table in `docs/superpowers/progress-v1-9.md`). The update notice (B6), B7–B24, the backup reminder notice, Mac browser, mobile touch, real file chooser, a route-by-route Serbian wording check (truncation) and visual acceptance remain **manual-pending**. Never report them as green from Node/static checks.
 - For a new feature, create or update a versioned design/plan entry, add a focused failing test first, then implement the smallest compatible change. New user-visible text follows the i18n rules in `docs/claude/WORKING_RULES.md`.

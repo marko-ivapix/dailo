@@ -5,7 +5,7 @@
 1. Read `CLAUDE.md`, `AGENTS.md` and `docs/claude/CONTINUATION.md`.
 2. Inspect the current source, relevant tests and the current progress ledger (`docs/superpowers/progress-v1-9.md`; V1.7 remains the behavior baseline ledger).
 3. Identify whether the requested behavior already exists in a different UI module or derived view.
-4. Preserve existing V1.2–V1.6 behavior unless the approved V1.7 design explicitly changes it. Treat any V1.8 redesign as a visual change until a new spec says otherwise. V1.9 changes only what its approved spec lists (install, offline, data protection, Serbian UI, version/problem report, fixes G1–G3).
+4. Preserve existing V1.2–V1.6 behavior unless the approved V1.7 design explicitly changes it. Treat any V1.8 redesign as a visual change until a new spec says otherwise. V1.9 changes only what its approved spec lists (install, offline, data protection, Serbian UI, version/problem report, fixes G1–G3); V1.9.1 completes its Step 7 (report address, tester guide, beta checklist). Phase 4 features (V1.10+) each need their own approved spec.
 
 ## Product constraints
 
@@ -30,6 +30,8 @@
 - Prefer small additive changes over broad rewrites of `js/app.js`.
 - Add every new runtime file (script, stylesheet, font, icon) to `SHELL_FILES` in `sw.js`; `tests/offline-v1-9.test.js` fails otherwise.
 - Bump `APP_VERSION` in `js/release.js` and `VERSION` in `sw.js` together for a release.
+- `REPORT_EMAIL` in `js/release.js` holds only an address the user supplied; never guess or change it on your own.
+- `uputstvo.html` is a standalone page outside the precache (online only). It may reference local files only; `tests/beta-v1-9-1.test.js` checks that.
 - New CSS goes into the V1.9 layer (or a later layer) before the phone touch-target guard, which stays the final rule.
 
 ## Localization (i18n) rules
@@ -39,7 +41,7 @@
 - Plurals use `trn(count, one, other, params)` and a catalog entry keyed by the English "other" form with Serbian `one`/`few`/`other`.
 - Use `msg()` for keys that are stored or thrown (lookup-table labels, `validationResult` sentences, errors) and translate them where they are shown with `tr()` or `trMessage()`. Dynamic errors use the "Prefix: detail" shape so the prefix can be translated.
 - Add the Serbian (Latin script) entry to `js/i18n-sr.js` in the same change. The completeness test rejects missing keys, unused entries and placeholder mismatches.
-- The untranslated-text audit in `tests/i18n-v1-9.test.js` fails on literal English in markup: text nodes and `aria-label`/`aria-description`/`title`/`placeholder`/`alt` values in `js/*.js` may contain only `${…}` expressions and the allowlisted words `Dailo`, `https`, `ZIP`, `JSON`, `RESET`, `RESTORE`. `index.html` is written in Serbian directly.
+- The untranslated-text audit in `tests/i18n-v1-9.test.js` fails on literal English in markup: text nodes and `aria-label`/`aria-description`/`title`/`placeholder`/`alt` values in `js/*.js` may contain only `${…}` expressions and the allowlisted words `Dailo`, `https`, `ZIP`, `JSON`, `RESET`, `RESTORE`. Since V1.9.1 it also rejects capitalized English string literals inside `${…}` that are not `tr`/`msg`/`trn`/`trMessage` arguments (e.g. `${label || 'Plan for'}`; key names `Alt`/`Shift`/`Ctrl`/`Cmd`/`Enter`/`Esc`/`Tab`/`Space` are allowed), and every `validationResult:` literal must be `msg()`-marked. `index.html` is written in Serbian directly.
 - Use the approved glossary in `docs/superpowers/specs/2026-10-07-todo-v1-9-design.md` (section F) for product terms.
 - Format dates and numbers with `I18n.locale()` (`sr-Latn-RS` in the browser), never `undefined` or `'en'`.
 - Do not translate persisted values, IDs, enum values or the typed words `RESET`/`RESTORE`.
@@ -55,6 +57,8 @@
 - Do not use isolated Chromium as a substitute for the user's Chrome in this project workflow.
 
 ## Documentation rules
+
+Repository docs are English. Exceptions, written in Serbian (Latin script): `PROJECT_OVERVIEW.md` and the user-facing beta material — `docs/beta/` (e.g. `provera-pre-bete.md`) and the guide page `uputstvo.html`. Product terms there follow the V1.9 glossary and the in-app labels.
 
 Mark statements as one of:
 

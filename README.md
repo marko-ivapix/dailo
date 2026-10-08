@@ -1,4 +1,4 @@
-# Dailo — HTML Prototype v1.9
+# Dailo — HTML Prototype v1.9.1
 
 Desktop-first, local-first functional prototype for a personal/freelancer task tracker. The product keeps a simple workflow:
 
@@ -19,9 +19,10 @@ Then open `http://localhost:8080`.
 
 - The service worker registers only on `https:` or `localhost`/`127.0.0.1`. On a plain-HTTP LAN address the app still works, without offline caching.
 - Shell files are served cache-first until `sw.js` changes. While developing on localhost, bypass or unregister the worker in the browser's developer tools to see edited files.
-- GitHub Pages serves the repository over HTTPS at `https://marko-ivapix.github.io/dailo/`. All paths and the manifest/service-worker scope are relative (`./`), so install and offline start are designed to work under the `/dailo/` sub-path (not yet confirmed on a device). Pages publishes `main`, which carries V1.9 since PR #5.
+- GitHub Pages serves the repository over HTTPS at `https://marko-ivapix.github.io/dailo/`. All paths and the manifest/service-worker scope are relative (`./`), so install and offline start work under the `/dailo/` sub-path; the user confirmed both on iPhone from this URL on 2026-10-08. Pages publishes `main`, which carries V1.9 since PR #5; V1.9.1 appears there once it is merged into `main`.
+- The Serbian beta tester guide is at `https://marko-ivapix.github.io/dailo/uputstvo.html` (also linked from Settings → About). It is not precached, so it opens only online.
 
-## V1.9 beta-ready
+## V1.9 beta-ready (current release: V1.9.1)
 
 Local-first build for a small Serbian-speaking beta on iPhone Safari. There is still no backend, account or sync; those arrive with the V2.0 mobile app.
 
@@ -32,10 +33,11 @@ Local-first build for a small Serbian-speaking beta on iPhone Safari. There is s
 - **Backup reminder.** When the last ZIP export is older than the interval (default 7 days), Today shows one notice with Export backup and Remind me tomorrow (24-hour snooze). Without any export, it counts from the oldest record; an empty workspace gets no reminder. The interval (Off / 3 / 7 / 14 / 30 days) is in Settings → Data.
 - **Serbian interface (`sr-Latn`).** Every screen, dialog, toast, Undo message, recovery screen and the Search modal's labels are Serbian. Dates and numbers use `sr-Latn-RS`. Search behavior is unchanged, and the typed confirmations stay `RESET` and `RESTORE`.
 - **Serbian Quick Add.** Trailing `danas`, `sutra` and weekdays (`ponedeljak` … `nedelja`, with or without diacritics, optionally after `u`, e.g. `u sredu`) set the plan date; `u 9:30` sets the time. English keywords keep working.
-- **Version and problem report.** Version `1.9.0` appears in Settings → About and the brand tooltip; the backup manifest records `releaseVersion`. "Report a problem" opens an e-mail with the version and device details only, never app data. The link stays hidden until the beta report address is configured (pending).
-- **Fixes.** The favorite star icon renders again (G1); a stored week start of `0` now behaves as Sunday everywhere (G2); the stale disabled "Week starts on" row is gone from Settings → General (G3). `Core.makeUuid()` falls back to `crypto.getRandomValues` or `Math.random` where `crypto.randomUUID` is unavailable, such as plain-HTTP LAN addresses.
+- **Version and problem report.** Version `1.9.1` appears in Settings → About and the brand tooltip; the backup manifest records `releaseVersion`. "Report a problem" opens an e-mail to the beta address `marko.radicevic@ivapix.cloud` (configured in V1.9.1) with the version and device details only, never app data.
+- **Beta tester guide and checklist (V1.9.1).** Settings → About → "Beta tester guide" opens `uputstvo.html`, a short Serbian page: install on iPhone, data on the device, backups, Quick Add, offline use and the update notice, limitations and how to report a problem. `docs/beta/provera-pre-bete.md` is the Serbian beta checklist (B1–B24) to run before inviting testers.
+- **Fixes.** V1.9.1 translates two remaining English fallbacks: the live Quick Add plan chip and the Settings → Data "Validation" line after an import or reset. The favorite star icon renders again (G1); a stored week start of `0` now behaves as Sunday everywhere (G2); the stale disabled "Week starts on" row is gone from Settings → General (G3). `Core.makeUuid()` falls back to `crypto.getRandomValues` or `Math.random` where `crypto.randomUUID` is unavailable, such as plain-HTTP LAN addresses.
 
-Spec: `docs/superpowers/specs/2026-10-07-todo-v1-9-design.md`. Plan: `docs/superpowers/plans/2026-10-07-todo-v1-9.md`. Evidence: `docs/superpowers/progress-v1-9.md`. Install, standalone layout, offline launch, the update prompt, persistence, the backup reminder and the Serbian wording on a real iPhone are **manual-pending**.
+Spec: `docs/superpowers/specs/2026-10-07-todo-v1-9-design.md`. Plan: `docs/superpowers/plans/2026-10-07-todo-v1-9.md`. Evidence: `docs/superpowers/progress-v1-9.md`. The user reported install, standalone layout, airplane-mode launch, the Serbian UI and Quick Add, the favorite star, persistent storage and ZIP export/import as working on iPhone (2026-10-08). The update notice, the problem-report e-mail, the backup reminder notice (only 7 days after an export) and the rest of the beta checklist are **manual-pending**.
 
 ## V1.6 highlights
 
@@ -91,7 +93,7 @@ Storage failures distinguish unsaved changes from an automatic snapshot failure 
 
 ### Verification status
 
-The latest verification is recorded in `docs/superpowers/progress-v1-9.md` (V1.9 Step 6: 330 Node tests, 329 passed, 0 failed, 1 todo; the todo is the release gate waiting for the problem-report address). V1.7 release evidence stays in `docs/superpowers/progress-v1-7.md`. Both distinguish automated evidence from the **manual-pending** user-owned-browser and iPhone gate; no isolated Chromium or personal Chrome is opened by the implementation workflow.
+The latest verification is recorded in `docs/superpowers/progress-v1-9.md` (V1.9.1, plan Step 7: 335 Node tests, 335 passed, 0 failed, 0 todo). The release package is `Dailo-v1.9.1-distributable.zip` with a `.sha256` sidecar (recipe in `docs/claude/TESTING_AND_RELEASE.md`). V1.7 release evidence stays in `docs/superpowers/progress-v1-7.md`. Both distinguish automated evidence from the **manual-pending** user-owned-browser and iPhone gate; no isolated Chromium or personal Chrome is opened by the implementation workflow.
 
 ## V1.4 foundation
 

@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="sr-Latn">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0F1114">
+  <title>Dailo — uputstvo za beta testere</title>
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="vendor/fonts/fonts.css">
+  <style>
+    :root {
+      --bg: #0F1114;
+      --card: #14171B;
+      --line: #2D3239;
+      --ink-1: #F3F4F6;
+      --ink-2: #D5D9DF;
+      --ink-3: #9199A4;
+      --blue: #8590FF;
+      --mint: #3ED7BA;
+      --yellow: #F5B942;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink-2);
+      font: 16px/1.6 Geist, system-ui, -apple-system, sans-serif;
+      padding: calc(24px + env(safe-area-inset-top)) 16px calc(32px + env(safe-area-inset-bottom));
+    }
+    main { max-width: 680px; margin: 0 auto; }
+    h1, h2 { font-family: "Space Grotesk", Geist, system-ui, sans-serif; color: var(--ink-1); line-height: 1.25; }
+    h1 { font-size: 28px; margin: 0 0 8px; }
+    h2 { font-size: 19px; margin: 0 0 8px; }
+    .lead { color: var(--ink-3); margin: 0 0 24px; }
+    section { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; margin: 0 0 14px; }
+    p { margin: 0 0 10px; }
+    ol, ul { margin: 0 0 10px; padding-left: 22px; }
+    li { margin: 0 0 6px; }
+    strong { color: var(--ink-1); }
+    a { color: var(--blue); }
+    .note { border-left: 3px solid var(--yellow); padding-left: 12px; color: var(--ink-1); }
+    .ok { border-left: 3px solid var(--mint); padding-left: 12px; }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 14px; color: var(--ink-1); background: #1A1D22; border-radius: 6px; padding: 1px 6px; }
+    .back { display: inline-block; margin-top: 8px; padding: 10px 16px; border-radius: 10px; background: #0619FE; color: #fff; text-decoration: none; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Dailo — uputstvo za beta testere</h1>
+    <p class="lead">Hvala što testiraš Dailo. Dailo je lični planer zadataka, navika i ciljeva koji radi na tvom telefonu, bez naloga i bez servera.</p>
+
+    <section>
+      <h2>Instalacija na iPhone</h2>
+      <ol>
+        <li>Otvori <strong>marko-ivapix.github.io/dailo</strong> u <strong>Safariju</strong>.</li>
+        <li>Dodirni dugme <strong>Deli</strong> (kvadrat sa strelicom nagore).</li>
+        <li>Izaberi <strong>Dodaj na početni ekran</strong>, pa <strong>Dodaj</strong>.</li>
+        <li>Otvaraj Dailo sa početnog ekrana, kao svaku drugu aplikaciju.</li>
+      </ol>
+      <p class="note">Prvo instaliraj, pa tek onda unosi podatke. Safari i instalirana aplikacija čuvaju podatke odvojeno.</p>
+      <p>Na Android telefonu: otvori adresu u Chrome-u, pa u meniju izaberi <strong>Instaliraj aplikaciju</strong>.</p>
+    </section>
+
+    <section>
+      <h2>Tvoji podaci</h2>
+      <ul>
+        <li>Sve što uneseš ostaje <strong>samo na tvom uređaju</strong>. Ne postoji nalog, server ni sinhronizacija, i niko drugi ne vidi tvoje podatke.</li>
+        <li>U <strong>Podešavanja → Podaci</strong>, red <strong>Trajno čuvanje</strong> treba da piše „odobreno“. Tada telefon neće sam brisati podatke aplikacije.</li>
+      </ul>
+      <p class="note">Ako obrišeš Dailo sa početnog ekrana, brišu se i njegovi podaci. Pre toga napravi rezervnu kopiju.</p>
+    </section>
+
+    <section>
+      <h2>Rezervne kopije</h2>
+      <ol>
+        <li>Otvori <strong>Podešavanja → Podaci</strong> i dodirni <strong>Izvezi rezervnu kopiju</strong>.</li>
+        <li>Sačuvaj ZIP fajl u aplikaciju Fajlovi ili na iCloud Drive.</li>
+        <li>Za povratak podataka koristi <strong>Uvezi rezervnu kopiju</strong> i upiši <code>RESTORE</code> kad aplikacija to zatraži.</li>
+      </ol>
+      <p>Kad prođe 7 dana od poslednje rezervne kopije, Dailo te podseti na ekranu <strong>Danas</strong>. Interval se menja u Podešavanjima.</p>
+    </section>
+
+    <section>
+      <h2>Brzo dodavanje</h2>
+      <p>Na kraju naslova zadatka možeš da napišeš kada ga planiraš:</p>
+      <ul>
+        <li><code>Kupi hleb sutra</code>, <code>Pozovi mamu danas</code></li>
+        <li><code>Teretana u sredu</code>, <code>Izlet subota</code></li>
+        <li><code>Zubar sutra u 9:30</code></li>
+        <li><code>#posao</code> dodaje postojeću oznaku.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Bez interneta i nove verzije</h2>
+      <p class="ok">Kad jednom otvoriš Dailo sa internetom, radi i bez njega, na primer u avionskom režimu.</p>
+      <p>Kad izađe nova verzija, dole se pojavi obaveštenje sa dugmetom <strong>Osveži</strong>. Dodirni ga kad ti odgovara; podaci ostaju.</p>
+    </section>
+
+    <section>
+      <h2>Šta još ne radi</h2>
+      <ul>
+        <li>Podaci postoje samo na jednom uređaju. Sinhronizacija između telefona i računara stiže sa mobilnom aplikacijom (V2.0).</li>
+        <li>Podsetnici i obaveštenja rade samo dok je Dailo otvoren.</li>
+        <li>Prenos podataka sa jednog uređaja na drugi ide samo preko rezervne kopije (ZIP).</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Prijava problema</h2>
+      <p>U <strong>Podešavanja → O aplikaciji</strong> dodirni <strong>Prijavi problem</strong>. Otvoriće se e-poruka sa verzijom aplikacije i podacima o uređaju; tvoji zadaci i beleške se ne šalju.</p>
+      <p>Možeš pisati i direktno na <a href="mailto:marko.radicevic@ivapix.cloud">marko.radicevic@ivapix.cloud</a>. Opiši korake, šta se desilo i šta je trebalo da se desi. Snimak ekrana mnogo pomaže.</p>
+    </section>
+
+    <a class="back" href="./">Otvori Dailo</a>
+  </main>
+</body>
+</html>

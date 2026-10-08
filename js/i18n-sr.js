@@ -466,6 +466,8 @@
     "yes": "da",
     "no": "ne",
     "Persistent storage: {value}": "Trajno čuvanje: {value}",
+    "Import restored and verified": "Uvoz je vraćen i proveren",
+    "Reset verified": "Resetovanje je provereno",
 
     // Settings (js/settings-ui.js)
     "Never": "Nikad",
@@ -551,6 +553,9 @@
     "Opens an e-mail with the app version and device details. Your data is not attached.": "Otvara e-poruku sa verzijom aplikacije i podacima o uređaju. Tvoji podaci se ne prilažu.",
     "Privacy": "Privatnost",
     "Your data stays only on this device. Dailo has no server or account.": "Tvoji podaci ostaju samo na ovom uređaju. Dailo nema server ni nalog.",
+    "Beta tester guide": "Uputstvo za beta testere",
+    "How to install Dailo, keep backups and report problems.": "Kako se Dailo instalira, kako se čuvaju rezervne kopije i kako se prijavljuje problem.",
+    "Open guide": "Otvori uputstvo",
 
     // Calendar and task rows / Task Properties (js/calendar-ui.js, js/tasks-ui.js)
     "Done": "Urađeno",

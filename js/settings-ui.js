@@ -75,6 +75,7 @@
         <h2>${tr('About')}</h2>
         <div class="settings-row"><div class="settings-label"><strong>${tr('Version')}</strong><span>Dailo ${esc(release.APP_VERSION || '')}</span></div></div>
         ${reportHref ? `<div class="settings-row"><div class="settings-label"><strong>${tr('Report a problem')}</strong><span>${tr('Opens an e-mail with the app version and device details. Your data is not attached.')}</span></div><a class="btn btn-secondary" href="${esc(reportHref)}" data-report-problem>${tr('Report a problem')}</a></div>` : ''}
+        <div class="settings-row"><div class="settings-label"><strong>${tr('Beta tester guide')}</strong><span>${tr('How to install Dailo, keep backups and report problems.')}</span></div><a class="btn btn-secondary" href="uputstvo.html" target="_blank" rel="noopener" data-beta-guide>${tr('Open guide')}</a></div>
         <div class="settings-row"><div class="settings-label"><strong>${tr('Privacy')}</strong><span data-privacy-note>${tr('Your data stays only on this device. Dailo has no server or account.')}</span></div></div>
       </section>`;
   }

@@ -26,7 +26,7 @@ function renderSettings(release, environment = {}) {
 
 test('release metadata has one semantic version and is loaded before the app modules', () => {
   assert.match(Release.APP_VERSION, /^\d+\.\d+\.\d+$/);
-  assert.equal(Release.APP_VERSION, '1.9.0');
+  assert.equal(Release.APP_VERSION, '1.9.1');
   const html = read('index.html');
   const releaseScript = html.indexOf('src="js/release.js"');
   assert.ok(releaseScript > 0, 'index.html loads js/release.js');

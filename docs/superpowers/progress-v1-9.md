@@ -9,14 +9,14 @@
 - [x] Spec approved by the user (2026-10-07)
 - [x] Plan written
 - [x] Step 1 — Fixes and UUID fallback
-- [x] Step 2 — Version and problem reports (report address pending)
+- [x] Step 2 — Version and problem reports (report address set in V1.9.1)
 - [x] Step 3 — Data protection
 - [x] Step 4 — Install
 - [x] Step 5 — Offline
 - [x] Step 6 — Serbian localization
-- [ ] Step 7 — Final verification and package
+- [x] Step 7 — Final verification and package, shipped as **V1.9.1** (2026-10-08). Still manual: the update notice (B6) and the rest of the beta checklist (B7–B24) in `docs/beta/provera-pre-bete.md`.
 
-Open input: the e-mail address for problem reports (requested from the user).
+The problem-report address was supplied by the user on 2026-10-08 and is set in V1.9.1.
 
 ## Baseline evidence (before V1.9 code changes)
 
@@ -176,3 +176,42 @@ Checks: focused 6/6; full Node **315 pass, 0 fail, 1 todo (316 tests)**; JavaScr
 Checks: focused i18n 9/9 and Quick Add 5/5; full Node **329 pass, 0 fail, 1 todo (330 tests)**; JavaScript syntax 63/63 (`js/*.js vendor/*.js tests/*.js`) plus `tests/support/i18n.js` and `sw.js`; static browser contracts 10/10 (dry-run); registry 3/3; path adapter OK; `git diff --check` passed. Serbian wording on a real iPhone (truncation, line breaks) is **manual-pending**.
 
 **Merge into `main` (2026-10-08).** At the user's request, PR #5 merged Steps 1–6 and the docs sync into `main`, so V1.9 can be tried on GitHub Pages before the release is complete. `REPORT_EMAIL` is still empty: the "Report a problem" link stays hidden and the release-gate test stays `todo`. The V1.9 ZIP and the manual iPhone pass are still open.
+
+**Step 7 — V1.9.1 release (2026-10-08).** Prepared on branch `ccr-95f6062b-lgg2fr` from `main` at `5554877` (PR #5). V1.9.0 was never packaged; V1.9.1 is the V1.9 release artifact.
+- **Version and report address** (`js/release.js`, `sw.js`):
+  - `APP_VERSION` and the service-worker `VERSION` are both `1.9.1`. The changed `sw.js` is how installed apps detect the update and show the "Osveži" notice;
+  - `REPORT_EMAIL = 'marko.radicevic@ivapix.cloud'`, supplied by the user on 2026-10-08 with an explicit request to use it. Settings → About now shows "Report a problem" ("Prijavi problem").
+- **Beta tester guide:**
+  - Settings → About has a "Beta tester guide" row ("Uputstvo za beta testere") with `href="uputstvo.html" target="_blank" rel="noopener" data-beta-guide` (3 new catalog entries);
+  - new `uputstvo.html` at the repository root: a self-contained Serbian (`sr-Latn`) page covering install on iPhone, data on the device, backups, Quick Add, offline use and the update notice, limitations, and the problem report. It uses `vendor/fonts/fonts.css` and `icons/icon.svg` and links back to the app (`./`);
+  - GitHub Pages serves it at `https://marko-ivapix.github.io/dailo/uputstvo.html`. It is **not** in `SHELL_FILES`, and the service worker does not intercept the navigation, so it opens only online.
+- **Two Serbian fixes** (`js/app.js`, `js/i18n-sr.js`):
+  - the live Quick Add plan chip fell back to the English "Plan for" while typing; it is now `tr('Plan for')`;
+  - the persisted Settings → Data "Validation" sentences `Import restored and verified` / `Reset verified` were not catalog keys, so Settings showed English after an import or reset. They are now `msg(…)`-marked, with "Uvoz je vraćen i proveren" and "Resetovanje je provereno". Catalog: 1425 entries, 61 plurals.
+- **Beta gate:** new `docs/beta/provera-pre-bete.md`, a Serbian checklist B1–B24 (roadmap Phase 2) for the installed iPhone app and a Mac browser. B1–B5 are ticked from the user's 2026-10-08 reports (table below).
+- **Tests:**
+  - new `tests/beta-v1-9-1.test.js` (3 tests): version, report address and `sw.js` `VERSION`; the About guide link and `mailto:`; the guide page's language, viewport, Latin script, headings, labels and local-only references;
+  - `tests/release-v1-9.test.js` expects `1.9.1`. Its release gate is a real assertion now that `REPORT_EMAIL` is set (the `todo` flag is conditional on an empty address);
+  - `tests/i18n-v1-9.test.js` gains 2 audit tests (now 11): quoted literals inside `${…}` that are not arguments of `tr`/`msg`/`trn`/`trMessage` must not be capitalized English (key names Alt/Shift/Ctrl/Cmd/Enter/Esc/Tab/Space and Dailo are allowed), and every `validationResult:` literal must be a `msg()` key. Reverting either fix makes the matching test fail (rechecked in a scratch copy outside the repository: 10 pass, 1 fail each).
+
+Checks (Node v22.22.0, Python 3.13.16): full Node **335 pass, 0 fail, 0 todo (335 tests)**; JavaScript syntax **66/66** (`js/*.js vendor/*.js tests/*.js` = 64, plus `tests/support/i18n.js` and `sw.js`); Python AST 19/19; static browser contracts 10/10 (`--dry-run`: 2 + 3 + 5); registry 3/3; path adapter 2/2; `git diff --check` passed, including the new untracked files (checked against a temporary copy of the index).
+
+**Package:** `Dailo-v1.9.1-distributable.zip` plus `Dailo-v1.9.1-distributable.zip.sha256`, built with the V1.9.1 recipe in `docs/claude/TESTING_AND_RELEASE.md` from the commit that contains these docs and added in the next commit. The SHA-256 is recorded only in the sidecar. Dry run from the working tree (temporary index, scratch output outside the repository): **75 regular files** (V1.8's 46 plus 29), no directory entries, `unzip -t` passed; all 38 `SHELL_FILES` and `uputstvo.html` and `docs/beta/provera-pre-bete.md` are in the archive. Re-verify with `SRC=$(git rev-list -1 HEAD -- Dailo-v1.9.1-distributable.zip)^`.
+
+## Manual iPhone acceptance (spec "Acceptance")
+
+| Date | Device / browser | Source | Observed | Result |
+| --- | --- | --- | --- | --- |
+| 2026-10-08 | iPhone, Safari, then installed to the Home Screen | GitHub Pages `https://marko-ivapix.github.io/dailo/` at `5554877` (PR #5) | V1.9 works on the phone; the app was installed to the Home Screen | Passed (reported by the user) |
+| 2026-10-08 | iPhone, installed app | same | The installed app works in airplane mode; the interface is entirely in Serbian | Passed (reported by the user) |
+| 2026-10-08 | iPhone, installed app | same | Serbian Quick Add works; the favorite star is visible | Passed (reported by the user) |
+| 2026-10-08 | iPhone, installed app | same | Standalone layout looks right; content does not go under the status bar | Passed (reported by the user) |
+| 2026-10-08 | iPhone, installed app | same | The bottom navigation stays clear of the home indicator | Passed (reported by the user) |
+| 2026-10-08 | iPhone, installed app | same | Settings → Data shows persistent storage as granted ("odobreno") | Passed (reported by the user) |
+| 2026-10-08 | iPhone, installed app | same | ZIP export and import back into the installed app work; the tasks are still there | Passed (reported by the user) |
+
+Only the items in this table were observed. They correspond to B1–B5 in `docs/beta/provera-pre-bete.md`. Still **manual-pending**:
+- update prompt after a new deploy;
+- the backup reminder notice on Today. It can only appear 7 days after the last export.
+
+**Next manual check: B6, the update notice.** GitHub Pages serves `main`, so it starts once V1.9.1 is merged there. The installed app (still on 1.9.0) should show "Dostupna je nova verzija Dailo-a." with **Osveži**. After tapping it, Settings → O aplikaciji should show version 1.9.1 and **Prijavi problem**. B7–B24 (report e-mail, tasks, planning, Habits/Goals/Notes, Mac browser, reset/restore) follow; record each result here with date, device and browser.

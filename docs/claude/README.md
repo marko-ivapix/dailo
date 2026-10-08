@@ -1,6 +1,6 @@
 # Claude documentation index
 
-These files are the current implementation handoff for Claude and other agents. They were synchronized on 2026-10-07 against the V1.9 source, tests and progress ledger (merged into `main` through PR #5).
+These files are the current implementation handoff for Claude and other agents. They were synchronized on 2026-10-08 against the V1.9.1 source, tests and progress ledger (V1.9 merged into `main` through PR #5; V1.9.1 completes its Step 7).
 
 | File | Use it for |
 | --- | --- |
@@ -10,10 +10,10 @@ These files are the current implementation handoff for Claude and other agents. 
 | `DOMAIN_MODEL.md` | Entity shape, relationships, lifecycle and invariants |
 | `FEATURES.md` | Current feature inventory, evidence and stale-summary warnings |
 | `DATA_AND_RECOVERY.md` | localStorage, IndexedDB, migration, backup and rollback |
-| `TESTING_AND_RELEASE.md` | Commands, exact release counts, package and browser limits |
+| `TESTING_AND_RELEASE.md` | Commands, exact release counts, package (`Dailo-v1.9.1-distributable.zip` recipe) and browser limits |
 | `WORKING_RULES.md` | Safe editing, scope, i18n rules, verification and documentation vocabulary |
 
-Start at the repository root [`CLAUDE.md`](../../CLAUDE.md), then read `CONTINUATION.md` and the relevant guides before editing code. `AGENTS.md` remains the governing project policy. The V1.7 spec, plan and progress ledger are the current behavior references; the V1.8 spec (`docs/superpowers/specs/2026-10-07-todo-v1-8-design.md`), plan and ledger (`docs/superpowers/progress-v1-8.md`) are the current visual-design references; the V1.9 spec (`docs/superpowers/specs/2026-10-07-todo-v1-9-design.md`), plan and ledger (`docs/superpowers/progress-v1-9.md`) cover install, offline, data protection, the Serbian UI and the release/problem-report work. The release path after V1.9 is `docs/superpowers/plans/2026-10-07-release-roadmap.md`. Versioned specs and plans remain authoritative for approved scope; current source/tests remain authoritative for what is actually implemented.
+Start at the repository root [`CLAUDE.md`](../../CLAUDE.md), then read `CONTINUATION.md` and the relevant guides before editing code. `AGENTS.md` remains the governing project policy. The V1.7 spec, plan and progress ledger are the current behavior references; the V1.8 spec (`docs/superpowers/specs/2026-10-07-todo-v1-8-design.md`), plan and ledger (`docs/superpowers/progress-v1-8.md`) are the current visual-design references; the V1.9 spec (`docs/superpowers/specs/2026-10-07-todo-v1-9-design.md`), plan and ledger (`docs/superpowers/progress-v1-9.md`) cover install, offline, data protection, the Serbian UI and the release/problem-report work. The release path after V1.9 is `docs/superpowers/plans/2026-10-07-release-roadmap.md` (next: V1.10 Smart Quick Add, V1.11 Weekly review, V1.12 Duration + time-blocking, and a V2.0 spec draft). The Serbian beta checklist is `docs/beta/provera-pre-bete.md` and the tester guide is `uputstvo.html`; both are Serbian by design, like `PROJECT_OVERVIEW.md`. Versioned specs and plans remain authoritative for approved scope; current source/tests remain authoritative for what is actually implemented.
 
 Status labels used throughout:
 
