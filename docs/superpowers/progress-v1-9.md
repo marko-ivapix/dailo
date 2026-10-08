@@ -176,3 +176,19 @@ Checks: focused 6/6; full Node **315 pass, 0 fail, 1 todo (316 tests)**; JavaScr
 Checks: focused i18n 9/9 and Quick Add 5/5; full Node **329 pass, 0 fail, 1 todo (330 tests)**; JavaScript syntax 63/63 (`js/*.js vendor/*.js tests/*.js`) plus `tests/support/i18n.js` and `sw.js`; static browser contracts 10/10 (dry-run); registry 3/3; path adapter OK; `git diff --check` passed. Serbian wording on a real iPhone (truncation, line breaks) is **manual-pending**.
 
 **Merge into `main` (2026-10-08).** At the user's request, PR #5 merged Steps 1–6 and the docs sync into `main`, so V1.9 can be tried on GitHub Pages before the release is complete. `REPORT_EMAIL` is still empty: the "Report a problem" link stays hidden and the release-gate test stays `todo`. The V1.9 ZIP and the manual iPhone pass are still open.
+
+## Manual iPhone acceptance (spec "Acceptance")
+
+| Date | Device / browser | Source | Observed | Result |
+| --- | --- | --- | --- | --- |
+| 2026-10-08 | iPhone, Safari, then installed to the Home Screen | GitHub Pages `https://marko-ivapix.github.io/dailo/` at `5554877` (PR #5) | V1.9 works on the phone; the app was installed to the Home Screen | Passed (reported by the user) |
+
+Only the items in this table were observed. Still **manual-pending**:
+- standalone layout clear of the status bar and home indicator;
+- airplane-mode launch after one online visit;
+- update prompt after a new deploy;
+- persistence status;
+- backup reminder plus export and import into the installed app;
+- full Serbian walkthrough of every route;
+- Serbian Quick Add;
+- the favorite star.
