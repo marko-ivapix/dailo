@@ -72,3 +72,19 @@
 | C6 | **Schedule ("Raspored")**, today the V1.12 Calendar "Dan" view, for the selected day: an hour grid with blocks by duration, untimed tasks above it, and capacity. A small "Lista / Raspored" switch next to the day title; "Lista" is the default. Desktop drag to another hour stays. | decided |
 | C7 | **No filter (funnel):** with habits gone, the calendar shows only tasks and goal deadlines. | decided |
 | C8 | **The floating "+"** adds a task planned for the selected day. | decided |
+
+## Task editing and pickers (images 3–9)
+
+Images 3–9: "Edit task", and the Project, Planned date, Priority, Reminder, Tags and Repeat sheets.
+
+| # | Decision | Status |
+| --- | --- | --- |
+| E1 | **One task window, no separate "Edit task" screen and no "Save changes".** Tapping the title edits it, and tapping a row opens its sheet. Every change saves at once, as in the current app. The window takes the groups from image 3: Planiranje (Planirano, Rok, Podsetnik, Ponavljanje, Trajanje), Organizacija (Projekat, Oznake, Prioritet), Više opcija. A recurring task still asks "samo ovaj ili sve buduće". | decided |
+| E2 | **Pickers are bottom sheets on the phone,** all built the same way: grabber, title, X, rows in cards, button at the bottom. On desktop the same content opens as a small popover next to the row. | decided |
+| E3 | **No "Primeni" for a single choice:** tapping a project or a priority applies it and closes the sheet. Multi-part sheets (tags, date with time, reminder, repeat) keep one button, always labelled "Primeni". | decided |
+| E4 | **Planned date (and due date):** quick choices Danas, Sutra, Sledeće nedelje (instead of "Pick date"); a month calendar with the selected day as a circle; a time row; the note that the other date stays unchanged; "Ukloni datum" as a text button. | decided |
+| E5 | **Priority:** Bez, Nizak, Srednji, Visok with flag icons in the G6 colors (high red, medium amber), and the note "Prioritet ne menja redosled". | decided |
+| E6 | **Reminder:** quick choices "U vreme plana", "15 min pre", "1 h pre" and "Dan pre u 9:00", plus a manual date and time; a summary sentence ("Podseti me 8. okt u 13:30"); the task dates for reference; "Ukloni podsetnik". | decided |
+| E7 | **Repeat:** quick choices Svaki dan, Radnim danima, Svake nedelje, Svakog meseca; frequency, "Na svakih N" (interval) and the day; a summary sentence; an end (never, on a date, after N times) whose field opens right below the choice. | decided |
+| E8 | **Project:** search, "Bez projekta", the area under each project name, and the note that the task takes the project's area; "+ Novi projekat" at the bottom. | decided |
+| E9 | **Tags:** search, colored dots, multiple choice, "+ Nova oznaka". | decided |
