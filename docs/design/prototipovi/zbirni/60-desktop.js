@@ -23,7 +23,7 @@ A.sbMini = () => { S.ui.sbMini = !S.ui.sbMini; $('phone').classList.toggle('sb-m
 const deskSub = (tab, type, id = '') => `data-tab="${tab}" data-sub="${type}"${id ? ` data-id="${id}"` : ''}`;
 function addLabel() {
   const top = R.stack.at(-1)?.type;
-  return { habits: 'Nova navika' }[R.tab] || { goals: 'Novi cilj', notes: 'Nova beleška', resources: 'Novi resurs', cleaning: 'Nova redovna obaveza', tags: 'Nova oznaka', tag: 'Nova oznaka', templates: 'Novi šablon', views: 'Novi prikaz', view: 'Novi prikaz', areas: 'Nova oblast' }[top] || 'Novi zadatak';
+  return { habits: 'Nova navika' }[R.tab] || { goals: 'Novi cilj', notes: 'Nova beleška', resources: 'Novi resurs', cleaning: 'Nova redovna obaveza', tags: 'Nova oznaka', tag: 'Nova oznaka', templates: 'Novi šablon', views: 'Novi prikaz', view: 'Novi prikaz', areas: 'Nova oblast', journal: 'Današnji zapis' }[top] || 'Novi zadatak';
 }
 function renderSidebar() {
   const nav = (key, label, path) => sbItem(`tab:${key}`, 'tab', `data-tab="${key}" ${key === 'today' ? 'data-drop-plan="today"' : ''}`, SV(path, 18), label, key === 'inbox' && inboxCount() ? `<span class="sb-badge">${inboxCount()}</span>` : key === 'today' ? `<span class="sb-n">${liveTasks().filter(t => t.plan === TODAY).length}</span>` : '');
@@ -37,7 +37,7 @@ function renderSidebar() {
     <div class="sb-label">Projekti</div>
     ${activeAreas().map(a => { const list = activeProjects().filter(p => p.area === a.id); return list.length ? `<div class="sb-sub">${esc(a.name)}</div>${list.map(p => sbItem(`project:${p.id}`, 'deskGo', `${deskSub('tasks', 'project', p.id)} data-drop-project="${p.id}"`, `<span class="dot" style="background:${p.color}"></span>`, esc(p.name), `<span class="sb-n">${projectTasks(p.id).filter(t => !t.done).length}</span>`)).join('')}` : ''; }).join('')}
     ${[['plan', 'Planiranje', [['goals', 'Ciljevi', IC.goal], ['areas', 'Oblasti', IC.area], ['cleaning', 'Redovne obaveze', IC.repeat], ['review', 'Nedeljni pregled', IC.review]]],
-      ['lib', 'Biblioteka', [['notes', 'Beleške', IC.note], ['resources', 'Resursi', IC.link], ['tags', 'Oznake', IC.tag], ['templates', 'Šabloni', IC.copy], ['views', 'Sačuvani prikazi', IC.funnel]]],
+      ['lib', 'Biblioteka', [['notes', 'Beleške', IC.note], ['journal', 'Dnevnik', IC.book], ['resources', 'Resursi', IC.link], ['tags', 'Oznake', IC.tag], ['templates', 'Šabloni', IC.copy], ['views', 'Sačuvani prikazi', IC.funnel]]],
       ['arch', 'Arhiva', [['completed', 'Završeni zadaci', IC.checkc], ['archived', 'Arhivirani projekti', IC.archive]]]]
       .map(([id, label, list]) => sbGroup(id, label, list.map(([t, l, i]) => [`${t}:`, sbItem(`${t}:`, 'deskGo', deskSub('more', t), ic18(i), l)]))).join('')}
     <div class="sb-foot">${sbItem('settings:', 'deskGo', deskSub('more', 'settings'), IC.gear.replace('width="20" height="20"', 'width="18" height="18"'), 'Podešavanja')}</div>`;
@@ -87,7 +87,7 @@ TAB.today = () => {
     <div class="section">Planirano danas <span>· ${todayRows.length}</span></div><div class="card">${todayRows.length ? limited('today', todayRows) : '<p class="note" style="margin:12px 14px">Ništa nije planirano.</p>'}</div>
     ${doneToday.length ? `<button class="collapsed" data-act="doneToggle">${IC.fold(S.ui.doneOpen)}Završeno · ${doneToday.length}</button>${S.ui.doneOpen ? `<div class="card" style="margin-top:8px">${doneToday.map(t => taskRow(t)).join('')}</div>` : ''}` : ''}`;
   const right = `<div class="section">Navike <span>· ${habits.filter(h => h.week[TI] === 'd').length}/${habits.length}</span></div><div class="card">${limited('habits', sorted.map(h => habitRow(h, TI)))}</div>`;
-  return `<div class="date">${longDate(TODAY)}</div><div class="titlebar"><h1 class="h1">Danas</h1></div>${notice}<div class="cols"><div>${left}</div><div>${right}</div></div>`;
+  return `<div class="date">${longDate(TODAY)}</div><div class="titlebar"><h1 class="h1">Danas</h1></div>${notice}${journalNotice()}<div class="cols"><div>${left}</div><div>${right}</div></div>`;
 };
 TAB.habits = () => {
   const planned = S.habits.filter(h => ['d', 'o'].includes(h.week[TI]));

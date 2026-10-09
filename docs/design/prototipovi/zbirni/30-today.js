@@ -84,7 +84,7 @@ TAB.today = () => {
   const doneToday = S.tasks.filter(t => t.done && t.doneAt === TODAY);
   const notice = S.settings.backupNotice ? `<div class="notice">${IC.upload}<span class="main"><b>Rezervna kopija je stara 8 dana</b>Izvezi ZIP da podaci budu sigurni.</span><button data-act="noticeExport">Izvezi</button><button data-act="noticeLater" style="color:var(--muted)">Kasnije</button></div>` : '';
   let html = `<div class="status"><span>09:41</span><span>•••</span></div><div class="date">${longDate(TODAY)}</div>
-    <div class="titlebar"><h1 class="h1">Danas</h1><button class="icon-btn" data-act="search" aria-label="Pretraga" style="color:var(--text)">${IC.search}</button></div>${notice}`;
+    <div class="titlebar"><h1 class="h1">Danas</h1><button class="icon-btn" data-act="search" aria-label="Pretraga" style="color:var(--text)">${IC.search}</button></div>${notice}${journalNotice()}`;
   if (overdueRows.length) html += `<div class="section">Zakasnelo <span>· ${overdueRows.length}</span></div><div class="card">${limited('overdue', overdueRows)}</div>`;
   html += `<div class="section">Planirano danas <span>· ${todayRows.length}</span></div>`;
   html += todayRows.length ? `<div class="card">${limited('today', todayRows)}</div>` : '<div class="card"><p class="note" style="margin:12px 14px">Ništa nije planirano. „+“ dodaje zadatak za danas.</p></div>';

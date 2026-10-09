@@ -16,6 +16,7 @@ TAB.more = () => {
     ${navRow('go', IC.review, 'Nedeljni pregled', { val: reviewDone() ? 'Završen' : last ? `Poslednji ${short(last.completedAt)}` : '', data: sub('review') })}</div>
   <div class="glabel">Biblioteka</div><div class="card">
     ${navRow('go', IC.note, 'Beleške', { val: String(S.library.filter(x => x.kind === 'note').length), data: sub('notes') })}
+    ${navRow('go', IC.book, 'Dnevnik', { val: String(S.journal.length), data: sub('journal') })}
     ${navRow('go', IC.link, 'Resursi', { val: String(S.library.filter(x => x.kind === 'resource').length), data: sub('resources') })}
     ${navRow('go', IC.tag, 'Oznake', { val: String(S.tags.length), data: sub('tags') })}
     ${navRow('go', IC.copy, 'Šabloni', { val: String(S.templates.length), data: sub('templates') })}
