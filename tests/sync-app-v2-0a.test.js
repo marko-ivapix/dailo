@@ -396,3 +396,22 @@ test('after a reset or a restored backup the next sync asks again instead of pus
   assert.deepEqual(phone.context.state.tasks.map(item => item.id), ['t1', 't2'], 'an empty device takes the account data');
   assert.match(read('js/app.js'), /state = normalizeState\(op\.validated\.state\); canonicalRaw = localStorage\.getItem\(STORAGE_KEY\); recovery = null; modalState = null;\n\s+if \(!op\.selective\) forgetSyncShadow\(\);/);
 });
+
+test('M9: a device that still holds only its first-run examples takes the account data without the question', async () => {
+  const fake = createFakeSupabase();
+  const laptop = await signedInHarness({ fake, state: baseState({ tasks: [task('remote')] }) });
+  await vm.runInContext('runSync()', laptop.context);
+  const examples = baseState({ tasks: [task('task_homepage')] });
+  const phone = await signedInHarness({ fake, state: examples });
+  phone.storage.set('dailoSample', JSON.stringify(Sync.recordFingerprint(examples)));
+  await vm.runInContext('runSync()', phone.context);
+  assert.notEqual(phone.context.modalState?.type, 'sync-choice', 'no question');
+  assert.deepEqual(phone.calls.snapshots, [{ tasks: ['task_homepage'], options: { force: true } }], 'the same recovery copy comes first');
+  assert.deepEqual(phone.context.state.tasks.map(item => item.id), ['remote']);
+
+  const edited = baseState({ tasks: [task('task_homepage')] });
+  const tablet = await signedInHarness({ fake, state: { ...edited, tasks: [{ ...edited.tasks[0], title: 'Mine now' }] } });
+  tablet.storage.set('dailoSample', JSON.stringify(Sync.recordFingerprint(edited)));
+  await vm.runInContext('runSync()', tablet.context);
+  assert.equal(tablet.context.modalState?.type, 'sync-choice', 'changed examples are the user\'s data: ask');
+});

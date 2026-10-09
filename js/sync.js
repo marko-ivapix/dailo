@@ -79,6 +79,22 @@
     return records;
   }
 
+  // Fingerprint of the synced records except settings. The app stores it when it creates the first-run examples,
+  // so it can tell later that nothing of the user's is on this device yet (audit M9).
+  function recordFingerprint(state, habitLogs = []) {
+    const out = {};
+    for (const [key, record] of collectRecords(state, habitLogs)) if (record.type !== 'settings') out[key] = hashRecord(record.data);
+    return out;
+  }
+  function untouchedSample(state, habitLogs, fingerprint) {
+    const expected = fingerprint && typeof fingerprint === 'object' ? Object.keys(fingerprint) : [];
+    if (!expected.length) return false;
+    const count = COLLECTIONS.reduce((total, type) => total + (Array.isArray(state?.[type]) ? state[type].length : 0), 0) + (habitLogs?.length || 0);
+    if (count !== expected.length) return false; // cheap: most states differ in size
+    const current = recordFingerprint(state, habitLogs);
+    return Object.keys(current).length === expected.length && expected.every(key => current[key] === fingerprint[key]);
+  }
+
   function diffRecords(records, shadow = {}) {
     const upserts = [];
     const deletes = [];
@@ -311,5 +327,5 @@
     return Boolean(config && /^https:\/\/[^\s/]+/.test(config.url || '') && typeof config.anonKey === 'string' && config.anonKey.length > 20);
   }
 
-  return Object.freeze({ COLLECTIONS, DEVICE_SETTINGS, SyncError, collectRecords, hashRecord, diffRecords, applyRemote, createClient, syncOnce, isConfigured });
+  return Object.freeze({ COLLECTIONS, DEVICE_SETTINGS, SyncError, collectRecords, hashRecord, recordFingerprint, untouchedSample, diffRecords, applyRemote, createClient, syncOnce, isConfigured });
 });

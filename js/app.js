@@ -472,6 +472,7 @@
         recovery = null;
         state = normalizeState(createSampleState());
         saveState();
+        rememberSample();
         return finishLoadedState(localStorage.getItem(STORAGE_KEY));
       }
       const parsed = JSON.parse(raw);
@@ -1098,6 +1099,7 @@
     let html = pageHeader(tr('Today'), '', { contextToday: true, add: false, actionHtml: `<button class="btn btn-secondary" type="button" data-action="dashboard-focus-toggle"><i class="ph ph-faders-horizontal"></i>${state.settings.dashboard?.focusedMode ? tr('Full Today') : tr('Focus View')}</button><button class="btn btn-secondary" type="button" data-action="open-focus"><i class="ph ph-crosshair"></i> ${tr('Focus')}</button>` });
     if (state.settings.todayFocusStrip !== false) html += `<section class="today-focus-strip" data-today-focus-strip aria-label="${tr('Today focus')}"><div class="today-focus-strip-summary"><span class="today-context-date"><i class="ph ph-calendar-blank"></i>${esc(formatPageToday(today))}</span><span class="today-focus-strip-count" data-today-open-count>${trn(openTodayCount, '{count} open', '{count} open')}</span>${todayCapacityItem()}<span class="today-focus-strip-count" data-today-completed-count>${trn(completedTodayCount, '{count} completed', '{count} completed')}</span>${plannedMinutes ? `<span class="today-focus-strip-count">${tr('{minutes} min planned', { minutes: plannedMinutes })}</span>` : ''}</div><div class="today-focus-strip-controls"><label class="today-filter">${tr('Show')} <select class="filter-select" data-today-filter aria-label="${tr('Filter Today tasks')}">${[['all', msg('All')], ['open', msg('Open')], ['completed', msg('Completed')], ['important', msg('Important')], ['dueToday', msg('Due today')]].map(([value, label]) => `<option value="${value}"${todayFocusFilter === value ? ' selected' : ''}>${tr(label)}</option>`).join('')}</select></label><button class="btn btn-primary" type="button" data-action="quick-add" data-today="true"><i class="ph ph-plus"></i>${tr('Add task')}</button></div></section>`;
     html += `<div class="today-context" data-today-context="true">${contextCounts ? `<span class="today-context-summary">${esc(contextCounts)}</span>` : ''}</div>`;
+    if (globalThis.DailoPlatform?.isNative) html += transferNotice();
     html += backupReminderNotice();
     html += weeklyReviewNotice();
     const focusIds = Core.selectFocusTasks(state.tasks, state.settings.focusTaskIds);
@@ -3475,7 +3477,15 @@
       // A sign-out during the round replaced the record; never bring the old one back.
       if (syncMeta === meta) saveSyncMeta();
     }
-    if (result.status === 'choose' && syncMeta === meta) openSyncChoice();
+    if (result.status === 'choose' && syncMeta === meta) {
+      // Only the first-run examples are here: the account's data replaces them without the question (audit M9),
+      // after the same recovery copy the question takes. If that copy fails, the question is asked as before.
+      if (untouchedSample() && await TodoStorage.createAutomaticSnapshot(state, new Date(), { force: true }).then(() => true, () => false)) {
+        setToastMessage(tr('Loading your account data in place of the examples.'));
+        return runSync('server');
+      }
+      openSyncChoice();
+    }
     refreshSyncCard();
   }
 
@@ -3602,6 +3612,30 @@
     window.addEventListener('online', () => scheduleSync(500));
     setInterval(() => scheduleSync(0), 5 * 60 * 1000);
     scheduleSync(1000);
+  }
+
+  // Moving data into the app (audit M9). The first-run examples are fingerprinted (device-local, outside state,
+  // sync and backups); while the device still holds only them, the app offers to import a backup from the web
+  // version or to sign in, and a first sync takes the account's data instead of asking how to combine.
+  function rememberSample() {
+    if (!state || typeof Sync?.recordFingerprint !== 'function') return;
+    try { localStorage.setItem('dailoSample', JSON.stringify(Sync.recordFingerprint(state))); } catch (_) { /* the question is then asked as before */ }
+  }
+  function untouchedSample() {
+    if (!state || typeof Sync?.untouchedSample !== 'function') return false;
+    let fingerprint = null;
+    try { fingerprint = JSON.parse(localStorage.getItem('dailoSample') || 'null'); } catch (_) { return false; }
+    return Sync.untouchedSample(state, Object.values(state.habitLogCache || {}).flat(), fingerprint);
+  }
+  function transferNotice() {
+    if (!globalThis.DailoPlatform?.isNative) return '';
+    try { if (localStorage.getItem('dailoTransferDismissed')) return ''; } catch (_) { return ''; }
+    if (!untouchedSample()) return '';
+    const signIn = syncClient && !loadSyncMeta().session?.accessToken ? `<button class="btn btn-secondary" type="button" data-route="settings">${tr('Sign in')}</button>` : '';
+    return `<section class="backup-reminder" data-transfer-notice role="status" aria-label="${tr('Data from the web version')}"><i class="ph ph-arrows-left-right backup-reminder-icon" aria-hidden="true"></i><div class="backup-reminder-copy"><strong>${tr('Do you have data in the web version?')}</strong><span>${tr('Export a backup there (Settings → Data) and import it here, or sign in if you use sync. Your data then replaces these examples.')}</span></div><div class="backup-reminder-actions"><button class="btn btn-primary" type="button" data-action="import-backup">${tr('Import backup')}</button><input id="backup-import-input" type="file" accept=".zip,application/zip" hidden />${signIn}<button class="btn btn-ghost" type="button" data-action="dismiss-transfer-notice">${tr('Not needed')}</button></div></section>`;
+  }
+  function dismissTransferNotice() {
+    try { localStorage.setItem('dailoTransferDismissed', nowIso()); } catch (_) { /* shown again next time */ }
   }
 
   // Weekly review prompt (V1.11): on the last three days of the week until the review is recorded.
@@ -4347,6 +4381,7 @@
     else if (action === 'allow-exact-alarms') allowExactAlarms();
     else if (action === 'export-backup') exportBackupAction();
     else if (action === 'snooze-backup-reminder') { snoozeBackupReminder(); render(); }
+    else if (action === 'dismiss-transfer-notice') { dismissTransferNotice(); render(); }
     else if (action === 'complete-weekly-review') completeWeeklyReview();
     else if (action === 'apply-app-update') applyAppUpdate();
     else if (action === 'request-storage-persistence') updateStoragePersistence(true).catch(console.error);
