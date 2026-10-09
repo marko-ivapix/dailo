@@ -1866,6 +1866,14 @@
 
   async function openAttachment(attachmentId, download = false) {
     const record = await Attachments?.get(attachmentId); if (!record) return;
+    // A WebView cannot open or download a blob: the app hands the file to the share sheet (audit P-2).
+    const platform = globalThis.DailoPlatform;
+    if (platform?.isNative) {
+      closePopover();
+      try { await platform.files.openFile(record.blob, record.fileName); }
+      catch (error) { console.error(error); setToastMessage(tr('The file could not be opened')); }
+      return;
+    }
     // Only types that cannot run script in the app's origin open inline; the rest is downloaded (audit S-1).
     if (!download && !Core.attachmentOpensInline(record.blob?.type || record.mimeType)) download = true;
     const url = URL.createObjectURL(record.blob);
@@ -3622,6 +3630,9 @@
 
   // Asks the browser to keep Dailo's storage only when request is true (after user activity).
   async function refreshStoragePersistence(request = false) {
+    // The native app keeps its data in its own container; the browser persistence question does not apply (audit P-7).
+    const appStorage = globalThis.DailoPlatform?.storage.status();
+    if (appStorage) return appStorage;
     const storage = typeof navigator === 'undefined' ? null : navigator.storage;
     if (!storage || typeof storage.persisted !== 'function') return { state: 'unsupported' };
     try {
@@ -3636,6 +3647,11 @@
 
   // Offline shell (V1.9). Service workers need HTTPS or localhost.
   function registerServiceWorker() {
+    // The native app ships its files inside the binary: no service worker there, and a stale one is removed (audit P-1).
+    if (globalThis.DailoPlatform && !globalThis.DailoPlatform.allowsServiceWorker) {
+      navigator.serviceWorker?.getRegistrations?.().then(list => list.forEach(registration => registration.unregister())).catch(() => {});
+      return;
+    }
     const secure = location.protocol === 'https:' || ['localhost', '127.0.0.1'].includes(location.hostname);
     if (!secure || typeof navigator === 'undefined' || !navigator.serviceWorker) return;
     // Without a controller this is the first install, which activates on its own: nothing to offer.
@@ -3673,7 +3689,11 @@
     setToastMessage(tr('Preparing backup...'));
     try {
       const blob = await Backup.exportBackupV3(state, TodoStorage, nowIso());
-      downloadBackup(blob);
+      // In the app the share sheet can be cancelled; only a delivered file counts as an export (audit P-2).
+      if (await downloadBackup(blob) === 'cancelled') {
+        updateBackupStatus({ snapshotAvailable: await hasRetainedRecoverySnapshot(snapshotAvailable), validationResult: msg('Export cancelled') }, source);
+        setToastMessage(tr('Backup was not saved')); return;
+      }
       updateBackupStatus({ lastExport: nowIso(), snapshotAvailable: await hasRetainedRecoverySnapshot(snapshotAvailable), validationResult: msg('Export verified') }, source);
       setToastMessage(tr('Backup exported'));
     } catch (error) { console.error(error); updateBackupStatus({ snapshotAvailable: await hasRetainedRecoverySnapshot(snapshotAvailable), validationResult: `${msg('Export failed')}: ${error.message}` }, source); setToastMessage(tr('Backup could not be created')); }
@@ -3720,11 +3740,16 @@
     return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">${tr('Local snapshots')}</h2><button class="btn-icon" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div><p class="area-empty-copy">${tr('Five recent automatic copies are kept on this device. Restore one item and its files and history. Linked items must still exist. A safety ZIP and typing RESTORE protect the replacement.')}</p>${body}</div>`, 'quick');
   }
 
+  // Returns 'downloaded' on the web; in the app the file goes through the share sheet: 'shared' or 'cancelled'.
   function downloadBackup(blob) {
+    const fileName = `todo-backup-${Core.dateOnly()}.zip`;
+    const platform = globalThis.DailoPlatform;
+    if (platform?.isNative) return platform.files.saveFile(blob, fileName, tr('Dailo backup'));
     const url = URL.createObjectURL(blob), anchor = document.createElement('a');
-    anchor.href = url; anchor.download = `todo-backup-${Core.dateOnly()}.zip`;
+    anchor.href = url; anchor.download = fileName;
     try { document.body.appendChild(anchor); anchor.click(); }
     finally { anchor.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000); }
+    return 'downloaded';
   }
 
   function compactState(value) {
@@ -3859,7 +3884,8 @@
       const blob = await Backup.exportBackupV3(JSON.parse(op.stateText), frozenStorage, nowIso());
       assertGlobalSource(op);
       if (!(await TodoStorage.sameUserData(await TodoStorage.captureUserData(), op.payload))) throw new Error(msg('Stored data changed during export. Retry.'));
-      assertGlobalSource(op); downloadBackup(blob);
+      assertGlobalSource(op);
+      if (await downloadBackup(blob) === 'cancelled') throw new Error(msg('The safety ZIP was not saved.'));
       op.snapshotId = await TodoStorage.createRecoverySnapshot(reason, state, TodoStorage);
       const snapshot = await TodoStorage.recoverySnapshots.get(op.snapshotId);
       assertGlobalSource(op);
@@ -4668,9 +4694,44 @@
         }
       } catch (_) { /* keep current tab data for malformed external state */ }
     });
-    window.addEventListener('pagehide', () => { if (!globalOperation) { flushTaskDraft(); flushTextSave(); saveState(); } });
+    if (globalThis.DailoPlatform) globalThis.DailoPlatform.lifecycle.onPause(flushPendingWork);
+    else window.addEventListener('pagehide', flushPendingWork);
     window.addEventListener('resize', closePopover);
     window.addEventListener('focus', checkReminders);
+  }
+
+  // Typing and drafts are saved when the page is hidden or the app goes to the background: iOS can end a
+  // backgrounded app without `pagehide` (audit P-4).
+  // A recurring task's draft would open the "this or future" question, so only an unloading page flushes it.
+  function flushPendingWork(reason = 'pagehide') {
+    if (globalOperation || !state) return;
+    const draftTask = modalState?.type === 'task' ? getTask(modalState.taskId) : null;
+    if (reason === 'pagehide' || !draftTask || !taskRecurrence(draftTask)) flushTaskDraft();
+    flushTextSave(); saveState();
+  }
+
+  // Back in the foreground: a new day, due reminders and a sync round, without waiting for the 30-second timer.
+  function resumeApp() {
+    if (globalOperation || startupPromise || recovery || !state) return;
+    checkDateAndReminders();
+    scheduleSync(500);
+  }
+
+  function checkDateAndReminders() {
+    const next = Core.dateOnly();
+    if (next !== lastToday) {
+      lastToday = next;
+      refreshHabitDateBoundary().catch(console.error);
+    } else checkReminders();
+  }
+
+  // Native integration (audit M3): resume, links that leave the app, leftovers of an interrupted share.
+  function startPlatform() {
+    const platform = globalThis.DailoPlatform;
+    if (!platform) return;
+    platform.lifecycle.onResume(resumeApp);
+    platform.links.interceptExternalLinks(document, { onlinePages: { 'uputstvo.html': Release.GUIDE_URL } });
+    platform.files.cleanupSharedFiles().catch(console.error);
   }
 
   async function drainReady(resolve, reject) {
@@ -4733,15 +4794,12 @@
     startSync();
     updateStoragePersistence(false).catch(console.error);
     registerServiceWorker();
+    startPlatform();
     if (!location.hash) location.hash = '#today';
     setInterval(() => {
       if (globalOperation || startupPromise || recovery || !state) return;
       if (runScheduledTaskTemplates()) render();
-      const next = Core.dateOnly();
-      if (next !== lastToday) {
-        lastToday = next;
-        refreshHabitDateBoundary().catch(console.error);
-      } else checkReminders();
+      checkDateAndReminders();
     }, 30000);
   }
 

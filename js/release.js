@@ -12,6 +12,8 @@
   const APP_VERSION = '2.0.0-alpha.1';
   // Beta problem reports go to this address by e-mail. Empty hides the report link.
   const REPORT_EMAIL = 'marko.radicevic@ivapix.cloud';
+  // The tester guide is not packaged in the native app; the app opens this online copy instead.
+  const GUIDE_URL = 'https://marko-ivapix.github.io/dailo/uputstvo.html';
   const EMAIL_PATTERN = /^[^\s@?&#]+@[^\s@?&#]+\.[^\s@?&#]+$/;
 
   // Builds a mailto: link with version and device details only; app data is never included.
@@ -31,5 +33,5 @@
     return `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   }
 
-  return Object.freeze({ APP_VERSION, REPORT_EMAIL, problemReportMailto });
+  return Object.freeze({ APP_VERSION, REPORT_EMAIL, GUIDE_URL, problemReportMailto });
 });

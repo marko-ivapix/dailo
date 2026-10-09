@@ -20,7 +20,7 @@ test('package.json is private, pins Node 22 and follows the app version', () => 
   assert.equal(pkg.private, true);
   assert.equal(pkg.engines.node, '>=22');
   assert.equal(pkg.version, Release.APP_VERSION, 'package.json version equals APP_VERSION');
-  for (const script of ['test', 'check', 'verify', 'build']) assert.ok(pkg.scripts[script], `script ${script}`);
+  for (const script of ['test', 'check', 'verify', 'build', 'smoke']) assert.ok(pkg.scripts[script], `script ${script}`);
   assert.match(pkg.scripts.test, /node --test "tests\/\*\.test\.js"/, 'the test glob is quoted so Node expands it on every OS');
   for (const [name, version] of Object.entries({ ...pkg.dependencies, ...pkg.devDependencies })) {
     assert.match(version, /^\d+\.\d+\.\d+$/, `${name} is pinned to an exact version`);

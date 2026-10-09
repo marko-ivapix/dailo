@@ -16,6 +16,7 @@
       granted: tr('On. The browser keeps Dailo data unless you delete it.'),
       denied: tr('Not granted yet. Install Dailo to the Home Screen and keep regular backups.'),
       unsupported: tr('Not supported in this browser. Keep regular backups.'),
+      app: tr('Kept by the app on this device until the app is removed. Keep regular backups.'),
     }[persistence.state] || tr('Checking…');
     const megabytes = bytes => `${new Intl.NumberFormat(I18n.locale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(bytes / 1048576)} MB`;
     const usage = Number.isFinite(persistence.usage) && Number.isFinite(persistence.quota) ? ` ${tr('{used} of {total} used.', { used: megabytes(persistence.usage), total: megabytes(persistence.quota) })}` : '';
