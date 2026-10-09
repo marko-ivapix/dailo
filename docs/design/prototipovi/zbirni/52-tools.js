@@ -2,8 +2,8 @@
 SCREEN_TITLE.templates = 'Šabloni';
 const TPL_TYPES = [['task', 'Zadaci', IC.checkc], ['project', 'Projekti', IC.folder], ['habit', 'Navike', IC.habit], ['goal', 'Ciljevi', IC.goal]];
 S.templates = [
-  { id: 'tp1', type: 'task', name: 'Nedeljni izveštaj', item: 'Pošalji nedeljni izveštaj', detail: 'Plan: petak · rok +2 dana · 3 podzadatka' },
-  { id: 'tp2', type: 'task', name: 'Putni troškovi', item: 'Predaj putne troškove', detail: 'Rok +5 dana · #Administracija' },
+  { id: 'tp1', type: 'task', name: 'Nedeljni izveštaj', item: 'Pošalji nedeljni izveštaj', detail: 'Plan: petak · rok +2 dana · 3 podzadatka', task: { planDay: 4, dueAfter: 2, subtasks: ['Prikupi brojke', 'Napiši sažetak', 'Pošalji timu'] } },
+  { id: 'tp2', type: 'task', name: 'Putni troškovi', item: 'Predaj putne troškove', detail: 'Rok +5 dana · #Administracija', task: { dueAfter: 5, tags: ['Administracija'] } },
   { id: 'tp3', type: 'project', name: 'Novi klijent', item: 'Klijent: uvodni projekat', detail: '5 zadataka · Posao' },
   { id: 'tp4', type: 'habit', name: 'Jutarnja rutina', item: 'Meditacija 10 min', detail: 'Svaki dan · Jutro' },
   { id: 'tp5', type: 'goal', name: 'Čitanje knjiga', item: 'Pročitaj 6 knjiga', detail: 'Brojevno · 3 etape · rok +6 meseci' },
@@ -21,13 +21,35 @@ PICK.tpl = p => { const t = S.templates.find(x => x.id === p.id); return { title
 // Using a template opens the usual new-item window, already filled; the user still saves it.
 A.tplUse = () => {
   const t = S.templates.find(x => x.id === P.id); closePick();
-  if (t.type === 'task') { openQuick({ date: null, project: 'none' }); W.text = t.item; renderWin(); }
+  if (t.type === 'task') { openQuick({ date: null, project: 'none' }); W.text = t.item; W.tpl = t.id; renderWin(); }
   else if (t.type === 'habit') { openNewHabit(); W.name = t.item; W.routine = '0'; renderWin(); }
   else if (t.type === 'goal') { openWin({ ...freshGoal(), title: t.item, type: 'number', target: 6, unit: 'knjiga', more: true, milestones: ['2 knjige', '4 knjige', '6 knjiga'] }); }
   else openPick({ kind: 'newProject', name: t.item, color: COLORS[1], area: 'a1' });
 };
 A.tplDup = () => { const t = S.templates.find(x => x.id === P.id); S.templates.push({ ...t, id: newId('tp'), name: `${t.name} (kopija)` }); closePick(); render(); toast('Šablon je dupliran'); };
 A.tplDel = () => { const t = S.templates.find(x => x.id === P.id), k = S.templates.indexOf(t); S.templates.splice(k, 1); closePick(); render(); toast('Šablon je obrisan', () => S.templates.splice(k, 0, t)); };
+// Quick Add can start from a task template (S7, decided 2026-10-09): the title, the plan day, the due offset,
+// the subtasks and the tags come from it; what the user typed or picked still wins.
+const taskTemplates = () => S.templates.filter(t => t.type === 'task');
+function tplPlan(w) {
+  const x = w.tpl && S.templates.find(t => t.id === w.tpl)?.task;
+  return x && x.planDay !== undefined ? addDays(TODAY, (x.planDay - mondayIndex(TODAY) + 7) % 7) : null;
+}
+function quickTplRow(w) {
+  if (!taskTemplates().length) return '';
+  const t = w.tpl && S.templates.find(x => x.id === w.tpl);
+  return t ? `<div class="chips" style="margin:-2px 0 4px"><button class="chip sm on" data-act="qTpl">${IC.copy}Šablon: ${esc(t.name)}</button><button class="chip sm" data-act="qTplClear" aria-label="Ukloni šablon">✕</button></div><p class="note" style="margin:0 2px 8px">${esc(t.detail)}</p>`
+    : `<div class="chips" style="margin:-2px 0 8px"><button class="chip sm" data-act="qTpl">${IC.copy}Iz šablona</button></div>`;
+}
+A.qTpl = () => openPick({ kind: 'choice', title: 'Šablon zadatka', current: W.tpl, options: taskTemplates().map(t => ({ v: t.id, label: t.name, sub: `${t.item} · ${t.detail}` })), onPick: v => { const old = S.templates.find(x => x.id === W.tpl), t = S.templates.find(x => x.id === v); if (!W.text.trim() || W.text === old?.item) W.text = t.item; W.tpl = v; renderWin(); } });
+A.qTplClear = () => { const old = S.templates.find(x => x.id === W.tpl); if (W.text === old?.item) W.text = ''; W.tpl = null; renderWin(); };
+function applyTaskTemplate(task, id) {
+  const x = S.templates.find(t => t.id === id)?.task;
+  if (!x) return;
+  if (x.dueAfter) task.due = addDays(task.plan || TODAY, x.dueAfter);
+  if (x.subtasks) task.subtasks = x.subtasks.map(t => ({ t, d: false }));
+  for (const name of x.tags || []) { const tg = S.tags.find(g => g.name === name); if (tg && !task.tags.includes(tg.id)) task.tags.push(tg.id); }
+}
 A.tplNew = () => openPick({ kind: 'choice', title: 'Novi šablon', current: null, options: TPL_TYPES.map(([v, , icon]) => ({ v, label: { task: 'Šablon zadatka', project: 'Šablon projekta', habit: 'Šablon navike', goal: 'Šablon cilja' }[v], icon })), onPick: () => toast('Otvara prazan prozor stavke, sa „Sačuvaj šablon“') });
 
 // ===== Sačuvani prikazi =====================================================
@@ -63,7 +85,7 @@ function viewResults(v) {
 }
 SUB.views = () => `<div class="status"><span>09:41</span><span>•••</span></div>${backBtn()}<h1 class="h1">Sačuvani prikazi</h1>
   <div class="summary">Sačuvani filteri za jednu vrstu stavki.</div>
-  <div class="card">${S.views.map(v => `<button class="prow" data-act="go" data-sub="view" data-id="${v.id}"><span class="ico">${IC.funnel}</span><span class="grow">${esc(v.name)}<span class="sub">${VIEW_TYPES.find(t => t[0] === v.type)[1]}${v.pinned ? ' · zakačen' : ''} · ${esc(viewSummary(v))}</span></span>${IC.chev}</button>`).join('')}<button class="addrow" data-act="viewNew">＋ Novi sačuvani prikaz</button></div>`;
+  <div class="card">${S.views.map(v => `<button class="prow" data-act="go" data-sub="view" data-id="${v.id}"><span class="ico">${IC.funnel}</span><span class="grow">${esc(v.name)}<span class="sub">${VIEW_TYPES.find(t => t[0] === v.type)[1]}${v.pinned ? ' · zakačen' : ''} · ${esc(viewSummary(v))}</span></span><span class="val">${viewResults(v).length}</span>${IC.chev}</button>`).join('')}<button class="addrow" data-act="viewNew">＋ Novi sačuvani prikaz</button></div>`;
 SUB.view = ({ id }) => {
   const v = S.views.find(x => x.id === id), list = viewResults(v);
   const rows = v.type === 'tasks' ? list.map(t => taskRow(t, { meta: 'plan' })) : v.type === 'goals' ? list.map(goalRow) : list.map(h => habitRow(h, TI, { meta: h.freq }));

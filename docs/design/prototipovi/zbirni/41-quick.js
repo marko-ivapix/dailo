@@ -26,10 +26,10 @@ function parseQuick(text) {
   if (out.priority) out.parts.push(`${PRI_NAME[out.priority]} prioritet`);
   return out;
 }
-function openQuick({ date = null, project: proj = 'inbox', area = null } = {}) { openWin({ kind: 'quick', text: '', date, time: null, project: proj, area, datePicked: false, projectPicked: false, err: '' }); setTimeout(() => $('qText')?.focus(), 0); }
+function openQuick({ date = null, project: proj = 'inbox', area = null } = {}) { openWin({ kind: 'quick', text: '', date, time: null, project: proj, area, tpl: null, datePicked: false, projectPicked: false, err: '' }); setTimeout(() => $('qText')?.focus(), 0); }
 function quickEffective(w) {
   const p = parseQuick(w.text);
-  return { p, date: w.datePicked ? w.date : (p.date ?? w.date), time: w.datePicked ? w.time : (p.time ?? w.time), project: w.projectPicked ? w.project : (p.project ?? w.project) };
+  return { p, date: w.datePicked ? w.date : (p.date ?? tplPlan(w) ?? w.date), time: w.datePicked ? w.time : (p.time ?? w.time), project: w.projectPicked ? w.project : (p.project ?? w.project) };
 }
 const quickPlace = v => v === 'inbox' ? 'Inbox' : v === 'none' ? (W?.area ? `Bez projekta · ${areaOf(W.area).name}` : 'Bez projekta') : project(v).name;
 function quickPreview(w) {
@@ -43,6 +43,7 @@ WIN.quick = w => {
     body: `<input id="qText" class="bigtitle" placeholder="Šta treba uraditi?" value="${esc(w.text)}" data-in="qText" aria-label="Naslov zadatka">
       <div class="qprev" id="qPrev">${quickPreview(w)}</div>${w.err ? `<p class="err">${w.err}</p>` : ''}
       <div class="qsel"><button data-act="qDate">${IC.cal}<span>${e.date ? dateTime(e.date, e.time) : 'Bez datuma'}</span>${IC.chev}</button><button data-act="qProject">${IC.folder}<span>${esc(quickPlace(e.project))}</span>${IC.chev}</button></div>
+      ${quickTplRow(w)}
       <button class="more" data-act="qMore" style="padding-top:0">Više opcija <span style="display:inline-flex;gap:4px;align-items:center">Rok, podsetnik, oznake${IC.chev}</span></button>`,
     foot: '<button class="primary" data-act="qAdd">Dodaj zadatak</button>',
   };
@@ -57,6 +58,7 @@ function quickCreate() {
   const tags = e.p.tags.map(name => { let tg = S.tags.find(x => x.name.toLowerCase() === name.toLowerCase()); if (!tg) { tg = { id: newId('tag'), name, color: '#8FA2FF' }; S.tags.push(tg); } return tg.id; });
   const proj = !['inbox', 'none'].includes(e.project) ? e.project : null;
   const t = T(e.p.title.trim(), { plan: e.date, time: e.date ? e.time : null, project: proj, area: proj ? null : W.area || null, tags, priority: e.p.priority || 'none', inbox: !e.date && e.project === 'inbox', captured: 'Danas' });
+  if (W.tpl) applyTaskTemplate(t, W.tpl);
   S.tasks.push(t);
   return t;
 }
