@@ -1387,19 +1387,6 @@ A.setBackupDays = el => { S.settings.backupDays = Number(el.dataset.v); renderPi
 A.setReset = () => { if (resetWord.trim().toUpperCase() !== 'RESETUJ') return toast('Upiši RESETUJ za potvrdu'); closePick(); toast('U prototipu se ništa ne briše'); };
 // ===== Task window (D1–D4, E1–E9) ===========================================
 const dateTime = (d, t) => d ? `${relDay(d)}${t ? ` · ${t}` : ''}` : '';
-function repeatSummary(r, base) {
-  if (!r) return '';
-  const every = r.interval > 1;
-  if (r.freq === 'daily') return every ? `Svakih ${r.interval} dana` : 'Svaki dan';
-  if (r.freq === 'weekdays') return 'Radnim danima';
-  if (r.freq === 'weekly') {
-    const days = (r.days.length ? r.days : [mondayIndex(base || TODAY)]).map(i => WDINSTR[i]).join(', ');
-    return every ? `Svake ${r.interval}. nedelje, ${days}` : `Svake nedelje, ${days}`;
-  }
-  if (r.freq === 'monthly') return every ? `Svakih ${r.interval} meseci` : 'Svakog meseca';
-  return 'Svake godine';
-}
-const endSummary = r => !r || r.end === 'never' ? '' : r.end === 'date' ? ` do ${short(r.endDate)}` : `, ${r.count} puta`;
 const tprow = (k, icon, label, value) => `<button class="prow" data-act="tPick" data-k="${k}">${icon}<span class="lbl">${label}</span><span class="val ${value ? 'set' : ''}">${value ? esc(value) : 'Nije podešeno'}</span>${IC.chev}</button>`;
 
 A.openTask = el => openWin({ kind: 'task', id: el.dataset.id });
@@ -1418,7 +1405,7 @@ WIN.task = w => {
         ${tprow('plan', IC.cal, 'Planirano', dateTime(t.plan, t.time))}
         ${tprow('due', IC.due, 'Rok', dateTime(t.due, t.dueTime))}
         ${tprow('reminder', IC.bell, 'Podsetnik', t.reminder ? dateTime(t.reminder.date, t.reminder.time) : '')}
-        ${tprow('repeat', IC.repeat, 'Ponavljanje', t.repeat ? repeatSummary(t.repeat, t.plan) + endSummary(t.repeat) : '')}
+        ${tprow('repeat', IC.repeat, 'Ponavljanje', t.repeat ? repeatText(t.repeat, t.plan || t.due) : '')}
         ${tprow('duration', IC.timer, 'Trajanje', durLabel(t.duration))}</div>
       <div class="glabel">Organizacija</div><div class="card">
         ${tprow('project', IC.folder, 'Projekat', p ? p.name : '')}
@@ -1453,7 +1440,7 @@ A.tPick = el => {
   const t = task(W.id), k = el.dataset.k;
   if (k === 'plan' || k === 'due') return openDate({ mode: 'task', which: k, date: k === 'plan' ? t.plan : t.due, time: k === 'plan' ? t.time : t.dueTime });
   if (k === 'reminder') return openPick({ kind: 'reminder', ...(t.reminder || { date: t.plan || TODAY, time: t.time || '09:00' }) });
-  if (k === 'repeat') return openPick({ kind: 'repeat', r: t.repeat ? JSON.parse(JSON.stringify(t.repeat)) : { freq: 'weekly', interval: 1, days: [mondayIndex(t.plan || TODAY)], end: 'never', endDate: addDays(TODAY, 90), count: 10 } });
+  if (k === 'repeat') { const start = t.plan || t.due || TODAY; return openPick({ kind: 'repeat', start, r: normRepeat(t.repeat ? JSON.parse(JSON.stringify(t.repeat)) : null, start) }); }
   if (k === 'duration') return openPick({ kind: 'duration' });
   if (k === 'project') return openPick({ kind: 'project', current: t.project, allowNone: true, sub: t.title, onPick: id => { t.project = id; if (id) { t.area = null; t.inbox = false; } render(); toast('Sačuvano'); } });
   if (k === 'tags') return openPick({ kind: 'tags', ids: [...t.tags], q: '' });
@@ -1514,33 +1501,7 @@ CH.rTime = el => { if (el.value) P.time = el.value; renderPick(); };
 A.rClear = () => { task(W.id).reminder = null; closePick(); render(); toast('Sačuvano'); };
 A.rApply = () => { task(W.id).reminder = { date: P.date, time: P.time }; closePick(); render(); toast('Sačuvano'); };
 
-// Repeat (E7).
-PICK.repeat = p => {
-  const r = p.r, t = task(W.id);
-  const presets = [['Svaki dan', 'daily'], ['Radnim danima', 'weekdays'], ['Svake nedelje', 'weekly'], ['Svakog meseca', 'monthly']];
-  const unit = { daily: 'dana', weekly: 'nedelje', monthly: 'meseca', yearly: 'godine' }[r.freq];
-  const sel = 'style="background:#1F232A;border:1px solid #2C3139;border-radius:8px;padding:6px;color-scheme:dark"';
-  return { title: 'Ponavljanje', sub: t.title, body: `
-    <div class="chips">${presets.map(([l, f]) => `<button class="chip ${r.freq === f && r.interval === 1 ? 'on' : ''}" data-act="rpPreset" data-f="${f}">${l}</button>`).join('')}</div>
-    <label class="field"><span class="lbl">Učestalost</span><select data-ch="rpFreq" ${sel}>${[['daily', 'Dnevno'], ['weekdays', 'Radnim danima'], ['weekly', 'Nedeljno'], ['monthly', 'Mesečno'], ['yearly', 'Godišnje']].map(([v, l]) => `<option value="${v}" ${r.freq === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
-    ${r.freq === 'weekdays' ? '' : `<label class="field"><span class="lbl">Na svakih</span><input type="number" min="1" max="99" value="${r.interval}" data-ch="rpInt"><span class="meta" style="margin:0">${unit}</span></label>`}
-    ${r.freq === 'weekly' ? `<div class="wdays">${WD.map((w, i) => `<button class="${r.days.includes(i) ? 'on' : ''}" data-act="rpDay" data-i="${i}" aria-pressed="${r.days.includes(i)}">${w}</button>`).join('')}</div>` : ''}
-    <p class="note" style="margin-top:0">${repeatSummary(r, t.plan)}${endSummary(r)}</p>
-    <div class="glabel">Kraj</div><div class="card" style="margin-bottom:14px">
-      <div class="opt" role="radio" tabindex="0" aria-checked="${r.end === 'never'}" data-act="rpEnd" data-v="never"><span class="radio ${r.end === 'never' ? 'on' : ''}"></span><span class="lbl">Nikad</span></div>
-      <div class="opt" role="radio" tabindex="0" aria-checked="${r.end === 'date'}" data-act="rpEnd" data-v="date"><span class="radio ${r.end === 'date' ? 'on' : ''}"></span><span class="lbl">Na datum</span>${r.end === 'date' ? `<input type="date" value="${r.endDate}" data-ch="rpEndDate" ${sel}>` : ''}</div>
-      <div class="opt" role="radio" tabindex="0" aria-checked="${r.end === 'count'}" data-act="rpEnd" data-v="count"><span class="radio ${r.end === 'count' ? 'on' : ''}"></span><span class="lbl">Posle broja ponavljanja</span>${r.end === 'count' ? `<input type="number" min="1" value="${r.count}" data-ch="rpCount" style="width:64px;background:#1F232A;border:1px solid #2C3139;border-radius:8px;padding:6px">` : ''}</div></div>
-    <div class="split"><button class="ghost" data-act="rpClear">Ne ponavlja se</button><button class="primary" data-act="rpApply">Primeni</button></div>` };
-};
-A.rpPreset = el => { Object.assign(P.r, { freq: el.dataset.f, interval: 1 }); renderPick(); };
-CH.rpFreq = el => { P.r.freq = el.value; renderPick(); };
-CH.rpInt = el => { P.r.interval = Math.max(1, Number(el.value) || 1); renderPick(); };
-A.rpDay = el => { const i = Number(el.dataset.i), d = P.r.days; P.r.days = d.includes(i) ? d.filter(x => x !== i) : [...d, i].sort(); renderPick(); };
-A.rpEnd = (el, ev) => { if (ev.target.tagName === 'INPUT') return; P.r.end = el.dataset.v; renderPick(); };
-CH.rpEndDate = el => { if (el.value) P.r.endDate = el.value; renderPick(); };
-CH.rpCount = el => { P.r.count = Math.max(1, Number(el.value) || 1); renderPick(); };
-A.rpClear = () => { task(W.id).repeat = null; closePick(); render(); toast('Sačuvano'); };
-A.rpApply = () => { task(W.id).repeat = JSON.parse(JSON.stringify(P.r)); closePick(); render(); toast('Sačuvano'); };
+// Repeat (E7): the sheet is in 54-repeat.js.
 
 // Duration: a tap applies at once (E3).
 PICK.duration = () => ({ title: 'Trajanje', sub: task(W.id).title, body: `<div class="chips">${[15, 30, 45, 60, 90, 120].map(m => `<button class="chip ${task(W.id).duration === m ? 'on' : ''}" data-act="durPick" data-v="${m}">${durLabel(m)}</button>`).join('')}</div><p class="note" style="margin-top:0">Dodir odmah postavlja trajanje. Trajanje se vidi u Kalendaru, u prikazu „Raspored“.</p><button class="ghost" data-act="durPick" data-v="0">Ukloni trajanje</button>` });
@@ -1930,17 +1891,9 @@ S.rooms.push({ id: 'r4', name: 'Auto' });
 S.tasks.push(
   T('Registracija auta', { room: 'r4', area: 'a2', plan: '2026-11-20', due: '2026-11-20', repeat: { freq: 'yearly', interval: 1, days: [], end: 'never' } }),
   T('Mali servis', { room: 'r4', area: 'a2', plan: '2027-01-15', due: '2027-01-15', repeat: { freq: 'monthly', interval: 6, days: [], end: 'never' } }),
-  T('Plati internet', { area: 'a2', plan: '2026-10-15', due: '2026-10-15', repeat: { freq: 'monthly', interval: 1, days: [], end: 'never' } }),
+  T('Plati internet', { area: 'a2', plan: '2026-10-10', due: '2026-10-10', repeat: { freq: 'monthly', interval: 1, monthMode: 'day', monthDay: 10, end: 'never' } }),
+  T('Iznesi đubre', { room: 'r3', area: 'a2', plan: '2026-10-10', due: '2026-10-10', repeat: { freq: 'weekly', interval: 1, days: [2, 5], end: 'never' } }),
 );
-const choreRepeat = r => {
-  if (!r) return 'Ne ponavlja se';
-  const n = r.interval || 1;
-  if (r.freq === 'daily') return n > 1 ? `Na ${plural(n, 'svaki', 'svaka', 'svakih')} ${n} dana` : 'Svaki dan';
-  if (r.freq === 'weekdays') return 'Radnim danima';
-  if (r.freq === 'weekly') return n > 1 ? `Svake ${n}. nedelje` : 'Svake nedelje';
-  if (r.freq === 'yearly') return 'Svake godine';
-  return n > 1 ? `Na ${plural(n, 'svaki', 'svaka', 'svakih')} ${n} ${plural(n, 'mesec', 'meseca', 'meseci')}` : 'Svakog meseca';
-};
 function choreWhen(t) {
   const d = t.due || t.plan;
   if (!d) return '<span>Bez datuma</span>';
@@ -1949,7 +1902,7 @@ function choreWhen(t) {
 }
 // A round check completes it here and schedules the next one, without opening it.
 function choreRow(t) {
-  return `<div class="trow"><button class="round ${t.done ? 'on' : ''}" data-act="toggleTask" data-id="${t.id}" aria-label="${t.done ? 'Vrati' : 'Završi'}: ${esc(t.title)}">${t.done ? IC.tick : ''}</button><button class="main" data-act="openTask" data-id="${t.id}"><div class="ttl ${t.done ? 'done-title' : ''}">${esc(t.title)}</div><div class="meta">${t.done ? `Završeno ${relDay(t.doneAt).toLowerCase()}` : choreRepeat(t.repeat)}</div></button><span class="side">${t.done ? '' : choreWhen(t)}</span></div>`;
+  return `<div class="trow"><button class="round ${t.done ? 'on' : ''}" data-act="toggleTask" data-id="${t.id}" aria-label="${t.done ? 'Vrati' : 'Završi'}: ${esc(t.title)}">${t.done ? IC.tick : ''}</button><button class="main" data-act="openTask" data-id="${t.id}"><div class="ttl ${t.done ? 'done-title' : ''}">${esc(t.title)}</div><div class="meta">${t.done ? `Završeno ${relDay(t.doneAt).toLowerCase()}` : repeatText(t.repeat, t.plan || t.due)}</div></button><span class="side">${t.done ? '' : choreWhen(t)}</span></div>`;
 }
 function recurringSections() {
   const rep = S.tasks.filter(t => t.repeat && !t.inbox && !(t.project && project(t.project)?.archived));
@@ -1984,27 +1937,7 @@ A.newRoom = () => openPick({ kind: 'newRoom', name: '' });
 PICK.newRoom = p => ({ title: 'Nova grupa', body: `<label class="field"><input class="wide" placeholder="Kuća, kupatilo, auto, bašta…" value="${esc(p.name)}" data-in="nrName" aria-label="Naziv grupe"></label>${p.err ? `<p class="err">${p.err}</p>` : ''}<button class="primary" data-act="nrCreate">Napravi grupu</button>` });
 IN.nrName = el => { P.name = el.value; };
 A.nrCreate = () => { const name = P.name.trim(); if (!name) { P.err = 'Grupa mora imati naziv.'; return renderPick(); } if (S.rooms.some(r => r.name.toLowerCase() === name.toLowerCase())) { P.err = 'Ta grupa već postoji.'; return renderPick(); } S.rooms.push({ id: newId('r'), name }); closePick(); render(); toast(`Grupa „${name}“ je napravljena`); };
-// New recurring task: a name, the group, the first day and how often (the reminder stays in the task window).
-A.newChore = el => openWin({ kind: 'chore', title: '', room: el?.dataset?.room || S.rooms[0]?.id, date: TODAY, freq: 'weekly', interval: 1, err: '' });
-WIN.chore = w => ({
-  head: winHead('Nova redovna obaveza'),
-  body: `<input class="bigtitle" placeholder="Usisaj, plati račun, promeni ulje…" value="${esc(w.title)}" data-in="chTitle" aria-label="Obaveza">${w.err ? `<p class="err">${w.err}</p>` : ''}
-    <div class="glabel" style="margin-top:6px">Grupa</div><div class="chips">${S.rooms.map(r => `<button class="chip sm ${w.room === r.id ? 'on' : ''}" data-act="chRoom" data-v="${r.id}">${esc(r.name)}</button>`).join('')}</div>
-    <div class="glabel" style="margin-top:0">Prvi put</div><div class="chips">${[['Danas', TODAY], ['Sutra', addDays(TODAY, 1)], ['Subota', '2026-10-10']].map(([l, d]) => `<button class="chip sm ${w.date === d ? 'on' : ''}" data-act="chDate" data-v="${d}">${l}</button>`).join('')}</div>
-    <div class="glabel" style="margin-top:0">Ponavljanje</div>${seg('freq', [['daily', 'Svaki dan'], ['weekly', 'Nedeljno'], ['monthly', 'Mesečno']], w.freq)}
-    <div class="field" style="margin-top:10px"><span class="lbl">Na svakih</span>${`<span class="stepper"><button data-act="chStep" data-d="-1" ${w.interval <= 1 ? 'disabled' : ''} aria-label="Manje">−</button><span>${w.interval}</span><button data-act="chStep" data-d="1" aria-label="Više">+</button></span>`}<span class="meta" style="margin:0">${{ daily: 'dana', weekly: 'nedelje', monthly: 'meseca' }[w.freq]}</span></div>
-    <p class="note" style="margin-top:0">${choreRepeat({ freq: w.freq, interval: w.interval })} · prvi put ${relDay(w.date).toLowerCase()}. Ponavljanje nema kraj.</p>`,
-  foot: '<button class="primary" data-act="chCreate">Zakaži obavezu</button>',
-});
-IN.chTitle = el => { W.title = el.value; };
-A.chRoom = el => { W.room = el.dataset.v; renderWin(); };
-A.chDate = el => { W.date = el.dataset.v; renderWin(); };
-A.chStep = el => { W.interval = Math.max(1, W.interval + Number(el.dataset.d)); renderWin(); };
-A.chCreate = () => {
-  if (!W.title.trim()) { W.err = 'Unesi obavezu.'; return renderWin(); }
-  S.tasks.push(T(W.title.trim(), { room: W.room, area: 'a2', plan: W.date, due: W.date, repeat: { freq: W.freq, interval: W.interval, days: [], end: 'never' } }));
-  closeWin(); render(); toast('Obaveza je zakazana');
-};
+// New recurring task: see 54-repeat.js (the window shares the repeat editor with the task window).
 
 // ===== Nedeljni pregled =====================================================
 SCREEN_TITLE.review = 'Nedeljni pregled';
@@ -2323,6 +2256,156 @@ A.fab = () => {
   if (t === 'templates') return A.tplNew();
   if (t === 'views' || t === 'view') return A.viewNew();
   return fabMain();
+};
+// ===== Repeat editor: one editor for the task window (E7) and new recurring tasks
+// Rule: freq daily | weekdays | weekly (days) | monthly (a day of the month, the last day,
+// or the nth weekday) | yearly; interval; end. Today's app knows only daily/weekly/monthly + interval.
+const ORD = { 1: ['prvog', 'prve', 'Prvi'], 2: ['drugog', 'druge', 'Drugi'], 3: ['trećeg', 'treće', 'Treći'], 4: ['četvrtog', 'četvrte', 'Četvrti'], '-1': ['poslednjeg', 'poslednje', 'Poslednji'] };
+const WD_GEN = ['ponedeljka', 'utorka', 'srede', 'četvrtka', 'petka', 'subote', 'nedelje'];
+const FEM = [2, 5, 6];
+const MONTH_GEN = ['januara', 'februara', 'marta', 'aprila', 'maja', 'juna', 'jula', 'avgusta', 'septembra', 'oktobra', 'novembra', 'decembra'];
+function normRepeat(r, start = TODAY) {
+  const base = { freq: 'weekly', interval: 1, days: [], monthMode: 'day', monthDay: parse(start).getDate(), nth: 1, nthDay: mondayIndex(start), end: 'never', endDate: addDays(start, 90), count: 10 };
+  const out = { ...base, ...(r || {}) };
+  if (out.freq === 'weekdays') Object.assign(out, { freq: 'weekly', interval: 1, days: [0, 1, 2, 3, 4] });
+  if (out.freq === 'weekly' && !out.days?.length) out.days = [mondayIndex(start)];
+  return out;
+}
+const nthLabel = (r) => `${ORD[r.nth][FEM.includes(r.nthDay) ? 1 : 0]} ${WD_GEN[r.nthDay]}`;
+// The sentence under the editor and on the task row ("Sredom i subotom", "Svakog 10. u mesecu" …).
+function repeatText(r, start = TODAY) {
+  if (!r) return 'Ne ponavlja se';
+  r = normRepeat(r, start);
+  const n = r.interval, every = n > 1 ? `Na ${plural(n, 'svaki', 'svaka', 'svakih')} ${n}` : '', everyF = `Na ${plural(n, 'svaku', 'svake', 'svakih')} ${n}`;
+  let text;
+  if (r.freq === 'daily') text = n > 1 ? `${every} ${plural(n, 'dan', 'dana', 'dana')}` : 'Svaki dan';
+  else if (r.freq === 'weekdays') text = 'Radnim danima';
+  else if (r.freq === 'weekly') {
+    const d = [...r.days].sort((a, b) => a - b), names = d.join() === '0,1,2,3,4' ? 'radnim danima' : d.join() === '5,6' ? 'vikendom' : listWords(d.map(i => WDINSTR[i]));
+    text = n > 1 ? `${everyF} ${plural(n, 'nedelju', 'nedelje', 'nedelja')}, ${names}` : cap(names);
+  } else if (r.freq === 'monthly') {
+    const which = r.monthMode === 'weekday' ? nthLabel(r) : r.monthDay === 'last' ? 'poslednjeg dana' : `${r.monthDay}.`;
+    text = n > 1 ? `${every} ${plural(n, 'mesec', 'meseca', 'meseci')}, ${which} u mesecu` : `${r.monthMode === 'weekday' && FEM.includes(r.nthDay) ? 'Svake' : 'Svakog'} ${which} u mesecu`;
+  } else {
+    const d = parse(start);
+    text = `${n > 1 ? `${everyF} ${plural(n, 'godinu', 'godine', 'godina')}` : 'Svake godine'}, ${d.getDate()}. ${MONTH_GEN[d.getMonth()]}`;
+  }
+  return text + (r.end === 'date' ? ` · do ${short(r.endDate)}` : r.end === 'count' ? ` · ${r.count} puta` : '');
+}
+function dayInMonth(y, m, r) {
+  const last = new Date(y, m + 1, 0).getDate();
+  if (r.monthMode !== 'weekday') return new Date(y, m, r.monthDay === 'last' ? last : Math.min(r.monthDay, last));
+  if (r.nth === -1) { const d = new Date(y, m, last); while ((d.getDay() + 6) % 7 !== r.nthDay) d.setDate(d.getDate() - 1); return d; }
+  const d = new Date(y, m, 1); while ((d.getDay() + 6) % 7 !== r.nthDay) d.setDate(d.getDate() + 1);
+  d.setDate(d.getDate() + 7 * (r.nth - 1)); return d;
+}
+// The first date on or after `start` that fits the rule.
+function firstOccurrence(start, r) {
+  r = normRepeat(r, start);
+  if (r.freq === 'weekly') { let d = start; while (!r.days.includes(mondayIndex(d))) d = addDays(d, 1); return d; }
+  if (r.freq === 'weekdays') { let d = start; while (mondayIndex(d) > 4) d = addDays(d, 1); return d; }
+  if (r.freq === 'monthly') { const s = parse(start); let c = iso(dayInMonth(s.getFullYear(), s.getMonth(), r)); if (c < start) { const n = new Date(s.getFullYear(), s.getMonth() + 1, 1); c = iso(dayInMonth(n.getFullYear(), n.getMonth(), r)); } return c; }
+  return start;
+}
+// The next date after `day` (used when a repeating task is completed).
+function nextOccurrence(day, r) {
+  r = normRepeat(r, day);
+  if (r.freq === 'daily') return addDays(day, r.interval);
+  if (r.freq === 'weekdays') { let d = addDays(day, 1); while (mondayIndex(d) > 4) d = addDays(d, 1); return d; }
+  if (r.freq === 'weekly') {
+    const days = [...r.days].sort((a, b) => a - b), wd = mondayIndex(day), later = days.find(x => x > wd);
+    return later !== undefined ? addDays(day, later - wd) : addDays(day, 7 * r.interval - wd + days[0]);
+  }
+  const d = parse(day);
+  if (r.freq === 'monthly') { const t = new Date(d.getFullYear(), d.getMonth() + r.interval, 1); return iso(dayInMonth(t.getFullYear(), t.getMonth(), r)); }
+  const y = d.getFullYear() + r.interval, last = new Date(y, d.getMonth() + 1, 0).getDate();
+  return iso(new Date(y, d.getMonth(), Math.min(d.getDate(), last)));
+}
+function upcomingDates(r, start, k = 3) {
+  r = normRepeat(r, start);
+  const out = [], max = r.end === 'count' ? Math.min(k, r.count) : k; let d = firstOccurrence(start, r);
+  while (d < TODAY) d = nextOccurrence(d, r);
+  while (out.length < max && !(r.end === 'date' && d > r.endDate)) { out.push(d); d = nextOccurrence(d, r); }
+  return out;
+}
+nextDate = (day, r) => nextOccurrence(day, r);
+// Completing respects the end: no next one after the end date or the last count.
+const completeTaskBase = completeTask;
+completeTask = t => {
+  const res = completeTaskBase(t), n = res.next;
+  if (!n) return res;
+  const r = t.repeat, d = n.plan || n.due;
+  if ((r.end === 'date' && d > r.endDate) || (r.end === 'count' && r.count <= 1)) { S.tasks.splice(S.tasks.indexOf(n), 1); return { next: null, undo: res.undo }; }
+  if (r.end === 'count') n.repeat.count = r.count - 1;
+  return res;
+};
+
+// The editor itself. It works in a picker (P.r) or in a window (W.r).
+const repTarget = el => el.closest('#pick') ? { o: P, redraw: renderPick } : { o: W, redraw: renderWin };
+function repeatEditor(r, start) {
+  r = normRepeat(r, start);
+  const sd = parse(start), wd = mondayIndex(start);
+  const presets = [['Svaki dan', { freq: 'daily', interval: 1 }], ['Svake nedelje', { freq: 'weekly', interval: 1, days: [wd] }], ['Svakog meseca', { freq: 'monthly', interval: 1, monthMode: 'day', monthDay: sd.getDate() }], ['Na 3 meseca', { freq: 'monthly', interval: 3, monthMode: 'day', monthDay: sd.getDate() }], ['Svake godine', { freq: 'yearly', interval: 1 }]];
+  const on = p => Object.entries(p).every(([k, v]) => JSON.stringify(r[k]) === JSON.stringify(v));
+  const unit = { daily: ['dan', 'dana', 'dana'], weekly: ['nedelja', 'nedelje', 'nedelja'], monthly: ['mesec', 'meseca', 'meseci'], yearly: ['godina', 'godine', 'godina'] }[r.freq];
+  let extra = '';
+  if (r.freq === 'weekly') extra = `<div class="glabel" style="margin-top:2px">Dani</div><div class="wdays">${WD.map((d, i) => `<button class="${r.days.includes(i) ? 'on' : ''}" data-act="rxDay" data-i="${i}" aria-pressed="${r.days.includes(i)}" aria-label="${WDNAME[i]}">${d}</button>`).join('')}</div>`;
+  if (r.freq === 'monthly') extra = `<div class="card" style="margin-bottom:10px">
+      <div class="opt" role="radio" tabindex="0" aria-checked="${r.monthMode === 'day'}" data-act="rxMode" data-v="day"><span class="radio ${r.monthMode === 'day' ? 'on' : ''}"></span><span class="lbl">Dan u mesecu</span><span class="meta" style="margin:0">${r.monthDay === 'last' ? 'poslednji' : `${r.monthDay}.`}</span></div>
+      ${r.monthMode === 'day' ? `<div style="padding:4px 10px 10px"><div class="grid7">${Array.from({ length: 31 }, (_, k) => `<button class="day ${r.monthDay === k + 1 ? 'sel' : ''}" data-act="rxMonthDay" data-v="${k + 1}"><span style="width:30px;height:30px;font-size:13px">${k + 1}</span></button>`).join('')}<button class="chip sm ${r.monthDay === 'last' ? 'on' : ''}" style="grid-column:span 4;justify-content:center;margin:4px" data-act="rxMonthDay" data-v="last">Poslednji dan</button></div>${typeof r.monthDay === 'number' && r.monthDay > 28 ? `<p class="note" style="margin:6px 2px 0">U kraćim mesecima pada na poslednji dan.</p>` : ''}</div>` : ''}
+      <div class="opt" role="radio" tabindex="0" aria-checked="${r.monthMode === 'weekday'}" data-act="rxMode" data-v="weekday"><span class="radio ${r.monthMode === 'weekday' ? 'on' : ''}"></span><span class="lbl">Dan u nedelji</span><span class="meta" style="margin:0">${nthLabel(r)}</span></div>
+      ${r.monthMode === 'weekday' ? `<div style="padding:4px 10px 10px"><div class="chips" style="margin-bottom:8px">${Object.keys(ORD).sort((a, b) => (a === '-1') - (b === '-1') || a - b).map(k => `<button class="chip sm ${String(r.nth) === k ? 'on' : ''}" data-act="rxNth" data-v="${k}">${ORD[k][2]}</button>`).join('')}</div><div class="wdays" style="margin:0">${WD.map((d, i) => `<button class="${r.nthDay === i ? 'on' : ''}" data-act="rxNthDay" data-i="${i}" aria-label="${WDNAME[i]}">${d}</button>`).join('')}</div></div>` : ''}</div>`;
+  if (r.freq === 'yearly') extra = `<p class="note" style="margin-top:0">Datum je dan prvog puta: ${sd.getDate()}. ${MONTH_GEN[sd.getMonth()]}.</p>`;
+  const dates = upcomingDates(r, start);
+  return `<div class="chips">${presets.map(([l, p], k) => `<button class="chip sm ${on(p) ? 'on' : ''}" data-act="rxPreset" data-k="${k}">${l}</button>`).join('')}</div>
+    <div class="seg" style="margin-bottom:10px">${[['daily', 'Dnevno'], ['weekly', 'Nedeljno'], ['monthly', 'Mesečno'], ['yearly', 'Godišnje']].map(([v, l]) => `<button class="${r.freq === v ? 'on' : ''}" data-act="rxFreq" data-v="${v}">${l}</button>`).join('')}</div>
+    <div class="field"><span class="lbl">Razmak</span><span class="stepper"><button data-act="rxStep" data-d="-1" ${r.interval <= 1 ? 'disabled' : ''} aria-label="Manje">−</button><span>${r.interval}</span><button data-act="rxStep" data-d="1" aria-label="Više">+</button></span><span class="meta" style="margin:0;min-width:56px">${plural(r.interval, ...unit)}</span></div>
+    ${extra}
+    <p class="rxsum" style="margin:4px 4px 2px;font-weight:600">${repeatText(r, start)}</p>
+    <p class="note" style="margin-top:0">${dates.length ? `Sledeći put: ${dates.map(d => `${WDNAME[mondayIndex(d)].slice(0, 3).toLowerCase()} ${short(d)}`).join(' · ')}` : 'Nema više ponavljanja.'}</p>
+    <div class="glabel">Kraj</div><div class="card" style="margin-bottom:14px">
+      <div class="opt" role="radio" tabindex="0" aria-checked="${r.end === 'never'}" data-act="rxEnd" data-v="never"><span class="radio ${r.end === 'never' ? 'on' : ''}"></span><span class="lbl">Nikad</span></div>
+      <div class="opt" role="radio" tabindex="0" aria-checked="${r.end === 'date'}" data-act="rxEnd" data-v="date"><span class="radio ${r.end === 'date' ? 'on' : ''}"></span><span class="lbl">Na datum</span>${r.end === 'date' ? `<input type="date" value="${r.endDate}" data-ch="rxEndDate" style="background:#1F232A;border:1px solid #2C3139;border-radius:8px;padding:6px;color-scheme:dark">` : ''}</div>
+      <div class="opt" role="radio" tabindex="0" aria-checked="${r.end === 'count'}" data-act="rxEnd" data-v="count"><span class="radio ${r.end === 'count' ? 'on' : ''}"></span><span class="lbl">Posle broja ponavljanja</span>${r.end === 'count' ? `<input type="number" min="1" value="${r.count}" data-ch="rxCount" style="width:64px;background:#1F232A;border:1px solid #2C3139;border-radius:8px;padding:6px">` : ''}</div></div>`;
+}
+const rx = (el, fn) => { const { o, redraw } = repTarget(el); o.r = normRepeat(o.r, o.start || TODAY); fn(o.r, o); redraw(); };
+A.rxPreset = el => rx(el, (r, o) => { const sd = parse(o.start), p = [{ freq: 'daily', interval: 1 }, { freq: 'weekly', interval: 1, days: [mondayIndex(o.start)] }, { freq: 'monthly', interval: 1, monthMode: 'day', monthDay: sd.getDate() }, { freq: 'monthly', interval: 3, monthMode: 'day', monthDay: sd.getDate() }, { freq: 'yearly', interval: 1 }][Number(el.dataset.k)]; Object.assign(r, p); });
+A.rxFreq = el => rx(el, r => { r.freq = el.dataset.v; r.interval = 1; });
+A.rxStep = el => rx(el, r => { r.interval = Math.max(1, r.interval + Number(el.dataset.d)); });
+A.rxDay = el => rx(el, r => { const i = Number(el.dataset.i); r.days = r.days.includes(i) ? (r.days.length > 1 ? r.days.filter(x => x !== i) : r.days) : [...r.days, i].sort((a, b) => a - b); });
+A.rxMode = (el, ev) => { if (ev.target.closest('button') && ev.target.closest('button') !== el) return; rx(el, r => { r.monthMode = el.dataset.v; }); };
+A.rxMonthDay = el => rx(el, r => { r.monthDay = el.dataset.v === 'last' ? 'last' : Number(el.dataset.v); });
+A.rxNth = el => rx(el, r => { r.nth = Number(el.dataset.v); });
+A.rxNthDay = el => rx(el, r => { r.nthDay = Number(el.dataset.i); });
+A.rxEnd = (el, ev) => { if (ev.target.tagName === 'INPUT') return; rx(el, r => { r.end = el.dataset.v; }); };
+CH.rxEndDate = el => rx(el, r => { if (el.value) r.endDate = el.value; });
+CH.rxCount = el => rx(el, r => { r.count = Math.max(1, Number(el.value) || 1); });
+
+// The task window's repeat sheet uses the editor.
+PICK.repeat = p => ({ title: 'Ponavljanje', sub: task(W.id).title, body: `${repeatEditor(p.r, p.start)}<div class="split"><button class="ghost" data-act="rxClear">Ne ponavlja se</button><button class="primary" data-act="rxApply">Primeni</button></div>` });
+A.rxClear = () => { task(W.id).repeat = null; closePick(); render(); toast('Sačuvano'); };
+A.rxApply = () => { const t = task(W.id); t.repeat = JSON.parse(JSON.stringify(normRepeat(P.r, P.start))); closePick(); render(); toast('Sačuvano'); };
+
+// New recurring task: name, group, first time, then the same editor.
+A.newChore = el => openWin({ kind: 'chore', title: '', room: el?.dataset?.room || S.rooms[0]?.id, start: TODAY, r: normRepeat({ freq: 'weekly', interval: 1, days: [mondayIndex(TODAY)] }), err: '' });
+WIN.chore = w => ({
+  tall: true,
+  head: winHead('Nova redovna obaveza'),
+  body: `<input class="bigtitle" placeholder="Usisaj, plati račun, promeni ulje…" value="${esc(w.title)}" data-in="chTitle" aria-label="Obaveza">${w.err ? `<p class="err">${w.err}</p>` : ''}
+    <div class="glabel" style="margin-top:6px">Grupa</div><div class="chips">${S.rooms.map(r => `<button class="chip sm ${w.room === r.id ? 'on' : ''}" data-act="chRoom" data-v="${r.id}">${esc(r.name)}</button>`).join('')}</div>
+    <div class="glabel" style="margin-top:0">Počinje</div><div class="chips">${[['Danas', TODAY], ['Sutra', addDays(TODAY, 1)], ['Sledeće nedelje', nextMonday()]].map(([l, d]) => `<button class="chip sm ${w.start === d ? 'on' : ''}" data-act="chDate" data-v="${d}">${l}</button>`).join('')}<input type="date" value="${w.start}" data-ch="chStart" aria-label="Datum početka" style="background:#1F232A;border:1px solid #2C3139;border-radius:9px;padding:5px 8px;color-scheme:dark"></div>
+    <div class="glabel" style="margin-top:0">Ponavljanje</div>${repeatEditor(w.r, w.start)}`,
+  foot: '<button class="primary" data-act="chCreate">Zakaži obavezu</button>',
+});
+IN.chTitle = el => { W.title = el.value; };
+A.chRoom = el => { W.room = el.dataset.v; renderWin(); };
+A.chDate = el => { W.start = el.dataset.v; renderWin(); };
+CH.chStart = el => { if (el.value) { W.start = el.value; renderWin(); } };
+A.chCreate = () => {
+  if (!W.title.trim()) { W.err = 'Unesi obavezu.'; return renderWin(); }
+  const r = JSON.parse(JSON.stringify(normRepeat(W.r, W.start))), first = firstOccurrence(W.start, r);
+  S.tasks.push(T(W.title.trim(), { room: W.room, area: 'a2', plan: first, due: first, repeat: r }));
+  closeWin(); render(); toast(`Zakazano · prvi put ${relDay(first).toLowerCase()}`);
 };
 
 bindEvents();

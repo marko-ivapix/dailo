@@ -5,17 +5,9 @@ S.rooms.push({ id: 'r4', name: 'Auto' });
 S.tasks.push(
   T('Registracija auta', { room: 'r4', area: 'a2', plan: '2026-11-20', due: '2026-11-20', repeat: { freq: 'yearly', interval: 1, days: [], end: 'never' } }),
   T('Mali servis', { room: 'r4', area: 'a2', plan: '2027-01-15', due: '2027-01-15', repeat: { freq: 'monthly', interval: 6, days: [], end: 'never' } }),
-  T('Plati internet', { area: 'a2', plan: '2026-10-15', due: '2026-10-15', repeat: { freq: 'monthly', interval: 1, days: [], end: 'never' } }),
+  T('Plati internet', { area: 'a2', plan: '2026-10-10', due: '2026-10-10', repeat: { freq: 'monthly', interval: 1, monthMode: 'day', monthDay: 10, end: 'never' } }),
+  T('Iznesi đubre', { room: 'r3', area: 'a2', plan: '2026-10-10', due: '2026-10-10', repeat: { freq: 'weekly', interval: 1, days: [2, 5], end: 'never' } }),
 );
-const choreRepeat = r => {
-  if (!r) return 'Ne ponavlja se';
-  const n = r.interval || 1;
-  if (r.freq === 'daily') return n > 1 ? `Na ${plural(n, 'svaki', 'svaka', 'svakih')} ${n} dana` : 'Svaki dan';
-  if (r.freq === 'weekdays') return 'Radnim danima';
-  if (r.freq === 'weekly') return n > 1 ? `Svake ${n}. nedelje` : 'Svake nedelje';
-  if (r.freq === 'yearly') return 'Svake godine';
-  return n > 1 ? `Na ${plural(n, 'svaki', 'svaka', 'svakih')} ${n} ${plural(n, 'mesec', 'meseca', 'meseci')}` : 'Svakog meseca';
-};
 function choreWhen(t) {
   const d = t.due || t.plan;
   if (!d) return '<span>Bez datuma</span>';
@@ -24,7 +16,7 @@ function choreWhen(t) {
 }
 // A round check completes it here and schedules the next one, without opening it.
 function choreRow(t) {
-  return `<div class="trow"><button class="round ${t.done ? 'on' : ''}" data-act="toggleTask" data-id="${t.id}" aria-label="${t.done ? 'Vrati' : 'Završi'}: ${esc(t.title)}">${t.done ? IC.tick : ''}</button><button class="main" data-act="openTask" data-id="${t.id}"><div class="ttl ${t.done ? 'done-title' : ''}">${esc(t.title)}</div><div class="meta">${t.done ? `Završeno ${relDay(t.doneAt).toLowerCase()}` : choreRepeat(t.repeat)}</div></button><span class="side">${t.done ? '' : choreWhen(t)}</span></div>`;
+  return `<div class="trow"><button class="round ${t.done ? 'on' : ''}" data-act="toggleTask" data-id="${t.id}" aria-label="${t.done ? 'Vrati' : 'Završi'}: ${esc(t.title)}">${t.done ? IC.tick : ''}</button><button class="main" data-act="openTask" data-id="${t.id}"><div class="ttl ${t.done ? 'done-title' : ''}">${esc(t.title)}</div><div class="meta">${t.done ? `Završeno ${relDay(t.doneAt).toLowerCase()}` : repeatText(t.repeat, t.plan || t.due)}</div></button><span class="side">${t.done ? '' : choreWhen(t)}</span></div>`;
 }
 function recurringSections() {
   const rep = S.tasks.filter(t => t.repeat && !t.inbox && !(t.project && project(t.project)?.archived));
@@ -59,27 +51,7 @@ A.newRoom = () => openPick({ kind: 'newRoom', name: '' });
 PICK.newRoom = p => ({ title: 'Nova grupa', body: `<label class="field"><input class="wide" placeholder="Kuća, kupatilo, auto, bašta…" value="${esc(p.name)}" data-in="nrName" aria-label="Naziv grupe"></label>${p.err ? `<p class="err">${p.err}</p>` : ''}<button class="primary" data-act="nrCreate">Napravi grupu</button>` });
 IN.nrName = el => { P.name = el.value; };
 A.nrCreate = () => { const name = P.name.trim(); if (!name) { P.err = 'Grupa mora imati naziv.'; return renderPick(); } if (S.rooms.some(r => r.name.toLowerCase() === name.toLowerCase())) { P.err = 'Ta grupa već postoji.'; return renderPick(); } S.rooms.push({ id: newId('r'), name }); closePick(); render(); toast(`Grupa „${name}“ je napravljena`); };
-// New recurring task: a name, the group, the first day and how often (the reminder stays in the task window).
-A.newChore = el => openWin({ kind: 'chore', title: '', room: el?.dataset?.room || S.rooms[0]?.id, date: TODAY, freq: 'weekly', interval: 1, err: '' });
-WIN.chore = w => ({
-  head: winHead('Nova redovna obaveza'),
-  body: `<input class="bigtitle" placeholder="Usisaj, plati račun, promeni ulje…" value="${esc(w.title)}" data-in="chTitle" aria-label="Obaveza">${w.err ? `<p class="err">${w.err}</p>` : ''}
-    <div class="glabel" style="margin-top:6px">Grupa</div><div class="chips">${S.rooms.map(r => `<button class="chip sm ${w.room === r.id ? 'on' : ''}" data-act="chRoom" data-v="${r.id}">${esc(r.name)}</button>`).join('')}</div>
-    <div class="glabel" style="margin-top:0">Prvi put</div><div class="chips">${[['Danas', TODAY], ['Sutra', addDays(TODAY, 1)], ['Subota', '2026-10-10']].map(([l, d]) => `<button class="chip sm ${w.date === d ? 'on' : ''}" data-act="chDate" data-v="${d}">${l}</button>`).join('')}</div>
-    <div class="glabel" style="margin-top:0">Ponavljanje</div>${seg('freq', [['daily', 'Svaki dan'], ['weekly', 'Nedeljno'], ['monthly', 'Mesečno']], w.freq)}
-    <div class="field" style="margin-top:10px"><span class="lbl">Na svakih</span>${`<span class="stepper"><button data-act="chStep" data-d="-1" ${w.interval <= 1 ? 'disabled' : ''} aria-label="Manje">−</button><span>${w.interval}</span><button data-act="chStep" data-d="1" aria-label="Više">+</button></span>`}<span class="meta" style="margin:0">${{ daily: 'dana', weekly: 'nedelje', monthly: 'meseca' }[w.freq]}</span></div>
-    <p class="note" style="margin-top:0">${choreRepeat({ freq: w.freq, interval: w.interval })} · prvi put ${relDay(w.date).toLowerCase()}. Ponavljanje nema kraj.</p>`,
-  foot: '<button class="primary" data-act="chCreate">Zakaži obavezu</button>',
-});
-IN.chTitle = el => { W.title = el.value; };
-A.chRoom = el => { W.room = el.dataset.v; renderWin(); };
-A.chDate = el => { W.date = el.dataset.v; renderWin(); };
-A.chStep = el => { W.interval = Math.max(1, W.interval + Number(el.dataset.d)); renderWin(); };
-A.chCreate = () => {
-  if (!W.title.trim()) { W.err = 'Unesi obavezu.'; return renderWin(); }
-  S.tasks.push(T(W.title.trim(), { room: W.room, area: 'a2', plan: W.date, due: W.date, repeat: { freq: W.freq, interval: W.interval, days: [], end: 'never' } }));
-  closeWin(); render(); toast('Obaveza je zakazana');
-};
+// New recurring task: see 54-repeat.js (the window shares the repeat editor with the task window).
 
 // ===== Nedeljni pregled =====================================================
 SCREEN_TITLE.review = 'Nedeljni pregled';
