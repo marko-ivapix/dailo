@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="sr-Latn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Inbox — predlog</title>
+<style>
+  :root {
+    --page: #08090B; --bg: #0F1114; --card: #16191E; --card2: #1B1F25; --line: #242830; --text: #E8EAED; --muted: #8B929C;
+    --blue: #2A47FF; --link: #8FA2FF; --green: #34C77B; --amber: #F2A93B; --red: #F0645A;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--text); font: 15px/1.35 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 16px; }
+  .top { max-width: 390px; margin: 0 auto 12px; color: var(--muted); font-size: 13.5px; }
+  .top b { color: var(--text); }
+  .phone { position: relative; max-width: 390px; height: 820px; margin: 0 auto; background: var(--bg); border: 1px solid var(--line); border-radius: 34px; overflow: hidden; }
+  button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
+  svg { flex: none; }
+
+  .screen { position: absolute; inset: 0 0 70px; overflow-y: auto; padding: 16px 16px 96px; }
+  .status { display: flex; justify-content: space-between; font-size: 13px; font-weight: 600; padding: 0 6px 12px; }
+  .h1 { font-size: 30px; font-weight: 700; letter-spacing: -.5px; margin: 0; }
+  .summary { color: var(--muted); font-size: 13.5px; margin: 2px 2px 12px; }
+  .triage { display: flex; align-items: center; gap: 10px; width: 100%; padding: 0 14px; min-height: 50px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; margin-bottom: 12px; }
+  .triage .main { flex: 1; font-weight: 600; }
+  .triage .meta { font-weight: 400; }
+  .filters { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+  .filters button { flex: none; padding: 7px 12px; border-radius: 10px; border: 1px solid var(--line); background: #121418; color: var(--muted); font-size: 14px; }
+  .filters button.on { background: #262B33; color: var(--text); font-weight: 600; border-color: #2C3139; }
+  .filters span { margin-left: 4px; opacity: .8; }
+  .section { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14.5px; margin: 18px 2px 8px; }
+  .section span { color: var(--muted); font-weight: 500; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+  .item { padding: 10px 14px 10px; }
+  .item + .item { border-top: 1px solid var(--line); }
+  .irow { display: flex; align-items: center; gap: 12px; width: 100%; }
+  .box { width: 22px; height: 22px; border: 2px solid #4A505A; border-radius: 6px; flex: none; }
+  .tico { width: 22px; height: 22px; display: grid; place-items: center; color: var(--muted); flex: none; }
+  .main { flex: 1; min-width: 0; }
+  .ttl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .meta { color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+  .side { font-size: 12px; color: var(--muted); white-space: nowrap; }
+  .side.amber { color: var(--amber); }
+  .chips { display: flex; gap: 6px; margin: 8px 0 0 34px; flex-wrap: wrap; }
+  .chip { padding: 5px 10px; border-radius: 9px; background: var(--card2); border: 1px solid #2C3139; font-size: 13px; }
+  .chip.quiet { color: var(--muted); }
+  .empty { text-align: center; padding: 70px 20px 0; color: var(--muted); }
+  .empty .ring { width: 72px; height: 72px; margin: 0 auto 14px; border-radius: 50%; border: 2px solid #2C3139; display: grid; place-items: center; }
+  .empty strong { display: block; color: var(--text); font-size: 18px; margin-bottom: 4px; }
+
+  .fab { position: absolute; right: 16px; bottom: 86px; width: 56px; height: 56px; border-radius: 50%; background: var(--blue); display: grid; place-items: center; box-shadow: 0 6px 18px rgba(0, 0, 0, .45); z-index: 2; }
+  .nav { position: absolute; left: 0; right: 0; bottom: 0; height: 70px; border-top: 1px solid var(--line); background: #121418; display: grid; grid-template-columns: repeat(6, 1fr); padding: 8px 4px 14px; z-index: 1; }
+  .nav div { display: grid; justify-items: center; gap: 3px; font-size: 10.5px; color: var(--muted); position: relative; }
+  .nav div.on { color: var(--link); }
+  .badge { position: absolute; top: -4px; left: 50%; margin-left: 6px; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 9px; background: #262B33; color: var(--text); font-size: 10.5px; display: grid; place-items: center; }
+
+  .dim { position: absolute; inset: 0; background: rgba(0, 0, 0, .55); opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 4; }
+  .dim.show { opacity: 1; pointer-events: auto; }
+  .sheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 5; max-height: 86%; background: #14171C; border-top: 1px solid var(--line); border-radius: 22px 22px 0 0; transform: translateY(105%); transition: transform .25s ease; display: flex; flex-direction: column; }
+  .sheet.show { transform: none; }
+  .sheet.over { z-index: 7; }
+  .dim.over { z-index: 6; }
+  .grab { width: 40px; height: 5px; border-radius: 3px; background: #3A3F48; margin: 8px auto 4px; flex: none; }
+  .shead { display: flex; justify-content: space-between; align-items: center; padding: 6px 18px 10px; flex: none; }
+  .shead h2 { margin: 0; font-size: 22px; }
+  .sbody { overflow-y: auto; padding: 0 16px 22px; }
+  .x { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; color: var(--muted); }
+  .focus { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px; margin-bottom: 14px; }
+  .focus .kind { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; margin-bottom: 6px; }
+  .focus .big { font-size: 20px; font-weight: 700; line-height: 1.25; }
+  .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .act { min-height: 48px; border-radius: 12px; background: var(--card2); border: 1px solid #2C3139; display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 600; }
+  .act.wide { grid-column: 1 / -1; }
+  .act.danger { color: var(--red); background: none; border-color: transparent; font-weight: 500; }
+  .split { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; }
+  .ghost { color: var(--link); padding: 10px 4px; }
+  .progress { color: var(--muted); font-size: 13px; }
+  .opt { display: flex; align-items: center; gap: 12px; width: 100%; padding: 0 14px; min-height: 50px; }
+  .opt + .opt { border-top: 1px solid var(--line); }
+  .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+  .glabel { color: var(--muted); font-size: 12.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; margin: 4px 4px 6px; }
+  .toast { position: absolute; left: 50%; bottom: 150px; transform: translateX(-50%); background: #262B33; padding: 8px 8px 8px 14px; border-radius: 10px; font-size: 13px; opacity: 0; transition: opacity .2s; z-index: 9; white-space: nowrap; display: flex; align-items: center; gap: 10px; pointer-events: none; }
+  .toast.show { opacity: 1; pointer-events: auto; }
+  .toast button { color: var(--link); font-weight: 600; padding: 2px 6px; }
+</style>
+</head>
+<body>
+<p class="top"><b>Predlog: Inbox.</b> Dugmići ispod reda razvrstavaju odmah, a „Poništi“ u poruci vraća. „Razvrstaj redom“ otvara jednu po jednu stavku. Filteri pokazuju samo vrste koje postoje u Inbox-u.</p>
+
+<div class="phone">
+  <div class="screen" id="screen"></div>
+  <button class="fab" id="fab" aria-label="Brzo dodavanje"><svg width="26" height="26" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/></svg></button>
+  <nav class="nav" id="nav"></nav>
+
+  <div class="dim" id="dimTriage"></div>
+  <section class="sheet" id="triage"><div class="grab"></div><div class="shead"><h2>Razvrstavanje</h2><button class="x" data-close="triage" aria-label="Zatvori">✕</button></div><div class="sbody" id="triageBody"></div></section>
+  <div class="dim over" id="dimPick"></div>
+  <section class="sheet over" id="pick"><div class="grab"></div><div class="shead"><h2 id="pickTitle">Projekat</h2><button class="x" data-close="pick" aria-label="Zatvori">✕</button></div><div class="sbody" id="pickBody"></div></section>
+  <div class="toast" id="toast"><span id="toastText"></span><button id="undo">Poništi</button></div>
+</div>
+
+<script>
+const TYPES = { task: ['Zadaci', 'Zadatak'], note: ['Beleške', 'Beleška'], resource: ['Resursi', 'Resurs'], goal: ['Ciljevi', 'Cilj'], habit: ['Navike', 'Navika'] };
+const GROUPS = ['Danas', 'Juče', 'Ove nedelje', 'Ranije'];
+const PROJECTS = [['Posao', [['Redizajn sajta', '#5362FF'], ['Klijentski portal', '#30CBAD']]], ['Lično', [['Kućni poslovi', '#F5B942'], ['Putovanje u Rim', '#F06A8A']]]];
+const items = [
+  { type: 'task', t: 'Pozovi majstora za bojler', g: 'Danas' },
+  { type: 'note', t: 'Ideje za rođendan', g: 'Danas' },
+  { type: 'task', t: 'Plati račun za struju', g: 'Danas', due: 'Rok 10. okt' },
+  { type: 'resource', t: 'Članak o dizajnu tabela', g: 'Juče', sub: 'smashingmagazine.com' },
+  { type: 'task', t: 'Proveri ponudu za osiguranje', g: 'Juče' },
+  { type: 'goal', t: 'Naučiti da plivam', g: 'Ove nedelje' },
+  { type: 'task', t: 'Javi se Marku za sastanak', g: 'Ove nedelje' },
+  { type: 'habit', t: 'Istezanje uveče', g: 'Ranije' },
+].map((x, id) => ({ id, ...x, inbox: true }));
+let filter = 'all';
+let last = null; // the last action, for Undo
+let queue = [], qi = 0;
+
+const $ = id => document.getElementById(id);
+const plural = (n, one, few, other) => (n % 10 === 1 && n % 100 !== 11) ? one : ([2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100)) ? few : other;
+const I = p => `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+const ICON = {
+  note: I('<path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4M9 12h6M9 16h6"/>'),
+  resource: I('<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>'),
+  goal: I('<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/>'),
+  habit: I('<path d="M6 20V12M12 20V5M18 20v-9"/>'),
+  sort: I('<path d="M4 6h16M7 12h10M10 18h4"/>'),
+  sun: I('<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/>'),
+  folder: I('<path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/>'),
+  check: '<svg width="34" height="34" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="var(--green)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  chev: '<svg width="18" height="18" viewBox="0 0 24 24" style="color:#5B6270"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+};
+const inbox = () => items.filter(x => x.inbox);
+const visible = () => inbox().filter(x => filter === 'all' || x.type === filter);
+
+function chipsFor(x) {
+  if (x.type === 'task') return `<button class="chip" data-act="today" data-id="${x.id}">Danas</button><button class="chip" data-act="tomorrow" data-id="${x.id}">Sutra</button><button class="chip" data-act="later" data-id="${x.id}">Kad stignem</button><button class="chip" data-act="project" data-id="${x.id}">Projekat…</button>`;
+  return `<button class="chip" data-act="open" data-id="${x.id}">Otvori</button><button class="chip" data-act="area" data-id="${x.id}">Oblast…</button><button class="chip quiet" data-act="sorted" data-id="${x.id}">Razvrstano</button>`;
+}
+function itemRow(x) {
+  const lead = x.type === 'task' ? '<span class="box"></span>' : `<span class="tico">${ICON[x.type]}</span>`;
+  const meta = x.type === 'task' ? '' : `<div class="meta">${TYPES[x.type][1]}${x.sub ? ` · ${x.sub}` : ''}</div>`;
+  return `<div class="item"><div class="irow">${lead}<span class="main"><div class="ttl">${x.t}</div>${meta}</span>${x.due ? `<span class="side">${x.due}</span>` : ''}</div><div class="chips">${chipsFor(x)}</div></div>`;
+}
+
+function render() {
+  const all = inbox();
+  const types = Object.keys(TYPES).filter(type => all.some(x => x.type === type));
+  if (filter !== 'all' && !types.includes(filter)) filter = 'all';
+  const list = visible();
+  let body;
+  if (!all.length) {
+    body = `<div class="empty"><div class="ring">${ICON.check}</div><strong>Inbox je prazan</strong>Sve je razvrstano.</div>`;
+  } else {
+    body = `<button class="triage" id="startTriage">${ICON.sort}<span class="main">Razvrstaj redom <span class="meta">· jednu po jednu</span></span>${ICON.chev}</button>
+      ${types.length > 1 ? `<div class="filters" role="tablist"><button role="tab" class="${filter === 'all' ? 'on' : ''}" data-filter="all">Sve<span>${all.length}</span></button>${types.map(type => `<button role="tab" class="${filter === type ? 'on' : ''}" data-filter="${type}">${TYPES[type][0]}<span>${all.filter(x => x.type === type).length}</span></button>`).join('')}</div>` : ''}
+      ${GROUPS.map(g => { const rows = list.filter(x => x.g === g); return rows.length ? `<div class="section">${g} <span>· ${rows.length}</span></div><div class="card">${rows.map(itemRow).join('')}</div>` : ''; }).join('')}`;
+  }
+  $('screen').innerHTML = `<div class="status"><span>09:41</span><span>•••</span></div><h1 class="h1">Inbox</h1><div class="summary">${all.length ? `${all.length} ${plural(all.length, 'stavka čeka', 'stavke čekaju', 'stavki čeka')} razvrstavanje` : 'Ništa ne čeka'}</div>${body}`;
+  document.querySelectorAll('[data-filter]').forEach(b => b.onclick = () => { filter = b.dataset.filter; render(); });
+  document.querySelectorAll('#screen [data-act]').forEach(b => b.onclick = () => act(b.dataset.act, items[Number(b.dataset.id)]));
+  if ($('startTriage')) $('startTriage').onclick = startTriage;
+  renderNav();
+}
+
+// Every action takes the item out of Inbox; Undo puts it back.
+const DONE_TEXT = { today: 'U Danas', tomorrow: 'Planirano za sutra', later: 'U „Kad stignem“', sorted: 'Razvrstano' };
+function act(action, x, after) {
+  if (action === 'open') return flash(`Otvara: ${TYPES[x.type][1].toLowerCase()} „${x.t}“`);
+  if (action === 'project' || action === 'area') return pick(action, x, after);
+  finish(x, DONE_TEXT[action], after);
+}
+function finish(x, text, after) {
+  x.inbox = false; last = x;
+  render(); if (after) after();
+  flash(text, true);
+}
+function pick(kind, x, after) {
+  $('pickTitle').textContent = kind === 'project' ? 'Projekat' : 'Oblast';
+  $('pickBody').innerHTML = kind === 'project'
+    ? PROJECTS.map(([area, list]) => `<div class="glabel">${area}</div><div class="card" style="margin-bottom:12px">${list.map(([name, color]) => `<button class="opt" data-pick="${name}"><span class="dot" style="background:${color}"></span>${name}</button>`).join('')}</div>`).join('') + '<p class="meta" style="margin:0 4px">Zadatak ide u projekat, u „Kad stignem“.</p>'
+    : `<div class="card">${['Posao', 'Lično', 'Zdravlje'].map(name => `<button class="opt" data-pick="${name}">${name}</button>`).join('')}</div>`;
+  show('pick');
+  document.querySelectorAll('[data-pick]').forEach(b => b.onclick = () => { hide('pick'); finish(x, `${kind === 'project' ? 'U projekat' : 'U oblast'} „${b.dataset.pick}“`, after); });
+}
+
+// One item at a time.
+function startTriage() { queue = visible().map(x => x.id); qi = 0; renderTriage(); show('triage'); }
+function renderTriage() {
+  const open = queue.filter(id => items[id].inbox);
+  if (!open.length) {
+    $('triageBody').innerHTML = `<div class="empty" style="padding:24px 0 10px"><div class="ring">${ICON.check}</div><strong>Gotovo</strong>${inbox().length ? 'Ova lista je razvrstana.' : 'Inbox je prazan.'}</div><button class="act wide" style="width:100%;margin-top:14px" data-close="triage">Zatvori</button>`;
+    document.querySelectorAll('#triageBody [data-close]').forEach(b => b.onclick = () => hide('triage'));
+    return;
+  }
+  if (qi >= open.length) qi = 0;
+  const x = items[open[qi]];
+  const total = queue.length, doneCount = queue.length - open.length;
+  const buttons = x.type === 'task'
+    ? `<button class="act" data-t="today">${ICON.sun}Danas</button><button class="act" data-t="tomorrow">Sutra</button><button class="act" data-t="later">Kad stignem</button><button class="act" data-t="project">${ICON.folder}Projekat…</button>`
+    : `<button class="act" data-t="open">Otvori</button><button class="act" data-t="area">Oblast…</button><button class="act wide" data-t="sorted">Razvrstano</button>`;
+  $('triageBody').innerHTML = `
+    <div class="focus"><div class="kind">${x.type === 'task' ? '' : ICON[x.type]}${TYPES[x.type][1]} · dodato ${x.g.toLowerCase()}</div><div class="big">${x.t}</div>${x.due ? `<div class="meta" style="margin-top:6px">${x.due}</div>` : ''}</div>
+    <div class="actions">${buttons}</div>
+    <div class="split"><span class="progress">${doneCount + 1} od ${total}</span><button class="ghost" id="skip">Preskoči</button></div>`;
+  document.querySelectorAll('[data-t]').forEach(b => b.onclick = () => act(b.dataset.t, x, renderTriage));
+  $('skip').onclick = () => { qi++; renderTriage(); };
+}
+
+let flashTimer;
+function flash(text, undo) {
+  $('toastText').textContent = text;
+  $('undo').style.display = undo ? '' : 'none';
+  $('toast').classList.add('show');
+  clearTimeout(flashTimer); flashTimer = setTimeout(() => $('toast').classList.remove('show'), 2500);
+}
+$('undo').onclick = () => { if (last) { last.inbox = true; last = null; render(); if ($('triage').classList.contains('show')) renderTriage(); } $('toast').classList.remove('show'); };
+function show(id) { $(id).classList.add('show'); $(id === 'pick' ? 'dimPick' : 'dimTriage').classList.add('show'); }
+function hide(id) { $(id).classList.remove('show'); $(id === 'pick' ? 'dimPick' : 'dimTriage').classList.remove('show'); }
+document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => hide(b.dataset.close));
+$('dimPick').onclick = () => hide('pick');
+$('dimTriage').onclick = () => hide('triage');
+$('fab').onclick = () => flash('Brzo dodavanje: bez datuma i projekta ide u Inbox');
+
+function renderNav() {
+  const n = inbox().length;
+  $('nav').innerHTML = [['Danas', '<rect x="4" y="5" width="16" height="15" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M4 10h16M9 3v4M15 3v4" stroke="currentColor" stroke-width="1.8"/>'],
+    ['Inbox', '<path d="M4 13l2.5-7h11L20 13v6H4z M4 13h5l1 2h4l1-2h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>'],
+    ['Zadaci', '<circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8.5 12.2l2.4 2.4 4.6-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'],
+    ['Kalendar', '<rect x="4" y="5" width="16" height="15" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M4 10h16M9 3v4M15 3v4M8 14h2M12 14h2M8 17h2" stroke="currentColor" stroke-width="1.8"/>'],
+    ['Navike', '<path d="M6 20V12M12 20V5M18 20v-9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>'],
+    ['Još', '<circle cx="6" cy="12" r="1.7" fill="currentColor"/><circle cx="12" cy="12" r="1.7" fill="currentColor"/><circle cx="18" cy="12" r="1.7" fill="currentColor"/>']]
+    .map(([label, path]) => `<div class="${label === 'Inbox' ? 'on' : ''}"><svg width="22" height="22" viewBox="0 0 24 24">${path}</svg>${label}${label === 'Inbox' && n ? `<span class="badge" aria-label="${n} u Inbox-u">${n}</span>` : ''}</div>`).join('');
+}
+
+render();
+</script>
+</body>
+</html>

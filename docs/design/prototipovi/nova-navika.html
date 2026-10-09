@@ -1,0 +1,485 @@
+<!doctype html>
+<html lang="sr-Latn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nova navika — prototip</title>
+<style>
+  :root {
+    --page: #08090B; --bg: #0F1114; --card: #16191E; --card2: #1B1F25; --line: #242830; --text: #E8EAED; --muted: #8B929C;
+    --blue: #2A47FF; --link: #8FA2FF; --green: #34C77B; --amber: #F2A93B; --red: #F0645A;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--text); font: 15px/1.35 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 16px; }
+  .top { max-width: 390px; margin: 0 auto 12px; color: var(--muted); font-size: 13.5px; }
+  .top b { color: var(--text); }
+  .phone { position: relative; max-width: 390px; height: 820px; margin: 0 auto; background: var(--bg); border: 1px solid var(--line); border-radius: 34px; overflow: hidden; }
+  button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+  input { font: inherit; color: var(--text); }
+  svg { flex: none; }
+
+  /* Habits screen behind the window */
+  .screen { padding: 16px 16px 0; }
+  .status { display: flex; justify-content: space-between; font-size: 13px; font-weight: 600; padding: 0 6px 12px; }
+  .h1 { font-size: 30px; font-weight: 700; letter-spacing: -.5px; margin: 0 0 12px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+  .hrow { display: flex; align-items: center; gap: 12px; padding: 9px 14px; min-height: 54px; }
+  .hrow + .hrow { border-top: 1px solid var(--line); }
+  .hrow i { width: 26px; height: 26px; border-radius: 50%; border: 2.5px solid #4A505A; flex: none; }
+  .hrow.new { background: rgba(52, 199, 123, .08); }
+  .main { flex: 1; min-width: 0; }
+  .meta { color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+  .fab { position: absolute; right: 16px; bottom: 24px; width: 56px; height: 56px; border-radius: 50%; background: var(--blue); display: grid; place-items: center; box-shadow: 0 6px 18px rgba(0, 0, 0, .45); }
+
+  /* Overlays */
+  .dim { position: absolute; inset: 0; background: rgba(0, 0, 0, .55); opacity: 0; pointer-events: none; transition: opacity .2s; }
+  .dim.show { opacity: 1; pointer-events: auto; }
+  .sheet { position: absolute; left: 0; right: 0; bottom: 0; background: #14171C; border-top: 1px solid var(--line); border-radius: 22px 22px 0 0; transform: translateY(105%); transition: transform .25s ease; display: flex; flex-direction: column; }
+  .sheet.show { transform: none; }
+  .grab { width: 40px; height: 5px; border-radius: 3px; background: #3A3F48; margin: 8px auto 4px; flex: none; }
+  .shead { display: flex; justify-content: space-between; align-items: center; padding: 6px 18px 10px; flex: none; }
+  .shead h2 { margin: 0; font-size: 22px; }
+  .sbody { overflow-y: auto; padding: 0 16px 18px; flex: 1; }
+  .x { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; color: var(--muted); }
+  #win { top: 36px; }
+  .picker { z-index: 5; max-height: 88%; }
+  .dim.top { z-index: 4; }
+
+  .name { width: 100%; background: none; border: 0; outline: none; color: var(--text); font-weight: 700; font-size: 22px; padding: 2px 2px 4px; }
+  .name::placeholder { color: #5B6270; }
+  .err { color: var(--red); font-size: 13px; margin: 0 2px 6px; }
+  .glabel { color: var(--muted); font-size: 12.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; margin: 16px 4px 6px; }
+  .prow { display: flex; align-items: center; gap: 12px; width: 100%; padding: 0 12px; min-height: 50px; text-align: left; }
+  .prow + .prow, .prow + .block, .block + .prow, .block + .block { border-top: 1px solid var(--line); }
+  .prow .lbl { flex: none; }
+  .prow .val { flex: 1; min-width: 0; text-align: right; color: var(--muted); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .prow .val.set { color: var(--text); }
+  .chev { color: #5B6270; }
+  .block { padding: 10px 12px 12px; }
+  .block .lbl { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+  .seg { display: flex; border: 1px solid var(--line); border-radius: 10px; padding: 3px; background: #121418; }
+  .seg button { flex: 1; text-align: center; font-size: 14px; padding: 7px 4px; border-radius: 8px; color: var(--muted); }
+  .seg button.on { background: #262B33; color: var(--text); font-weight: 600; }
+  .inline { display: flex; align-items: center; gap: 8px; margin-top: 10px; color: var(--muted); font-size: 14px; }
+  .inline input { background: #1F232A; border: 1px solid #2C3139; border-radius: 8px; padding: 7px 8px; }
+  .inline input[type=number] { width: 76px; }
+  .inline input.unit { width: 96px; }
+  .more { display: flex; justify-content: space-between; align-items: center; width: 100%; color: var(--muted); padding: 14px 4px 4px; }
+  .more b { color: var(--text); font-weight: 600; }
+  .footer { padding: 10px 16px 22px; border-top: 1px solid var(--line); flex: none; background: #14171C; }
+  .primary { width: 100%; height: 48px; border-radius: 14px; background: var(--blue); color: #fff; font-weight: 600; font-size: 16px; }
+  .ghost { color: var(--link); font-size: 15px; padding: 12px 6px; }
+  .split { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .split .primary { width: auto; flex: 1; max-width: 200px; }
+
+  /* Pickers */
+  .note { color: var(--muted); font-size: 13px; margin: 2px 4px 12px; }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .chip { padding: 9px 14px; border-radius: 12px; background: var(--card2); border: 1px solid #2C3139; font-size: 14px; display: inline-flex; gap: 8px; align-items: center; }
+  .chip.on { border-color: var(--blue); background: rgba(42, 71, 255, .18); }
+  .chip .rm { color: var(--muted); font-size: 13px; }
+  .opt { cursor: pointer; display: flex; align-items: center; gap: 12px; width: 100%; padding: 0 14px; min-height: 52px; text-align: left; }
+  .opt + .opt { border-top: 1px solid var(--line); }
+  .opt .lbl { flex: 1; }
+  .radio { width: 22px; height: 22px; border-radius: 50%; border: 2px solid #5B6270; display: grid; place-items: center; flex: none; }
+  .radio.on { border-color: var(--blue); }
+  .radio.on::after { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--blue); }
+  .check { width: 22px; height: 22px; border-radius: 6px; border: 2px solid #5B6270; display: grid; place-items: center; flex: none; }
+  .check.on { background: var(--blue); border-color: var(--blue); }
+  .field { display: flex; align-items: center; gap: 12px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 0 12px; min-height: 50px; margin-bottom: 10px; }
+  .field .lbl { flex: 1; }
+  .field input { background: #1F232A; border: 1px solid #2C3139; border-radius: 8px; padding: 6px 8px; color-scheme: dark; }
+  .field input[type=number] { width: 76px; }
+  .stepper { display: inline-flex; align-items: center; border: 1px solid #2C3139; border-radius: 10px; overflow: hidden; background: #1F232A; }
+  .stepper button { width: 40px; height: 38px; font-size: 20px; color: var(--text); }
+  .stepper button:disabled { color: #4A505A; cursor: default; }
+  .stepper span { min-width: 40px; text-align: center; font-weight: 600; font-variant-numeric: tabular-nums; border-left: 1px solid #2C3139; border-right: 1px solid #2C3139; line-height: 38px; }
+  .wdays { display: flex; gap: 6px; margin: 2px 0 10px; }
+  .wdays button { flex: 1; height: 40px; border-radius: 10px; background: var(--card2); border: 1px solid #2C3139; font-size: 13px; }
+  .wdays button.on { background: rgba(42, 71, 255, .22); border-color: var(--blue); }
+  .next { color: var(--text); font-size: 14px; margin: -2px 4px 12px; }
+  .next span { color: var(--muted); }
+  .cal { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 10px; margin-bottom: 12px; }
+  .calhead { display: flex; justify-content: space-between; align-items: center; padding: 0 4px 6px; font-weight: 600; }
+  .calhead button { width: 32px; height: 32px; display: grid; place-items: center; color: var(--muted); }
+  .grid { display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; }
+  .wd { color: var(--muted); font-size: 12px; padding: 4px 0; }
+  .day { height: 38px; display: grid; place-items: center; }
+  .day span { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; }
+  .day.today span { color: var(--link); font-weight: 600; }
+  .day.sel span { background: var(--blue); color: #fff; font-weight: 600; }
+  .addrow { display: flex; gap: 8px; margin-bottom: 12px; }
+  .addrow input { flex: 1; min-width: 0; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 0 12px; height: 44px; }
+  .addrow button { padding: 0 14px; border-radius: 12px; background: var(--card2); border: 1px solid #2C3139; color: var(--link); }
+  .toast { position: absolute; left: 50%; bottom: 96px; transform: translateX(-50%); background: #262B33; padding: 8px 14px; border-radius: 10px; font-size: 13px; opacity: 0; transition: opacity .2s; z-index: 9; pointer-events: none; white-space: nowrap; }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<p class="top"><b>Prototip prozora „Nova navika“.</b> Probaj „Brojevno“, pa „Više“. Dodirni red da otvoriš mali prozor; oblast se primeni odmah, ostali imaju „Primeni“. X zatvara bez izmene. „Napravi naviku“ dodaje naviku na ekran iza; „+“ dole desno otvara novi prozor.</p>
+
+<div class="phone">
+  <div class="screen">
+    <div class="status"><span>09:41</span><span>•••</span></div>
+    <div class="h1">Navike</div>
+    <div class="card" id="list"></div>
+  </div>
+  <button class="fab" id="fab" aria-label="Nova navika"><svg width="26" height="26" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/></svg></button>
+
+  <div class="dim" id="dimWin"></div>
+  <section class="sheet" id="win" aria-label="Nova navika">
+    <div class="grab"></div>
+    <div class="shead"><span class="meta">Nova navika</span><button class="x" data-close="win" aria-label="Zatvori">✕</button></div>
+    <div class="sbody" id="winBody"></div>
+    <div class="footer"><button class="primary" id="create">Napravi naviku</button></div>
+  </section>
+
+  <div class="dim top" id="dimPicker"></div>
+  <section class="sheet picker" id="picker">
+    <div class="grab"></div>
+    <div class="shead"><div><h2 id="pickerTitle"></h2><div class="meta" id="pickerSub"></div></div><button class="x" data-close="picker" aria-label="Zatvori">✕</button></div>
+    <div class="sbody" id="pickerBody"></div>
+  </section>
+  <div class="toast" id="toast"></div>
+</div>
+
+<script>
+const MONTHS = ['januar', 'februar', 'mart', 'april', 'maj', 'jun', 'jul', 'avgust', 'septembar', 'oktobar', 'novembar', 'decembar'];
+const SHORT = ['jan', 'feb', 'mar', 'apr', 'maj', 'jun', 'jul', 'avg', 'sep', 'okt', 'nov', 'dec'];
+const WD = ['P', 'U', 'S', 'Č', 'P', 'S', 'N'];
+const WDNAME = ['ponedeljak', 'utorak', 'sreda', 'četvrtak', 'petak', 'subota', 'nedelja'];
+const WDINSTR = ['ponedeljkom', 'utorkom', 'sredom', 'četvrtkom', 'petkom', 'subotom', 'nedeljom'];
+const TODAY = '2026-10-08';
+const AREAS = ['Lično', 'Zdravlje', 'Posao'];
+const GOALS = ['Polumaraton u aprilu', 'Engleski B2', 'Manje ekrana uveče'];
+const ROUTINES = [['morning', 'Jutro'], ['daily', 'Dan'], ['night', 'Veče']];
+const habits = [
+  { name: 'Voda', meta: 'Svaki dan · 2 l' },
+  { name: 'Čitanje', meta: 'Svaki dan · Veče' },
+];
+
+const $ = id => document.getElementById(id);
+const parse = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const addDays = (s, n) => { const d = parse(s); d.setDate(d.getDate() + n); return iso(d); };
+const short = s => { const d = parse(s); return `${d.getDate()}. ${SHORT[d.getMonth()]}`; };
+const mondayIndex = d => (d.getDay() + 6) % 7;
+const num = v => String(v).replace('.', ',');
+const plural = (n, one, few, other) => (n % 10 === 1 && n % 100 !== 11) ? one : ([2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100)) ? few : other;
+const list = words => words.length < 2 ? words.join('') : `${words.slice(0, -1).join(', ')} i ${words.at(-1)}`;
+const cap = s => s[0].toUpperCase() + s.slice(1);
+
+const ICON = {
+  area: '<svg width="20" height="20" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+  routine: '<svg width="20" height="20" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+  track: '<svg width="20" height="20" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="4" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8.5 12.2l2.4 2.4 4.6-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+  repeat: '<svg width="20" height="20" viewBox="0 0 24 24"><path d="M4 11V9a3 3 0 0 1 3-3h12l-3-3M20 13v2a3 3 0 0 1-3 3H5l3 3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  bell: '<svg width="20" height="20" viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z M10 20a2 2 0 0 0 4 0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>',
+  cal: '<svg width="20" height="20" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M4 10h16M9 3v4M15 3v4" stroke="currentColor" stroke-width="1.8"/></svg>',
+  end: '<svg width="20" height="20" viewBox="0 0 24 24"><path d="M6 21V4h11l-2 4 2 4H6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>',
+  target: '<svg width="20" height="20" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="1" fill="currentColor"/></svg>',
+  bolt: '<svg width="20" height="20" viewBox="0 0 24 24"><path d="M13 3L5 13.5h6L10 21l8-10.5h-6z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>',
+  goal: '<svg width="20" height="20" viewBox="0 0 24 24"><path d="M4 20l5-9 4 6 3-4 4 7z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>',
+  chev: '<svg class="chev" width="18" height="18" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+  down: open => `<svg class="chev" width="18" height="18" viewBox="0 0 24 24" style="transform:rotate(${open ? -90 : 90}deg)"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`,
+  tick: '<svg width="14" height="14" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+};
+
+// ---- the new habit draft --------------------------------------------------
+const fresh = () => ({
+  name: '', area: null, routine: 'daily', tracking: 'checkbox', target: 2, unit: 'l',
+  freq: 'daily', weekdays: [0, 1, 2, 3, 4], perWeek: 4, everyN: 2,
+  reminders: [], start: TODAY, end: 'never', endDate: addDays(TODAY, 90), endCount: 30,
+  minimum: null, ideal: null, quick: null, goals: [], moreOpen: true, error: '',
+});
+let h = fresh();
+
+// Quick values suggested from the target until the person sets their own.
+function suggestQuick(target) {
+  if (!(target > 0)) return [];
+  const parts = target <= 4 ? [target / 8, target / 4, target / 2] : [target / 4, target / 2, target];
+  const round = target <= 4 ? v => Math.round(v * 20) / 20 : v => Math.round(v);
+  return [...new Set(parts.map(round).filter(v => v > 0))];
+}
+const quickValues = () => h.quick ?? suggestQuick(h.target);
+
+function freqSummary(d = h) {
+  if (d.freq === 'daily') return 'Svaki dan';
+  if (d.freq === 'weekdays') {
+    const days = [...d.weekdays].sort();
+    if (days.length === 7) return 'Svaki dan';
+    if (days.join() === '0,1,2,3,4') return 'Radnim danima';
+    if (days.join() === '5,6') return 'Vikendom';
+    return cap(list(days.map(i => WDINSTR[i])));
+  }
+  if (d.freq === 'perWeek') return d.perWeek === 1 ? 'Jednom nedeljno' : `${d.perWeek} puta nedeljno`;
+  return d.everyN === 2 ? 'Svaki drugi dan' : `Na ${plural(d.everyN, 'svaki', 'svaka', 'svakih')} ${d.everyN} dana`;
+}
+function nextDates(d) {
+  const out = []; let s = d.start;
+  while (s < TODAY) s = addDays(s, d.everyN);
+  for (let i = 0; i < 3; i++) { out.push(short(s)); s = addDays(s, d.everyN); }
+  return out;
+}
+function startSummary() { return h.start === TODAY ? 'Danas' : h.start === addDays(TODAY, 1) ? 'Sutra' : short(h.start); }
+function endSummary(d = h) {
+  if (d.end === 'never') return 'Nikad';
+  if (d.end === 'date') return `Do ${short(d.endDate)}`;
+  const n = d.endCount;
+  return d.freq === 'perWeek' ? `Posle ${n} ${plural(n, 'uspešne nedelje', 'uspešne nedelje', 'uspešnih nedelja')}` : `Posle ${n} ${plural(n, 'uspešnog dana', 'uspešna dana', 'uspešnih dana')}`;
+}
+function targetSummary() {
+  const unit = h.freq !== 'perWeek' && h.tracking === 'numeric' ? ` ${h.unit}`.trimEnd() : '';
+  if (!h.minimum && !h.ideal) return null;
+  return `${h.minimum ? `min ${num(h.minimum)}` : ''}${h.minimum && h.ideal ? ' · ' : ''}${h.ideal ? `ideal ${num(h.ideal)}` : ''}${unit}`;
+}
+function goalsSummary() { return !h.goals.length ? null : h.goals.length === 1 ? GOALS[h.goals[0]] : `${h.goals.length} ${plural(h.goals.length, 'cilj', 'cilja', 'ciljeva')}`; }
+
+function row(key, icon, label, value, empty) {
+  return `<button class="prow" data-pick="${key}">${icon}<span class="lbl">${label}</span><span class="val ${value ? 'set' : ''}">${value || empty}</span>${ICON.chev}</button>`;
+}
+function seg(key, options, value) {
+  return `<div class="seg" role="radiogroup">${options.map(([v, l]) => `<button role="radio" aria-checked="${v === value}" class="${v === value ? 'on' : ''}" data-seg="${key}" data-v="${v}">${l}</button>`).join('')}</div>`;
+}
+
+function renderWin() {
+  const numeric = h.tracking === 'numeric';
+  // Minimum and ideal only mean something for a numeric habit or a weekly target.
+  const showTargets = numeric || h.freq === 'perWeek';
+  $('winBody').innerHTML = `
+    <input class="name" id="name" placeholder="Šta želiš da vežbaš?" value="${h.name.replace(/"/g, '&quot;')}" aria-label="Naziv navike">
+    ${h.error ? `<p class="err" role="alert">${h.error}</p>` : ''}
+    <div class="card" style="margin-top:8px">
+      ${row('area', ICON.area, 'Oblast', h.area, 'Bez oblasti (opciono)')}
+      <div class="block"><div class="lbl">${ICON.routine}Rutina</div>${seg('routine', ROUTINES, h.routine)}</div>
+      <div class="block"><div class="lbl">${ICON.track}Praćenje</div>${seg('tracking', [['checkbox', 'Kvadratić'], ['numeric', 'Brojevno']], h.tracking)}
+        ${numeric ? `<div class="inline">Cilj<input type="number" id="target" min="0" step="any" value="${h.target}" aria-label="Cilj"><input class="unit" id="unit" value="${h.unit}" placeholder="jedinica" aria-label="Jedinica">po danu</div>` : ''}</div>
+      ${row('freq', ICON.repeat, 'Učestalost', freqSummary(), '')}
+      ${row('reminders', ICON.bell, 'Podsetnik', [...h.reminders].sort().join(', '), 'Nije podešen')}
+    </div>
+    <button class="more" id="more" aria-expanded="${h.moreOpen}"><b>Više</b><span style="display:inline-flex;gap:4px;align-items:center">${h.moreOpen ? 'Sakrij' : 'Početak, kraj, ciljevi'}${ICON.down(h.moreOpen)}</span></button>
+    ${h.moreOpen ? `<div class="card" style="margin-top:8px">
+      ${row('start', ICON.cal, 'Početak', startSummary(), '')}
+      ${row('end', ICON.end, 'Kraj', endSummary(), '')}
+      ${showTargets ? row('targets', ICON.target, 'Minimalna i idealna', targetSummary(), 'Kao cilj') : ''}
+      ${numeric ? row('quick', ICON.bolt, 'Brze vrednosti', quickValues().map(v => `+${num(v)}`).join('  '), 'Nema') : ''}
+      ${row('goals', ICON.goal, 'Povezani ciljevi', goalsSummary(), 'Nijedan')}
+    </div>
+    <p class="note" style="margin-top:8px">„Nastavak“ i „Dani tolerancije“ su u detaljima navike, posle pravljenja.</p>` : ''}`;
+  $('name').oninput = e => { h.name = e.target.value; if (h.error && h.name.trim()) { h.error = ''; renderWin(); const n = $('name'); n.focus(); n.setSelectionRange(h.name.length, h.name.length); } };
+  if ($('target')) $('target').onchange = e => { h.target = Number(e.target.value); renderWin(); };
+  if ($('unit')) $('unit').oninput = e => { h.unit = e.target.value; };
+  $('more').onclick = () => { h.moreOpen = !h.moreOpen; renderWin(); };
+  document.querySelectorAll('[data-seg]').forEach(b => b.onclick = () => { if (b.dataset.seg === 'tracking' && h.tracking !== b.dataset.v) { h.minimum = null; h.ideal = null; } h[b.dataset.seg] = b.dataset.v; renderWin(); });
+  document.querySelectorAll('[data-pick]').forEach(b => b.onclick = () => openPicker(b.dataset.pick));
+}
+
+function renderList(newIndex) {
+  $('list').innerHTML = habits.map((x, i) => `<div class="hrow ${i === newIndex ? 'new' : ''}"><i></i><span class="main"><div>${x.name}</div><div class="meta">${x.meta}</div></span></div>`).join('');
+}
+
+function toast(text) { const t = $('toast'); t.textContent = text; t.classList.add('show'); clearTimeout(toast.timer); toast.timer = setTimeout(() => t.classList.remove('show'), 1500); }
+function open(id) { $(id).classList.add('show'); $(id === 'win' ? 'dimWin' : 'dimPicker').classList.add('show'); }
+function close(id) { $(id).classList.remove('show'); $(id === 'win' ? 'dimWin' : 'dimPicker').classList.remove('show'); }
+document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => close(b.dataset.close));
+$('dimPicker').onclick = () => close('picker');
+$('dimWin').onclick = () => close('win');
+$('fab').onclick = () => { h = fresh(); renderWin(); open('win'); };
+$('create').onclick = () => {
+  if (!h.name.trim()) { h.error = 'Upiši naziv navike.'; renderWin(); $('name').focus(); return; }
+  if (h.tracking === 'numeric' && !(h.target > 0)) { h.error = 'Cilj mora biti veći od nule.'; renderWin(); return; }
+  const meta = [freqSummary(), h.tracking === 'numeric' ? `${num(h.target)} ${h.unit}`.trim() : ROUTINES.find(r => r[0] === h.routine)[1]].join(' · ');
+  habits.push({ name: h.name.trim(), meta });
+  renderList(habits.length - 1);
+  close('win');
+  toast('Navika je napravljena');
+};
+
+// ---- pickers --------------------------------------------------------------
+let draft = {};
+function applyAndClose() { close('picker'); renderWin(); }
+
+function areaPicker() {
+  const render = () => {
+    $('pickerBody').innerHTML = `
+      <div class="card" style="margin-bottom:10px">
+        <button class="opt" data-area=""><span class="lbl">Bez oblasti</span><span class="radio ${!h.area ? 'on' : ''}"></span></button>
+        ${AREAS.map(a => `<button class="opt" data-area="${a}">${ICON.area}<span class="lbl">${a}</span><span class="radio ${h.area === a ? 'on' : ''}"></span></button>`).join('')}
+      </div>
+      <p class="note">Dodir na oblast je odmah primenjuje.</p>`;
+    document.querySelectorAll('[data-area]').forEach(b => b.onclick = () => { h.area = b.dataset.area || null; applyAndClose(); });
+  };
+  return ['Oblast', render];
+}
+
+function stepper(id, value, min, max) {
+  return `<span class="stepper"><button data-step="${id}" data-d="-1" ${value <= min ? 'disabled' : ''} aria-label="Manje">−</button><span>${value}</span><button data-step="${id}" data-d="1" ${value >= max ? 'disabled' : ''} aria-label="Više">+</button></span>`;
+}
+
+function freqPicker() {
+  draft = { freq: h.freq, weekdays: [...h.weekdays], perWeek: h.perWeek, everyN: h.everyN, start: h.start };
+  const OPTS = [['daily', 'Svaki dan'], ['weekdays', 'Određeni dani'], ['perWeek', 'X puta nedeljno'], ['everyN', 'Na svakih N dana']];
+  const render = () => {
+    let extra = '';
+    if (draft.freq === 'weekdays') extra = `
+      <div class="wdays">${WD.map((w, i) => `<button class="${draft.weekdays.includes(i) ? 'on' : ''}" data-wd="${i}" aria-pressed="${draft.weekdays.includes(i)}" aria-label="${WDNAME[i]}">${w}</button>`).join('')}</div>
+      <p class="note">${draft.weekdays.length ? freqSummary(draft) : 'Izaberi bar jedan dan.'}</p>`;
+    if (draft.freq === 'perWeek') extra = `
+      <div class="field"><span class="lbl">Uspešnih dana nedeljno</span>${stepper('perWeek', draft.perWeek, 1, 7)}</div>
+      <p class="note">Jedno označavanje po danu, bilo kog dana u nedelji. Možeš da pređeš nedeljni cilj.</p>`;
+    if (draft.freq === 'everyN') extra = `
+      <div class="field"><span class="lbl">Na ${plural(draft.everyN, 'svaki', 'svaka', 'svakih')}</span>${stepper('everyN', draft.everyN, 2, 30)}<span class="meta" style="margin:0">${draft.everyN === 1 ? 'dan' : 'dana'}</span></div>
+      <label class="field">${ICON.cal}<span class="lbl">Počinje</span><input type="date" id="fs" value="${draft.start}"></label>
+      <p class="next"><span>Sledeći dani:</span> ${nextDates(draft).join(' · ')}</p>
+      <p class="note">Isti datum kao „Početak“ u „Više“.</p>`;
+    $('pickerBody').innerHTML = `
+      <div class="card" style="margin-bottom:12px">${OPTS.map(([v, l]) => `<div class="opt" role="radio" tabindex="0" aria-checked="${draft.freq === v}" data-fq="${v}"><span class="radio ${draft.freq === v ? 'on' : ''}"></span><span class="lbl">${l}</span></div>`).join('')}</div>
+      ${extra}
+      <button class="primary" id="apply" ${draft.freq === 'weekdays' && !draft.weekdays.length ? 'disabled style="opacity:.4"' : ''}>Primeni</button>`;
+    document.querySelectorAll('[data-fq]').forEach(b => b.onclick = () => { draft.freq = b.dataset.fq; render(); });
+    document.querySelectorAll('[data-wd]').forEach(b => b.onclick = () => { const i = Number(b.dataset.wd); draft.weekdays = draft.weekdays.includes(i) ? draft.weekdays.filter(x => x !== i) : [...draft.weekdays, i].sort(); render(); });
+    document.querySelectorAll('[data-step]').forEach(b => b.onclick = () => { draft[b.dataset.step] += Number(b.dataset.d); render(); });
+    if ($('fs')) $('fs').onchange = e => { if (e.target.value) draft.start = e.target.value; render(); };
+    $('apply').onclick = () => { if (draft.freq === 'weekdays' && !draft.weekdays.length) return; if ((draft.freq === 'perWeek') !== (h.freq === 'perWeek')) { h.minimum = null; h.ideal = null; } Object.assign(h, draft); applyAndClose(); };
+  };
+  return ['Učestalost', render];
+}
+
+function reminderPicker() {
+  draft = { times: h.reminders.length ? [...h.reminders] : ['09:00'] };
+  const render = () => {
+    $('pickerBody').innerHTML = `
+      ${draft.times.map((t, i) => `<div class="field">${ICON.bell}<span class="lbl">Vreme ${draft.times.length > 1 ? i + 1 : ''}</span><input type="time" data-time="${i}" value="${t}">${draft.times.length > 1 ? `<button class="x" data-rm="${i}" aria-label="Ukloni vreme">✕</button>` : ''}</div>`).join('')}
+      <button class="ghost" id="addTime" style="padding-top:2px">＋ Dodaj vreme</button>
+      <p class="note">Podsetnik stiže samo u dane kada je navika u planu.</p>
+      <div class="split"><button class="ghost" id="clear">Bez podsetnika</button><button class="primary" id="apply">Primeni</button></div>`;
+    document.querySelectorAll('[data-time]').forEach(input => input.onchange = e => { draft.times[Number(input.dataset.time)] = e.target.value; });
+    document.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { draft.times.splice(Number(b.dataset.rm), 1); render(); });
+    $('addTime').onclick = () => { draft.times.push('18:00'); render(); };
+    $('clear').onclick = () => { h.reminders = []; applyAndClose(); };
+    $('apply').onclick = () => { h.reminders = [...new Set(draft.times.filter(Boolean))]; applyAndClose(); };
+  };
+  return ['Podsetnik', render];
+}
+
+function monthGrid(selected, view) {
+  const first = new Date(view.y, view.m, 1);
+  const days = new Date(view.y, view.m + 1, 0).getDate();
+  let html = `<div class="cal"><div class="calhead"><button data-mv="-1" aria-label="Prethodni mesec">‹</button><span>${cap(MONTHS[view.m])} ${view.y}</span><button data-mv="1" aria-label="Sledeći mesec">›</button></div><div class="grid">${WD.map(w => `<div class="wd">${w}</div>`).join('')}`;
+  html += '<div></div>'.repeat(mondayIndex(first));
+  for (let d = 1; d <= days; d++) {
+    const s = iso(new Date(view.y, view.m, d));
+    html += `<button class="day ${s === selected ? 'sel' : ''} ${s === TODAY ? 'today' : ''}" data-day="${s}"><span>${d}</span></button>`;
+  }
+  return html + '</div></div>';
+}
+function nextMonday() { const d = parse(TODAY); d.setDate(d.getDate() + ((7 - mondayIndex(d)) % 7 || 7)); return iso(d); }
+
+function startPicker() {
+  draft = { date: h.start };
+  const view = { y: parse(draft.date).getFullYear(), m: parse(draft.date).getMonth() };
+  const render = () => {
+    const quick = [['Danas', TODAY], ['Sutra', addDays(TODAY, 1)], ['Sledeće nedelje', nextMonday()]];
+    $('pickerBody').innerHTML = `
+      <div class="chips">${quick.map(([l, d]) => `<button class="chip ${draft.date === d ? 'on' : ''}" data-q="${d}">${l}</button>`).join('')}</div>
+      ${monthGrid(draft.date, view)}
+      <p class="note">Navika se pojavljuje na ekranima Danas i Navike od ovog dana.</p>
+      <button class="primary" id="apply">Primeni</button>`;
+    document.querySelectorAll('[data-q]').forEach(b => b.onclick = () => { draft.date = b.dataset.q; const d = parse(draft.date); view.y = d.getFullYear(); view.m = d.getMonth(); render(); });
+    document.querySelectorAll('[data-mv]').forEach(b => b.onclick = () => { view.m += Number(b.dataset.mv); if (view.m < 0) { view.m = 11; view.y--; } if (view.m > 11) { view.m = 0; view.y++; } render(); });
+    document.querySelectorAll('[data-day]').forEach(b => b.onclick = () => { draft.date = b.dataset.day; render(); });
+    $('apply').onclick = () => { h.start = draft.date; applyAndClose(); };
+  };
+  return ['Početak', render];
+}
+
+function endPicker() {
+  draft = { end: h.end, endDate: h.endDate, endCount: h.endCount, freq: h.freq };
+  const render = () => {
+    const unit = h.freq === 'perWeek' ? 'uspešnih nedelja' : 'uspešnih dana';
+    $('pickerBody').innerHTML = `
+      <div class="card" style="margin-bottom:10px">
+        <div class="opt" role="radio" tabindex="0" data-end="never"><span class="radio ${draft.end === 'never' ? 'on' : ''}"></span><span class="lbl">Nikad</span></div>
+        <div class="opt" role="radio" tabindex="0" data-end="date"><span class="radio ${draft.end === 'date' ? 'on' : ''}"></span><span class="lbl">Na datum</span>${draft.end === 'date' ? `<input type="date" id="ed" value="${draft.endDate}" style="background:#1F232A;border:1px solid #2C3139;border-radius:8px;padding:6px;color-scheme:dark">` : ''}</div>
+        <div class="opt" role="radio" tabindex="0" data-end="count"><span class="radio ${draft.end === 'count' ? 'on' : ''}"></span><span class="lbl">Posle broja ${unit}</span>${draft.end === 'count' ? `<input type="number" min="1" id="ec" value="${draft.endCount}" style="width:64px;background:#1F232A;border:1px solid #2C3139;border-radius:8px;padding:6px">` : ''}</div>
+      </div>
+      <p class="note">${endSummary(draft)}. Kad se navika završi, istorija ostaje sačuvana.</p>
+      <button class="primary" id="apply">Primeni</button>`;
+    document.querySelectorAll('[data-end]').forEach(b => b.onclick = e => { if (e.target.tagName === 'INPUT') return; draft.end = b.dataset.end; render(); });
+    if ($('ed')) $('ed').onchange = e => { if (e.target.value) draft.endDate = e.target.value; render(); };
+    if ($('ec')) $('ec').onchange = e => { draft.endCount = Math.max(1, Math.floor(Number(e.target.value)) || 1); render(); };
+    $('apply').onclick = () => { Object.assign(h, { end: draft.end, endDate: draft.endDate, endCount: draft.endCount }); applyAndClose(); };
+  };
+  return ['Kraj', render];
+}
+
+function targetsPicker() {
+  draft = { minimum: h.minimum, ideal: h.ideal, error: '' };
+  // A weekly target counts check-ins per week; otherwise the numeric amount per day.
+  const numeric = h.tracking === 'numeric' && h.freq !== 'perWeek';
+  const unit = numeric ? h.unit : 'puta nedeljno';
+  const base = numeric ? `${num(h.target)} ${h.unit}`.trim() : `${h.perWeek} puta nedeljno`;
+  const render = () => {
+    $('pickerBody').innerHTML = `
+      <label class="field"><span class="lbl">Minimalna</span><input type="number" min="0" step="${numeric ? 'any' : '1'}" id="tmin" value="${draft.minimum ?? ''}" placeholder="—"><span class="meta" style="margin:0">${unit}</span></label>
+      <label class="field"><span class="lbl">Idealna</span><input type="number" min="0" step="${numeric ? 'any' : '1'}" id="tideal" value="${draft.ideal ?? ''}" placeholder="—"><span class="meta" style="margin:0">${unit}</span></label>
+      ${draft.error ? `<p class="err" role="alert">${draft.error}</p>` : ''}
+      <p class="note">Prazno znači isto kao cilj (${base}). U napretku navike piše „minimum ispunjen“ ili „ideal ispunjen“.</p>
+      <button class="primary" id="apply">Primeni</button>`;
+    const read = id => { const v = $(id).value.trim(); return v === '' ? null : Number(v); };
+    $('apply').onclick = () => {
+      const minimum = read('tmin'), ideal = read('tideal');
+      if ((minimum !== null && !(minimum > 0)) || (ideal !== null && !(ideal > 0))) { draft = { minimum, ideal, error: 'Upiši broj veći od nule ili ostavi prazno.' }; render(); return; }
+      if (minimum && ideal && ideal < minimum) { draft = { minimum, ideal, error: 'Idealna mora biti bar kolika minimalna.' }; render(); return; }
+      Object.assign(h, { minimum, ideal }); applyAndClose();
+    };
+  };
+  return ['Minimalna i idealna', render];
+}
+
+function quickPicker() {
+  draft = { values: [...quickValues()], error: '' };
+  const render = () => {
+    $('pickerBody').innerHTML = `
+      <div class="chips">${draft.values.map((v, i) => `<span class="chip">+${num(v)} ${h.unit}<button class="rm" data-rmq="${i}" aria-label="Ukloni ${num(v)}">✕</button></span>`).join('') || '<span class="note" style="margin:0">Nema brzih vrednosti.</span>'}</div>
+      <div class="addrow"><input id="qv" type="number" min="0" step="any" placeholder="Nova vrednost (${h.unit || 'broj'})"><button id="qadd">Dodaj</button></div>
+      ${draft.error ? `<p class="err" role="alert">${draft.error}</p>` : ''}
+      <p class="note">Pojavljuju se u malom prozoru kad dodirneš krug navike. Predlog je napravljen iz cilja ${num(h.target)} ${h.unit}.</p>
+      <div class="split"><button class="ghost" id="reset">Vrati predlog</button><button class="primary" id="apply">Primeni</button></div>`;
+    document.querySelectorAll('[data-rmq]').forEach(b => b.onclick = () => { draft.values.splice(Number(b.dataset.rmq), 1); render(); });
+    $('qadd').onclick = () => { const v = Number($('qv').value); if (!(v > 0)) { draft.error = 'Upiši broj veći od nule.'; render(); return; } draft.error = ''; draft.values = [...new Set([...draft.values, v])].sort((a, b) => a - b); render(); };
+    $('reset').onclick = () => { draft.values = suggestQuick(h.target); draft.error = ''; render(); };
+    $('apply').onclick = () => { h.quick = [...draft.values]; applyAndClose(); };
+  };
+  return ['Brze vrednosti', render];
+}
+
+function goalsPicker() {
+  draft = { goals: [...h.goals] };
+  const render = () => {
+    $('pickerBody').innerHTML = `
+      <div class="card" style="margin-bottom:10px">
+        ${GOALS.map((g, i) => `<button class="opt" data-goal="${i}" aria-pressed="${draft.goals.includes(i)}">${ICON.goal}<span class="lbl">${g}</span><span class="check ${draft.goals.includes(i) ? 'on' : ''}">${draft.goals.includes(i) ? ICON.tick : ''}</span></button>`).join('')}
+      </div>
+      <p class="note">Navika doprinosi napretku izabranih ciljeva. Kako se napredak meri, podešava se na cilju.</p>
+      <button class="primary" id="apply">Primeni</button>`;
+    document.querySelectorAll('[data-goal]').forEach(b => b.onclick = () => { const i = Number(b.dataset.goal); draft.goals = draft.goals.includes(i) ? draft.goals.filter(x => x !== i) : [...draft.goals, i].sort(); render(); });
+    $('apply').onclick = () => { h.goals = draft.goals; applyAndClose(); };
+  };
+  return ['Povezani ciljevi', render];
+}
+
+function openPicker(kind) {
+  const [title, render] = ({ area: areaPicker, freq: freqPicker, reminders: reminderPicker, start: startPicker, end: endPicker, targets: targetsPicker, quick: quickPicker, goals: goalsPicker })[kind]();
+  $('pickerTitle').textContent = title;
+  $('pickerSub').textContent = h.name.trim() || 'Nova navika';
+  render();
+  open('picker');
+}
+
+renderList();
+renderWin();
+open('win');
+</script>
+</body>
+</html>

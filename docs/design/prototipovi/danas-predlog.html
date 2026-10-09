@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="sr-Latn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Danas — predlog 2</title>
+<style>
+  :root {
+    --page: #08090B; --bg: #0F1114; --card: #16191E; --line: #242830; --text: #E8EAED; --muted: #8B929C;
+    --blue: #2A47FF; --link: #8FA2FF; --green: #34C77B; --amber: #F2A93B; --red: #F0645A;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--text); font: 15px/1.35 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 20px 16px 32px; }
+  .wrap { display: flex; flex-wrap: wrap; gap: 28px; justify-content: center; align-items: flex-start; }
+  .phone { position: relative; width: 100%; max-width: 360px; background: var(--bg); border: 1px solid var(--line); border-radius: 32px; padding: 14px 16px 96px; overflow: hidden; }
+  .status { display: flex; justify-content: space-between; font-size: 13px; font-weight: 600; padding: 0 6px 14px; }
+  .date { color: var(--muted); font-size: 14px; }
+  .titlebar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .titlebar h3 { margin: 0; font-size: 30px; letter-spacing: -.5px; }
+  .section { display: flex; align-items: baseline; gap: 6px; font-weight: 600; font-size: 15px; margin: 16px 2px 8px; }
+  .section span { color: var(--muted); font-weight: 500; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+  .row { display: flex; align-items: center; gap: 12px; padding: 10px 14px; min-height: 58px; }
+  .row + .row, .more { border-top: 1px solid var(--line); }
+  .main { flex: 1; min-width: 0; }
+  .name { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .meta { color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+  .side { text-align: right; font-size: 12px; color: var(--muted); display: grid; gap: 4px; justify-items: end; white-space: nowrap; }
+  .red { color: var(--red); } .amber { color: var(--amber); }
+  .box { width: 22px; height: 22px; border: 2px solid #4A505A; border-radius: 6px; flex: none; }
+  .habit { min-height: 46px; padding: 8px 14px; }
+  .habit .ring { width: 24px; height: 24px; flex: none; }
+  .habit.done .name { color: var(--muted); }
+  .count { color: var(--muted); font-size: 12.5px; }
+  .more { display: block; width: 100%; padding: 11px 14px; text-align: left; color: var(--link); font-size: 14px; background: none; border-left: 0; border-right: 0; border-bottom: 0; font-family: inherit; }
+  .collapsed { display: flex; align-items: center; gap: 8px; color: var(--muted); margin: 18px 4px 0; font-size: 14.5px; }
+  .fab { position: absolute; right: 16px; bottom: 82px; width: 56px; height: 56px; border-radius: 50%; background: var(--blue); display: grid; place-items: center; box-shadow: 0 6px 18px rgba(0, 0, 0, .45); }
+  .nav { position: absolute; left: 0; right: 0; bottom: 0; height: 70px; border-top: 1px solid var(--line); background: #121418; display: grid; grid-template-columns: repeat(6, 1fr); padding: 8px 4px 14px; }
+  .nav div { display: grid; justify-items: center; gap: 3px; font-size: 10.5px; color: var(--muted); }
+  .nav div.on { color: var(--link); }
+  .notes { width: 100%; max-width: 360px; color: var(--muted); font-size: 13.5px; }
+  .notes h2 { color: var(--text); font-size: 16px; margin: 0 0 8px; }
+  .notes ul { margin: 0; padding-left: 18px; }
+  .notes li { margin-bottom: 6px; }
+  .notes b { color: var(--text); font-weight: 600; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <symbol id="search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M20 20l-4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="flag" viewBox="0 0 24 24"><path d="M5 21V4h11l-2 4 2 4H5" fill="currentColor"/></symbol>
+    <symbol id="target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="#8FA2FF" stroke-width="2"/><circle cx="12" cy="12" r="4.5" fill="none" stroke="#8FA2FF" stroke-width="2"/><circle cx="12" cy="12" r="1.2" fill="#8FA2FF"/></symbol>
+    <symbol id="empty" viewBox="0 0 28 28"><circle cx="14" cy="14" r="11" fill="none" stroke="#4A505A" stroke-width="2.5"/></symbol>
+    <symbol id="half" viewBox="0 0 28 28"><circle cx="14" cy="14" r="11" fill="none" stroke="#3A3F48" stroke-width="2.5"/><path d="M14 3a11 11 0 0 1 0 22" fill="none" stroke="#34C77B" stroke-width="2.5" stroke-linecap="round"/></symbol>
+    <symbol id="check" viewBox="0 0 28 28"><circle cx="14" cy="14" r="12.5" fill="#34C77B"/><path d="M8.5 14.5l3.5 3.5 7.5-8" fill="none" stroke="#0F1114" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/></symbol>
+    <symbol id="i-today" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M4 10h16M9 3v4M15 3v4" stroke="currentColor" stroke-width="1.8"/></symbol>
+    <symbol id="i-inbox" viewBox="0 0 24 24"><path d="M4 13l2.5-7h11L20 13v6H4z M4 13h5l1 2h4l1-2h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
+    <symbol id="i-tasks" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8.5 12.2l2.4 2.4 4.6-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="i-cal" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M4 10h16M9 3v4M15 3v4M8 14h2M12 14h2M8 17h2" stroke="currentColor" stroke-width="1.8"/></symbol>
+    <symbol id="i-habits" viewBox="0 0 24 24"><path d="M6 20V12M12 20V5M18 20v-9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-more" viewBox="0 0 24 24"><circle cx="6" cy="12" r="1.7" fill="currentColor"/><circle cx="12" cy="12" r="1.7" fill="currentColor"/><circle cx="18" cy="12" r="1.7" fill="currentColor"/></symbol>
+  </defs>
+</svg>
+
+<div class="wrap">
+  <div class="phone">
+    <div class="status"><span>09:41</span><span>•••</span></div>
+    <div class="date">Četvrtak, 8. oktobar</div>
+    <div class="titlebar"><h3>Danas</h3><svg width="24" height="24" style="color:var(--text)"><use href="#search"/></svg></div>
+
+    <div class="section">Zakasnelo <span>· 1</span></div>
+    <div class="card">
+      <div class="row">
+        <div class="box"></div>
+        <div class="main"><div class="name">Pošalji fakturu</div><div class="meta">Posao</div></div>
+        <div class="side"><span class="red">Rok 7. okt</span></div>
+      </div>
+    </div>
+
+    <div class="section">Planirano danas <span>· 8</span></div>
+    <div class="card">
+      <div class="row">
+        <div class="box"></div>
+        <div class="main"><div class="name">Pregledaj početnu stranu</div><div class="meta">10:30 · Redizajn sajta</div></div>
+        <div class="side"><svg width="15" height="15" class="red"><use href="#flag"/></svg><span>Rok 9. okt</span></div>
+      </div>
+      <div class="row">
+        <svg width="22" height="22" style="flex:none"><use href="#target"/></svg>
+        <div class="main"><div class="name">Lansiranje sajta</div><div class="meta">Cilj · 70%</div></div>
+        <div class="side"><span class="amber">Rok danas</span></div>
+      </div>
+      <div class="row">
+        <div class="box"></div>
+        <div class="main"><div class="name">Plati račun za struju</div><div class="meta">Kuća</div></div>
+        <div class="side"><span class="amber">Rok danas</span></div>
+      </div>
+      <div class="row">
+        <div class="box"></div>
+        <div class="main"><div class="name">Pošalji pregled početne strane</div><div class="meta">14:00 · Redizajn sajta</div></div>
+        <div class="side"><svg width="15" height="15" class="amber"><use href="#flag"/></svg></div>
+      </div>
+      <div class="row">
+        <div class="box"></div>
+        <div class="main"><div class="name">Pozovi Anu</div><div class="meta">16:00</div></div>
+      </div>
+      <button class="more" type="button">Prikaži još 3</button>
+    </div>
+
+    <div class="section">Navike <span>· 1/6</span></div>
+    <div class="card">
+      <div class="row habit"><svg class="ring"><use href="#half"/></svg><div class="main"><div class="name">Teretana</div></div><span class="count">2/4 nedeljno</span></div>
+      <div class="row habit"><svg class="ring"><use href="#empty"/></svg><div class="main"><div class="name">Voda 2 l</div></div></div>
+      <div class="row habit"><svg class="ring"><use href="#empty"/></svg><div class="main"><div class="name">Meditacija 10 min</div></div></div>
+      <div class="row habit"><svg class="ring"><use href="#empty"/></svg><div class="main"><div class="name">Engleski 15 min</div></div></div>
+      <div class="row habit"><svg class="ring"><use href="#empty"/></svg><div class="main"><div class="name">Šetnja</div></div></div>
+      <button class="more" type="button">Prikaži još 1 (urađeno)</button>
+    </div>
+
+    <div class="collapsed"><svg width="16" height="16"><use href="#chev"/></svg>Završeno · 2</div>
+
+    <div class="fab"><svg width="26" height="26"><use href="#plus"/></svg></div>
+    <nav class="nav">
+      <div class="on"><svg width="22" height="22"><use href="#i-today"/></svg>Danas</div>
+      <div><svg width="22" height="22"><use href="#i-inbox"/></svg>Inbox</div>
+      <div><svg width="22" height="22"><use href="#i-tasks"/></svg>Zadaci</div>
+      <div><svg width="22" height="22"><use href="#i-cal"/></svg>Kalendar</div>
+      <div><svg width="22" height="22"><use href="#i-habits"/></svg>Navike</div>
+      <div><svg width="22" height="22"><use href="#i-more"/></svg>Još</div>
+    </nav>
+  </div>
+
+  <div class="notes">
+    <h2>Šta je novo u ovom predlogu</h2>
+    <ul>
+      <li><b>Najviše prikazano:</b> Zakasnelo 3, Planirano danas 5, Navike 5. Ostalo je iza dugmeta „Prikaži još N“, koje sekciju otvara na istom mestu (pa „Prikaži manje“).</li>
+      <li><b>Navike jedna ispod druge:</b> niski redovi, krug umesto kvadratića. Urađene idu na dno, pa prve sakrivene budu baš one urađene.</li>
+      <li><b>Boje rokova:</b> prošao je crven, danas narandžast, kasnije siv. Prioritet je samo zastavica (visok crvena, srednji narandžasta).</li>
+      <li><b>Cilj sa rokom danas</b> je običan red sa ikonicom mete, bez posebne kartice.</li>
+    </ul>
+  </div>
+</div>
+</body>
+</html>

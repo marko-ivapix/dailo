@@ -6,6 +6,7 @@
 - The user sends designs one at a time, Claude reviews each one (what to keep, what to change, open questions), and the decisions are recorded here.
 - Nothing is implemented until the user calls the design final.
 - The mobile technology is agreed after the design; V2.0-b is on hold.
+- The prototypes cited below are in `docs/design/prototipovi/` (see its README); `dailo-prototip.html` there joins every decided screen.
 
 **Status words:**
 - **decided:** the user decided;

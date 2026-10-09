@@ -41,6 +41,7 @@ Then consult the primary project files:
 - `docs/superpowers/specs/2026-10-08-todo-v2-0-design.md` — V2.0 mobile app + Supabase sync, **approved 2026-10-08** with the user's six decisions.
 - `docs/superpowers/plans/2026-10-08-todo-v2-0a.md` and `docs/superpowers/progress-v2-0a.md` — V2.0-a (sync in the web app) plan and evidence; `docs/v2/podesavanje-supabase.md` — Serbian Supabase setup guide for the user; `supabase/migrations/0001_sync.sql` — server schema.
 - `docs/superpowers/plans/2026-10-07-release-roadmap.md` — agreed path from the beta to V2.0 (mobile app + Supabase sync).
+- `docs/superpowers/specs/2026-10-08-redesign-decisions.md` — redesign decision log (in progress; nothing is implemented until the user calls the design final); `docs/design/prototipovi/` — the HTML mockups it cites, with the combined prototype `dailo-prototip.html`.
 - `docs/beta/provera-pre-bete.md` — Serbian beta-gate checklist B1–B36 (roadmap Phase 2; B25–B30 cover V1.10–V1.12, B31–B36 the sync once configured); `uputstvo.html` — Serbian guide page for beta testers.
 
 The historical V1.3/V1.4/V1.5/V1.6 specifications and progress ledgers remain useful for intent and regression context. They are not a replacement for current source inspection.

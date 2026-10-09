@@ -1,0 +1,485 @@
+<!doctype html>
+<html lang="sr-Latn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ciljevi — predlog</title>
+<style>
+  :root {
+    --page: #08090B; --bg: #0F1114; --card: #16191E; --card2: #1B1F25; --line: #242830; --text: #E8EAED; --muted: #8B929C;
+    --blue: #2A47FF; --link: #8FA2FF; --green: #34C77B; --amber: #F2A93B; --red: #F0645A;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--text); font: 15px/1.35 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 16px; }
+  .top { max-width: 390px; margin: 0 auto 12px; color: var(--muted); font-size: 13.5px; }
+  .top b { color: var(--text); }
+  .phone { position: relative; max-width: 390px; height: 820px; margin: 0 auto; background: var(--bg); border: 1px solid var(--line); border-radius: 34px; overflow: hidden; }
+  button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
+  input { font: inherit; color: var(--text); }
+  svg { flex: none; }
+
+  /* Goals list */
+  .screen { position: absolute; inset: 0 0 70px; overflow-y: auto; padding: 16px 16px 90px; }
+  .status { display: flex; justify-content: space-between; font-size: 13px; font-weight: 600; padding: 0 6px 12px; }
+  .titlebar { display: flex; justify-content: space-between; align-items: center; }
+  .h1 { font-size: 30px; font-weight: 700; letter-spacing: -.5px; margin: 0; }
+  .icon-btn { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 50%; color: var(--muted); }
+  .summary { color: var(--muted); font-size: 13.5px; margin: 2px 2px 12px; }
+  .summary .amber { color: var(--amber); }
+  .summary .red { color: var(--red); }
+  .seg { display: flex; border: 1px solid var(--line); border-radius: 10px; padding: 3px; background: #121418; }
+  .seg button { flex: 1; text-align: center; font-size: 14px; padding: 7px 4px; border-radius: 8px; color: var(--muted); }
+  .seg button.on { background: #262B33; color: var(--text); font-weight: 600; }
+  .section { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14.5px; margin: 18px 2px 8px; }
+  .section span { color: var(--muted); font-weight: 500; }
+  .section svg { color: var(--muted); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+  .grow { display: block; width: 100%; padding: 11px 14px 10px; }
+  .grow + .grow { border-top: 1px solid var(--line); }
+  .gtop { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
+  .gtitle { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pct { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .track { display: block; height: 4px; border-radius: 2px; background: #2C3139; overflow: hidden; margin: 8px 0 7px; }
+  .track i { display: block; height: 100%; border-radius: 2px; }
+  .gmeta { display: flex; justify-content: space-between; gap: 10px; color: var(--muted); font-size: 12.5px; }
+  .gmeta .amber { color: var(--amber); }
+  .gmeta .red { color: var(--red); }
+  .muted-row .gtitle { color: var(--muted); }
+  .collapsed { display: flex; align-items: center; gap: 8px; color: var(--muted); margin: 16px 4px 0; font-size: 14px; width: 100%; }
+  .fab { position: absolute; right: 16px; bottom: 86px; width: 56px; height: 56px; border-radius: 50%; background: var(--blue); display: grid; place-items: center; box-shadow: 0 6px 18px rgba(0, 0, 0, .45); }
+  .nav { position: absolute; left: 0; right: 0; bottom: 0; height: 70px; border-top: 1px solid var(--line); background: #121418; display: grid; grid-template-columns: repeat(6, 1fr); padding: 8px 4px 14px; }
+  .nav div { display: grid; justify-items: center; gap: 3px; font-size: 10.5px; color: var(--muted); }
+  .nav div.on { color: var(--link); }
+
+  /* Overlays */
+  .dim { position: absolute; inset: 0; background: rgba(0, 0, 0, .55); opacity: 0; pointer-events: none; transition: opacity .2s; }
+  .dim.show { opacity: 1; pointer-events: auto; }
+  .sheet { position: absolute; left: 0; right: 0; bottom: 0; background: #14171C; border-top: 1px solid var(--line); border-radius: 22px 22px 0 0; transform: translateY(105%); transition: transform .25s ease; display: flex; flex-direction: column; }
+  .sheet.show { transform: none; }
+  .win { top: 36px; z-index: 3; }
+  .dim.win-dim { z-index: 2; }
+  .picker { z-index: 5; max-height: 86%; }
+  .dim.top { z-index: 4; }
+  .grab { width: 40px; height: 5px; border-radius: 3px; background: #3A3F48; margin: 8px auto 4px; flex: none; }
+  .shead { display: flex; justify-content: space-between; align-items: center; padding: 6px 18px 10px; flex: none; }
+  .shead h2 { margin: 0; font-size: 22px; }
+  .sbody { overflow-y: auto; padding: 0 16px 18px; flex: 1; }
+  .x { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; color: var(--muted); }
+  .meta { color: var(--muted); font-size: 12.5px; }
+  .dtitle { font-size: 22px; font-weight: 700; line-height: 1.25; margin: 2px 2px 6px; }
+  .alink { display: inline-flex; gap: 6px; align-items: center; color: var(--link); font-size: 14px; margin: 0 2px 12px; }
+  .pcard { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px; }
+  .pbig { display: flex; justify-content: space-between; align-items: baseline; }
+  .pbig strong { font-size: 32px; letter-spacing: -.5px; font-variant-numeric: tabular-nums; }
+  .pbig span { color: var(--muted); font-size: 14px; }
+  .pcard .track { height: 8px; border-radius: 4px; margin: 10px 0 12px; }
+  .health { display: flex; gap: 8px; align-items: flex-start; font-size: 13.5px; color: var(--muted); }
+  .health b { font-weight: 600; }
+  .hdot { width: 9px; height: 9px; border-radius: 50%; margin-top: 5px; flex: none; }
+  .update { margin-top: 12px; width: 100%; height: 42px; border-radius: 12px; background: var(--card2); border: 1px solid #2C3139; text-align: center; font-weight: 600; }
+  .glabel { color: var(--muted); font-size: 12.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; margin: 18px 4px 6px; }
+  .prow { display: flex; align-items: center; gap: 12px; width: 100%; padding: 0 12px; min-height: 48px; }
+  .prow + .prow { border-top: 1px solid var(--line); }
+  .prow .lbl { flex: none; }
+  .prow .val { flex: 1; min-width: 0; text-align: right; color: var(--muted); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .prow .val.set { color: var(--text); }
+  .prow.add { color: var(--link); }
+  .prow .main { flex: 1; min-width: 0; }
+  .prow .side { color: var(--muted); font-size: 12.5px; white-space: nowrap; }
+  .prow .side.amber { color: var(--amber); }
+  .prow .side.red { color: var(--red); }
+  .done-title { color: var(--muted); text-decoration: line-through; }
+  .round { width: 22px; height: 22px; border-radius: 50%; border: 2px solid #4A505A; display: grid; place-items: center; flex: none; }
+  .round.on { background: var(--green); border-color: var(--green); }
+  .box { width: 22px; height: 22px; border: 2px solid #4A505A; border-radius: 6px; flex: none; display: grid; place-items: center; }
+  .box.on { background: var(--green); border-color: var(--green); }
+  .hbar { flex: 1; min-width: 0; }
+  .hbar .track { margin: 6px 0 0; height: 4px; }
+  .chev { color: #5B6270; }
+  .footer { padding: 10px 16px 22px; border-top: 1px solid var(--line); flex: none; background: #14171C; }
+  .primary { width: 100%; height: 48px; border-radius: 14px; background: var(--blue); color: #fff; font-weight: 600; font-size: 16px; text-align: center; }
+  .primary.quiet { background: #262B33; color: var(--text); }
+  .ghost { color: var(--link); font-size: 15px; padding: 12px 6px; }
+  .split { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .split .primary { width: auto; flex: 1; max-width: 200px; }
+  .note { color: var(--muted); font-size: 13px; margin: 2px 4px 12px; }
+  .name { width: 100%; background: none; border: 0; outline: none; color: var(--text); font-weight: 700; font-size: 22px; padding: 2px 2px 4px; }
+  .name::placeholder { color: #5B6270; }
+  .err { color: var(--red); font-size: 13px; margin: 0 2px 6px; }
+  .block { padding: 10px 12px 12px; }
+  .block + .prow, .prow + .block, .block + .block { border-top: 1px solid var(--line); }
+  .block .lbl { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+  .inline { display: flex; align-items: center; gap: 8px; margin-top: 10px; color: var(--muted); font-size: 14px; }
+  .inline input { background: #1F232A; border: 1px solid #2C3139; border-radius: 8px; padding: 7px 8px; }
+  .inline input[type=number] { width: 86px; }
+  .inline input.unit { width: 96px; }
+  .more { display: flex; justify-content: space-between; align-items: center; width: 100%; color: var(--muted); padding: 14px 4px 4px; }
+  .more b { color: var(--text); font-weight: 600; }
+  .opt { cursor: pointer; display: flex; align-items: center; gap: 12px; width: 100%; padding: 0 14px; min-height: 52px; }
+  .opt + .opt { border-top: 1px solid var(--line); }
+  .opt .lbl { flex: 1; }
+  .opt small { display: block; color: var(--muted); font-size: 12.5px; }
+  .radio { width: 22px; height: 22px; border-radius: 50%; border: 2px solid #5B6270; display: grid; place-items: center; flex: none; }
+  .radio.on { border-color: var(--blue); }
+  .radio.on::after { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--blue); }
+  .field { display: flex; align-items: center; gap: 12px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 0 12px; min-height: 50px; margin-bottom: 10px; }
+  .field .lbl { flex: 1; }
+  .field input { background: #1F232A; border: 1px solid #2C3139; border-radius: 8px; padding: 6px 8px; color-scheme: dark; }
+  .field input[type=number] { width: 90px; }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .chip { padding: 9px 14px; border-radius: 12px; background: var(--card2); border: 1px solid #2C3139; font-size: 14px; }
+  .chip.on { border-color: var(--blue); background: rgba(42, 71, 255, .18); }
+  .toast { position: absolute; left: 50%; bottom: 96px; transform: translateX(-50%); background: #262B33; padding: 8px 14px; border-radius: 10px; font-size: 13px; opacity: 0; transition: opacity .2s; z-index: 9; pointer-events: none; white-space: nowrap; }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<p class="top"><b>Predlog: ekran Ciljevi.</b> Dodirni cilj da otvoriš prozor cilja; tamo probaj etape, zadatke i „Ažuriraj napredak“. „Horizont / Rok“ menja grupisanje. „+“ dole desno otvara „Novi cilj“.</p>
+
+<div class="phone">
+  <div class="screen" id="screen"></div>
+  <button class="fab" id="fab" aria-label="Novi cilj"><svg width="26" height="26" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/></svg></button>
+  <nav class="nav" id="nav"></nav>
+
+  <div class="dim win-dim" id="dimWin"></div>
+  <section class="sheet win" id="goalWin" aria-label="Cilj">
+    <div class="grab"></div>
+    <div class="shead"><span class="meta">Cilj</span><button class="x" data-close="goalWin" aria-label="Zatvori">✕</button></div>
+    <div class="sbody" id="goalBody"></div>
+    <div class="footer"><button class="primary" id="complete"></button></div>
+  </section>
+  <section class="sheet win" id="newWin" aria-label="Novi cilj">
+    <div class="grab"></div>
+    <div class="shead"><span class="meta">Novi cilj</span><button class="x" data-close="newWin" aria-label="Zatvori">✕</button></div>
+    <div class="sbody" id="newBody"></div>
+    <div class="footer"><button class="primary" id="create">Napravi cilj</button></div>
+  </section>
+
+  <div class="dim top" id="dimPicker"></div>
+  <section class="sheet picker" id="picker">
+    <div class="grab"></div>
+    <div class="shead"><div><h2 id="pickerTitle"></h2><div class="meta" id="pickerSub"></div></div><button class="x" data-close="picker" aria-label="Zatvori">✕</button></div>
+    <div class="sbody" id="pickerBody"></div>
+  </section>
+  <div class="toast" id="toast"></div>
+</div>
+
+<script>
+const TODAY = '2026-10-08';
+const SHORT = ['jan', 'feb', 'mar', 'apr', 'maj', 'jun', 'jul', 'avg', 'sep', 'okt', 'nov', 'dec'];
+const MONTHS = ['Januar', 'Februar', 'Mart', 'April', 'Maj', 'Jun', 'Jul', 'Avgust', 'Septembar', 'Oktobar', 'Novembar', 'Decembar'];
+const HORIZONS = [['short', 'Kratkoročno'], ['mid', 'Srednjoročno'], ['long', 'Dugoročno']];
+const SOURCES = [['manual', 'Ručno'], ['tasks', 'Zadaci'], ['habits', 'Navike']];
+const SOURCE_LONG = { manual: 'Ručno', tasks: 'Povezani zadaci', habits: 'Povezane navike' };
+
+const goals = [
+  { title: 'Prijava poreza', area: 'Lično', horizon: 'short', source: 'manual', type: 'percent', current: 40, target: 100, unit: '', date: '2026-10-05', reminder: 'Nedelju dana pre u 9:00',
+    milestones: [{ t: 'Prikupi potvrde', d: true, date: '2026-09-25' }, { t: 'Popuni obrazac', d: false, date: '2026-10-03' }] },
+  { title: 'Završi redizajn sajta', area: 'Posao', horizon: 'short', source: 'tasks', date: '2026-10-13', project: 'Redizajn sajta', reminder: 'Dan pre u 9:00',
+    tasks: [{ t: 'Izvezi slike pregleda', d: false, side: 'Danas', tone: 'amber' }, { t: 'Pošalji pregled početne strane', d: false, side: 'Rok 9. okt' }, { t: 'Proveri razmake na telefonu', d: false, side: '' }], doneTasks: 14, totalTasks: 20,
+    milestones: [{ t: 'Wireframe-ovi', d: true, date: '2026-09-20' }, { t: 'Dizajn početne', d: true, date: '2026-09-30' }, { t: 'Razvoj', d: false, date: '2026-10-10' }, { t: 'Objava', d: false, date: '2026-10-13' }] },
+  { title: 'Pročitaj 4 knjige', area: 'Lično', horizon: 'short', source: 'manual', type: 'number', current: 3, target: 4, unit: 'knjige', date: '2026-12-31', reminder: null, milestones: [] },
+  { title: 'Polumaraton u aprilu', area: 'Zdravlje', horizon: 'mid', source: 'habits', date: '2027-04-18', reminder: 'Nedelju dana pre u 9:00',
+    habits: [{ t: 'Trčanje 3× nedeljno', pct: 42, label: '19 / 45 uspešnih nedelja' }, { t: 'Istezanje', pct: 30, label: '27 / 90 unosa' }, { t: 'Spavanje pre 23 h', pct: 33, label: 'niz 10 / 30 dana' }],
+    milestones: [{ t: '10 km bez pauze', d: false, date: '2026-11-01' }, { t: '15 km', d: false, date: '2027-01-31' }, { t: 'Polumaraton', d: false, date: '2027-04-18' }] },
+  { title: 'Engleski B2', area: 'Lično', horizon: 'mid', source: 'manual', type: 'percent', current: 50, target: 100, unit: '', date: '2027-06-30', reminder: null, milestones: [{ t: 'B1 test', d: true, date: '2026-06-15' }, { t: 'Probni B2 test', d: false, date: '2027-03-01' }] },
+  { title: 'Ušteda za stan', area: 'Lično', horizon: 'long', source: 'manual', type: 'number', current: 4200, target: 15000, unit: '€', date: null, reminder: null, milestones: [] },
+].map(g => ({ status: 'active', ...g }));
+const finished = [
+  { title: 'Nauči osnove fotografije', status: 'done', when: 'Ostvaren 12. sep' },
+  { title: 'Selidba kancelarije', status: 'done', when: 'Ostvaren 30. jul' },
+  { title: '10.000 koraka mesec dana', status: 'done', when: 'Ostvaren 1. jun' },
+];
+const paused = [{ title: 'Kurs gitare', status: 'paused', when: 'Pauziran od 1. sep' }];
+let group = 'horizon';
+let open = { done: false, paused: false };
+let current = null;
+
+const $ = id => document.getElementById(id);
+const parse = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const addDays = (s, n) => { const d = parse(s); d.setDate(d.getDate() + n); return iso(d); };
+const short = s => { const d = parse(s); return `${d.getDate()}. ${SHORT[d.getMonth()]}${d.getFullYear() !== 2026 ? ` ${d.getFullYear()}` : ''}`; };
+const daysTo = s => Math.round((parse(s) - parse(TODAY)) / 86400000);
+const num = v => Number(v).toLocaleString('de-DE');
+const plural = (n, one, few, other) => (n % 10 === 1 && n % 100 !== 11) ? one : ([2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100)) ? few : other;
+
+const ICON = {
+  search: '<svg width="22" height="22" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M20 20l-4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+  short: '<svg width="16" height="16" viewBox="0 0 24 24"><path d="M5 21V4h11l-2 4 2 4H5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/></svg>',
+  mid: '<svg width="16" height="16" viewBox="0 0 24 24"><path d="M5 20c0-5 3-6 7-8s7-3 7-8" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><circle cx="5" cy="20" r="1.6" fill="currentColor"/><circle cx="19" cy="4" r="1.6" fill="currentColor"/></svg>',
+  long: '<svg width="16" height="16" viewBox="0 0 24 24"><path d="M3 20l6-10 4 6 2.5-3.5L21 20z" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/></svg>',
+  month: '<svg width="16" height="16" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="3" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="M4 10h16M9 3v4M15 3v4" stroke="currentColor" stroke-width="1.9"/></svg>',
+  cal: '<svg width="20" height="20" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M4 10h16M9 3v4M15 3v4" stroke="currentColor" stroke-width="1.8"/></svg>',
+  horizon: '<svg width="20" height="20" viewBox="0 0 24 24"><path d="M3 20l6-10 4 6 2.5-3.5L21 20z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>',
+  source: '<svg width="20" height="20" viewBox="0 0 24 24"><path d="M5 19V13M12 19V5M19 19v-9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+  bell: '<svg width="20" height="20" viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z M10 20a2 2 0 0 0 4 0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>',
+  area: '<svg width="20" height="20" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+  folder: '<svg width="20" height="20" viewBox="0 0 24 24"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>',
+  more: '<svg width="20" height="20" viewBox="0 0 24 24"><circle cx="6" cy="12" r="1.7" fill="currentColor"/><circle cx="12" cy="12" r="1.7" fill="currentColor"/><circle cx="18" cy="12" r="1.7" fill="currentColor"/></svg>',
+  milestone: '<svg width="20" height="20" viewBox="0 0 24 24"><path d="M12 3l9 9-9 9-9-9z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>',
+  link: '<svg width="20" height="20" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+  chev: '<svg class="chev" width="18" height="18" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+  down: o => `<svg class="chev" width="16" height="16" viewBox="0 0 24 24" style="transform:rotate(${o ? 90 : 0}deg)"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`,
+  tick: '<svg width="14" height="14" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="#0F1114" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+};
+
+// ---- progress and health (same rules as the current app) ----------------
+function progress(g) {
+  if (g.source === 'tasks') return { pct: Math.round(g.doneTasks / g.totalTasks * 100), label: `${g.doneTasks} od ${g.totalTasks} zadataka` };
+  if (g.source === 'habits') {
+    const pct = Math.round(g.habits.reduce((sum, h) => sum + Math.min(100, h.pct), 0) / g.habits.length);
+    return { pct, label: `${g.habits.length} ${plural(g.habits.length, 'navika', 'navike', 'navika')}` };
+  }
+  const pct = Math.min(100, Math.round(g.current / g.target * 100));
+  return { pct, label: g.type === 'number' ? `${num(g.current)} od ${num(g.target)} ${g.unit}`.trim() : 'Ručno' };
+}
+// Overdue when the date has passed; at risk when it is within seven days and progress is below 75%.
+function health(g) {
+  const { pct } = progress(g);
+  if (pct >= 100) return 'complete';
+  if (g.date && g.date < TODAY) return 'overdue';
+  if (g.date && daysTo(g.date) <= 7 && pct < 75) return 'risk';
+  return 'ok';
+}
+const TONE = { ok: 'var(--green)', complete: 'var(--green)', risk: 'var(--amber)', overdue: 'var(--red)' };
+function dateSide(g) {
+  const h = health(g);
+  if (!g.date) return '<span>Bez datuma</span>';
+  if (h === 'overdue') return `<span class="red">Kasni · ${short(g.date)}</span>`;
+  if (h === 'risk') return `<span class="amber">U riziku · ${short(g.date)}</span>`;
+  return `<span>${short(g.date)}</span>`;
+}
+
+// ---- list ----------------------------------------------------------------
+function goalRow(g) {
+  const p = progress(g);
+  return `<button class="grow" data-goal="${goals.indexOf(g)}"><span class="gtop"><span class="gtitle">${g.title}</span><span class="pct">${p.pct}%</span></span><span class="track"><i style="width:${p.pct}%;background:${TONE[health(g)]}"></i></span><span class="gmeta"><span>${p.label}</span>${dateSide(g)}</span></button>`;
+}
+function plainRow(x) { return `<div class="grow muted-row"><span class="gtop"><span class="gtitle">${x.title}</span></span><span class="gmeta" style="margin-top:4px"><span>${x.when}</span></span></div>`; }
+
+function renderList() {
+  const active = goals.filter(g => g.status === 'active').sort((a, b) => (a.date || '9999').localeCompare(b.date || '9999'));
+  const risk = active.filter(g => health(g) === 'risk').length;
+  const late = active.filter(g => health(g) === 'overdue').length;
+  let groups;
+  if (group === 'horizon') {
+    groups = HORIZONS.map(([key, label]) => ({ icon: ICON[key], label, items: active.filter(g => g.horizon === key) }));
+  } else {
+    const map = new Map();
+    for (const g of active) {
+      const key = g.date ? g.date.slice(0, 7) : 'none';
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(g);
+    }
+    groups = [...map].map(([key, items]) => ({ icon: key === 'none' ? '' : ICON.month, label: key === 'none' ? 'Bez datuma' : `${MONTHS[Number(key.slice(5)) - 1]} ${key.slice(0, 4)}`, items }));
+  }
+  $('screen').innerHTML = `
+    <div class="status"><span>09:41</span><span>•••</span></div>
+    <div class="titlebar"><h1 class="h1">Ciljevi</h1><button class="icon-btn" aria-label="Pretraga">${ICON.search}</button></div>
+    <div class="summary">${active.length} ${plural(active.length, 'aktivan', 'aktivna', 'aktivnih')}${risk ? ` · <span class="amber">${risk} u riziku</span>` : ''}${late ? ` · <span class="red">${late} kasni</span>` : ''}</div>
+    <div class="seg" role="tablist"><button role="tab" class="${group === 'horizon' ? 'on' : ''}" data-group="horizon">Horizont</button><button role="tab" class="${group === 'date' ? 'on' : ''}" data-group="date">Rok</button></div>
+    ${groups.filter(x => x.items.length).map(x => `<div class="section">${x.icon}${x.label} <span>· ${x.items.length}</span></div><div class="card">${x.items.map(goalRow).join('')}</div>`).join('')}
+    <button class="collapsed" data-fold="done">${ICON.down(open.done)}Ostvareni · ${finished.length}</button>
+    ${open.done ? `<div class="card" style="margin-top:8px">${finished.map(plainRow).join('')}</div>` : ''}
+    <button class="collapsed" data-fold="paused">${ICON.down(open.paused)}Pauzirani · ${paused.length}</button>
+    ${open.paused ? `<div class="card" style="margin-top:8px">${paused.map(plainRow).join('')}</div>` : ''}`;
+  document.querySelectorAll('[data-group]').forEach(b => b.onclick = () => { group = b.dataset.group; renderList(); });
+  document.querySelectorAll('[data-fold]').forEach(b => b.onclick = () => { open[b.dataset.fold] = !open[b.dataset.fold]; renderList(); });
+  document.querySelectorAll('[data-goal]').forEach(b => b.onclick = () => { current = goals[Number(b.dataset.goal)]; renderGoal(); show('goalWin'); });
+}
+
+$('nav').innerHTML = [['Danas', '<rect x="4" y="5" width="16" height="15" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M4 10h16M9 3v4M15 3v4" stroke="currentColor" stroke-width="1.8"/>'],
+  ['Inbox', '<path d="M4 13l2.5-7h11L20 13v6H4z M4 13h5l1 2h4l1-2h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>'],
+  ['Zadaci', '<circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8.5 12.2l2.4 2.4 4.6-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'],
+  ['Kalendar', '<rect x="4" y="5" width="16" height="15" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M4 10h16M9 3v4M15 3v4M8 14h2M12 14h2M8 17h2" stroke="currentColor" stroke-width="1.8"/>'],
+  ['Navike', '<path d="M6 20V12M12 20V5M18 20v-9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>'],
+  ['Još', '<circle cx="6" cy="12" r="1.7" fill="currentColor"/><circle cx="12" cy="12" r="1.7" fill="currentColor"/><circle cx="18" cy="12" r="1.7" fill="currentColor"/>']]
+  .map(([label, path]) => `<div class="${label === 'Još' ? 'on' : ''}"><svg width="22" height="22" viewBox="0 0 24 24">${path}</svg>${label}</div>`).join('');
+
+// ---- goal window ---------------------------------------------------------
+const HEALTH_TEXT = {
+  ok: ['Na dobrom putu', 'Napredak i ciljni datum su na dobrom putu.'],
+  risk: ['U riziku', 'Ciljni datum je u narednih sedam dana, a napredak je ispod 75%.'],
+  overdue: ['Kasni', 'Ciljni datum je prošao.'],
+  complete: ['Dostignuto', 'Ciljna vrednost je dostignuta. Označi cilj kao ostvaren kad želiš.'],
+};
+function row(key, icon, label, value, empty) {
+  return `<button class="prow" data-pick="${key}">${icon}<span class="lbl">${label}</span><span class="val ${value ? 'set' : ''}">${value || empty}</span>${ICON.chev}</button>`;
+}
+function renderGoal() {
+  const g = current, p = progress(g), h = health(g);
+  const [hTitle, hText] = HEALTH_TEXT[h];
+  const ms = g.milestones;
+  const sourceBlock = g.source === 'manual'
+    ? '<button class="update" id="update">Ažuriraj napredak</button>'
+    : `<p class="note" style="margin:10px 0 0">${g.source === 'tasks' ? 'Napredak se računa iz povezanih zadataka.' : 'Svaka povezana navika ima jednaku težinu; njen doprinos je ograničen na 100%.'}</p>`;
+  let linked = '';
+  if (g.source === 'tasks') {
+    const openCount = g.totalTasks - g.doneTasks;
+    linked = `<div class="glabel">Zadaci · ${openCount} ${plural(openCount, 'otvoren', 'otvorena', 'otvorenih')}</div><div class="card">
+      ${g.tasks.map((t, i) => `<button class="prow" data-task="${i}"><span class="box ${t.d ? 'on' : ''}">${t.d ? ICON.tick : ''}</span><span class="main ${t.d ? 'done-title' : ''}">${t.t}</span><span class="side ${t.tone || ''}">${t.d ? '' : t.side}</span></button>`).join('')}
+      <button class="prow add">Prikaži sve (${openCount})</button></div>`;
+  }
+  if (g.source === 'habits') {
+    linked = `<div class="glabel">Doprinos navika</div><div class="card">
+      ${g.habits.map(x => `<div class="prow" style="min-height:58px"><span class="hbar"><span style="display:flex;justify-content:space-between;gap:8px"><span>${x.t}</span><span class="meta">${x.pct}%</span></span><span class="track"><i style="width:${x.pct}%;background:var(--green)"></i></span><span class="meta">${x.label}</span></span></div>`).join('')}
+    </div>`;
+  }
+  $('goalBody').innerHTML = `
+    <div class="dtitle">${g.title}</div>
+    <button class="alink" data-pick="area">${ICON.area}${g.area}</button>
+    <div class="pcard">
+      <div class="pbig"><strong>${p.pct}%</strong><span>${p.label}</span></div>
+      <span class="track"><i style="width:${p.pct}%;background:${TONE[h]}"></i></span>
+      <div class="health"><span class="hdot" style="background:${TONE[h]}"></span><span><b style="color:${TONE[h]}">${hTitle}</b> · ${hText}</span></div>
+      ${sourceBlock}
+    </div>
+    <div class="glabel">Etape · ${ms.filter(m => m.d).length}/${ms.length}</div>
+    <div class="card">
+      ${ms.map((m, i) => { const late = !m.d && m.date < TODAY; return `<button class="prow" data-ms="${i}"><span class="round ${m.d ? 'on' : ''}">${m.d ? ICON.tick : ''}</span><span class="main ${m.d ? 'done-title' : ''}">${m.t}</span><span class="side ${late ? 'red' : ''}">${short(m.date)}</span></button>`; }).join('')}
+      <button class="prow add">＋ Dodaj etapu</button>
+    </div>
+    ${linked}
+    <div class="glabel">Planiranje</div>
+    <div class="card">
+      ${row('date', ICON.cal, 'Ciljni datum', g.date ? short(g.date) : null, 'Bez ciljnog datuma')}
+      ${row('horizon', ICON.horizon, 'Horizont', HORIZONS.find(x => x[0] === g.horizon)[1])}
+      ${row('source', ICON.source, 'Izvor napretka', SOURCE_LONG[g.source] + (g.source === 'manual' ? (g.type === 'number' ? ` · ${num(g.target)} ${g.unit}` : ' · procenat') : ''))}
+      ${row('reminder', ICON.bell, 'Podsetnik', g.reminder, 'Nije podešen')}
+    </div>
+    <div class="glabel">Organizacija</div>
+    <div class="card">
+      ${row('area', ICON.area, 'Oblast', g.area, 'Bez oblasti')}
+      ${row('links', ICON.link, 'Povezano', g.source === 'tasks' ? `Projekat ${g.project}` : g.source === 'habits' ? `${g.habits.length} navike` : null, 'Ništa')}
+    </div>
+    <button class="more">Više opcija <span style="display:inline-flex;gap:4px;align-items:center">Istorija, pauza, arhiva${ICON.chev}</span></button>`;
+  $('complete').textContent = g.status === 'done' ? 'Vrati kao aktivan' : 'Označi kao ostvaren';
+  $('complete').className = `primary ${h === 'complete' || g.status === 'done' ? '' : 'quiet'}`;
+  document.querySelectorAll('[data-ms]').forEach(b => b.onclick = () => { const m = g.milestones[Number(b.dataset.ms)]; m.d = !m.d; refresh('Sačuvano'); });
+  document.querySelectorAll('[data-task]').forEach(b => b.onclick = () => { const t = g.tasks[Number(b.dataset.task)]; t.d = !t.d; g.doneTasks += t.d ? 1 : -1; refresh(t.d ? 'Zadatak završen' : 'Zadatak vraćen'); });
+  if ($('update')) $('update').onclick = () => openPicker('update');
+  document.querySelectorAll('#goalBody [data-pick]').forEach(b => b.onclick = () => openPicker(b.dataset.pick));
+}
+function refresh(text) { renderGoal(); renderList(); if (text) toast(text); }
+$('complete').onclick = () => {
+  const g = current;
+  if (g.status === 'done') { g.status = 'active'; refresh('Cilj je ponovo aktivan'); return; }
+  g.status = 'done';
+  finished.unshift({ title: g.title, status: 'done', when: `Ostvaren ${short(TODAY)}` });
+  hide('goalWin'); renderList(); toast('Cilj je ostvaren');
+};
+
+// ---- new goal window -----------------------------------------------------
+const freshDraft = () => ({ title: '', area: null, horizon: 'short', source: 'manual', type: 'percent', target: 21, unit: 'km', date: null, moreOpen: false, milestones: [], error: '' });
+let draft = freshDraft();
+function seg(key, options, value) {
+  return `<div class="seg" role="radiogroup">${options.map(([v, l]) => `<button role="radio" aria-checked="${v === value}" class="${v === value ? 'on' : ''}" data-seg="${key}" data-v="${v}">${l}</button>`).join('')}</div>`;
+}
+function renderNew() {
+  const d = draft;
+  const sourceExtra = d.source === 'manual'
+    ? `<div style="margin-top:10px">${seg('type', [['percent', 'Procenat'], ['number', 'Broj']], d.type)}</div>${d.type === 'number' ? `<div class="inline">Cilj<input type="number" id="ntarget" min="0" step="any" value="${d.target}" aria-label="Ciljna vrednost"><input class="unit" id="nunit" value="${d.unit}" placeholder="jedinica" aria-label="Jedinica"></div>` : '<p class="note" style="margin:8px 2px 0">Napredak upisuješ ručno, od 0 do 100%.</p>'}`
+    : `<p class="note" style="margin:10px 2px 0">${d.source === 'tasks' ? 'Napredak = završeni povezani zadaci. Projekte i zadatke povezuješ u „Više“.' : 'Napredak = doprinos povezanih navika. Navike povezuješ u „Više“.'}</p>`;
+  $('newBody').innerHTML = `
+    <input class="name" id="ntitle" placeholder="Šta želiš da postigneš?" value="${d.title.replace(/"/g, '&quot;')}" aria-label="Naziv cilja">
+    ${d.error ? `<p class="err" role="alert">${d.error}</p>` : ''}
+    <div class="card" style="margin-top:8px">
+      ${row('narea', ICON.area, 'Oblast', d.area, 'Bez oblasti (opciono)')}
+      <div class="block"><div class="lbl">${ICON.horizon}Horizont</div>${seg('horizon', HORIZONS, d.horizon)}</div>
+      <div class="block"><div class="lbl">${ICON.source}Napredak</div>${seg('source', SOURCES, d.source)}${sourceExtra}</div>
+      ${row('ndate', ICON.cal, 'Ciljni datum', d.date ? short(d.date) : null, 'Nije podešen')}
+    </div>
+    <button class="more" id="nmore" aria-expanded="${d.moreOpen}"><b>Više</b><span style="display:inline-flex;gap:4px;align-items:center">${d.moreOpen ? 'Sakrij' : 'Etape, podsetnik, veze'}${ICON.down(d.moreOpen)}</span></button>
+    ${d.moreOpen ? `<div class="card" style="margin-top:8px">
+      ${d.milestones.map((m, i) => `<div class="prow"><span class="round"></span><span class="main">${m}</span><button class="x" data-rmms="${i}" aria-label="Ukloni etapu">✕</button></div>`).join('')}
+      <button class="prow add" id="addms">＋ Dodaj etapu</button>
+    </div>
+    <div class="card" style="margin-top:10px">
+      ${row('nreminder', ICON.bell, 'Podsetnik', null, 'Nije podešen')}
+      ${row('nlinks', ICON.link, d.source === 'habits' ? 'Povezane navike' : 'Povezani projekti i zadaci', null, 'Ništa')}
+    </div>` : ''}`;
+  $('ntitle').oninput = e => { d.title = e.target.value; if (d.error && d.title.trim()) { d.error = ''; renderNew(); const n = $('ntitle'); n.focus(); n.setSelectionRange(d.title.length, d.title.length); } };
+  if ($('ntarget')) $('ntarget').onchange = e => { d.target = Number(e.target.value); };
+  if ($('nunit')) $('nunit').oninput = e => { d.unit = e.target.value; };
+  document.querySelectorAll('#newBody [data-seg]').forEach(b => b.onclick = () => { d[b.dataset.seg] = b.dataset.v; renderNew(); });
+  $('nmore').onclick = () => { d.moreOpen = !d.moreOpen; renderNew(); };
+  if ($('addms')) $('addms').onclick = () => { d.milestones.push(`Etapa ${d.milestones.length + 1}`); renderNew(); };
+  document.querySelectorAll('[data-rmms]').forEach(b => b.onclick = () => { d.milestones.splice(Number(b.dataset.rmms), 1); renderNew(); });
+  document.querySelectorAll('#newBody [data-pick]').forEach(b => b.onclick = () => openPicker(b.dataset.pick));
+}
+$('fab').onclick = () => { draft = freshDraft(); renderNew(); show('newWin'); };
+$('create').onclick = () => {
+  const d = draft;
+  if (!d.title.trim()) { d.error = 'Upiši naziv cilja.'; renderNew(); $('ntitle').focus(); return; }
+  if (d.source === 'manual' && d.type === 'number' && !(d.target > 0)) { d.error = 'Brojčani cilj mora biti veći od nule.'; renderNew(); return; }
+  const base = { title: d.title.trim(), area: d.area || 'Bez oblasti', horizon: d.horizon, date: d.date, reminder: null, status: 'active', milestones: d.milestones.map((t, i) => ({ t, d: false, date: addDays(d.date || TODAY, i * 7) })) };
+  if (d.source === 'manual') goals.push({ ...base, source: 'manual', type: d.type, current: 0, target: d.type === 'number' ? d.target : 100, unit: d.type === 'number' ? d.unit : '' });
+  else if (d.source === 'tasks') goals.push({ ...base, source: 'tasks', project: '—', tasks: [], doneTasks: 0, totalTasks: 1 });
+  else goals.push({ ...base, source: 'habits', habits: [{ t: 'Nova navika', pct: 0, label: '0 unosa' }] });
+  hide('newWin'); group = 'horizon'; renderList(); toast('Cilj je napravljen');
+};
+
+// ---- small sheets --------------------------------------------------------
+function openPicker(kind) {
+  const target = kind.startsWith('n') ? draft : current;
+  $('pickerSub').textContent = (kind.startsWith('n') ? draft.title.trim() : current.title) || 'Novi cilj';
+  const body = $('pickerBody');
+  if (kind === 'update') {
+    const g = current; const isNum = g.type === 'number';
+    const steps = isNum ? [1, 5, 10].map(v => v * Math.max(1, Math.round(g.target / 40))) : [5, 10, 25];
+    let value = g.current;
+    const render = () => {
+      body.innerHTML = `
+        <div class="chips">${steps.map(v => `<button class="chip" data-add="${v}">+${num(v)}${isNum ? ` ${g.unit}` : '%'}</button>`).join('')}</div>
+        <label class="field"><span class="lbl">${isNum ? 'Trenutno' : 'Procenat napretka'}</span><input type="number" id="uval" min="0" step="any" value="${value}"><span class="meta">${isNum ? `od ${num(g.target)} ${g.unit}` : '%'}</span></label>
+        <p class="note">Svaka promena se čuva u istoriji cilja.</p>
+        <button class="primary" id="apply">Primeni</button>`;
+      document.querySelectorAll('[data-add]').forEach(b => b.onclick = () => { value = Math.min(g.target, Number(value) + Number(b.dataset.add)); render(); });
+      $('uval').onchange = e => { value = Math.max(0, Number(e.target.value) || 0); };
+      $('apply').onclick = () => { g.current = Math.min(g.target, Number($('uval').value) || 0); hide('picker'); refresh('Napredak je ažuriran'); };
+    };
+    $('pickerTitle').textContent = 'Ažuriraj napredak'; render();
+  } else if (kind === 'horizon') {
+    body.innerHTML = `<div class="card" style="margin-bottom:10px">${HORIZONS.map(([v, l]) => `<button class="opt" data-h="${v}">${ICON[v]}<span class="lbl">${l}</span><span class="radio ${current.horizon === v ? 'on' : ''}"></span></button>`).join('')}</div><p class="note">Dodir odmah primenjuje izbor.</p>`;
+    document.querySelectorAll('[data-h]').forEach(b => b.onclick = () => { current.horizon = b.dataset.h; hide('picker'); refresh('Sačuvano'); });
+    $('pickerTitle').textContent = 'Horizont';
+  } else if (kind === 'area' || kind === 'narea') {
+    body.innerHTML = `<div class="card" style="margin-bottom:10px">${['Bez oblasti', 'Lično', 'Zdravlje', 'Posao'].map(a => `<button class="opt" data-a="${a}">${ICON.area}<span class="lbl">${a}</span><span class="radio ${(target.area || 'Bez oblasti') === a ? 'on' : ''}"></span></button>`).join('')}</div><p class="note">Dodir odmah primenjuje izbor.</p>`;
+    document.querySelectorAll('[data-a]').forEach(b => b.onclick = () => { target.area = b.dataset.a === 'Bez oblasti' ? null : b.dataset.a; hide('picker'); if (target === draft) renderNew(); else refresh('Sačuvano'); });
+    $('pickerTitle').textContent = 'Oblast';
+  } else if (kind === 'ndate' || kind === 'date') {
+    let value = target.date;
+    const quick = [['Za mesec dana', addDays(TODAY, 30)], ['Za 3 meseca', addDays(TODAY, 91)], ['Kraj godine', '2026-12-31']];
+    const render = () => {
+      body.innerHTML = `
+        <div class="chips">${quick.map(([l, v]) => `<button class="chip ${value === v ? 'on' : ''}" data-q="${v}">${l}</button>`).join('')}</div>
+        <label class="field">${ICON.cal}<span class="lbl">Datum</span><input type="date" id="dval" value="${value || ''}"></label>
+        <p class="note">Sedam dana pre ciljnog datuma, cilj ispod 75% dobija oznaku „U riziku“.</p>
+        <div class="split"><button class="ghost" id="clear">Bez datuma</button><button class="primary" id="apply">Primeni</button></div>`;
+      document.querySelectorAll('[data-q]').forEach(b => b.onclick = () => { value = b.dataset.q; render(); });
+      $('dval').onchange = e => { value = e.target.value || null; };
+      $('clear').onclick = () => { target.date = null; hide('picker'); target === draft ? renderNew() : refresh('Sačuvano'); };
+      $('apply').onclick = () => { target.date = value; hide('picker'); target === draft ? renderNew() : refresh('Sačuvano'); };
+    };
+    $('pickerTitle').textContent = 'Ciljni datum'; render();
+  } else {
+    // Reminder, progress source and links use the same sheets as tasks and habits.
+    toast('Ovaj prozor je isti kao kod zadatka i navike');
+    return;
+  }
+  show('picker');
+}
+
+// ---- overlays ------------------------------------------------------------
+function show(id) { $(id).classList.add('show'); $(id === 'picker' ? 'dimPicker' : 'dimWin').classList.add('show'); }
+function hide(id) { $(id).classList.remove('show'); if (id === 'picker') $('dimPicker').classList.remove('show'); else if (!$('goalWin').classList.contains('show') && !$('newWin').classList.contains('show')) $('dimWin').classList.remove('show'); }
+document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => hide(b.dataset.close));
+$('dimPicker').onclick = () => hide('picker');
+$('dimWin').onclick = () => { hide('goalWin'); hide('newWin'); };
+function toast(text) { const t = $('toast'); t.textContent = text; t.classList.add('show'); clearTimeout(toast.timer); toast.timer = setTimeout(() => t.classList.remove('show'), 1500); }
+
+renderList();
+</script>
+</body>
+</html>

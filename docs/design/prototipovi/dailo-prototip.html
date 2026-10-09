@@ -1,0 +1,1716 @@
+<!doctype html>
+<html lang="sr-Latn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dailo — zbirni prototip</title>
+<style>
+  :root {
+    --page: #08090B; --bg: #0F1114; --card: #16191E; --card2: #1B1F25; --line: #242830; --grid: #23272E; --text: #E8EAED; --muted: #8B929C;
+    --blue: #2A47FF; --link: #8FA2FF; --green: #34C77B; --amber: #F2A93B; --red: #F0645A;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--text); font: 15px/1.35 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 16px; }
+  .top { max-width: 390px; margin: 0 auto 12px; color: var(--muted); font-size: 13.5px; }
+  .top b { color: var(--text); }
+  .phone { position: relative; max-width: 390px; height: 820px; margin: 0 auto; background: var(--bg); border: 1px solid var(--line); border-radius: 34px; overflow: hidden; }
+  button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
+  button:disabled { cursor: default; }
+  input, textarea, select { font: inherit; color: var(--text); }
+  svg { flex: none; }
+
+  /* Screens */
+  .screen { position: absolute; inset: 0 0 70px; overflow-y: auto; padding: 16px 16px 96px; background: var(--bg); }
+  .status { display: flex; justify-content: space-between; font-size: 13px; font-weight: 600; padding: 0 6px 12px; }
+  .date { color: var(--muted); font-size: 14px; }
+  .titlebar { display: flex; justify-content: space-between; align-items: center; min-height: 40px; }
+  .h1 { font-size: 30px; font-weight: 700; letter-spacing: -.5px; margin: 0; }
+  .icon-btn { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 50%; color: var(--muted); }
+  .summary { color: var(--muted); font-size: 13.5px; margin: 2px 2px 12px; }
+  .summary .amber, .amber { color: var(--amber); }
+  .summary .red, .red { color: var(--red); }
+  .green { color: var(--green); }
+  .back { display: inline-flex; align-items: center; gap: 2px; color: var(--link); font-size: 16px; min-height: 40px; margin-left: -6px; }
+  .seg { display: flex; border: 1px solid var(--line); border-radius: 10px; padding: 3px; background: #121418; }
+  .seg button { flex: 1; text-align: center; font-size: 14px; padding: 7px 4px; border-radius: 8px; color: var(--muted); }
+  .seg button.on { background: #262B33; color: var(--text); font-weight: 600; }
+  .seg.sm { display: inline-flex; padding: 2px; border-radius: 9px; }
+  .seg.sm button { flex: none; font-size: 12.5px; padding: 4px 10px; border-radius: 7px; }
+  .section { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14.5px; margin: 18px 2px 8px; }
+  .section > span { color: var(--muted); font-weight: 500; }
+  .section svg { color: var(--muted); }
+  .glabel { color: var(--muted); font-size: 12.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; margin: 18px 4px 6px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+  .card > * + * { border-top: 1px solid var(--line); }
+  .card > .meta + * { border-top: 0; }
+  .note { color: var(--muted); font-size: 13px; margin: 8px 4px 0; }
+  .meta { color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+  .main { flex: 1; min-width: 0; }
+  .ttl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .done-title { color: var(--muted); text-decoration: line-through; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; display: inline-block; }
+  .chev { color: #5B6270; }
+  .collapsed { display: flex; align-items: center; gap: 8px; color: var(--muted); margin: 16px 4px 0; font-size: 14px; width: 100%; min-height: 32px; }
+  .more-btn { display: block; width: 100%; padding: 11px 14px; color: var(--link); font-size: 14px; }
+  .empty { text-align: center; padding: 50px 20px 10px; color: var(--muted); }
+  .empty .ring { width: 72px; height: 72px; margin: 0 auto 14px; border-radius: 50%; border: 2px solid #2C3139; display: grid; place-items: center; }
+  .empty strong { display: block; color: var(--text); font-size: 18px; margin-bottom: 4px; }
+  .notice { display: flex; gap: 12px; align-items: center; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; margin: 10px 0 0; font-size: 13.5px; }
+  .notice .main { color: var(--muted); }
+  .notice .main b { color: var(--text); font-weight: 600; display: block; }
+  .notice button { color: var(--link); font-weight: 600; padding: 6px 4px; }
+
+  /* Task rows (T3) */
+  .trow { display: flex; align-items: center; gap: 12px; padding: 9px 14px; min-height: 58px; width: 100%; }
+  .trow .main { padding: 2px 0; }
+  .box { width: 22px; height: 22px; border: 2px solid #4A505A; border-radius: 6px; flex: none; display: grid; place-items: center; }
+  .box.on { background: var(--green); border-color: var(--green); }
+  .round { width: 22px; height: 22px; border-radius: 50%; border: 2px solid #4A505A; display: grid; place-items: center; flex: none; }
+  .round.on { background: var(--green); border-color: var(--green); }
+  .side { display: grid; gap: 3px; justify-items: end; font-size: 12px; color: var(--muted); white-space: nowrap; text-align: right; }
+  .addrow { display: flex; align-items: center; gap: 12px; width: 100%; padding: 0 14px; min-height: 48px; color: var(--link); }
+
+  /* Habit rows (T5, H2) */
+  .hrow { display: flex; align-items: center; gap: 12px; padding: 7px 14px; min-height: 48px; width: 100%; }
+  .hrow.tall { min-height: 54px; }
+  .hrow.done .ttl { color: var(--muted); }
+  .circle { width: 26px; height: 26px; flex: none; display: block; }
+  .count { color: var(--muted); font-size: 12.5px; white-space: nowrap; }
+
+  /* Property rows and pickers */
+  .prow { display: flex; align-items: center; gap: 12px; width: 100%; padding: 0 12px; min-height: 48px; }
+  .prow .lbl { flex: none; }
+  .prow .val { flex: 1; min-width: 0; text-align: right; color: var(--muted); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: inline-flex; justify-content: flex-end; gap: 6px; align-items: center; }
+  .prow .val.set { color: var(--text); }
+  .prow .sub { display: block; color: var(--muted); font-size: 12.5px; margin-top: 1px; }
+  .prow .grow { flex: 1; min-width: 0; padding: 9px 0; }
+  .prow .ico { width: 22px; display: grid; place-items: center; color: var(--muted); }
+  .prow.danger, .prow.danger .ico { color: var(--red); }
+  .prow.add { color: var(--link); }
+  .block { padding: 10px 12px 12px; }
+  .block .lbl { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+  .inline { display: flex; align-items: center; gap: 8px; margin-top: 10px; color: var(--muted); font-size: 14px; }
+  .inline input { background: #1F232A; border: 1px solid #2C3139; border-radius: 8px; padding: 7px 8px; }
+  .inline input[type=number] { width: 80px; }
+  .inline input.unit { width: 96px; }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .chip { padding: 9px 14px; border-radius: 12px; background: var(--card2); border: 1px solid #2C3139; font-size: 14px; display: inline-flex; gap: 6px; align-items: center; }
+  .chip.on { border-color: var(--blue); background: rgba(42, 71, 255, .18); }
+  .chip.sm { padding: 5px 10px; border-radius: 9px; font-size: 13px; }
+  .chip.quiet { color: var(--muted); }
+  .opt { display: flex; align-items: center; gap: 12px; width: 100%; padding: 0 14px; min-height: 52px; }
+  .opt .lbl { flex: 1; }
+  .opt small { display: block; color: var(--muted); font-size: 12.5px; }
+  .opt.danger { color: var(--red); }
+  .radio { width: 22px; height: 22px; border-radius: 50%; border: 2px solid #5B6270; display: grid; place-items: center; flex: none; }
+  .radio.on { border-color: var(--blue); }
+  .radio.on::after { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--blue); }
+  .check { width: 22px; height: 22px; border-radius: 6px; border: 2px solid #5B6270; display: grid; place-items: center; flex: none; }
+  .check.on { background: var(--blue); border-color: var(--blue); }
+  .field { display: flex; align-items: center; gap: 12px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 0 12px; min-height: 50px; margin-bottom: 10px; }
+  .field .lbl { flex: 1; }
+  .field input, .field select { background: #1F232A; border: 1px solid #2C3139; border-radius: 8px; padding: 6px 8px; color-scheme: dark; }
+  .field input[type=number] { width: 76px; }
+  .field input.wide { flex: 1; min-width: 0; background: none; border: 0; outline: none; padding: 0; }
+  .search { display: flex; align-items: center; gap: 10px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 0 12px; height: 44px; margin-bottom: 10px; }
+  .search input { flex: 1; background: none; border: 0; outline: none; }
+  .stepper { display: inline-flex; align-items: center; border: 1px solid #2C3139; border-radius: 10px; overflow: hidden; background: #1F232A; }
+  .stepper button { width: 40px; height: 38px; font-size: 20px; text-align: center; }
+  .stepper button:disabled { color: #4A505A; }
+  .stepper span { min-width: 40px; text-align: center; font-weight: 600; border-left: 1px solid #2C3139; border-right: 1px solid #2C3139; line-height: 38px; }
+  .wdays { display: flex; gap: 6px; margin: 2px 0 10px; }
+  .wdays button { flex: 1; height: 40px; border-radius: 10px; background: var(--card2); border: 1px solid #2C3139; font-size: 13px; text-align: center; }
+  .wdays button.on { background: rgba(42, 71, 255, .22); border-color: var(--blue); }
+  .cal { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 10px; margin-bottom: 12px; }
+  .calhead { display: flex; justify-content: space-between; align-items: center; padding: 0 4px 6px; font-weight: 600; }
+  .calhead button { width: 32px; height: 32px; display: grid; place-items: center; color: var(--muted); }
+  .grid7 { display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; }
+  .wd { color: var(--muted); font-size: 12px; padding: 4px 0; }
+  .day { height: 38px; display: grid; place-items: center; text-align: center; }
+  .day span { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; }
+  .day.today span { color: var(--link); font-weight: 600; }
+  .day.sel span { background: var(--blue); color: #fff; font-weight: 600; }
+  .primary { width: 100%; height: 48px; border-radius: 14px; background: var(--blue); color: #fff; font-weight: 600; font-size: 16px; text-align: center; }
+  .primary.quiet { background: #262B33; color: var(--text); }
+  .primary:disabled { opacity: .4; }
+  .secondary { width: 100%; height: 46px; border-radius: 14px; background: var(--card2); border: 1px solid #2C3139; font-weight: 600; text-align: center; }
+  .ghost { color: var(--link); font-size: 15px; padding: 12px 6px; }
+  .split { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .split .primary { width: auto; flex: 1; max-width: 200px; }
+  .more { display: flex; justify-content: space-between; align-items: center; width: 100%; color: var(--muted); padding: 14px 4px 4px; }
+  .more b { color: var(--text); font-weight: 600; }
+  .err { color: var(--red); font-size: 13px; margin: 0 2px 6px; }
+  .bigtitle { width: 100%; background: none; border: 0; outline: none; color: var(--text); font-weight: 700; font-size: 22px; line-height: 1.25; padding: 2px 2px 4px; resize: none; }
+  .bigtitle::placeholder { color: #5B6270; }
+  .plink { display: inline-flex; gap: 6px; align-items: center; color: var(--link); font-size: 14px; margin: 0 2px 10px; }
+  .notes { width: 100%; min-height: 64px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px; outline: none; resize: vertical; }
+  .facts { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: 14px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; margin-bottom: 12px; }
+  .facts span:nth-child(odd) { color: var(--muted); }
+  .dangerbtn { width: 100%; height: 48px; border-radius: 14px; background: #3A1D1F; color: #FF8A80; border: 1px solid #5A2D30; font-weight: 600; text-align: center; }
+
+  /* Progress pieces */
+  .track { display: block; height: 4px; border-radius: 2px; background: #2C3139; overflow: hidden; margin: 8px 0 7px; }
+  .track i { display: block; height: 100%; border-radius: 2px; }
+  .goalrow { display: block; width: 100%; padding: 11px 14px 10px; }
+  .gtop { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
+  .pct { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .gmeta { display: flex; justify-content: space-between; gap: 10px; color: var(--muted); font-size: 12.5px; }
+  .pcard { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px; }
+  .pbig { display: flex; justify-content: space-between; align-items: baseline; }
+  .pbig strong { font-size: 32px; letter-spacing: -.5px; }
+  .pbig span { color: var(--muted); font-size: 14px; }
+  .pcard .track { height: 8px; border-radius: 4px; margin: 10px 0 12px; }
+  .health { display: flex; gap: 8px; align-items: flex-start; font-size: 13.5px; color: var(--muted); }
+  .hdot { width: 9px; height: 9px; border-radius: 50%; margin-top: 5px; flex: none; }
+  .update { margin-top: 12px; width: 100%; height: 42px; border-radius: 12px; background: var(--card2); border: 1px solid #2C3139; text-align: center; font-weight: 600; }
+
+  /* Zadaci */
+  .prj { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 14px; min-height: 60px; }
+  .prj .track { height: 3px; margin: 7px 0 0; }
+  .sugg-head { display: flex; align-items: center; gap: 10px; width: 100%; padding: 0 14px; min-height: 48px; }
+  .srow { display: flex; align-items: center; gap: 12px; padding: 8px 14px; min-height: 56px; }
+  .plan { flex: none; padding: 7px 11px; border-radius: 10px; background: var(--card2); border: 1px solid #2C3139; font-size: 13px; font-weight: 600; }
+  .addall { width: 100%; min-height: 46px; color: var(--link); text-align: center; }
+
+  /* Inbox */
+  .triage-btn { display: flex; align-items: center; gap: 10px; width: 100%; padding: 0 14px; min-height: 50px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; margin-bottom: 12px; }
+  .filters { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+  .filters button { flex: none; padding: 7px 12px; border-radius: 10px; border: 1px solid var(--line); background: #121418; color: var(--muted); font-size: 14px; }
+  .filters button.on { background: #262B33; color: var(--text); font-weight: 600; border-color: #2C3139; }
+  .item { padding: 10px 14px; }
+  .irow { display: flex; align-items: center; gap: 12px; width: 100%; }
+  .tico { width: 22px; height: 22px; display: grid; place-items: center; color: var(--muted); flex: none; }
+  .ichips { display: flex; gap: 6px; margin: 8px 0 0 34px; flex-wrap: wrap; }
+  .focus { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px; margin-bottom: 14px; }
+  .focus .big { font-size: 20px; font-weight: 700; line-height: 1.25; }
+  .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .act { min-height: 48px; border-radius: 12px; background: var(--card2); border: 1px solid #2C3139; display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 600; }
+  .act.wide { grid-column: 1 / -1; }
+
+  /* Calendar */
+  .monthbar { display: flex; justify-content: space-between; align-items: center; margin: 12px 2px 6px; }
+  .monthbar strong { font-size: 16px; }
+  .arrows { display: flex; gap: 6px; }
+  .arrows button { width: 36px; height: 36px; display: grid; place-items: center; color: var(--muted); border-radius: 50%; }
+  .cday { height: 44px; display: grid; justify-items: center; align-content: center; gap: 2px; font-size: 15px; }
+  .cday span { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 50%; }
+  .cday.today span { color: var(--link); font-weight: 600; }
+  .cday.sel span { background: var(--blue); color: #fff; font-weight: 600; }
+  .cday i { width: 4px; height: 4px; border-radius: 50%; background: #5B6270; display: block; }
+  .cday i.none { background: transparent; }
+  .wstrip .cday { height: 64px; }
+  .wstrip .wl { color: var(--muted); font-size: 12px; }
+  .dayhead { display: flex; justify-content: space-between; align-items: center; margin: 16px 2px 8px; gap: 8px; }
+  .dayhead strong { font-size: 16px; }
+  .cap { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; font-size: 13px; color: var(--muted); margin-bottom: 10px; }
+  .cap b { color: var(--text); font-weight: 600; }
+  .bar { height: 6px; border-radius: 6px; background: #262B33; margin-top: 6px; overflow: hidden; }
+  .bar span { display: block; height: 100%; background: var(--green); }
+  .untimed { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+  .hours { position: relative; border-top: 1px solid var(--line); }
+  .h { height: 40px; border-bottom: 1px solid #1C2026; font-size: 11px; color: var(--muted); padding: 2px 0 0; }
+  .blk { position: absolute; left: 44px; right: 4px; border-radius: 8px; padding: 4px 8px; font-size: 12.5px; background: rgba(42, 71, 255, .22); border-left: 3px solid var(--blue); overflow: hidden; text-align: left; }
+  .blk small { color: var(--muted); display: block; font-size: 11.5px; }
+
+  /* Habits */
+  .rings { display: grid; grid-template-columns: repeat(7, 1fr); padding: 10px 6px 8px; text-align: center; }
+  .rings button { display: grid; justify-items: center; gap: 4px; color: var(--muted); font-size: 12px; padding: 4px 0 5px; border-radius: 12px; text-align: center; }
+  .rings button.today { color: var(--text); font-weight: 600; }
+  .rings button.sel { background: #222730; }
+  .ring text { font-size: 11px; font-weight: 600; fill: var(--text); }
+  .ring text.na { fill: var(--muted); font-weight: 500; }
+  .ring tspan.pc { font-size: 8px; font-weight: 500; fill: var(--muted); }
+  .wkgrid { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 6px 10px 8px; }
+  .wkhead, .wkrow { display: grid; grid-template-columns: minmax(0, 1fr) repeat(7, 30px); align-items: center; column-gap: 1px; }
+  .wkhead { color: var(--muted); font-size: 11.5px; text-align: center; padding: 4px 0 6px; }
+  .wkhead b { color: var(--text); }
+  .wkrow { min-height: 40px; }
+  .wkname { font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 6px; }
+  .wklabel { color: var(--muted); font-size: 11.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; padding: 8px 0 2px; }
+  .cell { width: 24px; height: 24px; border-radius: 50%; justify-self: center; display: grid; place-items: center; }
+  .cell.d { background: var(--green); }
+  .cell.m { border: 2px solid #5A3A3C; }
+  .cell.s { border: 2px dashed #5B6270; }
+  .cell.o { border: 2px solid #4A505A; }
+  .cell.f { border: 2px solid #23272E; }
+  .cell.n { width: 8px; height: 2px; border-radius: 1px; background: #2C3139; }
+  .cell.today { box-shadow: 0 0 0 2px var(--card), 0 0 0 3.5px var(--link); }
+  .legend { display: flex; gap: 12px; flex-wrap: wrap; color: var(--muted); font-size: 11.5px; margin: 8px 2px 0; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: -1px; margin-right: 4px; }
+  .hbar { display: grid; grid-template-columns: minmax(0, 1fr) 44px; gap: 4px 10px; align-items: center; padding: 8px 14px; }
+  .hbar .count { text-align: right; font-variant-numeric: tabular-nums; }
+  .hbar .track { grid-column: 1 / -1; height: 6px; border-radius: 3px; margin: 0; }
+  .chart { padding: 12px 12px 8px; position: relative; }
+  .chart-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .chart-head strong { font-size: 22px; }
+  .chart-head .sub { color: var(--muted); font-size: 12.5px; }
+  .month { display: flex; align-items: center; gap: 2px; font-size: 14px; font-weight: 600; }
+  .month span { min-width: 104px; text-align: center; }
+  .month button { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 8px; color: var(--muted); }
+  .month button:disabled { opacity: .3; }
+  .chart svg { display: block; width: 100%; height: auto; touch-action: none; }
+  .axis { font-size: 10px; fill: var(--muted); }
+  .tip { position: absolute; pointer-events: none; background: #262B33; border: 1px solid #333943; border-radius: 8px; padding: 5px 8px; font-size: 12px; white-space: nowrap; opacity: 0; transform: translate(-50%, -100%); }
+  .tip strong { display: block; font-size: 14px; }
+  .tip.show { opacity: 1; }
+
+  /* Chrome */
+  .fab { position: absolute; right: 16px; bottom: 86px; width: 56px; height: 56px; border-radius: 50%; background: var(--blue); display: grid; place-items: center; box-shadow: 0 6px 18px rgba(0, 0, 0, .45); z-index: 2; }
+  .nav { position: absolute; left: 0; right: 0; bottom: 0; height: 70px; border-top: 1px solid var(--line); background: #121418; display: grid; grid-template-columns: repeat(6, 1fr); padding: 8px 4px 14px; z-index: 3; }
+  .nav button { display: grid; justify-items: center; gap: 3px; font-size: 10.5px; color: var(--muted); position: relative; text-align: center; }
+  .nav button.on { color: var(--link); }
+  .badge { position: absolute; top: -4px; left: 50%; margin-left: 6px; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 9px; background: #262B33; color: var(--text); font-size: 10.5px; display: grid; place-items: center; }
+  .dim { position: absolute; inset: 0; background: rgba(0, 0, 0, .55); opacity: 0; pointer-events: none; transition: opacity .2s; }
+  .dim.show { opacity: 1; pointer-events: auto; }
+  .sheet { position: absolute; left: 0; right: 0; bottom: 0; background: #14171C; border-top: 1px solid var(--line); border-radius: 22px 22px 0 0; transform: translateY(105%); transition: transform .25s ease; display: flex; flex-direction: column; }
+  .sheet.show { transform: none; }
+  #winDim { z-index: 4; } #win { z-index: 5; }
+  #win.tall { top: 36px; }
+  #win:not(.tall) { max-height: 88%; }
+  #pickDim { z-index: 6; } #pick { z-index: 7; max-height: 86%; }
+  .grab { width: 40px; height: 5px; border-radius: 3px; background: #3A3F48; margin: 8px auto 4px; flex: none; }
+  .shead { display: flex; justify-content: space-between; align-items: center; padding: 6px 18px 10px; flex: none; gap: 10px; }
+  .shead h2 { margin: 0; font-size: 22px; }
+  .sbody { overflow-y: auto; padding: 0 16px 18px; flex: 1; }
+  .footer { padding: 10px 16px 22px; border-top: 1px solid var(--line); flex: none; background: #14171C; }
+  .footer:empty { display: none; }
+  .x { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; color: var(--muted); flex: none; }
+  .toast { position: absolute; left: 50%; bottom: 150px; transform: translateX(-50%); background: #262B33; padding: 8px 14px; border-radius: 10px; font-size: 13px; opacity: 0; transition: opacity .2s; z-index: 9; white-space: nowrap; display: flex; align-items: center; gap: 10px; pointer-events: none; max-width: 92%; }
+  .toast.show { opacity: 1; pointer-events: auto; }
+  .toast button { color: var(--link); font-weight: 600; padding: 2px 4px; }
+  .qprev { color: var(--muted); font-size: 13px; margin: 0 2px 12px; min-height: 18px; }
+  .qprev b { color: var(--text); font-weight: 600; }
+  .qsel { display: flex; gap: 8px; margin-bottom: 12px; }
+  .qsel button { flex: 1; min-height: 44px; border-radius: 12px; background: var(--card2); border: 1px solid #2C3139; padding: 0 12px; display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: 14px; }
+  .qsel button span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+</style>
+</head>
+<body>
+<p class="top"><b>Zbirni prototip: svi dogovoreni ekrani zajedno.</b> Podaci su zajednički: zadatak dodat u Danas iz Zadataka ili Inbox-a vidi se na Danas i u Kalendaru, a završen zadatak menja i napredak cilja. Donja traka menja ekrane; „+“ dodaje ono što pripada ekranu. Dugi pritisak na naviku je ovde dodir na njen naziv. Podaci se ne čuvaju posle osvežavanja.</p>
+
+<div class="phone" id="phone">
+  <div class="screen" id="screen"></div>
+  <button class="fab" id="fab" data-act="fab" aria-label="Dodaj"><svg width="26" height="26" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/></svg></button>
+  <nav class="nav" id="nav"></nav>
+
+  <div class="dim" id="winDim" data-act="closeWin"></div>
+  <section class="sheet" id="win" aria-modal="true" role="dialog">
+    <div class="grab"></div>
+    <div class="shead" id="winHead"></div>
+    <div class="sbody" id="winBody"></div>
+    <div class="footer" id="winFoot"></div>
+  </section>
+
+  <div class="dim" id="pickDim" data-act="closePick"></div>
+  <section class="sheet" id="pick" aria-modal="true" role="dialog">
+    <div class="grab"></div>
+    <div class="shead" id="pickHead"></div>
+    <div class="sbody" id="pickBody"></div>
+  </section>
+
+  <div class="toast" id="toast" role="status"><span id="toastText"></span><button id="toastUndo" data-act="undo">Poništi</button></div>
+</div>
+<script>
+'use strict';
+// ===== Dates and words =====================================================
+const TODAY = '2026-10-08';
+const TI = 3; // today's index in this week (Mon 5 – Sun 11 Oct)
+const WEEK_START = '2026-10-05';
+const MONTHS = ['januar', 'februar', 'mart', 'april', 'maj', 'jun', 'jul', 'avgust', 'septembar', 'oktobar', 'novembar', 'decembar'];
+const SHORT = ['jan', 'feb', 'mar', 'apr', 'maj', 'jun', 'jul', 'avg', 'sep', 'okt', 'nov', 'dec'];
+const WD = ['P', 'U', 'S', 'Č', 'P', 'S', 'N'];
+const WDNAME = ['Ponedeljak', 'Utorak', 'Sreda', 'Četvrtak', 'Petak', 'Subota', 'Nedelja'];
+const WDINSTR = ['ponedeljkom', 'utorkom', 'sredom', 'četvrtkom', 'petkom', 'subotom', 'nedeljom'];
+
+const $ = id => document.getElementById(id);
+const parse = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const addDays = (s, n) => { const d = parse(s); d.setDate(d.getDate() + n); return iso(d); };
+const mondayIndex = s => (parse(s).getDay() + 6) % 7;
+const daysTo = s => Math.round((parse(s) - parse(TODAY)) / 86400000);
+const cap = s => s[0].toUpperCase() + s.slice(1);
+const short = s => { const d = parse(s); return `${d.getDate()}. ${SHORT[d.getMonth()]}${d.getFullYear() !== 2026 ? ` ${d.getFullYear()}` : ''}`; };
+const longDate = s => { const d = parse(s); return `${WDNAME[mondayIndex(s)]}, ${d.getDate()}. ${MONTHS[d.getMonth()]}`; };
+const relDay = s => s === TODAY ? 'Danas' : s === addDays(TODAY, 1) ? 'Sutra' : s === addDays(TODAY, -1) ? 'Juče' : short(s);
+const num = v => String(Math.round(v * 100) / 100).replace('.', ',');
+const money = v => Number(v).toLocaleString('de-DE');
+const plural = (n, one, few, other) => (n % 10 === 1 && n % 100 !== 11) ? one : ([2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100)) ? few : other;
+const listWords = w => w.length < 2 ? w.join('') : `${w.slice(0, -1).join(', ')} i ${w.at(-1)}`;
+const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const durLabel = m => !m ? '' : m < 60 ? `${m} min` : m % 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m / 60} h`;
+const nextMonday = () => addDays(TODAY, (7 - mondayIndex(TODAY)) % 7 || 7);
+
+// ===== Icons ===============================================================
+const SV = (p, w = 20, extra = '') => `<svg width="${w}" height="${w}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"${extra}>${p}</svg>`;
+const IC = {
+  search: SV('<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>', 22),
+  chev: '<svg class="chev" width="18" height="18" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+  fold: o => `<svg class="chev" width="16" height="16" viewBox="0 0 24 24" style="transform:rotate(${o ? 90 : 0}deg)"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`,
+  left: '<svg width="22" height="22" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>',
+  right: '<svg width="22" height="22" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>',
+  tick: '<svg width="14" height="14" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="#0F1114" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  tickW: '<svg width="14" height="14" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  bigCheck: '<svg width="34" height="34" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="#34C77B" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  target: '<svg width="22" height="22" viewBox="0 0 24 24" style="flex:none"><circle cx="12" cy="12" r="9" fill="none" stroke="#8FA2FF" stroke-width="2"/><circle cx="12" cy="12" r="4.5" fill="none" stroke="#8FA2FF" stroke-width="2"/><circle cx="12" cy="12" r="1.2" fill="#8FA2FF"/></svg>',
+  flag: c => `<svg width="15" height="15" viewBox="0 0 24 24" style="color:${c}"><path d="M5 21V4h11l-2 4 2 4H5" fill="${c === '#5B6270' ? 'none' : 'currentColor'}" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>`,
+  cal: SV('<rect x="4" y="5" width="16" height="15" rx="3"/><path d="M4 10h16M9 3v4M15 3v4"/>'),
+  due: SV('<path d="M7 3h10M7 21h10M8 3c0 5 8 5 8 9s-8 4-8 9M16 3c0 5-8 5-8 9s8 4 8 9"/>'),
+  bell: SV('<path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4zM10 20a2 2 0 0 0 4 0"/>'),
+  repeat: SV('<path d="M4 11V9a3 3 0 0 1 3-3h12l-3-3M20 13v2a3 3 0 0 1-3 3H5l3 3"/>'),
+  timer: SV('<circle cx="12" cy="13" r="7.5"/><path d="M12 9v4l2.5 2M10 2.5h4"/>'),
+  folder: SV('<path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/>'),
+  tag: SV('<path d="M3.5 12.5V5A1.5 1.5 0 0 1 5 3.5h7.5l8 8-9 9z"/><circle cx="8" cy="8" r="1.4" fill="currentColor"/>'),
+  area: SV('<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>'),
+  person: SV('<circle cx="12" cy="8" r="3.5"/><path d="M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5"/>'),
+  routine: SV('<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8"/>'),
+  sun: SV('<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8"/>', 16),
+  dayic: SV('<rect x="4" y="4" width="16" height="16" rx="4"/><path d="M8.5 12.2l2.4 2.4 4.6-5"/>', 16),
+  moon: SV('<path d="M19 14.5A7.5 7.5 0 1 1 9.5 5a6 6 0 0 0 9.5 9.5z"/>', 16),
+  track: SV('<rect x="4" y="4" width="16" height="16" rx="4"/><path d="M8.5 12.2l2.4 2.4 4.6-5"/>'),
+  bolt: SV('<path d="M13 3L5 13.5h6L10 21l8-10.5h-6z"/>'),
+  goal: SV('<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="1" fill="currentColor"/>'),
+  milestone: SV('<path d="M12 3l9 9-9 9-9-9z"/>'),
+  link: SV('<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>'),
+  note: SV('<path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4M9 12h6M9 16h6"/>'),
+  habit: SV('<path d="M6 20V12M12 20V5M18 20v-9"/>'),
+  tray: SV('<path d="M4 13l2.5-7h11L20 13v6H4zM4 13h5l1 2h4l1-2h5"/>', 18),
+  sparkle: '<svg width="18" height="18" viewBox="0 0 24 24"><path d="M12 4l1.8 4.7L18.5 10.5l-4.7 1.8L12 17l-1.8-4.7-4.7-1.8 4.7-1.8z" fill="none" stroke="#8FA2FF" stroke-width="1.8" stroke-linejoin="round"/></svg>',
+  sort: SV('<path d="M4 6h16M7 12h10M10 18h4"/>'),
+  dots: SV('<circle cx="6" cy="12" r="1.2" fill="currentColor"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/><circle cx="18" cy="12" r="1.2" fill="currentColor"/>', 22),
+  short: SV('<path d="M5 21V4h11l-2 4 2 4H5"/>', 16),
+  mid: SV('<path d="M5 20c0-5 3-6 7-8s7-3 7-8"/><circle cx="5" cy="20" r="1.4" fill="currentColor"/><circle cx="19" cy="4" r="1.4" fill="currentColor"/>', 16),
+  long: SV('<path d="M3 20l6-10 4 6 2.5-3.5L21 20z"/>', 16),
+  month: SV('<rect x="4" y="5" width="16" height="15" rx="3"/><path d="M4 10h16M9 3v4M15 3v4"/>', 16),
+  broom: SV('<path d="M14 4l-4 9M7 13h8l1.5 7h-11z"/>'),
+  review: SV('<rect x="6" y="4" width="12" height="17" rx="2"/><path d="M9 4h6v3H9zM9 12h6M9 16h4"/>'),
+  copy: SV('<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>'),
+  funnel: SV('<path d="M4 5h16l-6 7.5V19l-4 1.5v-8z"/>'),
+  checkc: SV('<circle cx="12" cy="12" r="8.5"/><path d="M8.5 12.2l2.4 2.4 4.6-5"/>'),
+  archive: SV('<rect x="4" y="4" width="16" height="5" rx="1"/><path d="M5 9v10h14V9M10 13h4"/>'),
+  gear: SV('<circle cx="12" cy="12" r="3"/><path d="M12 2.5v2.2M12 19.3v2.2M4.6 4.6l1.6 1.6M17.8 17.8l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.6 19.4l1.6-1.6M17.8 6.2l1.6-1.6"/>'),
+  sync: SV('<path d="M4 12a8 8 0 0 1 13.7-5.6L20 8.5M20 4v4.5h-4.5M20 12a8 8 0 0 1-13.7 5.6L4 15.5M4 20v-4.5h4.5"/>'),
+  upload: SV('<path d="M12 15V4M7.5 8.5L12 4l4.5 4.5M5 14v6h14v-6"/>'),
+  download: SV('<path d="M12 4v11M7.5 10.5L12 15l4.5-4.5M5 14v6h14v-6"/>'),
+  clock: SV('<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>'),
+  shield: SV('<path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4.5"/>'),
+  trash: SV('<path d="M5 7h14M10 7V4.5h4V7M7 7l1 13h8l1-13M10.5 11v5M13.5 11v5"/>'),
+  book: SV('<path d="M5 4.5h5a2 2 0 0 1 2 2V20a2 2 0 0 0-2-2H5zM19 4.5h-5a2 2 0 0 0-2 2V20a2 2 0 0 1 2-2h5z"/>'),
+  mail: SV('<rect x="3.5" y="5.5" width="17" height="13" rx="2"/><path d="M4 7l8 6 8-6"/>'),
+  phoneic: SV('<rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/>'),
+  lock: SV('<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>'),
+  info: SV('<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5M12 8h.01"/>'),
+  file: '<svg width="22" height="22" viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z M14 3v4h4" fill="none" stroke="#F0645A" stroke-width="1.7" stroke-linejoin="round"/></svg>',
+};
+
+// ===== Data ================================================================
+const S = {
+  areas: [{ id: 'a1', name: 'Posao', color: '#3BA7F5' }, { id: 'a2', name: 'Lično', color: '#A38CF0' }, { id: 'a3', name: 'Zdravlje', color: '#34C77B' }],
+  projects: [
+    { id: 'p1', name: 'Redizajn sajta', area: 'a1', color: '#5362FF', goal: 'g2' },
+    { id: 'p2', name: 'Klijentski portal', area: 'a1', color: '#30CBAD' },
+    { id: 'p3', name: 'Kućni poslovi', area: 'a2', color: '#F5B942' },
+    { id: 'p4', name: 'Putovanje u Rim', area: 'a2', color: '#F06A8A' },
+  ],
+  tags: [{ id: 't1', name: 'Klijent', color: '#3BA7F5' }, { id: 't2', name: 'Dizajn', color: '#A38CF0' }, { id: 't3', name: 'Administracija', color: '#F2B544' }, { id: 't4', name: 'Učenje', color: '#8B929C' }],
+  tasks: [],
+  goals: [],
+  habits: [],
+  inboxOther: [
+    { id: 'n1', type: 'note', t: 'Ideje za rođendan', g: 'Danas', inbox: true },
+    { id: 'r1', type: 'resource', t: 'Članak o dizajnu tabela', sub: 'smashingmagazine.com', g: 'Juče', inbox: true },
+    { id: 'gi1', type: 'goal', t: 'Naučiti da plivam', g: 'Ove nedelje', inbox: true },
+    { id: 'hi1', type: 'habit', t: 'Istezanje uveče', g: 'Ranije', inbox: true },
+  ],
+  settings: { weekStart: 'Ponedeljak', capacity: 360, backupDays: 7, lastBackup: 'pre 8 dana', backupNotice: true, sync: null },
+  ui: {
+    expand: { overdue: false, today: false, habits: false }, doneOpen: false,
+    zadView: 'anytime', suggOpen: false,
+    calView: 'week', calDay: TODAY, calWeek: WEEK_START, calMonth: '2026-10', dayMode: 'list',
+    habTab: 'day', habDay: TI, chartMonth: 1, pausedOpen: false,
+    goalGroup: 'horizon', goalFold: { done: false, paused: false }, inboxFilter: 'all',
+  },
+};
+let seq = 100;
+const newId = p => `${p}${++seq}`;
+function T(title, props = {}) {
+  return { id: newId('t'), title, project: null, area: null, plan: null, time: null, due: null, dueTime: null, reminder: null, repeat: null, duration: null, tags: [], priority: 'none', subtasks: [], notes: '', done: false, doneAt: null, inbox: false, captured: null, ...props };
+}
+S.tasks = [
+  T('Pošalji fakturu', { area: 'a1', due: '2026-10-07', priority: 'high' }),
+  T('Vrati knjigu u biblioteku', { area: 'a2', due: '2026-10-06' }),
+  T('Pregledaj početnu stranu', { project: 'p1', plan: TODAY, time: '10:30', duration: 60, due: '2026-10-09', priority: 'high' }),
+  T('Pošalji pregled početne strane', { project: 'p1', plan: TODAY, time: '14:00', duration: 90, due: '2026-10-09', dueTime: '18:00', priority: 'medium', reminder: { date: TODAY, time: '13:30' }, tags: ['t1', 't2'], subtasks: [{ t: 'Proveri razmake na telefonu', d: true }, { t: 'Izvezi slike pregleda', d: false }, { t: 'Napiši poruku', d: false }], notes: 'Uključi prikaz za telefon i računar.' }),
+  T('Plati račun za struju', { project: 'p3', plan: TODAY, due: TODAY }),
+  T('Pozovi Anu', { plan: TODAY, time: '16:00', duration: 30 }),
+  T('Izvezi slike pregleda', { project: 'p1', plan: TODAY, duration: 30 }),
+  T('Kupi poklon za Anu', { area: 'a2', plan: TODAY }),
+  T('Zameni filter za vodu', { project: 'p3', plan: TODAY, repeat: { freq: 'monthly', interval: 1, days: [], end: 'never' } }),
+  T('Proveri razmake na telefonu', { project: 'p1' }),
+  T('Napiši tekst za „O nama“', { project: 'p1', priority: 'medium' }),
+  T('Prijava preko e-pošte', { project: 'p2', plan: '2026-10-12', time: '10:00', duration: 120 }),
+  T('Sastanak sa timom', { project: 'p2', plan: '2026-10-09', time: '11:00', duration: 60 }),
+  T('Spisak grešaka iz testa', { project: 'p2', due: '2026-10-14' }),
+  T('Očisti oluke', { project: 'p3' }),
+  T('Rezerviši smeštaj', { project: 'p4', plan: '2026-10-06', priority: 'high' }),
+  T('Kupi karte za muzej', { project: 'p4' }),
+  T('Proveri pasoš', { project: 'p4', plan: '2026-10-09' }),
+  T('Obnovi registraciju', { area: 'a2', due: '2026-10-20' }),
+  T('Pozovi zubara', { area: 'a3' }),
+  T('Rođendan kod Marka', { area: 'a2', plan: '2026-10-17', time: '19:00', duration: 180 }),
+  T('Odgovori na mejl klijentu', { project: 'p2', plan: TODAY, done: true, doneAt: TODAY }),
+  T('Uplati članarinu', { area: 'a3', plan: TODAY, done: true, doneAt: TODAY }),
+  T('Wireframe-ovi', { project: 'p1', done: true, doneAt: '2026-09-20' }),
+  T('Paleta boja', { project: 'p1', done: true, doneAt: '2026-09-28' }),
+  T('Postavi server', { project: 'p2', done: true, doneAt: '2026-09-15' }),
+  T('Pozovi majstora za bojler', { inbox: true, captured: 'Danas' }),
+  T('Proveri ponudu za osiguranje', { inbox: true, captured: 'Juče' }),
+  T('Javi se Marku za sastanak', { inbox: true, captured: 'Ove nedelje' }),
+];
+S.goals = [
+  { id: 'g1', title: 'Prijava poreza', area: 'a2', horizon: 'short', source: 'manual', type: 'percent', current: 40, target: 100, unit: '', date: '2026-10-05', reminder: 'Nedelju dana pre u 9:00', milestones: [{ t: 'Prikupi potvrde', d: true, date: '2026-09-25' }, { t: 'Popuni obrazac', d: false, date: '2026-10-03' }] },
+  { id: 'g2', title: 'Završi redizajn sajta', area: 'a1', horizon: 'short', source: 'tasks', project: 'p1', date: '2026-10-13', reminder: 'Dan pre u 9:00', milestones: [{ t: 'Wireframe-ovi', d: true, date: '2026-09-20' }, { t: 'Dizajn početne', d: true, date: '2026-09-30' }, { t: 'Razvoj', d: false, date: TODAY }, { t: 'Objava', d: false, date: '2026-10-13' }] },
+  { id: 'g3', title: 'Pročitaj 4 knjige', area: 'a2', horizon: 'short', source: 'manual', type: 'number', current: 3, target: 4, unit: 'knjige', date: '2026-12-31', reminder: null, milestones: [] },
+  { id: 'g4', title: 'Polumaraton u aprilu', area: 'a3', horizon: 'mid', source: 'habits', date: '2027-04-18', reminder: 'Nedelju dana pre u 9:00', habits: [{ t: 'Šetnja', pct: 42, label: '19 / 45 uspešnih dana' }, { t: 'Teretana', pct: 30, label: '9 / 30 uspešnih nedelja' }], milestones: [{ t: '10 km bez pauze', d: false, date: '2026-11-01' }, { t: '15 km', d: false, date: '2027-01-31' }, { t: 'Polumaraton', d: false, date: '2027-04-18' }] },
+  { id: 'g5', title: 'Engleski B2', area: 'a2', horizon: 'mid', source: 'manual', type: 'percent', current: 50, target: 100, unit: '', date: '2027-06-30', reminder: null, milestones: [{ t: 'B1 test', d: true, date: '2026-06-15' }, { t: 'Probni B2 test', d: false, date: '2027-03-01' }] },
+  { id: 'g6', title: 'Ušteda za stan', area: 'a2', horizon: 'long', source: 'manual', type: 'number', current: 4200, target: 15000, unit: '€', date: null, reminder: null, milestones: [] },
+].map(g => ({ status: 'active', ...g }));
+S.finishedGoals = [{ title: 'Nauči osnove fotografije', when: 'Ostvaren 12. sep' }, { title: 'Selidba kancelarije', when: 'Ostvaren 30. jul' }];
+S.pausedGoals = [{ title: 'Kurs gitare', when: 'Pauziran od 1. sep' }];
+// Week states: d done, m missed, s skipped, o open (today), f future, n not scheduled.
+S.habits = [
+  { id: 'h1', name: 'Voda', routine: 0, tracking: 'numeric', target: 2, unit: 'l', quick: [0.25, 0.5, 1], vals: [2, 2, 2.25, 1.5], freq: 'Svaki dan', streak: 3, week: 'd d d o f f f' },
+  { id: 'h2', name: 'Meditacija 10 min', routine: 0, tracking: 'checkbox', freq: 'Svaki dan', streak: 1, week: 'd m d o f f f' },
+  { id: 'h3', name: 'Teretana', routine: 1, tracking: 'checkbox', freq: '4 puta nedeljno', weekly: 4, week: 'd n d o f f f' },
+  { id: 'h4', name: 'Engleski 15 min', routine: 1, tracking: 'checkbox', freq: 'Radnim danima', streak: 8, week: 'd d s o f n n' },
+  { id: 'h5', name: 'Čitanje 20 min', routine: 2, tracking: 'checkbox', freq: 'Svaki dan', streak: 20, week: 'd d d d f f f' },
+  { id: 'h6', name: 'Šetnja', routine: 2, tracking: 'checkbox', freq: 'Svaki dan', streak: 1, week: 'm m d o f f f' },
+].map(h => ({ ...h, week: h.week.split(' ') }));
+S.pausedHabits = [{ name: 'Hladan tuš', when: 'Pauzirana od 20. sep' }];
+const ROUTINES = [['Jutro', 'sun'], ['Dan', 'dayic'], ['Veče', 'moon']];
+
+const task = id => S.tasks.find(t => t.id === id);
+const project = id => S.projects.find(p => p.id === id);
+const areaOf = id => S.areas.find(a => a.id === id);
+const goal = id => S.goals.find(g => g.id === id);
+const habit = id => S.habits.find(h => h.id === id);
+const taskArea = t => t.project ? areaOf(project(t.project).area) : areaOf(t.area);
+const placeName = t => t.project ? project(t.project).name : taskArea(t)?.name || '';
+
+// ===== Rendering shell =====================================================
+const R = { tab: 'today', stack: [] };
+const TAB = {}, SUB = {}, AFTER = [];
+let lastKey = '';
+function render() {
+  const top = R.stack.at(-1);
+  const key = R.tab + (top ? JSON.stringify(top) : '');
+  const screen = $('screen');
+  const keep = key === lastKey ? screen.scrollTop : 0;
+  screen.innerHTML = top ? SUB[top.type](top) : TAB[R.tab]();
+  screen.scrollTop = keep;
+  lastKey = key;
+  renderNav();
+  AFTER.forEach(fn => fn());
+  if (W) renderWin();
+  if (P) renderPick();
+}
+const NAV = [['today', 'Danas', '<rect x="4" y="5" width="16" height="15" rx="3"/><path d="M4 10h16M9 3v4M15 3v4"/>'],
+  ['inbox', 'Inbox', '<path d="M4 13l2.5-7h11L20 13v6H4zM4 13h5l1 2h4l1-2h5"/>'],
+  ['tasks', 'Zadaci', '<circle cx="12" cy="12" r="8.5"/><path d="M8.5 12.2l2.4 2.4 4.6-5"/>'],
+  ['calendar', 'Kalendar', '<rect x="4" y="5" width="16" height="15" rx="3"/><path d="M4 10h16M9 3v4M15 3v4M8 14h2M12 14h2M8 17h2"/>'],
+  ['habits', 'Navike', '<path d="M6 20V12M12 20V5M18 20v-9"/>'],
+  ['more', 'Još', '<circle cx="6" cy="12" r="1.2" fill="currentColor"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/><circle cx="18" cy="12" r="1.2" fill="currentColor"/>']];
+function renderNav() {
+  const n = inboxCount();
+  $('nav').innerHTML = NAV.map(([key, label, path]) => `<button class="${R.tab === key ? 'on' : ''}" data-act="tab" data-tab="${key}" ${R.tab === key ? 'aria-current="page"' : ''}>${SV(path, 22)}${label}${key === 'inbox' && n ? `<span class="badge" aria-label="${n} u Inbox-u">${n}</span>` : ''}</button>`).join('');
+}
+function go(tab) { R.tab = tab; R.stack = []; render(); }
+function push(sub) { R.stack.push(sub); render(); }
+function pop() { R.stack.pop(); render(); }
+
+// ===== Layers: window (L1) and picker (L2) =================================
+let W = null, P = null;
+const WIN = {}, PICK = {};
+function renderWin() {
+  const body = $('winBody');
+  const keep = body.dataset.kind === W.kind ? body.scrollTop : 0;
+  const v = WIN[W.kind](W);
+  $('winHead').innerHTML = v.head;
+  body.innerHTML = v.body;
+  $('winFoot').innerHTML = v.foot || '';
+  $('win').classList.toggle('tall', Boolean(v.tall));
+  body.dataset.kind = W.kind;
+  body.scrollTop = keep;
+}
+function openWin(w) { W = w; $('winBody').dataset.kind = ''; renderWin(); $('win').classList.add('show'); $('winDim').classList.add('show'); }
+function closeWin() { W = null; $('win').classList.remove('show'); $('winDim').classList.remove('show'); }
+function renderPick() {
+  const v = PICK[P.kind](P);
+  $('pickHead').innerHTML = `<div><h2>${v.title}</h2>${v.sub ? `<div class="meta">${esc(v.sub)}</div>` : ''}</div><button class="x" data-act="closePick" aria-label="Zatvori">✕</button>`;
+  $('pickBody').innerHTML = v.body;
+}
+function openPick(p) { P = p; renderPick(); $('pick').classList.add('show'); $('pickDim').classList.add('show'); }
+function closePick() { P = null; $('pick').classList.remove('show'); $('pickDim').classList.remove('show'); }
+const winHead = (label, extra = '') => `<span class="meta">${label}</span><span style="display:flex;gap:4px;align-items:center">${extra}<button class="x" data-act="closeWin" aria-label="Zatvori">✕</button></span>`;
+
+// ===== Toast with Undo =====================================================
+let undoFn = null, toastTimer = null;
+function toast(text, undo = null) {
+  $('toastText').textContent = text;
+  undoFn = undo;
+  $('toastUndo').style.display = undo ? '' : 'none';
+  $('toast').classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => $('toast').classList.remove('show'), undo ? 3000 : 1600);
+}
+function snapshot(obj) { const copy = JSON.parse(JSON.stringify(obj)); return () => { Object.assign(obj, copy); }; }
+
+// ===== Events ==============================================================
+const A = {}, IN = {}, CH = {};
+A.tab = el => { closePick(); closeWin(); go(el.dataset.tab); };
+A.back = () => pop();
+A.closeWin = () => { closeWin(); render(); };
+A.closePick = () => closePick();
+A.undo = () => { if (undoFn) { undoFn(); undoFn = null; render(); } $('toast').classList.remove('show'); };
+A.soon = el => toast(el.dataset.msg || 'Ovaj ekran dolazi u sledećem koraku');
+function bindEvents() {
+  const phone = $('phone');
+  phone.addEventListener('click', ev => {
+    const el = ev.target.closest('[data-act]');
+    if (!el || el.disabled || !phone.contains(el)) return;
+    const fn = A[el.dataset.act];
+    if (fn) fn(el, ev);
+  });
+  phone.addEventListener('input', ev => { const el = ev.target.closest('[data-in]'); if (el && IN[el.dataset.in]) IN[el.dataset.in](el, ev); });
+  phone.addEventListener('change', ev => { const el = ev.target.closest('[data-ch]'); if (el && CH[el.dataset.ch]) CH[el.dataset.ch](el, ev); });
+}
+
+// ===== Shared row pieces ===================================================
+const PRI = { high: '#F0645A', medium: '#F2A93B', low: '#8FA2FF', none: '#5B6270' };
+const PRI_NAME = { none: 'Bez', low: 'Nizak', medium: 'Srednji', high: 'Visok' };
+// Due date in the G6 colors: overdue red, due today amber, later gray.
+function dueLabel(due) {
+  if (!due) return '';
+  const d = daysTo(due);
+  return d < 0 ? `<span class="red">Rok ${short(due)}</span>` : d === 0 ? '<span class="amber">Rok danas</span>' : d === 1 ? '<span>Rok sutra</span>' : `<span>Rok ${short(due)}</span>`;
+}
+function planLabel(t) { return !t.plan ? '' : t.plan === TODAY ? 'Danas' : t.plan < TODAY ? `Propušteno ${short(t.plan)}` : relDay(t.plan); }
+// One task row, as on Today (T3): checkbox, title, meta, and two labels on the right.
+function taskRow(t, { meta = 'today' } = {}) {
+  const parts = meta === 'today' ? [t.time, placeName(t)] : meta === 'project' ? [planLabel(t), t.time] : meta === 'plan' ? [planLabel(t), placeName(t)] : meta === 'area' ? [taskArea(t)?.name] : [];
+  const metaText = parts.filter(Boolean).join(' · ');
+  const flag = ['high', 'medium'].includes(t.priority) ? IC.flag(PRI[t.priority]) : '';
+  return `<div class="trow"><button class="box ${t.done ? 'on' : ''}" data-act="toggleTask" data-id="${t.id}" aria-label="${t.done ? 'Vrati kao otvoren' : 'Završi'}: ${esc(t.title)}">${t.done ? IC.tick : ''}</button><button class="main" data-act="openTask" data-id="${t.id}"><div class="ttl ${t.done ? 'done-title' : ''}">${esc(t.title)}</div>${metaText ? `<div class="meta">${esc(metaText)}</div>` : ''}</button><span class="side">${flag}${t.done ? '' : dueLabel(t.due)}</span></div>`;
+}
+// Goal and milestone deadlines use the target icon instead of the checkbox (T2a, C4).
+function deadlineRow(item) {
+  const { g, m } = item;
+  const title = m ? m.t : g.title;
+  const meta = m ? `Etapa · ${g.title}` : `Cilj · ${progress(g).pct}%`;
+  return `<div class="trow"><span aria-hidden="true">${IC.target}</span><button class="main" data-act="openGoal" data-id="${g.id}"><div class="ttl">${esc(title)}</div><div class="meta">${esc(meta)}</div></button><span class="side">${dueLabel(m ? m.date : g.date)}</span></div>`;
+}
+function deadlinesOn(day) {
+  const out = [];
+  for (const g of S.goals.filter(x => x.status === 'active')) {
+    if (g.date === day && progress(g).pct < 100) out.push({ g });
+    for (const m of g.milestones) if (!m.d && m.date === day) out.push({ g, m });
+  }
+  return out;
+}
+function deadlinesOverdue() {
+  const out = [];
+  for (const g of S.goals.filter(x => x.status === 'active')) {
+    if (g.date && g.date < TODAY && progress(g).pct < 100) out.push({ g });
+    for (const m of g.milestones) if (!m.d && m.date < TODAY) out.push({ g, m });
+  }
+  return out;
+}
+
+A.toggleTask = el => {
+  const t = task(el.dataset.id);
+  const undo = snapshot(t);
+  t.done = !t.done; t.doneAt = t.done ? TODAY : null;
+  render();
+  toast(t.done ? 'Zadatak je završen' : 'Zadatak je vraćen', undo);
+};
+// ===== Today (T1–T7) ========================================================
+const LIMITS = { overdue: 3, today: 5, habits: 5 };
+function limited(key, rows) {
+  const open = S.ui.expand[key], max = LIMITS[key];
+  let html = (open ? rows : rows.slice(0, max)).join('');
+  if (rows.length > max) html += `<button class="more-btn" data-act="expand" data-key="${key}">${open ? 'Prikaži manje' : `Prikaži još ${rows.length - max}`}</button>`;
+  return html;
+}
+A.expand = el => { const k = el.dataset.key; S.ui.expand[k] = !S.ui.expand[k]; render(); };
+const byTime = (a, b) => (a.time ? 0 : 1) - (b.time ? 0 : 1) || String(a.time || '').localeCompare(String(b.time || ''));
+const liveTasks = () => S.tasks.filter(t => !t.done && !t.inbox);
+
+// Habit circles: done is a green check; numeric and weekly habits fill with progress (T5, H6).
+function habitCircle(h, i) {
+  const state = h.week[i];
+  if (state === 'd') return '<svg class="circle" viewBox="0 0 28 28"><circle cx="14" cy="14" r="12.5" fill="#34C77B"/><path d="M8.5 14.5l3.5 3.5 7.5-8" fill="none" stroke="#0F1114" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  if (state === 's') return '<svg class="circle" viewBox="0 0 28 28"><circle cx="14" cy="14" r="11" fill="none" stroke="#5B6270" stroke-width="2.5" stroke-dasharray="4 3.4"/></svg>';
+  let frac = 0;
+  if (h.tracking === 'numeric') frac = Math.min(1, (h.vals[i] || 0) / h.target);
+  else if (h.weekly) frac = Math.min(1, h.week.filter(s => s === 'd').length / h.weekly);
+  const arc = frac ? `<circle cx="14" cy="14" r="11" fill="none" stroke="#34C77B" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="${(frac * 69.1).toFixed(1)} 69.1" transform="rotate(-90 14 14)"/>` : '';
+  return `<svg class="circle" viewBox="0 0 28 28"><circle cx="14" cy="14" r="11" fill="none" stroke="${frac ? '#3A3F48' : '#4A505A'}" stroke-width="2.5"/>${arc}</svg>`;
+}
+function habitRight(h, i) {
+  if (h.tracking === 'numeric') return `${num(h.vals[i] || 0)} / ${num(h.target)} ${h.unit}`;
+  if (h.weekly) return `${h.week.filter(s => s === 'd').length}/${h.weekly} nedeljno`;
+  return '';
+}
+function habitRow(h, i, { meta = '' } = {}) {
+  const done = h.week[i] === 'd';
+  return `<div class="hrow ${meta ? 'tall' : ''} ${done ? 'done' : ''}"><button data-act="habitTap" data-id="${h.id}" data-i="${i}" aria-pressed="${done}" aria-label="${esc(h.name)}">${habitCircle(h, i)}</button><button class="main" data-act="habitMenu" data-id="${h.id}" data-i="${i}"><div class="ttl">${esc(h.name)}</div>${meta ? `<div class="meta">${esc(meta)}</div>` : ''}</button><span class="count">${habitRight(h, i)}</span></div>`;
+}
+function setHabitState(h, i, state) { h.week[i] = state; }
+A.habitTap = el => {
+  const h = habit(el.dataset.id), i = Number(el.dataset.i);
+  if (h.tracking === 'numeric') return openPick({ kind: 'value', id: h.id, i, total: h.vals[i] || 0 });
+  const before = [...h.week];
+  setHabitState(h, i, h.week[i] === 'd' ? (i === TI ? 'o' : 'm') : 'd');
+  render();
+  toast(h.week[i] === 'd' ? `${h.name}: urađeno` : `${h.name}: vraćeno`, () => { h.week = before; });
+};
+A.habitMenu = el => openPick({ kind: 'habitMenu', id: el.dataset.id, i: Number(el.dataset.i) });
+PICK.habitMenu = p => {
+  const h = habit(p.id), skipped = h.week[p.i] === 's';
+  return { title: h.name, sub: p.i === TI ? 'Danas' : longDate(addDays(WEEK_START, p.i)), body: `<div class="card">
+    ${h.tracking === 'numeric' ? `<button class="opt" data-act="habitValueFromMenu">${IC.bolt}<span class="lbl">Upiši vrednost</span></button>` : ''}
+    <button class="opt" data-act="habitSkip">${IC.right}<span class="lbl">${skipped ? 'Poništi preskakanje' : 'Preskoči ovaj dan'}<small>Preskočen dan ne prekida niz i ne ulazi u procenat.</small></span></button>
+    <button class="opt" data-act="soon" data-msg="Detalji navike: posebni ekran, dolazi kasnije">${IC.habit}<span class="lbl">Detalji navike</span></button></div>` };
+};
+A.habitSkip = () => { const h = habit(P.id), i = P.i; h.week[i] = h.week[i] === 's' ? (i === TI ? 'o' : 'm') : 's'; closePick(); render(); toast(h.week[i] === 's' ? 'Dan je preskočen' : 'Preskakanje je poništeno'); };
+A.habitValueFromMenu = () => { const h = habit(P.id); P = { kind: 'value', id: h.id, i: P.i, total: h.vals[P.i] || 0 }; renderPick(); };
+// The value sheet for a numeric habit (H6).
+PICK.value = p => {
+  const h = habit(p.id);
+  return { title: h.name, sub: p.i === TI ? 'Danas' : longDate(addDays(WEEK_START, p.i)), body: `
+    <div class="pcard" style="margin-bottom:12px"><div class="pbig"><strong>${num(p.total)} <span style="font-size:18px">/ ${num(h.target)} ${h.unit}</span></strong></div><span class="track"><i style="width:${Math.min(100, p.total / h.target * 100)}%;background:var(--green)"></i></span></div>
+    <div class="chips">${h.quick.map(v => `<button class="chip" data-act="valueAdd" data-v="${v}">+${num(v)} ${h.unit}</button>`).join('')}</div>
+    <label class="field"><span class="lbl">Ukupno za dan</span><input type="number" min="0" step="any" value="${p.total}" data-in="valueTotal" aria-label="Ukupno"><span class="meta" style="margin:0">${h.unit}</span></label>
+    <button class="primary" data-act="valueApply">Primeni</button>` };
+};
+A.valueAdd = el => { P.total = Math.round((Number(P.total) + Number(el.dataset.v)) * 100) / 100; renderPick(); };
+IN.valueTotal = el => { P.total = Math.max(0, Number(el.value) || 0); };
+A.valueApply = () => {
+  const h = habit(P.id), i = P.i, total = P.total;
+  const before = { vals: [...h.vals], week: [...h.week] };
+  h.vals[i] = total;
+  h.week[i] = total >= h.target ? 'd' : (i === TI ? 'o' : 'm');
+  closePick(); render();
+  toast(`${h.name}: ${num(total)} od ${num(h.target)} ${h.unit}`, () => Object.assign(h, before));
+};
+const dayPct = i => {
+  const planned = S.habits.filter(h => ['d', 'm', 'o'].includes(h.week[i]));
+  return planned.length ? Math.round(planned.filter(h => h.week[i] === 'd').length / planned.length * 100) : null;
+};
+
+TAB.today = () => {
+  const overdueTasks = liveTasks().filter(t => t.due && t.due < TODAY).sort((a, b) => a.due.localeCompare(b.due));
+  const overdueRows = [...overdueTasks.map(t => taskRow(t)), ...deadlinesOverdue().map(deadlineRow)];
+  const planned = liveTasks().filter(t => t.plan === TODAY && !(t.due && t.due < TODAY)).sort(byTime);
+  const todayRows = [...planned.filter(t => t.time).map(t => taskRow(t)), ...deadlinesOn(TODAY).map(deadlineRow), ...planned.filter(t => !t.time).map(t => taskRow(t))];
+  const habits = S.habits.filter(h => h.week[TI] !== 'n');
+  const habitsSorted = [...habits.filter(h => h.week[TI] !== 'd'), ...habits.filter(h => h.week[TI] === 'd')];
+  const doneToday = S.tasks.filter(t => t.done && t.doneAt === TODAY);
+  const notice = S.settings.backupNotice ? `<div class="notice">${IC.upload}<span class="main"><b>Rezervna kopija je stara 8 dana</b>Izvezi ZIP da podaci budu sigurni.</span><button data-act="noticeExport">Izvezi</button><button data-act="noticeLater" style="color:var(--muted)">Kasnije</button></div>` : '';
+  let html = `<div class="status"><span>09:41</span><span>•••</span></div><div class="date">${longDate(TODAY)}</div>
+    <div class="titlebar"><h1 class="h1">Danas</h1><button class="icon-btn" data-act="soon" data-msg="Pretraga: posebni ekran, dolazi kasnije" aria-label="Pretraga" style="color:var(--text)">${IC.search}</button></div>${notice}`;
+  if (overdueRows.length) html += `<div class="section">Zakasnelo <span>· ${overdueRows.length}</span></div><div class="card">${limited('overdue', overdueRows)}</div>`;
+  html += `<div class="section">Planirano danas <span>· ${todayRows.length}</span></div>`;
+  html += todayRows.length ? `<div class="card">${limited('today', todayRows)}</div>` : '<div class="card"><p class="note" style="margin:12px 14px">Ništa nije planirano. „+“ dodaje zadatak za danas.</p></div>';
+  if (habits.length) html += `<div class="section">Navike <span>· ${habits.filter(h => h.week[TI] === 'd').length}/${habits.length}</span></div><div class="card">${limited('habits', habitsSorted.map(h => habitRow(h, TI)))}</div>`;
+  if (doneToday.length) {
+    html += `<button class="collapsed" data-act="doneToggle">${IC.fold(S.ui.doneOpen)}Završeno · ${doneToday.length}</button>`;
+    if (S.ui.doneOpen) html += `<div class="card" style="margin-top:8px">${doneToday.map(t => taskRow(t)).join('')}</div>`;
+  }
+  return html;
+};
+A.doneToggle = () => { S.ui.doneOpen = !S.ui.doneOpen; render(); };
+A.noticeExport = () => { S.settings.backupNotice = false; S.settings.lastBackup = 'danas'; render(); toast('ZIP je preuzet'); };
+A.noticeLater = () => { S.settings.backupNotice = false; render(); toast('Podsetiću te ponovo za 24 sata'); };
+// ===== Inbox (I1–I6) ========================================================
+const KIND = { task: ['Zadaci', 'Zadatak'], note: ['Beleške', 'Beleška', 'note'], resource: ['Resursi', 'Resurs', 'link'], goal: ['Ciljevi', 'Cilj', 'goal'], habit: ['Navike', 'Navika', 'habit'] };
+const CAPTURE = ['Danas', 'Juče', 'Ove nedelje', 'Ranije'];
+function inboxRecords() {
+  return [
+    ...S.tasks.filter(t => t.inbox && !t.done).map(t => ({ type: 'task', id: t.id, title: t.title, group: t.captured || 'Danas', item: t })),
+    ...S.inboxOther.filter(o => o.inbox).map(o => ({ type: o.type, id: o.id, title: o.t, group: o.g, item: o })),
+  ];
+}
+function inboxCount() { return inboxRecords().length; }
+const record = (type, id) => inboxRecords().find(r => r.type === type && r.id === id) || { type, id, item: type === 'task' ? task(id) : S.inboxOther.find(o => o.id === id) };
+
+function inboxButtons(r, big = false) {
+  const cls = big ? 'act' : 'chip sm';
+  const b = (act, label, extra = '') => `<button class="${cls}${extra}" data-act="${act}" data-type="${r.type}" data-id="${r.id}">${label}</button>`;
+  return r.type === 'task'
+    ? b('ibToday', 'Danas') + b('ibTomorrow', 'Sutra') + b('ibLater', 'Kad stignem') + b('ibProject', 'Projekat…')
+    : b('ibOpen', 'Otvori') + b('ibArea', 'Oblast…') + b('ibSorted', 'Razvrstano', big ? ' wide' : ' quiet');
+}
+function inboxRow(r) {
+  const lead = r.type === 'task' ? '<span class="box"></span>' : `<span class="tico">${IC[KIND[r.type][2]]}</span>`;
+  const meta = r.type === 'task' ? '' : `<div class="meta">${KIND[r.type][1]}${r.item.sub ? ` · ${esc(r.item.sub)}` : ''}</div>`;
+  const open = r.type === 'task' ? `data-act="openTask" data-id="${r.id}"` : `data-act="ibOpen" data-type="${r.type}" data-id="${r.id}"`;
+  return `<div class="item"><div class="irow">${lead}<button class="main" ${open}><div class="ttl">${esc(r.title)}</div>${meta}</button>${r.item.due ? `<span class="side">${dueLabel(r.item.due)}</span>` : ''}</div><div class="ichips">${inboxButtons(r)}</div></div>`;
+}
+TAB.inbox = () => {
+  const all = inboxRecords();
+  const types = Object.keys(KIND).filter(type => all.some(r => r.type === type));
+  if (S.ui.inboxFilter !== 'all' && !types.includes(S.ui.inboxFilter)) S.ui.inboxFilter = 'all';
+  const list = all.filter(r => S.ui.inboxFilter === 'all' || r.type === S.ui.inboxFilter);
+  let html = `<div class="status"><span>09:41</span><span>•••</span></div><h1 class="h1">Inbox</h1><div class="summary">${all.length ? `${all.length} ${plural(all.length, 'stavka čeka', 'stavke čekaju', 'stavki čeka')} razvrstavanje` : 'Ništa ne čeka'}</div>`;
+  if (!all.length) return html + `<div class="empty"><div class="ring">${IC.bigCheck}</div><strong>Inbox je prazan</strong>Sve je razvrstano.</div>`;
+  html += `<button class="triage-btn" data-act="triageStart">${IC.sort}<span class="main" style="font-weight:600">Razvrstaj redom <span class="meta" style="font-weight:400;display:inline">· jednu po jednu</span></span>${IC.chev}</button>`;
+  if (types.length > 1) html += `<div class="filters" role="tablist"><button role="tab" class="${S.ui.inboxFilter === 'all' ? 'on' : ''}" data-act="ibFilter" data-f="all">Sve ${all.length}</button>${types.map(type => `<button role="tab" class="${S.ui.inboxFilter === type ? 'on' : ''}" data-act="ibFilter" data-f="${type}">${KIND[type][0]} ${all.filter(r => r.type === type).length}</button>`).join('')}</div>`;
+  for (const g of CAPTURE) {
+    const rows = list.filter(r => r.group === g);
+    if (rows.length) html += `<div class="section">${g} <span>· ${rows.length}</span></div><div class="card">${rows.map(inboxRow).join('')}</div>`;
+  }
+  return html;
+};
+A.ibFilter = el => { S.ui.inboxFilter = el.dataset.f; render(); };
+
+// Every sorting action takes the item out of Inbox and offers Undo (I6).
+function sortItem(r, change, text) {
+  const undo = snapshot(r.item);
+  change(r.item);
+  r.item.inbox = false;
+  if (W?.kind === 'triage') W.done = (W.done || 0) + 1;
+  render();
+  toast(text, () => { undo(); if (W?.kind === 'triage') W.done = Math.max(0, W.done - 1); });
+}
+const rec = el => record(el.dataset.type, el.dataset.id);
+A.ibToday = el => sortItem(rec(el), t => { t.plan = TODAY; }, 'U Danas');
+A.ibTomorrow = el => sortItem(rec(el), t => { t.plan = addDays(TODAY, 1); }, 'Planirano za sutra');
+A.ibLater = el => sortItem(rec(el), () => {}, 'U „Kad stignem“');
+A.ibSorted = el => sortItem(rec(el), () => {}, 'Razvrstano');
+A.ibOpen = el => { const r = rec(el); toast(`Otvara: ${KIND[r.type][1].toLowerCase()} „${r.item.t}“`); };
+A.ibProject = el => { const r = rec(el); openPick({ kind: 'project', current: null, sub: r.item.title, onPick: id => sortItem(r, t => { t.project = id; t.area = null; }, `U projekat „${project(id).name}“`) }); };
+A.ibArea = el => { const r = rec(el); openPick({ kind: 'choice', title: 'Oblast', sub: r.item.t, current: r.item.area, options: S.areas.map(a => ({ v: a.id, label: a.name, dot: a.color })), onPick: v => sortItem(r, o => { o.area = v; }, `U oblast „${areaOf(v).name}“`) }); };
+
+// "Razvrstaj redom": one item at a time (I2). Deleting stays in the task window.
+A.triageStart = () => {
+  const list = inboxRecords().filter(r => S.ui.inboxFilter === 'all' || r.type === S.ui.inboxFilter);
+  openWin({ kind: 'triage', queue: list.map(r => [r.type, r.id]), qi: 0, done: 0 });
+};
+WIN.triage = w => {
+  const open = w.queue.filter(([type, id]) => record(type, id).item.inbox);
+  const head = winHead('Razvrstavanje');
+  if (!open.length) return { head, body: `<div class="empty" style="padding:20px 0 6px"><div class="ring">${IC.bigCheck}</div><strong>Gotovo</strong>${inboxCount() ? 'Ova lista je razvrstana.' : 'Inbox je prazan.'}</div><button class="secondary" data-act="closeWin" style="margin-top:14px">Zatvori</button>` };
+  if (w.qi >= open.length) w.qi = 0;
+  const [type, id] = open[w.qi], r = record(type, id);
+  return { head, body: `
+    <div class="focus"><div class="meta" style="display:flex;gap:6px;align-items:center;margin:0 0 6px">${type === 'task' ? '' : IC[KIND[type][2]]}${KIND[type][1]} · dodato ${r.group.toLowerCase()}</div><div class="big">${esc(r.title)}</div>${r.item.due ? `<div class="meta" style="margin-top:6px">${dueLabel(r.item.due)}</div>` : ''}</div>
+    <div class="actions">${inboxButtons(r, true)}</div>
+    <div class="split" style="margin-top:6px"><span class="meta">${w.done + 1} od ${w.queue.length}</span><button class="ghost" data-act="triageSkip">Preskoči</button></div>` };
+};
+A.triageSkip = () => { W.qi++; renderWin(); };
+
+// A generic single-choice sheet: a tap applies and closes (E3).
+PICK.choice = p => ({ title: p.title, sub: p.sub, body: `<div class="card" style="margin-bottom:10px">${p.options.map((o, k) => `<button class="opt" data-act="choicePick" data-k="${k}">${o.dot ? `<span class="dot" style="background:${o.dot}"></span>` : o.icon || ''}<span class="lbl">${esc(o.label)}${o.sub ? `<small>${esc(o.sub)}</small>` : ''}</span><span class="radio ${p.current === o.v ? 'on' : ''}"></span></button>`).join('')}</div><p class="note" style="margin-top:0">Dodir odmah primenjuje izbor.</p>` });
+A.choicePick = el => { const p = P, o = p.options[Number(el.dataset.k)]; closePick(); p.onPick(o.v); };
+// ===== Zadaci (Z1–Z7) =======================================================
+// Suggestions keep today's four reasons; overdue tasks stay in Today's "Zakasnelo".
+function suggestions() {
+  const out = [];
+  for (const t of liveTasks()) {
+    if (t.plan === TODAY || (t.due && t.due < TODAY)) continue;
+    let r = null;
+    if (t.due === TODAY) r = [0, 'Rok danas'];
+    else if (t.plan && t.plan < TODAY) r = [1, `Propušten plan ${short(t.plan)}`];
+    else if (t.due && daysTo(t.due) === 1) r = [2, 'Rok sutra'];
+    else if (t.due && daysTo(t.due) > 1 && daysTo(t.due) <= 7) r = [3, `Rok ${short(t.due)}`];
+    if (r) out.push({ t, rank: r[0], why: r[1] });
+  }
+  return out.sort((a, b) => a.rank - b.rank);
+}
+const projectTasks = id => S.tasks.filter(t => !t.inbox && (id === 'none' ? !t.project : t.project === id));
+const openCount = n => `${n} ${plural(n, 'otvoren', 'otvorena', 'otvorenih')}`;
+
+TAB.tasks = () => {
+  const live = liveTasks(), later = live.filter(t => !t.plan), sugg = suggestions();
+  let html = `<div class="status"><span>09:41</span><span>•••</span></div>
+    <div class="titlebar"><h1 class="h1">Zadaci</h1><button class="icon-btn" data-act="soon" data-msg="Pretraga: posebni ekran, dolazi kasnije" aria-label="Pretraga">${IC.search}</button></div>
+    <div class="summary">${openCount(live.length)} · ${S.projects.length} ${plural(S.projects.length, 'projekat', 'projekta', 'projekata')}</div>`;
+  if (sugg.length) {
+    html += `<div class="card" style="margin-bottom:12px"><button class="sugg-head" data-act="suggToggle" aria-expanded="${S.ui.suggOpen}">${IC.sparkle}<span class="main" style="font-weight:600">Predlozi za danas</span><span class="count">${sugg.length}</span>${IC.fold(S.ui.suggOpen)}</button>`;
+    if (S.ui.suggOpen) html += sugg.map(x => `<div class="srow"><button class="main" data-act="openTask" data-id="${x.t.id}"><div class="ttl">${esc(x.t.title)}</div><div class="meta">${x.why} · ${esc(placeName(x.t) || 'Bez projekta')}</div></button><button class="plan" data-act="planToday" data-id="${x.t.id}">+ Danas</button></div>`).join('') + '<button class="addall" data-act="planAll">Dodaj sve u Danas</button>';
+    html += '</div>';
+  }
+  html += `<div class="seg" role="tablist"><button role="tab" class="${S.ui.zadView === 'anytime' ? 'on' : ''}" data-act="zadView" data-v="anytime">Kad stignem · ${later.length}</button><button role="tab" class="${S.ui.zadView === 'projects' ? 'on' : ''}" data-act="zadView" data-v="projects">Projekti</button></div>`;
+  if (S.ui.zadView === 'anytime') {
+    html += '<p class="note" style="margin:12px 4px 0">Razvrstani zadaci bez planiranog dana, po projektima.</p>';
+    for (const [id, name, color] of [['none', 'Bez projekta', null], ...S.projects.map(p => [p.id, p.name, p.color])]) {
+      const rows = later.filter(t => (id === 'none' ? !t.project : t.project === id));
+      if (rows.length) html += `<div class="section">${color ? `<span class="dot" style="background:${color}"></span>` : ''}${esc(name)} <span>· ${rows.length}</span></div><div class="card">${rows.map(t => taskRow(t, { meta: id === 'none' ? 'area' : 'none' })).join('')}</div>`;
+    }
+    if (!later.length) html += '<div class="empty"><strong>Ništa ne čeka</strong>Zadaci bez plana pojavljuju se ovde.</div>';
+  } else {
+    const loose = projectTasks('none').filter(t => !t.done);
+    html += `<div class="card" style="margin-top:12px"><button class="prj" data-act="openProject" data-id="none"><span style="color:var(--muted);width:18px;display:grid;place-items:center">${IC.tray}</span><span class="main"><div class="ttl">Bez projekta</div><div class="meta">${openCount(loose.length)}</div></span>${IC.chev}</button></div>`;
+    for (const a of S.areas) {
+      const list = S.projects.filter(p => p.area === a.id);
+      if (list.length) html += `<div class="section">${esc(a.name)} <span>· ${list.length}</span></div><div class="card">${list.map(projectRow).join('')}</div>`;
+    }
+    html += '<div class="card" style="margin-top:12px"><button class="addrow" data-act="newProject">＋ Novi projekat</button></div>';
+  }
+  return html;
+};
+function projectRow(p) {
+  const all = projectTasks(p.id), open = all.filter(t => !t.done);
+  const pct = all.length ? Math.round((all.length - open.length) / all.length * 100) : 0;
+  const next = open.filter(t => t.due).sort((a, b) => a.due.localeCompare(b.due))[0];
+  return `<button class="prj" data-act="openProject" data-id="${p.id}"><span class="dot" style="background:${p.color}"></span><span class="main"><div class="ttl">${esc(p.name)}</div><div class="meta">${openCount(open.length)}${next ? ` · ${dueLabel(next.due)}` : ''}</div><span class="track"><i style="width:${pct}%;background:${p.color}"></i></span></span>${IC.chev}</button>`;
+}
+A.suggToggle = () => { S.ui.suggOpen = !S.ui.suggOpen; render(); };
+A.zadView = el => { S.ui.zadView = el.dataset.v; render(); };
+A.planToday = el => { const t = task(el.dataset.id), undo = snapshot(t); t.plan = TODAY; render(); toast('Dodato u Danas', undo); };
+A.planAll = () => { const list = suggestions().map(x => x.t), undos = list.map(snapshot); list.forEach(t => { t.plan = TODAY; }); render(); toast(`Dodato u Danas: ${list.length}`, () => undos.forEach(u => u())); };
+A.openProject = el => push({ type: 'project', id: el.dataset.id });
+
+SUB.project = ({ id }) => {
+  const p = id === 'none' ? null : project(id);
+  const all = projectTasks(id), open = all.filter(t => !t.done).sort((a, b) => String(a.plan || '9999').localeCompare(String(b.plan || '9999')) || byTime(a, b)), done = all.filter(t => t.done);
+  const g = p?.goal ? goal(p.goal) : null;
+  let html = `<div class="status"><span>09:41</span><span>•••</span></div>
+    <div class="titlebar"><button class="back" data-act="back">${IC.left}Zadaci</button>${p ? `<button class="icon-btn" data-act="projectMenu" data-id="${p.id}" aria-label="Radnje projekta">${IC.dots}</button>` : ''}</div>
+    <h1 class="h1" style="display:flex;align-items:center;gap:10px">${p ? `<span class="dot" style="background:${p.color};width:12px;height:12px"></span>` : ''}${esc(p ? p.name : 'Bez projekta')}</h1>
+    <div class="summary" style="margin-bottom:4px">${p ? `${esc(areaOf(p.area).name)} · ` : ''}${openCount(open.length)}${done.length ? ` · ${done.length} ${plural(done.length, 'završen', 'završena', 'završenih')}` : ''}</div>
+    ${g ? `<button class="plink" data-act="openGoal" data-id="${g.id}">${IC.goal}Cilj: ${esc(g.title)} · ${progress(g).pct}%</button>` : ''}
+    <div class="card" style="margin-top:10px">${open.map(t => taskRow(t, { meta: p ? 'project' : 'plan' })).join('')}<button class="addrow" data-act="quickProject" data-id="${id}">＋ Dodaj zadatak</button></div>`;
+  if (done.length) {
+    html += `<button class="collapsed" data-act="projDone">${IC.fold(S.ui.projDone)}Završeno · ${done.length}</button>`;
+    if (S.ui.projDone) html += `<div class="card" style="margin-top:8px">${done.map(t => taskRow(t, { meta: 'none' })).join('')}</div>`;
+  }
+  if (!p) html += '<p class="note">Razvrstani zadaci koji ne pripadaju nijednom projektu.</p>';
+  return html;
+};
+A.projDone = () => { S.ui.projDone = !S.ui.projDone; render(); };
+A.quickProject = el => openQuick({ project: el.dataset.id === 'none' ? 'none' : el.dataset.id, date: null });
+A.projectMenu = el => openPick({ kind: 'choice', title: project(el.dataset.id).name, current: null, options: ['Preimenuj i boja', 'Oblast', 'Povezani cilj', 'Sačuvaj kao šablon', 'Arhiviraj projekat', 'Obriši projekat'].map(l => ({ v: l, label: l })), onPick: v => toast(`${v}: isti mali prozor kao ostali`) });
+
+// New project: name, color and area; a tap on "Napravi projekat" adds it.
+const COLORS = ['#5362FF', '#30CBAD', '#A879FF', '#4CC9F0', '#F5B942', '#FF8A5B', '#F06A8A', '#8FD14F'];
+A.newProject = () => openPick({ kind: 'newProject', name: '', color: COLORS[4], area: 'a1' });
+PICK.newProject = p => ({ title: 'Novi projekat', body: `
+  <label class="field"><input class="wide" placeholder="Naziv projekta" value="${esc(p.name)}" data-in="npName" aria-label="Naziv projekta"></label>
+  <div class="glabel" style="margin-top:4px">Boja</div><div class="chips">${COLORS.map(c => `<button class="chip ${p.color === c ? 'on' : ''}" data-act="npColor" data-c="${c}" aria-label="Boja ${c}"><span class="dot" style="background:${c}"></span></button>`).join('')}</div>
+  <div class="glabel" style="margin-top:4px">Oblast</div><div class="seg" style="margin-bottom:14px">${S.areas.map(a => `<button class="${p.area === a.id ? 'on' : ''}" data-act="npArea" data-a="${a.id}">${a.name}</button>`).join('')}</div>
+  ${p.err ? `<p class="err">${p.err}</p>` : ''}<button class="primary" data-act="npCreate">Napravi projekat</button>` });
+IN.npName = el => { P.name = el.value; };
+A.npColor = el => { P.color = el.dataset.c; renderPick(); };
+A.npArea = el => { P.area = el.dataset.a; renderPick(); };
+A.npCreate = () => {
+  if (!P.name.trim()) { P.err = 'Upiši naziv projekta.'; return renderPick(); }
+  const p = { id: newId('p'), name: P.name.trim(), area: P.area, color: P.color };
+  S.projects.push(p); closePick(); render(); toast(`Projekat „${p.name}“ je napravljen`);
+};
+// ===== Kalendar (C1–C9) =====================================================
+function dayItems(day) {
+  const tasks = S.tasks.filter(t => !t.inbox && !t.done && (t.plan === day || (!t.plan && t.due === day)));
+  return {
+    timed: tasks.filter(t => t.plan === day && t.time).sort(byTime),
+    untimed: tasks.filter(t => !(t.plan === day && t.time)),
+    deadlines: deadlinesOn(day),
+  };
+}
+const hasItems = day => { const d = dayItems(day); return d.timed.length + d.untimed.length + d.deadlines.length > 0; };
+function cday(day, { strip = false } = {}) {
+  const d = parse(day);
+  return `<button class="cday ${day === S.ui.calDay ? 'sel' : ''} ${day === TODAY ? 'today' : ''}" data-act="calPick" data-d="${day}" aria-label="${longDate(day)}" ${day === S.ui.calDay ? 'aria-current="date"' : ''}>${strip ? `<small class="wl">${WD[mondayIndex(day)]}</small>` : ''}<span>${d.getDate()}</span><i class="${hasItems(day) ? '' : 'none'}"></i></button>`;
+}
+TAB.calendar = () => {
+  const v = S.ui.calView;
+  let html = `<div class="status"><span>09:41</span><span>•••</span></div><h1 class="h1" style="margin-bottom:10px">Kalendar</h1>
+    <div class="seg" role="tablist">${[['week', 'Nedelja'], ['month', 'Mesec'], ['upcoming', 'Predstojeće']].map(([k, l]) => `<button role="tab" class="${v === k ? 'on' : ''}" data-act="calView" data-v="${k}">${l}</button>`).join('')}</div>`;
+  if (v === 'upcoming') return html + upcoming();
+  if (v === 'week') {
+    const start = S.ui.calWeek, end = addDays(start, 6), a = parse(start), b = parse(end);
+    const label = a.getMonth() === b.getMonth() ? `${a.getDate()}–${b.getDate()}. ${SHORT[a.getMonth()]} ${a.getFullYear()}` : `${short(start)} – ${short(end)}`;
+    html += `<div class="monthbar"><strong>${label}</strong><span class="arrows"><button data-act="calMove" data-d="-1" aria-label="Prethodna nedelja">${IC.left}</button><button data-act="calMove" data-d="1" aria-label="Sledeća nedelja">${IC.right}</button></span></div>
+      <div class="grid7 wstrip">${Array.from({ length: 7 }, (_, i) => cday(addDays(start, i), { strip: true })).join('')}</div>`;
+  } else {
+    const [y, m] = S.ui.calMonth.split('-').map(Number);
+    const first = `${S.ui.calMonth}-01`, count = new Date(y, m, 0).getDate();
+    html += `<div class="monthbar"><strong>${cap(MONTHS[m - 1])} ${y}</strong><span class="arrows"><button data-act="calMove" data-d="-1" aria-label="Prethodni mesec">${IC.left}</button><button data-act="calMove" data-d="1" aria-label="Sledeći mesec">${IC.right}</button></span></div>
+      <div class="grid7">${WD.map(w => `<div class="wd">${w}</div>`).join('')}${'<div></div>'.repeat(mondayIndex(first))}${Array.from({ length: count }, (_, i) => cday(addDays(first, i))).join('')}</div>`;
+  }
+  return html + dayPanel(S.ui.calDay);
+};
+function dayPanel(day) {
+  const items = dayItems(day), mode = S.ui.dayMode;
+  let html = `<div class="dayhead"><strong>${longDate(day)}</strong><span class="seg sm">${[['list', 'Lista'], ['schedule', 'Raspored']].map(([k, l]) => `<button class="${mode === k ? 'on' : ''}" data-act="dayMode" data-v="${k}">${l}</button>`).join('')}</span></div>`;
+  if (mode === 'list') {
+    const rows = [...items.timed.map(t => taskRow(t)), ...items.deadlines.map(deadlineRow), ...items.untimed.map(t => taskRow(t))];
+    return html + (rows.length ? `<div class="card">${rows.join('')}</div>` : '<div class="card"><p class="note" style="margin:12px 14px">Nema zadataka za ovaj dan. „+“ dodaje zadatak za ovaj dan.</p></div>');
+  }
+  // Raspored (C6): capacity, untimed tasks above, timed blocks on the hour grid.
+  const planned = S.tasks.filter(t => !t.inbox && !t.done && t.plan === day);
+  const minutes = planned.reduce((sum, t) => sum + (t.duration || 0), 0), capMin = S.settings.capacity;
+  const pct = capMin ? Math.min(100, Math.round(minutes / capMin * 100)) : 0, over = capMin && minutes > capMin;
+  html += capMin ? `<div class="cap"><b>Planirano ${durLabel(minutes) || '0 min'}</b> od ${durLabel(capMin)}${over ? ' · <span class="amber">preko kapaciteta</span>' : ''}<div class="bar"><span style="width:${pct}%;background:${over ? 'var(--amber)' : 'var(--green)'}"></span></div></div>` : '';
+  const untimed = [...items.untimed, ...items.deadlines.map(x => ({ deadline: x }))];
+  if (untimed.length) html += `<div class="untimed">${untimed.map(x => x.deadline ? `<button class="chip sm" data-act="openGoal" data-id="${x.deadline.g.id}">${IC.goal.replace('width="20" height="20"', 'width="14" height="14"')}${esc(x.deadline.m ? x.deadline.m.t : x.deadline.g.title)}</button>` : `<button class="chip sm" data-act="openTask" data-id="${x.id}">${esc(x.title)} <span class="meta" style="margin:0">· bez vremena</span></button>`).join('')}</div>`;
+  const H0 = 8, H1 = 21;
+  html += `<div class="hours">${Array.from({ length: H1 - H0 }, (_, k) => `<div class="h">${String(H0 + k).padStart(2, '0')}:00</div>`).join('')}`;
+  for (const t of items.timed) {
+    const [hh, mm] = t.time.split(':').map(Number), dur = t.duration || 30;
+    const top = (hh - H0 + mm / 60) * 40, height = Math.max(26, dur / 60 * 40);
+    const end = new Date(2026, 0, 1, hh, mm + dur);
+    if (hh >= H0 && hh < H1) html += `<button class="blk" data-act="openTask" data-id="${t.id}" style="top:${top}px;height:${height}px">${esc(t.title)}<small>${t.time}–${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}</small></button>`;
+  }
+  return html + '</div>';
+}
+function upcoming() {
+  let html = '';
+  for (let k = 1; k <= 21; k++) {
+    const day = addDays(TODAY, k), items = dayItems(day);
+    const rows = [...items.timed.map(t => taskRow(t)), ...items.deadlines.map(deadlineRow), ...items.untimed.map(t => taskRow(t))];
+    if (rows.length) html += `<div class="section">${k === 1 ? 'Sutra' : WDNAME[mondayIndex(day)]} <span>· ${short(day)}</span></div><div class="card">${rows.join('')}</div>`;
+  }
+  return html || '<div class="empty"><strong>Ništa u narednim danima</strong></div>';
+}
+A.calView = el => { S.ui.calView = el.dataset.v; S.ui.calWeek = addDays(S.ui.calDay, -mondayIndex(S.ui.calDay)); S.ui.calMonth = S.ui.calDay.slice(0, 7); render(); };
+A.calPick = el => { S.ui.calDay = el.dataset.d; render(); };
+A.dayMode = el => { S.ui.dayMode = el.dataset.v; render(); };
+A.calMove = el => {
+  const d = Number(el.dataset.d);
+  if (S.ui.calView === 'week') {
+    S.ui.calWeek = addDays(S.ui.calWeek, 7 * d);
+    S.ui.calDay = addDays(S.ui.calDay, 7 * d);
+  } else {
+    const [y, m] = S.ui.calMonth.split('-').map(Number), next = new Date(y, m - 1 + d, 1);
+    S.ui.calMonth = iso(next).slice(0, 7);
+    S.ui.calDay = TODAY.startsWith(S.ui.calMonth) ? TODAY : `${S.ui.calMonth}-01`;
+    S.ui.calWeek = addDays(S.ui.calDay, -mondayIndex(S.ui.calDay));
+  }
+  render();
+};
+// ===== Navike (H1–H7) =======================================================
+const SEP = [67, 50, 83, 67, 50, 33, 67, 83, 50, 67, 83, 67, 100, 83, 50, 67, 83, 100, 83, 67, 33, 50, 67, 83, 100, 100, 83, 67, 50, 67];
+const OCT14 = [83, 100, 83, 67];
+const CHART_MONTHS = [{ name: 'Septembar 2026', short: 'sep', days: 30 }, { name: 'Oktobar 2026', short: 'okt', days: 31 }];
+const chartSeries = () => S.ui.chartMonth === 0 ? SEP : [...OCT14, ...[0, 1, 2, 3].map(i => dayPct(i) ?? 0)];
+
+function ringsCard() {
+  return `<div class="card" style="margin-bottom:12px"><div class="rings" role="group" aria-label="Ova nedelja, urađeno od planiranog">${WD.map((d, i) => {
+    const pct = i > TI ? null : dayPct(i);
+    const arc = pct ? `<circle cx="22" cy="22" r="18" fill="none" stroke="#34C77B" stroke-width="4" stroke-linecap="round" stroke-dasharray="${(pct / 100 * 113.1).toFixed(1)} 113.1" transform="rotate(-90 22 22)"/>` : '';
+    // A full ring shows a small check instead of "100%" (H4).
+    const text = pct === null ? '<text class="na" x="22" y="26" text-anchor="middle">–</text>'
+      : pct === 100 ? '<path d="M17.5 22.3l3 3 6-6.3" fill="none" stroke="#34C77B" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>'
+      : `<text x="22" y="26" text-anchor="middle">${pct}<tspan class="pc">%</tspan></text>`;
+    const sel = S.ui.habTab === 'day' && i === S.ui.habDay;
+    const day = addDays(WEEK_START, i);
+    return `<button class="${i === TI ? 'today' : ''} ${sel ? 'sel' : ''}" data-act="habDay" data-i="${i}" ${i > TI ? 'disabled' : ''} aria-label="${longDate(day)}, ${pct === null ? 'nema podataka' : `${pct}%`}" ${sel ? 'aria-current="date"' : ''}>${d}<svg class="ring" width="44" height="44" viewBox="0 0 44 44"><circle cx="22" cy="22" r="18" fill="none" stroke="#2C3139" stroke-width="4"/>${arc}${text}</svg><span>${parse(day).getDate()}</span></button>`;
+  }).join('')}</div></div>`;
+}
+function habitMeta(h, i) {
+  const state = h.week[i];
+  if (state === 's') return `${h.freq} · preskočeno`;
+  if (h.weekly) return `${h.freq} · ${h.week.filter(s => s === 'd').length}/${h.weekly} ove nedelje`;
+  if (i !== TI) return state === 'm' ? `${h.freq} · propušteno` : h.freq;
+  const streak = (h.streak || 0) + (state === 'd' ? 1 : 0);
+  return `${h.freq} · niz ${streak} ${streak === 1 ? 'dan' : 'dana'}`;
+}
+function habitsDay() {
+  const i = S.ui.habDay;
+  let html = i === TI ? '' : `<div class="note" style="margin:14px 2px -6px"><b style="color:var(--text)">${longDate(addDays(WEEK_START, i))}</b></div>`;
+  ROUTINES.forEach(([title, icon], r) => {
+    const list = S.habits.filter(h => h.routine === r && !['n', 'f'].includes(h.week[i]));
+    const sorted = [...list.filter(h => h.week[i] !== 'd'), ...list.filter(h => h.week[i] === 'd')];
+    if (sorted.length) html += `<div class="section">${IC[icon]}${title} <span>· ${sorted.length}</span></div><div class="card">${sorted.map(h => habitRow(h, i, { meta: habitMeta(h, i) })).join('')}</div>`;
+  });
+  return html;
+}
+function habitsWeek() {
+  const head = `<div class="wkhead"><span></span>${WD.map((d, i) => { const n = parse(addDays(WEEK_START, i)).getDate(); return i === TI ? `<b>${d}<br>${n}</b>` : `<span>${d}<br>${n}</span>`; }).join('')}</div>`;
+  const rows = ROUTINES.map(([title], r) => `<div class="wklabel">${title}</div>` + S.habits.filter(h => h.routine === r).map(h => `<div class="wkrow"><span class="wkname">${esc(h.name)}</span>${h.week.map((s, i) => `<button class="cell ${s}${i === TI ? ' today' : ''}" data-act="habCell" data-id="${h.id}" data-i="${i}" ${['f', 'n'].includes(s) ? 'disabled' : ''} aria-label="${esc(h.name)}, ${parse(addDays(WEEK_START, i)).getDate()}. okt">${s === 'd' ? IC.tick : ''}</button>`).join('')}</div>`).join('')).join('');
+  return `<div class="section">5–11. oktobar</div><div class="wkgrid">${head}${rows}</div><div class="legend"><span><i style="background:var(--green)"></i>urađeno</span><span><i style="border:2px solid #5A3A3C"></i>propušteno</span><span><i style="border:2px dashed #5B6270"></i>preskočeno</span><span><i style="background:#2C3139;height:2px;border-radius:1px"></i>nije u planu</span></div>`;
+}
+// Per-habit weekly bars (H7): done days against the week's plan, without skipped days.
+function habitBars() {
+  return S.habits.map(h => {
+    const done = h.week.filter(s => s === 'd').length;
+    const planned = h.weekly || h.week.filter(s => !['n', 's'].includes(s)).length;
+    const pct = planned ? Math.min(100, Math.round(done / planned * 100)) : 0;
+    const count = pct === 100 ? '<svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="#34C77B" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>' : `${done}/${planned}`;
+    return `<div class="hbar"><span class="ttl">${esc(h.name)}</span><span class="count">${count}</span><span class="track" role="img" aria-label="${esc(h.name)}: ${done} od ${planned}"><i style="width:${pct}%;background:var(--green)"></i></span></div>`;
+  }).join('');
+}
+function chartCard() {
+  const m = CHART_MONTHS[S.ui.chartMonth], values = chartSeries(), last = values.length - 1;
+  const W = 320, H = 150, L = 30, R = 10, T = 10, B = 22;
+  const x = i => L + i * (W - L - R) / (m.days - 1), y = v => T + (100 - v) / 100 * (H - T - B);
+  const pts = values.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+  const avg = Math.round(values.reduce((a, b) => a + b, 0) / values.length);
+  const isNow = S.ui.chartMonth === CHART_MONTHS.length - 1;
+  const grid = [0, 50, 100].map(v => `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--grid)"/><text class="axis" x="${L - 6}" y="${y(v) + 3}" text-anchor="end">${v}%</text>`).join('');
+  const ticks = [0, 7, 14, 21, m.days - 1].map(i => `<text class="axis" x="${x(i)}" y="${H - 6}" text-anchor="${i === m.days - 1 ? 'end' : i ? 'middle' : 'start'}">${i + 1}. ${m.short}</text>`).join('');
+  return `<div class="card" style="margin-top:10px"><div class="chart" id="chartBox">
+    <div class="chart-head"><div><strong>${avg}%</strong> <span class="sub">prosek</span></div><div class="month"><button data-act="chartMonth" data-d="-1" ${S.ui.chartMonth === 0 ? 'disabled' : ''} aria-label="Prethodni mesec">${IC.left}</button><span>${m.name}</span><button data-act="chartMonth" data-d="1" ${isNow ? 'disabled' : ''} aria-label="Sledeći mesec">${IC.right}</button></div></div>
+    <svg id="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Procenat urađenih navika po danu, ${m.name.toLowerCase()}" data-days="${m.days}" data-last="${last}">
+      <defs><linearGradient id="fade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#34C77B" stop-opacity=".28"/><stop offset="1" stop-color="#34C77B" stop-opacity="0"/></linearGradient></defs>
+      ${grid}${ticks}
+      <polygon points="${x(0)},${y(0)} ${pts} ${x(last)},${y(0)}" fill="url(#fade)"/>
+      <polyline points="${pts}" fill="none" stroke="#34C77B" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+      <line id="cross" x1="0" x2="0" y1="${T}" y2="${y(0)}" stroke="#5B6270" visibility="hidden"/>
+      <circle id="cdot" r="4.5" fill="#34C77B" stroke="#16191E" stroke-width="2" cx="${x(last)}" cy="${y(values[last])}" visibility="${isNow ? 'visible' : 'hidden'}"/>
+      ${isNow ? `<text class="axis" x="${x(last) + 8}" y="${y(values[last]) - 10}" style="fill:var(--text);font-weight:600">danas ${values[last]}%</text>` : ''}
+      <rect id="hit" x="${L}" y="0" width="${W - L - R}" height="${H}" fill="transparent"/>
+    </svg><div class="tip" id="tip"></div>
+    <table style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)"><caption>${m.name}</caption>${values.map((v, i) => `<tr><td>${i + 1}. ${m.short}</td><td>${v}%</td></tr>`).join('')}</table></div></div>`;
+}
+// Crosshair and tooltip for the month chart; text goes in through textContent.
+AFTER.push(() => {
+  const svg = $('chart');
+  if (!svg) return;
+  const m = CHART_MONTHS[S.ui.chartMonth], values = chartSeries(), last = values.length - 1;
+  const W = 320, H = 150, L = 30, R = 10, T = 10, B = 22;
+  const x = i => L + i * (W - L - R) / (m.days - 1), y = v => T + (100 - v) / 100 * (H - T - B);
+  const tip = $('tip'), cross = $('cross'), dot = $('cdot');
+  const move = ev => {
+    const box = svg.getBoundingClientRect();
+    if (!box.width) return;
+    const i = Math.max(0, Math.min(last, Math.round(((ev.clientX - box.left) / box.width * W - L) / (W - L - R) * (m.days - 1))));
+    cross.setAttribute('x1', x(i)); cross.setAttribute('x2', x(i)); cross.setAttribute('visibility', 'visible');
+    dot.setAttribute('cx', x(i)); dot.setAttribute('cy', y(values[i])); dot.setAttribute('visibility', 'visible');
+    const strong = document.createElement('strong'); strong.textContent = `${values[i]}%`;
+    tip.replaceChildren(strong, document.createTextNode(`${i + 1}. ${m.short}`));
+    const host = $('chartBox').getBoundingClientRect();
+    tip.style.left = `${box.left - host.left + x(i) / W * box.width}px`;
+    tip.style.top = `${box.top - host.top + y(values[i]) / H * box.height - 8}px`;
+    tip.classList.add('show');
+  };
+  const leave = () => { tip.classList.remove('show'); cross.setAttribute('visibility', 'hidden'); dot.setAttribute('cx', x(last)); dot.setAttribute('cy', y(values[last])); dot.setAttribute('visibility', S.ui.chartMonth === CHART_MONTHS.length - 1 ? 'visible' : 'hidden'); };
+  $('hit').addEventListener('pointermove', move);
+  $('hit').addEventListener('pointerdown', move);
+  $('hit').addEventListener('pointerleave', leave);
+});
+
+TAB.habits = () => {
+  const planned = S.habits.filter(h => ['d', 'o'].includes(h.week[TI]));
+  let html = `<div class="status"><span>09:41</span><span>•••</span></div><div class="titlebar" style="margin-bottom:10px"><h1 class="h1">Navike</h1><span class="meta">${planned.filter(h => h.week[TI] === 'd').length} od ${planned.length} danas</span></div>`;
+  html += ringsCard();
+  html += `<div class="seg" role="tablist"><button role="tab" class="${S.ui.habTab === 'day' ? 'on' : ''}" data-act="habTab" data-v="day">Dan</button><button role="tab" class="${S.ui.habTab === 'week' ? 'on' : ''}" data-act="habTab" data-v="week">Nedelja</button></div>`;
+  html += S.ui.habTab === 'day' ? habitsDay() : habitsWeek();
+  html += `<div class="section">Napredak</div><div class="card"><div class="meta" style="padding:10px 14px 2px;margin:0">Po navici · ova nedelja</div>${habitBars()}</div>${chartCard()}`;
+  html += `<button class="collapsed" data-act="pausedToggle">${IC.fold(S.ui.pausedOpen)}Pauzirane · ${S.pausedHabits.length}</button>`;
+  if (S.ui.pausedOpen) html += `<div class="card" style="margin-top:8px">${S.pausedHabits.map(h => `<div class="hrow"><span class="main"><div class="ttl" style="color:var(--muted)">${esc(h.name)}</div><div class="meta">${h.when}</div></span><button class="chip sm" data-act="soon" data-msg="Navika je ponovo aktivna (u prototipu bez promene)">Nastavi</button></div>`).join('')}</div>`;
+  return html;
+};
+A.habTab = el => { S.ui.habTab = el.dataset.v; if (S.ui.habTab === 'day') S.ui.habDay = TI; render(); };
+A.habDay = el => { S.ui.habDay = Number(el.dataset.i); S.ui.habTab = 'day'; render(); };
+A.habCell = el => {
+  const h = habit(el.dataset.id), i = Number(el.dataset.i);
+  if (h.tracking === 'numeric') return openPick({ kind: 'value', id: h.id, i, total: h.vals[i] || 0 });
+  h.week[i] = h.week[i] === 'd' ? (i === TI ? 'o' : 'm') : 'd';
+  render();
+};
+A.chartMonth = el => { S.ui.chartMonth = Math.max(0, Math.min(CHART_MONTHS.length - 1, S.ui.chartMonth + Number(el.dataset.d))); render(); };
+A.pausedToggle = () => { S.ui.pausedOpen = !S.ui.pausedOpen; render(); };
+// ===== Još (M4) =============================================================
+function navRow(act, icon, label, { sub = '', val = '', valClass = '', cls = '', data = '' } = {}) {
+  return `<button class="prow ${cls}" data-act="${act}" ${data}><span class="ico">${icon}</span><span class="grow">${label}${sub ? `<span class="sub">${sub}</span>` : ''}</span>${val ? `<span class="val ${valClass}" style="flex:none">${val}</span>` : ''}${IC.chev}</button>`;
+}
+const soonData = name => `data-msg="${name}: manji ekran, dolazi u sledećem koraku"`;
+TAB.more = () => `<div class="status"><span>09:41</span><span>•••</span></div><h1 class="h1">Još</h1>
+  <div class="glabel">Zakačeno</div><div class="card">
+    ${navRow('soon', '<span class="dot" style="background:#3BA7F5;border-radius:4px"></span>', 'Posao', { sub: 'Oblast', data: soonData('Oblast Posao') })}
+    ${navRow('soon', IC.funnel, 'Rok ove nedelje', { sub: 'Sačuvani prikaz', data: soonData('Sačuvani prikaz') })}</div>
+  <div class="glabel">Planiranje</div><div class="card">
+    ${navRow('openGoals', IC.goal, 'Ciljevi', { val: String(S.goals.filter(g => g.status === 'active').length) })}
+    ${navRow('soon', IC.area, 'Oblasti', { val: String(S.areas.length), data: soonData('Oblasti') })}
+    ${navRow('soon', IC.broom, 'Čišćenje', { val: '2 sobe', data: soonData('Čišćenje') })}
+    ${navRow('soon', IC.review, 'Nedeljni pregled', { val: 'Poslednji 4. okt', data: soonData('Nedeljni pregled') })}</div>
+  <div class="glabel">Biblioteka</div><div class="card">
+    ${navRow('soon', IC.note, 'Beleške', { val: '12', data: soonData('Beleške') })}
+    ${navRow('soon', IC.link, 'Resursi', { val: '8', data: soonData('Resursi') })}
+    ${navRow('soon', IC.tag, 'Oznake', { val: String(S.tags.length), data: soonData('Oznake') })}
+    ${navRow('soon', IC.copy, 'Šabloni', { val: '3', data: soonData('Šabloni') })}
+    ${navRow('soon', IC.funnel, 'Sačuvani prikazi', { val: '2', data: soonData('Sačuvani prikazi') })}</div>
+  <div class="glabel">Arhiva</div><div class="card">
+    ${navRow('soon', IC.checkc, 'Završeni zadaci', { data: soonData('Završeni zadaci (sa „Obriši završene“)') })}
+    ${navRow('soon', IC.archive, 'Arhivirani projekti', { data: soonData('Arhivirani projekti') })}</div>
+  <div class="card" style="margin-top:18px">${navRow('openSettings', IC.gear, 'Podešavanja', { sub: S.settings.sync ? 'Sinhronizovano pre 2 min' : 'Podaci su samo na ovom uređaju' })}</div>`;
+A.openGoals = () => push({ type: 'goals' });
+A.openSettings = () => push({ type: 'settings' });
+
+// ===== Ciljevi (GO1–GO7) ====================================================
+const HORIZONS = [['short', 'Kratkoročno'], ['mid', 'Srednjoročno'], ['long', 'Dugoročno']];
+const SOURCE_LONG = { manual: 'Ručno', tasks: 'Povezani zadaci', habits: 'Povezane navike' };
+function progress(g) {
+  if (g.source === 'tasks') {
+    const all = projectTasks(g.project), done = all.filter(t => t.done).length;
+    return { pct: all.length ? Math.round(done / all.length * 100) : 0, label: `${done} od ${all.length} zadataka` };
+  }
+  if (g.source === 'habits') return { pct: Math.round(g.habits.reduce((s, h) => s + Math.min(100, h.pct), 0) / g.habits.length), label: `${g.habits.length} ${plural(g.habits.length, 'navika', 'navike', 'navika')}` };
+  const pct = Math.min(100, Math.round(g.current / g.target * 100));
+  return { pct, label: g.type === 'number' ? `${money(g.current)} od ${money(g.target)} ${g.unit}`.trim() : 'Ručno' };
+}
+// Overdue when the date has passed; at risk within seven days and below 75%.
+function health(g) {
+  const { pct } = progress(g);
+  if (pct >= 100) return 'complete';
+  if (g.date && g.date < TODAY) return 'overdue';
+  if (g.date && daysTo(g.date) <= 7 && pct < 75) return 'risk';
+  return 'ok';
+}
+const TONE = { ok: 'var(--green)', complete: 'var(--green)', risk: 'var(--amber)', overdue: 'var(--red)' };
+const HEALTH_TEXT = { ok: ['Na dobrom putu', 'Napredak i ciljni datum su na dobrom putu.'], risk: ['U riziku', 'Ciljni datum je u narednih sedam dana, a napredak je ispod 75%.'], overdue: ['Kasni', 'Ciljni datum je prošao.'], complete: ['Dostignuto', 'Ciljna vrednost je dostignuta. Označi cilj kao ostvaren kad želiš.'] };
+function goalDateSide(g) {
+  const h = health(g);
+  if (!g.date) return '<span>Bez datuma</span>';
+  if (h === 'overdue') return `<span class="red">Kasni · ${short(g.date)}</span>`;
+  if (h === 'risk') return `<span class="amber">U riziku · ${short(g.date)}</span>`;
+  return `<span>${short(g.date)}</span>`;
+}
+function goalRow(g) {
+  const p = progress(g);
+  return `<button class="goalrow" data-act="openGoal" data-id="${g.id}"><span class="gtop"><span class="ttl">${esc(g.title)}</span><span class="pct">${p.pct}%</span></span><span class="track"><i style="width:${p.pct}%;background:${TONE[health(g)]}"></i></span><span class="gmeta"><span>${esc(p.label)}</span>${goalDateSide(g)}</span></button>`;
+}
+SUB.goals = () => {
+  const active = S.goals.filter(g => g.status === 'active').sort((a, b) => (a.date || '9999').localeCompare(b.date || '9999'));
+  const risk = active.filter(g => health(g) === 'risk').length, late = active.filter(g => health(g) === 'overdue').length;
+  let groups;
+  if (S.ui.goalGroup === 'horizon') groups = HORIZONS.map(([k, l]) => ({ icon: IC[k], label: l, items: active.filter(g => g.horizon === k) }));
+  else {
+    const map = new Map();
+    for (const g of active) { const k = g.date ? g.date.slice(0, 7) : 'none'; if (!map.has(k)) map.set(k, []); map.get(k).push(g); }
+    groups = [...map].map(([k, items]) => ({ icon: k === 'none' ? '' : IC.month, label: k === 'none' ? 'Bez datuma' : `${cap(MONTHS[Number(k.slice(5)) - 1])} ${k.slice(0, 4)}`, items }));
+  }
+  const fold = (key, label, list) => `<button class="collapsed" data-act="goalFold" data-k="${key}">${IC.fold(S.ui.goalFold[key])}${label} · ${list.length}</button>${S.ui.goalFold[key] ? `<div class="card" style="margin-top:8px">${list.map(x => `<div class="goalrow"><div class="ttl" style="color:var(--muted)">${esc(x.title)}</div><div class="meta">${x.when}</div></div>`).join('')}</div>` : ''}`;
+  return `<div class="status"><span>09:41</span><span>•••</span></div><button class="back" data-act="back">${IC.left}Još</button>
+    <div class="titlebar"><h1 class="h1">Ciljevi</h1><button class="icon-btn" data-act="soon" data-msg="Pretraga: posebni ekran, dolazi kasnije" aria-label="Pretraga">${IC.search}</button></div>
+    <div class="summary">${active.length} ${plural(active.length, 'aktivan', 'aktivna', 'aktivnih')}${risk ? ` · <span class="amber">${risk} u riziku</span>` : ''}${late ? ` · <span class="red">${late} kasni</span>` : ''}</div>
+    <div class="seg" role="tablist"><button role="tab" class="${S.ui.goalGroup === 'horizon' ? 'on' : ''}" data-act="goalGroup" data-v="horizon">Horizont</button><button role="tab" class="${S.ui.goalGroup === 'date' ? 'on' : ''}" data-act="goalGroup" data-v="date">Rok</button></div>
+    ${groups.filter(x => x.items.length).map(x => `<div class="section">${x.icon}${x.label} <span>· ${x.items.length}</span></div><div class="card">${x.items.map(goalRow).join('')}</div>`).join('')}
+    ${fold('done', 'Ostvareni', S.finishedGoals)}${fold('paused', 'Pauzirani', S.pausedGoals)}`;
+};
+A.goalGroup = el => { S.ui.goalGroup = el.dataset.v; render(); };
+A.goalFold = el => { S.ui.goalFold[el.dataset.k] = !S.ui.goalFold[el.dataset.k]; render(); };
+
+// Goal window (GO5, GO6), built like the task window.
+A.openGoal = el => openWin({ kind: 'goal', id: el.dataset.id });
+function prow(act, icon, label, value, empty, data = '') {
+  return `<button class="prow" data-act="${act}" ${data}>${icon}<span class="lbl">${label}</span><span class="val ${value ? 'set' : ''}">${esc(value || empty)}</span>${IC.chev}</button>`;
+}
+WIN.goal = w => {
+  const g = goal(w.id), p = progress(g), h = health(g), [ht, hx] = HEALTH_TEXT[h];
+  const ms = g.milestones;
+  let linked = '';
+  if (g.source === 'tasks') {
+    const open = projectTasks(g.project).filter(t => !t.done);
+    linked = `<div class="glabel">Zadaci · ${openCount(open.length)}</div><div class="card">${open.slice(0, 3).map(t => taskRow(t, { meta: 'plan' })).join('')}<button class="addrow" data-act="goalToProject" data-id="${g.project}">Prikaži sve (${open.length})</button></div>`;
+  } else if (g.source === 'habits') {
+    linked = `<div class="glabel">Doprinos navika</div><div class="card">${g.habits.map(x => `<div class="hbar"><span class="ttl">${esc(x.t)}</span><span class="count">${x.pct}%</span><span class="track"><i style="width:${x.pct}%;background:var(--green)"></i></span><span class="meta" style="grid-column:1/-1;margin:0">${esc(x.label)}</span></div>`).join('')}</div>`;
+  }
+  const source = SOURCE_LONG[g.source] + (g.source === 'manual' ? (g.type === 'number' ? ` · ${money(g.target)} ${g.unit}` : ' · procenat') : '');
+  const done = g.status === 'done';
+  return {
+    tall: true, head: winHead('Cilj'),
+    body: `<div class="bigtitle" style="padding-bottom:6px">${esc(g.title)}</div><button class="plink" data-act="goalArea">${IC.person}${esc(areaOf(g.area)?.name || 'Bez oblasti')}</button>
+      <div class="pcard"><div class="pbig"><strong>${p.pct}%</strong><span>${esc(p.label)}</span></div><span class="track"><i style="width:${p.pct}%;background:${TONE[h]}"></i></span>
+        <div class="health"><span class="hdot" style="background:${TONE[h]}"></span><span><b style="color:${TONE[h]}">${ht}</b> · ${hx}</span></div>
+        ${g.source === 'manual' ? '<button class="update" data-act="goalUpdate">Ažuriraj napredak</button>' : `<p class="note" style="margin:10px 0 0">${g.source === 'tasks' ? 'Napredak se računa iz zadataka projekta.' : 'Svaka povezana navika ima jednaku težinu; njen doprinos je ograničen na 100%.'}</p>`}</div>
+      <div class="glabel">Etape · ${ms.filter(m => m.d).length}/${ms.length}</div>
+      <div class="card">${ms.map((m, k) => `<button class="prow" data-act="msToggle" data-k="${k}"><span class="round ${m.d ? 'on' : ''}">${m.d ? IC.tick : ''}</span><span class="grow ${m.d ? 'done-title' : ''}">${esc(m.t)}</span><span class="side">${m.d ? short(m.date) : dueLabel(m.date).replace('Rok ', '')}</span></button>`).join('')}<button class="prow add" data-act="msAdd">＋ Dodaj etapu</button></div>
+      ${linked}
+      <div class="glabel">Planiranje</div><div class="card">
+        ${prow('goalDate', IC.cal, 'Ciljni datum', g.date ? short(g.date) : '', 'Bez ciljnog datuma')}
+        ${prow('goalHorizon', IC.long.replace('width="16" height="16"', 'width="20" height="20"'), 'Horizont', HORIZONS.find(x => x[0] === g.horizon)[1])}
+        ${prow('soon', IC.habit, 'Izvor napretka', source, '', 'data-msg="Izvor napretka: Ručno / Zadaci / Navike, kao u novom cilju"')}
+        ${prow('soon', IC.bell, 'Podsetnik', g.reminder, 'Nije podešen', 'data-msg="Podsetnik: isti prozor kao kod zadatka"')}</div>
+      <div class="glabel">Organizacija</div><div class="card">
+        ${prow('goalArea', IC.person, 'Oblast', areaOf(g.area)?.name, 'Bez oblasti')}
+        ${prow('soon', IC.link, 'Povezano', g.source === 'tasks' ? `Projekat ${project(g.project).name}` : g.source === 'habits' ? `${g.habits.length} navike` : '', 'Ništa', 'data-msg="Povezani projekti, zadaci i navike"')}</div>
+      <button class="more" data-act="soon" data-msg="Istorija, pauza i arhiva">Više opcija <span style="display:inline-flex;gap:4px;align-items:center">Istorija, pauza, arhiva${IC.chev}</span></button>`,
+    foot: `<button class="primary ${h === 'complete' || done ? '' : 'quiet'}" data-act="goalComplete">${done ? 'Vrati kao aktivan' : 'Označi kao ostvaren'}</button>`,
+  };
+};
+A.msToggle = el => { const m = goal(W.id).milestones[Number(el.dataset.k)]; m.d = !m.d; render(); toast(m.d ? 'Etapa je završena' : 'Etapa je vraćena'); };
+A.msAdd = () => { const g = goal(W.id); g.milestones.push({ t: `Nova etapa ${g.milestones.length + 1}`, d: false, date: addDays(g.date || TODAY, 0) }); render(); };
+A.goalToProject = el => { closeWin(); R.tab = 'tasks'; R.stack = [{ type: 'project', id: el.dataset.id }]; render(); };
+A.goalArea = () => { const g = goal(W.id); openPick({ kind: 'choice', title: 'Oblast', sub: g.title, current: g.area, options: S.areas.map(a => ({ v: a.id, label: a.name, dot: a.color })), onPick: v => { g.area = v; render(); toast('Sačuvano'); } }); };
+A.goalHorizon = () => { const g = goal(W.id); openPick({ kind: 'choice', title: 'Horizont', sub: g.title, current: g.horizon, options: HORIZONS.map(([v, l]) => ({ v, label: l, icon: IC[v] })), onPick: v => { g.horizon = v; render(); toast('Sačuvano'); } }); };
+A.goalDate = () => { const g = goal(W.id); openPick({ kind: 'goalDate', target: g, value: g.date }); };
+A.goalComplete = () => {
+  const g = goal(W.id);
+  if (g.status === 'done') { g.status = 'active'; S.finishedGoals = S.finishedGoals.filter(x => x.id !== g.id); render(); return toast('Cilj je ponovo aktivan'); }
+  g.status = 'done'; S.finishedGoals.unshift({ id: g.id, title: g.title, when: `Ostvaren ${short(TODAY)}` });
+  closeWin(); render(); toast('Cilj je ostvaren');
+};
+A.goalUpdate = () => { const g = goal(W.id); openPick({ kind: 'goalUpdate', id: g.id, value: g.current }); };
+PICK.goalUpdate = p => {
+  const g = goal(p.id), isNum = g.type === 'number';
+  const steps = isNum ? [1, 5, 10].map(v => v * Math.max(1, Math.round(g.target / 40))) : [5, 10, 25];
+  return { title: 'Ažuriraj napredak', sub: g.title, body: `
+    <div class="chips">${steps.map(v => `<button class="chip" data-act="guAdd" data-v="${v}">+${money(v)}${isNum ? ` ${g.unit}` : '%'}</button>`).join('')}</div>
+    <label class="field"><span class="lbl">${isNum ? 'Trenutno' : 'Procenat napretka'}</span><input type="number" min="0" step="any" value="${p.value}" data-in="guVal"><span class="meta" style="margin:0">${isNum ? `od ${money(g.target)} ${g.unit}` : '%'}</span></label>
+    <p class="note" style="margin-top:0">Svaka promena se čuva u istoriji cilja.</p><button class="primary" data-act="guApply">Primeni</button>` };
+};
+A.guAdd = el => { const g = goal(P.id); P.value = Math.min(g.target, Number(P.value) + Number(el.dataset.v)); renderPick(); };
+IN.guVal = el => { P.value = Math.max(0, Number(el.value) || 0); };
+A.guApply = () => { const g = goal(P.id); g.current = Math.min(g.target, Number(P.value) || 0); closePick(); render(); toast('Napredak je ažuriran'); };
+PICK.goalDate = p => {
+  const quick = [['Za mesec dana', addDays(TODAY, 30)], ['Za 3 meseca', addDays(TODAY, 91)], ['Kraj godine', '2026-12-31']];
+  return { title: 'Ciljni datum', sub: p.target.title, body: `
+    <div class="chips">${quick.map(([l, v]) => `<button class="chip ${p.value === v ? 'on' : ''}" data-act="gdQuick" data-v="${v}">${l}</button>`).join('')}</div>
+    <label class="field">${IC.cal}<span class="lbl">Datum</span><input type="date" value="${p.value || ''}" data-ch="gdVal"></label>
+    <p class="note" style="margin-top:0">Sedam dana pre ciljnog datuma, cilj ispod 75% dobija oznaku „U riziku“.</p>
+    <div class="split"><button class="ghost" data-act="gdClear">Bez datuma</button><button class="primary" data-act="gdApply">Primeni</button></div>` };
+};
+A.gdQuick = el => { P.value = el.dataset.v; renderPick(); };
+CH.gdVal = el => { P.value = el.value || null; };
+A.gdClear = () => { P.target.date = null; closePick(); render(); };
+A.gdApply = () => { P.target.date = P.value; closePick(); render(); toast('Sačuvano'); };
+
+// New goal window (GO7).
+const freshGoal = () => ({ kind: 'newGoal', title: '', area: null, horizon: 'short', source: 'manual', type: 'percent', target: 21, unit: 'km', date: null, more: false, milestones: [], err: '' });
+function seg(key, options, value) { return `<div class="seg" role="radiogroup">${options.map(([v, l]) => `<button role="radio" aria-checked="${v === value}" class="${v === value ? 'on' : ''}" data-act="wSeg" data-k="${key}" data-v="${v}">${l}</button>`).join('')}</div>`; }
+A.wSeg = el => { W[el.dataset.k] = el.dataset.v; renderWin(); };
+WIN.newGoal = d => {
+  const extra = d.source === 'manual'
+    ? `<div style="margin-top:10px">${seg('type', [['percent', 'Procenat'], ['number', 'Broj']], d.type)}</div>${d.type === 'number' ? `<div class="inline">Cilj<input type="number" min="0" step="any" value="${d.target}" data-in="ngTarget" aria-label="Ciljna vrednost"><input class="unit" value="${esc(d.unit)}" data-in="ngUnit" placeholder="jedinica" aria-label="Jedinica"></div>` : '<p class="note" style="margin:8px 2px 0">Napredak upisuješ ručno, od 0 do 100%.</p>'}`
+    : `<p class="note" style="margin:10px 2px 0">${d.source === 'tasks' ? 'Napredak = završeni zadaci povezanih projekata. Povezuješ ih u „Više“.' : 'Napredak = doprinos povezanih navika. Navike povezuješ u „Više“.'}</p>`;
+  return {
+    tall: true, head: winHead('Novi cilj'),
+    body: `<input class="bigtitle" placeholder="Šta želiš da postigneš?" value="${esc(d.title)}" data-in="ngTitle" aria-label="Naziv cilja">${d.err ? `<p class="err">${d.err}</p>` : ''}
+      <div class="card" style="margin-top:8px">
+        ${prow('ngArea', IC.person, 'Oblast', areaOf(d.area)?.name, 'Bez oblasti (opciono)')}
+        <div class="block"><div class="lbl">${IC.long.replace('width="16" height="16"', 'width="20" height="20"')}Horizont</div>${seg('horizon', HORIZONS, d.horizon)}</div>
+        <div class="block"><div class="lbl">${IC.habit}Napredak</div>${seg('source', [['manual', 'Ručno'], ['tasks', 'Zadaci'], ['habits', 'Navike']], d.source)}${extra}</div>
+        ${prow('ngDate', IC.cal, 'Ciljni datum', d.date ? short(d.date) : '', 'Nije podešen')}</div>
+      <button class="more" data-act="ngMore"><b>Više</b><span style="display:inline-flex;gap:4px;align-items:center">${d.more ? 'Sakrij' : 'Etape, podsetnik, veze'}${IC.fold(d.more)}</span></button>
+      ${d.more ? `<div class="card" style="margin-top:8px">${d.milestones.map((m, k) => `<div class="prow"><span class="round"></span><span class="grow">${esc(m)}</span><button class="x" data-act="ngRmMs" data-k="${k}" aria-label="Ukloni etapu">✕</button></div>`).join('')}<button class="prow add" data-act="ngAddMs">＋ Dodaj etapu</button></div>
+        <div class="card" style="margin-top:10px">${prow('soon', IC.bell, 'Podsetnik', '', 'Nije podešen', 'data-msg="Podsetnik: isti prozor kao kod zadatka"')}${prow('soon', IC.link, d.source === 'habits' ? 'Povezane navike' : 'Povezani projekti i zadaci', '', 'Ništa', 'data-msg="Višestruki izbor, kao oznake"')}</div>` : ''}`,
+    foot: '<button class="primary" data-act="ngCreate">Napravi cilj</button>',
+  };
+};
+IN.ngTitle = el => { W.title = el.value; };
+IN.ngTarget = el => { W.target = Number(el.value); };
+IN.ngUnit = el => { W.unit = el.value; };
+A.ngMore = () => { W.more = !W.more; renderWin(); };
+A.ngAddMs = () => { W.milestones.push(`Etapa ${W.milestones.length + 1}`); renderWin(); };
+A.ngRmMs = el => { W.milestones.splice(Number(el.dataset.k), 1); renderWin(); };
+A.ngArea = () => openPick({ kind: 'choice', title: 'Oblast', sub: W.title || 'Novi cilj', current: W.area, options: S.areas.map(a => ({ v: a.id, label: a.name, dot: a.color })), onPick: v => { W.area = v; renderWin(); } });
+A.ngDate = () => openPick({ kind: 'goalDate', target: W, value: W.date });
+A.ngCreate = () => {
+  const d = W;
+  if (!d.title.trim()) { d.err = 'Upiši naziv cilja.'; return renderWin(); }
+  if (d.source === 'manual' && d.type === 'number' && !(d.target > 0)) { d.err = 'Brojčani cilj mora biti veći od nule.'; return renderWin(); }
+  const g = { id: newId('g'), status: 'active', title: d.title.trim(), area: d.area, horizon: d.horizon, date: d.date, reminder: null, milestones: d.milestones.map((t, k) => ({ t, d: false, date: addDays(d.date || TODAY, k * 7) })) };
+  if (d.source === 'manual') Object.assign(g, { source: 'manual', type: d.type, current: 0, target: d.type === 'number' ? d.target : 100, unit: d.type === 'number' ? d.unit : '' });
+  else if (d.source === 'tasks') Object.assign(g, { source: 'tasks', project: 'p2' });
+  else Object.assign(g, { source: 'habits', habits: [{ t: 'Šetnja', pct: 0, label: '0 uspešnih dana' }] });
+  S.goals.push(g); closeWin(); S.ui.goalGroup = 'horizon'; render(); toast('Cilj je napravljen');
+};
+
+// ===== Podešavanja (M5, M6) =================================================
+const hoursLabel = m => m === 0 ? 'Isključen' : durLabel(m);
+SUB.settings = () => {
+  const st = S.settings;
+  return `<div class="status"><span>09:41</span><span>•••</span></div><button class="back" data-act="back">${IC.left}Još</button><h1 class="h1">Podešavanja</h1>
+  <div class="glabel">Nalog</div><div class="card">${navRow('setSheet', IC.sync, 'Sinhronizacija', { sub: st.sync || 'Za rad na više uređaja', val: st.sync ? 'Uključena' : 'Isključena', valClass: st.sync ? 'green' : '', data: 'data-k="sync"' })}</div>
+  <div class="glabel">Opšte</div><div class="card">
+    ${navRow('setSheet', IC.cal, 'Prvi dan nedelje', { val: st.weekStart, data: 'data-k="week"' })}
+    ${navRow('setSheet', IC.timer, 'Dnevni kapacitet', { val: hoursLabel(st.capacity), data: 'data-k="capacity"' })}
+    ${navRow('soon', IC.bell, 'Podsetnici', { val: 'Uključeni', data: 'data-msg="Podsetnici u pregledaču; na telefonu sa aplikacijom"' })}</div>
+  <div class="glabel">Podaci</div><div class="card">
+    ${navRow('setSheet', IC.upload, 'Rezervna kopija', { sub: `Poslednja ${st.lastBackup}`, data: 'data-k="backup"' })}
+    ${navRow('soon', IC.download, 'Vrati iz kopije', { sub: 'Zamenjuje trenutne podatke', data: 'data-msg="Bira ZIP, proverava ga, pa traži potvrdu"' })}
+    ${navRow('soon', IC.clock, 'Lokalni snimci', { sub: 'Pet automatskih kopija na uređaju', data: 'data-msg="Lista snimaka sa vraćanjem jedne stavke"' })}
+    ${navRow('soon', IC.shield, 'Trajno čuvanje', { val: 'Odobreno', valClass: 'green', data: 'data-msg="Pregledač neće sam obrisati podatke"' })}
+    ${navRow('soon', IC.sparkle, 'Popuni primerima', { data: 'data-msg="Dodaje primere koji nedostaju"' })}
+    ${navRow('setSheet', IC.trash, 'Resetuj aplikaciju', { cls: 'danger', data: 'data-k="reset"' })}</div>
+  <div class="glabel">Pomoć</div><div class="card">
+    ${navRow('soon', IC.book, 'Uputstvo', { data: 'data-msg="Otvara uputstvo.html"' })}
+    ${navRow('soon', IC.mail, 'Prijavi problem', { data: 'data-msg="Otvara e-poštu sa verzijom i uređajem"' })}
+    ${navRow('soon', IC.phoneic, 'Instaliraj aplikaciju', { sub: 'Vidi se dok Dailo nije na početnom ekranu', data: 'data-msg="Uputstvo za Dodaj na početni ekran"' })}
+    ${navRow('soon', IC.lock, 'Privatnost', { data: 'data-msg="Gde su podaci i šta se šalje"' })}
+    ${navRow('soon', IC.info, 'O aplikaciji', { val: '2.0.0-alpha.1', data: 'data-msg="Verzija i licence"' })}</div>
+  <p class="note">Na računaru se ovde vide i „Prečice na tastaturi“ i „Zbijeniji prikaz“.</p>`;
+};
+A.setSheet = el => openPick({ kind: 'set', k: el.dataset.k });
+PICK.set = p => {
+  const st = S.settings;
+  if (p.k === 'sync') return { title: 'Sinhronizacija', body: st.sync
+    ? `<div class="facts"><span>Nalog</span><span>${esc(st.sync)}</span><span>Poslednja</span><span>pre 2 min</span></div><button class="secondary" data-act="setToast" data-msg="Sinhronizovano">Sinhronizuj sada</button><div class="split" style="margin-top:8px"><button class="ghost" data-act="syncOut">Odjavi se</button><button class="ghost" style="color:var(--red)" data-act="setToast" data-msg="Traži upis OBRIŠI, kao sada">Obriši nalog</button></div>`
+    : `<p class="note" style="margin:0 4px 12px">Prijavi se e-poštom da bi isti podaci bili na telefonu i računaru. Bez naloga sve ostaje samo na ovom uređaju.</p><label class="field">${IC.mail}<input class="wide" type="email" placeholder="tvoja@adresa.rs" data-in="syncMail" aria-label="E-pošta"></label><button class="primary" data-act="syncIn">Pošalji kod</button>` };
+  if (p.k === 'week') return { title: 'Prvi dan nedelje', body: `<div class="card">${['Ponedeljak', 'Nedelja'].map(d => `<button class="opt" data-act="setWeek" data-v="${d}"><span class="lbl">${d}</span><span class="radio ${st.weekStart === d ? 'on' : ''}"></span></button>`).join('')}</div><p class="note">Koristi se u kalendaru, kod navika i u nedeljnom pregledu. Dodir odmah primenjuje izbor.</p>` };
+  if (p.k === 'capacity') return { title: 'Dnevni kapacitet', body: `<div class="chips">${[0, 240, 360, 480, 600].map(m => `<button class="chip ${st.capacity === m ? 'on' : ''}" data-act="setCap" data-v="${m}">${hoursLabel(m)}</button>`).join('')}</div><p class="note" style="margin-top:0">Koliko planiranog rada staje u dan. Vidi se u Kalendaru, u prikazu „Raspored“.</p>` };
+  if (p.k === 'backup') return { title: 'Rezervna kopija', body: `<div class="facts"><span>Poslednji izvoz</span><span>${st.lastBackup}</span><span>Poslednji uvoz</span><span>nikad</span></div><button class="primary" data-act="setExport">Izvezi ZIP</button><div class="glabel">Podseti me na kopiju</div><div class="chips">${[[3, 'Posle 3 dana'], [7, 'Posle 7 dana'], [14, 'Posle 14 dana'], [0, 'Nikad']].map(([d, l]) => `<button class="chip ${st.backupDays === d ? 'on' : ''}" data-act="setBackupDays" data-v="${d}">${l}</button>`).join('')}</div><p class="note" style="margin-top:0">ZIP sadrži sve podatke, i beleške, resurse i priloge.</p>` };
+  return { title: 'Resetuj aplikaciju', body: `<p class="note" style="margin:0 4px 14px">Prvo se pravi sigurnosni ZIP, a zatim se brišu svi zadaci, projekti, oznake, prilozi i podešavanja na ovom uređaju.</p><label class="field"><input class="wide" placeholder="Upiši RESETUJ" data-in="resetWord" aria-label="Potvrda"></label><button class="dangerbtn" data-act="setReset">Resetuj</button>` };
+};
+let syncMail = '', resetWord = '';
+IN.syncMail = el => { syncMail = el.value; };
+IN.resetWord = el => { resetWord = el.value; };
+A.setToast = el => toast(el.dataset.msg);
+A.syncIn = () => { if (!syncMail.includes('@')) return toast('Upiši ispravnu e-poštu'); S.settings.sync = syncMail.trim(); closePick(); render(); toast('Prijava je uspela (u prototipu bez koda)'); };
+A.syncOut = () => { S.settings.sync = null; closePick(); render(); toast('Odjava je uspela'); };
+A.setWeek = el => { S.settings.weekStart = el.dataset.v; closePick(); render(); toast('Sačuvano'); };
+A.setCap = el => { S.settings.capacity = Number(el.dataset.v); closePick(); render(); toast('Sačuvano'); };
+A.setExport = () => { S.settings.lastBackup = 'danas'; S.settings.backupNotice = false; closePick(); render(); toast('ZIP je preuzet'); };
+A.setBackupDays = el => { S.settings.backupDays = Number(el.dataset.v); renderPick(); toast('Sačuvano'); };
+A.setReset = () => { if (resetWord.trim().toUpperCase() !== 'RESETUJ') return toast('Upiši RESETUJ za potvrdu'); closePick(); toast('U prototipu se ništa ne briše'); };
+// ===== Task window (D1–D4, E1–E9) ===========================================
+const dateTime = (d, t) => d ? `${relDay(d)}${t ? ` · ${t}` : ''}` : '';
+function repeatSummary(r, base) {
+  if (!r) return '';
+  const every = r.interval > 1;
+  if (r.freq === 'daily') return every ? `Svakih ${r.interval} dana` : 'Svaki dan';
+  if (r.freq === 'weekdays') return 'Radnim danima';
+  if (r.freq === 'weekly') {
+    const days = (r.days.length ? r.days : [mondayIndex(base || TODAY)]).map(i => WDINSTR[i]).join(', ');
+    return every ? `Svake ${r.interval}. nedelje, ${days}` : `Svake nedelje, ${days}`;
+  }
+  if (r.freq === 'monthly') return every ? `Svakih ${r.interval} meseci` : 'Svakog meseca';
+  return 'Svake godine';
+}
+const endSummary = r => !r || r.end === 'never' ? '' : r.end === 'date' ? ` do ${short(r.endDate)}` : `, ${r.count} puta`;
+const tprow = (k, icon, label, value) => `<button class="prow" data-act="tPick" data-k="${k}">${icon}<span class="lbl">${label}</span><span class="val ${value ? 'set' : ''}">${value ? esc(value) : 'Nije podešeno'}</span>${IC.chev}</button>`;
+
+A.openTask = el => openWin({ kind: 'task', id: el.dataset.id });
+WIN.task = w => {
+  const t = task(w.id);
+  if (!t) return { head: winHead('Zadatak'), body: '<p class="note">Zadatak je obrisan.</p>' };
+  const p = t.project ? project(t.project) : null;
+  const tags = S.tags.filter(x => t.tags.includes(x.id)).map(x => x.name).join(', ');
+  const subDone = t.subtasks.filter(s => s.d).length;
+  return {
+    tall: true,
+    head: winHead(t.inbox ? 'Zadatak · u Inbox-u' : 'Zadatak', `<button class="x" data-act="taskMenu" aria-label="Radnje zadatka">${IC.dots}</button>`),
+    body: `<textarea class="bigtitle" rows="2" data-in="taskTitle" aria-label="Naslov">${esc(t.title)}</textarea>
+      <button class="plink" data-act="tPick" data-k="project">${IC.folder}${esc(p ? p.name : 'Bez projekta')}</button>
+      <div class="glabel">Planiranje</div><div class="card">
+        ${tprow('plan', IC.cal, 'Planirano', dateTime(t.plan, t.time))}
+        ${tprow('due', IC.due, 'Rok', dateTime(t.due, t.dueTime))}
+        ${tprow('reminder', IC.bell, 'Podsetnik', t.reminder ? dateTime(t.reminder.date, t.reminder.time) : '')}
+        ${tprow('repeat', IC.repeat, 'Ponavljanje', t.repeat ? repeatSummary(t.repeat, t.plan) + endSummary(t.repeat) : '')}
+        ${tprow('duration', IC.timer, 'Trajanje', durLabel(t.duration))}</div>
+      <div class="glabel">Organizacija</div><div class="card">
+        ${tprow('project', IC.folder, 'Projekat', p ? p.name : '')}
+        ${tprow('tags', IC.tag, 'Oznake', tags)}
+        <button class="prow" data-act="tPick" data-k="priority">${IC.flag(PRI[t.priority]).replace('width="15" height="15"', 'width="20" height="20"')}<span class="lbl">Prioritet</span><span class="val ${t.priority !== 'none' ? 'set' : ''}">${t.priority === 'none' ? 'Nije podešeno' : PRI_NAME[t.priority]}</span>${IC.chev}</button></div>
+      <div class="glabel">Podzadaci · ${subDone}/${t.subtasks.length}</div><div class="card">
+        ${t.subtasks.map((s, k) => `<button class="prow" data-act="subToggle" data-k="${k}"><span class="box ${s.d ? 'on' : ''}">${s.d ? IC.tick : ''}</span><span class="grow ${s.d ? 'done-title' : ''}">${esc(s.t)}</span></button>`).join('')}
+        <button class="prow add" data-act="subAdd">＋ Dodaj podzadatak</button></div>
+      <div class="glabel">Beleške</div><textarea class="notes" data-in="taskNotes" placeholder="Beleška">${esc(t.notes)}</textarea>
+      ${t.attach ? `<div class="glabel">Prilozi · 1</div><div class="card"><div class="prow">${IC.file}<span class="grow">${esc(t.attach)}<span class="sub">PDF · 1,2 MB</span></span></div></div>` : ''}
+      <button class="more" data-act="soon" data-msg="Više opcija: oblast, ciljevi, šablon">Više opcija <span style="display:inline-flex;gap:4px;align-items:center">Oblast, ciljevi, šablon${IC.chev}</span></button>`,
+    foot: `<button class="primary ${t.done ? 'quiet' : ''}" data-act="taskComplete">${t.done ? 'Vrati kao otvoren' : 'Završi zadatak'}</button>`,
+  };
+};
+IN.taskTitle = el => { task(W.id).title = el.value; };
+IN.taskNotes = el => { task(W.id).notes = el.value; };
+A.taskComplete = () => { const t = task(W.id); t.done = !t.done; t.doneAt = t.done ? TODAY : null; if (t.done) t.inbox = false; render(); toast(t.done ? 'Zadatak je završen' : 'Zadatak je vraćen'); };
+A.subToggle = el => { const s = task(W.id).subtasks[Number(el.dataset.k)]; s.d = !s.d; renderWin(); };
+A.subAdd = () => { const t = task(W.id); t.subtasks.push({ t: `Novi podzadatak ${t.subtasks.length + 1}`, d: false }); renderWin(); };
+// The task menu holds Focus (T2a) and Delete (I2).
+A.taskMenu = () => {
+  const t = task(W.id);
+  openPick({ kind: 'choice', title: t.title, current: null, options: [{ v: 'focus', label: 'Započni fokus', icon: IC.timer }, { v: 'dup', label: 'Dupliraj', icon: IC.copy }, { v: 'tpl', label: 'Sačuvaj kao šablon', icon: IC.copy }, { v: 'del', label: 'Obriši zadatak', icon: IC.trash }], onPick: v => {
+    if (v === 'del') { const k = S.tasks.indexOf(t); S.tasks.splice(k, 1); closeWin(); render(); toast('Zadatak je obrisan', () => S.tasks.splice(k, 0, t)); }
+    else if (v === 'dup') { S.tasks.push({ ...JSON.parse(JSON.stringify(t)), id: newId('t'), title: `${t.title} (kopija)` }); render(); toast('Napravljena je kopija'); }
+    else toast(v === 'focus' ? 'Fokus: tajmer za ovaj zadatak (poseban ekran)' : 'Šablon je sačuvan');
+  } });
+};
+
+A.tPick = el => {
+  const t = task(W.id), k = el.dataset.k;
+  if (k === 'plan' || k === 'due') return openDate({ mode: 'task', which: k, date: k === 'plan' ? t.plan : t.due, time: k === 'plan' ? t.time : t.dueTime });
+  if (k === 'reminder') return openPick({ kind: 'reminder', ...(t.reminder || { date: t.plan || TODAY, time: t.time || '09:00' }) });
+  if (k === 'repeat') return openPick({ kind: 'repeat', r: t.repeat ? JSON.parse(JSON.stringify(t.repeat)) : { freq: 'weekly', interval: 1, days: [mondayIndex(t.plan || TODAY)], end: 'never', endDate: addDays(TODAY, 90), count: 10 } });
+  if (k === 'duration') return openPick({ kind: 'duration' });
+  if (k === 'project') return openPick({ kind: 'project', current: t.project, allowNone: true, sub: t.title, onPick: id => { t.project = id; if (id) { t.area = null; t.inbox = false; } render(); toast('Sačuvano'); } });
+  if (k === 'tags') return openPick({ kind: 'tags', ids: [...t.tags], q: '' });
+  if (k === 'priority') return openPick({ kind: 'choice', title: 'Prioritet', sub: t.title, current: t.priority, options: Object.entries(PRI_NAME).map(([v, l]) => ({ v, label: l, icon: IC.flag(PRI[v]).replace('width="15" height="15"', 'width="20" height="20"') })), onPick: v => { t.priority = v; render(); toast('Prioritet ne menja redosled'); } });
+};
+
+// Date sheet (E4), shared by the task window and Quick Add.
+function openDate(p) { const base = p.date || TODAY; openPick({ kind: 'date', ...p, view: { y: parse(base).getFullYear(), m: parse(base).getMonth() } }); }
+function monthGrid(selected, view) {
+  const first = iso(new Date(view.y, view.m, 1)), count = new Date(view.y, view.m + 1, 0).getDate();
+  let html = `<div class="cal"><div class="calhead"><button data-act="dMove" data-d="-1" aria-label="Prethodni mesec">‹</button><span>${cap(MONTHS[view.m])} ${view.y}</span><button data-act="dMove" data-d="1" aria-label="Sledeći mesec">›</button></div><div class="grid7">${WD.map(w => `<div class="wd">${w}</div>`).join('')}${'<div></div>'.repeat(mondayIndex(first))}`;
+  for (let d = 1; d <= count; d++) { const s = iso(new Date(view.y, view.m, d)); html += `<button class="day ${s === selected ? 'sel' : ''} ${s === TODAY ? 'today' : ''}" data-act="dDay" data-d="${s}"><span>${d}</span></button>`; }
+  return html + '</div></div>';
+}
+PICK.date = p => {
+  const quick = [['Danas', TODAY], ['Sutra', addDays(TODAY, 1)], ['Sledeće nedelje', nextMonday()]];
+  let other = '';
+  if (p.mode === 'task') { const t = task(W.id); other = p.which === 'plan' ? (t.due ? `Rok ostaje isti: ${dateTime(t.due, t.dueTime)}` : 'Rok nije postavljen.') : (t.plan ? `Planirano ostaje isto: ${dateTime(t.plan, t.time)}` : 'Planirani datum nije postavljen.'); }
+  return { title: p.mode === 'habitStart' ? 'Početak' : p.which === 'due' ? 'Rok' : 'Planirani datum', sub: p.mode === 'task' ? task(W.id).title : '', body: `
+    <div class="chips">${quick.map(([l, d]) => `<button class="chip ${p.date === d ? 'on' : ''}" data-act="dQuick" data-d="${d}">${l}</button>`).join('')}</div>
+    ${monthGrid(p.date, p.view)}
+    <label class="field">${IC.timer}<span class="lbl">Vreme</span><input type="time" value="${p.time || ''}" data-ch="dTime"></label>
+    ${other ? `<p class="note" style="margin-top:0">${esc(other)}</p>` : ''}
+    <div class="split"><button class="ghost" data-act="dClear">Ukloni datum</button><button class="primary" data-act="dApply">Primeni</button></div>` };
+};
+A.dQuick = el => { P.date = el.dataset.d; P.view = { y: parse(P.date).getFullYear(), m: parse(P.date).getMonth() }; renderPick(); };
+A.dDay = el => { P.date = el.dataset.d; renderPick(); };
+A.dMove = el => { P.view.m += Number(el.dataset.d); if (P.view.m < 0) { P.view.m = 11; P.view.y--; } if (P.view.m > 11) { P.view.m = 0; P.view.y++; } renderPick(); };
+CH.dTime = el => { P.time = el.value || null; };
+function applyDate(date, time) {
+  if (P.mode === 'quick') { W.date = date; W.time = time; W.datePicked = true; closePick(); return renderWin(); }
+  if (P.mode === 'habitStart') { W.freq.start = date || TODAY; closePick(); return renderWin(); }
+  const t = task(W.id);
+  if (P.which === 'plan') { t.plan = date; t.time = date ? time : null; if (date) t.inbox = false; } else { t.due = date; t.dueTime = date ? time : null; }
+  closePick(); render(); toast('Sačuvano');
+}
+A.dClear = () => applyDate(null, null);
+A.dApply = () => applyDate(P.date, P.time);
+
+// Reminder (E6).
+PICK.reminder = p => {
+  const t = task(W.id);
+  const base = t.plan && t.time ? new Date(`${t.plan}T${t.time}`) : null;
+  const shift = min => { const d = new Date(base.getTime() - min * 60000); return { date: iso(d), time: `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` }; };
+  const presets = base ? [['U vreme plana', shift(0)], ['15 min pre', shift(15)], ['1 h pre', shift(60)], ['Dan pre u 9:00', { date: addDays(t.plan, -1), time: '09:00' }]] : [];
+  P.presets = presets;
+  return { title: 'Podsetnik', sub: t.title, body: `
+    ${presets.length ? `<div class="chips">${presets.map(([l, v], k) => `<button class="chip ${p.date === v.date && p.time === v.time ? 'on' : ''}" data-act="rPreset" data-k="${k}">${l}</button>`).join('')}</div>` : '<p class="note" style="margin-top:0">Brzi izbori se pojavljuju kad zadatak ima planirano vreme.</p>'}
+    <label class="field">${IC.cal}<span class="lbl">Datum</span><input type="date" value="${p.date}" data-ch="rDate"></label>
+    <label class="field">${IC.timer}<span class="lbl">Vreme</span><input type="time" value="${p.time}" data-ch="rTime"></label>
+    <p class="note" style="margin-top:0">Podseti me ${short(p.date)} u ${p.time}</p>
+    <div class="glabel" style="margin-top:4px">Datumi zadatka</div><div class="card" style="margin-bottom:14px"><div class="prow">${IC.cal}<span class="lbl">Planirano</span><span class="val">${dateTime(t.plan, t.time) || '—'}</span></div><div class="prow">${IC.due}<span class="lbl">Rok</span><span class="val">${dateTime(t.due, t.dueTime) || '—'}</span></div></div>
+    <div class="split"><button class="ghost" data-act="rClear">Ukloni podsetnik</button><button class="primary" data-act="rApply">Primeni</button></div>` };
+};
+A.rPreset = el => { Object.assign(P, P.presets[Number(el.dataset.k)][1]); renderPick(); };
+CH.rDate = el => { if (el.value) P.date = el.value; renderPick(); };
+CH.rTime = el => { if (el.value) P.time = el.value; renderPick(); };
+A.rClear = () => { task(W.id).reminder = null; closePick(); render(); toast('Sačuvano'); };
+A.rApply = () => { task(W.id).reminder = { date: P.date, time: P.time }; closePick(); render(); toast('Sačuvano'); };
+
+// Repeat (E7).
+PICK.repeat = p => {
+  const r = p.r, t = task(W.id);
+  const presets = [['Svaki dan', 'daily'], ['Radnim danima', 'weekdays'], ['Svake nedelje', 'weekly'], ['Svakog meseca', 'monthly']];
+  const unit = { daily: 'dana', weekly: 'nedelje', monthly: 'meseca', yearly: 'godine' }[r.freq];
+  const sel = 'style="background:#1F232A;border:1px solid #2C3139;border-radius:8px;padding:6px;color-scheme:dark"';
+  return { title: 'Ponavljanje', sub: t.title, body: `
+    <div class="chips">${presets.map(([l, f]) => `<button class="chip ${r.freq === f && r.interval === 1 ? 'on' : ''}" data-act="rpPreset" data-f="${f}">${l}</button>`).join('')}</div>
+    <label class="field"><span class="lbl">Učestalost</span><select data-ch="rpFreq" ${sel}>${[['daily', 'Dnevno'], ['weekdays', 'Radnim danima'], ['weekly', 'Nedeljno'], ['monthly', 'Mesečno'], ['yearly', 'Godišnje']].map(([v, l]) => `<option value="${v}" ${r.freq === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+    ${r.freq === 'weekdays' ? '' : `<label class="field"><span class="lbl">Na svakih</span><input type="number" min="1" max="99" value="${r.interval}" data-ch="rpInt"><span class="meta" style="margin:0">${unit}</span></label>`}
+    ${r.freq === 'weekly' ? `<div class="wdays">${WD.map((w, i) => `<button class="${r.days.includes(i) ? 'on' : ''}" data-act="rpDay" data-i="${i}" aria-pressed="${r.days.includes(i)}">${w}</button>`).join('')}</div>` : ''}
+    <p class="note" style="margin-top:0">${repeatSummary(r, t.plan)}${endSummary(r)}</p>
+    <div class="glabel">Kraj</div><div class="card" style="margin-bottom:14px">
+      <div class="opt" role="radio" tabindex="0" aria-checked="${r.end === 'never'}" data-act="rpEnd" data-v="never"><span class="radio ${r.end === 'never' ? 'on' : ''}"></span><span class="lbl">Nikad</span></div>
+      <div class="opt" role="radio" tabindex="0" aria-checked="${r.end === 'date'}" data-act="rpEnd" data-v="date"><span class="radio ${r.end === 'date' ? 'on' : ''}"></span><span class="lbl">Na datum</span>${r.end === 'date' ? `<input type="date" value="${r.endDate}" data-ch="rpEndDate" ${sel}>` : ''}</div>
+      <div class="opt" role="radio" tabindex="0" aria-checked="${r.end === 'count'}" data-act="rpEnd" data-v="count"><span class="radio ${r.end === 'count' ? 'on' : ''}"></span><span class="lbl">Posle broja ponavljanja</span>${r.end === 'count' ? `<input type="number" min="1" value="${r.count}" data-ch="rpCount" style="width:64px;background:#1F232A;border:1px solid #2C3139;border-radius:8px;padding:6px">` : ''}</div></div>
+    <div class="split"><button class="ghost" data-act="rpClear">Ne ponavlja se</button><button class="primary" data-act="rpApply">Primeni</button></div>` };
+};
+A.rpPreset = el => { Object.assign(P.r, { freq: el.dataset.f, interval: 1 }); renderPick(); };
+CH.rpFreq = el => { P.r.freq = el.value; renderPick(); };
+CH.rpInt = el => { P.r.interval = Math.max(1, Number(el.value) || 1); renderPick(); };
+A.rpDay = el => { const i = Number(el.dataset.i), d = P.r.days; P.r.days = d.includes(i) ? d.filter(x => x !== i) : [...d, i].sort(); renderPick(); };
+A.rpEnd = (el, ev) => { if (ev.target.tagName === 'INPUT') return; P.r.end = el.dataset.v; renderPick(); };
+CH.rpEndDate = el => { if (el.value) P.r.endDate = el.value; renderPick(); };
+CH.rpCount = el => { P.r.count = Math.max(1, Number(el.value) || 1); renderPick(); };
+A.rpClear = () => { task(W.id).repeat = null; closePick(); render(); toast('Sačuvano'); };
+A.rpApply = () => { task(W.id).repeat = JSON.parse(JSON.stringify(P.r)); closePick(); render(); toast('Sačuvano'); };
+
+// Duration: a tap applies at once (E3).
+PICK.duration = () => ({ title: 'Trajanje', sub: task(W.id).title, body: `<div class="chips">${[15, 30, 45, 60, 90, 120].map(m => `<button class="chip ${task(W.id).duration === m ? 'on' : ''}" data-act="durPick" data-v="${m}">${durLabel(m)}</button>`).join('')}</div><p class="note" style="margin-top:0">Dodir odmah postavlja trajanje. Trajanje se vidi u Kalendaru, u prikazu „Raspored“.</p><button class="ghost" data-act="durPick" data-v="0">Ukloni trajanje</button>` });
+A.durPick = el => { task(W.id).duration = Number(el.dataset.v) || null; closePick(); render(); toast('Sačuvano'); };
+
+// Project (E8): search, grouped by area, "+ Novi projekat"; a tap applies.
+function projectList(p) {
+  const q = (p.q || '').toLowerCase();
+  let html = p.allowNone ? `<button class="opt" data-act="pjPick" data-id=""><span class="lbl">Bez projekta</span><span class="radio ${!p.current ? 'on' : ''}"></span></button>` : '';
+  for (const a of S.areas) for (const pr of S.projects.filter(x => x.area === a.id && x.name.toLowerCase().includes(q))) html += `<button class="opt" data-act="pjPick" data-id="${pr.id}"><span class="dot" style="background:${pr.color}"></span><span class="lbl">${esc(pr.name)}<small>Oblast: ${esc(a.name)}</small></span><span class="radio ${p.current === pr.id ? 'on' : ''}"></span></button>`;
+  return html + '<button class="opt" data-act="newProject" style="color:var(--link)">＋ Novi projekat</button>';
+}
+PICK.project = p => ({ title: 'Projekat', sub: p.sub, body: `<label class="search">${IC.search}<input placeholder="Pretraži projekte" value="${esc(p.q || '')}" data-in="pjSearch" aria-label="Pretraži projekte"></label><div class="card" id="pjList" style="margin-bottom:10px">${projectList(p)}</div><p class="note" style="margin-top:0">Zadatak dobija oblast svog projekta. Dodir odmah primenjuje izbor.</p>` });
+IN.pjSearch = el => { P.q = el.value; $('pjList').innerHTML = projectList(P); };
+A.pjPick = el => { const p = P; closePick(); p.onPick(el.dataset.id || null); };
+
+// Tags (E9): several at once, then "Primeni".
+function tagList(p) {
+  const q = (p.q || '').toLowerCase();
+  return S.tags.filter(x => x.name.toLowerCase().includes(q)).map(x => `<button class="opt" data-act="tgToggle" data-id="${x.id}" aria-pressed="${p.ids.includes(x.id)}"><span class="dot" style="background:${x.color}"></span><span class="lbl">${esc(x.name)}</span><span class="check ${p.ids.includes(x.id) ? 'on' : ''}">${p.ids.includes(x.id) ? IC.tickW : ''}</span></button>`).join('') + `<button class="opt" data-act="tgNew" style="color:var(--link)">＋ Nova oznaka${p.q ? ` „${esc(p.q)}“` : ''}</button>`;
+}
+PICK.tags = p => ({ title: 'Oznake', sub: task(W.id).title, body: `<label class="search">${IC.search}<input placeholder="Pretraži oznake" value="${esc(p.q || '')}" data-in="tgSearch" aria-label="Pretraži oznake"></label><div class="card" id="tgList" style="margin-bottom:14px">${tagList(p)}</div><button class="primary" data-act="tgApply">Primeni</button>` });
+IN.tgSearch = el => { P.q = el.value; $('tgList').innerHTML = tagList(P); };
+A.tgToggle = el => { const id = el.dataset.id; P.ids = P.ids.includes(id) ? P.ids.filter(x => x !== id) : [...P.ids, id]; $('tgList').innerHTML = tagList(P); };
+A.tgNew = () => { const name = (P.q || '').trim() || `Oznaka ${S.tags.length + 1}`; const tg = { id: newId('tag'), name, color: '#8FA2FF' }; S.tags.push(tg); P.ids.push(tg.id); P.q = ''; renderPick(); };
+A.tgApply = () => { task(W.id).tags = P.ids; closePick(); render(); toast('Sačuvano'); };
+// ===== Quick Add (Q1–Q3) ====================================================
+// The parser follows V1.10: plan day, time, #tag, !priority and +project in the title.
+// Matching ignores case and diacritics, so "+kuc" finds "Kućni poslovi".
+const plain = v => v.toLowerCase().replace(/đ/g, 'dj').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+const DAYWORDS = { ponedeljak: 0, utorak: 1, sredu: 2, sreda: 2, četvrtak: 3, petak: 4, subotu: 5, subota: 5, nedelju: 6, nedelja: 6 };
+function parseQuick(text) {
+  const out = { date: null, time: null, tags: [], priority: null, project: null, parts: [] };
+  const keep = [];
+  const words = text.split(/\s+/).filter(Boolean);
+  for (let k = 0; k < words.length; k++) {
+    const w = words[k], lw = w.toLowerCase();
+    if (lw === 'danas' || lw === 'sutra' || lw === 'prekosutra') { out.date = addDays(TODAY, { danas: 0, sutra: 1, prekosutra: 2 }[lw]); continue; }
+    if (lw === 'u' && words[k + 1] && (/^\d{1,2}(:\d{2})?$/.test(words[k + 1]) || DAYWORDS[words[k + 1].toLowerCase()] !== undefined)) continue;
+    if (DAYWORDS[lw] !== undefined) { const diff = (DAYWORDS[lw] - mondayIndex(TODAY) + 7) % 7 || 7; out.date = addDays(TODAY, diff); continue; }
+    if (/^\d{1,2}(:\d{2})?$/.test(w) && words[k - 1]?.toLowerCase() === 'u' || /^\d{1,2}:\d{2}$/.test(w)) { const [h, m = '00'] = w.split(':'); if (Number(h) < 24) { out.time = `${h.padStart(2, '0')}:${m}`; continue; } }
+    if (/^#\S+/.test(w)) { const name = w.slice(1); out.tags.push(S.tags.find(t => t.name.toLowerCase() === name.toLowerCase())?.name || name); continue; }
+    if (/^!(visok|srednji|nizak|[123])$/i.test(w)) { out.priority = { visok: 'high', srednji: 'medium', nizak: 'low', 1: 'high', 2: 'medium', 3: 'low' }[lw.slice(1)]; continue; }
+    if (/^\+\S+/.test(w)) { const q = plain(w.slice(1)); const p = S.projects.find(x => plain(x.name).replace(/\s+/g, '').startsWith(q)); if (p) { out.project = p.id; continue; } }
+    keep.push(w);
+  }
+  out.title = keep.join(' ');
+  if (out.date) out.parts.push(relDay(out.date));
+  if (out.time) out.parts.push(out.time);
+  out.tags.forEach(t => out.parts.push(`#${t}`));
+  if (out.project) out.parts.push(`+${project(out.project).name}`);
+  if (out.priority) out.parts.push(`${PRI_NAME[out.priority]} prioritet`);
+  return out;
+}
+function openQuick({ date = null, project: proj = 'inbox' } = {}) { openWin({ kind: 'quick', text: '', date, time: null, project: proj, datePicked: false, projectPicked: false, err: '' }); setTimeout(() => $('qText')?.focus(), 0); }
+function quickEffective(w) {
+  const p = parseQuick(w.text);
+  return { p, date: w.datePicked ? w.date : (p.date ?? w.date), time: w.datePicked ? w.time : (p.time ?? w.time), project: w.projectPicked ? w.project : (p.project ?? w.project) };
+}
+const quickPlace = v => v === 'inbox' ? 'Inbox' : v === 'none' ? 'Bez projekta' : project(v).name;
+function quickPreview(w) {
+  const { p } = quickEffective(w);
+  return p.parts.length ? `Prepoznato u naslovu: <b>${p.parts.map(esc).join(' · ')}</b>` : '';
+}
+WIN.quick = w => {
+  const e = quickEffective(w);
+  return {
+    head: winHead('Novi zadatak'),
+    body: `<input id="qText" class="bigtitle" placeholder="Šta treba uraditi?" value="${esc(w.text)}" data-in="qText" aria-label="Naslov zadatka">
+      <div class="qprev" id="qPrev">${quickPreview(w)}</div>${w.err ? `<p class="err">${w.err}</p>` : ''}
+      <div class="qsel"><button data-act="qDate">${IC.cal}<span>${e.date ? dateTime(e.date, e.time) : 'Bez datuma'}</span>${IC.chev}</button><button data-act="qProject">${IC.folder}<span>${esc(quickPlace(e.project))}</span>${IC.chev}</button></div>
+      <button class="more" data-act="qMore" style="padding-top:0">Više opcija <span style="display:inline-flex;gap:4px;align-items:center">Rok, podsetnik, oznake${IC.chev}</span></button>`,
+    foot: '<button class="primary" data-act="qAdd">Dodaj zadatak</button>',
+  };
+};
+// The preview updates while typing, without redrawing the field.
+IN.qText = el => { W.text = el.value; $('qPrev').innerHTML = quickPreview(W); };
+A.qDate = () => { const e = quickEffective(W); openDate({ mode: 'quick', date: e.date, time: e.time }); };
+A.qProject = () => { const e = quickEffective(W); openPick({ kind: 'choice', title: 'Gde ide zadatak', current: e.project, options: [{ v: 'inbox', label: 'Inbox', icon: IC.tray, sub: 'Razvrstaćeš ga kasnije' }, { v: 'none', label: 'Bez projekta' }, ...S.projects.map(p => ({ v: p.id, label: p.name, dot: p.color, sub: `Oblast: ${areaOf(p.area).name}` }))], onPick: v => { W.project = v; W.projectPicked = true; renderWin(); } }); };
+function quickCreate() {
+  const e = quickEffective(W);
+  if (!e.p.title.trim()) { W.err = 'Upiši naziv zadatka.'; renderWin(); return null; }
+  const tags = e.p.tags.map(name => { let tg = S.tags.find(x => x.name.toLowerCase() === name.toLowerCase()); if (!tg) { tg = { id: newId('tag'), name, color: '#8FA2FF' }; S.tags.push(tg); } return tg.id; });
+  const proj = !['inbox', 'none'].includes(e.project) ? e.project : null;
+  const t = T(e.p.title.trim(), { plan: e.date, time: e.date ? e.time : null, project: proj, tags, priority: e.p.priority || 'none', inbox: !e.date && e.project === 'inbox', captured: 'Danas' });
+  S.tasks.push(t);
+  return t;
+}
+A.qAdd = () => {
+  const t = quickCreate();
+  if (!t) return;
+  closeWin(); render();
+  toast(t.inbox ? 'Dodato u Inbox' : t.plan === TODAY ? 'Dodato u Danas' : t.plan ? `Planirano: ${relDay(t.plan)}` : t.project ? `U projekat „${project(t.project).name}“` : 'U „Kad stignem“', () => { S.tasks.splice(S.tasks.indexOf(t), 1); });
+};
+// "Više opcija" saves the task and opens the full task window.
+A.qMore = () => { const t = quickCreate(); if (!t) return; render(); W = { kind: 'task', id: t.id }; renderWin(); };
+
+// ===== Floating "+" (G2): adds what belongs to the screen ==================
+A.fab = () => {
+  const top = R.stack.at(-1);
+  if (R.tab === 'today') return openQuick({ date: TODAY, project: 'none' });
+  if (R.tab === 'tasks') return openQuick({ date: null, project: top?.type === 'project' ? (top.id === 'none' ? 'none' : top.id) : 'none' });
+  if (R.tab === 'calendar') return openQuick({ date: S.ui.calDay, project: 'none' });
+  if (R.tab === 'habits') return openNewHabit();
+  if (R.tab === 'more' && top?.type === 'goals') return openWin(freshGoal());
+  return openQuick({ date: null, project: 'inbox' });
+};
+// ===== New habit (N1–N6) ====================================================
+function openNewHabit() {
+  openWin({ kind: 'newHabit', name: '', area: null, routine: '1', tracking: 'checkbox', target: 2, unit: 'l', freq: { type: 'daily', weekdays: [0, 1, 2, 3, 4], perWeek: 4, everyN: 2, start: TODAY }, reminders: [], more: true, end: 'never', err: '' });
+}
+function freqLabel(f) {
+  if (f.type === 'daily') return 'Svaki dan';
+  if (f.type === 'weekdays') { const d = [...f.weekdays].sort(); return d.length === 7 ? 'Svaki dan' : d.join() === '0,1,2,3,4' ? 'Radnim danima' : d.join() === '5,6' ? 'Vikendom' : cap(listWords(d.map(i => WDINSTR[i]))); }
+  if (f.type === 'perWeek') return f.perWeek === 1 ? 'Jednom nedeljno' : `${f.perWeek} puta nedeljno`;
+  return f.everyN === 2 ? 'Svaki drugi dan' : `Na ${plural(f.everyN, 'svaki', 'svaka', 'svakih')} ${f.everyN} dana`;
+}
+const habitStartLabel = s => s === TODAY ? 'Danas' : relDay(s);
+WIN.newHabit = w => {
+  const numeric = w.tracking === 'numeric', targets = numeric || w.freq.type === 'perWeek';
+  const same = 'data-msg="Isti prozor kao u prototipu „Nova navika“"';
+  return {
+    tall: true, head: winHead('Nova navika'),
+    body: `<input class="bigtitle" placeholder="Šta želiš da vežbaš?" value="${esc(w.name)}" data-in="nhName" aria-label="Naziv navike">${w.err ? `<p class="err">${w.err}</p>` : ''}
+      <div class="card" style="margin-top:8px">
+        ${prow('nhArea', IC.person, 'Oblast', areaOf(w.area)?.name, 'Bez oblasti (opciono)')}
+        <div class="block"><div class="lbl">${IC.routine}Rutina</div>${seg('routine', [['0', 'Jutro'], ['1', 'Dan'], ['2', 'Veče']], w.routine)}</div>
+        <div class="block"><div class="lbl">${IC.track}Praćenje</div>${seg('tracking', [['checkbox', 'Kvadratić'], ['numeric', 'Brojevno']], w.tracking)}
+          ${numeric ? `<div class="inline">Cilj<input type="number" min="0" step="any" value="${w.target}" data-in="nhTarget" aria-label="Cilj"><input class="unit" value="${esc(w.unit)}" placeholder="jedinica" data-in="nhUnit" aria-label="Jedinica">po danu</div>` : ''}</div>
+        ${prow('nhFreq', IC.repeat, 'Učestalost', freqLabel(w.freq), '')}
+        ${prow('nhRem', IC.bell, 'Podsetnik', [...w.reminders].sort().join(', '), 'Nije podešen')}</div>
+      <button class="more" data-act="nhMore"><b>Više</b><span style="display:inline-flex;gap:4px;align-items:center">${w.more ? 'Sakrij' : 'Početak, kraj, ciljevi'}${IC.fold(w.more)}</span></button>
+      ${w.more ? `<div class="card" style="margin-top:8px">
+        ${prow('nhStart', IC.cal, 'Početak', habitStartLabel(w.freq.start), '')}
+        ${prow('soon', IC.short.replace('width="16" height="16"', 'width="20" height="20"'), 'Kraj', 'Nikad', '', same)}
+        ${targets ? prow('soon', IC.goal, 'Minimalna i idealna', '', 'Kao cilj', same) : ''}
+        ${numeric ? prow('soon', IC.bolt, 'Brze vrednosti', [w.target / 8, w.target / 4, w.target / 2].map(v => `+${num(v)}`).join('  '), '', same) : ''}
+        ${prow('soon', IC.goal, 'Povezani ciljevi', '', 'Nijedan', same)}</div>
+        <p class="note">„Nastavak“ i „Dani tolerancije“ su u detaljima navike.</p>` : ''}`,
+    foot: '<button class="primary" data-act="nhCreate">Napravi naviku</button>',
+  };
+};
+IN.nhName = el => { W.name = el.value; };
+IN.nhTarget = el => { W.target = Number(el.value); };
+IN.nhUnit = el => { W.unit = el.value; };
+A.nhMore = () => { W.more = !W.more; renderWin(); };
+A.nhArea = () => openPick({ kind: 'choice', title: 'Oblast', sub: W.name || 'Nova navika', current: W.area, options: [{ v: null, label: 'Bez oblasti' }, ...S.areas.map(a => ({ v: a.id, label: a.name, dot: a.color }))], onPick: v => { W.area = v; renderWin(); } });
+A.nhStart = () => openDate({ mode: 'habitStart', date: W.freq.start, time: null });
+A.nhFreq = () => openPick({ kind: 'freq', f: JSON.parse(JSON.stringify(W.freq)) });
+A.nhRem = () => openPick({ kind: 'hrem', times: W.reminders.length ? [...W.reminders] : ['09:00'] });
+function nextDates(f) {
+  const out = []; let s = f.start;
+  while (s < TODAY) s = addDays(s, f.everyN);
+  for (let k = 0; k < 3; k++) { out.push(short(s)); s = addDays(s, f.everyN); }
+  return out;
+}
+const stepper = (key, v, min, max) => `<span class="stepper"><button data-act="fqStep" data-k="${key}" data-d="-1" ${v <= min ? 'disabled' : ''} aria-label="Manje">−</button><span>${v}</span><button data-act="fqStep" data-k="${key}" data-d="1" ${v >= max ? 'disabled' : ''} aria-label="Više">+</button></span>`;
+// The frequency sheet (N6): one "Primeni", X closes without a change.
+PICK.freq = p => {
+  const f = p.f;
+  let extra = '';
+  if (f.type === 'weekdays') extra = `<div class="wdays">${WD.map((d, i) => `<button class="${f.weekdays.includes(i) ? 'on' : ''}" data-act="fqDay" data-i="${i}" aria-pressed="${f.weekdays.includes(i)}">${d}</button>`).join('')}</div><p class="note" style="margin-top:0">${f.weekdays.length ? freqLabel(f) : 'Izaberi bar jedan dan.'}</p>`;
+  if (f.type === 'perWeek') extra = `<div class="field"><span class="lbl">Uspešnih dana nedeljno</span>${stepper('perWeek', f.perWeek, 1, 7)}</div><p class="note" style="margin-top:0">Jedno označavanje po danu, bilo kog dana u nedelji. Možeš da pređeš nedeljni cilj.</p>`;
+  if (f.type === 'everyN') extra = `<div class="field"><span class="lbl">Na ${plural(f.everyN, 'svaki', 'svaka', 'svakih')}</span>${stepper('everyN', f.everyN, 2, 30)}<span class="meta" style="margin:0">dana</span></div><label class="field">${IC.cal}<span class="lbl">Počinje</span><input type="date" value="${f.start}" data-ch="fqStart"></label><p class="note" style="margin-top:0"><span style="color:var(--text)">Sledeći dani:</span> ${nextDates(f).join(' · ')}</p>`;
+  return { title: 'Učestalost', sub: W.name || 'Nova navika', body: `<div class="card" style="margin-bottom:12px">${[['daily', 'Svaki dan'], ['weekdays', 'Određeni dani'], ['perWeek', 'X puta nedeljno'], ['everyN', 'Na svakih N dana']].map(([v, l]) => `<div class="opt" role="radio" tabindex="0" aria-checked="${f.type === v}" data-act="fqType" data-v="${v}"><span class="radio ${f.type === v ? 'on' : ''}"></span><span class="lbl">${l}</span></div>`).join('')}</div>${extra}<button class="primary" data-act="fqApply" ${f.type === 'weekdays' && !f.weekdays.length ? 'disabled' : ''}>Primeni</button>` };
+};
+A.fqType = el => { P.f.type = el.dataset.v; renderPick(); };
+A.fqDay = el => { const i = Number(el.dataset.i), d = P.f.weekdays; P.f.weekdays = d.includes(i) ? d.filter(x => x !== i) : [...d, i].sort(); renderPick(); };
+A.fqStep = el => { P.f[el.dataset.k] += Number(el.dataset.d); renderPick(); };
+CH.fqStart = el => { if (el.value) P.f.start = el.value; renderPick(); };
+A.fqApply = () => { W.freq = P.f; closePick(); renderWin(); };
+PICK.hrem = p => ({ title: 'Podsetnik', sub: W.name || 'Nova navika', body: `${p.times.map((t, k) => `<div class="field">${IC.bell}<span class="lbl">Vreme ${p.times.length > 1 ? k + 1 : ''}</span><input type="time" value="${t}" data-ch="hrTime" data-k="${k}">${p.times.length > 1 ? `<button class="x" data-act="hrRm" data-k="${k}" aria-label="Ukloni vreme">✕</button>` : ''}</div>`).join('')}
+  <button class="ghost" data-act="hrAdd" style="padding-top:2px">＋ Dodaj vreme</button><p class="note" style="margin-top:0">Podsetnik stiže samo u dane kada je navika u planu.</p>
+  <div class="split"><button class="ghost" data-act="hrClear">Bez podsetnika</button><button class="primary" data-act="hrApply">Primeni</button></div>` });
+CH.hrTime = el => { P.times[Number(el.dataset.k)] = el.value; };
+A.hrRm = el => { P.times.splice(Number(el.dataset.k), 1); renderPick(); };
+A.hrAdd = () => { P.times.push('18:00'); renderPick(); };
+A.hrClear = () => { W.reminders = []; closePick(); renderWin(); };
+A.hrApply = () => { W.reminders = [...new Set(P.times.filter(Boolean))]; closePick(); renderWin(); };
+// A new habit gets this week's plan from its frequency; days before the start are not scheduled.
+A.nhCreate = () => {
+  const w = W;
+  if (!w.name.trim()) { w.err = 'Upiši naziv navike.'; return renderWin(); }
+  if (w.tracking === 'numeric' && !(w.target > 0)) { w.err = 'Cilj mora biti veći od nule.'; return renderWin(); }
+  const f = w.freq;
+  const week = Array.from({ length: 7 }, (_, i) => {
+    const day = addDays(WEEK_START, i);
+    if (day < f.start) return 'n';
+    const scheduled = f.type === 'weekdays' ? f.weekdays.includes(i) : f.type === 'everyN' ? daysTo(day) % f.everyN === daysTo(f.start) % f.everyN : true;
+    if (!scheduled) return 'n';
+    return i < TI ? 'm' : i === TI ? 'o' : 'f';
+  });
+  const h = { id: newId('h'), name: w.name.trim(), routine: Number(w.routine), tracking: w.tracking, target: w.target, unit: w.unit, quick: [w.target / 8, w.target / 4, w.target / 2], vals: [], freq: freqLabel(f), streak: 0, week };
+  if (f.type === 'perWeek') h.weekly = f.perWeek;
+  S.habits.push(h);
+  closeWin(); render(); toast('Navika je napravljena');
+};
+
+bindEvents();
+render();
+</script>
+</body>
+</html>
