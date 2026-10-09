@@ -1,6 +1,6 @@
 # Dailo redesign — design decisions
 
-**Started:** 2026-10-08. **Design final: 2026-10-09** (the user: "dizajn je konačan"). Every row below stands as the design to implement; rows marked "accepted as the basis" count as accepted. Next: agree the mobile technology, then implement in versioned steps with a failing test first.
+**Started:** 2026-10-08. **Design final: 2026-10-09** (the user: "dizajn je konačan"). Every row below stands as the design to implement; rows marked "accepted as the basis" count as accepted. Next: agree the mobile technology, then implement in versioned steps with a failing test first. The prototypes are a reference for how the app looks and behaves only; the structure of the implementation code is Claude's choice (the user, 2026-10-09), within `AGENTS.md`.
 
 **Process:**
 - The user sends designs one at a time, Claude reviews each one (what to keep, what to change, open questions), and the decisions are recorded here.
