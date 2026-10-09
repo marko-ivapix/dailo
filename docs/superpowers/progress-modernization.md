@@ -14,4 +14,5 @@ Only checks that actually ran are recorded as passed. Native compilation, emulat
 
 | Phase | Commit | Result |
 | --- | --- | --- |
-| M0 audit and plan | (this commit) | documents only |
+| M0 audit and plan | `59f24fe` | documents only |
+| M1 tooling | (this commit) | `package.json` (scripts `test`, `check`, `verify`, `build`; Node ≥ 22; version = APP_VERSION), `package-lock.json`, `.gitignore` (`node_modules/`, `www/`), `tools/shell-files.mjs`, `tools/build-www.mjs` (41 shell files, no `sw.js`), `tools/check-syntax.mjs`. `npm run verify`: syntax 79/79, Node 399/399 (6 new in `tests/tooling-m1.test.js`). |
