@@ -1,6 +1,6 @@
 # Current implementation project map
 
-This map describes the `2.0.0-alpha.2` source (modernization M1–M10 on `feature/capacitor-modernization`) inspected on 2026-10-09; the rows below were written for V2.0-a and the section "Modernization and the native app" lists what changed since. It is an onboarding aid for Claude, not a replacement for `AGENTS.md`, the versioned specifications, or acceptance evidence. The directory name still says V1.3; README describes V2.0-a, V1.12, V1.11, V1.10 and V1.9 functionality. Inspect source before making version or completion claims.
+This map describes the `2.0.0-alpha.3` source on `main` (modernization M1–M11, merged through PR #8) inspected on 2026-10-09; the rows below were written for V2.0-a and the section "Modernization and the native app" lists what changed since. It is an onboarding aid for Claude, not a replacement for `AGENTS.md`, the versioned specifications, or acceptance evidence. The directory name still says V1.3; README describes V2.0-a, V1.12, V1.11, V1.10 and V1.9 functionality. Inspect source before making version or completion claims.
 
 ## Runtime files
 

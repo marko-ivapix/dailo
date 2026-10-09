@@ -302,7 +302,9 @@ sva prošla), urađena je: prijava kodom na e-poštu bez lozinke, kartica
 „Sinhronizacija“ u Podešavanjima i SQL za server. Sinhronizacija je isključena
 dok korisnik ne napravi Supabase projekat (`docs/v2/podesavanje-supabase.md`)
 i ne pošalje adresu projekta i javni ključ. Ključ `service_role` nikad ne ide u
-repozitorijum. Posle toga slede V2.0-b (aplikacija za iPhone i Android) i
+repozitorijum. Aplikacija za iPhone i Android (Capacitor, verzija
+`2.0.0-alpha.3`) spojena je u `main` kroz PR #8 9. oktobra 2026; izrada na
+Mac-u i provere na telefonima su po `docs/v2/capacitor-mac.md`. Zatim sledi
 V2.0-c (objava u prodavnicama). V1.7 osnova ostaje zabeležena u
 `docs/superpowers/progress-v1-7.md`. Tačni brojevi Node, syntax, Python/static i
 ZIP provera upisuju se tek posle stvarnog pokretanja komandi; browser/visual i

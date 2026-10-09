@@ -35,7 +35,7 @@ These checks need no Python packages. Where a local `.venv` exists (gitignored, 
 
 Current `2.0.0-alpha.3` evidence (2026-10-09, M11): Node **490 tests, 490 passed, 0 failed, 0 todo** (59 files); JavaScript syntax **93 files passed**; smoke, Python, registry, path adapter, static contracts and `cap:sync` as below.
 
-`2.0.0-alpha.2` evidence (2026-10-09, modernization M1–M10 on `feature/capacitor-modernization`; see `docs/superpowers/progress-modernization.md`):
+`2.0.0-alpha.2` evidence (2026-10-09, modernization M1–M10, developed on `feature/capacitor-modernization` and merged into `main` with M11 through PR #8; see `docs/superpowers/progress-modernization.md`):
 
 | Check | Result |
 | --- | ---: |
