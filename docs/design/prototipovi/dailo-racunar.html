@@ -1858,7 +1858,7 @@ A.naCreate = () => {
   if (S.areas.some(a => a.name.toLowerCase() === name.toLowerCase())) { P.err = 'Oblast sa ovim nazivom već postoji.'; return renderPick(); }
   S.areas.push({ id: newId('a'), name, color: P.color, icon: P.icon, status: 'active' }); closePick(); render(); toast(`Oblast „${name}“ je napravljena`);
 };
-// One area: a summary line, then its projects, tasks, goals, habits and library.
+// One area: a summary line, then its projects, tasks, goals, habits and library. An empty section keeps only its header and "+".
 SUB.area = ({ id }) => {
   const a = areaOf(id), projects = activeProjects().filter(p => p.area === id), tasks = areaTasks(id).sort(byTime);
   const goals = S.goals.filter(g => g.area === id && g.status === 'active'), lib = S.library.filter(x => x.area === id), habits = S.habits.filter(h => h.area === id);
@@ -1866,12 +1866,12 @@ SUB.area = ({ id }) => {
   const shownTasks = S.ui.areaTasksAll ? tasks : tasks.slice(0, 5);
   return `<div class="status"><span>09:41</span><span>•••</span></div><div class="titlebar">${backBtn()}<button class="icon-btn" data-act="areaMenu" data-id="${id}" aria-label="Radnje za oblast">${IC.dots}</button></div>
     <h1 class="h1" style="display:flex;gap:10px;align-items:center">${areaIcon(a)}${esc(a.name)}</h1>
-    <div class="summary">${areaSummary(a)} · ${lib.length} u biblioteci</div>
-    ${head('Projekti', projects.length, 'areaNewProject')}${projects.length ? `<div class="card">${projects.map(projectRow).join('')}</div>` : '<p class="note">U ovoj oblasti nema projekata.</p>'}
-    ${head('Zadaci', tasks.length, 'areaNewTask')}${tasks.length ? `<div class="card">${shownTasks.map(t => taskRow(t, { meta: 'plan' })).join('')}${tasks.length > 5 ? `<button class="more-btn" data-act="areaTasksAll">${S.ui.areaTasksAll ? 'Prikaži manje' : `Prikaži još ${tasks.length - 5}`}</button>` : ''}</div>` : '<p class="note">U ovoj oblasti nema otvorenih zadataka.</p>'}
-    ${head('Ciljevi', goals.length, 'areaNewGoal')}${goals.length ? `<div class="card">${goals.map(goalRow).join('')}</div>` : '<p class="note">U ovoj oblasti nema ciljeva.</p>'}
-    ${head('Navike', habits.length, 'areaNewHabit')}${habits.length ? `<div class="card">${habits.map(h => habitRow(h, TI, { meta: h.freq })).join('')}</div>` : '<p class="note">U ovoj oblasti nema navika.</p>'}
-    ${head('Beleške i resursi', lib.length, 'areaNewNote')}${lib.length ? `<div class="card">${lib.map(libRow).join('')}</div>` : '<p class="note">U ovoj oblasti nema beleški ni resursa.</p>'}`;
+    <div class="summary">${areaSummary(a)} · ${lib.length} u biblioteci</div>${projects.length + tasks.length + goals.length + habits.length + lib.length ? '' : '<p class="note">Oblast je prazna. Dodaj projekat, zadatak, cilj, naviku ili belešku preko „+“.</p>'}
+    ${head('Projekti', projects.length, 'areaNewProject')}${projects.length ? `<div class="card">${projects.map(projectRow).join('')}</div>` : ''}
+    ${head('Zadaci', tasks.length, 'areaNewTask')}${tasks.length ? `<div class="card">${shownTasks.map(t => taskRow(t, { meta: 'plan' })).join('')}${tasks.length > 5 ? `<button class="more-btn" data-act="areaTasksAll">${S.ui.areaTasksAll ? 'Prikaži manje' : `Prikaži još ${tasks.length - 5}`}</button>` : ''}</div>` : ''}
+    ${head('Ciljevi', goals.length, 'areaNewGoal')}${goals.length ? `<div class="card">${goals.map(goalRow).join('')}</div>` : ''}
+    ${head('Navike', habits.length, 'areaNewHabit')}${habits.length ? `<div class="card">${habits.map(h => habitRow(h, TI, { meta: h.freq })).join('')}</div>` : ''}
+    ${head('Beleške i resursi', lib.length, 'areaNewNote')}${lib.length ? `<div class="card">${lib.map(libRow).join('')}</div>` : ''}`;
 };
 A.areaTasksAll = () => { S.ui.areaTasksAll = !S.ui.areaTasksAll; render(); };
 A.areaNewProject = el => openPick({ kind: 'newProject', name: '', color: COLORS[0], area: el.dataset.id });
