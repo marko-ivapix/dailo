@@ -24,7 +24,6 @@ U Terminalu:
 ```bash
 git clone https://github.com/marko-ivapix/dailo.git
 cd dailo
-git checkout feature/capacitor-modernization
 npm ci
 npm run verify
 npm run cap:sync
@@ -32,7 +31,6 @@ npm run cap:sync
 
 Šta rade ove komande:
 
-- `git checkout feature/capacitor-modernization` je potreban samo dok izmene nisu spojene u `main`.
 - `npm ci` instalira Capacitor i dodatke tačno u verzijama iz `package-lock.json`.
 - `npm run verify` proverava sintaksu i pokreće sve testove; na kraju treba da piše `# fail 0`.
 - `npm run cap:sync` kopira aplikaciju u `www/`, a zatim u iOS i Android projekte.
