@@ -225,6 +225,8 @@ Later, with the mobile technology: locking the journal (Face ID / fingerprint), 
 
 The desktop prototype is built from the same parts as `dailo-prototip.html` plus `zbirni/60-desktop.css` and `60-desktop.js`, so both share data and behavior. Frame: 1280 × 800.
 
+**Deferred (2026-10-09):** the user does not need a separate desktop design ("nije mi bitan dizajn za računar, može biti identičan kao na telefonu"). The first implementation therefore uses the phone design everywhere, with the content in a centered column on a wide screen. K1–K12 stay recorded as decided and become an optional later layer, not part of the first implementation.
+
 | # | Proposal | Status |
 | --- | --- | --- |
 | K1 | **Sidebar instead of the bottom navigation and "Još":** brand and sync state; Pretraga (/); Danas with its count and, right under it, a "Prevuci ovde za sutra" drop zone (moved there from below Navike at the user's request, 2026-10-09); Inbox with the badge, Zadaci, Kalendar, Navike; Zakačeno; Projekti grouped by area, with open counts; Planiranje, Biblioteka and Arhiva as in "Još" (M4); Podešavanja at the bottom. Screens opened from the sidebar have no back button. Adding stays with the floating "+" at the bottom right (decided 2026-10-09, see K12). Planiranje, Biblioteka and Arhiva fold on their title (the app remembers it per device; a folded group still shows the open screen), while Zakačeno and Projekti stay open. A button at the top and the "[" key shrink the sidebar to a 60 px strip of icons with tooltips and the Inbox badge, giving the content the width (decided 2026-10-09). | decided (2026-10-09) |
