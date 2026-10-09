@@ -108,3 +108,9 @@
   .sb-mini .sb-item, .sb-mini .sb-search { width: 40px; justify-content: center; padding: 0; position: relative; }
   .sb-mini .sb-item .sb-badge { display: grid; position: absolute; top: 0; right: -2px; min-width: 14px; height: 14px; font-size: 9.5px; }
   .sb-mini .sb-foot { width: 40px; }
+  /* K6: the repeat editor is a centered window, not a popover. */
+  .desk #pick.center { width: 440px; max-height: 640px; }
+  /* K8: the week's date opens that day below; the selected column is marked. */
+  .desk .wk7 .colhead { width: 100%; text-align: left; border-radius: 8px; }
+  .desk .wk7 .colhead:hover { background: #15181D; }
+  .desk .wk7 .col.sel .colhead b { color: var(--link); }

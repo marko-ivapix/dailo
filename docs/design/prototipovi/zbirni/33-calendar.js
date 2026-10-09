@@ -1,6 +1,6 @@
 // ===== Kalendar (C1–C9) =====================================================
 function dayItems(day) {
-  const tasks = S.tasks.filter(t => !t.inbox && !t.done && (t.plan === day || (!t.plan && t.due === day)));
+  const tasks = S.tasks.filter(t => !t.inbox && !t.done && !(t.project && project(t.project)?.archived) && (t.plan === day || (!t.plan && t.due === day)));
   return {
     timed: tasks.filter(t => t.plan === day && t.time).sort(byTime),
     untimed: tasks.filter(t => !(t.plan === day && t.time)),

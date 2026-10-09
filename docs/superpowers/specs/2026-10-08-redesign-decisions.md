@@ -21,7 +21,7 @@
 | G2 | **Adding:** one floating "+" at the bottom right (as today). No "+" in screen headers. | decided |
 | G3 | **Background:** neutral graphite (the current `#0F1114` family), not the navy of image 1. The user left it to Claude's recommendation: the blue accent and the red, amber and green status colors read more clearly on a neutral base. | decided |
 | G4 | **Font:** Geist for now; it may change later. | decided |
-| G5 | **Density:** phone rows as in image 1 (large and easy to touch); a denser variant for desktop. | proposed |
+| G5 | **Density:** phone rows as in image 1 (large and easy to touch); a denser variant for desktop (settled by K3 on 2026-10-09: about 44 px rows on the desktop, "Zbijeniji prikaz" on by default). | decided (2026-10-09) |
 | G6 | **Status colors:** an overdue date red, due today amber, later dates gray; priority only as a flag icon (high red, medium amber); green means done. | decided |
 
 ## Today (image 1, left)
@@ -213,10 +213,10 @@ The desktop prototype is built from the same parts as `dailo-prototip.html` plus
 | K2 | **Content width:** lists stay in a centered column of at most 760 px; the calendar week and month use the full width. | decided (2026-10-09) |
 | K3 | **Density (G5):** rows of about 44 px and 14 px text, with a hover background. Settings → Računar → "Zbijeniji prikaz" (on by default) brings back the phone sizes when turned off. | decided (2026-10-09) |
 | K4 | **Every window is a centered dialog** over a dimmed screen (decided 2026-10-09; the right-hand panel was not chosen): the task, goal, habit and note windows, new habit, new goal and focus are tall (640 px wide); Quick Add, Search, Razvrstaj redom and saved view editing are short (560 px); the new recurring task is tall since it holds the repeat editor (S15). Esc closes. On the phone they stay bottom windows (D1). | decided |
-| K6 | **Pickers are popovers next to the row** that opened them (E2). | proposed |
-| K7 | **Two columns where there is room:** Today has tasks on the left and habits on the right; Habits has the list on the left and Napredak on the right. On a narrow window they fall back to one column. | proposed |
-| K8 | **Calendar:** Nedelja is 7 columns (C3) with cards (time and duration), dashed goal and milestone deadlines, "+ Dodaj" per day and a thin load bar per day against the daily capacity. Mesec shows up to 3 titles per day and "+N još" (the phone shows only dots, C1; titles decided 2026-10-09), with the selected day's list below. Predstojeće is the phone list. | proposed (month titles decided) |
-| K9 | **Drag and drop:** any task row or card onto a calendar day, onto Danas or "Sutra" in the sidebar, or onto a project in the sidebar; the message offers Undo. | proposed |
-| K10 | **Keyboard:** Q new item, / search, Esc closes, 1–5 the main screens; shortcuts stay editable (Settings → Računar → Prečice na tastaturi). | proposed |
-| K11 | **Settings → Računar:** "Prečice na tastaturi" and "Zbijeniji prikaz", only on the desktop (M5). | proposed |
+| K6 | **Pickers are popovers next to the row** that opened them (E2). The repeat editor (S15) is too long for a popover and opens as a centered window (440 px) instead (decided 2026-10-09). | decided (2026-10-09) |
+| K7 | **Two columns where there is room:** Today has tasks on the left and habits on the right; Habits has the list on the left and Napredak on the right. On a narrow window they fall back to one column. | decided (2026-10-09) |
+| K8 | **Calendar:** Nedelja is 7 columns (C3) with cards (time and duration), dashed goal and milestone deadlines, "+ Dodaj" per day and a thin load bar per day against the daily capacity. Mesec shows up to 3 titles per day and "+N još" (the phone shows only dots, C1; titles decided 2026-10-09), with the selected day's list below. Predstojeće is the phone list. The week keeps **cards, no hour grid** (decided 2026-10-09); a click on a column's date selects that day and shows it below the week, where "Lista / Raspored" (C6) gives the hours. A "Danas" button sits next to the arrows. Tasks of archived projects stay out of the calendar (S10). | decided (2026-10-09) |
+| K9 | **Drag and drop:** any task row or card onto a calendar day, onto Danas or "Sutra" in the sidebar, or onto a project in the sidebar; the message offers Undo. Moving a repeating task asks "Samo ovo / Ovo i buduća" first (S14). | decided (2026-10-09) |
+| K10 | **Keyboard:** Q new item, / search, Esc closes, 1–5 the main screens; shortcuts stay editable (Settings → Računar → Prečice na tastaturi). Also "[" for the sidebar (K1) and, in the Calendar, ← → for the previous or next week or month and T for today (decided 2026-10-09). | decided (2026-10-09) |
+| K11 | **Settings → Računar:** "Prečice na tastaturi" and "Zbijeniji prikaz", only on the desktop (M5). | decided (2026-10-09) |
 | K12 | **The floating "+" stays on the desktop** at the bottom right of the content (decided 2026-10-09, not a sidebar button). It adds what belongs to the screen, and its label says what (e.g. "Nova navika"); Q does the same. | decided |

@@ -410,6 +410,12 @@
   .sb-mini .sb-item, .sb-mini .sb-search { width: 40px; justify-content: center; padding: 0; position: relative; }
   .sb-mini .sb-item .sb-badge { display: grid; position: absolute; top: 0; right: -2px; min-width: 14px; height: 14px; font-size: 9.5px; }
   .sb-mini .sb-foot { width: 40px; }
+  /* K6: the repeat editor is a centered window, not a popover. */
+  .desk #pick.center { width: 440px; max-height: 640px; }
+  /* K8: the week's date opens that day below; the selected column is marked. */
+  .desk .wk7 .colhead { width: 100%; text-align: left; border-radius: 8px; }
+  .desk .wk7 .colhead:hover { background: #15181D; }
+  .desk .wk7 .col.sel .colhead b { color: var(--link); }
 </style>
 </head>
 <body>
@@ -1063,7 +1069,7 @@ A.npCreate = () => {
 };
 // ===== Kalendar (C1–C9) =====================================================
 function dayItems(day) {
-  const tasks = S.tasks.filter(t => !t.inbox && !t.done && (t.plan === day || (!t.plan && t.due === day)));
+  const tasks = S.tasks.filter(t => !t.inbox && !t.done && !(t.project && project(t.project)?.archived) && (t.plan === day || (!t.plan && t.due === day)));
   return {
     timed: tasks.filter(t => t.plan === day && t.time).sort(byTime),
     untimed: tasks.filter(t => !(t.plan === day && t.time)),
@@ -2634,7 +2640,7 @@ A.chCreate = () => {
 document.body.classList.add('desk');
 $('phone').classList.add('desk');
 $('phone').insertAdjacentHTML('afterbegin', '<aside id="side" aria-label="Glavna navigacija"></aside>');
-document.querySelector('.top').innerHTML = '<b>Prototip za računar (1280 × 800).</b> Isti podaci i ekrani kao na telefonu. Levo je bočni meni (donja traka i „Još“ zajedno). Zadatak, cilj, navika i beleška se otvaraju u prozoru u sredini; „+“ dole desno dodaje ono što pripada ekranu. Mali izbori su prozorčići pored reda. Zadatak prevuci na dan u kalendaru, na „Danas“ ili „Sutra“ ili na projekat u bočnom meniju. Prečice: Q novi zadatak, / pretraga, [ sakriva meni, Esc zatvara.';
+document.querySelector('.top').innerHTML = '<b>Prototip za računar (1280 × 800).</b> Isti podaci i ekrani kao na telefonu. Levo je bočni meni (donja traka i „Još“ zajedno). Zadatak, cilj, navika i beleška se otvaraju u prozoru u sredini; „+“ dole desno dodaje ono što pripada ekranu. Mali izbori su prozorčići pored reda. Zadatak prevuci na dan u kalendaru, na „Danas“ ili „Sutra“ ili na projekat u bočnom meniju. Prečice: Q novi zadatak, / pretraga, [ sakriva meni, ← → i T u kalendaru, Esc zatvara.';
 
 // ----- Sidebar --------------------------------------------------------------
 const routeKey = () => { const top = R.stack.at(-1); return top ? `${top.type}:${top.id || ''}` : `tab:${R.tab}`; };
@@ -2696,6 +2702,9 @@ const openPickPhone = openPick;
 openPick = function (p) {
   openPickPhone(p);
   const box = $('phone').getBoundingClientRect(), pick = $('pick');
+  // The repeat editor is too long for a popover: it opens as a centered window (K6, decided 2026-10-09).
+  pick.classList.toggle('center', p.kind === 'repeat');
+  if (p.kind === 'repeat') { Object.assign(pick.style, { left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }); return; }
   if (!anchor || !box.width) { pick.style.left = '50%'; pick.style.top = '120px'; pick.style.transform = 'translateX(-50%)'; return; }
   const a = anchor.getBoundingClientRect(), h = Math.min(pick.scrollHeight || 360, 520);
   const left = Math.min(Math.max(8, a.left - box.left), box.width - 348);
@@ -2728,9 +2737,10 @@ TAB.habits = () => {
 
 // ----- Calendar: the week in 7 columns, the month with titles ---------------
 function kcard(t) { return `<button class="kcard" draggable="true" data-drag="${t.id}" data-act="openTask" data-id="${t.id}">${t.time ? `<b>${t.time}${t.duration ? ` · ${durLabel(t.duration)}` : ''}</b>` : ''}${esc(t.title)}${t.due && !t.plan ? `<div>${dueLabel(t.due)}</div>` : ''}</button>`; }
+A.calToday = () => { S.ui.calDay = TODAY; S.ui.calWeek = addDays(TODAY, -mondayIndex(TODAY)); S.ui.calMonth = TODAY.slice(0, 7); render(); };
 function calHeader(label) {
   return `<div class="titlebar"><h1 class="h1">Kalendar</h1><div class="seg" style="width:320px">${[['week', 'Nedelja'], ['month', 'Mesec'], ['upcoming', 'Predstojeće']].map(([k, l]) => `<button class="${S.ui.calView === k ? 'on' : ''}" data-act="calView" data-v="${k}">${l}</button>`).join('')}</div></div>
-    ${label ? `<div class="monthbar"><strong>${label}</strong><span class="arrows"><button data-act="calMove" data-d="-1" aria-label="Nazad">${IC.left}</button><button data-act="calMove" data-d="1" aria-label="Napred">${IC.right}</button></span></div>` : ''}`;
+    ${label ? `<div class="monthbar"><strong>${label}</strong><span class="arrows"><button class="chip sm" data-act="calToday" title="Danas (T)" style="margin-right:6px">Danas</button><button data-act="calMove" data-d="-1" aria-label="Nazad" title="Nazad (←)">${IC.left}</button><button data-act="calMove" data-d="1" aria-label="Napred" title="Napred (→)">${IC.right}</button></span></div>` : ''}`;
 }
 TAB.calendar = () => {
   if (S.ui.calView === 'upcoming') return calHeader('') + upcoming();
@@ -2740,11 +2750,13 @@ TAB.calendar = () => {
     const cols = Array.from({ length: 7 }, (_, i) => {
       const day = addDays(start, i), items = dayItems(day), mins = S.tasks.filter(t => !t.done && !t.inbox && t.plan === day).reduce((s, t) => s + (t.duration || 0), 0);
       const pct = S.settings.capacity ? Math.min(100, Math.round(mins / S.settings.capacity * 100)) : 0;
-      return `<div class="col ${day === TODAY ? 'today' : ''}" data-drop-day="${day}"><div class="colhead"><span>${WD[i]}</span><b>${parse(day).getDate()}</b></div><div class="colload" title="${durLabel(mins) || '0 min'} od ${durLabel(S.settings.capacity)}"><span style="width:${pct}%;${mins > S.settings.capacity ? 'background:var(--amber)' : ''}"></span></div>
+      return `<div class="col ${day === TODAY ? 'today' : ''} ${day === S.ui.calDay ? 'sel' : ''}" data-drop-day="${day}"><button class="colhead" data-act="calPick" data-d="${day}" aria-pressed="${day === S.ui.calDay}" title="Lista i raspored za ovaj dan"><span>${WD[i]}</span><b>${parse(day).getDate()}</b></button><div class="colload" title="${durLabel(mins) || '0 min'} od ${durLabel(S.settings.capacity)}"><span style="width:${pct}%;${mins > S.settings.capacity ? 'background:var(--amber)' : ''}"></span></div>
         ${items.timed.map(kcard).join('')}${items.deadlines.map(x => `<button class="kcard deadline" data-act="openGoal" data-id="${x.g.id}">${IC.goal.replace('width="20" height="20"', 'width="12" height="12"')} ${esc(x.m ? x.m.t : x.g.title)}</button>`).join('')}${items.untimed.map(kcard).join('')}
         <button class="coladd" data-act="deskAddDay" data-d="${day}">＋ Dodaj</button></div>`;
     }).join('');
-    return `${calHeader(label)}<div class="wk7">${cols}</div><p class="note">Prevuci karticu na drugi dan. Traka ispod datuma je popunjenost dana (kapacitet ${durLabel(S.settings.capacity)}).</p>`;
+    // Cards, no hour grid in the week (K8, decided 2026-10-09); a click on a date shows that day below, with its "Raspored" (C6).
+    const sel = S.ui.calDay >= start && S.ui.calDay <= addDays(start, 6) ? S.ui.calDay : null;
+    return `${calHeader(label)}<div class="wk7">${cols}</div><p class="note">Prevuci karticu na drugi dan. Traka ispod datuma je popunjenost dana (kapacitet ${durLabel(S.settings.capacity)}). Klik na datum prikazuje dan ispod, sa rasporedom po satima.</p>${sel ? dayPanel(sel) : ''}`;
   }
   const [y, m] = S.ui.calMonth.split('-').map(Number), first = `${S.ui.calMonth}-01`, count = new Date(y, m, 0).getDate();
   const cells = Array.from({ length: count }, (_, k) => {
@@ -2783,7 +2795,7 @@ function dropTask(id, target) {
 // ----- Settings: the desktop-only rows (M5) ----------------------------------
 const settingsPhone = SUB.settings;
 SUB.settings = () => settingsPhone().replace(/<p class="note">Na računaru[\s\S]*?<\/p>/, `<div class="glabel">Računar</div><div class="card">${navRow('deskShortcuts', SV('<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h1M11 10h1M15 10h2M7 14h10"/>', 20), 'Prečice na tastaturi', { val: 'Q · / · Esc' })}<button class="prow" data-act="deskDensity"><span class="ico">${SV('<path d="M4 6h16M4 10h16M4 14h16M4 18h16"/>', 20)}</span><span class="grow">Zbijeniji prikaz<span class="sub">Niži redovi u listama</span></span><span class="check ${S.settings.compact !== false ? 'on' : ''}">${S.settings.compact !== false ? IC.tickW : ''}</span></button></div>`);
-A.deskShortcuts = () => openPick({ kind: 'choice', title: 'Prečice na tastaturi', current: null, options: [['Q', 'Novi zadatak (ili nova stavka ekrana)'], ['/', 'Pretraga'], ['[', 'Sakriva i prikazuje bočni meni'], ['Esc', 'Zatvara prozor'], ['1–5', 'Danas, Inbox, Zadaci, Kalendar, Navike']].map(([v, l]) => ({ v, label: l, icon: `<kbd style="min-width:34px;text-align:center">${v}</kbd>` })), onPick: () => toast('Prečica se menja ovde, kao danas u Podešavanjima') });
+A.deskShortcuts = () => openPick({ kind: 'choice', title: 'Prečice na tastaturi', current: null, options: [['Q', 'Novi zadatak (ili nova stavka ekrana)'], ['/', 'Pretraga'], ['[', 'Sakriva i prikazuje bočni meni'], ['← →', 'Kalendar: prethodna i sledeća nedelja ili mesec'], ['T', 'Kalendar: nazad na danas'], ['Esc', 'Zatvara prozor'], ['1–5', 'Danas, Inbox, Zadaci, Kalendar, Navike']].map(([v, l]) => ({ v, label: l, icon: `<kbd style="min-width:34px;text-align:center">${v}</kbd>` })), onPick: () => toast('Prečica se menja ovde, kao danas u Podešavanjima') });
 A.deskDensity = () => { S.settings.compact = S.settings.compact === false; document.body.classList.toggle('desk', true); $('phone').classList.toggle('desk-roomy', S.settings.compact === false); render(); };
 
 // ----- Keyboard -------------------------------------------------------------
@@ -2794,6 +2806,9 @@ document.addEventListener('keydown', ev => {
   if (ev.key === 'q' || ev.key === 'Q') { ev.preventDefault(); A.fab(); }
   else if (ev.key === '/') { ev.preventDefault(); A.search(); }
   else if (ev.key === '[') { ev.preventDefault(); A.sbMini(); }
+  // Calendar (K10, decided 2026-10-09): arrows move the week or month, T goes back to today.
+  else if (R.tab === 'calendar' && !R.stack.length && S.ui.calView !== 'upcoming' && ['ArrowLeft', 'ArrowRight'].includes(ev.key)) { ev.preventDefault(); A.calMove({ dataset: { d: ev.key === 'ArrowLeft' ? -1 : 1 } }); }
+  else if (R.tab === 'calendar' && !R.stack.length && (ev.key === 't' || ev.key === 'T')) { ev.preventDefault(); A.calToday(); }
   else if (/^[1-5]$/.test(ev.key)) { closePick(); closeWin(); go(['today', 'inbox', 'tasks', 'calendar', 'habits'][Number(ev.key) - 1]); }
 });
 
