@@ -14,7 +14,8 @@ const localRefs = source => [...source.matchAll(/(?:src|href)="([^"]+)"/g)].map(
 const cssUrls = (file) => [...read(file).matchAll(/url\(["']?([^"')]+)["']?\)/g)].map(match => path.posix.normalize(path.posix.join(path.posix.dirname(file), match[1])));
 
 test('no CDN stylesheet, script or preconnect remains in index.html', () => {
-  assert.doesNotMatch(html, /https?:\/\//, 'every asset is local so the app starts offline');
+  // The Content Security Policy names the sync host; it is a rule, not an asset (Modernization M7).
+  assert.doesNotMatch(html.replace(/<meta http-equiv="Content-Security-Policy"[^>]*>/, ''), /https?:\/\//, 'every asset is local so the app starts offline');
   for (const ref of localRefs(html)) assert.ok(exists(ref), `${ref} exists`);
 });
 

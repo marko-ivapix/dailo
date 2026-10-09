@@ -368,7 +368,8 @@ test('the phone touch-target guard is the final rule and covers V1.8 controls', 
   const marker = '/* Keep primary compact actions touchable after all density rules. */';
   const guard = css.slice(css.lastIndexOf(marker));
   assert.ok(css.lastIndexOf(marker) > layerStart, 'guard follows the V1.8 layer');
-  assert.match(guard, /^\/\* Keep primary compact actions touchable after all density rules\. \*\/\n@media \(max-width: 700px\) \{\n[^@]*\n\}\n?$/);
+  // Modernization M7 (audit A-1) also applies the guard to touch screens wider than a phone.
+  assert.match(guard, /^\/\* Keep primary compact actions touchable after all density rules\. \*\/\n@media \(max-width: 700px\), \(pointer: coarse\) \{\n[^@]*\n\}\n?$/);
   assert.match(guard, /\.task-actions \.btn-icon,\n  \.subtask-row \.btn-icon \{ width: 44px; height: 44px; min-height: 44px; \}/);
   assert.match(guard, /\.task-row > \.complete-control,\n  \.subtask-row > \.complete-control \{ width: 44px; height: 44px; min-width: 44px; min-height: 44px; \}/);
   assert.match(guard, /\.inbox-filter-tab,\n  \.area-tabs button,\n  \.list-tabs \.btn,\n  \.view-tabs \.btn \{ min-height: 44px; \}/);

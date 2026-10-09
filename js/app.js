@@ -2022,7 +2022,7 @@
   function inlineNewTag(button) {
     const targetType = button.dataset.targetType; const taskId = button.dataset.taskId || ''; const color = PROJECT_COLORS[(state.tags || []).length % PROJECT_COLORS.length];
     if (!popoverEl) return;
-    setPopoverContent(`<div class="popover-title">${tr('New tag')}</div><div class="popover-inline-form"><input id="inline-tag-name" class="input" type="text" maxlength="80" placeholder="${tr('Tag name')}" /><div class="color-grid">${PROJECT_COLORS.map(c=>`<button class="color-swatch ${c===color?'is-selected':''}" type="button" data-pop-action="inline-select-tag-color" data-color="${c}" style="--swatch:${c}"></button>`).join('')}</div><div id="inline-tag-error" class="validation" hidden></div><div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn btn-ghost" type="button" data-pop-action="inline-tag-cancel">${tr('Cancel')}</button><button class="btn btn-primary" type="button" data-pop-action="inline-tag-create" data-target-type="${targetType}" ${taskId ? `data-task-id="${esc(taskId)}"` : ''} data-color="${color}">${tr('Create')}</button></div></div>`);
+    setPopoverContent(`<div class="popover-title">${tr('New tag')}</div><div class="popover-inline-form"><input id="inline-tag-name" class="input" type="text" maxlength="80" placeholder="${tr('Tag name')}" /><div class="color-grid">${PROJECT_COLORS.map(c=>`<button class="color-swatch ${c===color?'is-selected':''}" type="button" data-pop-action="inline-select-tag-color" data-color="${c}" aria-label="${tr('Select color')}" style="--swatch:${c}"></button>`).join('')}</div><div id="inline-tag-error" class="validation" hidden></div><div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn btn-ghost" type="button" data-pop-action="inline-tag-cancel">${tr('Cancel')}</button><button class="btn btn-primary" type="button" data-pop-action="inline-tag-create" data-target-type="${targetType}" ${taskId ? `data-task-id="${esc(taskId)}"` : ''} data-color="${color}">${tr('Create')}</button></div></div>`);
     requestAnimationFrame(()=>$('#inline-tag-name',popoverEl)?.focus());
   }
 
@@ -2209,7 +2209,7 @@
     const taskId = button.dataset.taskId || '';
     if (!popoverEl) return;
     const color = nextProjectColor();
-    setPopoverContent(`<div class="popover-title">${tr('New project')}</div><div class="popover-inline-form"><input id="inline-project-name" class="input" type="text" maxlength="100" placeholder="${tr('Project name')}" /><div class="color-grid">${PROJECT_COLORS.map(c => `<button class="color-swatch ${c === color ? 'is-selected' : ''}" type="button" data-pop-action="inline-select-color" data-color="${c}" style="--swatch:${c}"></button>`).join('')}</div><div id="inline-project-error" class="validation" hidden>${tr('Project needs a name.')}</div><div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn btn-ghost" type="button" data-pop-action="inline-project-cancel">${tr('Cancel')}</button><button class="btn btn-primary" type="button" data-pop-action="inline-project-create" data-target-type="${targetType}" ${taskId ? `data-task-id="${esc(taskId)}"` : ''} data-color="${color}">${tr('Create')}</button></div></div>`);
+    setPopoverContent(`<div class="popover-title">${tr('New project')}</div><div class="popover-inline-form"><input id="inline-project-name" class="input" type="text" maxlength="100" placeholder="${tr('Project name')}" /><div class="color-grid">${PROJECT_COLORS.map(c => `<button class="color-swatch ${c === color ? 'is-selected' : ''}" type="button" data-pop-action="inline-select-color" data-color="${c}" aria-label="${tr('Select color')}" style="--swatch:${c}"></button>`).join('')}</div><div id="inline-project-error" class="validation" hidden>${tr('Project needs a name.')}</div><div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn btn-ghost" type="button" data-pop-action="inline-project-cancel">${tr('Cancel')}</button><button class="btn btn-primary" type="button" data-pop-action="inline-project-create" data-target-type="${targetType}" ${taskId ? `data-task-id="${esc(taskId)}"` : ''} data-color="${color}">${tr('Create')}</button></div></div>`);
     requestAnimationFrame(() => $('#inline-project-name', popoverEl)?.focus());
   }
 
@@ -4786,8 +4786,17 @@
     });
     if (globalThis.DailoPlatform) globalThis.DailoPlatform.lifecycle.onPause(flushPendingWork);
     else window.addEventListener('pagehide', flushPendingWork);
-    window.addEventListener('resize', closePopover);
+    window.addEventListener('resize', closePopoverOnWidthChange);
     window.addEventListener('focus', checkReminders);
+  }
+
+  // Only a width change (rotation, window resize) closes popovers: the phone keyboard and the browser bars change
+  // only the height, and a popover with a text field must stay open while the keyboard appears (audit P-5).
+  let popoverWidth = window.innerWidth;
+  function closePopoverOnWidthChange() {
+    if (window.innerWidth === popoverWidth) return;
+    popoverWidth = window.innerWidth;
+    closePopover();
   }
 
   // Native durable mirror (audit M5): the canonical metadata text is also kept as a file in the app's Library
