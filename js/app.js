@@ -555,6 +555,7 @@
         if (typeof canonicalRaw !== 'undefined') canonicalRaw = raw;
       }
       storageError = false;
+      if (globalThis.DailoPlatform?.isNative) scheduleDurableMirror();
       scheduleAutomaticSnapshot();
       scheduleSync();
       return true;
@@ -3988,6 +3989,7 @@
       deleteLifecycle.retire(op.token);
       state = normalizeState(op.validated.state); canonicalRaw = localStorage.getItem(STORAGE_KEY); recovery = null; modalState = null;
       if (!op.selective) forgetSyncShadow();
+      if (globalThis.DailoPlatform?.isNative) scheduleDurableMirror();
       const committedSource = captureStatusSource();
       globalOperation = phaseError ? op : null; renderModal(); location.hash = '#today'; render();
       try {
@@ -4701,6 +4703,31 @@
     window.addEventListener('focus', checkReminders);
   }
 
+  // Native durable mirror (audit M5): the canonical metadata text is also kept as a file in the app's Library
+  // directory, so a WebView store the system cleared can be restored at start. Habit logs, goal history and files
+  // stay in IndexedDB (and sync); the web has no mirror. Call sites check isNative inline, like the other platform hooks.
+  let mirrorTimer = null;
+  function scheduleDurableMirror(delay = 1000) {
+    if (!globalThis.DailoPlatform?.isNative) return;
+    clearTimeout(mirrorTimer);
+    mirrorTimer = setTimeout(writeDurableMirror, delay);
+  }
+  function writeDurableMirror() {
+    clearTimeout(mirrorTimer);
+    mirrorTimer = null;
+    const text = localStorage.getItem(STORAGE_KEY);
+    if (text && globalThis.DailoPlatform?.isNative) globalThis.DailoPlatform.durable.write(text).catch(console.error);
+  }
+  // Only fills a missing store; the normal start-up load then validates and migrates the text as usual.
+  async function restoreDurableMirror() {
+    const platform = globalThis.DailoPlatform;
+    if (!platform?.isNative || localStorage.getItem(STORAGE_KEY) !== null) return false;
+    const text = await platform.durable.read();
+    if (!text) return false;
+    localStorage.setItem(STORAGE_KEY, text);
+    return true;
+  }
+
   // Typing and drafts are saved when the page is hidden or the app goes to the background: iOS can end a
   // backgrounded app without `pagehide` (audit P-4).
   // A recurring task's draft would open the "this or future" question, so only an unloading page flushes it.
@@ -4709,6 +4736,7 @@
     const draftTask = modalState?.type === 'task' ? getTask(modalState.taskId) : null;
     if (reason === 'pagehide' || !draftTask || !taskRecurrence(draftTask)) flushTaskDraft();
     flushTextSave(); saveState();
+    if (globalThis.DailoPlatform?.isNative) writeDurableMirror();
   }
 
   // Back in the foreground: a new day, due reminders and a sync round, without waiting for the 30-second timer.
@@ -4767,6 +4795,7 @@
           continue;
         }
         canonicalRaw = committedSource;
+        if (globalThis.DailoPlatform?.isNative) scheduleDurableMirror();
         runScheduledTaskTemplates({ duringStartup: true });
         render();
         checkReminders();
@@ -4804,7 +4833,10 @@
     attachEvents();
     // Quick Add is an explicit disclosure: never restore it open on reload or route changes.
     if (typeof setMobileQuickAddOpen === 'function') setMobileQuickAddOpen(false);
+    let restored = false;
+    try { restored = await restoreDurableMirror(); } catch (error) { console.error(error); }
     await startReady();
+    if (restored && state) setToastMessage(tr('Your data was restored from the copy Dailo keeps on this device.'));
     scheduleAutomaticSnapshot();
     startSync();
     updateStoragePersistence(false).catch(console.error);

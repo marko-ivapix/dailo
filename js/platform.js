@@ -11,6 +11,8 @@
   // official Capacitor plugins through Capacitor.registerPlugin (vendor/capacitor/capacitor.js).
 
   const SHARE_DIR = 'dailo-share';
+  const MIRROR = 'dailo/state.json';
+  const MIRROR_TMP = 'dailo/state.json.tmp';
   const CHUNK_BYTES = 3 * 256 * 1024; // a multiple of 3, so every base64 chunk can be appended as is
 
   function create(env = root) {
@@ -150,6 +152,36 @@
       return isNative ? { state: 'app' } : null;
     }
 
+    // Durable mirror (app only, audit M5). WebView storage can be cleared by the system; the canonical metadata
+    // text is therefore also written to the app's Library directory. A write goes to a temporary file first; the
+    // old file is replaced only after that succeeded, and reading falls back to the temporary file, so an
+    // interrupted write never leaves nothing behind. Writes are queued so two of them never interleave.
+    let mirrorQueue = Promise.resolve();
+    const isStateText = text => { try { const value = JSON.parse(text); return Boolean(value) && typeof value === 'object' && !Array.isArray(value); } catch (_) { return false; } };
+    function writeMirror(text) {
+      if (!isNative || typeof text !== 'string' || !isStateText(text)) return Promise.resolve(false);
+      const fs = plugin('Filesystem');
+      const run = async () => {
+        await fs.writeFile({ path: MIRROR_TMP, data: text, directory: 'LIBRARY', encoding: 'utf8', recursive: true });
+        try { await fs.deleteFile({ path: MIRROR, directory: 'LIBRARY' }); } catch (_) { /* first write */ }
+        await fs.rename({ from: MIRROR_TMP, to: MIRROR, directory: 'LIBRARY', toDirectory: 'LIBRARY' });
+        return true;
+      };
+      mirrorQueue = mirrorQueue.catch(() => {}).then(run);
+      return mirrorQueue;
+    }
+    async function readMirror() {
+      if (!isNative) return null;
+      const fs = plugin('Filesystem');
+      for (const path of [MIRROR, MIRROR_TMP]) {
+        try {
+          const { data } = await fs.readFile({ path, directory: 'LIBRARY', encoding: 'utf8' });
+          if (typeof data === 'string' && isStateText(data)) return data;
+        } catch (_) { /* missing or unreadable: try the next copy */ }
+      }
+      return null;
+    }
+
     return Object.freeze({
       kind,
       isNative,
@@ -160,6 +192,7 @@
       files: Object.freeze({ saveFile, openFile, cleanupSharedFiles }),
       links: Object.freeze({ openExternal, interceptExternalLinks }),
       storage: Object.freeze({ status: storageStatus }),
+      durable: Object.freeze({ write: writeMirror, read: readMirror }),
     });
   }
 

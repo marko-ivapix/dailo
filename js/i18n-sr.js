@@ -476,6 +476,7 @@
     "Not supported in this browser. Keep regular backups.": "Ovaj pregledač to ne podržava. Redovno pravi rezervne kopije.",
     "Kept by the app on this device until the app is removed. Keep regular backups.": "Aplikacija čuva podatke na ovom uređaju dok je ne ukloniš. Redovno pravi rezervne kopije.",
     "Export cancelled": "Izvoz je otkazan",
+    "Your data was restored from the copy Dailo keeps on this device.": "Podaci su vraćeni iz kopije koju Dailo čuva na ovom uređaju.",
     "Backup was not saved": "Rezervna kopija nije sačuvana",
     "The safety ZIP was not saved.": "Sigurnosni ZIP nije sačuvan.",
     "Dailo backup": "Dailo rezervna kopija",
