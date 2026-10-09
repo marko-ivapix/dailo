@@ -57,6 +57,28 @@ A.nrCreate = () => { const name = P.name.trim(); if (!name) { P.err = 'Grupa mor
 SCREEN_TITLE.review = 'Nedeljni pregled';
 S.reviews = [{ weekStart: '2026-09-28', completedAt: '2026-10-04' }, { weekStart: '2026-09-21', completedAt: '2026-09-27' }, { weekStart: '2026-09-14', completedAt: '2026-09-20' }];
 const reviewDone = () => S.reviews.some(r => r.weekStart === WEEK_START);
+// "Poslednjih 7 dana" (S5, added 2026-10-09): completed tasks per day as one column chart, then three numbers.
+// Rolling 7 days, since the review can happen before Sunday. Sample history plus what is completed in the prototype.
+const DONE_HISTORY = { '2026-09-25': 2, '2026-09-26': 1, '2026-09-27': 0, '2026-09-28': 3, '2026-09-29': 3, '2026-09-30': 5, '2026-10-01': 3, '2026-10-02': 4, '2026-10-03': 2, '2026-10-04': 1, '2026-10-05': 5, '2026-10-06': 6, '2026-10-07': 3, '2026-10-08': 1 };
+const doneOn = d => (DONE_HISTORY[d] || 0) + S.tasks.filter(t => t.done && t.doneAt === d).length;
+function weekStats() {
+  const days = Array.from({ length: 7 }, (_, k) => addDays(TODAY, k - 6)), counts = days.map(doneOn);
+  const total = counts.reduce((a, b) => a + b, 0), before = Array.from({ length: 7 }, (_, k) => doneOn(addDays(TODAY, k - 13))).reduce((a, b) => a + b, 0);
+  let hd = 0, hp = 0; for (const h of S.habits) { hd += h.week.filter(x => x === 'd').length; hp += h.weekly || h.week.filter(x => !['n', 's', 'f'].includes(x)).length; }
+  return { days, counts, total, diff: total - before, added: 12, habits: hp ? Math.round(hd / hp * 100) : 0 };
+}
+function weekCard() {
+  const st = weekStats(), max = Math.max(...st.counts, 1), sel = st.days.includes(S.ui.revBar) ? S.ui.revBar : TODAY, si = st.days.indexOf(sel);
+  const done = n => `${n} ${plural(n, 'završen', 'završena', 'završenih')}`;
+  const cols = st.days.map((d, i) => { const n = st.counts[i], h = Math.round(n / max * 64); return `<button class="wkbar ${d === sel ? 'on' : ''}" data-act="revBar" data-d="${d}" aria-label="${longDate(d)}: ${done(n)}" aria-pressed="${d === sel}"><span class="wkval">${d === sel ? n : ''}</span><span class="wkfill" style="height:${h}px"></span><span class="wkday">${WD[mondayIndex(d)]}</span></button>`; }).join('');
+  const tile = (v, l, sub) => `<div class="wktile"><div class="wknum">${v}</div><div class="wklbl">${l}</div><div class="wksub">${sub}</div></div>`;
+  const diff = st.diff === 0 ? 'isto kao prethodnih 7' : `${st.diff > 0 ? '▲' : '▼'} ${Math.abs(st.diff)} prema prethodnih 7`;
+  return `<div class="section">Poslednjih 7 dana</div><div class="card" style="padding:12px 12px 10px">
+    <div class="wkchart" role="group" aria-label="Završeni zadaci po danu"><div class="wktitle">Završeni zadaci po danu</div><div class="wkcols">${cols}</div></div>
+    <p class="wkcap">${longDate(sel)} · ${done(st.counts[si])}</p>
+    <div class="wktiles">${tile(st.total, 'Završeno', diff)}${tile(st.added, 'Stiglo', 'novih zadataka')}${tile(`${st.habits}%`, 'Navike', 'urađeno ove nedelje')}</div></div>`;
+}
+A.revBar = el => { S.ui.revBar = el.dataset.d; render(); };
 SUB.review = () => {
   const inboxTasks = S.tasks.filter(t => t.inbox && !t.done);
   const overdue = liveTasks().filter(t => t.due && t.due < TODAY), missed = liveTasks().filter(t => t.plan && t.plan < TODAY && !(t.due && t.due < TODAY));
@@ -64,6 +86,7 @@ SUB.review = () => {
   const days = Array.from({ length: 7 }, (_, k) => addDays(TODAY, k + 1)).map(d => { const planned = S.tasks.filter(t => !t.done && !t.inbox && t.plan === d).length, dues = S.tasks.filter(t => !t.done && !t.inbox && t.due === d).length; return { d, planned, dues }; });
   const done = reviewDone(), last = S.reviews.filter(r => r.weekStart !== WEEK_START).slice(0, 4);
   return `<div class="status"><span>09:41</span><span>•••</span></div>${backBtn()}<h1 class="h1">Nedeljni pregled</h1><div class="summary">Nedelja od ${short(WEEK_START)}</div>
+    ${weekCard()}
     ${step(1, 'Isprazni Inbox', inboxTasks.length, !inboxTasks.length, inboxTasks.length ? `<div class="card">${inboxTasks.map(t => inboxRow({ type: 'task', id: t.id, title: t.title, group: t.captured, item: t })).join('')}</div>` : '')}
     ${step(2, 'Kasni i propušteno', overdue.length + missed.length, !(overdue.length + missed.length), overdue.length + missed.length ? `<div class="card">${[...overdue, ...missed].map(t => `<div class="srow"><button class="main" data-act="openTask" data-id="${t.id}"><div class="ttl">${esc(t.title)}</div><div class="meta">${t.due && t.due < TODAY ? `Rok ${short(t.due)}` : `Propušten plan ${short(t.plan)}`} · ${esc(placeName(t) || 'Bez projekta')}</div></button><button class="plan" data-act="planToday" data-id="${t.id}">+ Danas</button></div>`).join('')}</div>` : '')}
     ${step(3, 'Sledećih 7 dana', null, false, `<div class="card">${days.map(x => `<button class="prow" data-act="reviewDay" data-d="${x.d}"><span class="grow">${WDNAME[mondayIndex(x.d)]}, ${short(x.d)}</span><span class="val ${x.planned + x.dues ? 'set' : ''}">${[x.planned ? `${x.planned} u planu` : '', x.dues ? `${x.dues} ${plural(x.dues, 'rok', 'roka', 'rokova')}` : ''].filter(Boolean).join(' · ') || 'Slobodno'}</span>${IC.chev}</button>`).join('')}</div>`)}

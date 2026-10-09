@@ -98,6 +98,20 @@
   .chip.on { border-color: var(--blue); background: rgba(42, 71, 255, .18); }
   .chip.sm { padding: 5px 10px; border-radius: 9px; font-size: 13px; }
   .chip.sm svg { width: 16px; height: 16px; }
+  .wktitle { font-size: 13px; color: var(--muted); margin: 0 2px 6px; }
+  .wkcols { display: flex; align-items: flex-end; border-bottom: 1px solid var(--grid); height: 96px; }
+  .wkbar { flex: 1; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; position: relative; border-radius: 8px 8px 0 0; }
+  .wkbar.on { background: rgba(255, 255, 255, .04); }
+  .wkfill { width: 22px; background: #5A72FF; border-radius: 4px 4px 0 0; }
+  .wkval { font-size: 12px; font-weight: 600; color: var(--text); min-height: 16px; margin-bottom: 2px; }
+  .wkday { position: absolute; bottom: -20px; font-size: 12px; color: var(--muted); }
+  .wkbar.on .wkday { color: var(--text); font-weight: 600; }
+  .wkcap { margin: 26px 2px 10px; font-size: 13px; color: var(--muted); }
+  .wktiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .wktile { background: var(--card2); border: 1px solid var(--line); border-radius: 12px; padding: 10px; min-width: 0; }
+  .wknum { font-size: 22px; font-weight: 700; color: var(--text); }
+  .wklbl { font-size: 13px; color: var(--text); margin-top: 2px; }
+  .wksub { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
   .chip.quiet { color: var(--muted); }
   .opt { display: flex; align-items: center; gap: 12px; width: 100%; padding: 0 14px; min-height: 52px; }
   .opt .lbl { flex: 1; }
