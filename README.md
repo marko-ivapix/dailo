@@ -35,14 +35,15 @@ The step-by-step Serbian guide for the Mac, iPhone and Android phone is `docs/v2
 - GitHub Pages serves the repository over HTTPS at `https://marko-ivapix.github.io/dailo/`. All paths and the manifest/service-worker scope are relative (`./`), so install and offline start work under the `/dailo/` sub-path; the user confirmed both on iPhone from this URL on 2026-10-08. Pages publishes `main`, which carries V1.9.1 since PR #6; V1.10, V1.11 and V1.12 are there since PR #7. V2.0-a is on branch `ccr-95f6062b-lgg2fr` until it is merged.
 - The Serbian beta tester guide is at `https://marko-ivapix.github.io/dailo/uputstvo.html` (also linked from Settings → About). It is not precached, so it opens only online.
 
-## 2.0.0-alpha.2 — Capacitor app and modernization (current release)
+## 2.0.0-alpha.3 — Capacitor app and modernization (current release)
 
 The same app now also runs as a native app for iPhone and Android through Capacitor 8 (`cloud.ivapix.dailo`), after a technical audit (`docs/superpowers/specs/2026-10-09-modernization-capacitor-audit.md`) and ten phases (`docs/superpowers/plans/2026-10-09-modernization-capacitor.md`, evidence in `docs/superpowers/progress-modernization.md`). On branch `feature/capacitor-modernization` until it is merged.
 
 - **In the app:** reminders as phone notifications even when Dailo is closed; backups and attachments through the system share sheet; links open outside the app; Android Back closes sheets and dialogs; a durable copy of the metadata in the app's files; a first-run notice to import a backup from the web version or sign in.
 - **Everywhere:** sync never deletes record types it does not know and no longer stops on links to records deleted elsewhere; completion and history days are local days; only images, PDF and plain text open inline; snooze choices never land in the past; popovers survive the on-screen keyboard; 16 px fields and 44 px targets on touch screens; the toast sits above the bottom navigation; icon-only buttons have names; a Content Security Policy.
 - **Tooling:** `package.json` with exact versions, `npm run verify`, a jsdom smoke test, `npm run build` (copies the precached shell into `www/`; no bundler).
-- **Checks:** 476 Node tests passed, syntax 92/92, smoke OK, `cap sync` OK. Native compile, simulators/emulators and phones are **manual-pending**: the cloud session has no macOS and no Android SDK.
+- **Your decisions (M11, `2.0.0-alpha.3`):** a habit's weekly target or the week start changes only from the change on; no habit reminder after the day's check-in; Search waits 120 ms after typing and shows at most 50 tasks and 20 projects.
+- **Checks:** 490 Node tests passed, syntax 93/93, smoke OK, `cap sync` OK. Native compile, simulators/emulators and phones are **manual-pending**: the cloud session has no macOS and no Android SDK.
 
 ## V2.0-a Sync in the web app
 

@@ -57,7 +57,7 @@
     const { state, Core, calendarDate, calendarLogs, parseLocalDate, formatDate, pageHeader, esc } = ctx;
     const date = calendarDate(); const view = ['day', 'month'].includes(state.ui.calendarView) ? state.ui.calendarView : 'week';
     const visibility = { tasks: true, habits: true, goals: true, milestones: true, ...(state.ui.calendarVisibility || {}) };
-    const weekStart = Core.habitPeriodKey({ frequencyType: 'timesPerWeek' }, date, Core.weekStartKey(state.settings.weekStartsOn));
+    const weekStart = Core.weekStartFor(date, Core.weekStartKey(state.settings.weekStartsOn)); // the Calendar follows the current week start
     const month = date.slice(0, 7);
     const period = view === 'month' ? new Intl.DateTimeFormat(I18n.locale(), { month: 'long', year: 'numeric' }).format(parseLocalDate(`${month}-01`))
       : view === 'day' ? new Intl.DateTimeFormat(I18n.locale(), { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(parseLocalDate(date))

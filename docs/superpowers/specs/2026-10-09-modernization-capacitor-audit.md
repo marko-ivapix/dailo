@@ -210,3 +210,5 @@ Why each layer: Core stays deterministic and Node-tested; persistence modules ow
 3. **Search performance:** may Search get a short debounce and a result cap? (The compatibility rule forbids changing Search without approval.)
 
 None of them blocks the migration phases.
+
+**Answered 2026-10-09:** "1. samo od promene 2. ne 3. može" — implemented as M11 (`2026-10-09-habit-history-reminders-search.md`).

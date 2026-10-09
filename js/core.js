@@ -983,9 +983,67 @@
     return habit.frequencyType === 'daily' || !habit.frequencyType;
   }
 
+  // Habit week rule (M11, "only from the change on"): habit functions accept 'monday'/'sunday' or
+  // { weekStartsOn, history }, where history entries { before, weekStartsOn } say which week start applied to
+  // dates before `before`. Only habit periods use it; the Calendar and the weekly review follow the current start.
+  const validDate = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && Boolean(parseDateOnly(value)) && dateOnly(parseDateOnly(value)) === value;
+  function weekStartHistory(settings) {
+    return (Array.isArray(settings?.weekStartHistory) ? settings.weekStartHistory : [])
+      .filter(entry => entry && validDate(entry.before) && ['monday', 'sunday'].includes(entry.weekStartsOn))
+      .map(entry => ({ ...entry })).sort((a, b) => a.before.localeCompare(b.before));
+  }
+  function habitWeekRule(settings) {
+    return { weekStartsOn: weekStartKey(settings?.weekStartsOn), history: weekStartHistory(settings) };
+  }
+  // The start of the week of the change, counted with the old week start, becomes the boundary. A change back
+  // within seven days removes the previous change instead of adding one.
+  function recordWeekStartChange(settings, next, today = dateOnly()) {
+    const history = weekStartHistory(settings);
+    const previous = weekStartKey(settings?.weekStartsOn), target = weekStartKey(next);
+    if (previous === target) return history;
+    const last = history.at(-1);
+    if (last && validDate(last.changedOn) && daysBetween(last.changedOn, today) < 7) {
+      history.pop();
+      if (last.weekStartsOn === target) return history;
+    }
+    const before = weekStartFor(today, previous);
+    if (!history.some(entry => entry.before === before)) history.push({ before, weekStartsOn: previous, changedOn: today });
+    return history.slice(-52);
+  }
+  // The week that contains a change is cut at the boundary: a piece of four or more days stays its own week,
+  // a shorter piece joins the next week. Completed weeks keep their boundaries.
+  function habitWeekStartFor(date, rule) {
+    const { weekStartsOn, history } = typeof rule === 'object' && rule ? { weekStartsOn: weekStartKey(rule.weekStartsOn), history: Array.isArray(rule.history) ? rule.history : [] } : { weekStartsOn: weekStartKey(rule), history: [] };
+    let from = null;
+    let start = weekStartsOn;
+    for (const entry of history) {
+      if (date < entry.before) { start = entry.weekStartsOn; break; }
+      from = entry.before;
+    }
+    const key = weekStartFor(date, start);
+    if (from && key < from && daysBetween(from, addDays(key, 7)) < 4) return addDays(key, 7);
+    return key;
+  }
+
   function habitPeriodKey(habit, date, weekStartsOn = 'monday') {
     if (!parseDateOnly(date)) return null;
-    return habit?.frequencyType === 'timesPerWeek' ? weekStartFor(date, weekStartsOn) : date;
+    return habit?.frequencyType === 'timesPerWeek' ? habitWeekStartFor(date, weekStartsOn) : date;
+  }
+
+  // Weekly targets (M11): targetHistory entries { before, timesPerWeek } keep the target of the weeks before a change.
+  const weeklyTarget = value => Math.min(7, Math.max(1, Math.floor(Number(value) || 1)));
+  function habitTargetFor(habit, periodKey) {
+    if (habit?.frequencyType !== 'timesPerWeek') return 1;
+    const history = (Array.isArray(habit.targetHistory) ? habit.targetHistory : []).filter(entry => entry && validDate(entry.before)).sort((a, b) => a.before.localeCompare(b.before));
+    if (periodKey) for (const entry of history) if (periodKey < entry.before) return weeklyTarget(entry.timesPerWeek);
+    return weeklyTarget(habit.timesPerWeek);
+  }
+  function recordHabitTargetChange(habit, next, weekStart) {
+    const history = (Array.isArray(habit?.targetHistory) ? habit.targetHistory : []).map(entry => ({ ...entry }));
+    const previous = Number(habit?.timesPerWeek);
+    if (habit?.frequencyType !== 'timesPerWeek' || next?.frequencyType !== 'timesPerWeek' || !Number.isInteger(previous) || previous === Number(next.timesPerWeek) || !validDate(weekStart)) return history;
+    if (!history.some(entry => entry.before === weekStart)) history.push({ before: weekStart, timesPerWeek: weeklyTarget(previous) });
+    return history.sort((a, b) => a.before.localeCompare(b.before)).slice(-104);
   }
 
   function numericHabitState(habit, rawValue) {
@@ -1011,7 +1069,6 @@
     if (!eligible.length) return 0;
     const statusFor = date => habitStatusForDate(habit, logs || [], date, today);
     if (habit?.frequencyType === 'timesPerWeek') {
-      const target = Math.max(1, Math.floor(Number(habit.timesPerWeek) || 1));
       const periods = new Map();
       for (const date of eligible) {
         const key = habitPeriodKey(habit, date, weekStartsOn);
@@ -1019,7 +1076,8 @@
         periods.get(key).push(date);
       }
       let score = 0;
-      for (const periodDates of periods.values()) {
+      for (const [key, periodDates] of periods) {
+        const target = habitTargetFor(habit, key);
         const completed = periodDates.reduce((count, date) => {
           const status = statusFor(date);
           return count + (status.status === 'done' ? 1 : 0);
@@ -1056,7 +1114,6 @@
     const logByDate = new Map(relevantLogs.map(log => [log.date, log]));
     const periods = habitScheduleDates(habit, today, weekStartsOn, relevantLogs);
     const currentKey = habitPeriodKey(habit, today, weekStartsOn);
-    const target = habit?.frequencyType === 'timesPerWeek' ? Math.max(1, Math.floor(Number(habit.timesPerWeek) || 1)) : 1;
     let totalCheckins = 0; let successfulPeriods = 0; let longestStreak = 0; let running = 0;
     const periodStates = periods.map(period => {
       const entries = period.dates.map(date => ({ date, log: logByDate.get(date), state: habitStatusForDate(habit, relevantLogs, date, today) }));
@@ -1067,7 +1124,7 @@
       totalCheckins += done;
       const skipped = entries.some(entry => entry.state.status === 'skipped');
       const occurrenceMissed = entries.some(entry => entry.state.status === 'missed');
-      const successful = habit?.frequencyType === 'timesPerWeek' ? done >= target : done > 0;
+      const successful = habit?.frequencyType === 'timesPerWeek' ? done >= habitTargetFor(habit, period.key) : done > 0;
       const isCurrent = period.key === currentKey;
       // A weekly habit has one required unit: the week. Missing individual days
       // cannot break an otherwise successful week.
@@ -1097,7 +1154,7 @@
       successfulPeriods,
       completionRate: expectedUnits ? clampPercent(completedUnits / expectedUnits * 100) : 0,
       currentPeriodCount: current?.progressValue || 0,
-      currentPeriodTarget: habit?.trackingType === 'numeric' && habit?.frequencyType !== 'timesPerWeek' ? Math.max(0, safeNumber(habit.targetValue)) : target,
+      currentPeriodTarget: habit?.trackingType === 'numeric' && habit?.frequencyType !== 'timesPerWeek' ? Math.max(0, safeNumber(habit.targetValue)) : habitTargetFor(habit, currentKey),
       periods: periodStates,
     };
   }
@@ -1113,12 +1170,12 @@
     const metrics = deriveHabitMetrics(habit, relevantLogs, today, weekStartsOn);
     const statusFor = date => habitStatusForDate(habit, logs || [], date, today);
     const visiblePeriodKeys = new Set(eligible.map(date => habitPeriodKey({ ...habit, frequencyType: 'timesPerWeek' }, date, weekStartsOn)));
-    const target = Math.max(1, Math.floor(Number(habit?.timesPerWeek) || 1));
     const visibleWeeklyPeriods = habitScheduleDates(habit, today, weekStartsOn, relevantLogs)
       .filter(period => visiblePeriodKeys.has(period.key));
     const weeklySeries = visibleWeeklyPeriods
       .map(({ key, dates: periodDates }) => {
         const completed = periodDates.filter(date => statusFor(date).status === 'done').length;
+        const target = habitTargetFor({ ...habit, frequencyType: 'timesPerWeek' }, key);
         return { key, percent: Math.round(Math.min(target, completed) / target * 100), completed, target };
       });
     const monthlySeries = eligible.map(date => {
@@ -1135,11 +1192,20 @@
     };
   }
 
+  // M11: once a day is checked in (or skipped), that day's reminders stay silent; a numeric habit below its
+  // target still reminds. Weekly habits are silenced by the week's target instead.
+  function habitDayClosed(habit, logs, date) {
+    if (habit?.frequencyType === 'timesPerWeek') return false;
+    const status = habitStatusForDate(habit, logs || [], date, date).status;
+    return status === 'done' || status === 'skipped';
+  }
+
   function habitReminderActive(habit, logs, now, weekStartsOn = 'monday') {
     if (!habit || habit.status !== 'active' || !(habit.reminders || []).some(reminder => reminder?.enabled && normalizeTime(reminder.time))) return false;
     const timestamp = new Date(now); if (Number.isNaN(timestamp.getTime())) return false;
     const today = dateOnly(timestamp);
     if (!habitScheduledOn(habit, today)) return false;
+    if (habitDayClosed(habit, logs, today)) return false;
     const metrics = deriveHabitMetrics(habit, logs, today, weekStartsOn);
     return habit.frequencyType !== 'timesPerWeek' || metrics.currentPeriodCount < metrics.currentPeriodTarget;
   }
@@ -1178,16 +1244,17 @@
       const fired = new Set(Array.isArray(goal.reminderFiredMoments) ? goal.reminderFiredMoments : []);
       for (const moment of goalReminderMoments(goal)) if (!fired.has(moment)) add('goal', goal, moment, goal.title, goal.targetDate);
     }
-    const weekStartsOn = weekStartKey(state.settings?.weekStartsOn);
+    const weekRule = habitWeekRule(state.settings);
     const today = dateOnly(new Date(start));
     for (const habit of state.habits || []) {
       if (habit.status !== 'active') continue;
       let quietWeek = null;
       if (habit.frequencyType === 'timesPerWeek') {
-        const metrics = deriveHabitMetrics(habit, logs[habit.id] || [], today, weekStartsOn);
-        if (metrics.currentPeriodCount >= metrics.currentPeriodTarget) quietWeek = weekStartFor(today, weekStartsOn);
+        const metrics = deriveHabitMetrics(habit, logs[habit.id] || [], today, weekRule);
+        if (metrics.currentPeriodCount >= metrics.currentPeriodTarget) quietWeek = habitPeriodKey(habit, today, weekRule);
       }
-      const silent = date => !habitScheduledOn(habit, date) || (quietWeek && weekStartFor(date, weekStartsOn) === quietWeek);
+      const todayClosed = habitDayClosed(habit, logs[habit.id] || [], today);
+      const silent = date => !habitScheduledOn(habit, date) || (date === today && todayClosed) || (quietWeek && habitPeriodKey(habit, date, weekRule) === quietWeek);
       const snoozeEnd = reminderInstant(habit.snoozedUntil);
       if (habit.pendingSnoozeAt && reminderInstant(habit.pendingSnoozeAt) !== null && !silent(dateOnly(new Date(habit.pendingSnoozeAt)))) add('habit', habit, `snooze:${habit.pendingSnoozeAt}`, habit.name);
       const times = (habit.reminders || []).filter(reminder => reminder?.enabled && normalizeTime(reminder.time)).map(reminder => reminder.time);
@@ -1823,6 +1890,7 @@
     splitRecurrenceForFuture,
     makeUuid,
     weekStartKey,
+    weekStartFor,
     buildNextRecurringTask,
     isReminderDue,
     reminderInstant,
@@ -1877,6 +1945,10 @@
     overdueMilestones,
     habitScheduledOn,
     habitPeriodKey,
+    habitWeekRule,
+    recordWeekStartChange,
+    habitTargetFor,
+    recordHabitTargetChange,
     numericHabitState,
     habitStatusForDate,
     habitCompletionForDates,

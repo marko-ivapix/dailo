@@ -92,6 +92,7 @@
       d.frequencyType = $('#habit-panel-frequency')?.value || d.frequencyType;
       d.timesPerWeek = Number($('#habit-panel-times')?.value); d.everyNDays = Number($('#habit-panel-every')?.value); d.weekdays = $$('[data-habit-panel-weekday]').filter(input => input.checked).map(input => Number(input.dataset.habitPanelWeekday));
       if ((d.frequencyType === 'timesPerWeek' && (!Number.isInteger(d.timesPerWeek) || d.timesPerWeek < 1 || d.timesPerWeek > 7)) || (d.frequencyType === 'everyNDays' && (!Number.isInteger(d.everyNDays) || d.everyNDays < 1)) || (d.frequencyType === 'weekdays' && !d.weekdays.length)) { editor.error = tr('Use a positive whole-number schedule and select weekdays when needed.'); renderModal(); return; }
+      habit.targetHistory = Core.recordHabitTargetChange(habit, d, Core.habitPeriodKey({ frequencyType: 'timesPerWeek' }, Core.dateOnly(), Core.habitWeekRule(ctx.state.settings)));
       Object.assign(habit, { frequencyType: d.frequencyType, timesPerWeek: d.timesPerWeek, everyNDays: d.everyNDays, weekdays: d.weekdays });
     } else if (panel === 'reminders') {
       const oldByTime = new Map((habit.reminders || []).map(item => [item.time, item])); const disabled = (habit.reminders || []).filter(item => item.enabled === false);
@@ -172,7 +173,7 @@
   function trackerCompletion(ctx, habit, dates) {
     const logs = ctx.state.habitLogCache?.[habit.id] || [];
     const today = ctx.Core.dateOnly();
-    return ctx.Core.habitCompletionForDates(habit, logs, dates.filter(entry => entry.valid && entry.date).map(entry => entry.date), today, ctx.Core.weekStartKey(ctx.state.settings.weekStartsOn));
+    return ctx.Core.habitCompletionForDates(habit, logs, dates.filter(entry => entry.valid && entry.date).map(entry => entry.date), today, ctx.Core.habitWeekRule(ctx.state.settings));
   }
 
   function renderHabitDashboard(ctx, habits) {
@@ -249,7 +250,7 @@
     const current = new Date(`${today}T12:00:00`);
     const days = new Date(current.getFullYear(), current.getMonth() + 1, 0).getDate();
     const dates = Array.from({ length: days }, (_, index) => `${today.slice(0, 8)}${String(index + 1).padStart(2, '0')}`);
-    const analytics = Core.habitAnalytics(habit, logs, { today, dates, weekStartsOn: Core.weekStartKey(state.settings.weekStartsOn) });
+    const analytics = Core.habitAnalytics(habit, logs, { today, dates, weekStartsOn: Core.habitWeekRule(state.settings) });
     const chart = habit.frequencyType === 'timesPerWeek'
       ? analytics.weeklySeries.map((point, index) => ({ label: tr('W{number}', { number: index + 1 }), ...point }))
       : analytics.monthlySeries.slice(-7).map(point => ({ label: point.date.slice(-2), ...point }));
@@ -372,7 +373,7 @@
   }
 
   function saveHabitModal(ctx) {
-    const { renderModal, nowIso, getHabit, uid, captureGoalProgress, syncHabitGoalLinks, state, saveState, closeModal, refreshHabitMetrics, render, evaluateGoalProgressChanges, navigate } = ctx;
+    const { renderModal, nowIso, getHabit, uid, captureGoalProgress, syncHabitGoalLinks, state, saveState, closeModal, refreshHabitMetrics, render, evaluateGoalProgressChanges, navigate, Core } = ctx;
     if (ctx.modalState?.type !== 'habit') return;
     const d = readHabitDraft(ctx);
     if (!String(d.name).trim()) { ctx.modalState.error = tr('Habit needs a name.'); renderModal(); return; }
@@ -385,6 +386,8 @@
     const fields = { ...d, name: String(d.name).trim(), quickValues: d.quickValues, reminders: d.reminders, updatedAt: nowIso() };
     const existingId = ctx.modalState.habitId;
     const habit = existingId ? getHabit(existingId) : { id: uid('habit'), goalIds: [], status: 'active', reminderFiredMoments: [], isInbox: Boolean(ctx.modalState.templateContext?.inbox), createdAt: nowIso() };
+    // A new weekly target applies from this week on; earlier weeks keep theirs (M11).
+    if (existingId) fields.targetHistory = Core.recordHabitTargetChange(habit, fields, Core.habitPeriodKey({ frequencyType: 'timesPerWeek' }, Core.dateOnly(), Core.habitWeekRule(state.settings)));
     Object.assign(habit, fields);
     const before=ctx.modalState.templateInstance?captureGoalProgress():null;
     syncHabitGoalLinks(habit, d.goalIds,ctx.modalState.templateInstance?.goalLinks);
@@ -570,7 +573,7 @@
     else if (action === 'save-habit-total') setHabitLog(el.dataset.habitId, Core.dateOnly(), 'done', Number($('#habit-direct-total')?.value || 0));
     else if (action === 'save-habit-history') { const habit = getHabit(el.dataset.habitId); const date = el.dataset.habitDate; const value = habit?.trackingType === 'numeric' ? Number($(`[data-habit-history-value][data-habit-date="${CSS.escape(date)}"]`)?.value || 0) : null; const status = habit?.trackingType === 'numeric' ? 'done' : $(`[data-habit-history-status][data-habit-date="${CSS.escape(date)}"]`)?.value || 'missed'; setHabitLog(el.dataset.habitId, date, status, value); }
     else if (action === 'save-habit-history-date') { const habit = getHabit(el.dataset.habitId); const date = $('#habit-history-date')?.value; const value = habit?.trackingType === 'numeric' ? Number($('#habit-history-new-value')?.value || 0) : null; const status = habit?.trackingType === 'numeric' ? 'done' : $('#habit-history-new-status')?.value || 'missed'; setHabitLog(el.dataset.habitId, date, status, value); }
-    else if (action === 'continue-habit') { const habit = getHabit(el.dataset.habitId || ctx.modalState?.habitId); if (habit) { const boundary = el.dataset.boundary || ctx.modalState?.boundary; const prior = habitMetrics(habit).periods?.filter(period => !period.isCurrent).at(-1); habit.lastContinuationPeriod = prior?.key || Core.habitPeriodKey(habit, Core.dateOnly(), Core.weekStartKey(state.settings.weekStartsOn)); if (boundary === 'onePeriod') habit.continuation = 'automatic'; if (boundary === 'end') { habit.endType = 'never'; habit.endDate = null; habit.successfulPeriodsTarget = null; } habit.updatedAt = nowIso(); saveState(); } closeModal(); refreshHabitMetrics().then(render); }
+    else if (action === 'continue-habit') { const habit = getHabit(el.dataset.habitId || ctx.modalState?.habitId); if (habit) { const boundary = el.dataset.boundary || ctx.modalState?.boundary; const prior = habitMetrics(habit).periods?.filter(period => !period.isCurrent).at(-1); habit.lastContinuationPeriod = prior?.key || Core.habitPeriodKey(habit, Core.dateOnly(), Core.habitWeekRule(state.settings)); if (boundary === 'onePeriod') habit.continuation = 'automatic'; if (boundary === 'end') { habit.endType = 'never'; habit.endDate = null; habit.successfulPeriodsTarget = null; } habit.updatedAt = nowIso(); saveState(); } closeModal(); refreshHabitMetrics().then(render); }
     else if (action === 'pause-habit') updateHabitStatus(el.dataset.habitId || ctx.modalState?.habitId, 'paused');
     else if (action === 'archive-habit') updateHabitStatus(el.dataset.habitId, 'archived');
     else if (action === 'resume-habit' || action === 'restore-habit') updateHabitStatus(el.dataset.habitId, 'active');

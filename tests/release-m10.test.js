@@ -8,11 +8,11 @@ const Release = require('../js/release.js');
 const root = path.join(__dirname, '..');
 const read = file => fs.readFileSync(path.join(root, file), 'utf8');
 
-test('the modernization is released as 2.0.0-alpha.2 everywhere', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.2');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.2';/, 'installed PWAs get the update notice and a new cache');
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.2');
-  assert.equal(JSON.parse(read('package-lock.json')).version, '2.0.0-alpha.2');
+test('the modernization shipped as 2.0.0-alpha.2 or later, the same everywhere (the newest release test pins it)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.([2-9]|\d{2,})$|^2\.\d+\.\d+/);
+  assert.match(read('sw.js'), new RegExp(`const VERSION = '${Release.APP_VERSION.replace(/\./g, '\\.')}';`), 'installed PWAs get the update notice and a new cache');
+  assert.equal(JSON.parse(read('package.json')).version, Release.APP_VERSION);
+  assert.equal(JSON.parse(read('package-lock.json')).version, Release.APP_VERSION);
 });
 
 test('the Serbian Mac build guide covers both platforms with the repository commands', () => {

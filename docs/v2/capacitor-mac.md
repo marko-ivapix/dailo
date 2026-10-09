@@ -1,6 +1,6 @@
 # Dailo — aplikacija za iPhone i Android (izrada na Mac-u)
 
-Kako da napraviš Dailo aplikaciju na svom Mac-u i pokreneš je na telefonu. To je ista aplikacija kao veb verzija (2.0.0-alpha.2), u Capacitor ljusci. Uz nju dobijaš:
+Kako da napraviš Dailo aplikaciju na svom Mac-u i pokreneš je na telefonu. To je ista aplikacija kao veb verzija (2.0.0-alpha.3), u Capacitor ljusci. Uz nju dobijaš:
 
 - podsetnike koji stižu i kad je aplikacija zatvorena;
 - izvoz rezervne kopije i otvaranje priloga preko menija za deljenje;

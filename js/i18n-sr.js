@@ -476,6 +476,7 @@
     "Not supported in this browser. Keep regular backups.": "Ovaj pregledač to ne podržava. Redovno pravi rezervne kopije.",
     "Kept by the app on this device until the app is removed. Keep regular backups.": "Aplikacija čuva podatke na ovom uređaju dok je ne ukloniš. Redovno pravi rezervne kopije.",
     "Export cancelled": "Izvoz je otkazan",
+    "Showing {shown} of {count}. Type more to narrow the results.": "Prikazano {shown} od {count}. Upišite više da suzite rezultate.",
     "Data from the web version": "Podaci iz veb verzije",
     "Do you have data in the web version?": "Imate podatke u veb verziji?",
     "Export a backup there (Settings → Data) and import it here, or sign in if you use sync. Your data then replaces these examples.": "Tamo izvezite rezervnu kopiju (Podešavanja → Podaci) i uvezite je ovde, ili se prijavite ako koristite sinhronizaciju. Vaši podaci tada zamenjuju ove primere.",

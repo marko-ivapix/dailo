@@ -85,4 +85,13 @@ The historical specifications and checklists remain unchanged as traceability re
 | Transfer | On a fresh install the app's Today offers "Uvezi rezervnu kopiju" / "Prijava" / "Ne treba"; a first sync from untouched examples takes the account data after a recovery copy. |
 | Data fixes (all platforms) | Sync never deletes record types it does not know; pulled deletions no longer stop sync on dangling links; completion and history days are local days (00:30 counts as today). |
 
-Known gaps from the audit, not in this round: tokens in localStorage (Keychain/Keystore later), color validation, export limits, fired-reminder markers still synced (R-3), render/save cost at large data (Q-1), focus after re-render (A-2). Open questions for the user: habit weekly-target history semantics, daily-habit reminders after a check-in, Search debounce/cap.
+Known gaps from the audit, not in this round: tokens in localStorage (Keychain/Keystore later), color validation, export limits, fired-reminder markers still synced (R-3), render/save cost at large data (Q-1), focus after re-render (A-2).
+
+## M11 — the user's decisions (2.0.0-alpha.3, 2026-10-09)
+
+| Area | Behavior |
+| --- | --- |
+| Habit weekly target | A change of "X times per week" applies from the current week on; earlier weeks keep their target (`habit.targetHistory`). A change from or to another frequency type still regroups history, as before. |
+| Week start | Habit weeks before a week-start change keep their boundaries (`settings.weekStartHistory`); the week of the change is cut (six-day week Monday → Sunday, eight-day week Sunday → Monday). A change back within seven days removes the change. The Calendar, Today and the weekly review follow the current week start. |
+| Habit reminders | Once today is checked in or skipped, that habit's reminders stay silent for today, in the app and as phone notifications; a numeric habit below its target still reminds. |
+| Search | Results update 120 ms after typing stops; at most 50 tasks and 20 projects are shown, with "Prikazano {shown} od {count}. Upišite više da suzite rezultate." Scope and ranking are unchanged. |

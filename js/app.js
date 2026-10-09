@@ -1593,6 +1593,8 @@
   function savePersonalization() {
     state.settings = Core.normalizeV16Settings({
       ...state.settings,
+      // Habit weeks before a week-start change keep their boundaries (M11).
+      weekStartHistory: Core.recordWeekStartChange(state.settings, $('#preference-week-start')?.value, Core.dateOnly()),
       compactDensity: $('#preference-density')?.checked,
       todayFocusFilter: $('#preference-today-filter')?.value,
       weekStartsOn: $('#preference-week-start')?.value,
@@ -1601,7 +1603,7 @@
     });
     saveAndRender();
   }
-  function resetPersonalization() { state.settings = Core.resetV16Settings(state.settings); saveAndRender(); }
+  function resetPersonalization() { state.settings = { ...Core.resetV16Settings(state.settings), weekStartHistory: Core.recordWeekStartChange(state.settings, 'monday', Core.dateOnly()) }; saveAndRender(); }
   const copyTemplate = value => JSON.parse(JSON.stringify(value));
   const TYPE_LABELS = { task: msg('Task'), project: msg('Project'), habit: msg('Habit'), goal: msg('Goal'), note: msg('Note'), resource: msg('Resource'), area: msg('Area'), tag: msg('Tag'), template: msg('Template') };
   const templateLabel = type => (TYPE_LABELS[type] ? tr(TYPE_LABELS[type]) : type[0].toUpperCase() + type.slice(1));
@@ -1901,18 +1903,38 @@
     return modalFrame(`<div class="modal-inner"><div class="search-box"><i class="ph ph-magnifying-glass"></i><input id="search-query" class="search-input" type="search" autocomplete="off" placeholder="${tr('Search tasks and projects...')}" value="${esc(modalState.query || '')}" /><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close Search')}"><i class="ph ph-x"></i></button></div><div id="search-results" class="search-results">${searchResultsHtml(modalState.query || '')}</div></div>`, 'search-modal');
   }
 
+  // Search (M11, approved 2026-10-09): results are rebuilt after a short pause in typing, and at most this many
+  // are rendered, in the unchanged order of Core.searchItems.
+  const SEARCH_DEBOUNCE_MS = 120;
+  const SEARCH_TASK_LIMIT = 50;
+  const SEARCH_PROJECT_LIMIT = 20;
+
+  let searchTimer = null;
+  function scheduleSearchResults() {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => {
+      searchTimer = null;
+      const results = modalState?.type === 'search' ? $('#search-results') : null;
+      if (results) results.innerHTML = searchResultsHtml(modalState.query);
+    }, SEARCH_DEBOUNCE_MS);
+  }
+
   function searchResultsHtml(query) {
     if (!String(query).trim()) return `<div class="empty-state" style="border:0;padding:38px 12px"><h3>${tr('Search tasks and projects')}</h3><p>${tr('Type a task title, note or project name.')}</p></div>`;
     const result = Core.searchItems(state.tasks, state.projects, query);
     if (!result.tasks.length && !result.projects.length) return `<div class="empty-state" style="border:0;padding:38px 12px"><h3>${tr('No results for “{query}”', { query: esc(query) })}</h3></div>`;
     let html = '';
     if (result.tasks.length) {
-      html += `<div class="search-section-title">${tr('Tasks')}</div>${result.tasks.map(({ task }) => searchTaskResult(task)).join('')}`;
+      html += `<div class="search-section-title">${tr('Tasks')}</div>${result.tasks.slice(0, SEARCH_TASK_LIMIT).map(({ task }) => searchTaskResult(task)).join('')}${searchMoreNote(result.tasks.length, SEARCH_TASK_LIMIT)}`;
     }
     if (result.projects.length) {
-      html += `<div class="search-section-title">${tr('Projects')}</div>${result.projects.map(project => `<button class="search-result" type="button" data-route="project/${esc(project.id)}"><span class="search-result-icon"><span class="project-dot" style="--project-color:${esc(project.color)}"></span></span><span><span class="search-result-title">${esc(project.name)}</span><span class="search-result-meta">${tr('Project')}</span></span></button>`).join('')}`;
+      html += `<div class="search-section-title">${tr('Projects')}</div>${result.projects.slice(0, SEARCH_PROJECT_LIMIT).map(project => `<button class="search-result" type="button" data-route="project/${esc(project.id)}"><span class="search-result-icon"><span class="project-dot" style="--project-color:${esc(project.color)}"></span></span><span><span class="search-result-title">${esc(project.name)}</span><span class="search-result-meta">${tr('Project')}</span></span></button>`).join('')}${searchMoreNote(result.projects.length, SEARCH_PROJECT_LIMIT)}`;
     }
     return html;
+  }
+
+  function searchMoreNote(count, limit) {
+    return count > limit ? `<p class="search-more-note">${tr('Showing {shown} of {count}. Type more to narrow the results.', { shown: limit, count })}</p>` : '';
   }
 
   function searchTaskResult(task) {
@@ -3204,7 +3226,7 @@
     const byHabit = {};
     for (const log of logs) (byHabit[log.habitId] ||= []).push(log);
     state.habitLogCache = byHabit;
-    state.habitMetrics = Object.fromEntries((state.habits || []).map(habit => [habit.id, Core.deriveHabitMetrics(habit, byHabit[habit.id] || [], Core.dateOnly(), Core.weekStartKey(state.settings.weekStartsOn))]));
+    state.habitMetrics = Object.fromEntries((state.habits || []).map(habit => [habit.id, Core.deriveHabitMetrics(habit, byHabit[habit.id] || [], Core.dateOnly(), Core.habitWeekRule(state.settings))]));
     if (globalThis.DailoPlatform?.isNative) scheduleNotificationPlan();
   }
 
@@ -3282,7 +3304,7 @@
 
   async function evaluateHabitBoundaries() {
     if (!state || globalOperation || modalState?.type === 'habit-finished') return;
-    const today = Core.dateOnly(); const weekStartsOn = Core.weekStartKey(state.settings.weekStartsOn);
+    const today = Core.dateOnly(); const weekStartsOn = Core.habitWeekRule(state.settings);
     for (const habit of state.habits || []) {
       if (habit.status !== 'active') continue;
       const metrics = habitMetrics(habit);
@@ -4146,7 +4168,7 @@
     const dueGoals = state.goals.flatMap(goal => Core.goalReminderDueMoments(goal, now).map(moment => ({ goal, moment })));
     const today = Core.dateOnly(new Date(now));
     const dueHabits = state.habits.flatMap(habit => {
-      if (!Core.habitReminderActive(habit, state.habitLogCache?.[habit.id] || [], now, Core.weekStartKey(state.settings.weekStartsOn))) return [];
+      if (!Core.habitReminderActive(habit, state.habitLogCache?.[habit.id] || [], now, Core.habitWeekRule(state.settings))) return [];
       const nowTime = new Date(now).getTime(); const pending = habit.pendingSnoozeAt && new Date(habit.pendingSnoozeAt).getTime();
       // A snooze is a distinct notification, not merely a suppression of the
       // original moment. Lifecycle and weekly-target suppression apply first.
@@ -4469,7 +4491,7 @@
     }
     if (modalState?.type === 'search' && event.target.id === 'search-query') {
       modalState.query = event.target.value;
-      const results = $('#search-results'); if (results) results.innerHTML = searchResultsHtml(modalState.query);
+      scheduleSearchResults();
     }
     if (modalState?.type === 'tag' && event.target.id === 'tag-name') { modalState.draft.name = event.target.value; modalState.error = ''; }
   }
