@@ -13,7 +13,7 @@ function suggestions() {
   }
   return out.sort((a, b) => a.rank - b.rank);
 }
-const projectTasks = id => S.tasks.filter(t => !t.inbox && (id === 'none' ? !t.project : t.project === id));
+const projectTasks = id => S.tasks.filter(t => !t.inbox && (id === 'none' ? !t.project && !t.room : t.project === id));
 const openCount = n => `${n} ${plural(n, 'otvoren', 'otvorena', 'otvorenih')}`;
 
 TAB.tasks = () => {

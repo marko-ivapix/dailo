@@ -13,7 +13,7 @@ function sbItem(key, act, data, icon, label, extra = '') {
 const deskSub = (tab, type, id = '') => `data-tab="${tab}" data-sub="${type}"${id ? ` data-id="${id}"` : ''}`;
 function addLabel() {
   const top = R.stack.at(-1)?.type;
-  return { habits: 'Nova navika' }[R.tab] || { goals: 'Novi cilj', notes: 'Nova beleška', resources: 'Novi resurs', cleaning: 'Nova obaveza', tags: 'Nova oznaka', tag: 'Nova oznaka', templates: 'Novi šablon', views: 'Novi prikaz', view: 'Novi prikaz', areas: 'Nova oblast' }[top] || 'Novi zadatak';
+  return { habits: 'Nova navika' }[R.tab] || { goals: 'Novi cilj', notes: 'Nova beleška', resources: 'Novi resurs', cleaning: 'Nova redovna obaveza', tags: 'Nova oznaka', tag: 'Nova oznaka', templates: 'Novi šablon', views: 'Novi prikaz', view: 'Novi prikaz', areas: 'Nova oblast' }[top] || 'Novi zadatak';
 }
 function renderSidebar() {
   const nav = (key, label, path) => sbItem(`tab:${key}`, 'tab', `data-tab="${key}" ${key === 'today' ? 'data-drop-plan="today"' : ''}`, SV(path, 18), label, key === 'inbox' && inboxCount() ? `<span class="sb-badge">${inboxCount()}</span>` : key === 'today' ? `<span class="sb-n">${liveTasks().filter(t => t.plan === TODAY).length}</span>` : '');
@@ -28,7 +28,7 @@ function renderSidebar() {
     <div class="sb-label">Planiranje</div>
     ${sbItem('goals:', 'deskGo', deskSub('more', 'goals'), IC.goal.replace('width="20" height="20"', 'width="18" height="18"'), 'Ciljevi')}
     ${sbItem('areas:', 'deskGo', deskSub('more', 'areas'), IC.area.replace('width="20" height="20"', 'width="18" height="18"'), 'Oblasti')}
-    ${sbItem('cleaning:', 'deskGo', deskSub('more', 'cleaning'), IC.broom.replace('width="20" height="20"', 'width="18" height="18"'), 'Čišćenje')}
+    ${sbItem('cleaning:', 'deskGo', deskSub('more', 'cleaning'), IC.repeat.replace('width="20" height="20"', 'width="18" height="18"'), 'Redovne obaveze')}
     ${sbItem('review:', 'deskGo', deskSub('more', 'review'), IC.review.replace('width="20" height="20"', 'width="18" height="18"'), 'Nedeljni pregled')}
     <div class="sb-label">Biblioteka</div>
     ${[['notes', 'Beleške', IC.note], ['resources', 'Resursi', IC.link], ['tags', 'Oznake', IC.tag], ['templates', 'Šabloni', IC.copy], ['views', 'Sačuvani prikazi', IC.funnel]].map(([t, l, i]) => sbItem(`${t}:`, 'deskGo', deskSub('more', t), i.replace('width="20" height="20"', 'width="18" height="18"'), l)).join('')}

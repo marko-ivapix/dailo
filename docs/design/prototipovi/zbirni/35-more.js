@@ -12,7 +12,7 @@ TAB.more = () => {
   <div class="glabel">Planiranje</div><div class="card">
     ${navRow('openGoals', IC.goal, 'Ciljevi', { val: String(S.goals.filter(g => g.status === 'active').length) })}
     ${navRow('go', IC.area, 'Oblasti', { val: String(activeAreas().length), data: sub('areas') })}
-    ${navRow('go', IC.broom, 'Čišćenje', { val: `${S.rooms.length} ${plural(S.rooms.length, 'prostorija', 'prostorije', 'prostorija')}`, data: sub('cleaning') })}
+    ${navRow('go', IC.repeat, 'Redovne obaveze', { val: String(recurringSections().flatMap(x => x.list).filter(t => !t.done).length), data: sub('cleaning') })}
     ${navRow('go', IC.review, 'Nedeljni pregled', { val: reviewDone() ? 'Završen' : last ? `Poslednji ${short(last.completedAt)}` : '', data: sub('review') })}</div>
   <div class="glabel">Biblioteka</div><div class="card">
     ${navRow('go', IC.note, 'Beleške', { val: String(S.library.filter(x => x.kind === 'note').length), data: sub('notes') })}
