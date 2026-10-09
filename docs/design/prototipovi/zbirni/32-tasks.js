@@ -65,8 +65,9 @@ SUB.project = ({ id }) => {
     <div class="titlebar">${backBtn()}${p ? `<button class="icon-btn" data-act="projectMenu" data-id="${p.id}" aria-label="Radnje projekta">${IC.dots}</button>` : ''}</div>
     <h1 class="h1" style="display:flex;align-items:center;gap:10px">${p ? `<span class="dot" style="background:${p.color};width:12px;height:12px"></span>` : ''}${esc(p ? p.name : 'Bez projekta')}</h1>
     <div class="summary" style="margin-bottom:4px">${p ? `${esc(areaOf(p.area).name)} · ` : ''}${openCount(open.length)}${done.length ? ` · ${done.length} ${plural(done.length, 'završen', 'završena', 'završenih')}` : ''}</div>
+    ${p?.archived ? `<div class="notice">${IC.archive}<span class="main"><b>Arhiviran projekat</b>Njegovi zadaci se ne vide u listama dok ga ne vratiš.</span><button data-act="restoreProject" data-id="${p.id}">Vrati</button></div>` : ''}
     ${g ? `<button class="plink" data-act="openGoal" data-id="${g.id}">${IC.goal}Cilj: ${esc(g.title)} · ${progress(g).pct}%</button>` : ''}
-    <div class="card" style="margin-top:10px">${open.map(t => taskRow(t, { meta: p ? 'project' : 'plan' })).join('')}<button class="addrow" data-act="quickProject" data-id="${id}">＋ Dodaj zadatak</button></div>`;
+    ${p?.archived && !open.length ? '' : `<div class="card" style="margin-top:10px">${open.map(t => taskRow(t, { meta: p ? 'project' : 'plan' })).join('')}${p?.archived ? '' : `<button class="addrow" data-act="quickProject" data-id="${id}">＋ Dodaj zadatak</button>`}</div>`}`;
   if (done.length) {
     html += `<button class="collapsed" data-act="projDone">${IC.fold(S.ui.projDone)}Završeno · ${done.length}</button>`;
     if (S.ui.projDone) html += `<div class="card" style="margin-top:8px">${done.map(t => taskRow(t, { meta: 'none' })).join('')}</div>`;

@@ -120,5 +120,6 @@ A.fab = () => {
   if (t === 'tags' || t === 'tag') return A.newTag();
   if (t === 'templates') return A.tplNew();
   if (t === 'views' || t === 'view') return A.viewNew();
+  if (t === 'project' && project(top.id)?.archived) return toast('Projekat je arhiviran. Vrati ga da dodaješ zadatke.');
   return fabMain();
 };
