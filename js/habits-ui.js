@@ -334,13 +334,15 @@
   }
 
   function openHabitMenu(ctx, anchor, habitId) {
-    const { getHabit, esc, openPopover, templateMenuEntry } = ctx;
+    const { getHabit, esc, openPopover, templateMenuEntry, Core } = ctx;
     const habit = getHabit(habitId); if (!habit) return;
+    // After 21:00 there is no "tonight" left (audit H-2).
+    const tonight = Core.snoozeTarget('tonight', new Date()) ? `<button class="popover-option" type="button" data-pop-action="snooze-habit" data-habit-id="${esc(habitId)}" data-snooze="tonight"><i class="ph ph-moon"></i>${tr('Snooze tonight')}</button>` : '';
     const lifecycle = habit.status === 'archived'
       ? `<button class="popover-option" type="button" data-pop-action="restore-habit" data-habit-id="${esc(habitId)}"><i class="ph ph-arrow-counter-clockwise"></i>${tr('Restore habit')}</button>`
       : `<button class="popover-option" type="button" data-pop-action="${habit.status === 'paused' ? 'resume-habit' : 'pause-habit'}" data-habit-id="${esc(habitId)}"><i class="ph ph-pause"></i>${habit.status === 'paused' ? tr('Resume habit') : tr('Pause habit')}</button>`;
     const archive = habit.status !== 'archived' ? `<button class="popover-option" type="button" data-pop-action="archive-habit" data-habit-id="${esc(habitId)}"><i class="ph ph-archive"></i>${tr('Archive habit')}</button>` : '';
-    const html = `<button class="popover-option" type="button" data-pop-action="edit-habit" data-habit-id="${esc(habitId)}"><i class="ph ph-pencil-simple"></i>${tr('Edit habit')}</button>${lifecycle}${archive}<div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="snooze-habit" data-habit-id="${esc(habitId)}" data-snooze="15m"><i class="ph ph-clock"></i>${tr('Snooze 15 min')}</button><button class="popover-option" type="button" data-pop-action="snooze-habit" data-habit-id="${esc(habitId)}" data-snooze="1h"><i class="ph ph-clock"></i>${tr('Snooze 1 hour')}</button><button class="popover-option" type="button" data-pop-action="snooze-habit" data-habit-id="${esc(habitId)}" data-snooze="tonight"><i class="ph ph-moon"></i>${tr('Snooze tonight')}</button><div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="delete-habit" data-habit-id="${esc(habitId)}" style="color:var(--danger)"><i class="ph ph-trash"></i>${tr('Delete habit')}</button>`;
+    const html = `<button class="popover-option" type="button" data-pop-action="edit-habit" data-habit-id="${esc(habitId)}"><i class="ph ph-pencil-simple"></i>${tr('Edit habit')}</button>${lifecycle}${archive}<div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="snooze-habit" data-habit-id="${esc(habitId)}" data-snooze="15m"><i class="ph ph-clock"></i>${tr('Snooze 15 min')}</button><button class="popover-option" type="button" data-pop-action="snooze-habit" data-habit-id="${esc(habitId)}" data-snooze="1h"><i class="ph ph-clock"></i>${tr('Snooze 1 hour')}</button>${tonight}<div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="delete-habit" data-habit-id="${esc(habitId)}" style="color:var(--danger)"><i class="ph ph-trash"></i>${tr('Delete habit')}</button>`;
     openPopover(anchor, templateMenuEntry('habit',habitId)+html, { type: 'habit-menu', habitId });
   }
 

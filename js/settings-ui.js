@@ -4,6 +4,19 @@
   const I18n = window.TodoI18n;
   const { tr, trn, trMessage, msg } = I18n;
 
+  // The browser shows reminders only while Dailo is open; the app schedules phone notifications (audit M6).
+  function reminderRows(native, notificationButtonLabel) {
+    const row = (title, text, action, label) => `<div class="settings-row"><div class="settings-label"><strong>${title}</strong><span>${text}</span></div><button class="btn btn-secondary" type="button" data-action="${action}">${label}</button></div>`;
+    if (!native) return row(tr('Browser reminders'), tr('Reminders appear while Dailo is open. Browser notifications are optional, and nothing arrives while the app is closed.'), 'enable-notifications', notificationButtonLabel());
+    const text = native.permission === 'granted' ? tr('Reminders arrive as notifications, even when Dailo is closed.')
+      : native.permission === 'denied' ? tr('Notifications are off for Dailo. Turn them on in the phone settings.')
+        : tr('Allow notifications so reminders arrive even when Dailo is closed.');
+    const label = native.permission === 'granted' ? tr('Enabled') : native.permission === 'denied' ? tr('Blocked') : tr('Enable');
+    const exact = native.permission === 'granted' && native.exact === 'denied'
+      ? row(tr('Exact time'), tr('Android may deliver reminders a few minutes late. Allow exact alarms for Dailo.'), 'allow-exact-alarms', tr('Allow')) : '';
+    return row(tr('Reminders'), text, 'enable-notifications', label) + exact;
+  }
+
   function renderSettings(ctx) {
     const { state, pageHeader, shortcutLabels, shortcutError, notificationButtonLabel, esc } = ctx;
     const backupStatus = state.settings.backupStatus || {};
@@ -82,7 +95,7 @@
       </section>
       <section class="settings-card">
         <h2>${tr('Notifications')}</h2>
-        <div class="settings-row"><div class="settings-label"><strong>${tr('Browser reminders')}</strong><span>${tr('Reminders appear while Dailo is open. Browser notifications are optional, and nothing arrives while the app is closed.')}</span></div><button class="btn btn-secondary" type="button" data-action="enable-notifications">${notificationButtonLabel()}</button></div>
+        ${reminderRows(ctx.notificationSettings?.() || null, notificationButtonLabel)}
       </section>
       <section class="settings-card">
         <h2>${tr('Data')}</h2>

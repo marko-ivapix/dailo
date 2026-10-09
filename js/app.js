@@ -556,6 +556,7 @@
       }
       storageError = false;
       if (globalThis.DailoPlatform?.isNative) scheduleDurableMirror();
+      if (globalThis.DailoPlatform?.isNative) scheduleNotificationPlan();
       scheduleAutomaticSnapshot();
       scheduleSync();
       return true;
@@ -689,6 +690,8 @@
       },
       storagePersistence: () => storagePersistence,
       shortcutError: () => shortcutError,
+      // Native app: the notification permission and (Android) exact-alarm state; null on the web.
+      notificationSettings: () => (globalThis.DailoPlatform?.isNative ? { permission: notificationPermission, exact: exactAlarmState } : null),
       notificationButtonLabel() {
         return typeof Notification === 'undefined' ? tr('Unavailable') : (Notification.permission === 'granted' ? tr('Enabled') : Notification.permission === 'denied' ? tr('Blocked') : tr('Enable'));
       },
@@ -2026,12 +2029,12 @@
   function openReminderPicker(anchor, target) {
     const task = target.type === 'quick' ? modalState.draft : getTask(target.taskId);
     if (!task) return;
-    const later = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
+    const later = Core.laterToday(new Date()); // null late in the evening: the option is not offered (audit H-2)
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     tomorrow.setHours(9, 0, 0, 0);
     const targetAttrs = `data-target-type="${target.type}" ${target.taskId ? `data-task-id="${esc(target.taskId)}"` : ''}`;
-    const html = `<div class="popover-title">${tr('Reminder')}</div><button class="popover-option" type="button" data-pop-action="set-reminder" data-reminder="${esc(later)}" ${targetAttrs}><i class="ph ph-clock"></i>${tr('Later today')}</button><button class="popover-option" type="button" data-pop-action="set-reminder" data-reminder="${esc(tomorrow.toISOString())}" ${targetAttrs}><i class="ph ph-sun-horizon"></i>${tr('Tomorrow morning')}</button><button class="popover-option" type="button" data-pop-action="show-custom-reminder" ${targetAttrs}><i class="ph ph-calendar-blank"></i>${tr('Custom date & time...')}</button>${task.reminderAt ? `<div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="set-reminder" data-reminder="" ${targetAttrs}><i class="ph ph-x"></i>${tr('Clear reminder')}</button>` : ''}`;
+    const html = `<div class="popover-title">${tr('Reminder')}</div>${later ? `<button class="popover-option" type="button" data-pop-action="set-reminder" data-reminder="${esc(later)}" ${targetAttrs}><i class="ph ph-clock"></i>${tr('Later today')}</button>` : ''}<button class="popover-option" type="button" data-pop-action="set-reminder" data-reminder="${esc(tomorrow.toISOString())}" ${targetAttrs}><i class="ph ph-sun-horizon"></i>${tr('Tomorrow morning')}</button><button class="popover-option" type="button" data-pop-action="show-custom-reminder" ${targetAttrs}><i class="ph ph-calendar-blank"></i>${tr('Custom date & time...')}</button>${task.reminderAt ? `<div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="set-reminder" data-reminder="" ${targetAttrs}><i class="ph ph-x"></i>${tr('Clear reminder')}</button>` : ''}`;
     openPopover(anchor, html, { type: 'reminder', target });
   }
 
@@ -3200,6 +3203,7 @@
     for (const log of logs) (byHabit[log.habitId] ||= []).push(log);
     state.habitLogCache = byHabit;
     state.habitMetrics = Object.fromEntries((state.habits || []).map(habit => [habit.id, Core.deriveHabitMetrics(habit, byHabit[habit.id] || [], Core.dateOnly(), Core.weekStartKey(state.settings.weekStartsOn))]));
+    if (globalThis.DailoPlatform?.isNative) scheduleNotificationPlan();
   }
 
   function readHabitDraft() {
@@ -3315,9 +3319,8 @@
 
   function snoozeHabit(habitId, kind) {
     const habit = getHabit(habitId); if (!habit) return;
-    const now = new Date(); const next = new Date(now);
-    if (kind === '15m') next.setMinutes(next.getMinutes() + 15); else if (kind === '1h') next.setHours(next.getHours() + 1); else { next.setHours(now.getHours() >= 19 ? 21 : 19, 0, 0, 0); }
-    habit.snoozedUntil = next.toISOString(); habit.pendingSnoozeAt = next.toISOString(); habit.updatedAt = nowIso(); saveState(); setToastMessage(tr('Habit snoozed until {time}', { time: formatReminder(habit.snoozedUntil) }));
+    const next = Core.snoozeTarget(kind, new Date()); if (!next) return;
+    habit.snoozedUntil = next; habit.pendingSnoozeAt = next; habit.updatedAt = nowIso(); saveState(); setToastMessage(tr('Habit snoozed until {time}', { time: formatReminder(habit.snoozedUntil) }));
   }
 
   function deleteMilestone(goalId, milestoneId) {
@@ -4012,7 +4015,84 @@
     }
   }
 
+  // Native reminders (audit R-1, M6): the upcoming reminders are scheduled as phone notifications, so they arrive
+  // while Dailo is closed. The plan is rebuilt after saves and habit check-ins, at start and on resume; the platform
+  // keeps unchanged notifications and cancels only stale ones. NOTIFIED_KEY (device-local, outside state, sync and
+  // backups) records which moments the phone was asked to show, so the in-app checker records those without a
+  // second toast. Call sites check isNative inline, like the other platform hooks.
+  const NOTIFIED_KEY = 'dailoNotified';
+  function readNotified() {
+    try { const value = JSON.parse(localStorage.getItem(NOTIFIED_KEY) || '{}'); return value && typeof value === 'object' ? value : {}; } catch (_) { return {}; }
+  }
+  function phoneShownKeys() {
+    if (!globalThis.DailoPlatform?.isNative || notificationPermission !== 'granted') return new Set();
+    const now = Date.parse(nowIso());
+    return new Set(Object.entries(readNotified()).filter(([, at]) => Date.parse(at) <= now).map(([key]) => key));
+  }
+  // Moments already past were still scheduled when they arrived; future ones are replaced by the new plan, so a
+  // reminder that dropped out of the plan is never treated as shown.
+  function rememberNotified(items) {
+    const now = Date.parse(nowIso()), cutoff = now - 3 * 86400000;
+    const past = Object.entries(readNotified()).filter(([, at]) => { const time = Date.parse(at); return time <= now && time >= cutoff; });
+    try { localStorage.setItem(NOTIFIED_KEY, JSON.stringify(Object.fromEntries([...past, ...items.map(item => [item.key, item.at])]))); } catch (_) { /* the checker then toasts as well */ }
+  }
+  function notificationBody(item) {
+    const day = Core.localDateOf(item.at);
+    if (item.kind === 'task') return item.date ? tr('Due {date}', { date: relativeDateLabel(item.date, day) }) : tr('Task reminder');
+    if (item.kind === 'goal') return item.date ? tr('Goal target {date}', { date: relativeDateLabel(item.date, day) }) : tr('Goal reminder');
+    return tr('Habit reminder');
+  }
+  function scheduleNotificationPlan(delay = 2000) {
+    if (!globalThis.DailoPlatform?.isNative) return;
+    clearTimeout(notificationTimer);
+    notificationTimer = setTimeout(() => { reconcileNotifications().catch(console.error); }, delay);
+  }
+  async function reconcileNotifications() {
+    clearTimeout(notificationTimer); notificationTimer = null;
+    const platform = globalThis.DailoPlatform;
+    if (!platform?.isNative || !state || globalOperation || recovery) return;
+    const items = Core.notificationPlan(state, nowIso(), { logs: state.habitLogCache || {} }).map(item => ({ ...item, body: notificationBody(item) }));
+    let result = await platform.notifications.reconcile(items);
+    // The system question is asked once, when there is first something to notify about; later from Settings.
+    if (result.status === 'permission' && result.permission === 'prompt' && items.length && !localStorage.getItem('dailoNotifyAsked')) {
+      try { localStorage.setItem('dailoNotifyAsked', nowIso()); } catch (_) { /* asked again next time */ }
+      if (await platform.notifications.requestPermission() === 'granted') result = await platform.notifications.reconcile(items);
+    }
+    const changed = (result.permission && result.permission !== notificationPermission) || (result.exact !== undefined && result.exact !== exactAlarmState);
+    if (result.permission) notificationPermission = result.permission;
+    if (result.exact !== undefined) exactAlarmState = result.exact;
+    if (result.status === 'ok') rememberNotified(items);
+    if (changed && currentRoute().type === 'settings') render();
+  }
+  let notificationTimer = null, notificationPermission = null, exactAlarmState = null;
+
+  // A tapped notification opens its task, goal or habit. An open dialog keeps its draft: the tap then only
+  // brings Dailo to the front.
+  function openNotificationTarget(extra) {
+    const [kind, ...rest] = String(extra?.route || '').split('/');
+    const id = decodeURIComponent(rest.join('/'));
+    if (!state || globalOperation || recovery || modalState || !id) return;
+    if (kind === 'task') { if (getTask(id)) openTaskDetail(id); return; }
+    if ((kind === 'goal' && getGoal(id)) || (kind === 'habit' && getHabit(id))) navigate(`#${kind}/${encodeURIComponent(id)}`);
+  }
+
+  async function allowExactAlarms() {
+    try { exactAlarmState = await globalThis.DailoPlatform.notifications.allowExactAlarms(); } catch (error) { console.error(error); }
+    scheduleNotificationPlan(0);
+    render();
+  }
+
   async function enableBrowserNotifications() {
+    const platform = globalThis.DailoPlatform;
+    if (platform?.isNative) {
+      try {
+        notificationPermission = await platform.notifications.requestPermission();
+        setToastMessage(notificationPermission === 'granted' ? tr('Reminders will arrive as notifications') : tr('Notifications are off for Dailo. Turn them on in the phone settings.'));
+      } catch (_) { setToastMessage(tr('Notifications could not be enabled')); }
+      scheduleNotificationPlan(0);
+      render();
+      return;
+    }
     if (typeof Notification === 'undefined') { setToastMessage(tr('Browser notifications are unavailable')); return; }
     if (Notification.permission === 'granted') { setToastMessage(tr('Browser notifications are already enabled')); return; }
     if (Notification.permission === 'denied') { setToastMessage(tr('Browser notifications are blocked in browser settings')); return; }
@@ -4042,6 +4122,13 @@
       return (habit.reminders || []).filter(reminder => reminder.enabled && Core.normalizeTime(reminder.time)).map(reminder => ({ habit, moment: Core.combineDateTime(today, reminder.time) })).filter(item => item.moment && !fired.has(item.moment) && new Date(item.moment).getTime() <= new Date(now).getTime());
     });
     if (!dueTasks.length && !dueGoals.length && !dueHabits.length) return;
+    // On the phone a reminder the system already showed as a notification is only recorded here (audit M6).
+    const shown = phoneShownKeys();
+    const unseen = [
+      ...dueTasks.filter(task => !shown.has(Core.notificationKey('task', task.id, task.reminderAt))).map(task => task.title),
+      ...dueGoals.filter(({ goal, moment }) => !shown.has(Core.notificationKey('goal', goal.id, moment))).map(({ goal }) => goal.title),
+      ...dueHabits.filter(({ habit, moment }) => !shown.has(Core.notificationKey('habit', habit.id, moment))).map(({ habit }) => habit.name),
+    ];
     for (const task of dueTasks) {
       task.reminderFiredAt = now;
       task.updatedAt = now;
@@ -4065,9 +4152,8 @@
       }
     }
     saveState();
-    const total = dueTasks.length + dueGoals.length + dueHabits.length;
-    if (total === 1) setToastMessage(tr('Reminder: {title}', { title: dueTasks[0]?.title || dueGoals[0]?.goal.title || dueHabits[0].habit.name }));
-    else setToastMessage(trn(total, '{count} reminder is due', '{count} reminders are due'));
+    if (unseen.length === 1) setToastMessage(tr('Reminder: {title}', { title: unseen[0] }));
+    else if (unseen.length) setToastMessage(trn(unseen.length, '{count} reminder is due', '{count} reminders are due'));
   }
 
   // Messages are English catalog keys or already translated text; tr() leaves the latter unchanged.
@@ -4258,6 +4344,7 @@
     else if (action === 'undo') doUndo();
     else if (action === 'retry-delete-recovery') retryFailedDeleteRecovery();
     else if (action === 'enable-notifications') enableBrowserNotifications();
+    else if (action === 'allow-exact-alarms') allowExactAlarms();
     else if (action === 'export-backup') exportBackupAction();
     else if (action === 'snooze-backup-reminder') { snoozeBackupReminder(); render(); }
     else if (action === 'complete-weekly-review') completeWeeklyReview();
@@ -4744,6 +4831,7 @@
     if (globalOperation || startupPromise || recovery || !state) return;
     checkDateAndReminders();
     scheduleSync(500);
+    if (globalThis.DailoPlatform?.isNative) scheduleNotificationPlan(500);
   }
 
   function checkDateAndReminders() {
@@ -4775,6 +4863,8 @@
     platform.backButton.setHandler(handleBackButton);
     platform.links.interceptExternalLinks(document, { onlinePages: { 'uputstvo.html': Release.GUIDE_URL } });
     platform.files.cleanupSharedFiles().catch(console.error);
+    platform.notifications.onOpen(openNotificationTarget);
+    scheduleNotificationPlan(0);
   }
 
   async function drainReady(resolve, reject) {

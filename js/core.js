@@ -489,9 +489,9 @@
 
   function isReminderDue(task, nowIso) {
     if (!task || task.isCompleted || !task.reminderAt || task.reminderFiredAt) return false;
-    const reminder = new Date(task.reminderAt).getTime();
+    const reminder = reminderInstant(task.reminderAt);
     const now = new Date(nowIso).getTime();
-    return Number.isFinite(reminder) && Number.isFinite(now) && reminder <= now;
+    return reminder !== null && Number.isFinite(now) && reminder <= now;
   }
 
   function filterCompleted(tasks, options = {}, nowIso = new Date().toISOString()) {
@@ -1144,6 +1144,85 @@
     return habit.frequencyType !== 'timesPerWeek' || metrics.currentPeriodCount < metrics.currentPeriodTarget;
   }
 
+  // Reminder moments (audit R-2). `reminderAt` is stored either as a floating local time ("2026-10-09T09:00:00",
+  // from pickers and templates) or as a UTC timestamp; both name one instant. A date alone is not a moment.
+  function reminderInstant(value) {
+    if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(value)) return null;
+    const time = new Date(value).getTime();
+    return Number.isFinite(time) ? time : null;
+  }
+
+  // One key per reminder moment, shared by the notification plan and the in-app checker.
+  const notificationKey = (kind, id, moment) => `${kind}:${id}:${moment}`;
+
+  // Native reminders (audit R-1, M6): the next reminder moments, scheduled as phone notifications so they arrive
+  // while Dailo is closed. It follows the in-app checker: open tasks' reminderAt; active goals' unfired moments;
+  // habit reminder times on scheduled days, where a snooze silences the moments before it and is a notification
+  // of its own, and a met weekly target silences the rest of the current week. Only future moments inside the
+  // window are listed, at most `limit` (iOS keeps 64 pending notifications per app).
+  function notificationPlan(state, now, { days = 14, limit = 60, logs = {} } = {}) {
+    const start = new Date(now).getTime();
+    if (!state || !Number.isFinite(start)) return [];
+    const end = start + days * 86400000;
+    const list = [];
+    const add = (kind, item, moment, title, date = null) => {
+      const time = reminderInstant(moment.startsWith('snooze:') ? moment.slice(7) : moment);
+      if (time === null || time <= start || time > end) return;
+      list.push({ key: notificationKey(kind, item.id, moment), kind, id: item.id, at: new Date(time).toISOString(), title, route: `${kind}/${encodeURIComponent(item.id)}`, date });
+    };
+    for (const task of state.tasks || []) {
+      if (!task.isCompleted && task.reminderAt && !task.reminderFiredAt) add('task', task, task.reminderAt, task.title, task.dueDate || null);
+    }
+    for (const goal of state.goals || []) {
+      if (goal.status !== 'active') continue;
+      const fired = new Set(Array.isArray(goal.reminderFiredMoments) ? goal.reminderFiredMoments : []);
+      for (const moment of goalReminderMoments(goal)) if (!fired.has(moment)) add('goal', goal, moment, goal.title, goal.targetDate);
+    }
+    const weekStartsOn = weekStartKey(state.settings?.weekStartsOn);
+    const today = dateOnly(new Date(start));
+    for (const habit of state.habits || []) {
+      if (habit.status !== 'active') continue;
+      let quietWeek = null;
+      if (habit.frequencyType === 'timesPerWeek') {
+        const metrics = deriveHabitMetrics(habit, logs[habit.id] || [], today, weekStartsOn);
+        if (metrics.currentPeriodCount >= metrics.currentPeriodTarget) quietWeek = weekStartFor(today, weekStartsOn);
+      }
+      const silent = date => !habitScheduledOn(habit, date) || (quietWeek && weekStartFor(date, weekStartsOn) === quietWeek);
+      const snoozeEnd = reminderInstant(habit.snoozedUntil);
+      if (habit.pendingSnoozeAt && reminderInstant(habit.pendingSnoozeAt) !== null && !silent(dateOnly(new Date(habit.pendingSnoozeAt)))) add('habit', habit, `snooze:${habit.pendingSnoozeAt}`, habit.name);
+      const times = (habit.reminders || []).filter(reminder => reminder?.enabled && normalizeTime(reminder.time)).map(reminder => reminder.time);
+      if (!times.length) continue;
+      const fired = new Set(habit.reminderFiredMoments || []);
+      for (let offset = 0; offset <= days; offset += 1) {
+        const date = addDays(today, offset);
+        if (silent(date)) continue;
+        for (const time of times) {
+          const moment = combineDateTime(date, time);
+          if (moment && !fired.has(moment) && !(snoozeEnd !== null && reminderInstant(moment) < snoozeEnd)) add('habit', habit, moment, habit.name);
+        }
+      }
+    }
+    return list.sort((a, b) => a.at.localeCompare(b.at) || a.key.localeCompare(b.key)).slice(0, limit);
+  }
+
+  // Snooze choices (audit H-2): "tonight" is 19:00, or 21:00 once it is 19:00; later than that there is no tonight
+  // left. "Later today" is two hours ahead while that is still today. Null means the choice is not offered.
+  function snoozeTarget(kind, now = new Date()) {
+    const next = new Date(now);
+    if (Number.isNaN(next.getTime())) return null;
+    if (kind === '15m') return new Date(next.getTime() + 15 * 60000).toISOString();
+    if (kind === '1h') return new Date(next.getTime() + 3600000).toISOString();
+    if (kind !== 'tonight' || next.getHours() >= 21) return null;
+    next.setHours(next.getHours() >= 19 ? 21 : 19, 0, 0, 0);
+    return next.toISOString();
+  }
+  function laterToday(now = new Date()) {
+    const start = new Date(now);
+    if (Number.isNaN(start.getTime())) return null;
+    const later = new Date(start.getTime() + 2 * 3600000);
+    return dateOnly(later) === dateOnly(start) ? later.toISOString() : null;
+  }
+
   function tasksForTag(tasks, tagId) {
     return (tasks || []).filter(task => !task.isCompleted && Array.isArray(task.tagIds) && task.tagIds.includes(tagId));
   }
@@ -1746,6 +1825,11 @@
     weekStartKey,
     buildNextRecurringTask,
     isReminderDue,
+    reminderInstant,
+    notificationKey,
+    notificationPlan,
+    snoozeTarget,
+    laterToday,
     filterCompleted,
     searchItems,
     validateState,

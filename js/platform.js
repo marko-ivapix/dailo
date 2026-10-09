@@ -15,6 +15,14 @@
   const MIRROR_TMP = 'dailo/state.json.tmp';
   const CHUNK_BYTES = 3 * 256 * 1024; // a multiple of 3, so every base64 chunk can be appended as is
 
+  // FNV-1a over the UTF-16 code units, folded to a positive 31-bit integer (Android and iOS both accept it).
+  function notificationId(key) {
+    let hash = 0x811c9dc5;
+    const text = String(key);
+    for (let i = 0; i < text.length; i += 1) { hash ^= text.charCodeAt(i); hash = Math.imul(hash, 0x01000193); }
+    return ((hash >>> 0) & 0x7fffffff) || 1;
+  }
+
   function create(env = root) {
     const cap = env.Capacitor;
     const isNative = Boolean(cap && typeof cap.isNativePlatform === 'function' && cap.isNativePlatform());
@@ -182,6 +190,78 @@
       return null;
     }
 
+    // Reminders as phone notifications (app only, audit M6). The app hands over the full list of upcoming
+    // reminders; reconcile keeps what is already pending unchanged, cancels only what is gone or changed, and
+    // schedules the rest, so a reminder is never missed between a cancel-all and a re-schedule. Notification ids
+    // are stable 31-bit hashes of the reminder key. Without permission nothing is scheduled.
+    const ln = () => plugin('LocalNotifications');
+    const permissionOf = value => (value === 'granted' ? 'granted' : value === 'denied' ? 'denied' : 'prompt');
+    async function notificationPermission() {
+      if (!ln()) return 'unavailable';
+      try { return permissionOf((await ln().checkPermissions())?.display); } catch (_) { return 'unavailable'; }
+    }
+    async function requestNotificationPermission() {
+      if (!ln()) return 'unavailable';
+      return permissionOf((await ln().requestPermissions())?.display);
+    }
+    // Android 12+: without the exact-alarm setting a reminder can arrive a few minutes late. Scheduling an exact
+    // notification would open the system settings screen on every call, so reconcile asks for inexact ones instead
+    // and only an explicit button opens the screen. Null: not Android, or the plugin cannot tell.
+    async function exactAlarms() {
+      if (kind !== 'android' || !ln()) return null;
+      try { return (await ln().checkExactNotificationSetting())?.exact_alarm === 'granted' ? 'granted' : 'denied'; } catch (_) { return null; }
+    }
+    async function allowExactAlarms() {
+      if (kind !== 'android' || !ln()) return null;
+      return (await ln().changeExactNotificationSetting())?.exact_alarm === 'granted' ? 'granted' : 'denied';
+    }
+    let reconcileQueue = Promise.resolve();
+    function reconcile(items) {
+      if (!isNative) return Promise.resolve({ status: 'web' });
+      const run = async () => {
+        if (!ln()) return { status: 'unavailable' };
+        const permission = await notificationPermission();
+        if (permission !== 'granted') return { status: 'permission', permission };
+        const exact = await exactAlarms();
+        const desired = new Map();
+        for (const item of items || []) {
+          let id = notificationId(item.key);
+          while (desired.has(id)) id = (id % 0x7fffffff) + 1;
+          desired.set(id, { ...item, sig: notificationId(`${item.title}\u0000${item.body}\u0000${item.at}\u0000${item.route}\u0000${exact}`).toString(36) });
+        }
+        const now = Date.now();
+        const pending = (await ln().getPending())?.notifications || [];
+        const kept = new Set(), cancel = [];
+        for (const entry of pending) {
+          const id = Number(entry.id), at = Date.parse(entry.schedule?.at);
+          if (Number.isFinite(at) && at <= now) continue; // already shown (Android lists those too)
+          const want = desired.get(id);
+          if (want && entry.extra?.key === want.key && entry.extra?.sig === want.sig) kept.add(id);
+          else cancel.push({ id });
+        }
+        if (cancel.length) await ln().cancel({ notifications: cancel });
+        const notifications = [...desired].filter(([id]) => !kept.has(id)).map(([id, item]) => ({
+          id, title: item.title, body: item.body || '',
+          schedule: { at: new Date(item.at), allowWhileIdle: true },
+          extra: { key: item.key, route: item.route, sig: item.sig },
+          ...(exact === 'denied' ? { isExactNotification: false } : {}),
+        }));
+        if (notifications.length) await ln().schedule({ notifications });
+        return { status: 'ok', permission, exact, scheduled: notifications.length, cancelled: cancel.length, kept: kept.size };
+      };
+      reconcileQueue = reconcileQueue.catch(() => {}).then(run);
+      return reconcileQueue;
+    }
+    // A tapped notification. The plugin keeps the event until a listener exists, so a tap that started the app
+    // is delivered once the app registers this after loading its data.
+    function onNotificationOpen(handler) {
+      if (!isNative || !ln()) return false;
+      ln().addListener('localNotificationActionPerformed', event => {
+        try { handler(event?.notification?.extra || {}); } catch (error) { env.console?.error?.(error); }
+      });
+      return true;
+    }
+
     return Object.freeze({
       kind,
       isNative,
@@ -193,6 +273,7 @@
       links: Object.freeze({ openExternal, interceptExternalLinks }),
       storage: Object.freeze({ status: storageStatus }),
       durable: Object.freeze({ write: writeMirror, read: readMirror }),
+      notifications: Object.freeze({ permission: notificationPermission, requestPermission: requestNotificationPermission, exactAlarms, allowExactAlarms, reconcile, onOpen: onNotificationOpen, notificationId }),
     });
   }
 
