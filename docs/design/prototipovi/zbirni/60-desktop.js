@@ -3,13 +3,23 @@
 document.body.classList.add('desk');
 $('phone').classList.add('desk');
 $('phone').insertAdjacentHTML('afterbegin', '<aside id="side" aria-label="Glavna navigacija"></aside>');
-document.querySelector('.top').innerHTML = '<b>Prototip za računar (1280 × 800).</b> Isti podaci i ekrani kao na telefonu. Levo je bočni meni (donja traka i „Još“ zajedno). Zadatak, cilj, navika i beleška se otvaraju u prozoru u sredini; „+“ dole desno dodaje ono što pripada ekranu. Mali izbori su prozorčići pored reda. Zadatak prevuci na dan u kalendaru, na „Danas“ ili „Sutra“ ili na projekat u bočnom meniju. Prečice: Q novi zadatak, / pretraga, Esc zatvara.';
+document.querySelector('.top').innerHTML = '<b>Prototip za računar (1280 × 800).</b> Isti podaci i ekrani kao na telefonu. Levo je bočni meni (donja traka i „Još“ zajedno). Zadatak, cilj, navika i beleška se otvaraju u prozoru u sredini; „+“ dole desno dodaje ono što pripada ekranu. Mali izbori su prozorčići pored reda. Zadatak prevuci na dan u kalendaru, na „Danas“ ili „Sutra“ ili na projekat u bočnom meniju. Prečice: Q novi zadatak, / pretraga, [ sakriva meni, Esc zatvara.';
 
 // ----- Sidebar --------------------------------------------------------------
 const routeKey = () => { const top = R.stack.at(-1); return top ? `${top.type}:${top.id || ''}` : `tab:${R.tab}`; };
 function sbItem(key, act, data, icon, label, extra = '') {
-  return `<button class="sb-item ${routeKey() === key ? 'on' : ''}" data-act="${act}" ${data} ${routeKey() === key ? 'aria-current="page"' : ''}>${icon}<span>${label}</span>${extra}</button>`;
+  return `<button class="sb-item ${routeKey() === key ? 'on' : ''}" data-act="${act}" ${data} ${routeKey() === key ? 'aria-current="page"' : ''} title="${label}">${icon}<span class="sb-txt">${label}</span>${extra}</button>`;
 }
+// Planiranje, Biblioteka and Arhiva fold on their title (K1, decided 2026-10-09); the app remembers it per device.
+// A folded group still shows the item that is open.
+S.ui.sbFold = S.ui.sbFold || {};
+const sbGroup = (id, label, items) => {
+  const folded = !!S.ui.sbFold[id] && !S.ui.sbMini, shown = folded ? items.filter(([key]) => routeKey() === key) : items;
+  return `<button class="sb-label sb-fold" data-act="sbFold" data-g="${id}" aria-expanded="${!folded}">${label}${IC.fold(!folded)}</button>${shown.map(([, html]) => html).join('')}`;
+};
+A.sbFold = el => { const g = el.dataset.g; S.ui.sbFold[g] = !S.ui.sbFold[g]; renderNav(); };
+// The sidebar can shrink to a narrow strip of icons (K1, decided 2026-10-09): the button at the top or "[".
+A.sbMini = () => { S.ui.sbMini = !S.ui.sbMini; $('phone').classList.toggle('sb-mini', S.ui.sbMini); renderNav(); };
 const deskSub = (tab, type, id = '') => `data-tab="${tab}" data-sub="${type}"${id ? ` data-id="${id}"` : ''}`;
 function addLabel() {
   const top = R.stack.at(-1)?.type;
@@ -18,23 +28,19 @@ function addLabel() {
 function renderSidebar() {
   const nav = (key, label, path) => sbItem(`tab:${key}`, 'tab', `data-tab="${key}" ${key === 'today' ? 'data-drop-plan="today"' : ''}`, SV(path, 18), label, key === 'inbox' && inboxCount() ? `<span class="sb-badge">${inboxCount()}</span>` : key === 'today' ? `<span class="sb-n">${liveTasks().filter(t => t.plan === TODAY).length}</span>` : '');
   const pinned = [...activeAreas().filter(a => a.pinned).map(a => sbItem(`area:${a.id}`, 'deskGo', deskSub('more', 'area', a.id), `<span class="dot" style="background:${a.color};border-radius:3px"></span>`, esc(a.name))), ...S.views.filter(v => v.pinned).map(v => sbItem(`view:${v.id}`, 'deskGo', deskSub('more', 'view', v.id), SV('<path d="M4 5h16l-6 7.5V19l-4 1.5v-8z"/>', 16), esc(v.name)))];
-  $('side').innerHTML = `<div class="sb-top"><strong><i></i>Dailo</strong><span class="meta" style="margin:0">${S.settings.sync ? 'Sinhronizovano' : 'Na uređaju'}</span></div>
+  const ic18 = i => i.replace('width="20" height="20"', 'width="18" height="18"');
+  const mini = !!S.ui.sbMini, toggle = `<button class="sb-toggle" data-act="sbMini" aria-label="${mini ? 'Prikaži meni' : 'Sakrij meni'}" title="${mini ? 'Prikaži meni' : 'Sakrij meni'} ([)">${SV(mini ? '<path d="M4 5h16M4 12h16M4 19h16"/>' : '<path d="M15 6l-6 6 6 6"/>', 16)}</button>`;
+  $('side').innerHTML = `<div class="sb-top"><strong><i></i><span>Dailo</span></strong><span class="meta sb-state" style="margin:0">${S.settings.sync ? 'Sinhronizovano' : 'Na uređaju'}</span>${toggle}</div>
     <button class="sb-search" data-act="search">${SV('<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>', 16)}<span>Pretraga</span><kbd>/</kbd></button>
     ${NAV.filter(n => n[0] !== 'more').map(([k, l, p]) => nav(k, l, p)).join('')}
     <div class="sb-drop" data-drop-plan="tomorrow">${SV('<path d="M5 6v6a4 4 0 0 0 4 4h10M15 12l4 4-4 4"/>', 14)}Prevuci ovde za sutra</div>
     ${pinned.length ? `<div class="sb-label">Zakačeno</div>${pinned.join('')}` : ''}
     <div class="sb-label">Projekti</div>
     ${activeAreas().map(a => { const list = activeProjects().filter(p => p.area === a.id); return list.length ? `<div class="sb-sub">${esc(a.name)}</div>${list.map(p => sbItem(`project:${p.id}`, 'deskGo', `${deskSub('tasks', 'project', p.id)} data-drop-project="${p.id}"`, `<span class="dot" style="background:${p.color}"></span>`, esc(p.name), `<span class="sb-n">${projectTasks(p.id).filter(t => !t.done).length}</span>`)).join('')}` : ''; }).join('')}
-    <div class="sb-label">Planiranje</div>
-    ${sbItem('goals:', 'deskGo', deskSub('more', 'goals'), IC.goal.replace('width="20" height="20"', 'width="18" height="18"'), 'Ciljevi')}
-    ${sbItem('areas:', 'deskGo', deskSub('more', 'areas'), IC.area.replace('width="20" height="20"', 'width="18" height="18"'), 'Oblasti')}
-    ${sbItem('cleaning:', 'deskGo', deskSub('more', 'cleaning'), IC.repeat.replace('width="20" height="20"', 'width="18" height="18"'), 'Redovne obaveze')}
-    ${sbItem('review:', 'deskGo', deskSub('more', 'review'), IC.review.replace('width="20" height="20"', 'width="18" height="18"'), 'Nedeljni pregled')}
-    <div class="sb-label">Biblioteka</div>
-    ${[['notes', 'Beleške', IC.note], ['resources', 'Resursi', IC.link], ['tags', 'Oznake', IC.tag], ['templates', 'Šabloni', IC.copy], ['views', 'Sačuvani prikazi', IC.funnel]].map(([t, l, i]) => sbItem(`${t}:`, 'deskGo', deskSub('more', t), i.replace('width="20" height="20"', 'width="18" height="18"'), l)).join('')}
-    <div class="sb-label">Arhiva</div>
-    ${sbItem('completed:', 'deskGo', deskSub('more', 'completed'), IC.checkc.replace('width="20" height="20"', 'width="18" height="18"'), 'Završeni zadaci')}
-    ${sbItem('archived:', 'deskGo', deskSub('more', 'archived'), IC.archive.replace('width="20" height="20"', 'width="18" height="18"'), 'Arhivirani projekti')}
+    ${[['plan', 'Planiranje', [['goals', 'Ciljevi', IC.goal], ['areas', 'Oblasti', IC.area], ['cleaning', 'Redovne obaveze', IC.repeat], ['review', 'Nedeljni pregled', IC.review]]],
+      ['lib', 'Biblioteka', [['notes', 'Beleške', IC.note], ['resources', 'Resursi', IC.link], ['tags', 'Oznake', IC.tag], ['templates', 'Šabloni', IC.copy], ['views', 'Sačuvani prikazi', IC.funnel]]],
+      ['arch', 'Arhiva', [['completed', 'Završeni zadaci', IC.checkc], ['archived', 'Arhivirani projekti', IC.archive]]]]
+      .map(([id, label, list]) => sbGroup(id, label, list.map(([t, l, i]) => [`${t}:`, sbItem(`${t}:`, 'deskGo', deskSub('more', t), ic18(i), l)]))).join('')}
     <div class="sb-foot">${sbItem('settings:', 'deskGo', deskSub('more', 'settings'), IC.gear.replace('width="20" height="20"', 'width="18" height="18"'), 'Podešavanja')}</div>`;
 }
 renderNav = renderSidebar;
@@ -146,7 +152,7 @@ function dropTask(id, target) {
 // ----- Settings: the desktop-only rows (M5) ----------------------------------
 const settingsPhone = SUB.settings;
 SUB.settings = () => settingsPhone().replace(/<p class="note">Na računaru[\s\S]*?<\/p>/, `<div class="glabel">Računar</div><div class="card">${navRow('deskShortcuts', SV('<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h1M11 10h1M15 10h2M7 14h10"/>', 20), 'Prečice na tastaturi', { val: 'Q · / · Esc' })}<button class="prow" data-act="deskDensity"><span class="ico">${SV('<path d="M4 6h16M4 10h16M4 14h16M4 18h16"/>', 20)}</span><span class="grow">Zbijeniji prikaz<span class="sub">Niži redovi u listama</span></span><span class="check ${S.settings.compact !== false ? 'on' : ''}">${S.settings.compact !== false ? IC.tickW : ''}</span></button></div>`);
-A.deskShortcuts = () => openPick({ kind: 'choice', title: 'Prečice na tastaturi', current: null, options: [['Q', 'Novi zadatak (ili nova stavka ekrana)'], ['/', 'Pretraga'], ['Esc', 'Zatvara prozor'], ['1–5', 'Danas, Inbox, Zadaci, Kalendar, Navike']].map(([v, l]) => ({ v, label: l, icon: `<kbd style="min-width:34px;text-align:center">${v}</kbd>` })), onPick: () => toast('Prečica se menja ovde, kao danas u Podešavanjima') });
+A.deskShortcuts = () => openPick({ kind: 'choice', title: 'Prečice na tastaturi', current: null, options: [['Q', 'Novi zadatak (ili nova stavka ekrana)'], ['/', 'Pretraga'], ['[', 'Sakriva i prikazuje bočni meni'], ['Esc', 'Zatvara prozor'], ['1–5', 'Danas, Inbox, Zadaci, Kalendar, Navike']].map(([v, l]) => ({ v, label: l, icon: `<kbd style="min-width:34px;text-align:center">${v}</kbd>` })), onPick: () => toast('Prečica se menja ovde, kao danas u Podešavanjima') });
 A.deskDensity = () => { S.settings.compact = S.settings.compact === false; document.body.classList.toggle('desk', true); $('phone').classList.toggle('desk-roomy', S.settings.compact === false); render(); };
 
 // ----- Keyboard -------------------------------------------------------------
@@ -156,5 +162,6 @@ document.addEventListener('keydown', ev => {
   if (typing || ev.metaKey || ev.ctrlKey || ev.altKey) return;
   if (ev.key === 'q' || ev.key === 'Q') { ev.preventDefault(); A.fab(); }
   else if (ev.key === '/') { ev.preventDefault(); A.search(); }
+  else if (ev.key === '[') { ev.preventDefault(); A.sbMini(); }
   else if (/^[1-5]$/.test(ev.key)) { closePick(); closeWin(); go(['today', 'inbox', 'tasks', 'calendar', 'habits'][Number(ev.key) - 1]); }
 });
