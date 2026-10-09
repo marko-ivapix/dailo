@@ -32,8 +32,7 @@ function renderSidebar() {
   const mini = !!S.ui.sbMini, toggle = `<button class="sb-toggle" data-act="sbMini" aria-label="${mini ? 'Prikaži meni' : 'Sakrij meni'}" title="${mini ? 'Prikaži meni' : 'Sakrij meni'} ([)">${SV(mini ? '<path d="M4 5h16M4 12h16M4 19h16"/>' : '<path d="M15 6l-6 6 6 6"/>', 16)}</button>`;
   $('side').innerHTML = `<div class="sb-top"><strong><i></i><span>Dailo</span></strong><span class="meta sb-state" style="margin:0">${S.settings.sync ? 'Sinhronizovano' : 'Na uređaju'}</span>${toggle}</div>
     <button class="sb-search" data-act="search">${SV('<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>', 16)}<span>Pretraga</span><kbd>/</kbd></button>
-    ${NAV.filter(n => n[0] !== 'more').map(([k, l, p]) => nav(k, l, p)).join('')}
-    <div class="sb-drop" data-drop-plan="tomorrow">${SV('<path d="M5 6v6a4 4 0 0 0 4 4h10M15 12l4 4-4 4"/>', 14)}Prevuci ovde za sutra</div>
+    ${NAV.filter(n => n[0] !== 'more').map(([k, l, p]) => nav(k, l, p) + (k === 'today' ? `<div class="sb-drop" data-drop-plan="tomorrow">${SV('<path d="M5 6v6a4 4 0 0 0 4 4h10M15 12l4 4-4 4"/>', 14)}Prevuci ovde za sutra</div>` : '')).join('')}
     ${pinned.length ? `<div class="sb-label">Zakačeno</div>${pinned.join('')}` : ''}
     <div class="sb-label">Projekti</div>
     ${activeAreas().map(a => { const list = activeProjects().filter(p => p.area === a.id); return list.length ? `<div class="sb-sub">${esc(a.name)}</div>${list.map(p => sbItem(`project:${p.id}`, 'deskGo', `${deskSub('tasks', 'project', p.id)} data-drop-project="${p.id}"`, `<span class="dot" style="background:${p.color}"></span>`, esc(p.name), `<span class="sb-n">${projectTasks(p.id).filter(t => !t.done).length}</span>`)).join('')}` : ''; }).join('')}
