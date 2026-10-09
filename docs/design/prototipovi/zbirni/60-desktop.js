@@ -138,6 +138,7 @@ function dropTask(id, target) {
   const undo = snapshot(t);
   if (target.dropProject) { t.project = target.dropProject; t.area = null; t.inbox = false; render(); return toast(`U projekat „${project(t.project).name}“`, undo); }
   const day = target.dropDay || (target.dropPlan === 'today' ? TODAY : addDays(TODAY, 1));
+  if (t.repeat && t.plan !== day) return askScope(t, scope => moveDate(t, 'plan', day, t.time, scope), undo);
   t.plan = day; t.inbox = false;
   render(); toast(`Planirano: ${relDay(day)}`, undo);
 }

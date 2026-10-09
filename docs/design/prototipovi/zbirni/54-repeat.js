@@ -31,7 +31,7 @@ function repeatText(r, start = TODAY) {
     const d = parse(start);
     text = `${n > 1 ? `${everyF} ${plural(n, 'godinu', 'godine', 'godina')}` : 'Svake godine'}, ${d.getDate()}. ${MONTH_GEN[d.getMonth()]}`;
   }
-  return text + (r.end === 'date' ? ` · do ${short(r.endDate)}` : r.end === 'count' ? ` · ${r.count} puta` : '');
+  return text + (r.end === 'date' ? ` · do ${short(r.endDate)}` : r.end === 'count' ? ` · ${r.count} puta` : '') + (r.status === 'paused' ? ' · pauzirano' : '');
 }
 function dayInMonth(y, m, r) {
   const last = new Date(y, m + 1, 0).getDate();
@@ -70,13 +70,17 @@ function upcomingDates(r, start, k = 3) {
   return out;
 }
 nextDate = (day, r) => nextOccurrence(day, r);
-// Completing respects the end: no next one after the end date or the last count.
+// Completing respects the controls and the end (S14): a paused rule makes no next one, "skip" jumps one
+// occurrence, and nothing comes after the end date or the last count.
 const completeTaskBase = completeTask;
 completeTask = t => {
   const res = completeTaskBase(t), n = res.next;
   if (!n) return res;
-  const r = t.repeat, d = n.plan || n.due;
-  if ((r.end === 'date' && d > r.endDate) || (r.end === 'count' && r.count <= 1)) { S.tasks.splice(S.tasks.indexOf(n), 1); return { next: null, undo: res.undo }; }
+  const r = t.repeat, drop = () => { S.tasks.splice(S.tasks.indexOf(n), 1); return { next: null, undo: res.undo }; };
+  if (r.status === 'paused') return drop();
+  if (r.skipNext) { if (n.plan) n.plan = nextDate(n.plan, r); if (n.due) n.due = nextDate(n.due, r); n.repeat.skipNext = false; }
+  const d = n.plan || n.due;
+  if ((r.end === 'date' && d > r.endDate) || (r.end === 'count' && r.count <= 1)) return drop();
   if (r.end === 'count') n.repeat.count = r.count - 1;
   return res;
 };
@@ -122,10 +126,52 @@ A.rxEnd = (el, ev) => { if (ev.target.tagName === 'INPUT') return; rx(el, r => {
 CH.rxEndDate = el => rx(el, r => { if (el.value) r.endDate = el.value; });
 CH.rxCount = el => rx(el, r => { r.count = Math.max(1, Number(el.value) || 1); });
 
-// The task window's repeat sheet uses the editor.
-PICK.repeat = p => ({ title: 'Ponavljanje', sub: task(W.id).title, body: `${repeatEditor(p.r, p.start)}<div class="split"><button class="ghost" data-act="rxClear">Ne ponavlja se</button><button class="primary" data-act="rxApply">Primeni</button></div>` });
+// The task window's repeat sheet uses the editor. A task that already repeats also gets the controls at the
+// bottom (S14, as the app has them today): skip the next one, pause or resume, end the repeat.
+PICK.repeat = p => {
+  const t = task(W.id), r = t.repeat, paused = r?.status === 'paused';
+  const controls = r ? `<div class="glabel">Ovo ponavljanje</div><div class="card" style="margin-bottom:14px">
+      <button class="opt" data-act="rxSkip"><span class="lbl">${r.skipNext ? 'Preskakanje je zakazano · otkaži' : 'Preskoči sledeći put'}<small>${r.skipNext ? 'Sledeći zadatak se pravi za ponavljanje posle njega.' : 'Kad ovaj završiš, sledeće ponavljanje se preskače.'}</small></span></button>
+      <button class="opt" data-act="rxPause"><span class="lbl">${paused ? 'Nastavi ponavljanje' : 'Pauziraj ponavljanje'}<small>${paused ? 'Završavanje ponovo pravi sledeći zadatak.' : 'Dok je pauzirano, završavanje ne pravi sledeći.'}</small></span></button>
+      <button class="opt danger" data-act="rxEndNow"><span class="lbl">Završi ponavljanje<small>Ovaj zadatak ostaje, sledeći se više ne prave.</small></span></button></div>` : '';
+  return { title: 'Ponavljanje', sub: t.title, body: `${repeatEditor(p.r, p.start)}${controls}${r ? '<button class="primary" data-act="rxApply">Primeni</button>' : '<div class="split"><button class="ghost" data-act="rxClear">Ne ponavlja se</button><button class="primary" data-act="rxApply">Primeni</button></div>'}` };
+};
 A.rxClear = () => { task(W.id).repeat = null; closePick(); render(); toast('Sačuvano'); };
-A.rxApply = () => { const t = task(W.id); t.repeat = JSON.parse(JSON.stringify(normRepeat(P.r, P.start))); closePick(); render(); toast('Sačuvano'); };
+A.rxApply = () => {
+  const t = task(W.id), r = JSON.parse(JSON.stringify(normRepeat(P.r, P.start)));
+  if (!t.repeat) { t.repeat = r; closePick(); render(); return toast('Sačuvano'); }
+  closePick(); askScope(t, () => { t.repeat = r; });
+};
+const rxStored = fn => { const t = task(W.id), old = JSON.parse(JSON.stringify(t.repeat)); const msg = fn(t); closePick(); render(); toast(msg, () => { t.repeat = old; }); };
+A.rxSkip = () => rxStored(t => { t.repeat.skipNext = !t.repeat.skipNext; return t.repeat.skipNext ? 'Sledeće ponavljanje će biti preskočeno' : 'Preskakanje je otkazano'; });
+A.rxPause = () => rxStored(t => { t.repeat.status = t.repeat.status === 'paused' ? 'active' : 'paused'; return t.repeat.status === 'paused' ? 'Ponavljanje je pauzirano' : 'Ponavljanje se nastavlja'; });
+A.rxEndNow = () => rxStored(t => { t.repeat = null; return 'Ponavljanje je završeno'; });
+
+// Changing the date or the repeat of a repeating task asks for the scope (S14, decided 2026-10-09): in the task
+// window, by dragging in the calendar and with "+ Danas". The title, notes and the rest save without asking.
+function askScope(t, change, undo) {
+  openPick({ kind: 'choice', title: 'Primeni izmenu', sub: t.title, current: null, options: [{ v: 'one', label: 'Samo ovo', sub: 'Sledeća ponavljanja ostaju kako su bila.' }, { v: 'future', label: 'Ovo i buduća', sub: 'Izmena važi od ovog ponavljanja nadalje.' }], onPick: v => { change(v); render(); toast(v === 'one' ? 'Sačuvano · samo ovo' : 'Sačuvano · ovo i buduća', undo); } });
+}
+// The rule is pinned to the old day, so "Samo ovo" keeps it; "Ovo i buduća" moves the day of the rule along.
+function moveDate(t, which, date, time, scope) {
+  const old = t.plan || t.due;
+  if (t.repeat && old && date && (which === 'plan' || !t.plan)) {
+    const r = normRepeat(t.repeat, old), wd = mondayIndex(old);
+    if (scope === 'future' && r.freq === 'monthly' && r.monthMode === 'day' && r.monthDay === parse(old).getDate()) r.monthDay = parse(date).getDate();
+    if (scope === 'future' && r.freq === 'weekly' && r.days.length === 1 && r.days[0] === wd) r.days = [mondayIndex(date)];
+    t.repeat = JSON.parse(JSON.stringify(r));
+  }
+  if (which === 'plan') { t.plan = date; t.time = date ? time : null; if (date) t.inbox = false; } else { t.due = date; t.dueTime = date ? time : null; }
+}
+const applyDateBase = applyDate;
+applyDate = (date, time) => {
+  const t = W?.kind === 'task' && !['quick', 'habitStart'].includes(P.mode) ? task(W.id) : null;
+  if (!t?.repeat) return applyDateBase(date, time);
+  const which = P.which; closePick();
+  askScope(t, scope => moveDate(t, which, date, time, scope));
+};
+const planTodayBase = A.planToday;
+A.planToday = el => { const t = task(el.dataset.id); if (!t?.repeat) return planTodayBase(el); askScope(t, scope => moveDate(t, 'plan', TODAY, t.time, scope), snapshot(t)); };
 
 // New recurring task: name, group, first time, then the same editor.
 A.newChore = el => openWin({ kind: 'chore', title: '', room: el?.dataset?.room || S.rooms[0]?.id, start: TODAY, r: normRepeat({ freq: 'weekly', interval: 1, days: [mondayIndex(TODAY)] }), err: '' });
