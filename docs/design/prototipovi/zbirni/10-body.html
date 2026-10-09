@@ -1,0 +1,25 @@
+<body>
+<p class="top"><b>Zbirni prototip: svi dogovoreni ekrani zajedno.</b> Podaci su zajednički: zadatak dodat u Danas iz Zadataka ili Inbox-a vidi se na Danas i u Kalendaru, a završen zadatak menja i napredak cilja. Donja traka menja ekrane; „+“ dodaje ono što pripada ekranu. Dugi pritisak na naviku je ovde dodir na njen naziv (tu su i „Detalji navike“). Lupa otvara Pretragu, a „⋯“ u prozoru zadatka nudi Fokus. Manji ekrani se otvaraju iz „Još“. Podaci se ne čuvaju posle osvežavanja.</p>
+
+<div class="phone" id="phone">
+  <div class="screen" id="screen"></div>
+  <button class="fab" id="fab" data-act="fab" aria-label="Dodaj"><svg width="26" height="26" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/></svg></button>
+  <nav class="nav" id="nav"></nav>
+
+  <div class="dim" id="winDim" data-act="closeWin"></div>
+  <section class="sheet" id="win" aria-modal="true" role="dialog">
+    <div class="grab"></div>
+    <div class="shead" id="winHead"></div>
+    <div class="sbody" id="winBody"></div>
+    <div class="footer" id="winFoot"></div>
+  </section>
+
+  <div class="dim" id="pickDim" data-act="closePick"></div>
+  <section class="sheet" id="pick" aria-modal="true" role="dialog">
+    <div class="grab"></div>
+    <div class="shead" id="pickHead"></div>
+    <div class="sbody" id="pickBody"></div>
+  </section>
+
+  <div class="toast" id="toast" role="status"><span id="toastText"></span><button id="toastUndo" data-act="undo">Poništi</button></div>
+</div>

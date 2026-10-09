@@ -128,7 +128,10 @@
   --focus-ring-inset: inset 0 0 0 2px var(--blue-300);
   --font-display: "Space Grotesk", "Segoe UI", sans-serif;
   --font-ui: "Geist", "Segoe UI", system-ui, -apple-system, sans-serif;
+  /* Viewport height; the dynamic viewport (below) excludes the browser bars and follows the keyboard (audit P-5). */
+  --viewport-height: 100vh;
 }
+@supports (height: 100dvh) { :root { --viewport-height: 100dvh; } }
 
 * { box-sizing: border-box; }
 html, body { min-height: 100%; }
@@ -152,13 +155,13 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 }
 ::selection { background: rgba(83, 98, 255, .42); color: #fff; }
 
-.app-shell { min-height: 100vh; display: grid; grid-template-columns: var(--sidebar-width) minmax(0, 1fr); transition: grid-template-columns var(--motion-slow) var(--ease-standard); }
+.app-shell { min-height: var(--viewport-height); display: grid; grid-template-columns: var(--sidebar-width) minmax(0, 1fr); transition: grid-template-columns var(--motion-slow) var(--ease-standard); }
 .app-shell.is-collapsed { grid-template-columns: var(--sidebar-width-collapsed) minmax(0, 1fr); }
 
 .sidebar {
   position: sticky;
   top: 0;
-  height: 100vh;
+  height: var(--viewport-height);
   min-width: 0;
   background: var(--surface-nav);
   border-right: 1px solid var(--border-subtle);
@@ -220,7 +223,7 @@ select:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .app-shell.is-collapsed .nav-item, .app-shell.is-collapsed .project-item, .app-shell.is-collapsed .sidebar-action { justify-content: center; padding-inline: 0; }
 .app-shell.is-collapsed .project-dot { width: 10px; height: 10px; flex-basis: 10px; }
 
-.main { min-width: 0; min-height: 100vh; padding: 24px var(--content-gutter) 56px; }
+.main { min-width: 0; min-height: var(--viewport-height); padding: 24px var(--content-gutter) 56px; }
 .content { width: min(100%, var(--content-max-width)); margin-left: clamp(0px, 4vw, 64px); }
 .content.calendar-content { width: 100%; margin-left: 0; }
 .calendar-toolbar, .calendar-navigation, .calendar-visibility, .calendar-creation { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
@@ -419,7 +422,7 @@ select:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .settings-label span { display: block; margin-top: 2px; color: var(--text-muted); font-size: 12px; }
 
 .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.58); z-index: 100; display: grid; place-items: start center; padding: max(48px, 8vh) 16px 32px; overflow: auto; animation: fade-in var(--motion-slow) var(--ease-enter); }
-.modal { width: min(100%, var(--modal-detail-width)); max-height: calc(100vh - 64px); overflow: auto; background: var(--surface-card-dark); border: 1px solid var(--border-default); border-radius: var(--radius-lg); box-shadow: 0 22px 70px rgba(0,0,0,.36), 0 6px 20px rgba(0,0,0,.24); animation: modal-in var(--motion-slow) var(--ease-enter); }
+.modal { width: min(100%, var(--modal-detail-width)); max-height: calc(var(--viewport-height) - 64px); overflow: auto; background: var(--surface-card-dark); border: 1px solid var(--border-default); border-radius: var(--radius-lg); box-shadow: 0 22px 70px rgba(0,0,0,.36), 0 6px 20px rgba(0,0,0,.24); animation: modal-in var(--motion-slow) var(--ease-enter); }
 .modal.quick { width: min(100%, var(--modal-quick-width)); }
 .modal.search-modal { width: min(100%, 600px); max-height: 72vh; }
 .modal.confirm-modal { width: min(100%, 480px); }
@@ -1310,7 +1313,7 @@ body { font-size: 14px; line-height: 1.4; }
 .settings-row { min-height: 40px; gap: 12px; }
 .settings-label strong { font-size: 13px; }
 .settings-label span { font-size: 11px; }
-.modal { max-height: calc(100vh - 36px); }
+.modal { max-height: calc(var(--viewport-height) - 36px); }
 .modal-inner { padding: 14px; }
 .modal-header { gap: 10px; margin-bottom: 12px; padding-bottom: 10px; }
 .modal-title { font-size: 16px; }
@@ -1383,7 +1386,7 @@ body { font-size: 14px; line-height: 1.4; }
   .page-header { margin-bottom: 14px; padding-bottom: 10px; gap: 12px; }
   .btn { min-height: 36px; }
   .btn-icon { width: 34px; height: 34px; min-height: 34px; }
-  .modal { max-height: calc(100vh - 24px); }
+  .modal { max-height: calc(var(--viewport-height) - 24px); }
   .modal-inner { padding: 12px; }
   .property-row { grid-template-columns: 100px minmax(0,1fr); }
   .task-goal-options { padding-left: 108px; }
@@ -2187,7 +2190,7 @@ a.btn { text-decoration: none; }
 .app-shell { padding-top: env(safe-area-inset-top); }
 .sidebar, .global-warning, .v17-sticky-context { top: env(safe-area-inset-top); }
 @media (max-width: 700px) {
-  .modal { max-height: calc(100vh - 24px - env(safe-area-inset-top)); }
+  .modal { max-height: calc(var(--viewport-height) - 24px - env(safe-area-inset-top)); }
 }
 
 /* Backup reminder on Today: a quiet warning panel, never a modal. */
@@ -2244,8 +2247,31 @@ a.btn { text-decoration: none; }
 .today-capacity { color: var(--ink-3); font-variant-numeric: tabular-nums; }
 .today-capacity.is-over { color: var(--warning); font-weight: 600; }
 
-/* Keep primary compact actions touchable after all density rules. */
+/* V2.0-a Settings sync card and the first-sync choice. */
+.sync-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); padding-top: var(--space-3); border-top: 1px solid var(--line-1); }
+.sync-choice-option { display: grid; gap: 4px; width: 100%; margin-top: var(--space-2); padding: var(--space-3) var(--space-4); border: 1px solid var(--line-2); border-radius: var(--radius-md); background: var(--graphite-850); color: var(--ink-1); font: inherit; text-align: left; cursor: pointer; }
+.sync-choice-option:hover, .sync-choice-option:focus-visible { border-color: var(--primary-focus); }
+.sync-choice-option span { color: var(--ink-3); font-size: 13px; line-height: 1.45; }
+
+/* Modernization M7 — mobile quality inside the app and the PWA (audit P-5). The touch-target guard stays last. */
+@media (pointer: coarse) {
+  /* iOS zooms into any field under 16 px. */
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), select, textarea { font-size: 16px; }
+}
+@media (max-width: 1023px) {
+  /* Above the bottom navigation and the home indicator, so a toast never covers the tabs. */
+  .toast-root { bottom: calc(72px + env(safe-area-inset-bottom)); right: max(16px, env(safe-area-inset-right)); }
+  .mobile-quick-add { transition: transform var(--motion-base) var(--ease-standard); }
+  body:has(#toast-root .toast) .mobile-quick-add { transform: translateY(-64px); }
+}
 @media (max-width: 700px) {
+  .toast-root { left: max(12px, env(safe-area-inset-left)); right: max(12px, env(safe-area-inset-right)); }
+}
+/* M11: Search shows how many results it left out. */
+.search-more-note { margin: 4px 10px 8px; color: var(--ink-3); font-size: 12px; }
+
+/* Keep primary compact actions touchable after all density rules. */
+@media (max-width: 700px), (pointer: coarse) {
   .task-actions .btn-icon,
   .subtask-row .btn-icon { width: 44px; height: 44px; min-height: 44px; }
   .task-row > .complete-control,
@@ -2255,4 +2281,5 @@ a.btn { text-decoration: none; }
   .area-tabs button,
   .list-tabs .btn,
   .view-tabs .btn { min-height: 44px; }
+  .sidebar-section-toggle { min-height: 44px; }
 }

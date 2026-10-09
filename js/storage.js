@@ -636,17 +636,17 @@
     return snapshot;
   }
 
+  // Each object and Blob counts once: a snapshot lists its attachments twice (attachments and
+  // attachmentRefs share one array) and IndexedDB stores shared references once (audit E-2).
   function estimateSnapshotBytes(value, seen = new Set()) {
     if (value == null || typeof value === 'boolean' || typeof value === 'number') return 8;
     if (typeof value === 'string') return value.length * 2;
-    if (typeof root.Blob !== 'undefined' && value instanceof root.Blob) return value.size;
     if (typeof value !== 'object' || seen.has(value)) return 0;
     seen.add(value);
-    const total = Array.isArray(value)
+    if (typeof root.Blob !== 'undefined' && value instanceof root.Blob) return value.size;
+    return Array.isArray(value)
       ? value.reduce((sum, item) => sum + estimateSnapshotBytes(item, seen), 0)
       : Object.entries(value).reduce((sum, [key, item]) => sum + key.length * 2 + estimateSnapshotBytes(item, seen), 0);
-    seen.delete(value);
-    return total;
   }
 
   let automaticSnapshotWork = Promise.resolve();
@@ -658,7 +658,8 @@
       if (byteBudget <= 0) throw new Error(msg('Automatic snapshot budget must be positive.'));
       const previous = (await recoverySnapshots.listAll()).filter(item => item.reason === 'automatic')
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-      if (previous.length && timestamp.getTime() - Date.parse(previous[0].createdAt) < 300000) return null;
+      // `force` skips the five-minute pause: the first-sync choice (V2.0-a) always gets a fresh copy.
+      if (!options.force && previous.length && timestamp.getTime() - Date.parse(previous[0].createdAt) < 300000) return null;
       const prepared = await buildRecoverySnapshot('automatic', state, null, { maxBytes: byteBudget });
       const snapshot = prepared.snapshot;
       try {

@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="sr-Latn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kalendar — predlog</title>
+<style>
+  :root {
+    --page: #08090B; --bg: #0F1114; --card: #16191E; --line: #242830; --text: #E8EAED; --muted: #8B929C;
+    --blue: #2A47FF; --link: #8FA2FF; --green: #34C77B; --amber: #F2A93B; --red: #F0645A;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--text); font: 15px/1.35 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 20px 16px 32px; }
+  h1 { font-size: 18px; margin: 0 0 6px; }
+  .lead { color: var(--muted); margin: 0 0 20px; font-size: 14px; max-width: 760px; }
+  .phones { display: flex; flex-wrap: wrap; gap: 28px; justify-content: center; align-items: flex-start; }
+  .variant { width: 100%; max-width: 360px; }
+  .variant > h2 { font-size: 15px; margin: 0 0 4px; }
+  .variant > p { margin: 0 0 10px; color: var(--muted); font-size: 13px; }
+  .phone { position: relative; background: var(--bg); border: 1px solid var(--line); border-radius: 32px; padding: 14px 16px 96px; overflow: hidden; }
+  .status { display: flex; justify-content: space-between; font-size: 13px; font-weight: 600; padding: 0 6px 12px; }
+  .title { margin: 0 0 12px; font-size: 30px; letter-spacing: -.5px; }
+  .monthbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .monthbar strong { font-size: 16px; }
+  .arrows { display: flex; gap: 18px; color: var(--muted); }
+  .grid { display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; row-gap: 4px; }
+  .wd { color: var(--muted); font-size: 12px; padding-bottom: 4px; }
+  .d { height: 40px; display: grid; justify-items: center; align-content: center; gap: 2px; font-size: 15px; }
+  .d span { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 50%; }
+  .d.sel span { background: var(--blue); color: #fff; font-weight: 600; }
+  .d i { width: 4px; height: 4px; border-radius: 50%; background: #5B6270; display: block; }
+  .d i.none { background: transparent; }
+  .dayhead { display: flex; justify-content: space-between; align-items: center; margin: 16px 2px 8px; }
+  .dayhead strong { font-size: 16px; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; padding: 2px; background: #121418; }
+  .seg span { font-size: 12.5px; padding: 4px 10px; border-radius: 7px; color: var(--muted); }
+  .seg span.on { background: #262B33; color: var(--text); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+  .row { display: flex; align-items: center; gap: 12px; padding: 10px 14px; min-height: 56px; }
+  .row + .row { border-top: 1px solid var(--line); }
+  .main { flex: 1; min-width: 0; }
+  .name { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .meta { color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+  .side { text-align: right; font-size: 12px; color: var(--muted); white-space: nowrap; }
+  .amber { color: var(--amber); } .red { color: var(--red); }
+  .box { width: 22px; height: 22px; border: 2px solid #4A505A; border-radius: 6px; flex: none; }
+  .cap { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; font-size: 13px; color: var(--muted); margin-bottom: 10px; }
+  .cap b { color: var(--text); font-weight: 600; }
+  .bar { height: 6px; border-radius: 6px; background: #262B33; margin-top: 6px; overflow: hidden; }
+  .bar span { display: block; height: 100%; width: 42%; background: var(--green); }
+  .untimed { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+  .chip { font-size: 13px; padding: 6px 10px; border-radius: 16px; background: #1B1F25; border: 1px solid #2C3139; }
+  .chip small { color: var(--muted); }
+  .hours { position: relative; border-top: 1px solid var(--line); }
+  .h { height: 40px; border-bottom: 1px solid #1C2026; font-size: 11px; color: var(--muted); padding: 2px 0 0; }
+  .block { position: absolute; left: 44px; right: 4px; border-radius: 8px; padding: 4px 8px; font-size: 12.5px; background: rgba(42, 71, 255, .22); border-left: 3px solid var(--blue); }
+  .block small { color: var(--muted); display: block; font-size: 11.5px; }
+  .fab { position: absolute; right: 16px; bottom: 82px; width: 56px; height: 56px; border-radius: 50%; background: var(--blue); display: grid; place-items: center; box-shadow: 0 6px 18px rgba(0, 0, 0, .45); }
+  .nav { position: absolute; left: 0; right: 0; bottom: 0; height: 70px; border-top: 1px solid var(--line); background: #121418; display: grid; grid-template-columns: repeat(6, 1fr); padding: 8px 4px 14px; }
+  .nav div { display: grid; justify-items: center; gap: 3px; font-size: 10.5px; color: var(--muted); }
+  .nav div.on { color: var(--link); }
+  .note { max-width: 760px; margin: 22px auto 0; color: var(--muted); font-size: 13.5px; }
+  .note b { color: var(--text); }
+</style>
+</head>
+<body>
+<h1>Kalendar: mesec gore, izabrani dan dole</h1>
+<p class="lead">U mesecu su samo datumi; tačkica znači da taj dan ima zadataka. Dodir na dan prikazuje njegove zadatke ispod. Navika nema. Levo je dan kao lista, desno isti dan kao „Raspored“ (satnica).</p>
+
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <symbol id="flag" viewBox="0 0 24 24"><path d="M5 21V4h11l-2 4 2 4H5" fill="currentColor"/></symbol>
+    <symbol id="target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="#8FA2FF" stroke-width="2"/><circle cx="12" cy="12" r="4.5" fill="none" stroke="#8FA2FF" stroke-width="2"/><circle cx="12" cy="12" r="1.2" fill="#8FA2FF"/></symbol>
+    <symbol id="left" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="right" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/></symbol>
+    <symbol id="i-today" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M4 10h16M9 3v4M15 3v4" stroke="currentColor" stroke-width="1.8"/></symbol>
+    <symbol id="i-inbox" viewBox="0 0 24 24"><path d="M4 13l2.5-7h11L20 13v6H4z M4 13h5l1 2h4l1-2h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
+    <symbol id="i-tasks" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8.5 12.2l2.4 2.4 4.6-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="i-cal" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M4 10h16M9 3v4M15 3v4M8 14h2M12 14h2M8 17h2" stroke="currentColor" stroke-width="1.8"/></symbol>
+    <symbol id="i-habits" viewBox="0 0 24 24"><path d="M6 20V12M12 20V5M18 20v-9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-more" viewBox="0 0 24 24"><circle cx="6" cy="12" r="1.7" fill="currentColor"/><circle cx="12" cy="12" r="1.7" fill="currentColor"/><circle cx="18" cy="12" r="1.7" fill="currentColor"/></symbol>
+  </defs>
+</svg>
+
+<template id="month">
+  <div class="status"><span>09:41</span><span>•••</span></div>
+  <h3 class="title">Kalendar</h3>
+  <div class="monthbar"><strong>Oktobar 2026</strong><span class="arrows"><svg width="22" height="22"><use href="#left"/></svg><svg width="22" height="22"><use href="#right"/></svg></span></div>
+  <div class="grid days"></div>
+</template>
+
+<div class="phones">
+  <section class="variant">
+    <h2>Dan kao lista</h2>
+    <p>Zadaci i rokovi ciljeva izabranog dana, po vremenu, a bez vremena na kraju. Isti redovi kao na ekranu Danas.</p>
+    <div class="phone" data-month>
+      <div class="dayhead"><strong>Četvrtak, 8. oktobar</strong><span class="seg"><span class="on">Lista</span><span>Raspored</span></span></div>
+      <div class="card">
+        <div class="row"><div class="box"></div><div class="main"><div class="name">Pregledaj početnu stranu</div><div class="meta">10:30 · Redizajn sajta</div></div><div class="side"><svg width="15" height="15" class="red"><use href="#flag"/></svg></div></div>
+        <div class="row"><div class="box"></div><div class="main"><div class="name">Pošalji pregled početne strane</div><div class="meta">14:00 · Redizajn sajta</div></div><div class="side">Rok 9. okt</div></div>
+        <div class="row"><svg width="22" height="22" style="flex:none"><use href="#target"/></svg><div class="main"><div class="name">Lansiranje sajta</div><div class="meta">Cilj · 70%</div></div><div class="side amber">Rok danas</div></div>
+        <div class="row"><div class="box"></div><div class="main"><div class="name">Plati račun za struju</div><div class="meta">Kuća</div></div><div class="side amber">Rok danas</div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="variant">
+    <h2>Isti dan kao „Raspored“</h2>
+    <p>Zadaci sa vremenom su blokovi na satnici, po trajanju. Gore se vidi koliko je dan pun, a zadaci bez vremena su iznad satnice.</p>
+    <div class="phone" data-month>
+      <div class="dayhead"><strong>Četvrtak, 8. oktobar</strong><span class="seg"><span>Lista</span><span class="on">Raspored</span></span></div>
+      <div class="cap"><b>Planirano 2 h 30 min</b> od 6 h<div class="bar"><span></span></div></div>
+      <div class="untimed"><span class="chip">Plati račun za struju <small>· bez vremena</small></span></div>
+      <div class="hours">
+        <div class="h">09:00</div><div class="h">10:00</div><div class="h">11:00</div><div class="h">12:00</div><div class="h">13:00</div><div class="h">14:00</div><div class="h">15:00</div>
+        <div class="block" style="top:60px;height:40px">Pregledaj početnu stranu<small>10:30–11:30</small></div>
+        <div class="block" style="top:200px;height:60px">Pošalji pregled početne strane<small>14:00–15:30</small></div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<p class="note"><b>Šta je „Raspored“:</b> zadaci sa vremenom i trajanjem (npr. 10:30, 1 h) poređani su po satima, pa se odmah vidi kada si zauzet, gde se dva zadatka preklapaju i da li planirano staje u dan. Na računaru zadatak može da se prevuče na drugi sat. To je danas prikaz „Dan“ u kalendaru (V1.12).</p>
+
+<script>
+  // Fill both phones with the same October 2026 month (Monday first; the 1st is a Thursday).
+  const dots = new Set([2, 5, 7, 8, 9, 12, 14, 19, 21, 23, 27, 30]);
+  const head = ['P', 'U', 'S', 'Č', 'P', 'S', 'N'].map(day => `<div class="wd">${day}</div>`).join('');
+  const blanks = '<div></div>'.repeat(3);
+  const days = Array.from({ length: 31 }, (_, index) => {
+    const day = index + 1;
+    return `<div class="d${day === 8 ? ' sel' : ''}"><span>${day}</span><i class="${dots.has(day) ? '' : 'none'}"></i></div>`;
+  }).join('');
+  const nav = `<div class="fab"><svg width="26" height="26"><use href="#plus"/></svg></div><nav class="nav">${[['i-today', 'Danas'], ['i-inbox', 'Inbox'], ['i-tasks', 'Zadaci'], ['i-cal', 'Kalendar', true], ['i-habits', 'Navike'], ['i-more', 'Još']].map(([icon, label, on]) => `<div${on ? ' class="on"' : ''}><svg width="22" height="22"><use href="#${icon}"/></svg>${label}</div>`).join('')}</nav>`;
+  for (const phone of document.querySelectorAll('[data-month]')) {
+    phone.insertAdjacentHTML('afterbegin', document.getElementById('month').innerHTML);
+    phone.querySelector('.days').innerHTML = head + blanks + days;
+    phone.insertAdjacentHTML('beforeend', nav);
+  }
+</script>
+</body>
+</html>

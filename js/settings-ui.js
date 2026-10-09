@@ -4,6 +4,19 @@
   const I18n = window.TodoI18n;
   const { tr, trn, trMessage, msg } = I18n;
 
+  // The browser shows reminders only while Dailo is open; the app schedules phone notifications (audit M6).
+  function reminderRows(native, notificationButtonLabel) {
+    const row = (title, text, action, label) => `<div class="settings-row"><div class="settings-label"><strong>${title}</strong><span>${text}</span></div><button class="btn btn-secondary" type="button" data-action="${action}">${label}</button></div>`;
+    if (!native) return row(tr('Browser reminders'), tr('Reminders appear while Dailo is open. Browser notifications are optional, and nothing arrives while the app is closed.'), 'enable-notifications', notificationButtonLabel());
+    const text = native.permission === 'granted' ? tr('Reminders arrive as notifications, even when Dailo is closed.')
+      : native.permission === 'denied' ? tr('Notifications are off for Dailo. Turn them on in the phone settings.')
+        : tr('Allow notifications so reminders arrive even when Dailo is closed.');
+    const label = native.permission === 'granted' ? tr('Enabled') : native.permission === 'denied' ? tr('Blocked') : tr('Enable');
+    const exact = native.permission === 'granted' && native.exact === 'denied'
+      ? row(tr('Exact time'), tr('Android may deliver reminders a few minutes late. Allow exact alarms for Dailo.'), 'allow-exact-alarms', tr('Allow')) : '';
+    return row(tr('Reminders'), text, 'enable-notifications', label) + exact;
+  }
+
   function renderSettings(ctx) {
     const { state, pageHeader, shortcutLabels, shortcutError, notificationButtonLabel, esc } = ctx;
     const backupStatus = state.settings.backupStatus || {};
@@ -16,6 +29,7 @@
       granted: tr('On. The browser keeps Dailo data unless you delete it.'),
       denied: tr('Not granted yet. Install Dailo to the Home Screen and keep regular backups.'),
       unsupported: tr('Not supported in this browser. Keep regular backups.'),
+      app: tr('Kept by the app on this device until the app is removed. Keep regular backups.'),
     }[persistence.state] || tr('Checking…');
     const megabytes = bytes => `${new Intl.NumberFormat(I18n.locale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(bytes / 1048576)} MB`;
     const usage = Number.isFinite(persistence.usage) && Number.isFinite(persistence.quota) ? ` ${tr('{used} of {total} used.', { used: megabytes(persistence.usage), total: megabytes(persistence.quota) })}` : '';
@@ -31,6 +45,26 @@
     const capacity = ctx.Core?.dailyCapacityMinutes ? ctx.Core.dailyCapacityMinutes(state.settings) : 360;
     const capacityOptions = [...new Set([0, 120, 240, 300, 360, 420, 480, 600, 720, capacity])].sort((a, b) => a - b)
       .map(minutes => `<option value="${minutes}"${minutes === capacity ? ' selected' : ''}>${minutes ? tr('{hours} h', { hours: new Intl.NumberFormat(I18n.locale(), { maximumFractionDigits: 1 }).format(minutes / 60) }) : tr('Off')}</option>`).join('');
+    const sync = ctx.syncView?.() || { configured: false };
+    const busy = sync.busy ? ' disabled' : '';
+    const syncError = sync.error ? `<p class="validation" role="alert">${esc(trMessage(sync.error))}</p>` : '';
+    const syncCard = !sync.configured ? '' : `
+      <section class="settings-card" data-settings-sync>
+        <h2>${tr('Sync')}</h2>
+        ${sync.signedIn ? `<div class="settings-row"><div class="settings-label"><strong>${tr('Account')}</strong><span>${esc(sync.email)}</span></div></div>
+        <div class="settings-row"><div class="settings-label"><strong>${tr('Last sync')}</strong><span data-sync-status>${sync.running ? tr('Syncing…') : statusTime(sync.lastSyncAt)}${sync.lastError ? `<br><span class="validation" role="alert">${esc(trMessage(sync.lastError))}</span>` : ''}</span></div><button class="btn btn-secondary" type="button" data-action="sync-now"${sync.running ? ' disabled' : ''}><i class="ph ph-arrows-clockwise"></i> ${tr('Sync now')}</button></div>
+        <p class="area-empty-copy">${tr('Tasks, projects, goals, habits, notes and settings sync between your devices. Attachments stay on the device where they were added.')}</p>
+        <div class="sync-actions"><button class="btn btn-secondary" type="button" data-action="sync-sign-out">${tr('Sign out')}</button><button class="btn btn-ghost" type="button" data-action="sync-delete-account" style="color:var(--danger)">${tr('Delete account')}</button></div>`
+        : sync.step === 'code' ? `<div class="settings-row"><label class="settings-label" for="sync-code"><strong>${tr('Code from the e-mail')}</strong><span>${tr('A code was sent to {email}. It is valid for a short time.', { email: esc(sync.email) })}</span></label><input class="input" id="sync-code" inputmode="numeric" autocomplete="one-time-code" maxlength="10" /></div>
+        ${syncError}
+        <div class="sync-actions"><button class="btn btn-secondary" type="button" data-action="sync-verify-code"${busy}>${tr('Confirm')}</button><button class="btn btn-ghost" type="button" data-action="sync-request-code"${busy}>${tr('Send a new code')}</button><button class="btn btn-ghost" type="button" data-action="sync-change-email">${tr('Change e-mail')}</button></div>`
+        : `<div class="settings-row"><label class="settings-label" for="sync-email"><strong>${tr('Sign in')}</strong><span>${tr('Optional. Enter your e-mail address to get a sign-in code. No password is needed. Without signing in, everything stays only on this device.')}</span></label><input class="input" id="sync-email" type="email" inputmode="email" autocomplete="email" value="${esc(sync.email)}" /></div>
+        ${syncError}
+        <div class="sync-actions"><button class="btn btn-secondary" type="button" data-action="sync-request-code"${busy}>${tr('Send code')}</button></div>`}
+      </section>`;
+    const privacy = !sync.configured ? tr('Your data stays only on this device. Dailo has no server or account.')
+      : sync.signedIn ? tr('Your data is on this device and in your sync account on a server in the EU. Attachments stay only on this device.')
+        : tr('Your data stays only on this device until you sign in to sync.');
     return `${pageHeader(tr('Settings'), tr('Preferences and local data'), { add: false })}
       <section class="settings-card">
         <h2>${tr('General')}</h2>
@@ -61,7 +95,7 @@
       </section>
       <section class="settings-card">
         <h2>${tr('Notifications')}</h2>
-        <div class="settings-row"><div class="settings-label"><strong>${tr('Browser reminders')}</strong><span>${tr('Reminders appear while Dailo is open. Browser notifications are optional, and nothing arrives while the app is closed.')}</span></div><button class="btn btn-secondary" type="button" data-action="enable-notifications">${notificationButtonLabel()}</button></div>
+        ${reminderRows(ctx.notificationSettings?.() || null, notificationButtonLabel)}
       </section>
       <section class="settings-card">
         <h2>${tr('Data')}</h2>
@@ -75,12 +109,13 @@
         <div class="settings-row"><div class="settings-label"><strong>${tr('Clear completed tasks')}</strong><span>${tr('Permanently delete all completed tasks and their attachments.')}</span></div><button class="btn btn-secondary" type="button" data-action="clear-completed">${tr('Clear')}</button></div>
         <div class="settings-row"><div class="settings-label"><strong>${tr('Reset app data')}</strong><span>${tr('A safety ZIP is created first, then local tasks, projects, tags, attachments and preferences are cleared.')}</span></div><button class="btn btn-ghost" type="button" data-action="reset-app" style="color:var(--danger)">${tr('Reset')}</button></div>
       </section>
+${syncCard}
       <section class="settings-card" data-settings-about>
         <h2>${tr('About')}</h2>
         <div class="settings-row"><div class="settings-label"><strong>${tr('Version')}</strong><span>Dailo ${esc(release.APP_VERSION || '')}</span></div></div>
         ${reportHref ? `<div class="settings-row"><div class="settings-label"><strong>${tr('Report a problem')}</strong><span>${tr('Opens an e-mail with the app version and device details. Your data is not attached.')}</span></div><a class="btn btn-secondary" href="${esc(reportHref)}" data-report-problem>${tr('Report a problem')}</a></div>` : ''}
         <div class="settings-row"><div class="settings-label"><strong>${tr('Beta tester guide')}</strong><span>${tr('How to install Dailo, keep backups and report problems.')}</span></div><a class="btn btn-secondary" href="uputstvo.html" target="_blank" rel="noopener" data-beta-guide>${tr('Open guide')}</a></div>
-        <div class="settings-row"><div class="settings-label"><strong>${tr('Privacy')}</strong><span data-privacy-note>${tr('Your data stays only on this device. Dailo has no server or account.')}</span></div></div>
+        <div class="settings-row"><div class="settings-label"><strong>${tr('Privacy')}</strong><span data-privacy-note>${privacy}</span></div></div>
       </section>`;
   }
 

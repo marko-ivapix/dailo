@@ -1,9 +1,9 @@
-# Dailo V2.0 — Mobile app and Supabase sync (DRAFT)
+# Dailo V2.0 — Mobile app and Supabase sync
 
-**Status:** **DRAFT — not approved.** It needs the user's decisions (section "Decisions for the user") and accounts (section "What the user provides") before any code is written.
+**Status:** **APPROVED 2026-10-08** ("da") with all six decisions answered (section "Decisions for the user"). Work starts with phase V2.0-a; the accounts (section "What the user provides") are needed for real use, not for writing and testing the code. V2.0-a is implemented (`docs/superpowers/progress-v2-0a.md`); sections D, E and decision 3 were aligned with it on 2026-10-08. **Section A (packaging) is reopened:** a Capacitor shell was built and reverted on 2026-10-08 (`51c098f`, `2bfc2d0`, `d41d203`) because the user wants the design reworked first and the mobile technology agreed afterwards.
 **Baseline:** V1.12 (Phase 4 done).
 **Roadmap:** `docs/superpowers/plans/2026-10-07-release-roadmap.md`, Phase 5. The user decided on 2026-10-07 that the mobile app and the database ship together.
-**Rule change:** this spec, once approved, amends `AGENTS.md` "No backend, accounts or cloud sync" for V2.0 only. Until then that rule stands, and no backend code, keys or accounts are added to the repository.
+**Rule change:** this approved spec amends `AGENTS.md` "No backend, accounts or cloud sync" for V2.0: optional Supabase sync is allowed as described here, and the app must keep working fully without an account. The service-role key never enters the repository. The project URL and the public anon key go into `js/sync-config.js` only when the user supplies them. The anon key is public by Supabase design; Row Level Security protects the data.
 
 ## Goal
 
@@ -25,34 +25,50 @@ Two problems that V1.x cannot solve go away:
   - App, for resume events that trigger a sync.
 - **Web build:** the PWA on GitHub Pages stays and gets the same sync after sign-in.
 
-### B. Accounts: Supabase Auth with an e-mail magic link
+### B. Accounts: Supabase Auth, e-mail without a password (decided 2026-10-08)
 
+- **When:** sign-in arrives only with V2.0, together with the app and sync (user decision 2026-10-08). The V1.x web app gets no sign-in.
 - **Sign-in:** optional. Without signing in, Dailo behaves exactly as V1.12 (local only).
-- **Method:** an e-mail magic link (no passwords). Sign in with Apple is not required by App Store rules when the app offers no third-party social login.
+- **Method:** the user types an e-mail address and enters a 6-digit one-time code sent to that address (Supabase e-mail OTP). There is no password.
+  - **Code, not link:** on iPhone a link in the e-mail opens Safari, not the installed app, so a code typed into the app is more reliable.
+  - **Session:** it stays on the device until the user signs out, so the code is needed only once per device.
+  - **Not an option:** remembering the address without verifying it. Anyone who typed someone else's address would get that person's data.
+  - **Sign in with Apple:** not required by App Store rules when the app offers no third-party social login.
 - **Account deletion:** required by the App Store. It deletes the account and all its rows and files, from Settings.
 
 ### C. Data mapping (Postgres + Row Level Security)
 
 - **Records table:** one generic table keeps the client model unchanged:
-  - `records(id text, user_id uuid, type text, data jsonb, updated_at timestamptz, deleted_at timestamptz, primary key (user_id, type, id))`;
-  - `type` is one of: tasks, projects, areas, tags, goals, habits, notes, resources, templates, savedViews, cleaning, settings.
-- **History tables:** `habit_logs(...)` and `goal_history(...)` mirror the IndexedDB stores.
-- **Attachments:** attachment files go to Supabase Storage (`attachments/<user_id>/<id>`). Metadata travels with its owner record.
+  - `records(user_id uuid, type text, id text, data jsonb, deleted boolean, updated_at timestamptz, primary key (user_id, type, id))`;
+  - `type` is one of: tasks, projects, tags, areas, goals, habits, notes, resources, templates, savedViews, settings, habitLogs.
+- **What syncs:**
+  - **Collections:** each record of the local state collections. `ui` is device-local and never syncs.
+  - **Settings:** they are one record (`settings/settings`) without the device-local keys `backupStatus` and `compactDensity`.
+  - **Habit logs:** one record each (`habitLogs/<id>`).
+  - **Goal history:** it stays on the device in V2.0 and syncs in V2.1, together with attachments.
+- **Attachments:** not synced in V2.0 (decision 4); they stay on the device where they were added.
+  - Their `attachmentIds` field is not sent, and a pulled record keeps the local device's `attachmentIds`.
+  - V2.1 moves the files to Supabase Storage (`attachments/<user_id>/<id>`).
 - **Row Level Security:** on every table, `user_id = auth.uid()`.
-- **Deletes:** they become tombstones (`deleted_at`), so other devices learn about them; tombstones are purged after 90 days.
+- **Server clock:** a trigger sets `updated_at = clock_timestamp()` on every insert and update.
+- **History:** a second trigger copies the replaced row into `record_history`, so a version that lost a conflict can be recovered on the server.
+- **Deletes:** they become tombstones (`deleted = true`, `data = null`), so other devices learn about them.
+- **Account deletion:** `delete_my_account()` is a `security definer` function. It removes the user's rows, history and auth user.
 
 ### D. Sync model
 
-- **Local store first:** the local store stays the UI source of truth. Every saved change is queued (outbox) with the record's `updatedAt`.
-- **Push:** outbox records are upserted when the app is online, on start, on resume and every few minutes.
-- **Pull:** records changed since the last server cursor are fetched; the cursor is `updated_at` from the server clock.
-- **Conflicts:** last write wins per record on the server `updated_at`. The losing version is kept in the existing local recovery snapshots, so nothing is lost silently. The spec review must accept this policy (see decisions).
-- **Status and safety:** Settings shows sync status (last sync, pending changes, errors). The ZIP backup stays available, and so do Undo and recovery snapshots.
+- **Local store first:** the local store stays the UI source of truth. Nothing in the save path changes.
+- **Change detection:** a device-local shadow (`dailoSync` in `localStorage`, never in backups) stores a hash of every record as last synced. A sync compares the current local records with the shadow: changed and new records are upserted, and missing records become tombstones. No per-save outbox is needed.
+- **Order:** every sync pushes first and then pulls the records changed since the last server cursor. Pulling uses a 5-second overlap, and identical records are skipped, so late commits are not missed.
+- **When:** on start, on resume, a few seconds after a local save, every five minutes, when the device comes back online, and on "Sinhronizuj sada".
+- **Conflicts:** last write wins per record (decision 3). The push that reaches the server last wins. The replaced version is kept in `record_history` on the server.
+- **Applying pulls:** a pull is applied only when no dialog is open and no global operation runs; otherwise it waits for the next sync. Pulled state is normalized and saved through the existing save path, and habit logs are written through `TodoStorage`. A pulled habit log for a habit and date that already has a different local log replaces it.
+- **Status and safety:** Settings shows sync status (account, last sync, errors). The ZIP backup, Undo and recovery snapshots stay available.
 
 ### E. First sign-in and migration
 
-- **Choice on a non-empty account:** at the first sign-in on a device that already has local data and an account that already has data, the user picks one: "Spoji" (merge, last write wins), "Zadrži podatke sa servera" or "Zadrži podatke sa ovog uređaja".
-- **Safety snapshot:** a safety snapshot is taken first, as for ZIP import.
+- **Choice on a non-empty account:** at the first sign-in on a device that already has local data and an account that already has data, the user picks one: "Spoji" (merge: a record on both sides keeps its newer `updatedAt`, otherwise this device's version), "Zadrži podatke sa naloga" or "Zadrži podatke sa ovog uređaja". "Otkaži i odjavi se" leaves both sides unchanged.
+- **Safety snapshot:** a local automatic snapshot is always taken first, outside the usual five-minute pause; if it fails, the sync does not start.
 - **Moving from the PWA:** this is also how a user moves from the PWA or Safari to the App Store app: sign in on both.
 
 ### F. Privacy and compliance
@@ -74,7 +90,7 @@ Two problems that V1.x cannot solve go away:
 
 1. **V2.0-a, sync in the web app:**
    - schema and Row Level Security migrations (SQL files in `supabase/`);
-   - `js/sync.js` (outbox, push, pull, conflicts) with Node tests against a fake client;
+   - `js/sync.js` (shadow diff, push, pull, conflicts) with Node tests against a fake server;
    - optional sign-in in Settings.
    - The beta testers try it on the PWA first.
 2. **V2.0-b, Capacitor shell:**
@@ -86,12 +102,12 @@ Each phase gets its plan, failing tests first, and a ledger, as V1.x did.
 
 ## Decisions for the user
 
-1. **Platforms first:** iPhone only, or iPhone and Android together? Recommendation: iPhone first (TestFlight), Android right after.
-2. **Sign-in method:** e-mail magic link only (recommended), or also Sign in with Apple?
-3. **Conflict policy:** is last-write-wins per record, with the losing version kept in recovery snapshots, acceptable for the beta?
-4. **Attachments in sync:** include files from the start (Storage costs and upload time), or sync records first and attachments in V2.1? Recommendation: records first.
-5. **App name and identifier:** "Dailo" with bundle id `cloud.ivapix.dailo` (proposal, derived from the report e-mail domain)?
-6. **Hosting the privacy page:** GitHub Pages next to the app (recommended).
+1. **Platforms.** **Decided 2026-10-08:** iPhone and Android together (TestFlight and Play internal testing in parallel).
+2. ~~**Sign-in method.**~~ **Decided 2026-10-08:** e-mail without a password (one-time code), and only with V2.0.
+3. **Conflict policy.** **Decided 2026-10-08:** last-write-wins per record. The replaced version is kept on the server in `record_history`; local recovery snapshots stay available on each device.
+4. **Attachments.** **Decided 2026-10-08:** sync records first; attachments follow in V2.1.
+5. **App name and identifier.** **Decided 2026-10-08:** "Dailo", bundle/application id `cloud.ivapix.dailo`.
+6. **Privacy page.** **Decided 2026-10-08:** it is written and published later, before the store release (phase V2.0-c); it is not needed for V2.0-a and V2.0-b.
 
 ## What the user provides (I cannot create these)
 

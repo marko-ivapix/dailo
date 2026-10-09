@@ -44,6 +44,15 @@
     return new Date(y, m - 1, d);
   }
 
+  // The local calendar day of an instant ("2026-10-08T22:30:00Z" is 2026-10-09 in Belgrade). A plain
+  // YYYY-MM-DD value is already a calendar day and passes through. Never cut an ISO instant with slice(0, 10).
+  function localDateOf(value) {
+    if (typeof value !== 'string' || !value) return null;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+    const date = new Date(value);
+    return Number.isFinite(date.getTime()) ? dateOnly(date) : null;
+  }
+
   function addDays(value, amount) {
     const base = typeof value === 'string' ? parseDateOnly(value) : new Date(value);
     const copy = new Date(base.getFullYear(), base.getMonth(), base.getDate());
@@ -213,7 +222,7 @@
     suggestions.sort((a, b) => rank[a.reason] - rank[b.reason] || String(a.task.title).localeCompare(String(b.task.title)));
 
     const completed = tasks
-      .filter(t => t.isCompleted && t.completedAt && String(t.completedAt).slice(0, 10) === today)
+      .filter(t => t.isCompleted && t.completedAt && localDateOf(String(t.completedAt)) === today)
       .sort((a, b) => String(b.completedAt).localeCompare(String(a.completedAt)));
 
     return { overdue, today: todayTasks, suggestions, completed };
@@ -480,9 +489,9 @@
 
   function isReminderDue(task, nowIso) {
     if (!task || task.isCompleted || !task.reminderAt || task.reminderFiredAt) return false;
-    const reminder = new Date(task.reminderAt).getTime();
+    const reminder = reminderInstant(task.reminderAt);
     const now = new Date(nowIso).getTime();
-    return Number.isFinite(reminder) && Number.isFinite(now) && reminder <= now;
+    return reminder !== null && Number.isFinite(now) && reminder <= now;
   }
 
   function filterCompleted(tasks, options = {}, nowIso = new Date().toISOString()) {
@@ -898,7 +907,7 @@
     const start = typeof range === 'string' ? range : range?.start;
     const end = typeof range === 'string' ? undefined : range?.end;
     return [...source].filter(event => {
-      const date = String(event?.createdAt || '').slice(0, 10);
+      const date = localDateOf(String(event?.createdAt || ''));
       return event?.goalId === goal?.id && ['progressChanged', 'manualProgress'].includes(event.type) && date
         && (!start || date >= start) && (!end || date <= end);
     }).sort((a, b) => {
@@ -906,7 +915,7 @@
       return (Number.isFinite(left) ? left : 0) - (Number.isFinite(right) ? right : 0) || String(a.id).localeCompare(String(b.id));
     }).map(event => ({
       id: event.id,
-      date: String(event.createdAt).slice(0, 10),
+      date: localDateOf(String(event.createdAt)),
       percent: clampPercent(safeNumber(event.data?.to ?? event.data?.value ?? event.data?.percent)),
       type: event.type,
     }));
@@ -974,9 +983,67 @@
     return habit.frequencyType === 'daily' || !habit.frequencyType;
   }
 
+  // Habit week rule (M11, "only from the change on"): habit functions accept 'monday'/'sunday' or
+  // { weekStartsOn, history }, where history entries { before, weekStartsOn } say which week start applied to
+  // dates before `before`. Only habit periods use it; the Calendar and the weekly review follow the current start.
+  const validDate = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && Boolean(parseDateOnly(value)) && dateOnly(parseDateOnly(value)) === value;
+  function weekStartHistory(settings) {
+    return (Array.isArray(settings?.weekStartHistory) ? settings.weekStartHistory : [])
+      .filter(entry => entry && validDate(entry.before) && ['monday', 'sunday'].includes(entry.weekStartsOn))
+      .map(entry => ({ ...entry })).sort((a, b) => a.before.localeCompare(b.before));
+  }
+  function habitWeekRule(settings) {
+    return { weekStartsOn: weekStartKey(settings?.weekStartsOn), history: weekStartHistory(settings) };
+  }
+  // The start of the week of the change, counted with the old week start, becomes the boundary. A change back
+  // within seven days removes the previous change instead of adding one.
+  function recordWeekStartChange(settings, next, today = dateOnly()) {
+    const history = weekStartHistory(settings);
+    const previous = weekStartKey(settings?.weekStartsOn), target = weekStartKey(next);
+    if (previous === target) return history;
+    const last = history.at(-1);
+    if (last && validDate(last.changedOn) && daysBetween(last.changedOn, today) < 7) {
+      history.pop();
+      if (last.weekStartsOn === target) return history;
+    }
+    const before = weekStartFor(today, previous);
+    if (!history.some(entry => entry.before === before)) history.push({ before, weekStartsOn: previous, changedOn: today });
+    return history.slice(-52);
+  }
+  // The week that contains a change is cut at the boundary: a piece of four or more days stays its own week,
+  // a shorter piece joins the next week. Completed weeks keep their boundaries.
+  function habitWeekStartFor(date, rule) {
+    const { weekStartsOn, history } = typeof rule === 'object' && rule ? { weekStartsOn: weekStartKey(rule.weekStartsOn), history: Array.isArray(rule.history) ? rule.history : [] } : { weekStartsOn: weekStartKey(rule), history: [] };
+    let from = null;
+    let start = weekStartsOn;
+    for (const entry of history) {
+      if (date < entry.before) { start = entry.weekStartsOn; break; }
+      from = entry.before;
+    }
+    const key = weekStartFor(date, start);
+    if (from && key < from && daysBetween(from, addDays(key, 7)) < 4) return addDays(key, 7);
+    return key;
+  }
+
   function habitPeriodKey(habit, date, weekStartsOn = 'monday') {
     if (!parseDateOnly(date)) return null;
-    return habit?.frequencyType === 'timesPerWeek' ? weekStartFor(date, weekStartsOn) : date;
+    return habit?.frequencyType === 'timesPerWeek' ? habitWeekStartFor(date, weekStartsOn) : date;
+  }
+
+  // Weekly targets (M11): targetHistory entries { before, timesPerWeek } keep the target of the weeks before a change.
+  const weeklyTarget = value => Math.min(7, Math.max(1, Math.floor(Number(value) || 1)));
+  function habitTargetFor(habit, periodKey) {
+    if (habit?.frequencyType !== 'timesPerWeek') return 1;
+    const history = (Array.isArray(habit.targetHistory) ? habit.targetHistory : []).filter(entry => entry && validDate(entry.before)).sort((a, b) => a.before.localeCompare(b.before));
+    if (periodKey) for (const entry of history) if (periodKey < entry.before) return weeklyTarget(entry.timesPerWeek);
+    return weeklyTarget(habit.timesPerWeek);
+  }
+  function recordHabitTargetChange(habit, next, weekStart) {
+    const history = (Array.isArray(habit?.targetHistory) ? habit.targetHistory : []).map(entry => ({ ...entry }));
+    const previous = Number(habit?.timesPerWeek);
+    if (habit?.frequencyType !== 'timesPerWeek' || next?.frequencyType !== 'timesPerWeek' || !Number.isInteger(previous) || previous === Number(next.timesPerWeek) || !validDate(weekStart)) return history;
+    if (!history.some(entry => entry.before === weekStart)) history.push({ before: weekStart, timesPerWeek: weeklyTarget(previous) });
+    return history.sort((a, b) => a.before.localeCompare(b.before)).slice(-104);
   }
 
   function numericHabitState(habit, rawValue) {
@@ -1002,7 +1069,6 @@
     if (!eligible.length) return 0;
     const statusFor = date => habitStatusForDate(habit, logs || [], date, today);
     if (habit?.frequencyType === 'timesPerWeek') {
-      const target = Math.max(1, Math.floor(Number(habit.timesPerWeek) || 1));
       const periods = new Map();
       for (const date of eligible) {
         const key = habitPeriodKey(habit, date, weekStartsOn);
@@ -1010,7 +1076,8 @@
         periods.get(key).push(date);
       }
       let score = 0;
-      for (const periodDates of periods.values()) {
+      for (const [key, periodDates] of periods) {
+        const target = habitTargetFor(habit, key);
         const completed = periodDates.reduce((count, date) => {
           const status = statusFor(date);
           return count + (status.status === 'done' ? 1 : 0);
@@ -1047,7 +1114,6 @@
     const logByDate = new Map(relevantLogs.map(log => [log.date, log]));
     const periods = habitScheduleDates(habit, today, weekStartsOn, relevantLogs);
     const currentKey = habitPeriodKey(habit, today, weekStartsOn);
-    const target = habit?.frequencyType === 'timesPerWeek' ? Math.max(1, Math.floor(Number(habit.timesPerWeek) || 1)) : 1;
     let totalCheckins = 0; let successfulPeriods = 0; let longestStreak = 0; let running = 0;
     const periodStates = periods.map(period => {
       const entries = period.dates.map(date => ({ date, log: logByDate.get(date), state: habitStatusForDate(habit, relevantLogs, date, today) }));
@@ -1058,7 +1124,7 @@
       totalCheckins += done;
       const skipped = entries.some(entry => entry.state.status === 'skipped');
       const occurrenceMissed = entries.some(entry => entry.state.status === 'missed');
-      const successful = habit?.frequencyType === 'timesPerWeek' ? done >= target : done > 0;
+      const successful = habit?.frequencyType === 'timesPerWeek' ? done >= habitTargetFor(habit, period.key) : done > 0;
       const isCurrent = period.key === currentKey;
       // A weekly habit has one required unit: the week. Missing individual days
       // cannot break an otherwise successful week.
@@ -1088,7 +1154,7 @@
       successfulPeriods,
       completionRate: expectedUnits ? clampPercent(completedUnits / expectedUnits * 100) : 0,
       currentPeriodCount: current?.progressValue || 0,
-      currentPeriodTarget: habit?.trackingType === 'numeric' && habit?.frequencyType !== 'timesPerWeek' ? Math.max(0, safeNumber(habit.targetValue)) : target,
+      currentPeriodTarget: habit?.trackingType === 'numeric' && habit?.frequencyType !== 'timesPerWeek' ? Math.max(0, safeNumber(habit.targetValue)) : habitTargetFor(habit, currentKey),
       periods: periodStates,
     };
   }
@@ -1104,12 +1170,12 @@
     const metrics = deriveHabitMetrics(habit, relevantLogs, today, weekStartsOn);
     const statusFor = date => habitStatusForDate(habit, logs || [], date, today);
     const visiblePeriodKeys = new Set(eligible.map(date => habitPeriodKey({ ...habit, frequencyType: 'timesPerWeek' }, date, weekStartsOn)));
-    const target = Math.max(1, Math.floor(Number(habit?.timesPerWeek) || 1));
     const visibleWeeklyPeriods = habitScheduleDates(habit, today, weekStartsOn, relevantLogs)
       .filter(period => visiblePeriodKeys.has(period.key));
     const weeklySeries = visibleWeeklyPeriods
       .map(({ key, dates: periodDates }) => {
         const completed = periodDates.filter(date => statusFor(date).status === 'done').length;
+        const target = habitTargetFor({ ...habit, frequencyType: 'timesPerWeek' }, key);
         return { key, percent: Math.round(Math.min(target, completed) / target * 100), completed, target };
       });
     const monthlySeries = eligible.map(date => {
@@ -1126,13 +1192,102 @@
     };
   }
 
+  // M11: once a day is checked in (or skipped), that day's reminders stay silent; a numeric habit below its
+  // target still reminds. Weekly habits are silenced by the week's target instead.
+  function habitDayClosed(habit, logs, date) {
+    if (habit?.frequencyType === 'timesPerWeek') return false;
+    const status = habitStatusForDate(habit, logs || [], date, date).status;
+    return status === 'done' || status === 'skipped';
+  }
+
   function habitReminderActive(habit, logs, now, weekStartsOn = 'monday') {
     if (!habit || habit.status !== 'active' || !(habit.reminders || []).some(reminder => reminder?.enabled && normalizeTime(reminder.time))) return false;
     const timestamp = new Date(now); if (Number.isNaN(timestamp.getTime())) return false;
     const today = dateOnly(timestamp);
     if (!habitScheduledOn(habit, today)) return false;
+    if (habitDayClosed(habit, logs, today)) return false;
     const metrics = deriveHabitMetrics(habit, logs, today, weekStartsOn);
     return habit.frequencyType !== 'timesPerWeek' || metrics.currentPeriodCount < metrics.currentPeriodTarget;
+  }
+
+  // Reminder moments (audit R-2). `reminderAt` is stored either as a floating local time ("2026-10-09T09:00:00",
+  // from pickers and templates) or as a UTC timestamp; both name one instant. A date alone is not a moment.
+  function reminderInstant(value) {
+    if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(value)) return null;
+    const time = new Date(value).getTime();
+    return Number.isFinite(time) ? time : null;
+  }
+
+  // One key per reminder moment, shared by the notification plan and the in-app checker.
+  const notificationKey = (kind, id, moment) => `${kind}:${id}:${moment}`;
+
+  // Native reminders (audit R-1, M6): the next reminder moments, scheduled as phone notifications so they arrive
+  // while Dailo is closed. It follows the in-app checker: open tasks' reminderAt; active goals' unfired moments;
+  // habit reminder times on scheduled days, where a snooze silences the moments before it and is a notification
+  // of its own, and a met weekly target silences the rest of the current week. Only future moments inside the
+  // window are listed, at most `limit` (iOS keeps 64 pending notifications per app).
+  function notificationPlan(state, now, { days = 14, limit = 60, logs = {} } = {}) {
+    const start = new Date(now).getTime();
+    if (!state || !Number.isFinite(start)) return [];
+    const end = start + days * 86400000;
+    const list = [];
+    const add = (kind, item, moment, title, date = null) => {
+      const time = reminderInstant(moment.startsWith('snooze:') ? moment.slice(7) : moment);
+      if (time === null || time <= start || time > end) return;
+      list.push({ key: notificationKey(kind, item.id, moment), kind, id: item.id, at: new Date(time).toISOString(), title, route: `${kind}/${encodeURIComponent(item.id)}`, date });
+    };
+    for (const task of state.tasks || []) {
+      if (!task.isCompleted && task.reminderAt && !task.reminderFiredAt) add('task', task, task.reminderAt, task.title, task.dueDate || null);
+    }
+    for (const goal of state.goals || []) {
+      if (goal.status !== 'active') continue;
+      const fired = new Set(Array.isArray(goal.reminderFiredMoments) ? goal.reminderFiredMoments : []);
+      for (const moment of goalReminderMoments(goal)) if (!fired.has(moment)) add('goal', goal, moment, goal.title, goal.targetDate);
+    }
+    const weekRule = habitWeekRule(state.settings);
+    const today = dateOnly(new Date(start));
+    for (const habit of state.habits || []) {
+      if (habit.status !== 'active') continue;
+      let quietWeek = null;
+      if (habit.frequencyType === 'timesPerWeek') {
+        const metrics = deriveHabitMetrics(habit, logs[habit.id] || [], today, weekRule);
+        if (metrics.currentPeriodCount >= metrics.currentPeriodTarget) quietWeek = habitPeriodKey(habit, today, weekRule);
+      }
+      const todayClosed = habitDayClosed(habit, logs[habit.id] || [], today);
+      const silent = date => !habitScheduledOn(habit, date) || (date === today && todayClosed) || (quietWeek && habitPeriodKey(habit, date, weekRule) === quietWeek);
+      const snoozeEnd = reminderInstant(habit.snoozedUntil);
+      if (habit.pendingSnoozeAt && reminderInstant(habit.pendingSnoozeAt) !== null && !silent(dateOnly(new Date(habit.pendingSnoozeAt)))) add('habit', habit, `snooze:${habit.pendingSnoozeAt}`, habit.name);
+      const times = (habit.reminders || []).filter(reminder => reminder?.enabled && normalizeTime(reminder.time)).map(reminder => reminder.time);
+      if (!times.length) continue;
+      const fired = new Set(habit.reminderFiredMoments || []);
+      for (let offset = 0; offset <= days; offset += 1) {
+        const date = addDays(today, offset);
+        if (silent(date)) continue;
+        for (const time of times) {
+          const moment = combineDateTime(date, time);
+          if (moment && !fired.has(moment) && !(snoozeEnd !== null && reminderInstant(moment) < snoozeEnd)) add('habit', habit, moment, habit.name);
+        }
+      }
+    }
+    return list.sort((a, b) => a.at.localeCompare(b.at) || a.key.localeCompare(b.key)).slice(0, limit);
+  }
+
+  // Snooze choices (audit H-2): "tonight" is 19:00, or 21:00 once it is 19:00; later than that there is no tonight
+  // left. "Later today" is two hours ahead while that is still today. Null means the choice is not offered.
+  function snoozeTarget(kind, now = new Date()) {
+    const next = new Date(now);
+    if (Number.isNaN(next.getTime())) return null;
+    if (kind === '15m') return new Date(next.getTime() + 15 * 60000).toISOString();
+    if (kind === '1h') return new Date(next.getTime() + 3600000).toISOString();
+    if (kind !== 'tonight' || next.getHours() >= 21) return null;
+    next.setHours(next.getHours() >= 19 ? 21 : 19, 0, 0, 0);
+    return next.toISOString();
+  }
+  function laterToday(now = new Date()) {
+    const start = new Date(now);
+    if (Number.isNaN(start.getTime())) return null;
+    const later = new Date(start.getTime() + 2 * 3600000);
+    return dateOnly(later) === dateOnly(start) ? later.toISOString() : null;
   }
 
   function tasksForTag(tasks, tagId) {
@@ -1386,6 +1541,41 @@
   function invalidV3Collection(input) {
     return ['tasks', 'projects', 'tags', 'areas', 'goals', 'habits', 'notes', 'resources', 'templates', 'savedViews']
       .find(key => Object.hasOwn(input, key) && !Array.isArray(input[key]));
+  }
+
+  // Sync (audit Y-2): another device may delete a project, area, goal, task or habit that local records still
+  // point to. Those references are dropped (a task leaves the deleted project, a link disappears) instead of
+  // rejecting the whole state, which would stop sync for good. Returns a copy; valid links stay as they are.
+  function pruneDanglingReferences(input) {
+    if (!input || typeof input !== 'object') return input;
+    const state = JSON.parse(JSON.stringify(input));
+    const ids = key => new Set((Array.isArray(state[key]) ? state[key] : []).filter(item => item && item.id).map(item => item.id));
+    const projects = ids('projects'), areas = ids('areas'), goals = ids('goals'), tasks = ids('tasks'), habits = ids('habits');
+    const keep = (list, valid) => Array.isArray(list) ? list.filter(id => valid.has(id)) : list;
+    const area = item => { if (item && item.areaId && !areas.has(item.areaId)) item.areaId = null; };
+    for (const task of state.tasks || []) {
+      if (!task) continue;
+      if (task.projectId && !projects.has(task.projectId)) task.projectId = null;
+      area(task);
+      task.goalIds = keep(task.goalIds, goals);
+    }
+    for (const project of state.projects || []) { if (!project) continue; area(project); project.goalIds = keep(project.goalIds, goals); }
+    for (const key of ['notes', 'resources', 'goals', 'habits']) for (const item of state[key] || []) area(item);
+    for (const resource of state.resources || []) {
+      if (!resource) continue;
+      resource.relatedTaskIds = keep(resource.relatedTaskIds, tasks);
+      resource.relatedProjectIds = keep(resource.relatedProjectIds, projects);
+      resource.relatedGoalIds = keep(resource.relatedGoalIds, goals);
+      resource.relatedHabitIds = keep(resource.relatedHabitIds, habits);
+    }
+    return state;
+  }
+
+  // Attachments open inside the app only when the type cannot run script in the app's origin (audit S-1):
+  // raster images, PDF and plain text. Everything else (HTML, SVG, XML, scripts, unknown) is downloaded.
+  function attachmentOpensInline(mimeType) {
+    const type = String(mimeType || '').split(';')[0].trim().toLowerCase();
+    return /^image\/(png|jpe?g|gif|webp|heic|heif|avif|bmp)$/.test(type) || type === 'application/pdf' || type === 'text/plain';
   }
 
   function isNullableEntityId(value) {
@@ -1674,7 +1864,10 @@
   return {
     dateOnly,
     parseDateOnly,
+    localDateOf,
     addDays,
+    pruneDanglingReferences,
+    attachmentOpensInline,
     templateFromEntity,
     resolveTemplateVariables,
     instantiateTemplate,
@@ -1697,8 +1890,14 @@
     splitRecurrenceForFuture,
     makeUuid,
     weekStartKey,
+    weekStartFor,
     buildNextRecurringTask,
     isReminderDue,
+    reminderInstant,
+    notificationKey,
+    notificationPlan,
+    snoozeTarget,
+    laterToday,
     filterCompleted,
     searchItems,
     validateState,
@@ -1746,6 +1945,10 @@
     overdueMilestones,
     habitScheduledOn,
     habitPeriodKey,
+    habitWeekRule,
+    recordWeekStartChange,
+    habitTargetFor,
+    recordHabitTargetChange,
     numericHabitState,
     habitStatusForDate,
     habitCompletionForDates,

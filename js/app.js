@@ -8,6 +8,10 @@
   const Attachments = window.TodoAttachments;
   const Backup = window.TodoBackup;
   const Release = window.DailoRelease || { APP_VERSION: '', REPORT_EMAIL: '', problemReportMailto: () => null };
+  // Optional sync (V2.0-a): on only when js/sync-config.js has the project URL and public key.
+  const Sync = window.DailoSync || null;
+  const syncConfig = window.DailoSyncConfig || {};
+  const syncClient = Sync?.isConfigured(syncConfig) ? Sync.createClient({ url: syncConfig.url, anonKey: syncConfig.anonKey }) : null;
   const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
   const MAX_ATTACHMENTS_PER_TASK = 10;
   const STORAGE_KEY = 'todoAppData';
@@ -71,6 +75,11 @@
   let mobileMoreReturnFocus = null;
   let mobileMoreOpen = false;
   const knowledgeAttachmentCache = new Map();
+  let syncMeta = null;
+  let syncUi = { step: 'email', email: '', busy: false, error: '' };
+  let syncTimer = null;
+  let syncRunning = false;
+  let applyingSync = false;
 
   function captureModalReturnFocus() {
     const active = document.activeElement;
@@ -463,6 +472,7 @@
         recovery = null;
         state = normalizeState(createSampleState());
         saveState();
+        rememberSample();
         return finishLoadedState(localStorage.getItem(STORAGE_KEY));
       }
       const parsed = JSON.parse(raw);
@@ -546,7 +556,10 @@
         if (typeof canonicalRaw !== 'undefined') canonicalRaw = raw;
       }
       storageError = false;
+      if (globalThis.DailoPlatform?.isNative) scheduleDurableMirror();
+      if (globalThis.DailoPlatform?.isNative) scheduleNotificationPlan();
       scheduleAutomaticSnapshot();
+      scheduleSync();
       return true;
     } catch (error) {
       reportStorageFailure(error);
@@ -561,7 +574,7 @@
 
   function scheduleTextSave() {
     clearTimeout(textSaveTimer);
-    textSaveTimer = setTimeout(() => saveState(), 220);
+    textSaveTimer = setTimeout(() => { textSaveTimer = null; saveState(); }, 220);
   }
 
   function flushTextSave() {
@@ -636,6 +649,7 @@
       templateTypes: TEMPLATE_TYPES, templateLabel, openTemplateEditorFromSource, saveTemplateRecord, duplicateTemplateRecord,
       captureModalReturnFocus,
       durationLabel,
+      syncView,
       reviewTaskRow(task, context, options = {}) {
         return taskRow(task, context, options);
       },
@@ -677,6 +691,8 @@
       },
       storagePersistence: () => storagePersistence,
       shortcutError: () => shortcutError,
+      // Native app: the notification permission and (Android) exact-alarm state; null on the web.
+      notificationSettings: () => (globalThis.DailoPlatform?.isNative ? { permission: notificationPermission, exact: exactAlarmState } : null),
       notificationButtonLabel() {
         return typeof Notification === 'undefined' ? tr('Unavailable') : (Notification.permission === 'granted' ? tr('Enabled') : Notification.permission === 'denied' ? tr('Blocked') : tr('Enable'));
       },
@@ -1083,11 +1099,12 @@
     let html = pageHeader(tr('Today'), '', { contextToday: true, add: false, actionHtml: `<button class="btn btn-secondary" type="button" data-action="dashboard-focus-toggle"><i class="ph ph-faders-horizontal"></i>${state.settings.dashboard?.focusedMode ? tr('Full Today') : tr('Focus View')}</button><button class="btn btn-secondary" type="button" data-action="open-focus"><i class="ph ph-crosshair"></i> ${tr('Focus')}</button>` });
     if (state.settings.todayFocusStrip !== false) html += `<section class="today-focus-strip" data-today-focus-strip aria-label="${tr('Today focus')}"><div class="today-focus-strip-summary"><span class="today-context-date"><i class="ph ph-calendar-blank"></i>${esc(formatPageToday(today))}</span><span class="today-focus-strip-count" data-today-open-count>${trn(openTodayCount, '{count} open', '{count} open')}</span>${todayCapacityItem()}<span class="today-focus-strip-count" data-today-completed-count>${trn(completedTodayCount, '{count} completed', '{count} completed')}</span>${plannedMinutes ? `<span class="today-focus-strip-count">${tr('{minutes} min planned', { minutes: plannedMinutes })}</span>` : ''}</div><div class="today-focus-strip-controls"><label class="today-filter">${tr('Show')} <select class="filter-select" data-today-filter aria-label="${tr('Filter Today tasks')}">${[['all', msg('All')], ['open', msg('Open')], ['completed', msg('Completed')], ['important', msg('Important')], ['dueToday', msg('Due today')]].map(([value, label]) => `<option value="${value}"${todayFocusFilter === value ? ' selected' : ''}>${tr(label)}</option>`).join('')}</select></label><button class="btn btn-primary" type="button" data-action="quick-add" data-today="true"><i class="ph ph-plus"></i>${tr('Add task')}</button></div></section>`;
     html += `<div class="today-context" data-today-context="true">${contextCounts ? `<span class="today-context-summary">${esc(contextCounts)}</span>` : ''}</div>`;
+    if (globalThis.DailoPlatform?.isNative) html += transferNotice();
     html += backupReminderNotice();
     html += weeklyReviewNotice();
     const focusIds = Core.selectFocusTasks(state.tasks, state.settings.focusTaskIds);
     const focusTasks = focusIds.map(getTask);
-    const completedToday = state.tasks.filter(task => task.isCompleted && String(task.completedAt || '').slice(0, 10) === today);
+    const completedToday = state.tasks.filter(task => task.isCompleted && Core.localDateOf(String(task.completedAt || '')) === today);
     const dashboardTools = id => `<span class="dashboard-tools"><button class="btn-icon" type="button" data-action="dashboard-move" data-dashboard-section="${id}" data-direction="up" aria-label="${tr('Move section up')}"><i class="ph ph-caret-up"></i></button><button class="btn-icon ${state.settings.dashboard?.pinnedSectionIds?.includes(id) ? 'is-active' : ''}" type="button" data-action="dashboard-pin" data-dashboard-section="${id}" aria-label="${tr('Pin section')}" aria-pressed="${state.settings.dashboard?.pinnedSectionIds?.includes(id) ? 'true' : 'false'}"><i class="ph ph-push-pin"></i></button><button class="btn-icon" type="button" data-action="dashboard-move" data-dashboard-section="${id}" data-direction="down" aria-label="${tr('Move section down')}"><i class="ph ph-caret-down"></i></button></span>`;
     html += `<section class="section today-focus" data-today-focus data-dashboard-section="focus" aria-labelledby="today-focus-heading"><div class="section-header"><h2 class="section-label" id="today-focus-heading">${tr('Daily focus')}</h2><span class="section-count">${focusTasks.length} / 3</span>${dashboardTools('focus')}</div>${focusTasks.length ? `<div class="task-list">${focusTasks.map(task => taskRow(task, 'focus')).join('')}</div>` : `<p class="area-empty-copy">${tr('Choose up to three open tasks using the focus button or Task properties.')}</p>`}</section>`;
     html += `<section class="section daily-review" data-daily-review data-dashboard-section="review" aria-labelledby="daily-review-heading"><div class="section-header"><h2 class="section-label" id="daily-review-heading">${tr('Daily review')}</h2>${dashboardTools('review')}</div><div class="daily-review-stats"><span data-daily-review-completed>${trn(completedToday.length, '{count} completed today', '{count} completed today')}</span><span data-daily-review-open>${trn(sections.today.length, '{count} unfinished planned task', '{count} unfinished planned tasks')}</span><span>${tr('{minutes} min planned remaining', { minutes: plannedMinutes })}</span></div></section>`;
@@ -1247,7 +1264,7 @@
     if (!tasks.length) return html + emptyState(tr('No completed tasks match these filters.'), tr('Try a different project or time period.'));
     const groups = new Map();
     for (const task of tasks) {
-      const date = String(task.completedAt || '').slice(0, 10) || 'unknown';
+      const date = Core.localDateOf(String(task.completedAt || '')) || 'unknown';
       if (!groups.has(date)) groups.set(date, []);
       groups.get(date).push(task);
     }
@@ -1515,6 +1532,7 @@
     else if (modalState.type === 'local-snapshots') root.innerHTML = renderLocalSnapshotsModal();
     else if (modalState.type === 'template-picker') root.innerHTML = renderTemplatePicker();
     else if (modalState.type === 'recurrence-scope') root.innerHTML = renderRecurrenceScope();
+    else if (modalState.type === 'sync-choice') root.innerHTML = renderSyncChoice();
     if (['quick','project','habit','goal'].includes(modalState.type) && !modalState.taskId && !modalState.projectId && !modalState.habitId && !modalState.goalId) {
       $('.modal-inner',root)?.insertAdjacentHTML('afterbegin',`<button class="btn btn-ghost" type="button" data-action="from-template"><i class="ph ph-copy"></i> ${tr('From template')}</button>`);
     }
@@ -1575,6 +1593,8 @@
   function savePersonalization() {
     state.settings = Core.normalizeV16Settings({
       ...state.settings,
+      // Habit weeks before a week-start change keep their boundaries (M11).
+      weekStartHistory: Core.recordWeekStartChange(state.settings, $('#preference-week-start')?.value, Core.dateOnly()),
       compactDensity: $('#preference-density')?.checked,
       todayFocusFilter: $('#preference-today-filter')?.value,
       weekStartsOn: $('#preference-week-start')?.value,
@@ -1583,7 +1603,7 @@
     });
     saveAndRender();
   }
-  function resetPersonalization() { state.settings = Core.resetV16Settings(state.settings); saveAndRender(); }
+  function resetPersonalization() { state.settings = { ...Core.resetV16Settings(state.settings), weekStartHistory: Core.recordWeekStartChange(state.settings, 'monday', Core.dateOnly()) }; saveAndRender(); }
   const copyTemplate = value => JSON.parse(JSON.stringify(value));
   const TYPE_LABELS = { task: msg('Task'), project: msg('Project'), habit: msg('Habit'), goal: msg('Goal'), note: msg('Note'), resource: msg('Resource'), area: msg('Area'), tag: msg('Tag'), template: msg('Template') };
   const templateLabel = type => (TYPE_LABELS[type] ? tr(TYPE_LABELS[type]) : type[0].toUpperCase() + type.slice(1));
@@ -1854,6 +1874,16 @@
 
   async function openAttachment(attachmentId, download = false) {
     const record = await Attachments?.get(attachmentId); if (!record) return;
+    // A WebView cannot open or download a blob: the app hands the file to the share sheet (audit P-2).
+    const platform = globalThis.DailoPlatform;
+    if (platform?.isNative) {
+      closePopover();
+      try { await platform.files.openFile(record.blob, record.fileName); }
+      catch (error) { console.error(error); setToastMessage(tr('The file could not be opened')); }
+      return;
+    }
+    // Only types that cannot run script in the app's origin open inline; the rest is downloaded (audit S-1).
+    if (!download && !Core.attachmentOpensInline(record.blob?.type || record.mimeType)) download = true;
     const url = URL.createObjectURL(record.blob);
     if (download) { const a=document.createElement('a'); a.href=url; a.download=record.fileName; document.body.appendChild(a); a.click(); a.remove(); }
     else { try { window.open(url, '_blank', 'noopener'); } catch (_) {} }
@@ -1873,25 +1903,45 @@
     return modalFrame(`<div class="modal-inner"><div class="search-box"><i class="ph ph-magnifying-glass"></i><input id="search-query" class="search-input" type="search" autocomplete="off" placeholder="${tr('Search tasks and projects...')}" value="${esc(modalState.query || '')}" /><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close Search')}"><i class="ph ph-x"></i></button></div><div id="search-results" class="search-results">${searchResultsHtml(modalState.query || '')}</div></div>`, 'search-modal');
   }
 
+  // Search (M11, approved 2026-10-09): results are rebuilt after a short pause in typing, and at most this many
+  // are rendered, in the unchanged order of Core.searchItems.
+  const SEARCH_DEBOUNCE_MS = 120;
+  const SEARCH_TASK_LIMIT = 50;
+  const SEARCH_PROJECT_LIMIT = 20;
+
+  let searchTimer = null;
+  function scheduleSearchResults() {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => {
+      searchTimer = null;
+      const results = modalState?.type === 'search' ? $('#search-results') : null;
+      if (results) results.innerHTML = searchResultsHtml(modalState.query);
+    }, SEARCH_DEBOUNCE_MS);
+  }
+
   function searchResultsHtml(query) {
     if (!String(query).trim()) return `<div class="empty-state" style="border:0;padding:38px 12px"><h3>${tr('Search tasks and projects')}</h3><p>${tr('Type a task title, note or project name.')}</p></div>`;
     const result = Core.searchItems(state.tasks, state.projects, query);
     if (!result.tasks.length && !result.projects.length) return `<div class="empty-state" style="border:0;padding:38px 12px"><h3>${tr('No results for “{query}”', { query: esc(query) })}</h3></div>`;
     let html = '';
     if (result.tasks.length) {
-      html += `<div class="search-section-title">${tr('Tasks')}</div>${result.tasks.map(({ task }) => searchTaskResult(task)).join('')}`;
+      html += `<div class="search-section-title">${tr('Tasks')}</div>${result.tasks.slice(0, SEARCH_TASK_LIMIT).map(({ task }) => searchTaskResult(task)).join('')}${searchMoreNote(result.tasks.length, SEARCH_TASK_LIMIT)}`;
     }
     if (result.projects.length) {
-      html += `<div class="search-section-title">${tr('Projects')}</div>${result.projects.map(project => `<button class="search-result" type="button" data-route="project/${esc(project.id)}"><span class="search-result-icon"><span class="project-dot" style="--project-color:${esc(project.color)}"></span></span><span><span class="search-result-title">${esc(project.name)}</span><span class="search-result-meta">${tr('Project')}</span></span></button>`).join('')}`;
+      html += `<div class="search-section-title">${tr('Projects')}</div>${result.projects.slice(0, SEARCH_PROJECT_LIMIT).map(project => `<button class="search-result" type="button" data-route="project/${esc(project.id)}"><span class="search-result-icon"><span class="project-dot" style="--project-color:${esc(project.color)}"></span></span><span><span class="search-result-title">${esc(project.name)}</span><span class="search-result-meta">${tr('Project')}</span></span></button>`).join('')}${searchMoreNote(result.projects.length, SEARCH_PROJECT_LIMIT)}`;
     }
     return html;
+  }
+
+  function searchMoreNote(count, limit) {
+    return count > limit ? `<p class="search-more-note">${tr('Showing {shown} of {count}. Type more to narrow the results.', { shown: limit, count })}</p>` : '';
   }
 
   function searchTaskResult(task) {
     const project = getProject(task.projectId);
     const parts = [];
     if (project) parts.push(project.name);
-    if (task.isCompleted && task.completedAt) parts.push(tr('Completed {date}', { date: relativeDateLabel(String(task.completedAt).slice(0,10)) }));
+    if (task.isCompleted && task.completedAt) parts.push(tr('Completed {date}', { date: relativeDateLabel(Core.localDateOf(String(task.completedAt))) }));
     else if (task.plannedDate === Core.dateOnly()) parts.push(tr('Today'));
     if (task.dueDate) parts.push(tr('Due {date}', { date: relativeDateLabel(task.dueDate) }));
     return `<button class="search-result" type="button" data-action="open-task" data-task-id="${esc(task.id)}"><span class="search-result-icon">${task.isCompleted ? '<i class="ph-fill ph-check-circle" style="color:var(--success)"></i>' : '<i class="ph ph-circle"></i>'}</span><span><span class="search-result-title">${esc(task.title)}</span><span class="search-result-meta">${esc(parts.join(' · ') || tr('Task'))}</span></span></button>`;
@@ -1996,19 +2046,19 @@
   function inlineNewTag(button) {
     const targetType = button.dataset.targetType; const taskId = button.dataset.taskId || ''; const color = PROJECT_COLORS[(state.tags || []).length % PROJECT_COLORS.length];
     if (!popoverEl) return;
-    setPopoverContent(`<div class="popover-title">${tr('New tag')}</div><div class="popover-inline-form"><input id="inline-tag-name" class="input" type="text" maxlength="80" placeholder="${tr('Tag name')}" /><div class="color-grid">${PROJECT_COLORS.map(c=>`<button class="color-swatch ${c===color?'is-selected':''}" type="button" data-pop-action="inline-select-tag-color" data-color="${c}" style="--swatch:${c}"></button>`).join('')}</div><div id="inline-tag-error" class="validation" hidden></div><div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn btn-ghost" type="button" data-pop-action="inline-tag-cancel">${tr('Cancel')}</button><button class="btn btn-primary" type="button" data-pop-action="inline-tag-create" data-target-type="${targetType}" ${taskId ? `data-task-id="${esc(taskId)}"` : ''} data-color="${color}">${tr('Create')}</button></div></div>`);
+    setPopoverContent(`<div class="popover-title">${tr('New tag')}</div><div class="popover-inline-form"><input id="inline-tag-name" class="input" type="text" maxlength="80" placeholder="${tr('Tag name')}" /><div class="color-grid">${PROJECT_COLORS.map(c=>`<button class="color-swatch ${c===color?'is-selected':''}" type="button" data-pop-action="inline-select-tag-color" data-color="${c}" aria-label="${tr('Select color')}" style="--swatch:${c}"></button>`).join('')}</div><div id="inline-tag-error" class="validation" hidden></div><div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn btn-ghost" type="button" data-pop-action="inline-tag-cancel">${tr('Cancel')}</button><button class="btn btn-primary" type="button" data-pop-action="inline-tag-create" data-target-type="${targetType}" ${taskId ? `data-task-id="${esc(taskId)}"` : ''} data-color="${color}">${tr('Create')}</button></div></div>`);
     requestAnimationFrame(()=>$('#inline-tag-name',popoverEl)?.focus());
   }
 
   function openReminderPicker(anchor, target) {
     const task = target.type === 'quick' ? modalState.draft : getTask(target.taskId);
     if (!task) return;
-    const later = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
+    const later = Core.laterToday(new Date()); // null late in the evening: the option is not offered (audit H-2)
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     tomorrow.setHours(9, 0, 0, 0);
     const targetAttrs = `data-target-type="${target.type}" ${target.taskId ? `data-task-id="${esc(target.taskId)}"` : ''}`;
-    const html = `<div class="popover-title">${tr('Reminder')}</div><button class="popover-option" type="button" data-pop-action="set-reminder" data-reminder="${esc(later)}" ${targetAttrs}><i class="ph ph-clock"></i>${tr('Later today')}</button><button class="popover-option" type="button" data-pop-action="set-reminder" data-reminder="${esc(tomorrow.toISOString())}" ${targetAttrs}><i class="ph ph-sun-horizon"></i>${tr('Tomorrow morning')}</button><button class="popover-option" type="button" data-pop-action="show-custom-reminder" ${targetAttrs}><i class="ph ph-calendar-blank"></i>${tr('Custom date & time...')}</button>${task.reminderAt ? `<div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="set-reminder" data-reminder="" ${targetAttrs}><i class="ph ph-x"></i>${tr('Clear reminder')}</button>` : ''}`;
+    const html = `<div class="popover-title">${tr('Reminder')}</div>${later ? `<button class="popover-option" type="button" data-pop-action="set-reminder" data-reminder="${esc(later)}" ${targetAttrs}><i class="ph ph-clock"></i>${tr('Later today')}</button>` : ''}<button class="popover-option" type="button" data-pop-action="set-reminder" data-reminder="${esc(tomorrow.toISOString())}" ${targetAttrs}><i class="ph ph-sun-horizon"></i>${tr('Tomorrow morning')}</button><button class="popover-option" type="button" data-pop-action="show-custom-reminder" ${targetAttrs}><i class="ph ph-calendar-blank"></i>${tr('Custom date & time...')}</button>${task.reminderAt ? `<div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="set-reminder" data-reminder="" ${targetAttrs}><i class="ph ph-x"></i>${tr('Clear reminder')}</button>` : ''}`;
     openPopover(anchor, html, { type: 'reminder', target });
   }
 
@@ -2183,7 +2233,7 @@
     const taskId = button.dataset.taskId || '';
     if (!popoverEl) return;
     const color = nextProjectColor();
-    setPopoverContent(`<div class="popover-title">${tr('New project')}</div><div class="popover-inline-form"><input id="inline-project-name" class="input" type="text" maxlength="100" placeholder="${tr('Project name')}" /><div class="color-grid">${PROJECT_COLORS.map(c => `<button class="color-swatch ${c === color ? 'is-selected' : ''}" type="button" data-pop-action="inline-select-color" data-color="${c}" style="--swatch:${c}"></button>`).join('')}</div><div id="inline-project-error" class="validation" hidden>${tr('Project needs a name.')}</div><div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn btn-ghost" type="button" data-pop-action="inline-project-cancel">${tr('Cancel')}</button><button class="btn btn-primary" type="button" data-pop-action="inline-project-create" data-target-type="${targetType}" ${taskId ? `data-task-id="${esc(taskId)}"` : ''} data-color="${color}">${tr('Create')}</button></div></div>`);
+    setPopoverContent(`<div class="popover-title">${tr('New project')}</div><div class="popover-inline-form"><input id="inline-project-name" class="input" type="text" maxlength="100" placeholder="${tr('Project name')}" /><div class="color-grid">${PROJECT_COLORS.map(c => `<button class="color-swatch ${c === color ? 'is-selected' : ''}" type="button" data-pop-action="inline-select-color" data-color="${c}" aria-label="${tr('Select color')}" style="--swatch:${c}"></button>`).join('')}</div><div id="inline-project-error" class="validation" hidden>${tr('Project needs a name.')}</div><div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn btn-ghost" type="button" data-pop-action="inline-project-cancel">${tr('Cancel')}</button><button class="btn btn-primary" type="button" data-pop-action="inline-project-create" data-target-type="${targetType}" ${taskId ? `data-task-id="${esc(taskId)}"` : ''} data-color="${color}">${tr('Create')}</button></div></div>`);
     requestAnimationFrame(() => $('#inline-project-name', popoverEl)?.focus());
   }
 
@@ -3176,7 +3226,8 @@
     const byHabit = {};
     for (const log of logs) (byHabit[log.habitId] ||= []).push(log);
     state.habitLogCache = byHabit;
-    state.habitMetrics = Object.fromEntries((state.habits || []).map(habit => [habit.id, Core.deriveHabitMetrics(habit, byHabit[habit.id] || [], Core.dateOnly(), Core.weekStartKey(state.settings.weekStartsOn))]));
+    state.habitMetrics = Object.fromEntries((state.habits || []).map(habit => [habit.id, Core.deriveHabitMetrics(habit, byHabit[habit.id] || [], Core.dateOnly(), Core.habitWeekRule(state.settings))]));
+    if (globalThis.DailoPlatform?.isNative) scheduleNotificationPlan();
   }
 
   function readHabitDraft() {
@@ -3253,7 +3304,7 @@
 
   async function evaluateHabitBoundaries() {
     if (!state || globalOperation || modalState?.type === 'habit-finished') return;
-    const today = Core.dateOnly(); const weekStartsOn = Core.weekStartKey(state.settings.weekStartsOn);
+    const today = Core.dateOnly(); const weekStartsOn = Core.habitWeekRule(state.settings);
     for (const habit of state.habits || []) {
       if (habit.status !== 'active') continue;
       const metrics = habitMetrics(habit);
@@ -3292,9 +3343,8 @@
 
   function snoozeHabit(habitId, kind) {
     const habit = getHabit(habitId); if (!habit) return;
-    const now = new Date(); const next = new Date(now);
-    if (kind === '15m') next.setMinutes(next.getMinutes() + 15); else if (kind === '1h') next.setHours(next.getHours() + 1); else { next.setHours(now.getHours() >= 19 ? 21 : 19, 0, 0, 0); }
-    habit.snoozedUntil = next.toISOString(); habit.pendingSnoozeAt = next.toISOString(); habit.updatedAt = nowIso(); saveState(); setToastMessage(tr('Habit snoozed until {time}', { time: formatReminder(habit.snoozedUntil) }));
+    const next = Core.snoozeTarget(kind, new Date()); if (!next) return;
+    habit.snoozedUntil = next; habit.pendingSnoozeAt = next; habit.updatedAt = nowIso(); saveState(); setToastMessage(tr('Habit snoozed until {time}', { time: formatReminder(habit.snoozedUntil) }));
   }
 
   function deleteMilestone(goalId, milestoneId) {
@@ -3385,6 +3435,231 @@
     return requestTaskEdit(task.id,changes,after);
   }
 
+  // Optional sync (V2.0-a). The session, shadow and cursor stay on this device under their own key, never in state or backups.
+  const SYNC_META_KEY = 'dailoSync';
+  const SYNC_DEFERRED = 'sync-deferred';
+
+  function loadSyncMeta() {
+    try {
+      const value = JSON.parse(localStorage.getItem(SYNC_META_KEY) || 'null');
+      return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+    } catch (_) { return {}; }
+  }
+
+  function saveSyncMeta() {
+    try { localStorage.setItem(SYNC_META_KEY, JSON.stringify(syncMeta || {})); } catch (error) { console.error(error); }
+  }
+
+  function syncView() {
+    const meta = syncMeta || loadSyncMeta();
+    return { configured: Boolean(syncClient), signedIn: Boolean(meta.session?.accessToken), ...syncUi, email: meta.session?.user?.email || syncUi.email,
+      running: syncRunning, lastSyncAt: meta.lastSyncAt || null, lastError: meta.lastError || '' };
+  }
+
+  function editingText() {
+    const active = document.activeElement;
+    return Boolean(active?.matches?.('input:not([type="checkbox"]):not([type="radio"]):not([type="button"]), textarea, select, [contenteditable="true"]'));
+  }
+
+  // Pulled data is applied only when nothing on screen holds unsaved or reversible work.
+  function syncWaiting() {
+    return Boolean(modalState || undoState || undoHold || textSaveTimer || dragState || editingText());
+  }
+
+  function refreshSyncCard() {
+    if (currentRoute().type === 'settings' && !editingText()) render();
+  }
+
+  function scheduleSync(delay = 3000) {
+    if (!syncClient || applyingSync) return;
+    clearTimeout(syncTimer);
+    syncTimer = setTimeout(() => { syncTimer = null; runSync().catch(console.error); }, delay);
+  }
+
+  async function runSync(mode = null) {
+    if (!syncClient || syncRunning) return;
+    const meta = loadSyncMeta();
+    syncMeta = meta;
+    if (!meta.session?.accessToken) return;
+    if (!state || recovery || globalOperation || startupPromise || storageError || staleDataNotice) return;
+    if (syncWaiting()) { scheduleSync(15000); return; }
+    syncRunning = true;
+    refreshSyncCard();
+    let result;
+    try {
+      result = await Sync.syncOnce({
+        client: syncClient, meta, mode,
+        readLocal: async () => { const habitLogs = await TodoStorage.habitLogs.listAll(); return { state, habitLogs }; },
+        writeLocal: applySyncResult,
+      });
+      if (result.status === 'error' && result.error === SYNC_DEFERRED) { meta.lastError = null; scheduleSync(15000); }
+      else if (result.status === 'error' && result.code === 401) delete meta.session;
+    } finally {
+      syncRunning = false;
+      // A sign-out during the round replaced the record; never bring the old one back.
+      if (syncMeta === meta) saveSyncMeta();
+    }
+    if (result.status === 'choose' && syncMeta === meta) {
+      // Only the first-run examples are here: the account's data replaces them without the question (audit M9),
+      // after the same recovery copy the question takes. If that copy fails, the question is asked as before.
+      if (untouchedSample() && await TodoStorage.createAutomaticSnapshot(state, new Date(), { force: true }).then(() => true, () => false)) {
+        setToastMessage(tr('Loading your account data in place of the examples.'));
+        return runSync('server');
+      }
+      openSyncChoice();
+    }
+    refreshSyncCard();
+  }
+
+  async function applySyncResult(result) {
+    if (syncWaiting() || globalOperation || recovery) throw new Error(SYNC_DEFERRED);
+    const previous = state;
+    applyingSync = true;
+    try {
+      state = normalizeState(Core.pruneDanglingReferences(result.state));
+      if (!saveState()) { state = previous; throw new Error(msg('Changes could not be saved locally. Try again.')); }
+    } finally { applyingSync = false; }
+    if (result.habitLogDeletes.length) await TodoStorage.habitLogs.deleteMany(result.habitLogDeletes);
+    for (const log of result.habitLogPuts) await TodoStorage.habitLogs.put(log);
+    await refreshHabitMetrics();
+    render();
+  }
+
+  // A reset or a restored backup is a new starting point: the next sync asks again (or takes the account data
+  // on an empty device) instead of pushing deletions for everything that is gone.
+  function forgetSyncShadow() {
+    const meta = loadSyncMeta();
+    if (!meta.shadow) return;
+    delete meta.shadow;
+    delete meta.cursor;
+    syncMeta = meta;
+    saveSyncMeta();
+  }
+
+  async function requestSyncCode() {
+    if (!syncClient || syncUi.busy) return;
+    const email = String($('#sync-email')?.value ?? syncUi.email).trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { syncUi = { ...syncUi, email, error: msg('Enter a valid e-mail address.') }; render(); return; }
+    syncUi = { ...syncUi, email, busy: true, error: '' };
+    render();
+    try {
+      await syncClient.requestCode(email);
+      syncUi = { step: 'code', email, busy: false, error: '' };
+    } catch (error) {
+      syncUi = { ...syncUi, busy: false, error: error.status === 429 ? msg('Too many requests. Wait a minute and try again.') : error.message };
+    }
+    render();
+    if (syncUi.step === 'code') requestAnimationFrame(() => $('#sync-code')?.focus());
+  }
+
+  async function verifySyncCode() {
+    if (!syncClient || syncUi.busy) return;
+    const code = String($('#sync-code')?.value || '').replace(/\s+/g, '');
+    if (!/^\d{6,10}$/.test(code)) { syncUi = { ...syncUi, error: msg('Enter the code from the e-mail.') }; render(); return; }
+    syncUi = { ...syncUi, busy: true, error: '' };
+    render();
+    let session;
+    try { session = await syncClient.verifyCode(syncUi.email, code); }
+    catch (error) {
+      syncUi = { ...syncUi, busy: false, error: error.status >= 400 && error.status < 500 ? msg('The code is wrong or has expired.') : error.message };
+      render();
+      return;
+    }
+    // The shadow describes one account; another account on this device starts again with the first-sync choice.
+    const previous = loadSyncMeta();
+    syncMeta = previous.userId === session.user.id ? { ...previous, session, lastError: null } : { userId: session.user.id, session };
+    saveSyncMeta();
+    syncUi = { step: 'email', email: '', busy: false, error: '' };
+    render();
+    await runSync();
+  }
+
+  async function signOutSync() {
+    const meta = loadSyncMeta();
+    clearTimeout(syncTimer);
+    syncMeta = {};
+    try { localStorage.removeItem(SYNC_META_KEY); } catch (error) { console.error(error); }
+    syncUi = { step: 'email', email: '', busy: false, error: '' };
+    render();
+    if (meta.session && syncClient) await syncClient.signOut(meta.session);
+  }
+
+  function deleteSyncAccount() {
+    const word = 'OBRIŠI';
+    const plain = value => String(value || '').normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toUpperCase();
+    openConfirm({ title: msg('Delete your sync account?'), message: msg('This deletes your account and all synced data on the server. Data on this device stays.'),
+      phrase: word, confirmLabel: msg('Delete account'),
+      onConfirm: async () => {
+        if (plain($('#global-confirm-phrase')?.value) !== plain(word)) { setToastMessage(tr('Type {word} exactly to continue.', { word })); return; }
+        modalState = null; renderModal();
+        try { await syncClient.deleteAccount(await syncClient.ensureSession(loadSyncMeta().session)); }
+        catch (error) { setToastMessage(tr('The account could not be deleted: {error}', { error: trMessage(error.message) })); return; }
+        clearTimeout(syncTimer);
+        syncMeta = {};
+        try { localStorage.removeItem(SYNC_META_KEY); } catch (error) { console.error(error); }
+        render();
+        setToastMessage(tr('The account and its synced data were deleted. Data on this device stays.'));
+      } });
+  }
+
+  // First sync on a device when both the device and the account have data.
+  function openSyncChoice() {
+    if (modalState) return; // The next sync asks again.
+    captureModalReturnFocus(); closePopover();
+    modalState = { type: 'sync-choice', onCancel: async () => { modalState = null; renderModal(); await signOutSync(); } };
+    renderModal();
+  }
+
+  function renderSyncChoice() {
+    const option = (mode, title, copy) => `<button class="sync-choice-option" type="button" data-action="sync-choose" data-mode="${mode}"><strong>${title}</strong><span>${copy}</span></button>`;
+    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">${tr('Data on this device and in your account')}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close dialog')}"><i class="ph ph-x"></i></button></div>
+      <p class="dialog-copy">${tr('This device and your account both have data. Choose what to keep. A local recovery copy is made first.')}</p>
+      ${option('merge', tr('Merge'), tr('Keep everything. When an item was changed in both places, the newer change wins.'))}
+      ${option('server', tr('Keep the account data'), tr('This device gets the data from your account. Items that exist only on this device are removed.'))}
+      ${option('device', tr('Keep this device’s data'), tr('Your account gets the data from this device. Items that exist only in the account are removed.'))}
+      <div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">${tr('Cancel and sign out')}</button></div></div></div>`);
+  }
+
+  async function chooseSyncMode(mode) {
+    if (!['merge', 'server', 'device'].includes(mode) || modalState?.type !== 'sync-choice') return;
+    modalState = null; renderModal();
+    try { await TodoStorage.createAutomaticSnapshot(state, new Date(), { force: true }); }
+    catch (error) { setToastMessage(tr('Sync did not start because the recovery copy failed: {error}', { error: trMessage(error.message) })); return; }
+    await runSync(mode);
+  }
+
+  function startSync() {
+    if (!syncClient) return;
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') scheduleSync(500); });
+    window.addEventListener('online', () => scheduleSync(500));
+    setInterval(() => scheduleSync(0), 5 * 60 * 1000);
+    scheduleSync(1000);
+  }
+
+  // Moving data into the app (audit M9). The first-run examples are fingerprinted (device-local, outside state,
+  // sync and backups); while the device still holds only them, the app offers to import a backup from the web
+  // version or to sign in, and a first sync takes the account's data instead of asking how to combine.
+  function rememberSample() {
+    if (!state || typeof Sync?.recordFingerprint !== 'function') return;
+    try { localStorage.setItem('dailoSample', JSON.stringify(Sync.recordFingerprint(state))); } catch (_) { /* the question is then asked as before */ }
+  }
+  function untouchedSample() {
+    if (!state || typeof Sync?.untouchedSample !== 'function') return false;
+    let fingerprint = null;
+    try { fingerprint = JSON.parse(localStorage.getItem('dailoSample') || 'null'); } catch (_) { return false; }
+    return Sync.untouchedSample(state, Object.values(state.habitLogCache || {}).flat(), fingerprint);
+  }
+  function transferNotice() {
+    if (!globalThis.DailoPlatform?.isNative) return '';
+    try { if (localStorage.getItem('dailoTransferDismissed')) return ''; } catch (_) { return ''; }
+    if (!untouchedSample()) return '';
+    const signIn = syncClient && !loadSyncMeta().session?.accessToken ? `<button class="btn btn-secondary" type="button" data-route="settings">${tr('Sign in')}</button>` : '';
+    return `<section class="backup-reminder" data-transfer-notice role="status" aria-label="${tr('Data from the web version')}"><i class="ph ph-arrows-left-right backup-reminder-icon" aria-hidden="true"></i><div class="backup-reminder-copy"><strong>${tr('Do you have data in the web version?')}</strong><span>${tr('Export a backup there (Settings → Data) and import it here, or sign in if you use sync. Your data then replaces these examples.')}</span></div><div class="backup-reminder-actions"><button class="btn btn-primary" type="button" data-action="import-backup">${tr('Import backup')}</button><input id="backup-import-input" type="file" accept=".zip,application/zip" hidden />${signIn}<button class="btn btn-ghost" type="button" data-action="dismiss-transfer-notice">${tr('Not needed')}</button></div></section>`;
+  }
+  function dismissTransferNotice() {
+    try { localStorage.setItem('dailoTransferDismissed', nowIso()); } catch (_) { /* shown again next time */ }
+  }
+
   // Weekly review prompt (V1.11): on the last three days of the week until the review is recorded.
   function weeklyReviewNotice() {
     if (!Core.weeklyReviewDue(state.settings, Core.dateOnly(), state.settings.weekStartsOn)) return '';
@@ -3415,6 +3690,9 @@
 
   // Asks the browser to keep Dailo's storage only when request is true (after user activity).
   async function refreshStoragePersistence(request = false) {
+    // The native app keeps its data in its own container; the browser persistence question does not apply (audit P-7).
+    const appStorage = globalThis.DailoPlatform?.storage.status();
+    if (appStorage) return appStorage;
     const storage = typeof navigator === 'undefined' ? null : navigator.storage;
     if (!storage || typeof storage.persisted !== 'function') return { state: 'unsupported' };
     try {
@@ -3429,6 +3707,11 @@
 
   // Offline shell (V1.9). Service workers need HTTPS or localhost.
   function registerServiceWorker() {
+    // The native app ships its files inside the binary: no service worker there, and a stale one is removed (audit P-1).
+    if (globalThis.DailoPlatform && !globalThis.DailoPlatform.allowsServiceWorker) {
+      navigator.serviceWorker?.getRegistrations?.().then(list => list.forEach(registration => registration.unregister())).catch(() => {});
+      return;
+    }
     const secure = location.protocol === 'https:' || ['localhost', '127.0.0.1'].includes(location.hostname);
     if (!secure || typeof navigator === 'undefined' || !navigator.serviceWorker) return;
     // Without a controller this is the first install, which activates on its own: nothing to offer.
@@ -3466,7 +3749,11 @@
     setToastMessage(tr('Preparing backup...'));
     try {
       const blob = await Backup.exportBackupV3(state, TodoStorage, nowIso());
-      downloadBackup(blob);
+      // In the app the share sheet can be cancelled; only a delivered file counts as an export (audit P-2).
+      if (await downloadBackup(blob) === 'cancelled') {
+        updateBackupStatus({ snapshotAvailable: await hasRetainedRecoverySnapshot(snapshotAvailable), validationResult: msg('Export cancelled') }, source);
+        setToastMessage(tr('Backup was not saved')); return;
+      }
       updateBackupStatus({ lastExport: nowIso(), snapshotAvailable: await hasRetainedRecoverySnapshot(snapshotAvailable), validationResult: msg('Export verified') }, source);
       setToastMessage(tr('Backup exported'));
     } catch (error) { console.error(error); updateBackupStatus({ snapshotAvailable: await hasRetainedRecoverySnapshot(snapshotAvailable), validationResult: `${msg('Export failed')}: ${error.message}` }, source); setToastMessage(tr('Backup could not be created')); }
@@ -3513,11 +3800,16 @@
     return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">${tr('Local snapshots')}</h2><button class="btn-icon" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div><p class="area-empty-copy">${tr('Five recent automatic copies are kept on this device. Restore one item and its files and history. Linked items must still exist. A safety ZIP and typing RESTORE protect the replacement.')}</p>${body}</div>`, 'quick');
   }
 
+  // Returns 'downloaded' on the web; in the app the file goes through the share sheet: 'shared' or 'cancelled'.
   function downloadBackup(blob) {
+    const fileName = `todo-backup-${Core.dateOnly()}.zip`;
+    const platform = globalThis.DailoPlatform;
+    if (platform?.isNative) return platform.files.saveFile(blob, fileName, tr('Dailo backup'));
     const url = URL.createObjectURL(blob), anchor = document.createElement('a');
-    anchor.href = url; anchor.download = `todo-backup-${Core.dateOnly()}.zip`;
+    anchor.href = url; anchor.download = fileName;
     try { document.body.appendChild(anchor); anchor.click(); }
     finally { anchor.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000); }
+    return 'downloaded';
   }
 
   function compactState(value) {
@@ -3652,7 +3944,8 @@
       const blob = await Backup.exportBackupV3(JSON.parse(op.stateText), frozenStorage, nowIso());
       assertGlobalSource(op);
       if (!(await TodoStorage.sameUserData(await TodoStorage.captureUserData(), op.payload))) throw new Error(msg('Stored data changed during export. Retry.'));
-      assertGlobalSource(op); downloadBackup(blob);
+      assertGlobalSource(op);
+      if (await downloadBackup(blob) === 'cancelled') throw new Error(msg('The safety ZIP was not saved.'));
       op.snapshotId = await TodoStorage.createRecoverySnapshot(reason, state, TodoStorage);
       const snapshot = await TodoStorage.recoverySnapshots.get(op.snapshotId);
       assertGlobalSource(op);
@@ -3754,6 +4047,8 @@
       await verifyGlobalReplacement(op);
       deleteLifecycle.retire(op.token);
       state = normalizeState(op.validated.state); canonicalRaw = localStorage.getItem(STORAGE_KEY); recovery = null; modalState = null;
+      if (!op.selective) forgetSyncShadow();
+      if (globalThis.DailoPlatform?.isNative) scheduleDurableMirror();
       const committedSource = captureStatusSource();
       globalOperation = phaseError ? op : null; renderModal(); location.hash = '#today'; render();
       try {
@@ -3776,7 +4071,84 @@
     }
   }
 
+  // Native reminders (audit R-1, M6): the upcoming reminders are scheduled as phone notifications, so they arrive
+  // while Dailo is closed. The plan is rebuilt after saves and habit check-ins, at start and on resume; the platform
+  // keeps unchanged notifications and cancels only stale ones. NOTIFIED_KEY (device-local, outside state, sync and
+  // backups) records which moments the phone was asked to show, so the in-app checker records those without a
+  // second toast. Call sites check isNative inline, like the other platform hooks.
+  const NOTIFIED_KEY = 'dailoNotified';
+  function readNotified() {
+    try { const value = JSON.parse(localStorage.getItem(NOTIFIED_KEY) || '{}'); return value && typeof value === 'object' ? value : {}; } catch (_) { return {}; }
+  }
+  function phoneShownKeys() {
+    if (!globalThis.DailoPlatform?.isNative || notificationPermission !== 'granted') return new Set();
+    const now = Date.parse(nowIso());
+    return new Set(Object.entries(readNotified()).filter(([, at]) => Date.parse(at) <= now).map(([key]) => key));
+  }
+  // Moments already past were still scheduled when they arrived; future ones are replaced by the new plan, so a
+  // reminder that dropped out of the plan is never treated as shown.
+  function rememberNotified(items) {
+    const now = Date.parse(nowIso()), cutoff = now - 3 * 86400000;
+    const past = Object.entries(readNotified()).filter(([, at]) => { const time = Date.parse(at); return time <= now && time >= cutoff; });
+    try { localStorage.setItem(NOTIFIED_KEY, JSON.stringify(Object.fromEntries([...past, ...items.map(item => [item.key, item.at])]))); } catch (_) { /* the checker then toasts as well */ }
+  }
+  function notificationBody(item) {
+    const day = Core.localDateOf(item.at);
+    if (item.kind === 'task') return item.date ? tr('Due {date}', { date: relativeDateLabel(item.date, day) }) : tr('Task reminder');
+    if (item.kind === 'goal') return item.date ? tr('Goal target {date}', { date: relativeDateLabel(item.date, day) }) : tr('Goal reminder');
+    return tr('Habit reminder');
+  }
+  function scheduleNotificationPlan(delay = 2000) {
+    if (!globalThis.DailoPlatform?.isNative) return;
+    clearTimeout(notificationTimer);
+    notificationTimer = setTimeout(() => { reconcileNotifications().catch(console.error); }, delay);
+  }
+  async function reconcileNotifications() {
+    clearTimeout(notificationTimer); notificationTimer = null;
+    const platform = globalThis.DailoPlatform;
+    if (!platform?.isNative || !state || globalOperation || recovery) return;
+    const items = Core.notificationPlan(state, nowIso(), { logs: state.habitLogCache || {} }).map(item => ({ ...item, body: notificationBody(item) }));
+    let result = await platform.notifications.reconcile(items);
+    // The system question is asked once, when there is first something to notify about; later from Settings.
+    if (result.status === 'permission' && result.permission === 'prompt' && items.length && !localStorage.getItem('dailoNotifyAsked')) {
+      try { localStorage.setItem('dailoNotifyAsked', nowIso()); } catch (_) { /* asked again next time */ }
+      if (await platform.notifications.requestPermission() === 'granted') result = await platform.notifications.reconcile(items);
+    }
+    const changed = (result.permission && result.permission !== notificationPermission) || (result.exact !== undefined && result.exact !== exactAlarmState);
+    if (result.permission) notificationPermission = result.permission;
+    if (result.exact !== undefined) exactAlarmState = result.exact;
+    if (result.status === 'ok') rememberNotified(items);
+    if (changed && currentRoute().type === 'settings') render();
+  }
+  let notificationTimer = null, notificationPermission = null, exactAlarmState = null;
+
+  // A tapped notification opens its task, goal or habit. An open dialog keeps its draft: the tap then only
+  // brings Dailo to the front.
+  function openNotificationTarget(extra) {
+    const [kind, ...rest] = String(extra?.route || '').split('/');
+    const id = decodeURIComponent(rest.join('/'));
+    if (!state || globalOperation || recovery || modalState || !id) return;
+    if (kind === 'task') { if (getTask(id)) openTaskDetail(id); return; }
+    if ((kind === 'goal' && getGoal(id)) || (kind === 'habit' && getHabit(id))) navigate(`#${kind}/${encodeURIComponent(id)}`);
+  }
+
+  async function allowExactAlarms() {
+    try { exactAlarmState = await globalThis.DailoPlatform.notifications.allowExactAlarms(); } catch (error) { console.error(error); }
+    scheduleNotificationPlan(0);
+    render();
+  }
+
   async function enableBrowserNotifications() {
+    const platform = globalThis.DailoPlatform;
+    if (platform?.isNative) {
+      try {
+        notificationPermission = await platform.notifications.requestPermission();
+        setToastMessage(notificationPermission === 'granted' ? tr('Reminders will arrive as notifications') : tr('Notifications are off for Dailo. Turn them on in the phone settings.'));
+      } catch (_) { setToastMessage(tr('Notifications could not be enabled')); }
+      scheduleNotificationPlan(0);
+      render();
+      return;
+    }
     if (typeof Notification === 'undefined') { setToastMessage(tr('Browser notifications are unavailable')); return; }
     if (Notification.permission === 'granted') { setToastMessage(tr('Browser notifications are already enabled')); return; }
     if (Notification.permission === 'denied') { setToastMessage(tr('Browser notifications are blocked in browser settings')); return; }
@@ -3796,7 +4168,7 @@
     const dueGoals = state.goals.flatMap(goal => Core.goalReminderDueMoments(goal, now).map(moment => ({ goal, moment })));
     const today = Core.dateOnly(new Date(now));
     const dueHabits = state.habits.flatMap(habit => {
-      if (!Core.habitReminderActive(habit, state.habitLogCache?.[habit.id] || [], now, Core.weekStartKey(state.settings.weekStartsOn))) return [];
+      if (!Core.habitReminderActive(habit, state.habitLogCache?.[habit.id] || [], now, Core.habitWeekRule(state.settings))) return [];
       const nowTime = new Date(now).getTime(); const pending = habit.pendingSnoozeAt && new Date(habit.pendingSnoozeAt).getTime();
       // A snooze is a distinct notification, not merely a suppression of the
       // original moment. Lifecycle and weekly-target suppression apply first.
@@ -3806,6 +4178,13 @@
       return (habit.reminders || []).filter(reminder => reminder.enabled && Core.normalizeTime(reminder.time)).map(reminder => ({ habit, moment: Core.combineDateTime(today, reminder.time) })).filter(item => item.moment && !fired.has(item.moment) && new Date(item.moment).getTime() <= new Date(now).getTime());
     });
     if (!dueTasks.length && !dueGoals.length && !dueHabits.length) return;
+    // On the phone a reminder the system already showed as a notification is only recorded here (audit M6).
+    const shown = phoneShownKeys();
+    const unseen = [
+      ...dueTasks.filter(task => !shown.has(Core.notificationKey('task', task.id, task.reminderAt))).map(task => task.title),
+      ...dueGoals.filter(({ goal, moment }) => !shown.has(Core.notificationKey('goal', goal.id, moment))).map(({ goal }) => goal.title),
+      ...dueHabits.filter(({ habit, moment }) => !shown.has(Core.notificationKey('habit', habit.id, moment))).map(({ habit }) => habit.name),
+    ];
     for (const task of dueTasks) {
       task.reminderFiredAt = now;
       task.updatedAt = now;
@@ -3829,9 +4208,8 @@
       }
     }
     saveState();
-    const total = dueTasks.length + dueGoals.length + dueHabits.length;
-    if (total === 1) setToastMessage(tr('Reminder: {title}', { title: dueTasks[0]?.title || dueGoals[0]?.goal.title || dueHabits[0].habit.name }));
-    else setToastMessage(trn(total, '{count} reminder is due', '{count} reminders are due'));
+    if (unseen.length === 1) setToastMessage(tr('Reminder: {title}', { title: unseen[0] }));
+    else if (unseen.length) setToastMessage(trn(unseen.length, '{count} reminder is due', '{count} reminders are due'));
   }
 
   // Messages are English catalog keys or already translated text; tr() leaves the latter unchanged.
@@ -4012,11 +4390,20 @@
     else if (action === 'select-tag-color') { modalState.draft.color = el.dataset.color; renderModal(); }
     else if (action === 'save-tag') saveTagModal();
     else if (action === 'confirm-action') { const fn = modalState.onConfirm; if (typeof fn === 'function') fn(); }
+    else if (action === 'sync-request-code') requestSyncCode();
+    else if (action === 'sync-verify-code') verifySyncCode();
+    else if (action === 'sync-change-email') { syncUi = { step: 'email', email: syncUi.email, busy: false, error: '' }; render(); }
+    else if (action === 'sync-now') runSync().catch(console.error);
+    else if (action === 'sync-sign-out') signOutSync();
+    else if (action === 'sync-delete-account') deleteSyncAccount();
+    else if (action === 'sync-choose') chooseSyncMode(el.dataset.mode);
     else if (action === 'undo') doUndo();
     else if (action === 'retry-delete-recovery') retryFailedDeleteRecovery();
     else if (action === 'enable-notifications') enableBrowserNotifications();
+    else if (action === 'allow-exact-alarms') allowExactAlarms();
     else if (action === 'export-backup') exportBackupAction();
     else if (action === 'snooze-backup-reminder') { snoozeBackupReminder(); render(); }
+    else if (action === 'dismiss-transfer-notice') { dismissTransferNotice(); render(); }
     else if (action === 'complete-weekly-review') completeWeeklyReview();
     else if (action === 'apply-app-update') applyAppUpdate();
     else if (action === 'request-storage-persistence') updateStoragePersistence(true).catch(console.error);
@@ -4104,7 +4491,7 @@
     }
     if (modalState?.type === 'search' && event.target.id === 'search-query') {
       modalState.query = event.target.value;
-      const results = $('#search-results'); if (results) results.innerHTML = searchResultsHtml(modalState.query);
+      scheduleSearchResults();
     }
     if (modalState?.type === 'tag' && event.target.id === 'tag-name') { modalState.draft.name = event.target.value; modalState.error = ''; }
   }
@@ -4219,6 +4606,7 @@
 
     if (modalState?.type === 'task' && ['detail-title', 'detail-duration-minutes'].includes(target?.id) && event.key === 'Enter') { event.preventDefault(); target.blur(); return; }
     if (modalState?.type === 'task' && target?.id === 'detail-subtask' && event.key === 'Enter') { event.preventDefault(); addDetailSubtask(target.dataset.taskId, target.value); return; }
+    if (['sync-email', 'sync-code'].includes(target?.id) && event.key === 'Enter' && !event.isComposing) { event.preventDefault(); if (target.id === 'sync-email') requestSyncCode(); else verifySyncCode(); return; }
   }
 
   function handleAreaTabKeydown(event) {
@@ -4438,7 +4826,8 @@
     document.addEventListener('dragleave', handleDragLeave);
     document.addEventListener('drop', handleDrop);
     document.addEventListener('dragend', handleDragEnd);
-    window.addEventListener('hashchange', () => { closePopover(); closeModal(); render(); });
+    // The first-sync choice stays open across a route change: closing it would run its cancel, which signs out (audit P-3).
+    window.addEventListener('hashchange', () => { closePopover(); if (modalState?.type !== 'sync-choice') closeModal(); render(); });
     window.addEventListener('storage', event => {
       if (globalOperation) return;
       if (event.key !== STORAGE_KEY) return;
@@ -4452,9 +4841,96 @@
         }
       } catch (_) { /* keep current tab data for malformed external state */ }
     });
-    window.addEventListener('pagehide', () => { if (!globalOperation) { flushTaskDraft(); flushTextSave(); saveState(); } });
-    window.addEventListener('resize', closePopover);
+    if (globalThis.DailoPlatform) globalThis.DailoPlatform.lifecycle.onPause(flushPendingWork);
+    else window.addEventListener('pagehide', flushPendingWork);
+    window.addEventListener('resize', closePopoverOnWidthChange);
     window.addEventListener('focus', checkReminders);
+  }
+
+  // Only a width change (rotation, window resize) closes popovers: the phone keyboard and the browser bars change
+  // only the height, and a popover with a text field must stay open while the keyboard appears (audit P-5).
+  let popoverWidth = window.innerWidth;
+  function closePopoverOnWidthChange() {
+    if (window.innerWidth === popoverWidth) return;
+    popoverWidth = window.innerWidth;
+    closePopover();
+  }
+
+  // Native durable mirror (audit M5): the canonical metadata text is also kept as a file in the app's Library
+  // directory, so a WebView store the system cleared can be restored at start. Habit logs, goal history and files
+  // stay in IndexedDB (and sync); the web has no mirror. Call sites check isNative inline, like the other platform hooks.
+  let mirrorTimer = null;
+  function scheduleDurableMirror(delay = 1000) {
+    if (!globalThis.DailoPlatform?.isNative) return;
+    clearTimeout(mirrorTimer);
+    mirrorTimer = setTimeout(writeDurableMirror, delay);
+  }
+  function writeDurableMirror() {
+    clearTimeout(mirrorTimer);
+    mirrorTimer = null;
+    const text = localStorage.getItem(STORAGE_KEY);
+    if (text && globalThis.DailoPlatform?.isNative) globalThis.DailoPlatform.durable.write(text).catch(console.error);
+  }
+  // Only fills a missing store; the normal start-up load then validates and migrates the text as usual.
+  async function restoreDurableMirror() {
+    const platform = globalThis.DailoPlatform;
+    if (!platform?.isNative || localStorage.getItem(STORAGE_KEY) !== null) return false;
+    const text = await platform.durable.read();
+    if (!text) return false;
+    localStorage.setItem(STORAGE_KEY, text);
+    return true;
+  }
+
+  // Typing and drafts are saved when the page is hidden or the app goes to the background: iOS can end a
+  // backgrounded app without `pagehide` (audit P-4).
+  // A recurring task's draft would open the "this or future" question, so only an unloading page flushes it.
+  function flushPendingWork(reason = 'pagehide') {
+    if (globalOperation || !state) return;
+    const draftTask = modalState?.type === 'task' ? getTask(modalState.taskId) : null;
+    if (reason === 'pagehide' || !draftTask || !taskRecurrence(draftTask)) flushTaskDraft();
+    flushTextSave(); saveState();
+    if (globalThis.DailoPlatform?.isNative) writeDurableMirror();
+  }
+
+  // Back in the foreground: a new day, due reminders and a sync round, without waiting for the 30-second timer.
+  function resumeApp() {
+    if (globalOperation || startupPromise || recovery || !state) return;
+    checkDateAndReminders();
+    scheduleSync(500);
+    if (globalThis.DailoPlatform?.isNative) scheduleNotificationPlan(500);
+  }
+
+  function checkDateAndReminders() {
+    const next = Core.dateOnly();
+    if (next !== lastToday) {
+      lastToday = next;
+      refreshHabitDateBoundary().catch(console.error);
+    } else checkReminders();
+  }
+
+  // Android Back works like Escape: it closes the top sheet, menu, popover, inline editor or dialog and reports
+  // whether anything closed; otherwise the platform goes to the previous screen or minimizes (audit P-3, M4).
+  // A reset or restore that is already running is never interrupted.
+  const overlaySnapshot = () => [mobileMoreOpen, $('#mobile-quick-add-toggle')?.getAttribute('aria-expanded'), popoverEl, modalState, goalPropertyEditor, habitPropertyEditor, document.activeElement];
+  function handleBackButton() {
+    if (globalOperation?.busy) return true;
+    const before = overlaySnapshot();
+    const target = document.activeElement || document.body; // an element: the key handler reads target.closest
+    target.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    const after = overlaySnapshot();
+    return before.some((value, index) => value !== after[index]);
+  }
+
+  // Native integration (audit M3): resume, Back, links that leave the app, leftovers of an interrupted share.
+  function startPlatform() {
+    const platform = globalThis.DailoPlatform;
+    if (!platform) return;
+    platform.lifecycle.onResume(resumeApp);
+    platform.backButton.setHandler(handleBackButton);
+    platform.links.interceptExternalLinks(document, { onlinePages: { 'uputstvo.html': Release.GUIDE_URL } });
+    platform.files.cleanupSharedFiles().catch(console.error);
+    platform.notifications.onOpen(openNotificationTarget);
+    scheduleNotificationPlan(0);
   }
 
   async function drainReady(resolve, reject) {
@@ -4475,6 +4951,7 @@
           continue;
         }
         canonicalRaw = committedSource;
+        if (globalThis.DailoPlatform?.isNative) scheduleDurableMirror();
         runScheduledTaskTemplates({ duringStartup: true });
         render();
         checkReminders();
@@ -4512,22 +4989,24 @@
     attachEvents();
     // Quick Add is an explicit disclosure: never restore it open on reload or route changes.
     if (typeof setMobileQuickAddOpen === 'function') setMobileQuickAddOpen(false);
+    let restored = false;
+    try { restored = await restoreDurableMirror(); } catch (error) { console.error(error); }
     await startReady();
+    if (restored && state) setToastMessage(tr('Your data was restored from the copy Dailo keeps on this device.'));
     scheduleAutomaticSnapshot();
+    startSync();
     updateStoragePersistence(false).catch(console.error);
     registerServiceWorker();
-    if (!location.hash) location.hash = '#today';
+    startPlatform();
+    // replace, not assign: the first screen must not leave an extra step for Back.
+    if (!location.hash) location.replace('#today');
     setInterval(() => {
       if (globalOperation || startupPromise || recovery || !state) return;
       if (runScheduledTaskTemplates()) render();
-      const next = Core.dateOnly();
-      if (next !== lastToday) {
-        lastToday = next;
-        refreshHabitDateBoundary().catch(console.error);
-      } else checkReminders();
+      checkDateAndReminders();
     }, 30000);
   }
 
-  window.TodoApp = { init, get ready() { return startupPromise || Promise.resolve(); }, get state() { return state; }, deleteLifecycle, render, openQuickAdd, openSearch, checkReminders, captureGoalProgress, evaluateGoalProgressChanges, setHabitLog, refreshHabitMetrics, refreshHabitDateBoundary, evaluateHabitBoundaries, snoozeHabit };
+  window.TodoApp = { init, handleBackButton, get ready() { return startupPromise || Promise.resolve(); }, get state() { return state; }, deleteLifecycle, render, openQuickAdd, openSearch, checkReminders, captureGoalProgress, evaluateGoalProgressChanges, setHabitLog, refreshHabitMetrics, refreshHabitDateBoundary, evaluateHabitBoundaries, snoozeHabit };
   init();
 })();

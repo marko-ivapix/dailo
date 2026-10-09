@@ -25,7 +25,7 @@ function renderSettings(release, environment = {}) {
 }
 
 test('release metadata has one semantic version and is loaded before the app modules', () => {
-  assert.match(Release.APP_VERSION, /^\d+\.\d+\.\d+$/);
+  assert.match(Release.APP_VERSION, /^\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$/, 'semantic version, optionally with a pre-release suffix');
   // The newest release test pins the exact version; this one only requires a V1.9 or later release.
   assert.ok(Number(Release.APP_VERSION.split('.')[0]) > 1 || Number(Release.APP_VERSION.split('.')[1]) >= 9, Release.APP_VERSION);
   const html = read('index.html');

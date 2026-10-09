@@ -208,6 +208,8 @@
         else if (habit[key] != null && !positiveInteger(habit[key])) fail(key);
       }
       if (habit.idealTarget != null && habit.minimumTarget != null && habit.idealTarget < habit.minimumTarget) fail('idealTarget');
+      if (habit.targetHistory != null && (!Array.isArray(habit.targetHistory) || habit.targetHistory.length > 104
+        || habit.targetHistory.some(entry => !object(entry) || !date(entry.before) || !Number.isInteger(entry.timesPerWeek) || entry.timesPerWeek < 1 || entry.timesPerWeek > 7))) fail('targetHistory');
       if (habit.graceDays != null && (!Number.isInteger(habit.graceDays) || habit.graceDays < 0)) fail('graceDays');
       if (habit.trackingType === 'numeric' && !(habit.targetValue > 0)
         || habit.frequencyType === 'timesPerWeek' && (!positiveInteger(habit.timesPerWeek) || habit.timesPerWeek > 7)
@@ -264,6 +266,8 @@
         || state.settings.todayVisibleSections.some(section => !['focus', 'review', 'actions'].includes(section))
         || new Set(state.settings.todayVisibleSections).size !== state.settings.todayVisibleSections.length)) fail('todayVisibleSections');
       if (state.settings.weekStartsOn != null && ![0, 1, 'monday', 'sunday'].includes(state.settings.weekStartsOn)) fail('weekStartsOn');
+      if (state.settings.weekStartHistory != null && (!Array.isArray(state.settings.weekStartHistory) || state.settings.weekStartHistory.length > 52
+        || state.settings.weekStartHistory.some(entry => !object(entry) || !date(entry.before) || !['monday', 'sunday'].includes(entry.weekStartsOn) || entry.changedOn != null && !date(entry.changedOn)))) fail('weekStartHistory');
       if (state.settings.backupReminderDays != null && !(Number.isInteger(state.settings.backupReminderDays) && state.settings.backupReminderDays >= 0 && state.settings.backupReminderDays <= 90)) fail('backupReminderDays');
       if (state.settings.dailyCapacityMinutes != null && !(Number.isInteger(state.settings.dailyCapacityMinutes) && state.settings.dailyCapacityMinutes >= 0 && state.settings.dailyCapacityMinutes <= 1440)) fail('dailyCapacityMinutes');
       if (state.settings.weeklyReviews != null && (!Array.isArray(state.settings.weeklyReviews) || state.settings.weeklyReviews.length > 52

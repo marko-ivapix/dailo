@@ -5,12 +5,13 @@
 1. Read `CLAUDE.md`, `AGENTS.md` and `docs/claude/CONTINUATION.md`.
 2. Inspect the current source, relevant tests and the current progress ledger (`docs/superpowers/progress-v1-12.md`; V1.10 and V1.11 have `progress-v1-10.md` and `progress-v1-11.md`; `docs/superpowers/progress-v1-9.md` holds the user's iPhone results; V1.7 remains the behavior baseline ledger).
 3. Identify whether the requested behavior already exists in a different UI module or derived view.
-4. Preserve existing V1.2–V1.6 behavior unless the approved V1.7 design explicitly changes it. Treat any V1.8 redesign as a visual change until a new spec says otherwise. V1.9 changes only what its approved spec lists (install, offline, data protection, Serbian UI, version/problem report, fixes G1–G3); V1.9.1 completes its Step 7 (report address, tester guide, beta checklist). Phase 4 features (V1.10–V1.12) each have their own approved spec: V1.10 changes only Quick Add parsing, saving precedence and its preview; V1.11 adds the weekly review page, its Today notice and the `settings.weeklyReviews` log; V1.12 adds the Calendar day view, the daily capacity (`settings.dailyCapacityMinutes`, Today and Settings) and the Quick Add duration chip. Anything beyond them needs a new approved spec.
+4. Preserve existing V1.2–V1.6 behavior unless the approved V1.7 design explicitly changes it. Treat any V1.8 redesign as a visual change until a new spec says otherwise. V1.9 changes only what its approved spec lists (install, offline, data protection, Serbian UI, version/problem report, fixes G1–G3); V1.9.1 completes its Step 7 (report address, tester guide, beta checklist). Phase 4 features (V1.10–V1.12) each have their own approved spec: V1.10 changes only Quick Add parsing, saving precedence and its preview; V1.11 adds the weekly review page, its Today notice and the `settings.weeklyReviews` log; V1.12 adds the Calendar day view, the daily capacity (`settings.dailyCapacityMinutes`, Today and Settings) and the Quick Add duration chip. V2.0 (approved 2026-10-08) adds optional Supabase sync; V2.0-a covers only the web app (server SQL, `js/sync.js`, the Settings card). Anything beyond them needs a new approved spec.
 
 ## Product constraints
 
 - Keep the app static, local-first and framework-free.
-- Do not add a backend, accounts, cloud sync or speculative dependencies. The V2.0 spec (`docs/superpowers/specs/2026-10-08-todo-v2-0-design.md`) is a draft awaiting the user's decisions; it changes nothing until the user approves it, and no backend code, keys or accounts go into the repository before that.
+- Do not add backends, accounts or dependencies beyond the approved V2.0 spec (`docs/superpowers/specs/2026-10-08-todo-v2-0-design.md`): optional Supabase sync, with no runtime dependency (plain `fetch`). The app must keep working fully without an account. The `service_role`/secret key never enters the repository (a test rejects one in `js/sync-config.js`). The project URL and public key go into `js/sync-config.js` only when the user supplies them, together with a version bump.
+- Sync never bypasses the save path: pulled state goes through `saveState`, habit logs through `TodoStorage`. Keep the waiting conditions (dialog, Undo, pending text save, drag, focused text field, recovery, global operation) when touching `runSync`/`applySyncResult`. A server schema change is a new numbered file in `supabase/migrations/` plus a step in `docs/v2/podesavanje-supabase.md`, never an edit to an applied migration.
 - Do not change the existing global Search scope, ranking or semantics.
 - Do not add bulk-selection or bulk-action UI.
 - Keep Tasks, Projects, Areas, Goals, Habits, Notes, Resources, Templates and Saved Views as separate object types.
@@ -30,12 +31,12 @@
 - Prefer small additive changes over broad rewrites of `js/app.js`.
 - Add every new runtime file (script, stylesheet, font, icon) to `SHELL_FILES` in `sw.js`; `tests/offline-v1-9.test.js` fails otherwise.
 - Bump `APP_VERSION` in `js/release.js` and `VERSION` in `sw.js` together for a release.
-- Pin the exact version only in the newest release test (since V1.12: `tests/time-blocking-v1-12.test.js`). When releasing, move the pin into the new release's test and relax the previous one to "this version or later"; older release tests keep checking that `sw.js` follows `APP_VERSION`.
+- Pin the exact version only in the newest release test (since V2.0-a: `tests/sync-app-v2-0a.test.js`). When releasing, move the pin into the new release's test and relax the previous one to "this version or later"; older release tests keep checking that `sw.js` follows `APP_VERSION`.
 - `REPORT_EMAIL` in `js/release.js` holds only an address the user supplied; never guess or change it on your own.
 - `uputstvo.html` is a standalone page outside the precache (online only). It may reference local files only; `tests/beta-v1-9-1.test.js` checks that.
-- New CSS goes into the newest version layer (V1.12 Calendar day view at the time of writing) or a new later layer, before the phone touch-target guard, which stays the final rule.
+- New CSS goes into the newest version layer (V2.0-a sync card at the time of writing) or a new later layer, before the phone touch-target guard, which stays the final rule.
 - New settings stay optional with a tolerant Core reader (missing or invalid means the default) and get backup validation in `js/backup.js` plus a round-trip test, as `backupReminderDays`, `weeklyReviews` and `dailyCapacityMinutes` do; do not add a `normalizeV16Settings` default, because `tests/core-v1-6.test.js` compares the whole normalized object.
-- A test that slices `renderToday()` in a VM needs stubs for helpers it does not load (since V1.11/V1.12: `weeklyReviewNotice`, `todayCapacityItem`); add a stub, never weaken the assertion.
+- A test that slices `renderToday()` in a VM needs stubs for helpers it does not load (since V1.11/V1.12: `weeklyReviewNotice`, `todayCapacityItem`; since V2.0-a `startSync` in tests that slice `init` and `scheduleSync` in tests that slice `saveState`); add a stub, never weaken the assertion.
 ## Localization (i18n) rules
 
 - Every user-visible string goes through `tr()`, `trn()` or `msg()` with a quoted literal English key, e.g. `tr('Export backup')`. Template-literal keys are rejected by `tests/i18n-v1-9.test.js`.

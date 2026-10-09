@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="sr-Latn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Još i Podešavanja — predlog</title>
+<style>
+  :root {
+    --page: #08090B; --bg: #0F1114; --card: #16191E; --card2: #1B1F25; --line: #242830; --text: #E8EAED; --muted: #8B929C;
+    --blue: #2A47FF; --link: #8FA2FF; --green: #34C77B; --amber: #F2A93B; --red: #F0645A;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--text); font: 15px/1.35 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 16px; }
+  .top { max-width: 390px; margin: 0 auto 12px; color: var(--muted); font-size: 13.5px; }
+  .top b { color: var(--text); }
+  .phone { position: relative; max-width: 390px; height: 820px; margin: 0 auto; background: var(--bg); border: 1px solid var(--line); border-radius: 34px; overflow: hidden; }
+  button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
+  input { font: inherit; color: var(--text); }
+  svg { flex: none; }
+
+  .screen { position: absolute; inset: 0 0 70px; overflow-y: auto; padding: 16px 16px 28px; background: var(--bg); transition: transform .25s ease; }
+  .screen.off { transform: translateX(100%); }
+  .screen.under { transform: translateX(-30%); }
+  .status { display: flex; justify-content: space-between; font-size: 13px; font-weight: 600; padding: 0 6px 12px; }
+  .back { display: inline-flex; align-items: center; gap: 2px; color: var(--link); font-size: 16px; min-height: 40px; margin-left: -6px; }
+  .h1 { font-size: 30px; font-weight: 700; letter-spacing: -.5px; margin: 0 0 4px; }
+  .glabel { color: var(--muted); font-size: 12.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; margin: 18px 4px 6px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+  .prow { display: flex; align-items: center; gap: 12px; width: 100%; padding: 0 12px; min-height: 50px; }
+  .prow + .prow { border-top: 1px solid var(--line); }
+  .prow .ico { width: 22px; display: grid; place-items: center; color: var(--muted); }
+  .prow .main { flex: 1; min-width: 0; padding: 9px 0; }
+  .prow .sub { display: block; color: var(--muted); font-size: 12.5px; margin-top: 1px; }
+  .prow .val { color: var(--muted); font-size: 14px; white-space: nowrap; }
+  .prow .val.green { color: var(--green); }
+  .prow.danger, .prow.danger .ico { color: var(--red); }
+  .chev { color: #5B6270; }
+  .note { color: var(--muted); font-size: 13px; margin: 8px 4px 0; }
+  .nav { position: absolute; left: 0; right: 0; bottom: 0; height: 70px; border-top: 1px solid var(--line); background: #121418; display: grid; grid-template-columns: repeat(6, 1fr); padding: 8px 4px 14px; z-index: 1; }
+  .nav div { display: grid; justify-items: center; gap: 3px; font-size: 10.5px; color: var(--muted); }
+  .nav div.on { color: var(--link); }
+
+  /* Sheets */
+  .dim { position: absolute; inset: 0; background: rgba(0, 0, 0, .55); opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 4; }
+  .dim.show { opacity: 1; pointer-events: auto; }
+  .sheet { position: absolute; left: 0; right: 0; bottom: 0; max-height: 86%; z-index: 5; background: #14171C; border-top: 1px solid var(--line); border-radius: 22px 22px 0 0; transform: translateY(105%); transition: transform .25s ease; display: flex; flex-direction: column; }
+  .sheet.show { transform: none; }
+  .grab { width: 40px; height: 5px; border-radius: 3px; background: #3A3F48; margin: 8px auto 4px; flex: none; }
+  .shead { display: flex; justify-content: space-between; align-items: center; padding: 6px 18px 10px; flex: none; }
+  .shead h2 { margin: 0; font-size: 22px; }
+  .sbody { overflow-y: auto; padding: 0 16px 22px; }
+  .x { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; color: var(--muted); }
+  .opt { display: flex; align-items: center; gap: 12px; width: 100%; padding: 0 14px; min-height: 52px; }
+  .opt + .opt { border-top: 1px solid var(--line); }
+  .opt .lbl { flex: 1; }
+  .radio { width: 22px; height: 22px; border-radius: 50%; border: 2px solid #5B6270; display: grid; place-items: center; flex: none; }
+  .radio.on { border-color: var(--blue); }
+  .radio.on::after { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--blue); }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .chip { padding: 9px 14px; border-radius: 12px; background: var(--card2); border: 1px solid #2C3139; font-size: 14px; }
+  .chip.on { border-color: var(--blue); background: rgba(42, 71, 255, .18); }
+  .field { display: flex; align-items: center; gap: 12px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 0 12px; min-height: 50px; margin-bottom: 10px; }
+  .field input { flex: 1; min-width: 0; background: none; border: 0; outline: none; }
+  .primary { width: 100%; height: 48px; border-radius: 14px; background: var(--blue); color: #fff; font-weight: 600; font-size: 16px; text-align: center; }
+  .secondary { width: 100%; height: 46px; border-radius: 14px; background: var(--card2); border: 1px solid #2C3139; font-weight: 600; text-align: center; }
+  .dangerbtn { width: 100%; height: 48px; border-radius: 14px; background: #3A1D1F; color: #FF8A80; border: 1px solid #5A2D30; font-weight: 600; text-align: center; }
+  .facts { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: 14px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; margin-bottom: 12px; }
+  .facts span:nth-child(odd) { color: var(--muted); }
+  .toast { position: absolute; left: 50%; bottom: 86px; transform: translateX(-50%); background: #262B33; padding: 8px 14px; border-radius: 10px; font-size: 13px; opacity: 0; transition: opacity .2s; z-index: 9; pointer-events: none; white-space: nowrap; }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<p class="top"><b>Predlog: „Još“ i „Podešavanja“.</b> Dodirni „Podešavanja“ da otvoriš drugi ekran, a „‹ Još“ da se vratiš. U podešavanjima probaj Sinhronizaciju, Prvi dan nedelje, Dnevni kapacitet, Rezervnu kopiju i Resetovanje. Ostali redovi otvaraju postojeće ekrane.</p>
+
+<div class="phone">
+  <div class="screen" id="more"></div>
+  <div class="screen off" id="settings"></div>
+  <nav class="nav" id="nav"></nav>
+
+  <div class="dim" id="dim"></div>
+  <section class="sheet" id="sheet">
+    <div class="grab"></div>
+    <div class="shead"><h2 id="sheetTitle"></h2><button class="x" id="sheetClose" aria-label="Zatvori">✕</button></div>
+    <div class="sbody" id="sheetBody"></div>
+  </section>
+  <div class="toast" id="toast"></div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const s = { weekStart: 'Ponedeljak', capacity: 360, reminders: 'Uključeni', backupDays: 7, sync: null, lastBackup: 'pre 3 dana' };
+
+const I = (path, w = 20) => `<svg width="${w}" height="${w}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${path}</svg>`;
+const ICON = {
+  goal: I('<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="1" fill="currentColor"/>'),
+  area: I('<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>'),
+  broom: I('<path d="M14 4l-4 9M7 13h8l1.5 7h-11z"/>'),
+  review: I('<rect x="6" y="4" width="12" height="17" rx="2"/><path d="M9 4h6v3H9zM9 12h6M9 16h4"/>'),
+  note: I('<path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4M9 12h6M9 16h6"/>'),
+  link: I('<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>'),
+  tag: I('<path d="M3.5 12.5V5A1.5 1.5 0 0 1 5 3.5h7.5l8 8-9 9z"/><circle cx="8" cy="8" r="1.4" fill="currentColor"/>'),
+  copy: I('<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>'),
+  funnel: I('<path d="M4 5h16l-6 7.5V19l-4 1.5v-8z"/>'),
+  check: I('<circle cx="12" cy="12" r="8.5"/><path d="M8.5 12.2l2.4 2.4 4.6-5"/>'),
+  archive: I('<rect x="4" y="4" width="16" height="5" rx="1"/><path d="M5 9v10h14V9M10 13h4"/>'),
+  gear: I('<circle cx="12" cy="12" r="3"/><path d="M12 2.5v2.2M12 19.3v2.2M4.6 4.6l1.6 1.6M17.8 17.8l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.6 19.4l1.6-1.6M17.8 6.2l1.6-1.6"/>'),
+  sync: I('<path d="M4 12a8 8 0 0 1 13.7-5.6L20 8.5M20 4v4.5h-4.5M20 12a8 8 0 0 1-13.7 5.6L4 15.5M4 20v-4.5h4.5"/>'),
+  cal: I('<rect x="4" y="5" width="16" height="15" rx="3"/><path d="M4 10h16M9 3v4M15 3v4"/>'),
+  timer: I('<circle cx="12" cy="13" r="7.5"/><path d="M12 9v4l2.5 2M10 2.5h4"/>'),
+  bell: I('<path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4zM10 20a2 2 0 0 0 4 0"/>'),
+  upload: I('<path d="M12 15V4M7.5 8.5L12 4l4.5 4.5M5 14v6h14v-6"/>'),
+  download: I('<path d="M12 4v11M7.5 10.5L12 15l4.5-4.5M5 14v6h14v-6"/>'),
+  clock: I('<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>'),
+  shield: I('<path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4.5"/>'),
+  sparkle: I('<path d="M12 4l1.8 4.7L18.5 10.5l-4.7 1.8L12 17l-1.8-4.7-4.7-1.8 4.7-1.8z"/>'),
+  trash: I('<path d="M5 7h14M10 7V4.5h4V7M7 7l1 13h8l1-13M10.5 11v5M13.5 11v5"/>'),
+  book: I('<path d="M5 4.5h5a2 2 0 0 1 2 2V20a2 2 0 0 0-2-2H5zM19 4.5h-5a2 2 0 0 0-2 2V20a2 2 0 0 1 2-2h5z"/>'),
+  mail: I('<rect x="3.5" y="5.5" width="17" height="13" rx="2"/><path d="M4 7l8 6 8-6"/>'),
+  phone: I('<rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/>'),
+  lock: I('<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>'),
+  info: I('<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5M12 8h.01"/>'),
+  chev: '<svg class="chev" width="18" height="18" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+  back: '<svg width="22" height="22" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>',
+};
+const hours = m => m === 0 ? 'Isključen' : m % 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m / 60} h`;
+
+function row(key, icon, label, { sub = '', val = '', valClass = '', cls = '' } = {}) {
+  return `<button class="prow ${cls}" data-go="${key}"><span class="ico">${icon}</span><span class="main">${label}${sub ? `<span class="sub">${sub}</span>` : ''}</span>${val ? `<span class="val ${valClass}">${val}</span>` : ''}${ICON.chev}</button>`;
+}
+
+function renderMore() {
+  $('more').innerHTML = `
+    <div class="status"><span>09:41</span><span>•••</span></div>
+    <h1 class="h1">Još</h1>
+    <div class="glabel">Zakačeno</div>
+    <div class="card">
+      ${row('Oblast Posao', `<span style="width:12px;height:12px;border-radius:4px;background:#3BA7F5;display:block"></span>`, 'Posao', { sub: 'Oblast' })}
+      ${row('Prikaz Rok ove nedelje', ICON.funnel, 'Rok ove nedelje', { sub: 'Sačuvani prikaz' })}
+    </div>
+    <div class="glabel">Planiranje</div>
+    <div class="card">
+      ${row('Ciljevi', ICON.goal, 'Ciljevi', { val: '6' })}
+      ${row('Oblasti', ICON.area, 'Oblasti', { val: '4' })}
+      ${row('Čišćenje', ICON.broom, 'Čišćenje', { val: '2 sobe' })}
+      ${row('Nedeljni pregled', ICON.review, 'Nedeljni pregled', { val: 'Poslednji 4. okt' })}
+    </div>
+    <div class="glabel">Biblioteka</div>
+    <div class="card">
+      ${row('Beleške', ICON.note, 'Beleške', { val: '12' })}
+      ${row('Resursi', ICON.link, 'Resursi', { val: '8' })}
+      ${row('Oznake', ICON.tag, 'Oznake', { val: '7' })}
+      ${row('Šabloni', ICON.copy, 'Šabloni', { val: '3' })}
+      ${row('Sačuvani prikazi', ICON.funnel, 'Sačuvani prikazi', { val: '2' })}
+    </div>
+    <div class="glabel">Arhiva</div>
+    <div class="card">
+      ${row('Završeni zadaci', ICON.check, 'Završeni zadaci')}
+      ${row('Arhivirani projekti', ICON.archive, 'Arhivirani projekti')}
+    </div>
+    <div class="card" style="margin-top:18px">
+      ${row('settings', ICON.gear, 'Podešavanja', { sub: s.sync ? 'Sinhronizovano pre 2 min' : 'Podaci su samo na ovom uređaju' })}
+    </div>`;
+  bind('#more');
+}
+
+function renderSettings() {
+  $('settings').innerHTML = `
+    <div class="status"><span>09:41</span><span>•••</span></div>
+    <button class="back" id="back">${ICON.back}Još</button>
+    <h1 class="h1">Podešavanja</h1>
+    <div class="glabel">Nalog</div>
+    <div class="card">
+      ${row('sync', ICON.sync, 'Sinhronizacija', { sub: s.sync ? s.sync : 'Za rad na više uređaja', val: s.sync ? 'Uključena' : 'Isključena', valClass: s.sync ? 'green' : '' })}
+    </div>
+    <div class="glabel">Opšte</div>
+    <div class="card">
+      ${row('week', ICON.cal, 'Prvi dan nedelje', { val: s.weekStart })}
+      ${row('capacity', ICON.timer, 'Dnevni kapacitet', { val: hours(s.capacity) })}
+      ${row('Podsetnici', ICON.bell, 'Podsetnici', { val: s.reminders })}
+    </div>
+    <div class="glabel">Podaci</div>
+    <div class="card">
+      ${row('backup', ICON.upload, 'Rezervna kopija', { sub: `Poslednja ${s.lastBackup}` })}
+      ${row('Vraćanje iz kopije', ICON.download, 'Vrati iz kopije', { sub: 'Zamenjuje trenutne podatke' })}
+      ${row('Lokalni snimci', ICON.clock, 'Lokalni snimci', { sub: 'Pet automatskih kopija na uređaju' })}
+      ${row('Trajno čuvanje', ICON.shield, 'Trajno čuvanje', { val: 'Odobreno', valClass: 'green' })}
+      ${row('Popuni primerima', ICON.sparkle, 'Popuni primerima')}
+      ${row('reset', ICON.trash, 'Resetuj aplikaciju', { cls: 'danger' })}
+    </div>
+    <div class="glabel">Pomoć</div>
+    <div class="card">
+      ${row('Uputstvo', ICON.book, 'Uputstvo')}
+      ${row('Prijavi problem', ICON.mail, 'Prijavi problem')}
+      ${row('Instaliraj aplikaciju', ICON.phone, 'Instaliraj aplikaciju', { sub: 'Prikazuje se dok Dailo nije na početnom ekranu' })}
+      ${row('Privatnost', ICON.lock, 'Privatnost')}
+      ${row('O aplikaciji', ICON.info, 'O aplikaciji', { val: '2.0.0-alpha.1' })}
+    </div>
+    <p class="note">Na računaru se ovde vide i „Prečice na tastaturi“ i „Zbijeniji prikaz“.</p>`;
+  $('back').onclick = () => go('more');
+  bind('#settings');
+}
+
+function bind(scope) {
+  document.querySelectorAll(`${scope} [data-go]`).forEach(b => b.onclick = () => {
+    const key = b.dataset.go;
+    if (key === 'settings') return go('settings');
+    if (SHEETS[key]) return openSheet(key);
+    toast(`Otvara: ${key}`);
+  });
+}
+function go(screen) {
+  const toSettings = screen === 'settings';
+  $('settings').classList.toggle('off', !toSettings);
+  $('more').classList.toggle('under', toSettings);
+}
+
+// ---- sheets --------------------------------------------------------------
+const SHEETS = {
+  sync: ['Sinhronizacija', () => s.sync
+    ? `<div class="facts"><span>Nalog</span><span>${s.sync}</span><span>Poslednja</span><span>pre 2 min</span></div>
+       <button class="secondary" data-a="syncnow">Sinhronizuj sada</button>
+       <div style="display:flex;justify-content:space-between;margin-top:10px"><button style="color:var(--link);padding:12px 4px" data-a="signout">Odjavi se</button><button style="color:var(--red);padding:12px 4px" data-a="delacc">Obriši nalog</button></div>`
+    : `<p class="note" style="margin:0 4px 12px">Prijavi se e-poštom da bi isti podaci bili na telefonu i računaru. Bez naloga sve ostaje samo na ovom uređaju.</p>
+       <label class="field">${ICON.mail}<input id="email" type="email" placeholder="tvoja@adresa.rs" aria-label="E-pošta"></label>
+       <button class="primary" data-a="code">Pošalji kod</button>`],
+  week: ['Prvi dan nedelje', () => `<div class="card">${['Ponedeljak', 'Nedelja'].map(d => `<button class="opt" data-pick="${d}"><span class="lbl">${d}</span><span class="radio ${s.weekStart === d ? 'on' : ''}"></span></button>`).join('')}</div>
+       <p class="note">Koristi se u nedeljnom prikazu, kod navika i u nedeljnom pregledu. Dodir odmah primenjuje izbor.</p>`],
+  capacity: ['Dnevni kapacitet', () => `<div class="chips">${[0, 240, 360, 480, 600].map(m => `<button class="chip ${s.capacity === m ? 'on' : ''}" data-cap="${m}">${hours(m)}</button>`).join('')}</div>
+       <p class="note" style="margin-top:0">Koliko planiranog rada staje u dan. Poredi se sa trajanjem zadataka u kalendaru (Raspored).</p>`],
+  backup: ['Rezervna kopija', () => `<div class="facts"><span>Poslednji izvoz</span><span>5. okt</span><span>Poslednji uvoz</span><span>nikad</span></div>
+       <button class="primary" data-a="export">Izvezi ZIP</button>
+       <div class="glabel">Podseti me na kopiju</div>
+       <div class="chips">${[[3, 'Posle 3 dana'], [7, 'Posle 7 dana'], [14, 'Posle 14 dana'], [0, 'Nikad']].map(([d, l]) => `<button class="chip ${s.backupDays === d ? 'on' : ''}" data-bd="${d}">${l}</button>`).join('')}</div>
+       <p class="note" style="margin-top:0">ZIP sadrži sve podatke, i beleške, resurse i priloge.</p>`],
+  reset: ['Resetuj aplikaciju', () => `<p class="note" style="margin:0 4px 14px">Prvo se pravi sigurnosni ZIP, a zatim se brišu svi zadaci, projekti, oznake, prilozi i podešavanja na ovom uređaju.</p>
+       <label class="field"><input id="confirm" placeholder="Upiši RESETUJ" aria-label="Potvrda"></label>
+       <button class="dangerbtn" data-a="reset">Resetuj</button>`],
+};
+function openSheet(key) {
+  const [title, body] = SHEETS[key];
+  $('sheetTitle').textContent = title;
+  $('sheetBody').innerHTML = body();
+  $('sheet').classList.add('show'); $('dim').classList.add('show');
+  document.querySelectorAll('#sheetBody [data-pick]').forEach(b => b.onclick = () => { s.weekStart = b.dataset.pick; done('Sačuvano'); });
+  document.querySelectorAll('#sheetBody [data-cap]').forEach(b => b.onclick = () => { s.capacity = Number(b.dataset.cap); done('Sačuvano'); });
+  document.querySelectorAll('#sheetBody [data-bd]').forEach(b => b.onclick = () => { s.backupDays = Number(b.dataset.bd); openSheet('backup'); toast('Sačuvano'); });
+  document.querySelectorAll('#sheetBody [data-a]').forEach(b => b.onclick = () => {
+    const a = b.dataset.a;
+    if (a === 'code') { const v = $('email').value.trim(); if (!v.includes('@')) return toast('Upiši ispravnu e-poštu'); s.sync = v; done('Prijava je uspela (u prototipu bez koda)'); }
+    else if (a === 'signout') { s.sync = null; done('Odjava je uspela'); }
+    else if (a === 'syncnow') toast('Sinhronizovano');
+    else if (a === 'delacc') toast('Traži upis OBRIŠI, kao sada');
+    else if (a === 'export') { s.lastBackup = 'danas'; done('ZIP je preuzet'); }
+    else if (a === 'reset') { if ($('confirm').value.trim().toUpperCase() !== 'RESETUJ') return toast('Upiši RESETUJ za potvrdu'); done('U prototipu se ništa ne briše'); }
+  });
+}
+function done(text) { closeSheet(); renderSettings(); renderMore(); toast(text); }
+function closeSheet() { $('sheet').classList.remove('show'); $('dim').classList.remove('show'); }
+$('sheetClose').onclick = closeSheet;
+$('dim').onclick = closeSheet;
+function toast(text) { const t = $('toast'); t.textContent = text; t.classList.add('show'); clearTimeout(toast.timer); toast.timer = setTimeout(() => t.classList.remove('show'), 1500); }
+
+$('nav').innerHTML = [['Danas', '<rect x="4" y="5" width="16" height="15" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M4 10h16M9 3v4M15 3v4" stroke="currentColor" stroke-width="1.8"/>'],
+  ['Inbox', '<path d="M4 13l2.5-7h11L20 13v6H4z M4 13h5l1 2h4l1-2h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>'],
+  ['Zadaci', '<circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8.5 12.2l2.4 2.4 4.6-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'],
+  ['Kalendar', '<rect x="4" y="5" width="16" height="15" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M4 10h16M9 3v4M15 3v4M8 14h2M12 14h2M8 17h2" stroke="currentColor" stroke-width="1.8"/>'],
+  ['Navike', '<path d="M6 20V12M12 20V5M18 20v-9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>'],
+  ['Još', '<circle cx="6" cy="12" r="1.7" fill="currentColor"/><circle cx="12" cy="12" r="1.7" fill="currentColor"/><circle cx="18" cy="12" r="1.7" fill="currentColor"/>']]
+  .map(([label, path]) => `<div class="${label === 'Još' ? 'on' : ''}"><svg width="22" height="22" viewBox="0 0 24 24">${path}</svg>${label}</div>`).join('');
+
+renderMore();
+renderSettings();
+</script>
+</body>
+</html>

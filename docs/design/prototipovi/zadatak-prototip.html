@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="sr-Latn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zadatak — prototip</title>
+<style>
+  :root {
+    --page: #08090B; --bg: #0F1114; --card: #16191E; --card2: #1B1F25; --line: #242830; --text: #E8EAED; --muted: #8B929C;
+    --blue: #2A47FF; --link: #8FA2FF; --green: #34C77B; --amber: #F2A93B; --red: #F0645A;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--text); font: 15px/1.35 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 16px; }
+  .top { max-width: 390px; margin: 0 auto 12px; color: var(--muted); font-size: 13.5px; }
+  .top b { color: var(--text); }
+  .phone { position: relative; max-width: 390px; height: 800px; margin: 0 auto; background: var(--bg); border: 1px solid var(--line); border-radius: 34px; overflow: hidden; }
+  button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+  input { font: inherit; color: var(--text); }
+  svg { flex: none; }
+
+  /* Today behind the task window */
+  .today { padding: 16px 16px 0; }
+  .status { display: flex; justify-content: space-between; font-size: 13px; font-weight: 600; padding: 0 6px 12px; }
+  .date { color: var(--muted); font-size: 14px; }
+  .h1 { font-size: 30px; font-weight: 700; letter-spacing: -.5px; margin: 0 0 10px; }
+  .sec { font-weight: 600; margin: 14px 2px 8px; }
+  .sec span { color: var(--muted); font-weight: 500; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+  .trow { display: flex; align-items: center; gap: 12px; padding: 10px 14px; min-height: 58px; width: 100%; text-align: left; }
+  .trow + .trow { border-top: 1px solid var(--line); }
+  .box { width: 22px; height: 22px; border: 2px solid #4A505A; border-radius: 6px; flex: none; display: grid; place-items: center; }
+  .box.on { background: var(--green); border-color: var(--green); }
+  .main { flex: 1; min-width: 0; }
+  .meta { color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+  .side { color: var(--muted); font-size: 12px; text-align: right; display: grid; gap: 3px; justify-items: end; }
+  .done-title { color: var(--muted); text-decoration: line-through; }
+
+  /* Overlays */
+  .dim { position: absolute; inset: 0; background: rgba(0, 0, 0, .55); opacity: 0; pointer-events: none; transition: opacity .2s; }
+  .dim.show { opacity: 1; pointer-events: auto; }
+  .sheet { position: absolute; left: 0; right: 0; bottom: 0; background: #14171C; border-top: 1px solid var(--line); border-radius: 22px 22px 0 0; transform: translateY(105%); transition: transform .25s ease; display: flex; flex-direction: column; }
+  .sheet.show { transform: none; }
+  .grab { width: 40px; height: 5px; border-radius: 3px; background: #3A3F48; margin: 8px auto 4px; flex: none; }
+  .shead { display: flex; justify-content: space-between; align-items: center; padding: 6px 18px 10px; flex: none; }
+  .shead h2 { margin: 0; font-size: 22px; }
+  .sbody { overflow-y: auto; padding: 0 16px 18px; }
+  .x { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; color: var(--muted); }
+
+  #task { top: 36px; }
+  .ttl { display: flex; gap: 12px; align-items: flex-start; padding: 2px 2px 6px; }
+  .ttl textarea { flex: 1; background: none; border: 0; color: var(--text); font-family: inherit; font-weight: 700; font-size: 22px; line-height: 1.25; resize: none; padding: 0; outline: none; }
+  .plink { display: inline-flex; gap: 6px; align-items: center; color: var(--link); font-size: 14px; margin: 0 2px 10px; }
+  .glabel { color: var(--muted); font-size: 12.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; margin: 16px 4px 6px; }
+  .prow { display: flex; align-items: center; gap: 12px; width: 100%; padding: 0 12px; min-height: 48px; text-align: left; }
+  .prow + .prow { border-top: 1px solid var(--line); }
+  .prow .lbl { flex: 1; }
+  .prow .val { color: var(--muted); font-size: 14px; display: inline-flex; gap: 6px; align-items: center; }
+  .prow .val.set { color: var(--text); }
+  .chev { color: #5B6270; }
+  .sub { display: flex; align-items: center; gap: 12px; padding: 0 12px; min-height: 46px; }
+  .sub + .sub { border-top: 1px solid var(--line); }
+  .sub.add { color: var(--link); }
+  .notes { width: 100%; min-height: 64px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px; color: var(--text); font: inherit; resize: vertical; outline: none; }
+  .file { display: flex; gap: 10px; align-items: center; padding: 10px 12px; }
+  .more { display: flex; justify-content: space-between; width: 100%; color: var(--muted); padding: 14px 4px; }
+  .footer { padding: 10px 16px 22px; border-top: 1px solid var(--line); flex: none; background: #14171C; }
+  .primary { width: 100%; height: 48px; border-radius: 14px; background: var(--blue); color: #fff; font-weight: 600; font-size: 16px; }
+  .primary.done { background: #262B33; color: var(--text); }
+  .ghost { color: var(--link); font-size: 15px; padding: 12px 6px; }
+  .split { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .split .primary { width: auto; flex: 1; max-width: 200px; }
+
+  /* Pickers */
+  .picker { z-index: 5; max-height: 86%; }
+  .dim.top { z-index: 4; }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .chip { padding: 9px 14px; border-radius: 12px; background: var(--card2); border: 1px solid #2C3139; font-size: 14px; }
+  .chip.on { border-color: var(--blue); background: rgba(42, 71, 255, .18); }
+  .cal { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 10px; margin-bottom: 12px; }
+  .calhead { display: flex; justify-content: space-between; align-items: center; padding: 0 4px 6px; font-weight: 600; }
+  .calhead button { width: 32px; height: 32px; display: grid; place-items: center; color: var(--muted); }
+  .grid { display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; }
+  .wd { color: var(--muted); font-size: 12px; padding: 4px 0; }
+  .day { height: 38px; display: grid; place-items: center; }
+  .day span { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; }
+  .day.today span { color: var(--link); font-weight: 600; }
+  .day.sel span { background: var(--blue); color: #fff; font-weight: 600; }
+  .field { display: flex; align-items: center; gap: 12px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 0 12px; min-height: 50px; margin-bottom: 10px; }
+  .field .lbl { flex: 1; }
+  .field input[type=time], .field input[type=date], .field input[type=number] { background: #1F232A; border: 1px solid #2C3139; border-radius: 8px; padding: 6px 8px; color-scheme: dark; }
+  .field input[type=number] { width: 70px; }
+  .note { color: var(--muted); font-size: 13px; margin: 2px 4px 12px; }
+  .opt { cursor: pointer; display: flex; align-items: center; gap: 12px; width: 100%; padding: 0 14px; min-height: 52px; text-align: left; }
+  .opt + .opt { border-top: 1px solid var(--line); }
+  .opt .lbl { flex: 1; }
+  .opt small { display: block; color: var(--muted); font-size: 12.5px; }
+  .radio { width: 22px; height: 22px; border-radius: 50%; border: 2px solid #5B6270; display: grid; place-items: center; flex: none; }
+  .radio.on { border-color: var(--blue); }
+  .radio.on::after { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--blue); }
+  .check { width: 22px; height: 22px; border-radius: 6px; border: 2px solid #5B6270; display: grid; place-items: center; flex: none; }
+  .check.on { background: var(--blue); border-color: var(--blue); }
+  .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+  .search { display: flex; align-items: center; gap: 10px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 0 12px; height: 44px; margin-bottom: 10px; }
+  .search input { flex: 1; background: none; border: 0; outline: none; }
+  .wdays { display: flex; gap: 6px; margin-bottom: 10px; }
+  .wdays button { flex: 1; height: 38px; border-radius: 10px; background: var(--card2); border: 1px solid #2C3139; font-size: 13px; }
+  .wdays button.on { background: rgba(42, 71, 255, .22); border-color: var(--blue); }
+  .toast { position: absolute; left: 50%; bottom: 96px; transform: translateX(-50%); background: #262B33; padding: 8px 14px; border-radius: 10px; font-size: 13px; opacity: 0; transition: opacity .2s; z-index: 9; pointer-events: none; }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<p class="top"><b>Prototip prozora zadatka.</b> Dodirni red da otvoriš panel. Projekat, prioritet i trajanje se primene odmah. Sve se čuva odmah, bez dugmeta „Sačuvaj“. Zatvori prozor sa X, pa dodirni zadatak na ekranu Danas da ga ponovo otvoriš.</p>
+
+<div class="phone" id="phone">
+  <div class="today">
+    <div class="status"><span>09:41</span><span>•••</span></div>
+    <div class="date">Četvrtak, 8. oktobar</div>
+    <div class="h1">Danas</div>
+    <div class="sec">Planirano danas <span>· 2</span></div>
+    <div class="card" id="todayList"></div>
+  </div>
+
+  <div class="dim" id="dimTask"></div>
+  <section class="sheet" id="task" aria-label="Zadatak">
+    <div class="grab"></div>
+    <div class="shead"><span class="meta">Zadatak</span><button class="x" data-close="task" aria-label="Zatvori">✕</button></div>
+    <div class="sbody" id="taskBody"></div>
+    <div class="footer"><button class="primary" id="complete"></button></div>
+  </section>
+
+  <div class="dim top" id="dimPicker"></div>
+  <section class="sheet picker" id="picker">
+    <div class="grab"></div>
+    <div class="shead"><h2 id="pickerTitle"></h2><button class="x" data-close="picker" aria-label="Zatvori">✕</button></div>
+    <div class="sbody" id="pickerBody"></div>
+  </section>
+  <div class="toast" id="toast"></div>
+</div>
+
+<script>
+const MONTHS = ['januar', 'februar', 'mart', 'april', 'maj', 'jun', 'jul', 'avgust', 'septembar', 'oktobar', 'novembar', 'decembar'];
+const SHORT = ['jan', 'feb', 'mar', 'apr', 'maj', 'jun', 'jul', 'avg', 'sep', 'okt', 'nov', 'dec'];
+const WD = ['P', 'U', 'S', 'Č', 'P', 'S', 'N'];
+const WDNAME = ['ponedeljak', 'utorak', 'sreda', 'četvrtak', 'petak', 'subota', 'nedelja'];
+const WDINSTR = ['ponedeljkom', 'utorkom', 'sredom', 'četvrtkom', 'petkom', 'subotom', 'nedeljom'];
+const TODAY = '2026-10-08';
+const projects = [
+  { id: 'p1', name: 'Redizajn sajta', area: 'Posao' }, { id: 'p2', name: 'Klijentski portal', area: 'Posao' }, { id: 'p3', name: 'Kućni poslovi', area: 'Kuća' },
+];
+const tags = [{ id: 't1', name: 'Klijent', color: '#3BA7F5' }, { id: 't2', name: 'Dizajn', color: '#A38CF0' }, { id: 't3', name: 'Administracija', color: '#F2B544' }, { id: 't4', name: 'Učenje', color: '#8B929C' }];
+const PRI = [['none', 'Bez'], ['low', 'Nizak'], ['medium', 'Srednji'], ['high', 'Visok']];
+const PRICOLOR = { none: '#5B6270', low: '#8FA2FF', medium: 'var(--amber)', high: 'var(--red)' };
+const task = {
+  title: 'Pošalji pregled početne strane', done: false, projectId: 'p1', planned: '2026-10-08', plannedTime: '14:00', due: '2026-10-09', dueTime: '18:00',
+  reminder: { date: '2026-10-08', time: '13:30' }, repeat: null, duration: 60, tagIds: ['t1', 't2'], priority: 'high',
+  subtasks: [{ t: 'Proveri razmake na telefonu', d: true }, { t: 'Izvezi slike pregleda', d: false }, { t: 'Napiši poruku', d: false }],
+  notes: 'Uključi prikaz za telefon i računar.',
+};
+const other = { title: 'Pregledaj početnu stranu', meta: '10:30 · Redizajn sajta' };
+
+const $ = id => document.getElementById(id);
+const parse = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const addDays = (s, n) => { const d = parse(s); d.setDate(d.getDate() + n); return iso(d); };
+const short = s => { const d = parse(s); return `${d.getDate()}. ${SHORT[d.getMonth()]}`; };
+const dateTime = (s, t) => s ? `${short(s)}${t ? ` · ${t}` : ''}` : null;
+const durLabel = m => !m ? null : m < 60 ? `${m} min` : m % 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m / 60} h`;
+const mondayIndex = d => (d.getDay() + 6) % 7;
+
+const ICON = {
+  cal: '<svg width="20" height="20" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M4 10h16M9 3v4M15 3v4" stroke="currentColor" stroke-width="1.8"/></svg>',
+  due: '<svg width="20" height="20" viewBox="0 0 24 24"><path d="M7 3h10M7 21h10M8 3c0 5 8 5 8 9s-8 4-8 9M16 3c0 5-8 5-8 9s8 4 8 9" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>',
+  bell: '<svg width="20" height="20" viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z M10 20a2 2 0 0 0 4 0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>',
+  repeat: '<svg width="20" height="20" viewBox="0 0 24 24"><path d="M4 11V9a3 3 0 0 1 3-3h12l-3-3M20 13v2a3 3 0 0 1-3 3H5l3 3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  timer: '<svg width="20" height="20" viewBox="0 0 24 24"><circle cx="12" cy="13" r="7.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 9v4l2.5 2M10 2.5h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+  folder: '<svg width="20" height="20" viewBox="0 0 24 24"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>',
+  tag: '<svg width="20" height="20" viewBox="0 0 24 24"><path d="M3.5 12.5V5a1.5 1.5 0 0 1 1.5-1.5h7.5l8 8-9 9z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="8" cy="8" r="1.5" fill="currentColor"/></svg>',
+  flag: c => `<svg width="20" height="20" viewBox="0 0 24 24" style="color:${c}"><path d="M5 21V4h11l-2 4 2 4H5" fill="${c === '#5B6270' ? 'none' : 'currentColor'}" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>`,
+  chev: '<svg class="chev" width="18" height="18" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+  search: '<svg width="18" height="18" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M20 20l-4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+  tick: '<svg width="14" height="14" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  file: '<svg width="22" height="22" viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z M14 3v4h4" fill="none" stroke="#F0645A" stroke-width="1.7" stroke-linejoin="round"/></svg>',
+};
+
+function toast(text) { const t = $('toast'); t.textContent = text; t.classList.add('show'); clearTimeout(toast.timer); toast.timer = setTimeout(() => t.classList.remove('show'), 1300); }
+function saved() { renderTask(); renderToday(); toast('Sačuvano'); }
+
+function repeatSummary(r) {
+  if (!r) return null;
+  const every = r.interval > 1;
+  if (r.freq === 'daily') return every ? `Svakih ${r.interval} dana` : 'Svaki dan';
+  if (r.freq === 'weekdays') return 'Radnim danima';
+  if (r.freq === 'weekly') {
+    const days = r.days.length ? r.days.map(i => WDINSTR[i]).join(', ') : WDINSTR[mondayIndex(parse(task.planned || TODAY))];
+    return every ? `Svake ${r.interval}. nedelje, ${days}` : `Svake nedelje, ${days}`;
+  }
+  if (r.freq === 'monthly') return every ? `Svakih ${r.interval} meseci` : 'Svakog meseca';
+  return 'Svake godine';
+}
+function endSummary(r) { return !r || r.end === 'never' ? '' : r.end === 'date' ? ` do ${short(r.endDate)}` : `, ${r.count} puta`; }
+
+function renderToday() {
+  const p = projects.find(x => x.id === task.projectId);
+  const flag = task.priority === 'none' ? '' : ICON.flag(PRICOLOR[task.priority]).replace('width="20" height="20"', 'width="15" height="15"');
+  $('todayList').innerHTML = `
+    <button class="trow"><span class="box"></span><span class="main"><div>${other.title}</div><div class="meta">${other.meta}</div></span></button>
+    <button class="trow" id="openTask"><span class="box ${task.done ? 'on' : ''}">${task.done ? ICON.tick : ''}</span><span class="main"><div class="${task.done ? 'done-title' : ''}">${task.title}</div><div class="meta">${[task.plannedTime, p && p.name].filter(Boolean).join(' · ')}</div></span><span class="side">${flag}${task.due ? `<span>Rok ${short(task.due)}</span>` : ''}</span></button>`;
+  $('openTask').onclick = () => open('task');
+}
+
+function row(key, icon, label, value) {
+  return `<button class="prow" data-pick="${key}">${icon}<span class="lbl">${label}</span><span class="val ${value ? 'set' : ''}">${value || 'Nije podešeno'}</span>${ICON.chev}</button>`;
+}
+
+function renderTask() {
+  const p = projects.find(x => x.id === task.projectId);
+  const tagNames = tags.filter(t => task.tagIds.includes(t.id)).map(t => t.name).join(', ');
+  const doneCount = task.subtasks.filter(s => s.d).length;
+  $('taskBody').innerHTML = `
+    <div class="ttl"><textarea id="title" rows="2" aria-label="Naslov">${task.title}</textarea></div>
+    ${p ? `<button class="plink" data-pick="project">${ICON.folder}${p.name}</button>` : `<button class="plink" data-pick="project">${ICON.folder}Bez projekta</button>`}
+    <div class="glabel">Planiranje</div>
+    <div class="card">
+      ${row('planned', ICON.cal, 'Planirano', dateTime(task.planned, task.plannedTime))}
+      ${row('due', ICON.due, 'Rok', dateTime(task.due, task.dueTime))}
+      ${row('reminder', ICON.bell, 'Podsetnik', task.reminder ? dateTime(task.reminder.date, task.reminder.time) : null)}
+      ${row('repeat', ICON.repeat, 'Ponavljanje', task.repeat ? repeatSummary(task.repeat) + endSummary(task.repeat) : null)}
+      ${row('duration', ICON.timer, 'Trajanje', durLabel(task.duration))}
+    </div>
+    <div class="glabel">Organizacija</div>
+    <div class="card">
+      ${row('project', ICON.folder, 'Projekat', p ? p.name : null)}
+      ${row('tags', ICON.tag, 'Oznake', tagNames || null)}
+      ${row('priority', ICON.flag(PRICOLOR[task.priority]), 'Prioritet', task.priority === 'none' ? null : PRI.find(x => x[0] === task.priority)[1])}
+    </div>
+    <div class="glabel">Podzadaci · ${doneCount}/${task.subtasks.length}</div>
+    <div class="card">
+      ${task.subtasks.map((s, i) => `<button class="sub" data-sub="${i}" style="width:100%;text-align:left"><span class="box ${s.d ? 'on' : ''}">${s.d ? ICON.tick : ''}</span><span class="${s.d ? 'done-title' : ''}">${s.t}</span></button>`).join('')}
+      <div class="sub add">＋ Dodaj podzadatak</div>
+    </div>
+    <div class="glabel">Beleške</div>
+    <textarea class="notes" id="notes">${task.notes}</textarea>
+    <div class="glabel">Prilozi · 1</div>
+    <div class="card"><div class="file">${ICON.file}<span class="main"><div>Pregled-pocetne.pdf</div><div class="meta">PDF · 1,2 MB</div></span></div></div>
+    <button class="more">Više opcija <span>Oblast, ciljevi, šablon ›</span></button>`;
+  $('complete').textContent = task.done ? 'Vrati kao otvoren' : 'Završi zadatak';
+  $('complete').className = `primary ${task.done ? 'done' : ''}`;
+  $('title').oninput = e => { task.title = e.target.value; renderToday(); };
+  $('notes').oninput = e => { task.notes = e.target.value; };
+  document.querySelectorAll('[data-pick]').forEach(b => b.onclick = () => openPicker(b.dataset.pick));
+  document.querySelectorAll('[data-sub]').forEach(b => b.onclick = () => { const s = task.subtasks[b.dataset.sub]; s.d = !s.d; saved(); });
+}
+$('complete').onclick = () => { task.done = !task.done; saved(); };
+
+function open(id) { $(id).classList.add('show'); $(id === 'task' ? 'dimTask' : 'dimPicker').classList.add('show'); }
+function close(id) { $(id).classList.remove('show'); $(id === 'task' ? 'dimTask' : 'dimPicker').classList.remove('show'); }
+document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => close(b.dataset.close));
+$('dimPicker').onclick = () => close('picker');
+$('dimTask').onclick = () => close('task');
+
+// ---- pickers -------------------------------------------------------------
+let draft = {};
+function monthGrid(selected, view, onPick) {
+  const first = new Date(view.y, view.m, 1);
+  const days = new Date(view.y, view.m + 1, 0).getDate();
+  let html = `<div class="cal"><div class="calhead"><button data-mv="-1">‹</button><span>${MONTHS[view.m][0].toUpperCase() + MONTHS[view.m].slice(1)} ${view.y}</span><button data-mv="1">›</button></div><div class="grid">${WD.map(w => `<div class="wd">${w}</div>`).join('')}`;
+  html += '<div></div>'.repeat(mondayIndex(first));
+  for (let d = 1; d <= days; d++) {
+    const s = iso(new Date(view.y, view.m, d));
+    html += `<button class="day ${s === selected ? 'sel' : ''} ${s === TODAY ? 'today' : ''}" data-day="${s}"><span>${d}</span></button>`;
+  }
+  return html + '</div></div>';
+}
+function bindGrid(view, onPick, rerender) {
+  document.querySelectorAll('[data-mv]').forEach(b => b.onclick = () => { view.m += Number(b.dataset.mv); if (view.m < 0) { view.m = 11; view.y--; } if (view.m > 11) { view.m = 0; view.y++; } rerender(); });
+  document.querySelectorAll('[data-day]').forEach(b => b.onclick = () => { onPick(b.dataset.day); rerender(); });
+}
+function nextMonday() { const d = parse(TODAY); d.setDate(d.getDate() + ((7 - mondayIndex(d)) % 7 || 7)); return iso(d); }
+
+function datePicker(kind) {
+  const isPlan = kind === 'planned';
+  draft = { date: isPlan ? task.planned : task.due, time: isPlan ? task.plannedTime : task.dueTime };
+  const view = { y: parse(draft.date || TODAY).getFullYear(), m: parse(draft.date || TODAY).getMonth() };
+  const render = () => {
+    const quick = [['Danas', TODAY], ['Sutra', addDays(TODAY, 1)], ['Sledeće nedelje', nextMonday()]];
+    const otherText = isPlan ? (task.due ? `Rok ostaje isti: ${dateTime(task.due, task.dueTime)}` : 'Rok nije postavljen.') : (task.planned ? `Planirano ostaje isto: ${dateTime(task.planned, task.plannedTime)}` : 'Planirani datum nije postavljen.');
+    $('pickerBody').innerHTML = `
+      <div class="chips">${quick.map(([l, d]) => `<button class="chip ${draft.date === d ? 'on' : ''}" data-q="${d}">${l}</button>`).join('')}</div>
+      ${monthGrid(draft.date, view)}
+      <label class="field">${ICON.timer}<span class="lbl">Vreme</span><input type="time" id="tm" value="${draft.time || ''}"></label>
+      <p class="note">${otherText}</p>
+      <div class="split"><button class="ghost" id="clear">Ukloni datum</button><button class="primary" id="apply">Primeni</button></div>`;
+    document.querySelectorAll('[data-q]').forEach(b => b.onclick = () => { draft.date = b.dataset.q; const d = parse(draft.date); view.y = d.getFullYear(); view.m = d.getMonth(); render(); });
+    bindGrid(view, d => { draft.date = d; }, render);
+    $('tm').onchange = e => { draft.time = e.target.value; };
+    $('clear').onclick = () => { if (isPlan) { task.planned = null; task.plannedTime = null; } else { task.due = null; task.dueTime = null; } close('picker'); saved(); };
+    $('apply').onclick = () => { if (isPlan) { task.planned = draft.date; task.plannedTime = draft.time || null; } else { task.due = draft.date; task.dueTime = draft.time || null; } close('picker'); saved(); };
+  };
+  return [isPlan ? 'Planirani datum' : 'Rok', render];
+}
+
+function reminderPicker() {
+  draft = task.reminder ? { ...task.reminder } : { date: task.planned || TODAY, time: task.plannedTime || '09:00' };
+  const base = task.planned && task.plannedTime ? new Date(`${task.planned}T${task.plannedTime}`) : null;
+  const shift = (minutes) => { const d = new Date(base.getTime() - minutes * 60000); return { date: iso(d), time: `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` }; };
+  const render = () => {
+    const presets = base ? [['U vreme plana', shift(0)], ['15 min pre', shift(15)], ['1 h pre', shift(60)], ['Dan pre u 9:00', { date: addDays(task.planned, -1), time: '09:00' }]] : [];
+    $('pickerBody').innerHTML = `
+      <p class="note" style="margin-top:-4px">${task.title}</p>
+      ${presets.length ? `<div class="chips">${presets.map(([l, v], i) => `<button class="chip ${draft.date === v.date && draft.time === v.time ? 'on' : ''}" data-p="${i}">${l}</button>`).join('')}</div>` : '<p class="note">Brzi izbori se pojavljuju kad zadatak ima planirano vreme.</p>'}
+      <label class="field">${ICON.cal}<span class="lbl">Datum</span><input type="date" id="rd" value="${draft.date}"></label>
+      <label class="field">${ICON.timer}<span class="lbl">Vreme</span><input type="time" id="rt" value="${draft.time}"></label>
+      <p class="note">Podseti me ${short(draft.date)} u ${draft.time}</p>
+      <div class="glabel" style="margin-top:4px">Datumi zadatka</div>
+      <div class="card" style="margin-bottom:14px">
+        <div class="prow">${ICON.cal}<span class="lbl">Planirano</span><span class="val">${dateTime(task.planned, task.plannedTime) || '—'}</span></div>
+        <div class="prow">${ICON.due}<span class="lbl">Rok</span><span class="val">${dateTime(task.due, task.dueTime) || '—'}</span></div>
+      </div>
+      <div class="split"><button class="ghost" id="clear">Ukloni podsetnik</button><button class="primary" id="apply">Primeni</button></div>`;
+    document.querySelectorAll('[data-p]').forEach(b => b.onclick = () => { draft = { ...presets[b.dataset.p][1] }; render(); });
+    $('rd').onchange = e => { draft.date = e.target.value; render(); };
+    $('rt').onchange = e => { draft.time = e.target.value; render(); };
+    $('clear').onclick = () => { task.reminder = null; close('picker'); saved(); };
+    $('apply').onclick = () => { task.reminder = { ...draft }; close('picker'); saved(); };
+  };
+  return ['Podsetnik', render];
+}
+
+function repeatPicker() {
+  draft = task.repeat ? JSON.parse(JSON.stringify(task.repeat)) : { freq: 'weekly', interval: 1, days: [mondayIndex(parse(task.planned || TODAY))], end: 'never', endDate: addDays(TODAY, 90), count: 10 };
+  const render = () => {
+    const presets = [['Svaki dan', { freq: 'daily', interval: 1 }], ['Radnim danima', { freq: 'weekdays', interval: 1 }], ['Svake nedelje', { freq: 'weekly', interval: 1 }], ['Svakog meseca', { freq: 'monthly', interval: 1 }]];
+    const unit = { daily: 'dana', weekdays: '', weekly: 'nedelje', monthly: 'meseca', yearly: 'godine' }[draft.freq];
+    $('pickerBody').innerHTML = `
+      <p class="note" style="margin-top:-4px">${task.title}</p>
+      <div class="chips">${presets.map(([l, v], i) => `<button class="chip ${draft.freq === v.freq && draft.interval === 1 ? 'on' : ''}" data-p="${i}">${l}</button>`).join('')}</div>
+      <label class="field"><span class="lbl">Učestalost</span><select id="fq" style="background:#1F232A;color:var(--text);border:1px solid #2C3139;border-radius:8px;padding:6px">${[['daily', 'Dnevno'], ['weekdays', 'Radnim danima'], ['weekly', 'Nedeljno'], ['monthly', 'Mesečno'], ['yearly', 'Godišnje']].map(([v, l]) => `<option value="${v}" ${draft.freq === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+      ${draft.freq === 'weekdays' ? '' : `<label class="field"><span class="lbl">Na svakih</span><input type="number" min="1" max="99" id="iv" value="${draft.interval}"><span class="meta">${unit}</span></label>`}
+      ${draft.freq === 'weekly' ? `<div class="wdays">${WD.map((w, i) => `<button class="${draft.days.includes(i) ? 'on' : ''}" data-wd="${i}" aria-label="${WDNAME[i]}">${w}</button>`).join('')}</div>` : ''}
+      <p class="note">${repeatSummary(draft)}${endSummary(draft)}</p>
+      <div class="glabel">Kraj</div>
+      <div class="card" style="margin-bottom:14px">
+        <div class="opt" role="button" tabindex="0" data-end="never"><span class="radio ${draft.end === 'never' ? 'on' : ''}"></span><span class="lbl">Nikad</span></div>
+        <div class="opt" role="button" tabindex="0" data-end="date"><span class="radio ${draft.end === 'date' ? 'on' : ''}"></span><span class="lbl">Na datum</span>${draft.end === 'date' ? `<input type="date" id="ed" value="${draft.endDate}" style="background:#1F232A;border:1px solid #2C3139;border-radius:8px;padding:6px;color-scheme:dark">` : ''}</div>
+        <div class="opt" role="button" tabindex="0" data-end="count"><span class="radio ${draft.end === 'count' ? 'on' : ''}"></span><span class="lbl">Posle broja ponavljanja</span>${draft.end === 'count' ? `<input type="number" min="1" id="ec" value="${draft.count}" style="width:64px;background:#1F232A;border:1px solid #2C3139;border-radius:8px;padding:6px">` : ''}</div>
+      </div>
+      <div class="split"><button class="ghost" id="clear">Ne ponavlja se</button><button class="primary" id="apply">Primeni</button></div>`;
+    document.querySelectorAll('[data-p]').forEach(b => b.onclick = () => { Object.assign(draft, presets[b.dataset.p][1]); render(); });
+    $('fq').onchange = e => { draft.freq = e.target.value; render(); };
+    if ($('iv')) $('iv').onchange = e => { draft.interval = Math.max(1, Number(e.target.value) || 1); render(); };
+    document.querySelectorAll('[data-wd]').forEach(b => b.onclick = () => { const i = Number(b.dataset.wd); draft.days = draft.days.includes(i) ? draft.days.filter(x => x !== i) : [...draft.days, i].sort(); render(); });
+    document.querySelectorAll('[data-end]').forEach(b => b.onclick = e => { if (e.target.tagName === 'INPUT') return; draft.end = b.dataset.end; render(); });
+    if ($('ed')) $('ed').onchange = e => { draft.endDate = e.target.value; render(); };
+    if ($('ec')) $('ec').onchange = e => { draft.count = Math.max(1, Number(e.target.value) || 1); render(); };
+    $('clear').onclick = () => { task.repeat = null; close('picker'); saved(); };
+    $('apply').onclick = () => { task.repeat = JSON.parse(JSON.stringify(draft)); close('picker'); saved(); };
+  };
+  return ['Ponavljanje', render];
+}
+
+function durationPicker() {
+  const render = () => {
+    $('pickerBody').innerHTML = `
+      <div class="chips">${[15, 30, 45, 60, 90, 120].map(m => `<button class="chip ${task.duration === m ? 'on' : ''}" data-m="${m}">${durLabel(m)}</button>`).join('')}</div>
+      <p class="note">Dodir odmah postavlja trajanje. Trajanje se vidi u kalendaru (Raspored).</p>
+      <button class="ghost" id="clear">Ukloni trajanje</button>`;
+    document.querySelectorAll('[data-m]').forEach(b => b.onclick = () => { task.duration = Number(b.dataset.m); close('picker'); saved(); });
+    $('clear').onclick = () => { task.duration = null; close('picker'); saved(); };
+  };
+  return ['Trajanje', render];
+}
+
+function projectPicker() {
+  let q = '';
+  const render = () => {
+    const list = projects.filter(p => p.name.toLowerCase().includes(q.toLowerCase()));
+    $('pickerBody').innerHTML = `
+      <label class="search">${ICON.search}<input id="q" placeholder="Pretraži projekte" value="${q}"></label>
+      <div class="card" style="margin-bottom:10px">
+        <button class="opt" data-pid=""><span class="lbl">Bez projekta</span><span class="radio ${!task.projectId ? 'on' : ''}"></span></button>
+        ${list.map(p => `<button class="opt" data-pid="${p.id}">${ICON.folder}<span class="lbl">${p.name}<small>Oblast: ${p.area}</small></span><span class="radio ${task.projectId === p.id ? 'on' : ''}"></span></button>`).join('')}
+        <button class="opt" style="color:var(--link)">＋ Novi projekat</button>
+      </div>
+      <p class="note">Zadatak dobija oblast svog projekta. Dodir na projekat ga odmah primenjuje.</p>`;
+    const input = $('q'); input.oninput = e => { q = e.target.value; render(); const again = $('q'); again.focus(); again.setSelectionRange(q.length, q.length); };
+    document.querySelectorAll('[data-pid]').forEach(b => b.onclick = () => { task.projectId = b.dataset.pid || null; close('picker'); saved(); });
+  };
+  return ['Projekat', render];
+}
+
+function tagPicker() {
+  draft = { ids: [...task.tagIds] }; let q = '';
+  const render = () => {
+    const list = tags.filter(t => t.name.toLowerCase().includes(q.toLowerCase()));
+    $('pickerBody').innerHTML = `
+      <label class="search">${ICON.search}<input id="q" placeholder="Pretraži oznake" value="${q}"></label>
+      <div class="card" style="margin-bottom:14px">
+        ${list.map(t => `<button class="opt" data-tid="${t.id}"><span class="dot" style="background:${t.color}"></span><span class="lbl">${t.name}</span><span class="check ${draft.ids.includes(t.id) ? 'on' : ''}">${draft.ids.includes(t.id) ? ICON.tick : ''}</span></button>`).join('')}
+        <button class="opt" style="color:var(--link)">＋ Nova oznaka${q ? ` „${q}“` : ''}</button>
+      </div>
+      <button class="primary" id="apply">Primeni</button>`;
+    const input = $('q'); input.oninput = e => { q = e.target.value; render(); const again = $('q'); again.focus(); again.setSelectionRange(q.length, q.length); };
+    document.querySelectorAll('[data-tid]').forEach(b => b.onclick = () => { const id = b.dataset.tid; draft.ids = draft.ids.includes(id) ? draft.ids.filter(x => x !== id) : [...draft.ids, id]; render(); });
+    $('apply').onclick = () => { task.tagIds = draft.ids; close('picker'); saved(); };
+  };
+  return ['Oznake', render];
+}
+
+function priorityPicker() {
+  const render = () => {
+    $('pickerBody').innerHTML = `
+      <div class="card" style="margin-bottom:10px">${PRI.map(([v, l]) => `<button class="opt" data-pr="${v}">${ICON.flag(PRICOLOR[v])}<span class="lbl">${l}</span><span class="radio ${task.priority === v ? 'on' : ''}"></span></button>`).join('')}</div>
+      <p class="note">Prioritet ne menja redosled zadataka. Dodir ga odmah primenjuje.</p>`;
+    document.querySelectorAll('[data-pr]').forEach(b => b.onclick = () => { task.priority = b.dataset.pr; close('picker'); saved(); });
+  };
+  return ['Prioritet', render];
+}
+
+function openPicker(kind) {
+  const [title, render] = ({ planned: () => datePicker('planned'), due: () => datePicker('due'), reminder: reminderPicker, repeat: repeatPicker, duration: durationPicker, project: projectPicker, tags: tagPicker, priority: priorityPicker })[kind]();
+  $('pickerTitle').textContent = title;
+  render();
+  open('picker');
+}
+
+renderToday();
+renderTask();
+open('task');
+</script>
+</body>
+</html>

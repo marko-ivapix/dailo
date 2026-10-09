@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="sr-Latn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Navike — Dan i Nedelja</title>
+<style>
+  :root {
+    --page: #08090B; --bg: #0F1114; --card: #16191E; --line: #242830; --grid: #23272E; --text: #E8EAED; --muted: #8B929C;
+    --blue: #2A47FF; --link: #8FA2FF; --green: #34C77B; --red: #F0645A;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--text); font: 15px/1.35 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 16px; }
+  .top { max-width: 390px; margin: 0 auto 12px; color: var(--muted); font-size: 13.5px; }
+  .top b { color: var(--text); }
+  button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+  .phone { position: relative; max-width: 390px; margin: 0 auto; background: var(--bg); border: 1px solid var(--line); border-radius: 34px; padding: 14px 16px 104px; overflow: hidden; }
+  .status { display: flex; justify-content: space-between; font-size: 13px; font-weight: 600; padding: 0 6px 12px; }
+  .titlebar { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 12px; }
+  .titlebar h1 { margin: 0; font-size: 30px; letter-spacing: -.5px; }
+  .titlebar span { color: var(--muted); font-size: 13.5px; padding-bottom: 6px; }
+  .seg { display: flex; border: 1px solid var(--line); border-radius: 10px; padding: 3px; background: #121418; margin-bottom: 4px; }
+  .seg button { flex: 1; text-align: center; font-size: 14px; padding: 7px; border-radius: 8px; color: var(--muted); }
+  .seg button.on { background: #262B33; color: var(--text); font-weight: 600; }
+  .section { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14.5px; margin: 16px 2px 8px; }
+  .section span { color: var(--muted); font-weight: 500; }
+  .section svg { color: var(--muted); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+  .row { display: flex; align-items: center; gap: 12px; padding: 9px 14px; min-height: 54px; width: 100%; text-align: left; }
+  .row + .row { border-top: 1px solid var(--line); }
+  .main { flex: 1; min-width: 0; }
+  .name { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .meta { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .done .name { color: var(--muted); }
+  .circle { width: 26px; height: 26px; flex: none; }
+
+  .grid { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 6px 10px 8px; }
+  .ghead, .grow { display: grid; grid-template-columns: minmax(0, 1fr) repeat(7, 30px); align-items: center; column-gap: 1px; }
+  .ghead { color: var(--muted); font-size: 11.5px; text-align: center; padding: 4px 0 6px; }
+  .ghead b { color: var(--text); }
+  .grow { min-height: 40px; }
+  .gname { font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 6px; }
+  .glabel { color: var(--muted); font-size: 11.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; padding: 8px 0 2px; }
+  .cell { width: 24px; height: 24px; border-radius: 50%; justify-self: center; display: grid; place-items: center; }
+  .cell.d { background: var(--green); }
+  .cell.m { border: 2px solid #5A3A3C; }
+  .cell.s { border: 2px dashed #5B6270; }
+  .cell.o { border: 2px solid #4A505A; }
+  .cell.f { border: 2px solid #23272E; cursor: default; }
+  .cell.n { width: 8px; height: 2px; border-radius: 1px; background: #2C3139; cursor: default; }
+  .cell.today { box-shadow: 0 0 0 2px var(--card), 0 0 0 3.5px var(--link); }
+  .legend { display: flex; gap: 12px; flex-wrap: wrap; color: var(--muted); font-size: 11.5px; margin: 8px 2px 0; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: -1px; margin-right: 4px; }
+
+  .card.week { margin-bottom: 12px; }
+  .rings { display: grid; grid-template-columns: repeat(7, 1fr); padding: 10px 6px 8px; text-align: center; }
+  .rings button { display: grid; justify-items: center; gap: 4px; color: var(--muted); font-size: 12px; padding: 4px 0 5px; border-radius: 12px; }
+  .rings button.today { color: var(--text); font-weight: 600; }
+  .rings button.sel { background: #222730; }
+  .rings button:disabled { cursor: default; }
+  .dayhead { color: var(--muted); font-size: 13px; margin: 14px 2px -6px; }
+  .dayhead b { color: var(--text); font-weight: 600; }
+  .ring text { font-size: 11px; font-weight: 600; fill: var(--text); }
+  .ring text.na { fill: var(--muted); font-weight: 500; }
+  .ring tspan.pct { font-size: 8px; font-weight: 500; fill: var(--muted); }
+
+  .hbar { display: grid; grid-template-columns: minmax(0, 1fr) 44px; gap: 4px 10px; align-items: center; padding: 8px 14px; }
+  .hbar + .hbar { border-top: 1px solid var(--line); }
+  .hbar .name { font-size: 14px; }
+  .hbar .count { color: var(--muted); font-size: 12.5px; text-align: right; font-variant-numeric: tabular-nums; }
+  .hbar .track { grid-column: 1 / -1; height: 6px; border-radius: 3px; background: #2C3139; overflow: hidden; }
+  .hbar .fill { height: 100%; border-radius: 3px; background: var(--green); }
+  .chart { padding: 12px 12px 8px; position: relative; }
+  .chart-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+  .chart-head strong { font-size: 22px; }
+  .month { display: flex; align-items: center; gap: 2px; font-size: 14px; font-weight: 600; }
+  .month span { min-width: 104px; text-align: center; }
+  .month button { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 8px; color: var(--muted); }
+  .month button:disabled { opacity: .3; cursor: default; }
+  .chart-head span { color: var(--muted); font-size: 12.5px; }
+  .chart svg { display: block; width: 100%; height: auto; touch-action: none; }
+  .axis { font-size: 10px; fill: var(--muted); }
+  .tip { position: absolute; pointer-events: none; background: #262B33; border: 1px solid #333943; border-radius: 8px; padding: 5px 8px; font-size: 12px; white-space: nowrap; opacity: 0; transform: translate(-50%, -100%); }
+  .tip strong { display: block; font-size: 14px; }
+  .tip.show { opacity: 1; }
+  .collapsed { display: flex; align-items: center; gap: 8px; color: var(--muted); margin: 16px 4px 0; font-size: 14px; }
+  .fab { position: absolute; right: 16px; bottom: 82px; width: 56px; height: 56px; border-radius: 50%; background: var(--blue); display: grid; place-items: center; box-shadow: 0 6px 18px rgba(0, 0, 0, .45); }
+  .nav { position: absolute; left: 0; right: 0; bottom: 0; height: 70px; border-top: 1px solid var(--line); background: #121418; display: grid; grid-template-columns: repeat(6, 1fr); padding: 8px 4px 14px; }
+  .nav div { display: grid; justify-items: center; gap: 3px; font-size: 10.5px; color: var(--muted); }
+  .nav div.on { color: var(--link); }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+</style>
+</head>
+<body>
+<p class="top"><b>Prototip: Navike sa krugovima nedelje na vrhu, „Dan / Nedelja“ i napretkom ispod.</b> Dodirni krug nedelje na vrhu da otvoriš taj dan u „Dan“. Na „Dan“ dodirni krug navike da je označiš. Na „Nedelja“ dodirni krug za bilo koji prošli dan. Krugovi, trake i grafikon se odmah menjaju. Strelice na grafikonu menjaju mesec; pređi prstom ili mišem za vrednost dana.</p>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="tick" viewBox="0 0 24 24"><path d="M6 12.5l4 4 8-9" fill="none" stroke="#0F1114" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="day" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="4" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8.5 12.2l2.4 2.4 4.6-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="moon" viewBox="0 0 24 24"><path d="M19 14.5A7.5 7.5 0 1 1 9.5 5a6 6 0 0 0 9.5 9.5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
+    <symbol id="chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/></symbol>
+    <symbol id="i-today" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M4 10h16M9 3v4M15 3v4" stroke="currentColor" stroke-width="1.8"/></symbol>
+    <symbol id="i-inbox" viewBox="0 0 24 24"><path d="M4 13l2.5-7h11L20 13v6H4z M4 13h5l1 2h4l1-2h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
+    <symbol id="i-tasks" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8.5 12.2l2.4 2.4 4.6-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="i-cal" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M4 10h16M9 3v4M15 3v4M8 14h2M12 14h2M8 17h2" stroke="currentColor" stroke-width="1.8"/></symbol>
+    <symbol id="i-habits" viewBox="0 0 24 24"><path d="M6 20V12M12 20V5M18 20v-9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-more" viewBox="0 0 24 24"><circle cx="6" cy="12" r="1.7" fill="currentColor"/><circle cx="12" cy="12" r="1.7" fill="currentColor"/><circle cx="18" cy="12" r="1.7" fill="currentColor"/></symbol>
+  </defs>
+</svg>
+
+<div class="phone">
+  <div class="status"><span>09:41</span><span>•••</span></div>
+  <div class="titlebar"><h1>Navike</h1><span id="todayCount"></span></div>
+  <div class="card week">
+    <div class="rings" id="rings" role="group" aria-label="Ova nedelja, urađeno od planiranog"></div>
+  </div>
+  <div class="seg" role="tablist"><button class="on" data-tab="day" role="tab">Dan</button><button data-tab="week" role="tab">Nedelja</button></div>
+  <div id="view"></div>
+
+  <div class="section">Napredak</div>
+  <div class="card">
+    <div class="meta" style="padding:10px 14px 2px">Po navici · ova nedelja</div>
+    <div id="bars"></div>
+  </div>
+  <div class="card" style="margin-top:10px">
+    <div class="chart" id="chartBox">
+      <div class="chart-head"><div><strong id="avg"></strong> <span>prosek</span></div><div class="month"><button id="prevMonth" aria-label="Prethodni mesec"><svg width="18" height="18" style="transform:scaleX(-1)"><use href="#chev"/></svg></button><span id="monthLabel"></span><button id="nextMonth" aria-label="Sledeći mesec"><svg width="18" height="18"><use href="#chev"/></svg></button></div></div>
+      <svg id="chart" viewBox="0 0 320 150" role="img" aria-labelledby="chartTitle"><title id="chartTitle"></title></svg>
+      <div class="tip" id="tip"></div>
+      <table class="sr" id="chartTable"></table>
+    </div>
+  </div>
+  <div class="collapsed"><svg width="16" height="16"><use href="#chev"/></svg>Pauzirane · 1</div>
+
+  <div class="fab"><svg width="26" height="26"><use href="#plus"/></svg></div>
+  <nav class="nav">
+    <div><svg width="22" height="22"><use href="#i-today"/></svg>Danas</div>
+    <div><svg width="22" height="22"><use href="#i-inbox"/></svg>Inbox</div>
+    <div><svg width="22" height="22"><use href="#i-tasks"/></svg>Zadaci</div>
+    <div><svg width="22" height="22"><use href="#i-cal"/></svg>Kalendar</div>
+    <div class="on"><svg width="22" height="22"><use href="#i-habits"/></svg>Navike</div>
+    <div><svg width="22" height="22"><use href="#i-more"/></svg>Još</div>
+  </nav>
+</div>
+
+<script>
+// This week Mon..Sun = 5..11 Oct; today is Thursday (index 3).
+// d done, m missed, s skipped, o open (today, not yet done), f future, n not scheduled.
+const TODAY = 3;
+const DAYS = ['P', 'U', 'S', 'Č', 'P', 'S', 'N'];
+const DATES = [5, 6, 7, 8, 9, 10, 11];
+const ROUTINES = [['Jutro', 'sun'], ['Dan', 'day'], ['Veče', 'moon']];
+const habits = [
+  { name: 'Voda 2 l', routine: 0, freq: 'Svaki dan', streak: 12, week: 'd d d d f f f' },
+  { name: 'Meditacija 10 min', routine: 0, freq: 'Svaki dan', streak: 3, week: 'd m d o f f f' },
+  { name: 'Teretana', routine: 1, freq: '4× nedeljno', weekly: 4, week: 'd n d o f f f' },
+  { name: 'Engleski 15 min', routine: 1, freq: 'Radnim danima', streak: 8, week: 'd d s o f n n' },
+  { name: 'Čitanje 20 min', routine: 2, freq: 'Svaki dan', streak: 21, week: 'd d d d f f f' },
+  { name: 'Šetnja', routine: 2, freq: 'Svaki dan', streak: 1, week: 'm m d o f f f' },
+].map(h => ({ ...h, week: h.week.split(' ') }));
+// Completion % per day: September in full and 1–4 October; 5–8 October come from this week's state.
+const SEP = [67, 50, 83, 67, 50, 33, 67, 83, 50, 67, 83, 67, 100, 83, 50, 67, 83, 100, 83, 67, 33, 50, 67, 83, 100, 100, 83, 67, 50, 67];
+const OCT = [83, 100, 83, 67];
+const MONTHS = [{ name: 'Septembar 2026', short: 'sep', days: 30 }, { name: 'Oktobar 2026', short: 'okt', days: 31 }];
+let tab = 'day';
+let month = 1;
+// The day shown in Dan; opening the screen always starts at today.
+let selected = TODAY;
+const DAY_NAMES = ['Ponedeljak', 'Utorak', 'Sreda', 'Četvrtak', 'Petak', 'Subota', 'Nedelja'];
+
+const $ = id => document.getElementById(id);
+const dayPct = i => {
+  if (i > TODAY) return null;
+  const planned = habits.filter(h => ['d', 'm', 'o'].includes(h.week[i]));
+  return planned.length ? Math.round(planned.filter(h => h.week[i] === 'd').length / planned.length * 100) : null;
+};
+// One value per day of the month; days after today have none.
+const series = () => month === 0 ? SEP : [...OCT, ...[0, 1, 2, 3].map(dayPct)];
+
+function circle(state, weekly, count) {
+  if (state === 'd') return '<svg class="circle" viewBox="0 0 28 28"><circle cx="14" cy="14" r="12.5" fill="#34C77B"/><path d="M8.5 14.5l3.5 3.5 7.5-8" fill="none" stroke="#0F1114" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  if (state === 's') return '<svg class="circle" viewBox="0 0 28 28"><circle cx="14" cy="14" r="11" fill="none" stroke="#5B6270" stroke-width="2.5" stroke-dasharray="4 3.4"/></svg>';
+  const arc = weekly ? `<circle cx="14" cy="14" r="11" fill="none" stroke="#34C77B" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="${(count / weekly * 69.1).toFixed(1)} 69.1" transform="rotate(-90 14 14)"/>` : '';
+  return `<svg class="circle" viewBox="0 0 28 28"><circle cx="14" cy="14" r="11" fill="none" stroke="${weekly ? '#3A3F48' : '#4A505A'}" stroke-width="2.5"/>${arc}</svg>`;
+}
+
+function renderDay() {
+  const i = selected;
+  const order = (a, b) => (a.week[i] === 'd') - (b.week[i] === 'd');
+  // A past day says which day it is; tapping today's ring returns to today.
+  const head = i === TODAY ? '' : `<div class="dayhead"><b>${DAY_NAMES[i]}, ${DATES[i]}. oktobar</b></div>`;
+  return head + ROUTINES.map(([title, icon], r) => {
+    const list = habits.filter(h => h.routine === r && h.week[i] !== 'n').sort(order);
+    if (!list.length) return '';
+    return `<div class="section"><svg width="16" height="16"><use href="#${icon}"/></svg>${title} <span>· ${list.length}</span></div><div class="card">${list.map(h => {
+      const state = h.week[i];
+      const done = state === 'd';
+      const count = h.week.filter(s => s === 'd').length;
+      const streak = h.streak + (h.week[TODAY] === 'd' ? 1 : 0);
+      const meta = state === 's' ? `${h.freq} · preskočeno`
+        : h.weekly ? `${h.freq} · ${count}/${h.weekly} ove nedelje`
+        : i === TODAY ? `${h.freq} · niz ${streak} ${streak === 1 ? 'dan' : 'dana'}`
+        : state === 'm' ? `${h.freq} · propušteno` : h.freq;
+      return `<button class="row ${done ? 'done' : ''}" data-h="${habits.indexOf(h)}" data-i="${i}" aria-pressed="${done}">${circle(state, h.weekly, count)}<span class="main"><div class="name">${h.name}</div><div class="meta">${meta}</div></span></button>`;
+    }).join('')}</div>`;
+  }).join('');
+}
+
+function renderWeek() {
+  const head = `<div class="ghead"><span></span>${DAYS.map((d, i) => i === TODAY ? `<b>${d}<br>${DATES[i]}</b>` : `<span>${d}<br>${DATES[i]}</span>`).join('')}</div>`;
+  const rows = ROUTINES.map(([title], r) => `<div class="glabel">${title}</div>` + habits.filter(h => h.routine === r).map(h => `<div class="grow"><span class="gname">${h.name}</span>${h.week.map((s, i) => `<button class="cell ${s}${i === TODAY ? ' today' : ''}" data-h="${habits.indexOf(h)}" data-i="${i}" ${['f', 'n'].includes(s) ? 'disabled' : ''} aria-label="${h.name}, ${DATES[i]}. okt">${s === 'd' ? '<svg width="14" height="14"><use href="#tick"/></svg>' : ''}</button>`).join('')}</div>`).join('')).join('');
+  return `<div class="section" style="margin-top:12px">5–11. oktobar</div><div class="grid">${head}${rows}</div><div class="legend"><span><i style="background:var(--green)"></i>urađeno</span><span><i style="border:2px solid #5A3A3C"></i>propušteno</span><span><i style="border:2px dashed #5B6270"></i>preskočeno</span><span><i style="background:#2C3139;height:2px;border-radius:1px"></i>nije u planu</span></div>`;
+}
+
+function renderRings() {
+  $('rings').innerHTML = DAYS.map((d, i) => {
+    const pct = dayPct(i);
+    const arc = pct ? `<circle cx="22" cy="22" r="18" fill="none" stroke="#34C77B" stroke-width="4" stroke-linecap="round" stroke-dasharray="${(pct / 100 * 113.1).toFixed(1)} 113.1" transform="rotate(-90 22 22)"/>` : '';
+    // A full ring shows a check instead of "100%".
+    const text = pct === null ? '<text class="na" x="22" y="26" text-anchor="middle">–</text>'
+      : pct === 100 ? '<path d="M17.5 22.3l3 3 6-6.3" fill="none" stroke="#34C77B" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><title>100%</title></path>'
+      : `<text x="22" y="26" text-anchor="middle">${pct}<tspan class="pct">%</tspan></text>`;
+    const cls = [i === TODAY ? 'today' : '', tab === 'day' && i === selected ? 'sel' : ''].join(' ').trim();
+    const label = `${DAY_NAMES[i]}, ${DATES[i]}. oktobar, ${pct === null ? 'nema podataka' : `${pct}%`}`;
+    return `<button class="${cls}" data-day="${i}" ${i > TODAY ? 'disabled' : ''} aria-label="${label}" ${i === selected && tab === 'day' ? 'aria-current="date"' : ''}>${d}<svg class="ring" width="44" height="44" viewBox="0 0 44 44"><circle cx="22" cy="22" r="18" fill="none" stroke="#2C3139" stroke-width="4"/>${arc}${text}</svg><span>${DATES[i]}</span></button>`;
+  }).join('');
+}
+
+// Weekly progress per habit: done this week against the week's plan (a weekly target for X-per-week habits).
+function renderBars() {
+  $('bars').innerHTML = habits.map(h => {
+    const done = h.week.filter(state => state === 'd').length;
+    const planned = h.weekly || h.week.filter(state => !['n', 's'].includes(state)).length;
+    const pct = planned ? Math.min(100, Math.round(done / planned * 100)) : 0;
+    const count = pct === 100 ? '<svg width="14" height="14" viewBox="0 0 24 24" style="vertical-align:-2px"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="#34C77B" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>' : `${done}/${planned}`;
+    return `<div class="hbar"><span class="name">${h.name}</span><span class="count">${count}</span><span class="track" role="img" aria-label="${h.name}: ${done} od ${planned}"><span class="fill" style="display:block;width:${pct}%"></span></span></div>`;
+  }).join('');
+}
+
+function renderChart() {
+  const m = MONTHS[month];
+  const values = series();
+  const last = values.length - 1;
+  const W = 320, H = 150, L = 30, R = 10, T = 10, B = 22;
+  const x = i => L + i * (W - L - R) / (m.days - 1);
+  const y = v => T + (100 - v) / 100 * (H - T - B);
+  const dateLabel = i => `${i + 1}. ${m.short}`;
+  const pts = values.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`);
+  const avg = Math.round(values.reduce((a, b) => a + b, 0) / values.length);
+  $('avg').textContent = `${avg}%`;
+  $('monthLabel').textContent = m.name;
+  $('prevMonth').disabled = month === 0;
+  $('nextMonth').disabled = month === MONTHS.length - 1;
+  const title = `Procenat urađenih navika po danu, ${m.name.toLowerCase()}`;
+  const grid = [0, 50, 100].map(v => `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--grid)" stroke-width="1"/><text class="axis" x="${L - 6}" y="${y(v) + 3}" text-anchor="end">${v}%</text>`).join('');
+  const ticks = [0, 7, 14, 21, m.days - 1].map(i => `<text class="axis" x="${x(i)}" y="${H - 6}" text-anchor="${i === m.days - 1 ? 'end' : i ? 'middle' : 'start'}">${dateLabel(i)}</text>`).join('');
+  // Only today's value is labelled; a past month has no label.
+  const isNow = month === MONTHS.length - 1;
+  const label = isNow ? `<text class="axis" x="${x(last) + 8}" y="${y(values[last]) - 10}" text-anchor="start" style="fill:var(--text);font-weight:600">danas ${values[last]}%</text>` : '';
+  $('chart').innerHTML = `<title id="chartTitle">${title}</title>
+    <defs><linearGradient id="fade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#34C77B" stop-opacity=".28"/><stop offset="1" stop-color="#34C77B" stop-opacity="0"/></linearGradient></defs>
+    ${grid}${ticks}
+    <polygon points="${x(0)},${y(0)} ${pts.join(' ')} ${x(last)},${y(0)}" fill="url(#fade)"/>
+    <polyline points="${pts.join(' ')}" fill="none" stroke="#34C77B" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+    <line id="cross" x1="0" x2="0" y1="${T}" y2="${y(0)}" stroke="#5B6270" stroke-width="1" visibility="hidden"/>
+    <circle id="dot" r="4.5" fill="#34C77B" stroke="#16191E" stroke-width="2" cx="${x(last)}" cy="${y(values[last])}" visibility="${isNow ? 'visible' : 'hidden'}"/>
+    ${label}
+    <rect id="hit" x="${L}" y="0" width="${W - L - R}" height="${H}" fill="transparent"/>`;
+  $('chartTable').innerHTML = `<caption>${m.name}</caption><tr><th>Dan</th><th>Urađeno</th></tr>` + values.map((v, i) => `<tr><td>${dateLabel(i)}</td><td>${v}%</td></tr>`).join('');
+  const svg = $('chart'), tip = $('tip'), cross = $('cross'), dot = $('dot');
+  const move = event => {
+    const box = svg.getBoundingClientRect();
+    if (!box.width) return;
+    const px = (event.clientX - box.left) / box.width * W;
+    // Days after today have no value, so the crosshair stops at the last recorded day.
+    const i = Math.max(0, Math.min(last, Math.round((px - L) / (W - L - R) * (m.days - 1))));
+    cross.setAttribute('x1', x(i)); cross.setAttribute('x2', x(i)); cross.setAttribute('visibility', 'visible');
+    dot.setAttribute('cx', x(i)); dot.setAttribute('cy', y(values[i])); dot.setAttribute('visibility', 'visible');
+    tip.replaceChildren();
+    const strong = document.createElement('strong'); strong.textContent = `${values[i]}%`;
+    tip.append(strong, document.createTextNode(dateLabel(i)));
+    const host = $('chartBox').getBoundingClientRect();
+    tip.style.left = `${box.left - host.left + x(i) / W * box.width}px`;
+    tip.style.top = `${box.top - host.top + y(values[i]) / H * box.height - 8}px`;
+    tip.classList.add('show');
+  };
+  const leave = () => { tip.classList.remove('show'); cross.setAttribute('visibility', 'hidden'); dot.setAttribute('cx', x(last)); dot.setAttribute('cy', y(values[last])); dot.setAttribute('visibility', isNow ? 'visible' : 'hidden'); };
+  $('hit').addEventListener('pointermove', move);
+  $('hit').addEventListener('pointerdown', move);
+  $('hit').addEventListener('pointerleave', leave);
+}
+
+function render() {
+  document.querySelectorAll('[data-tab]').forEach(b => { b.classList.toggle('on', b.dataset.tab === tab); b.setAttribute('aria-selected', b.dataset.tab === tab); });
+  $('view').innerHTML = tab === 'day' ? renderDay() : renderWeek();
+  const planned = habits.filter(h => ['d', 'o'].includes(h.week[TODAY]));
+  $('todayCount').textContent = `${planned.filter(h => h.week[TODAY] === 'd').length} od ${planned.length} danas`;
+  renderRings();
+  renderBars();
+  renderChart();
+  document.querySelectorAll('#view [data-h]').forEach(b => b.onclick = () => {
+    const h = habits[b.dataset.h];
+    const i = b.dataset.i === undefined ? TODAY : Number(b.dataset.i);
+    const s = h.week[i];
+    h.week[i] = s === 'd' ? (i === TODAY ? 'o' : 'm') : 'd';
+    render();
+  });
+  // Tapping a ring opens that day in Dan, from either view.
+  document.querySelectorAll('#rings [data-day]').forEach(b => b.onclick = () => { selected = Number(b.dataset.day); tab = 'day'; render(); });
+}
+document.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { tab = b.dataset.tab; if (tab === 'day') selected = TODAY; render(); });
+$('prevMonth').onclick = () => { month = Math.max(0, month - 1); renderChart(); };
+$('nextMonth').onclick = () => { month = Math.min(MONTHS.length - 1, month + 1); renderChart(); };
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+{
+  "appId": "cloud.ivapix.dailo",
+  "appName": "Dailo",
+  "webDir": "www",
+  "backgroundColor": "#0F1114",
+  "ios": {
+    "contentInset": "never"
+  },
+  "plugins": {
+    "SystemBars": {
+      "insetsHandling": "css",
+      "initialViewportFitValueHint": "cover",
+      "style": "DARK"
+    },
+    "Keyboard": {
+      "resize": "native",
+      "style": "DARK",
+      "resizeOnFullScreen": true
+    },
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_dailo",
+      "iconColor": "#0619FE"
+    }
+  }
+}

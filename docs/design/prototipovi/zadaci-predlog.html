@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="sr-Latn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zadaci — predlog</title>
+<style>
+  :root {
+    --page: #08090B; --bg: #0F1114; --card: #16191E; --card2: #1B1F25; --line: #242830; --text: #E8EAED; --muted: #8B929C;
+    --blue: #2A47FF; --link: #8FA2FF; --green: #34C77B; --amber: #F2A93B; --red: #F0645A;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--text); font: 15px/1.35 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 16px; }
+  .top { max-width: 390px; margin: 0 auto 12px; color: var(--muted); font-size: 13.5px; }
+  .top b { color: var(--text); }
+  .phone { position: relative; max-width: 390px; height: 820px; margin: 0 auto; background: var(--bg); border: 1px solid var(--line); border-radius: 34px; overflow: hidden; }
+  button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
+  svg { flex: none; }
+
+  .screen { position: absolute; inset: 0 0 70px; overflow-y: auto; padding: 16px 16px 96px; background: var(--bg); transition: transform .25s ease; }
+  .screen.off { transform: translateX(100%); }
+  .screen.under { transform: translateX(-30%); }
+  .status { display: flex; justify-content: space-between; font-size: 13px; font-weight: 600; padding: 0 6px 12px; }
+  .titlebar { display: flex; justify-content: space-between; align-items: center; }
+  .h1 { font-size: 30px; font-weight: 700; letter-spacing: -.5px; margin: 0; }
+  .icon-btn { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 50%; color: var(--muted); }
+  .summary { color: var(--muted); font-size: 13.5px; margin: 2px 2px 12px; }
+  .back { display: inline-flex; align-items: center; gap: 2px; color: var(--link); font-size: 16px; min-height: 40px; margin-left: -6px; }
+  .seg { display: flex; border: 1px solid var(--line); border-radius: 10px; padding: 3px; background: #121418; }
+  .seg button { flex: 1; text-align: center; font-size: 14px; padding: 7px 4px; border-radius: 8px; color: var(--muted); }
+  .seg button.on { background: #262B33; color: var(--text); font-weight: 600; }
+  .section { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14.5px; margin: 18px 2px 8px; }
+  .section span { color: var(--muted); font-weight: 500; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+
+  /* Suggestions */
+  .sugg-head { display: flex; align-items: center; gap: 10px; width: 100%; padding: 0 14px; min-height: 48px; }
+  .sugg-head .main { flex: 1; }
+  .sugg-head .count { color: var(--muted); font-size: 14px; }
+  .srow { display: flex; align-items: center; gap: 12px; padding: 8px 14px; min-height: 56px; border-top: 1px solid var(--line); }
+  .srow .main { flex: 1; min-width: 0; }
+  .plan { flex: none; padding: 7px 11px; border-radius: 10px; background: var(--card2); border: 1px solid #2C3139; font-size: 13px; font-weight: 600; }
+  .addall { width: 100%; min-height: 46px; border-top: 1px solid var(--line); color: var(--link); text-align: center; }
+
+  /* Projects */
+  .prj { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 14px; min-height: 60px; }
+  .prj + .prj { border-top: 1px solid var(--line); }
+  .prj .main { flex: 1; min-width: 0; }
+  .prj .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .track { display: block; height: 3px; border-radius: 2px; background: #2C3139; overflow: hidden; margin-top: 7px; }
+  .track i { display: block; height: 100%; border-radius: 2px; }
+  .prj .side { color: var(--muted); font-size: 13px; text-align: right; white-space: nowrap; }
+  .chev { color: #5B6270; }
+  .addrow { display: flex; align-items: center; gap: 12px; width: 100%; padding: 0 14px; min-height: 48px; color: var(--link); border-top: 1px solid var(--line); }
+  .card > .addrow:first-child { border-top: 0; }
+
+  /* Task rows (the Today rows) */
+  .trow { display: flex; align-items: center; gap: 12px; padding: 9px 14px; min-height: 58px; width: 100%; }
+  .trow + .trow, .trow + .addrow { border-top: 1px solid var(--line); }
+  .box { width: 22px; height: 22px; border: 2px solid #4A505A; border-radius: 6px; flex: none; display: grid; place-items: center; }
+  .box.on { background: var(--green); border-color: var(--green); }
+  .main { flex: 1; min-width: 0; }
+  .ttl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .meta { color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+  .side { display: grid; gap: 3px; justify-items: end; font-size: 12px; color: var(--muted); white-space: nowrap; }
+  .side .amber { color: var(--amber); }
+  .side .red { color: var(--red); }
+  .done-title { color: var(--muted); text-decoration: line-through; }
+  .collapsed { display: flex; align-items: center; gap: 8px; color: var(--muted); margin: 16px 4px 0; font-size: 14px; width: 100%; }
+  .note { color: var(--muted); font-size: 13px; margin: 10px 4px 0; }
+  .goal-chip { display: inline-flex; align-items: center; gap: 6px; color: var(--link); font-size: 14px; margin: 4px 0 2px; }
+
+  .fab { position: absolute; right: 16px; bottom: 86px; width: 56px; height: 56px; border-radius: 50%; background: var(--blue); display: grid; place-items: center; box-shadow: 0 6px 18px rgba(0, 0, 0, .45); z-index: 2; }
+  .nav { position: absolute; left: 0; right: 0; bottom: 0; height: 70px; border-top: 1px solid var(--line); background: #121418; display: grid; grid-template-columns: repeat(6, 1fr); padding: 8px 4px 14px; z-index: 1; }
+  .nav div { display: grid; justify-items: center; gap: 3px; font-size: 10.5px; color: var(--muted); }
+  .nav div.on { color: var(--link); }
+
+  .dim { position: absolute; inset: 0; background: rgba(0, 0, 0, .55); opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 4; }
+  .dim.show { opacity: 1; pointer-events: auto; }
+  .sheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 5; background: #14171C; border-top: 1px solid var(--line); border-radius: 22px 22px 0 0; transform: translateY(105%); transition: transform .25s ease; }
+  .sheet.show { transform: none; }
+  .grab { width: 40px; height: 5px; border-radius: 3px; background: #3A3F48; margin: 8px auto 4px; }
+  .shead { display: flex; justify-content: space-between; align-items: center; padding: 6px 18px 10px; }
+  .shead h2 { margin: 0; font-size: 22px; }
+  .sbody { padding: 0 16px 22px; }
+  .x { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; color: var(--muted); }
+  .opt { display: flex; align-items: center; gap: 12px; width: 100%; padding: 0 14px; min-height: 50px; }
+  .opt + .opt { border-top: 1px solid var(--line); }
+  .opt.danger { color: var(--red); }
+  .toast { position: absolute; left: 50%; bottom: 150px; transform: translateX(-50%); background: #262B33; padding: 8px 14px; border-radius: 10px; font-size: 13px; opacity: 0; transition: opacity .2s; z-index: 9; pointer-events: none; white-space: nowrap; }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<p class="top"><b>Predlog: ekran Zadaci.</b> Gore su „Predlozi za danas“ (dodirni da otvoriš). „Kad stignem / Projekti“ menja prikaz. Dodirni projekat da ga otvoriš, a „‹ Zadaci“ da se vratiš. Kvadratić završava zadatak; „+“ dodaje zadatak u projekat koji je otvoren.</p>
+
+<div class="phone">
+  <div class="screen" id="list"></div>
+  <div class="screen off" id="project"></div>
+  <button class="fab" id="fab" aria-label="Novi zadatak"><svg width="26" height="26" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/></svg></button>
+  <nav class="nav" id="nav"></nav>
+  <div class="dim" id="dim"></div>
+  <section class="sheet" id="sheet"><div class="grab"></div><div class="shead"><h2 id="sheetTitle">Projekat</h2><button class="x" id="sheetClose" aria-label="Zatvori">✕</button></div><div class="sbody" id="sheetBody"></div></section>
+  <div class="toast" id="toast"></div>
+</div>
+
+<script>
+const TODAY = '2026-10-08';
+const SHORT = ['jan', 'feb', 'mar', 'apr', 'maj', 'jun', 'jul', 'avg', 'sep', 'okt', 'nov', 'dec'];
+const AREAS = ['Posao', 'Lično'];
+const projects = [
+  { id: 'p1', name: 'Redizajn sajta', area: 'Posao', color: '#5362FF', goal: 'Završi redizajn sajta' },
+  { id: 'p2', name: 'Klijentski portal', area: 'Posao', color: '#30CBAD' },
+  { id: 'p3', name: 'Kućni poslovi', area: 'Lično', color: '#F5B942' },
+  { id: 'p4', name: 'Putovanje u Rim', area: 'Lično', color: '#F06A8A' },
+];
+const tasks = [
+  { t: 'Izvezi slike pregleda', p: 'p1', plan: '2026-10-08', due: '2026-10-09', pri: 'high' },
+  { t: 'Pošalji pregled početne strane', p: 'p1', due: '2026-10-09' },
+  { t: 'Proveri razmake na telefonu', p: 'p1' },
+  { t: 'Napiši tekst za „O nama“', p: 'p1', pri: 'medium' },
+  { t: 'Wireframe-ovi', p: 'p1', done: true },
+  { t: 'Paleta boja', p: 'p1', done: true },
+  { t: 'Prijava preko e-pošte', p: 'p2', plan: '2026-10-12' },
+  { t: 'Spisak grešaka iz testa', p: 'p2', due: '2026-10-14' },
+  { t: 'Postavi server', p: 'p2', done: true },
+  { t: 'Zameni filter za vodu', p: 'p3', due: '2026-10-08' },
+  { t: 'Očisti oluke', p: 'p3' },
+  { t: 'Rezerviši smeštaj', p: 'p4', plan: '2026-10-06', pri: 'high' },
+  { t: 'Kupi karte za muzej', p: 'p4' },
+  { t: 'Proveri pasoš', p: 'p4' },
+  { t: 'Pozovi zubara', p: null },
+  { t: 'Obnovi registraciju', p: null, due: '2026-10-20' },
+  { t: 'Kupi poklon za Anu', p: null },
+].map(x => ({ plan: null, due: null, pri: 'none', done: false, ...x }));
+
+let view = 'anytime';
+let suggOpen = false;
+let current = null; // open project id, or 'none' for tasks without a project
+let doneOpen = false;
+
+const $ = id => document.getElementById(id);
+const parse = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const short = s => { const d = parse(s); return `${d.getDate()}. ${SHORT[d.getMonth()]}`; };
+const days = s => Math.round((parse(s) - parse(TODAY)) / 86400000);
+const plural = (n, one, few, other) => (n % 10 === 1 && n % 100 !== 11) ? one : ([2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100)) ? few : other;
+const open = list => list.filter(t => !t.done);
+const ofProject = id => tasks.filter(t => (id === 'none' ? t.p === null : t.p === id));
+
+const ICON = {
+  search: '<svg width="22" height="22" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M20 20l-4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+  sparkle: '<svg width="18" height="18" viewBox="0 0 24 24"><path d="M12 4l1.8 4.7L18.5 10.5l-4.7 1.8L12 17l-1.8-4.7-4.7-1.8 4.7-1.8z" fill="none" stroke="var(--link)" stroke-width="1.8" stroke-linejoin="round"/></svg>',
+  tray: '<svg width="18" height="18" viewBox="0 0 24 24"><path d="M4 13l2.5-7h11L20 13v6H4z M4 13h5l1 2h4l1-2h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>',
+  target: '<svg width="16" height="16" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.9"/><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.9"/></svg>',
+  dots: '<svg width="22" height="22" viewBox="0 0 24 24"><circle cx="6" cy="12" r="1.7" fill="currentColor"/><circle cx="12" cy="12" r="1.7" fill="currentColor"/><circle cx="18" cy="12" r="1.7" fill="currentColor"/></svg>',
+  chev: '<svg class="chev" width="18" height="18" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+  down: o => `<svg class="chev" width="16" height="16" viewBox="0 0 24 24" style="transform:rotate(${o ? 90 : 0}deg)"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`,
+  back: '<svg width="22" height="22" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>',
+  tick: '<svg width="14" height="14" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="#0F1114" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  flag: c => `<svg width="14" height="14" viewBox="0 0 24 24" style="color:${c}"><path d="M5 21V4h11l-2 4 2 4H5" fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>`,
+};
+const PRI = { high: 'var(--red)', medium: 'var(--amber)' };
+
+// Due label in the G6 colors: overdue red, today amber, later gray.
+function dueLabel(t) {
+  if (!t.due) return '';
+  const d = days(t.due);
+  return d < 0 ? `<span class="red">Rok ${short(t.due)}</span>` : d === 0 ? '<span class="amber">Rok danas</span>' : d === 1 ? '<span>Rok sutra</span>' : `<span>Rok ${short(t.due)}</span>`;
+}
+function planLabel(t) { return !t.plan ? '' : t.plan === TODAY ? 'Danas' : t.plan < TODAY ? `Propušteno ${short(t.plan)}` : short(t.plan); }
+function taskRow(t, { showProject = false } = {}) {
+  const p = projects.find(x => x.id === t.p);
+  const meta = [planLabel(t), showProject ? (p ? p.name : 'Bez projekta') : ''].filter(Boolean).join(' · ');
+  const flag = PRI[t.pri] ? ICON.flag(PRI[t.pri]) : '';
+  return `<div class="trow"><button class="box ${t.done ? 'on' : ''}" data-done="${tasks.indexOf(t)}" aria-label="${t.done ? 'Vrati kao otvoren' : 'Završi'}: ${t.t}">${t.done ? ICON.tick : ''}</button><button class="main" data-open="${tasks.indexOf(t)}"><div class="ttl ${t.done ? 'done-title' : ''}">${t.t}</div>${meta ? `<div class="meta">${meta}</div>` : ''}</button><span class="side">${flag}${t.done ? '' : dueLabel(t)}</span></div>`;
+}
+
+// Suggestions for today: the same four reasons as the current Today section.
+function suggestions() {
+  const list = [];
+  for (const t of tasks) {
+    if (t.done || t.plan === TODAY) continue;
+    let reason = null;
+    if (t.due === TODAY) reason = [0, 'Rok danas'];
+    else if (t.plan && t.plan < TODAY) reason = [1, `Propušten plan ${short(t.plan)}`];
+    else if (t.due && days(t.due) === 1) reason = [2, 'Rok sutra'];
+    else if (t.due && days(t.due) > 1 && days(t.due) <= 7) reason = [3, `Rok ${short(t.due)}`];
+    if (reason) list.push({ t, rank: reason[0], why: reason[1] });
+  }
+  return list.sort((a, b) => a.rank - b.rank);
+}
+function suggestionCard() {
+  const list = suggestions();
+  if (!list.length) return '';
+  return `<div class="card" style="margin-bottom:12px"><button class="sugg-head" id="sugg" aria-expanded="${suggOpen}">${ICON.sparkle}<span class="main">Predlozi za danas</span><span class="count">${list.length}</span>${ICON.down(suggOpen)}</button>
+    ${suggOpen ? list.map(x => `<div class="srow"><span class="main"><div class="ttl">${x.t.t}</div><div class="meta">${x.why} · ${projects.find(p => p.id === x.t.p)?.name || 'Bez projekta'}</div></span><button class="plan" data-plan="${tasks.indexOf(x.t)}">+ Danas</button></div>`).join('') + '<button class="addall" id="addall">Dodaj sve u Danas</button>' : ''}</div>`;
+}
+
+function projectRow(p) {
+  const all = ofProject(p.id), openList = open(all);
+  const pct = all.length ? Math.round((all.length - openList.length) / all.length * 100) : 0;
+  const next = openList.filter(t => t.due).sort((a, b) => a.due.localeCompare(b.due))[0];
+  const nextLabel = next ? dueLabel(next).replace('<span', '<span style="display:inline"') : '';
+  return `<button class="prj" data-project="${p.id}"><span class="dot" style="background:${p.color}"></span><span class="main"><div class="name">${p.name}</div><div class="meta">${openList.length} ${plural(openList.length, 'otvoren', 'otvorena', 'otvorenih')}${next ? ' · ' : ''}<span class="side" style="display:inline">${nextLabel}</span></div><span class="track"><i style="width:${pct}%;background:${p.color}"></i></span></span>${ICON.chev}</button>`;
+}
+
+function renderList() {
+  const openAll = open(tasks), anytime = openAll.filter(t => !t.plan);
+  const activeProjects = projects.length;
+  let body;
+  if (view === 'projects') {
+    const loose = open(ofProject('none'));
+    body = `<div class="card" style="margin-top:12px"><button class="prj" data-project="none"><span style="color:var(--muted);width:18px;display:grid;place-items:center">${ICON.tray}</span><span class="main"><div class="name">Bez projekta</div><div class="meta">${loose.length} ${plural(loose.length, 'otvoren', 'otvorena', 'otvorenih')}</div></span>${ICON.chev}</button></div>`
+      + AREAS.map(area => { const list = projects.filter(p => p.area === area); return `<div class="section">${area} <span>· ${list.length}</span></div><div class="card">${list.map(projectRow).join('')}</div>`; }).join('')
+      + '<div class="card" style="margin-top:12px"><button class="addrow" id="newProject">＋ Novi projekat</button></div>';
+  } else {
+    const groups = [['none', 'Bez projekta'], ...projects.map(p => [p.id, p.name])]
+      .map(([id, name]) => ({ id, name, list: anytime.filter(t => (id === 'none' ? t.p === null : t.p === id)) }))
+      .filter(g => g.list.length);
+    body = `<p class="note" style="margin:12px 4px 0">Otvoreni zadaci bez planiranog datuma, po projektima.</p>`
+      + groups.map(g => `<div class="section">${g.id === 'none' ? '' : `<span class="dot" style="background:${projects.find(p => p.id === g.id).color}"></span>`}${g.name} <span>· ${g.list.length}</span></div><div class="card">${g.list.map(t => taskRow(t)).join('')}</div>`).join('');
+  }
+  $('list').innerHTML = `
+    <div class="status"><span>09:41</span><span>•••</span></div>
+    <div class="titlebar"><h1 class="h1">Zadaci</h1><button class="icon-btn" aria-label="Pretraga">${ICON.search}</button></div>
+    <div class="summary">${openAll.length} ${plural(openAll.length, 'otvoren', 'otvorena', 'otvorenih')} · ${activeProjects} ${plural(activeProjects, 'projekat', 'projekta', 'projekata')}</div>
+    ${suggestionCard()}
+    <div class="seg" role="tablist"><button role="tab" class="${view === 'anytime' ? 'on' : ''}" data-view="anytime">Kad stignem · ${anytime.length}</button><button role="tab" class="${view === 'projects' ? 'on' : ''}" data-view="projects">Projekti</button></div>
+    ${body}`;
+  bindCommon('#list');
+  document.querySelectorAll('[data-view]').forEach(b => b.onclick = () => { view = b.dataset.view; renderList(); });
+  if ($('sugg')) $('sugg').onclick = () => { suggOpen = !suggOpen; renderList(); };
+  document.querySelectorAll('[data-plan]').forEach(b => b.onclick = () => { tasks[Number(b.dataset.plan)].plan = TODAY; renderAll(); toast('Dodato u Danas'); });
+  if ($('addall')) $('addall').onclick = () => { const list = suggestions(); list.forEach(x => { x.t.plan = TODAY; }); renderAll(); toast(`Dodato u Danas: ${list.length}`); };
+  document.querySelectorAll('[data-project]').forEach(b => b.onclick = () => { current = b.dataset.project; doneOpen = false; renderProject(); go(true); });
+  if ($('newProject')) $('newProject').onclick = () => toast('Otvara prozor „Novi projekat“');
+}
+
+function renderProject() {
+  if (!current) return;
+  const p = projects.find(x => x.id === current);
+  const all = ofProject(current), openList = open(all), done = all.filter(t => t.done);
+  $('project').innerHTML = `
+    <div class="status"><span>09:41</span><span>•••</span></div>
+    <div class="titlebar"><button class="back" id="back">${ICON.back}Zadaci</button>${p ? `<button class="icon-btn" id="menu" aria-label="Radnje projekta">${ICON.dots}</button>` : ''}</div>
+    <h1 class="h1" style="display:flex;align-items:center;gap:10px">${p ? `<span class="dot" style="background:${p.color};width:12px;height:12px"></span>` : ''}${p ? p.name : 'Bez projekta'}</h1>
+    <div class="summary" style="margin-bottom:4px">${p ? `${p.area} · ` : ''}${openList.length} ${plural(openList.length, 'otvoren', 'otvorena', 'otvorenih')}${done.length ? ` · ${done.length} ${plural(done.length, 'završen', 'završena', 'završenih')}` : ''}</div>
+    ${p && p.goal ? `<button class="goal-chip">${ICON.target}Cilj: ${p.goal}</button>` : ''}
+    <div class="card" style="margin-top:12px">${openList.map(t => taskRow(t)).join('')}<button class="addrow" id="addTask">＋ Dodaj zadatak</button></div>
+    ${done.length ? `<button class="collapsed" id="doneToggle">${ICON.down(doneOpen)}Završeno · ${done.length}</button>${doneOpen ? `<div class="card" style="margin-top:8px">${done.map(t => taskRow(t)).join('')}</div>` : ''}` : ''}
+    ${p ? '' : '<p class="note">Zadaci koji su obrađeni, a ne pripadaju nijednom projektu.</p>'}`;
+  $('back').onclick = () => { current = null; go(false); renderList(); };
+  if ($('menu')) $('menu').onclick = openMenu;
+  $('addTask').onclick = () => toast(`Brzo dodavanje u „${p ? p.name : 'Bez projekta'}“`);
+  if ($('doneToggle')) $('doneToggle').onclick = () => { doneOpen = !doneOpen; renderProject(); };
+  bindCommon('#project');
+}
+
+function bindCommon(scope) {
+  document.querySelectorAll(`${scope} [data-done]`).forEach(b => b.onclick = () => { const t = tasks[Number(b.dataset.done)]; t.done = !t.done; renderAll(); toast(t.done ? 'Zadatak završen' : 'Zadatak vraćen'); });
+  document.querySelectorAll(`${scope} [data-open]`).forEach(b => b.onclick = () => toast('Otvara prozor zadatka'));
+}
+function renderAll() { renderList(); renderProject(); }
+function go(toProject) { $('project').classList.toggle('off', !toProject); $('list').classList.toggle('under', toProject); }
+
+function openMenu() {
+  $('sheetBody').innerHTML = `<div class="card">${['Preimenuj i boja', 'Oblast', 'Povezani cilj', 'Sačuvaj kao šablon', 'Arhiviraj projekat'].map(l => `<button class="opt" data-m="${l}">${l}</button>`).join('')}<button class="opt danger" data-m="Obriši projekat">Obriši projekat</button></div>`;
+  $('sheet').classList.add('show'); $('dim').classList.add('show');
+  document.querySelectorAll('[data-m]').forEach(b => b.onclick = () => { closeSheet(); toast(`Otvara: ${b.dataset.m}`); });
+}
+function closeSheet() { $('sheet').classList.remove('show'); $('dim').classList.remove('show'); }
+$('sheetClose').onclick = closeSheet;
+$('dim').onclick = closeSheet;
+$('fab').onclick = () => { const p = projects.find(x => x.id === current); toast(current ? `Brzo dodavanje u „${p ? p.name : 'Bez projekta'}“` : view === 'anytime' ? 'Brzo dodavanje u „Kad stignem“' : 'Brzo dodavanje (bez izbora ide u Inbox)'); };
+function toast(text) { const t = $('toast'); t.textContent = text; t.classList.add('show'); clearTimeout(toast.timer); toast.timer = setTimeout(() => t.classList.remove('show'), 1500); }
+
+$('nav').innerHTML = [['Danas', '<rect x="4" y="5" width="16" height="15" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M4 10h16M9 3v4M15 3v4" stroke="currentColor" stroke-width="1.8"/>'],
+  ['Inbox', '<path d="M4 13l2.5-7h11L20 13v6H4z M4 13h5l1 2h4l1-2h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>'],
+  ['Zadaci', '<circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8.5 12.2l2.4 2.4 4.6-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'],
+  ['Kalendar', '<rect x="4" y="5" width="16" height="15" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M4 10h16M9 3v4M15 3v4M8 14h2M12 14h2M8 17h2" stroke="currentColor" stroke-width="1.8"/>'],
+  ['Navike', '<path d="M6 20V12M12 20V5M18 20v-9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>'],
+  ['Još', '<circle cx="6" cy="12" r="1.7" fill="currentColor"/><circle cx="12" cy="12" r="1.7" fill="currentColor"/><circle cx="18" cy="12" r="1.7" fill="currentColor"/>']]
+  .map(([label, path]) => `<div class="${label === 'Zadaci' ? 'on' : ''}"><svg width="22" height="22" viewBox="0 0 24 24">${path}</svg>${label}</div>`).join('');
+
+renderList();
+</script>
+</body>
+</html>
