@@ -10,7 +10,7 @@ The sample day is Thursday, 8 October 2026.
 
 | File | Shows | Decisions |
 | --- | --- | --- |
-| `dailo-prototip.html` | **Combined prototype:** every decided screen in one phone frame, joined by the bottom navigation and sharing one set of data | all |
+| `dailo-prototip.html` | **Combined prototype:** every decided screen in one phone frame, joined by the bottom navigation and sharing one set of data; since 2026-10-09 also the smaller screens (areas, notes and resources, cleaning, weekly review, tags, templates, saved views, completed, archived projects, search, focus, habit details) | all, S1–S14 |
 | `danas-predlog.html` | Today: sections, limits, habit rows | T1–T7 |
 | `navike-predlog.html` | Early habit-row options for Today | T4, T5 |
 | `kalendar-predlog.html` | Calendar month with the day list and the "Raspored" view | C1–C9 |
@@ -26,7 +26,7 @@ The sample day is Thursday, 8 October 2026.
 ## Combined prototype sources
 
 `zbirni/` holds the parts of `dailo-prototip.html`: the stylesheet (`00-head.html`), the phone markup
-(`10-body.html`), one script per screen or window (`20-core.js` … `42-habit.js`) and the closing tags
+(`10-body.html`), one script per screen or window (`20-core.js` … `53-search-focus-habit.js`) and the closing tags
 (`99-tail.html`). Edit the parts, then rebuild:
 
 ```bash

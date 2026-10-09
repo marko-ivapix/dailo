@@ -8,7 +8,8 @@ function limited(key, rows) {
 }
 A.expand = el => { const k = el.dataset.key; S.ui.expand[k] = !S.ui.expand[k]; render(); };
 const byTime = (a, b) => (a.time ? 0 : 1) - (b.time ? 0 : 1) || String(a.time || '').localeCompare(String(b.time || ''));
-const liveTasks = () => S.tasks.filter(t => !t.done && !t.inbox);
+// Tasks of archived projects leave every list until the project is restored.
+const liveTasks = () => S.tasks.filter(t => !t.done && !t.inbox && !(t.project && project(t.project)?.archived));
 
 // Habit circles: done is a green check; numeric and weekly habits fill with progress (T5, H6).
 function habitCircle(h, i) {
@@ -45,7 +46,7 @@ PICK.habitMenu = p => {
   return { title: h.name, sub: p.i === TI ? 'Danas' : longDate(addDays(WEEK_START, p.i)), body: `<div class="card">
     ${h.tracking === 'numeric' ? `<button class="opt" data-act="habitValueFromMenu">${IC.bolt}<span class="lbl">Upiši vrednost</span></button>` : ''}
     <button class="opt" data-act="habitSkip">${IC.right}<span class="lbl">${skipped ? 'Poništi preskakanje' : 'Preskoči ovaj dan'}<small>Preskočen dan ne prekida niz i ne ulazi u procenat.</small></span></button>
-    <button class="opt" data-act="soon" data-msg="Detalji navike: posebni ekran, dolazi kasnije">${IC.habit}<span class="lbl">Detalji navike</span></button></div>` };
+    <button class="opt" data-act="habitDetail">${IC.habit}<span class="lbl">Detalji navike</span></button></div>` };
 };
 A.habitSkip = () => { const h = habit(P.id), i = P.i; h.week[i] = h.week[i] === 's' ? (i === TI ? 'o' : 'm') : 's'; closePick(); render(); toast(h.week[i] === 's' ? 'Dan je preskočen' : 'Preskakanje je poništeno'); };
 A.habitValueFromMenu = () => { const h = habit(P.id); P = { kind: 'value', id: h.id, i: P.i, total: h.vals[P.i] || 0 }; renderPick(); };
@@ -83,7 +84,7 @@ TAB.today = () => {
   const doneToday = S.tasks.filter(t => t.done && t.doneAt === TODAY);
   const notice = S.settings.backupNotice ? `<div class="notice">${IC.upload}<span class="main"><b>Rezervna kopija je stara 8 dana</b>Izvezi ZIP da podaci budu sigurni.</span><button data-act="noticeExport">Izvezi</button><button data-act="noticeLater" style="color:var(--muted)">Kasnije</button></div>` : '';
   let html = `<div class="status"><span>09:41</span><span>•••</span></div><div class="date">${longDate(TODAY)}</div>
-    <div class="titlebar"><h1 class="h1">Danas</h1><button class="icon-btn" data-act="soon" data-msg="Pretraga: posebni ekran, dolazi kasnije" aria-label="Pretraga" style="color:var(--text)">${IC.search}</button></div>${notice}`;
+    <div class="titlebar"><h1 class="h1">Danas</h1><button class="icon-btn" data-act="search" aria-label="Pretraga" style="color:var(--text)">${IC.search}</button></div>${notice}`;
   if (overdueRows.length) html += `<div class="section">Zakasnelo <span>· ${overdueRows.length}</span></div><div class="card">${limited('overdue', overdueRows)}</div>`;
   html += `<div class="section">Planirano danas <span>· ${todayRows.length}</span></div>`;
   html += todayRows.length ? `<div class="card">${limited('today', todayRows)}</div>` : '<div class="card"><p class="note" style="margin:12px 14px">Ništa nije planirano. „+“ dodaje zadatak za danas.</p></div>';

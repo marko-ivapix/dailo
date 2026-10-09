@@ -37,7 +37,7 @@ IN.nhName = el => { W.name = el.value; };
 IN.nhTarget = el => { W.target = Number(el.value); };
 IN.nhUnit = el => { W.unit = el.value; };
 A.nhMore = () => { W.more = !W.more; renderWin(); };
-A.nhArea = () => openPick({ kind: 'choice', title: 'Oblast', sub: W.name || 'Nova navika', current: W.area, options: [{ v: null, label: 'Bez oblasti' }, ...S.areas.map(a => ({ v: a.id, label: a.name, dot: a.color }))], onPick: v => { W.area = v; renderWin(); } });
+A.nhArea = () => openPick({ kind: 'choice', title: 'Oblast', sub: W.name || 'Nova navika', current: W.area, options: [{ v: null, label: 'Bez oblasti' }, ...activeAreas().map(a => ({ v: a.id, label: a.name, dot: a.color }))], onPick: v => { W.area = v; renderWin(); } });
 A.nhStart = () => openDate({ mode: 'habitStart', date: W.freq.start, time: null });
 A.nhFreq = () => openPick({ kind: 'freq', f: JSON.parse(JSON.stringify(W.freq)) });
 A.nhRem = () => openPick({ kind: 'hrem', times: W.reminders.length ? [...W.reminders] : ['09:00'] });

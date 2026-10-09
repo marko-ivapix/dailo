@@ -15,7 +15,7 @@ function parseQuick(text) {
     if (/^\d{1,2}(:\d{2})?$/.test(w) && words[k - 1]?.toLowerCase() === 'u' || /^\d{1,2}:\d{2}$/.test(w)) { const [h, m = '00'] = w.split(':'); if (Number(h) < 24) { out.time = `${h.padStart(2, '0')}:${m}`; continue; } }
     if (/^#\S+/.test(w)) { const name = w.slice(1); out.tags.push(S.tags.find(t => t.name.toLowerCase() === name.toLowerCase())?.name || name); continue; }
     if (/^!(visok|srednji|nizak|[123])$/i.test(w)) { out.priority = { visok: 'high', srednji: 'medium', nizak: 'low', 1: 'high', 2: 'medium', 3: 'low' }[lw.slice(1)]; continue; }
-    if (/^\+\S+/.test(w)) { const q = plain(w.slice(1)); const p = S.projects.find(x => plain(x.name).replace(/\s+/g, '').startsWith(q)); if (p) { out.project = p.id; continue; } }
+    if (/^\+\S+/.test(w)) { const q = plain(w.slice(1)); const p = activeProjects().find(x => plain(x.name).replace(/\s+/g, '').startsWith(q)); if (p) { out.project = p.id; continue; } }
     keep.push(w);
   }
   out.title = keep.join(' ');
@@ -26,12 +26,12 @@ function parseQuick(text) {
   if (out.priority) out.parts.push(`${PRI_NAME[out.priority]} prioritet`);
   return out;
 }
-function openQuick({ date = null, project: proj = 'inbox' } = {}) { openWin({ kind: 'quick', text: '', date, time: null, project: proj, datePicked: false, projectPicked: false, err: '' }); setTimeout(() => $('qText')?.focus(), 0); }
+function openQuick({ date = null, project: proj = 'inbox', area = null } = {}) { openWin({ kind: 'quick', text: '', date, time: null, project: proj, area, datePicked: false, projectPicked: false, err: '' }); setTimeout(() => $('qText')?.focus(), 0); }
 function quickEffective(w) {
   const p = parseQuick(w.text);
   return { p, date: w.datePicked ? w.date : (p.date ?? w.date), time: w.datePicked ? w.time : (p.time ?? w.time), project: w.projectPicked ? w.project : (p.project ?? w.project) };
 }
-const quickPlace = v => v === 'inbox' ? 'Inbox' : v === 'none' ? 'Bez projekta' : project(v).name;
+const quickPlace = v => v === 'inbox' ? 'Inbox' : v === 'none' ? (W?.area ? `Bez projekta · ${areaOf(W.area).name}` : 'Bez projekta') : project(v).name;
 function quickPreview(w) {
   const { p } = quickEffective(w);
   return p.parts.length ? `Prepoznato u naslovu: <b>${p.parts.map(esc).join(' · ')}</b>` : '';
@@ -50,13 +50,13 @@ WIN.quick = w => {
 // The preview updates while typing, without redrawing the field.
 IN.qText = el => { W.text = el.value; $('qPrev').innerHTML = quickPreview(W); };
 A.qDate = () => { const e = quickEffective(W); openDate({ mode: 'quick', date: e.date, time: e.time }); };
-A.qProject = () => { const e = quickEffective(W); openPick({ kind: 'choice', title: 'Gde ide zadatak', current: e.project, options: [{ v: 'inbox', label: 'Inbox', icon: IC.tray, sub: 'Razvrstaćeš ga kasnije' }, { v: 'none', label: 'Bez projekta' }, ...S.projects.map(p => ({ v: p.id, label: p.name, dot: p.color, sub: `Oblast: ${areaOf(p.area).name}` }))], onPick: v => { W.project = v; W.projectPicked = true; renderWin(); } }); };
+A.qProject = () => { const e = quickEffective(W); openPick({ kind: 'choice', title: 'Gde ide zadatak', current: e.project, options: [{ v: 'inbox', label: 'Inbox', icon: IC.tray, sub: 'Razvrstaćeš ga kasnije' }, { v: 'none', label: 'Bez projekta' }, ...activeProjects().map(p => ({ v: p.id, label: p.name, dot: p.color, sub: `Oblast: ${areaOf(p.area).name}` }))], onPick: v => { W.project = v; W.projectPicked = true; renderWin(); } }); };
 function quickCreate() {
   const e = quickEffective(W);
   if (!e.p.title.trim()) { W.err = 'Upiši naziv zadatka.'; renderWin(); return null; }
   const tags = e.p.tags.map(name => { let tg = S.tags.find(x => x.name.toLowerCase() === name.toLowerCase()); if (!tg) { tg = { id: newId('tag'), name, color: '#8FA2FF' }; S.tags.push(tg); } return tg.id; });
   const proj = !['inbox', 'none'].includes(e.project) ? e.project : null;
-  const t = T(e.p.title.trim(), { plan: e.date, time: e.date ? e.time : null, project: proj, tags, priority: e.p.priority || 'none', inbox: !e.date && e.project === 'inbox', captured: 'Danas' });
+  const t = T(e.p.title.trim(), { plan: e.date, time: e.date ? e.time : null, project: proj, area: proj ? null : W.area || null, tags, priority: e.p.priority || 'none', inbox: !e.date && e.project === 'inbox', captured: 'Danas' });
   S.tasks.push(t);
   return t;
 }

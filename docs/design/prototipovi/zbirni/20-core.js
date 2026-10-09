@@ -181,7 +181,10 @@ const areaOf = id => S.areas.find(a => a.id === id);
 const goal = id => S.goals.find(g => g.id === id);
 const habit = id => S.habits.find(h => h.id === id);
 const taskArea = t => t.project ? areaOf(project(t.project).area) : areaOf(t.area);
-const placeName = t => t.project ? project(t.project).name : taskArea(t)?.name || '';
+const room = id => S.rooms.find(r => r.id === id);
+const placeName = t => t.project ? project(t.project).name : t.room ? room(t.room).name : taskArea(t)?.name || '';
+const activeAreas = () => S.areas.filter(a => a.status !== 'archived');
+const activeProjects = () => S.projects.filter(p => !p.archived);
 
 // ===== Rendering shell =====================================================
 const R = { tab: 'today', stack: [] };
@@ -213,6 +216,13 @@ function renderNav() {
 function go(tab) { R.tab = tab; R.stack = []; render(); }
 function push(sub) { R.stack.push(sub); render(); }
 function pop() { R.stack.pop(); render(); }
+// The back button names the screen it returns to.
+const SCREEN_TITLE = {};
+function backBtn() {
+  const prev = R.stack.at(-2);
+  const t = prev ? SCREEN_TITLE[prev.type] : NAV.find(n => n[0] === R.tab)[1];
+  return `<button class="back" data-act="back">${IC.left}${esc(typeof t === 'function' ? t(prev) : t)}</button>`;
+}
 
 // ===== Layers: window (L1) and picker (L2) =================================
 let W = null, P = null;
@@ -312,10 +322,24 @@ function deadlinesOverdue() {
   return out;
 }
 
-A.toggleTask = el => {
-  const t = task(el.dataset.id);
+function nextDate(day, r) {
+  if (r.freq === 'daily') return addDays(day, r.interval);
+  if (r.freq === 'weekdays') { let d = addDays(day, 1); while (mondayIndex(d) > 4) d = addDays(d, 1); return d; }
+  if (r.freq === 'weekly') return addDays(day, 7 * r.interval);
+  const d = parse(day); d.setMonth(d.getMonth() + (r.freq === 'yearly' ? 12 : r.interval)); return iso(d);
+}
+function completeTask(t) {
   const undo = snapshot(t);
   t.done = !t.done; t.doneAt = t.done ? TODAY : null;
+  let next = null;
+  if (t.done && t.repeat && (t.plan || t.due)) {
+    next = { ...JSON.parse(JSON.stringify(t)), id: newId('t'), done: false, doneAt: null, plan: t.plan ? nextDate(t.plan, t.repeat) : null, due: t.due ? nextDate(t.due, t.repeat) : null };
+    S.tasks.push(next);
+  }
+  return { next, undo: () => { undo(); if (next) S.tasks.splice(S.tasks.indexOf(next), 1); } };
+}
+A.toggleTask = el => {
+  const t = task(el.dataset.id), { next, undo } = completeTask(t);
   render();
-  toast(t.done ? 'Zadatak je završen' : 'Zadatak je vraćen', undo);
+  toast(t.done ? (next ? `Završeno · sledeći put ${relDay(next.plan || next.due)}` : 'Zadatak je završen') : 'Zadatak je vraćen', undo);
 };

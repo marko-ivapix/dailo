@@ -56,7 +56,7 @@ A.ibLater = el => sortItem(rec(el), () => {}, 'U „Kad stignem“');
 A.ibSorted = el => sortItem(rec(el), () => {}, 'Razvrstano');
 A.ibOpen = el => { const r = rec(el); toast(`Otvara: ${KIND[r.type][1].toLowerCase()} „${r.item.t}“`); };
 A.ibProject = el => { const r = rec(el); openPick({ kind: 'project', current: null, sub: r.item.title, onPick: id => sortItem(r, t => { t.project = id; t.area = null; }, `U projekat „${project(id).name}“`) }); };
-A.ibArea = el => { const r = rec(el); openPick({ kind: 'choice', title: 'Oblast', sub: r.item.t, current: r.item.area, options: S.areas.map(a => ({ v: a.id, label: a.name, dot: a.color })), onPick: v => sortItem(r, o => { o.area = v; }, `U oblast „${areaOf(v).name}“`) }); };
+A.ibArea = el => { const r = rec(el); openPick({ kind: 'choice', title: 'Oblast', sub: r.item.t, current: r.item.area, options: activeAreas().map(a => ({ v: a.id, label: a.name, dot: a.color })), onPick: v => sortItem(r, o => { o.area = v; }, `U oblast „${areaOf(v).name}“`) }); };
 
 // "Razvrstaj redom": one item at a time (I2). Deleting stays in the task window.
 A.triageStart = () => {

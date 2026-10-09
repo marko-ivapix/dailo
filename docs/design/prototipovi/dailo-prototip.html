@@ -286,7 +286,7 @@
 </style>
 </head>
 <body>
-<p class="top"><b>Zbirni prototip: svi dogovoreni ekrani zajedno.</b> Podaci su zajednički: zadatak dodat u Danas iz Zadataka ili Inbox-a vidi se na Danas i u Kalendaru, a završen zadatak menja i napredak cilja. Donja traka menja ekrane; „+“ dodaje ono što pripada ekranu. Dugi pritisak na naviku je ovde dodir na njen naziv. Podaci se ne čuvaju posle osvežavanja.</p>
+<p class="top"><b>Zbirni prototip: svi dogovoreni ekrani zajedno.</b> Podaci su zajednički: zadatak dodat u Danas iz Zadataka ili Inbox-a vidi se na Danas i u Kalendaru, a završen zadatak menja i napredak cilja. Donja traka menja ekrane; „+“ dodaje ono što pripada ekranu. Dugi pritisak na naviku je ovde dodir na njen naziv (tu su i „Detalji navike“). Lupa otvara Pretragu, a „⋯“ u prozoru zadatka nudi Fokus. Manji ekrani se otvaraju iz „Još“. Podaci se ne čuvaju posle osvežavanja.</p>
 
 <div class="phone" id="phone">
   <div class="screen" id="screen"></div>
@@ -494,7 +494,10 @@ const areaOf = id => S.areas.find(a => a.id === id);
 const goal = id => S.goals.find(g => g.id === id);
 const habit = id => S.habits.find(h => h.id === id);
 const taskArea = t => t.project ? areaOf(project(t.project).area) : areaOf(t.area);
-const placeName = t => t.project ? project(t.project).name : taskArea(t)?.name || '';
+const room = id => S.rooms.find(r => r.id === id);
+const placeName = t => t.project ? project(t.project).name : t.room ? room(t.room).name : taskArea(t)?.name || '';
+const activeAreas = () => S.areas.filter(a => a.status !== 'archived');
+const activeProjects = () => S.projects.filter(p => !p.archived);
 
 // ===== Rendering shell =====================================================
 const R = { tab: 'today', stack: [] };
@@ -526,6 +529,13 @@ function renderNav() {
 function go(tab) { R.tab = tab; R.stack = []; render(); }
 function push(sub) { R.stack.push(sub); render(); }
 function pop() { R.stack.pop(); render(); }
+// The back button names the screen it returns to.
+const SCREEN_TITLE = {};
+function backBtn() {
+  const prev = R.stack.at(-2);
+  const t = prev ? SCREEN_TITLE[prev.type] : NAV.find(n => n[0] === R.tab)[1];
+  return `<button class="back" data-act="back">${IC.left}${esc(typeof t === 'function' ? t(prev) : t)}</button>`;
+}
 
 // ===== Layers: window (L1) and picker (L2) =================================
 let W = null, P = null;
@@ -625,12 +635,26 @@ function deadlinesOverdue() {
   return out;
 }
 
-A.toggleTask = el => {
-  const t = task(el.dataset.id);
+function nextDate(day, r) {
+  if (r.freq === 'daily') return addDays(day, r.interval);
+  if (r.freq === 'weekdays') { let d = addDays(day, 1); while (mondayIndex(d) > 4) d = addDays(d, 1); return d; }
+  if (r.freq === 'weekly') return addDays(day, 7 * r.interval);
+  const d = parse(day); d.setMonth(d.getMonth() + (r.freq === 'yearly' ? 12 : r.interval)); return iso(d);
+}
+function completeTask(t) {
   const undo = snapshot(t);
   t.done = !t.done; t.doneAt = t.done ? TODAY : null;
+  let next = null;
+  if (t.done && t.repeat && (t.plan || t.due)) {
+    next = { ...JSON.parse(JSON.stringify(t)), id: newId('t'), done: false, doneAt: null, plan: t.plan ? nextDate(t.plan, t.repeat) : null, due: t.due ? nextDate(t.due, t.repeat) : null };
+    S.tasks.push(next);
+  }
+  return { next, undo: () => { undo(); if (next) S.tasks.splice(S.tasks.indexOf(next), 1); } };
+}
+A.toggleTask = el => {
+  const t = task(el.dataset.id), { next, undo } = completeTask(t);
   render();
-  toast(t.done ? 'Zadatak je završen' : 'Zadatak je vraćen', undo);
+  toast(t.done ? (next ? `Završeno · sledeći put ${relDay(next.plan || next.due)}` : 'Zadatak je završen') : 'Zadatak je vraćen', undo);
 };
 // ===== Today (T1–T7) ========================================================
 const LIMITS = { overdue: 3, today: 5, habits: 5 };
@@ -642,7 +666,8 @@ function limited(key, rows) {
 }
 A.expand = el => { const k = el.dataset.key; S.ui.expand[k] = !S.ui.expand[k]; render(); };
 const byTime = (a, b) => (a.time ? 0 : 1) - (b.time ? 0 : 1) || String(a.time || '').localeCompare(String(b.time || ''));
-const liveTasks = () => S.tasks.filter(t => !t.done && !t.inbox);
+// Tasks of archived projects leave every list until the project is restored.
+const liveTasks = () => S.tasks.filter(t => !t.done && !t.inbox && !(t.project && project(t.project)?.archived));
 
 // Habit circles: done is a green check; numeric and weekly habits fill with progress (T5, H6).
 function habitCircle(h, i) {
@@ -679,7 +704,7 @@ PICK.habitMenu = p => {
   return { title: h.name, sub: p.i === TI ? 'Danas' : longDate(addDays(WEEK_START, p.i)), body: `<div class="card">
     ${h.tracking === 'numeric' ? `<button class="opt" data-act="habitValueFromMenu">${IC.bolt}<span class="lbl">Upiši vrednost</span></button>` : ''}
     <button class="opt" data-act="habitSkip">${IC.right}<span class="lbl">${skipped ? 'Poništi preskakanje' : 'Preskoči ovaj dan'}<small>Preskočen dan ne prekida niz i ne ulazi u procenat.</small></span></button>
-    <button class="opt" data-act="soon" data-msg="Detalji navike: posebni ekran, dolazi kasnije">${IC.habit}<span class="lbl">Detalji navike</span></button></div>` };
+    <button class="opt" data-act="habitDetail">${IC.habit}<span class="lbl">Detalji navike</span></button></div>` };
 };
 A.habitSkip = () => { const h = habit(P.id), i = P.i; h.week[i] = h.week[i] === 's' ? (i === TI ? 'o' : 'm') : 's'; closePick(); render(); toast(h.week[i] === 's' ? 'Dan je preskočen' : 'Preskakanje je poništeno'); };
 A.habitValueFromMenu = () => { const h = habit(P.id); P = { kind: 'value', id: h.id, i: P.i, total: h.vals[P.i] || 0 }; renderPick(); };
@@ -717,7 +742,7 @@ TAB.today = () => {
   const doneToday = S.tasks.filter(t => t.done && t.doneAt === TODAY);
   const notice = S.settings.backupNotice ? `<div class="notice">${IC.upload}<span class="main"><b>Rezervna kopija je stara 8 dana</b>Izvezi ZIP da podaci budu sigurni.</span><button data-act="noticeExport">Izvezi</button><button data-act="noticeLater" style="color:var(--muted)">Kasnije</button></div>` : '';
   let html = `<div class="status"><span>09:41</span><span>•••</span></div><div class="date">${longDate(TODAY)}</div>
-    <div class="titlebar"><h1 class="h1">Danas</h1><button class="icon-btn" data-act="soon" data-msg="Pretraga: posebni ekran, dolazi kasnije" aria-label="Pretraga" style="color:var(--text)">${IC.search}</button></div>${notice}`;
+    <div class="titlebar"><h1 class="h1">Danas</h1><button class="icon-btn" data-act="search" aria-label="Pretraga" style="color:var(--text)">${IC.search}</button></div>${notice}`;
   if (overdueRows.length) html += `<div class="section">Zakasnelo <span>· ${overdueRows.length}</span></div><div class="card">${limited('overdue', overdueRows)}</div>`;
   html += `<div class="section">Planirano danas <span>· ${todayRows.length}</span></div>`;
   html += todayRows.length ? `<div class="card">${limited('today', todayRows)}</div>` : '<div class="card"><p class="note" style="margin:12px 14px">Ništa nije planirano. „+“ dodaje zadatak za danas.</p></div>';
@@ -789,7 +814,7 @@ A.ibLater = el => sortItem(rec(el), () => {}, 'U „Kad stignem“');
 A.ibSorted = el => sortItem(rec(el), () => {}, 'Razvrstano');
 A.ibOpen = el => { const r = rec(el); toast(`Otvara: ${KIND[r.type][1].toLowerCase()} „${r.item.t}“`); };
 A.ibProject = el => { const r = rec(el); openPick({ kind: 'project', current: null, sub: r.item.title, onPick: id => sortItem(r, t => { t.project = id; t.area = null; }, `U projekat „${project(id).name}“`) }); };
-A.ibArea = el => { const r = rec(el); openPick({ kind: 'choice', title: 'Oblast', sub: r.item.t, current: r.item.area, options: S.areas.map(a => ({ v: a.id, label: a.name, dot: a.color })), onPick: v => sortItem(r, o => { o.area = v; }, `U oblast „${areaOf(v).name}“`) }); };
+A.ibArea = el => { const r = rec(el); openPick({ kind: 'choice', title: 'Oblast', sub: r.item.t, current: r.item.area, options: activeAreas().map(a => ({ v: a.id, label: a.name, dot: a.color })), onPick: v => sortItem(r, o => { o.area = v; }, `U oblast „${areaOf(v).name}“`) }); };
 
 // "Razvrstaj redom": one item at a time (I2). Deleting stays in the task window.
 A.triageStart = () => {
@@ -833,8 +858,8 @@ const openCount = n => `${n} ${plural(n, 'otvoren', 'otvorena', 'otvorenih')}`;
 TAB.tasks = () => {
   const live = liveTasks(), later = live.filter(t => !t.plan), sugg = suggestions();
   let html = `<div class="status"><span>09:41</span><span>•••</span></div>
-    <div class="titlebar"><h1 class="h1">Zadaci</h1><button class="icon-btn" data-act="soon" data-msg="Pretraga: posebni ekran, dolazi kasnije" aria-label="Pretraga">${IC.search}</button></div>
-    <div class="summary">${openCount(live.length)} · ${S.projects.length} ${plural(S.projects.length, 'projekat', 'projekta', 'projekata')}</div>`;
+    <div class="titlebar"><h1 class="h1">Zadaci</h1><button class="icon-btn" data-act="search" aria-label="Pretraga">${IC.search}</button></div>
+    <div class="summary">${openCount(live.length)} · ${activeProjects().length} ${plural(activeProjects().length, 'projekat', 'projekta', 'projekata')}</div>`;
   if (sugg.length) {
     html += `<div class="card" style="margin-bottom:12px"><button class="sugg-head" data-act="suggToggle" aria-expanded="${S.ui.suggOpen}">${IC.sparkle}<span class="main" style="font-weight:600">Predlozi za danas</span><span class="count">${sugg.length}</span>${IC.fold(S.ui.suggOpen)}</button>`;
     if (S.ui.suggOpen) html += sugg.map(x => `<div class="srow"><button class="main" data-act="openTask" data-id="${x.t.id}"><div class="ttl">${esc(x.t.title)}</div><div class="meta">${x.why} · ${esc(placeName(x.t) || 'Bez projekta')}</div></button><button class="plan" data-act="planToday" data-id="${x.t.id}">+ Danas</button></div>`).join('') + '<button class="addall" data-act="planAll">Dodaj sve u Danas</button>';
@@ -843,7 +868,7 @@ TAB.tasks = () => {
   html += `<div class="seg" role="tablist"><button role="tab" class="${S.ui.zadView === 'anytime' ? 'on' : ''}" data-act="zadView" data-v="anytime">Kad stignem · ${later.length}</button><button role="tab" class="${S.ui.zadView === 'projects' ? 'on' : ''}" data-act="zadView" data-v="projects">Projekti</button></div>`;
   if (S.ui.zadView === 'anytime') {
     html += '<p class="note" style="margin:12px 4px 0">Razvrstani zadaci bez planiranog dana, po projektima.</p>';
-    for (const [id, name, color] of [['none', 'Bez projekta', null], ...S.projects.map(p => [p.id, p.name, p.color])]) {
+    for (const [id, name, color] of [['none', 'Bez projekta', null], ...activeProjects().map(p => [p.id, p.name, p.color])]) {
       const rows = later.filter(t => (id === 'none' ? !t.project : t.project === id));
       if (rows.length) html += `<div class="section">${color ? `<span class="dot" style="background:${color}"></span>` : ''}${esc(name)} <span>· ${rows.length}</span></div><div class="card">${rows.map(t => taskRow(t, { meta: id === 'none' ? 'area' : 'none' })).join('')}</div>`;
     }
@@ -851,8 +876,8 @@ TAB.tasks = () => {
   } else {
     const loose = projectTasks('none').filter(t => !t.done);
     html += `<div class="card" style="margin-top:12px"><button class="prj" data-act="openProject" data-id="none"><span style="color:var(--muted);width:18px;display:grid;place-items:center">${IC.tray}</span><span class="main"><div class="ttl">Bez projekta</div><div class="meta">${openCount(loose.length)}</div></span>${IC.chev}</button></div>`;
-    for (const a of S.areas) {
-      const list = S.projects.filter(p => p.area === a.id);
+    for (const a of activeAreas()) {
+      const list = activeProjects().filter(p => p.area === a.id);
       if (list.length) html += `<div class="section">${esc(a.name)} <span>· ${list.length}</span></div><div class="card">${list.map(projectRow).join('')}</div>`;
     }
     html += '<div class="card" style="margin-top:12px"><button class="addrow" data-act="newProject">＋ Novi projekat</button></div>';
@@ -876,7 +901,7 @@ SUB.project = ({ id }) => {
   const all = projectTasks(id), open = all.filter(t => !t.done).sort((a, b) => String(a.plan || '9999').localeCompare(String(b.plan || '9999')) || byTime(a, b)), done = all.filter(t => t.done);
   const g = p?.goal ? goal(p.goal) : null;
   let html = `<div class="status"><span>09:41</span><span>•••</span></div>
-    <div class="titlebar"><button class="back" data-act="back">${IC.left}Zadaci</button>${p ? `<button class="icon-btn" data-act="projectMenu" data-id="${p.id}" aria-label="Radnje projekta">${IC.dots}</button>` : ''}</div>
+    <div class="titlebar">${backBtn()}${p ? `<button class="icon-btn" data-act="projectMenu" data-id="${p.id}" aria-label="Radnje projekta">${IC.dots}</button>` : ''}</div>
     <h1 class="h1" style="display:flex;align-items:center;gap:10px">${p ? `<span class="dot" style="background:${p.color};width:12px;height:12px"></span>` : ''}${esc(p ? p.name : 'Bez projekta')}</h1>
     <div class="summary" style="margin-bottom:4px">${p ? `${esc(areaOf(p.area).name)} · ` : ''}${openCount(open.length)}${done.length ? ` · ${done.length} ${plural(done.length, 'završen', 'završena', 'završenih')}` : ''}</div>
     ${g ? `<button class="plink" data-act="openGoal" data-id="${g.id}">${IC.goal}Cilj: ${esc(g.title)} · ${progress(g).pct}%</button>` : ''}
@@ -898,7 +923,7 @@ A.newProject = () => openPick({ kind: 'newProject', name: '', color: COLORS[4], 
 PICK.newProject = p => ({ title: 'Novi projekat', body: `
   <label class="field"><input class="wide" placeholder="Naziv projekta" value="${esc(p.name)}" data-in="npName" aria-label="Naziv projekta"></label>
   <div class="glabel" style="margin-top:4px">Boja</div><div class="chips">${COLORS.map(c => `<button class="chip ${p.color === c ? 'on' : ''}" data-act="npColor" data-c="${c}" aria-label="Boja ${c}"><span class="dot" style="background:${c}"></span></button>`).join('')}</div>
-  <div class="glabel" style="margin-top:4px">Oblast</div><div class="seg" style="margin-bottom:14px">${S.areas.map(a => `<button class="${p.area === a.id ? 'on' : ''}" data-act="npArea" data-a="${a.id}">${a.name}</button>`).join('')}</div>
+  <div class="glabel" style="margin-top:4px">Oblast</div><div class="seg" style="margin-bottom:14px">${activeAreas().map(a => `<button class="${p.area === a.id ? 'on' : ''}" data-act="npArea" data-a="${a.id}">${a.name}</button>`).join('')}</div>
   ${p.err ? `<p class="err">${p.err}</p>` : ''}<button class="primary" data-act="npCreate">Napravi projekat</button>` });
 IN.npName = el => { P.name = el.value; };
 A.npColor = el => { P.color = el.dataset.c; renderPick(); };
@@ -1116,26 +1141,30 @@ A.pausedToggle = () => { S.ui.pausedOpen = !S.ui.pausedOpen; render(); };
 function navRow(act, icon, label, { sub = '', val = '', valClass = '', cls = '', data = '' } = {}) {
   return `<button class="prow ${cls}" data-act="${act}" ${data}><span class="ico">${icon}</span><span class="grow">${label}${sub ? `<span class="sub">${sub}</span>` : ''}</span>${val ? `<span class="val ${valClass}" style="flex:none">${val}</span>` : ''}${IC.chev}</button>`;
 }
-const soonData = name => `data-msg="${name}: manji ekran, dolazi u sledećem koraku"`;
-TAB.more = () => `<div class="status"><span>09:41</span><span>•••</span></div><h1 class="h1">Još</h1>
-  <div class="glabel">Zakačeno</div><div class="card">
-    ${navRow('soon', '<span class="dot" style="background:#3BA7F5;border-radius:4px"></span>', 'Posao', { sub: 'Oblast', data: soonData('Oblast Posao') })}
-    ${navRow('soon', IC.funnel, 'Rok ove nedelje', { sub: 'Sačuvani prikaz', data: soonData('Sačuvani prikaz') })}</div>
+const sub = (type, extra = '') => `data-sub="${type}" ${extra}`;
+TAB.more = () => {
+  const pinnedAreas = activeAreas().filter(a => a.pinned), pinnedViews = S.views.filter(v => v.pinned);
+  const pinned = [...pinnedAreas.map(a => navRow('go', `<span class="dot" style="background:${a.color};border-radius:4px"></span>`, esc(a.name), { sub: 'Oblast', data: sub('area', `data-id="${a.id}"`) })), ...pinnedViews.map(v => navRow('go', IC.funnel, esc(v.name), { sub: 'Sačuvani prikaz', data: sub('view', `data-id="${v.id}"`) }))];
+  const last = S.reviews[0];
+  return `<div class="status"><span>09:41</span><span>•••</span></div><h1 class="h1">Još</h1>
+  ${pinned.length ? `<div class="glabel">Zakačeno</div><div class="card">${pinned.join('')}</div>` : ''}
   <div class="glabel">Planiranje</div><div class="card">
     ${navRow('openGoals', IC.goal, 'Ciljevi', { val: String(S.goals.filter(g => g.status === 'active').length) })}
-    ${navRow('soon', IC.area, 'Oblasti', { val: String(S.areas.length), data: soonData('Oblasti') })}
-    ${navRow('soon', IC.broom, 'Čišćenje', { val: '2 sobe', data: soonData('Čišćenje') })}
-    ${navRow('soon', IC.review, 'Nedeljni pregled', { val: 'Poslednji 4. okt', data: soonData('Nedeljni pregled') })}</div>
+    ${navRow('go', IC.area, 'Oblasti', { val: String(activeAreas().length), data: sub('areas') })}
+    ${navRow('go', IC.broom, 'Čišćenje', { val: `${S.rooms.length} ${plural(S.rooms.length, 'prostorija', 'prostorije', 'prostorija')}`, data: sub('cleaning') })}
+    ${navRow('go', IC.review, 'Nedeljni pregled', { val: reviewDone() ? 'Završen' : last ? `Poslednji ${short(last.completedAt)}` : '', data: sub('review') })}</div>
   <div class="glabel">Biblioteka</div><div class="card">
-    ${navRow('soon', IC.note, 'Beleške', { val: '12', data: soonData('Beleške') })}
-    ${navRow('soon', IC.link, 'Resursi', { val: '8', data: soonData('Resursi') })}
-    ${navRow('soon', IC.tag, 'Oznake', { val: String(S.tags.length), data: soonData('Oznake') })}
-    ${navRow('soon', IC.copy, 'Šabloni', { val: '3', data: soonData('Šabloni') })}
-    ${navRow('soon', IC.funnel, 'Sačuvani prikazi', { val: '2', data: soonData('Sačuvani prikazi') })}</div>
+    ${navRow('go', IC.note, 'Beleške', { val: String(S.library.filter(x => x.kind === 'note').length), data: sub('notes') })}
+    ${navRow('go', IC.link, 'Resursi', { val: String(S.library.filter(x => x.kind === 'resource').length), data: sub('resources') })}
+    ${navRow('go', IC.tag, 'Oznake', { val: String(S.tags.length), data: sub('tags') })}
+    ${navRow('go', IC.copy, 'Šabloni', { val: String(S.templates.length), data: sub('templates') })}
+    ${navRow('go', IC.funnel, 'Sačuvani prikazi', { val: String(S.views.length), data: sub('views') })}</div>
   <div class="glabel">Arhiva</div><div class="card">
-    ${navRow('soon', IC.checkc, 'Završeni zadaci', { data: soonData('Završeni zadaci (sa „Obriši završene“)') })}
-    ${navRow('soon', IC.archive, 'Arhivirani projekti', { data: soonData('Arhivirani projekti') })}</div>
+    ${navRow('go', IC.checkc, 'Završeni zadaci', { val: String(S.tasks.filter(t => t.done).length), data: sub('completed') })}
+    ${navRow('go', IC.archive, 'Arhivirani projekti', { val: String(S.projects.filter(p => p.archived).length), data: sub('archived') })}</div>
   <div class="card" style="margin-top:18px">${navRow('openSettings', IC.gear, 'Podešavanja', { sub: S.settings.sync ? 'Sinhronizovano pre 2 min' : 'Podaci su samo na ovom uređaju' })}</div>`;
+};
+A.go = el => push({ type: el.dataset.sub, ...(el.dataset.id ? { id: el.dataset.id } : {}) });
 A.openGoals = () => push({ type: 'goals' });
 A.openSettings = () => push({ type: 'settings' });
 
@@ -1183,8 +1212,8 @@ SUB.goals = () => {
     groups = [...map].map(([k, items]) => ({ icon: k === 'none' ? '' : IC.month, label: k === 'none' ? 'Bez datuma' : `${cap(MONTHS[Number(k.slice(5)) - 1])} ${k.slice(0, 4)}`, items }));
   }
   const fold = (key, label, list) => `<button class="collapsed" data-act="goalFold" data-k="${key}">${IC.fold(S.ui.goalFold[key])}${label} · ${list.length}</button>${S.ui.goalFold[key] ? `<div class="card" style="margin-top:8px">${list.map(x => `<div class="goalrow"><div class="ttl" style="color:var(--muted)">${esc(x.title)}</div><div class="meta">${x.when}</div></div>`).join('')}</div>` : ''}`;
-  return `<div class="status"><span>09:41</span><span>•••</span></div><button class="back" data-act="back">${IC.left}Još</button>
-    <div class="titlebar"><h1 class="h1">Ciljevi</h1><button class="icon-btn" data-act="soon" data-msg="Pretraga: posebni ekran, dolazi kasnije" aria-label="Pretraga">${IC.search}</button></div>
+  return `<div class="status"><span>09:41</span><span>•••</span></div>${backBtn()}
+    <div class="titlebar"><h1 class="h1">Ciljevi</h1><button class="icon-btn" data-act="search" aria-label="Pretraga">${IC.search}</button></div>
     <div class="summary">${active.length} ${plural(active.length, 'aktivan', 'aktivna', 'aktivnih')}${risk ? ` · <span class="amber">${risk} u riziku</span>` : ''}${late ? ` · <span class="red">${late} kasni</span>` : ''}</div>
     <div class="seg" role="tablist"><button role="tab" class="${S.ui.goalGroup === 'horizon' ? 'on' : ''}" data-act="goalGroup" data-v="horizon">Horizont</button><button role="tab" class="${S.ui.goalGroup === 'date' ? 'on' : ''}" data-act="goalGroup" data-v="date">Rok</button></div>
     ${groups.filter(x => x.items.length).map(x => `<div class="section">${x.icon}${x.label} <span>· ${x.items.length}</span></div><div class="card">${x.items.map(goalRow).join('')}</div>`).join('')}
@@ -1234,7 +1263,7 @@ WIN.goal = w => {
 A.msToggle = el => { const m = goal(W.id).milestones[Number(el.dataset.k)]; m.d = !m.d; render(); toast(m.d ? 'Etapa je završena' : 'Etapa je vraćena'); };
 A.msAdd = () => { const g = goal(W.id); g.milestones.push({ t: `Nova etapa ${g.milestones.length + 1}`, d: false, date: addDays(g.date || TODAY, 0) }); render(); };
 A.goalToProject = el => { closeWin(); R.tab = 'tasks'; R.stack = [{ type: 'project', id: el.dataset.id }]; render(); };
-A.goalArea = () => { const g = goal(W.id); openPick({ kind: 'choice', title: 'Oblast', sub: g.title, current: g.area, options: S.areas.map(a => ({ v: a.id, label: a.name, dot: a.color })), onPick: v => { g.area = v; render(); toast('Sačuvano'); } }); };
+A.goalArea = () => { const g = goal(W.id); openPick({ kind: 'choice', title: 'Oblast', sub: g.title, current: g.area, options: activeAreas().map(a => ({ v: a.id, label: a.name, dot: a.color })), onPick: v => { g.area = v; render(); toast('Sačuvano'); } }); };
 A.goalHorizon = () => { const g = goal(W.id); openPick({ kind: 'choice', title: 'Horizont', sub: g.title, current: g.horizon, options: HORIZONS.map(([v, l]) => ({ v, label: l, icon: IC[v] })), onPick: v => { g.horizon = v; render(); toast('Sačuvano'); } }); };
 A.goalDate = () => { const g = goal(W.id); openPick({ kind: 'goalDate', target: g, value: g.date }); };
 A.goalComplete = () => {
@@ -1296,7 +1325,7 @@ IN.ngUnit = el => { W.unit = el.value; };
 A.ngMore = () => { W.more = !W.more; renderWin(); };
 A.ngAddMs = () => { W.milestones.push(`Etapa ${W.milestones.length + 1}`); renderWin(); };
 A.ngRmMs = el => { W.milestones.splice(Number(el.dataset.k), 1); renderWin(); };
-A.ngArea = () => openPick({ kind: 'choice', title: 'Oblast', sub: W.title || 'Novi cilj', current: W.area, options: S.areas.map(a => ({ v: a.id, label: a.name, dot: a.color })), onPick: v => { W.area = v; renderWin(); } });
+A.ngArea = () => openPick({ kind: 'choice', title: 'Oblast', sub: W.title || 'Novi cilj', current: W.area, options: activeAreas().map(a => ({ v: a.id, label: a.name, dot: a.color })), onPick: v => { W.area = v; renderWin(); } });
 A.ngDate = () => openPick({ kind: 'goalDate', target: W, value: W.date });
 A.ngCreate = () => {
   const d = W;
@@ -1313,7 +1342,7 @@ A.ngCreate = () => {
 const hoursLabel = m => m === 0 ? 'Isključen' : durLabel(m);
 SUB.settings = () => {
   const st = S.settings;
-  return `<div class="status"><span>09:41</span><span>•••</span></div><button class="back" data-act="back">${IC.left}Još</button><h1 class="h1">Podešavanja</h1>
+  return `<div class="status"><span>09:41</span><span>•••</span></div>${backBtn()}<h1 class="h1">Podešavanja</h1>
   <div class="glabel">Nalog</div><div class="card">${navRow('setSheet', IC.sync, 'Sinhronizacija', { sub: st.sync || 'Za rad na više uređaja', val: st.sync ? 'Uključena' : 'Isključena', valClass: st.sync ? 'green' : '', data: 'data-k="sync"' })}</div>
   <div class="glabel">Opšte</div><div class="card">
     ${navRow('setSheet', IC.cal, 'Prvi dan nedelje', { val: st.weekStart, data: 'data-k="week"' })}
@@ -1406,7 +1435,7 @@ WIN.task = w => {
 };
 IN.taskTitle = el => { task(W.id).title = el.value; };
 IN.taskNotes = el => { task(W.id).notes = el.value; };
-A.taskComplete = () => { const t = task(W.id); t.done = !t.done; t.doneAt = t.done ? TODAY : null; if (t.done) t.inbox = false; render(); toast(t.done ? 'Zadatak je završen' : 'Zadatak je vraćen'); };
+A.taskComplete = () => { const t = task(W.id); if (!t.done) t.inbox = false; const { next, undo } = completeTask(t); render(); toast(t.done ? (next ? `Završeno · sledeći put ${relDay(next.plan || next.due)}` : 'Zadatak je završen') : 'Zadatak je vraćen', undo); };
 A.subToggle = el => { const s = task(W.id).subtasks[Number(el.dataset.k)]; s.d = !s.d; renderWin(); };
 A.subAdd = () => { const t = task(W.id); t.subtasks.push({ t: `Novi podzadatak ${t.subtasks.length + 1}`, d: false }); renderWin(); };
 // The task menu holds Focus (T2a) and Delete (I2).
@@ -1415,7 +1444,8 @@ A.taskMenu = () => {
   openPick({ kind: 'choice', title: t.title, current: null, options: [{ v: 'focus', label: 'Započni fokus', icon: IC.timer }, { v: 'dup', label: 'Dupliraj', icon: IC.copy }, { v: 'tpl', label: 'Sačuvaj kao šablon', icon: IC.copy }, { v: 'del', label: 'Obriši zadatak', icon: IC.trash }], onPick: v => {
     if (v === 'del') { const k = S.tasks.indexOf(t); S.tasks.splice(k, 1); closeWin(); render(); toast('Zadatak je obrisan', () => S.tasks.splice(k, 0, t)); }
     else if (v === 'dup') { S.tasks.push({ ...JSON.parse(JSON.stringify(t)), id: newId('t'), title: `${t.title} (kopija)` }); render(); toast('Napravljena je kopija'); }
-    else toast(v === 'focus' ? 'Fokus: tajmer za ovaj zadatak (poseban ekran)' : 'Šablon je sačuvan');
+    else if (v === 'focus') openFocus(t.id);
+    else toast('Otvara šablon zadatka, popunjen ovim zadatkom');
   } });
 };
 
@@ -1520,7 +1550,7 @@ A.durPick = el => { task(W.id).duration = Number(el.dataset.v) || null; closePic
 function projectList(p) {
   const q = (p.q || '').toLowerCase();
   let html = p.allowNone ? `<button class="opt" data-act="pjPick" data-id=""><span class="lbl">Bez projekta</span><span class="radio ${!p.current ? 'on' : ''}"></span></button>` : '';
-  for (const a of S.areas) for (const pr of S.projects.filter(x => x.area === a.id && x.name.toLowerCase().includes(q))) html += `<button class="opt" data-act="pjPick" data-id="${pr.id}"><span class="dot" style="background:${pr.color}"></span><span class="lbl">${esc(pr.name)}<small>Oblast: ${esc(a.name)}</small></span><span class="radio ${p.current === pr.id ? 'on' : ''}"></span></button>`;
+  for (const a of activeAreas()) for (const pr of activeProjects().filter(x => x.area === a.id && x.name.toLowerCase().includes(q))) html += `<button class="opt" data-act="pjPick" data-id="${pr.id}"><span class="dot" style="background:${pr.color}"></span><span class="lbl">${esc(pr.name)}<small>Oblast: ${esc(a.name)}</small></span><span class="radio ${p.current === pr.id ? 'on' : ''}"></span></button>`;
   return html + '<button class="opt" data-act="newProject" style="color:var(--link)">＋ Novi projekat</button>';
 }
 PICK.project = p => ({ title: 'Projekat', sub: p.sub, body: `<label class="search">${IC.search}<input placeholder="Pretraži projekte" value="${esc(p.q || '')}" data-in="pjSearch" aria-label="Pretraži projekte"></label><div class="card" id="pjList" style="margin-bottom:10px">${projectList(p)}</div><p class="note" style="margin-top:0">Zadatak dobija oblast svog projekta. Dodir odmah primenjuje izbor.</p>` });
@@ -1554,7 +1584,7 @@ function parseQuick(text) {
     if (/^\d{1,2}(:\d{2})?$/.test(w) && words[k - 1]?.toLowerCase() === 'u' || /^\d{1,2}:\d{2}$/.test(w)) { const [h, m = '00'] = w.split(':'); if (Number(h) < 24) { out.time = `${h.padStart(2, '0')}:${m}`; continue; } }
     if (/^#\S+/.test(w)) { const name = w.slice(1); out.tags.push(S.tags.find(t => t.name.toLowerCase() === name.toLowerCase())?.name || name); continue; }
     if (/^!(visok|srednji|nizak|[123])$/i.test(w)) { out.priority = { visok: 'high', srednji: 'medium', nizak: 'low', 1: 'high', 2: 'medium', 3: 'low' }[lw.slice(1)]; continue; }
-    if (/^\+\S+/.test(w)) { const q = plain(w.slice(1)); const p = S.projects.find(x => plain(x.name).replace(/\s+/g, '').startsWith(q)); if (p) { out.project = p.id; continue; } }
+    if (/^\+\S+/.test(w)) { const q = plain(w.slice(1)); const p = activeProjects().find(x => plain(x.name).replace(/\s+/g, '').startsWith(q)); if (p) { out.project = p.id; continue; } }
     keep.push(w);
   }
   out.title = keep.join(' ');
@@ -1565,12 +1595,12 @@ function parseQuick(text) {
   if (out.priority) out.parts.push(`${PRI_NAME[out.priority]} prioritet`);
   return out;
 }
-function openQuick({ date = null, project: proj = 'inbox' } = {}) { openWin({ kind: 'quick', text: '', date, time: null, project: proj, datePicked: false, projectPicked: false, err: '' }); setTimeout(() => $('qText')?.focus(), 0); }
+function openQuick({ date = null, project: proj = 'inbox', area = null } = {}) { openWin({ kind: 'quick', text: '', date, time: null, project: proj, area, datePicked: false, projectPicked: false, err: '' }); setTimeout(() => $('qText')?.focus(), 0); }
 function quickEffective(w) {
   const p = parseQuick(w.text);
   return { p, date: w.datePicked ? w.date : (p.date ?? w.date), time: w.datePicked ? w.time : (p.time ?? w.time), project: w.projectPicked ? w.project : (p.project ?? w.project) };
 }
-const quickPlace = v => v === 'inbox' ? 'Inbox' : v === 'none' ? 'Bez projekta' : project(v).name;
+const quickPlace = v => v === 'inbox' ? 'Inbox' : v === 'none' ? (W?.area ? `Bez projekta · ${areaOf(W.area).name}` : 'Bez projekta') : project(v).name;
 function quickPreview(w) {
   const { p } = quickEffective(w);
   return p.parts.length ? `Prepoznato u naslovu: <b>${p.parts.map(esc).join(' · ')}</b>` : '';
@@ -1589,13 +1619,13 @@ WIN.quick = w => {
 // The preview updates while typing, without redrawing the field.
 IN.qText = el => { W.text = el.value; $('qPrev').innerHTML = quickPreview(W); };
 A.qDate = () => { const e = quickEffective(W); openDate({ mode: 'quick', date: e.date, time: e.time }); };
-A.qProject = () => { const e = quickEffective(W); openPick({ kind: 'choice', title: 'Gde ide zadatak', current: e.project, options: [{ v: 'inbox', label: 'Inbox', icon: IC.tray, sub: 'Razvrstaćeš ga kasnije' }, { v: 'none', label: 'Bez projekta' }, ...S.projects.map(p => ({ v: p.id, label: p.name, dot: p.color, sub: `Oblast: ${areaOf(p.area).name}` }))], onPick: v => { W.project = v; W.projectPicked = true; renderWin(); } }); };
+A.qProject = () => { const e = quickEffective(W); openPick({ kind: 'choice', title: 'Gde ide zadatak', current: e.project, options: [{ v: 'inbox', label: 'Inbox', icon: IC.tray, sub: 'Razvrstaćeš ga kasnije' }, { v: 'none', label: 'Bez projekta' }, ...activeProjects().map(p => ({ v: p.id, label: p.name, dot: p.color, sub: `Oblast: ${areaOf(p.area).name}` }))], onPick: v => { W.project = v; W.projectPicked = true; renderWin(); } }); };
 function quickCreate() {
   const e = quickEffective(W);
   if (!e.p.title.trim()) { W.err = 'Upiši naziv zadatka.'; renderWin(); return null; }
   const tags = e.p.tags.map(name => { let tg = S.tags.find(x => x.name.toLowerCase() === name.toLowerCase()); if (!tg) { tg = { id: newId('tag'), name, color: '#8FA2FF' }; S.tags.push(tg); } return tg.id; });
   const proj = !['inbox', 'none'].includes(e.project) ? e.project : null;
-  const t = T(e.p.title.trim(), { plan: e.date, time: e.date ? e.time : null, project: proj, tags, priority: e.p.priority || 'none', inbox: !e.date && e.project === 'inbox', captured: 'Danas' });
+  const t = T(e.p.title.trim(), { plan: e.date, time: e.date ? e.time : null, project: proj, area: proj ? null : W.area || null, tags, priority: e.p.priority || 'none', inbox: !e.date && e.project === 'inbox', captured: 'Danas' });
   S.tasks.push(t);
   return t;
 }
@@ -1657,7 +1687,7 @@ IN.nhName = el => { W.name = el.value; };
 IN.nhTarget = el => { W.target = Number(el.value); };
 IN.nhUnit = el => { W.unit = el.value; };
 A.nhMore = () => { W.more = !W.more; renderWin(); };
-A.nhArea = () => openPick({ kind: 'choice', title: 'Oblast', sub: W.name || 'Nova navika', current: W.area, options: [{ v: null, label: 'Bez oblasti' }, ...S.areas.map(a => ({ v: a.id, label: a.name, dot: a.color }))], onPick: v => { W.area = v; renderWin(); } });
+A.nhArea = () => openPick({ kind: 'choice', title: 'Oblast', sub: W.name || 'Nova navika', current: W.area, options: [{ v: null, label: 'Bez oblasti' }, ...activeAreas().map(a => ({ v: a.id, label: a.name, dot: a.color }))], onPick: v => { W.area = v; renderWin(); } });
 A.nhStart = () => openDate({ mode: 'habitStart', date: W.freq.start, time: null });
 A.nhFreq = () => openPick({ kind: 'freq', f: JSON.parse(JSON.stringify(W.freq)) });
 A.nhRem = () => openPick({ kind: 'hrem', times: W.reminders.length ? [...W.reminders] : ['09:00'] });
@@ -1707,6 +1737,568 @@ A.nhCreate = () => {
   if (f.type === 'perWeek') h.weekly = f.perWeek;
   S.habits.push(h);
   closeWin(); render(); toast('Navika je napravljena');
+};
+// ===== Smaller screens: data ===============================================
+Object.assign(S.areas[0], { icon: 'briefcase', pinned: true });
+Object.assign(S.areas[1], { icon: 'house' });
+Object.assign(S.areas[2], { icon: 'heart' });
+S.areas.push({ id: 'a4', name: 'Volontiranje', color: '#FF8A5B', icon: 'heart', status: 'archived' });
+S.projects.push({ id: 'p5', name: 'Stari sajt', area: 'a1', color: '#8B929C', archived: true });
+S.tasks.push(T('Prebaci stare tekstove', { project: 'p5' }));
+for (const [id, area] of [['h1', 'a3'], ['h2', 'a3'], ['h3', 'a3'], ['h4', 'a2'], ['h5', 'a2'], ['h6', 'a3']]) habit(id).area = area;
+S.rooms = [{ id: 'r1', name: 'Dnevna soba' }, { id: 'r2', name: 'Kupatilo' }, { id: 'r3', name: 'Kuhinja' }];
+const weekly = { freq: 'weekly', interval: 1, days: [], end: 'never' }, monthly = { freq: 'monthly', interval: 1, days: [], end: 'never' };
+S.tasks.push(
+  T('Usisaj', { room: 'r1', area: 'a2', plan: '2026-10-10', due: '2026-10-10', repeat: weekly }),
+  T('Obriši prašinu', { room: 'r1', area: 'a2', plan: '2026-10-11', due: '2026-10-11', repeat: weekly }),
+  T('Očisti kupatilo', { room: 'r2', area: 'a2', plan: '2026-10-09', due: '2026-10-09', repeat: weekly }),
+  T('Proveri bojler', { room: 'r2', area: 'a2', plan: '2026-12-01', due: '2026-12-01', repeat: { freq: 'monthly', interval: 3, days: [], end: 'never' } }),
+  T('Obriši radne površine', { room: 'r3', area: 'a2', plan: TODAY, due: TODAY, repeat: weekly }),
+  T('Očisti frižider', { room: 'r3', area: 'a2', plan: '2026-10-07', due: '2026-10-07', repeat: monthly }),
+);
+S.library = [
+  { id: 'l1', kind: 'note', title: 'Ideje za poklone', body: 'Ana: knjiga o biljkama ili kurs keramike. Marko: slušalice.', area: 'a2', fav: true, links: ['https://www.knjizare-vulkan.rs'], files: 0, tags: [], clip: '', updated: '2026-10-07' },
+  { id: 'l2', kind: 'note', title: 'Sastanak sa klijentom 6. okt', body: 'Dogovor: pregled početne do 9. okt, objava 13. okt.', area: 'a1', fav: false, links: ['https://portal.primer.rs/sastanci'], files: 1, tags: ['t1'], clip: 'Klijent želi tamniji meni.', updated: '2026-10-06' },
+  { id: 'l3', kind: 'note', title: 'Recept za palačinke', body: '2 jaja, 250 ml mleka, 150 g brašna.', area: 'a2', fav: false, links: ['https://recepti.primer.rs/palacinke'], files: 0, tags: [], clip: '', updated: '2026-09-30' },
+  { id: 'l4', kind: 'resource', title: 'Refactoring UI', body: 'Praktični saveti za izgled interfejsa.', type: 'Knjiga', status: 'U čitanju', author: 'Adam Wathan, Steve Schoger', reviewed: '2026-10-05', area: 'a1', fav: true, links: ['https://www.refactoringui.com'], files: 1, tags: ['t2'], clip: '', linked: { tasks: 1, projects: 1, goals: 0, habits: 0 }, updated: '2026-10-05' },
+  { id: 'l5', kind: 'resource', title: 'Figma za početnike', body: '', type: 'Kurs', status: 'Nepročitano', author: '', reviewed: null, area: 'a1', fav: false, links: ['https://www.figma.com/resources/learn-design'], files: 0, tags: ['t4'], clip: '', linked: { tasks: 0, projects: 0, goals: 0, habits: 0 }, updated: '2026-09-21' },
+  { id: 'l6', kind: 'resource', title: 'Plan treninga za polumaraton', body: '12 nedelja, 4 treninga nedeljno.', type: 'Članak', status: 'Završeno', author: 'Trkački klub', reviewed: '2026-09-15', area: 'a3', fav: false, links: ['https://trcanje.primer.rs/plan-21k'], files: 0, tags: [], clip: '', linked: { tasks: 0, projects: 0, goals: 1, habits: 2 }, updated: '2026-09-15' },
+];
+S.ui.libFilters = { note: {}, resource: {} };
+const AREA_ICON = { briefcase: SV('<rect x="3.5" y="7" width="17" height="12" rx="2"/><path d="M9 7V5h6v2M3.5 12h17"/>'), house: SV('<path d="M4 11l8-6 8 6v8H4z"/><path d="M10 19v-5h4v5"/>'), heart: SV('<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/>') };
+const areaIcon = a => `<span style="color:${a.color};display:grid">${AREA_ICON[a.icon] || IC.area}</span>`;
+
+// ===== Oblasti =============================================================
+SCREEN_TITLE.areas = 'Oblasti';
+SCREEN_TITLE.area = e => areaOf(e.id).name;
+const areaTasks = id => S.tasks.filter(t => !t.done && !t.inbox && (t.project ? project(t.project)?.area === id : t.area === id));
+function areaSummary(a) {
+  const projects = activeProjects().filter(p => p.area === a.id).length, open = areaTasks(a.id).length;
+  const goals = S.goals.filter(g => g.status === 'active' && g.area === a.id).length;
+  return [projects && `${projects} ${plural(projects, 'projekat', 'projekta', 'projekata')}`, `${openCount(open)}`, goals && `${goals} ${plural(goals, 'cilj', 'cilja', 'ciljeva')}`].filter(Boolean).join(' · ');
+}
+SUB.areas = () => {
+  const active = activeAreas(), archived = S.areas.filter(a => a.status === 'archived');
+  return `<div class="status"><span>09:41</span><span>•••</span></div>${backBtn()}<h1 class="h1">Oblasti</h1>
+    <div class="summary">${active.length} ${plural(active.length, 'aktivna oblast', 'aktivne oblasti', 'aktivnih oblasti')}</div>
+    <div class="card">${active.map(a => `<button class="prj" data-act="go" data-sub="area" data-id="${a.id}">${areaIcon(a)}<span class="main"><div class="ttl">${esc(a.name)}${a.pinned ? ' <span class="meta" style="display:inline">· zakačena</span>' : ''}</div><div class="meta">${areaSummary(a)}</div></span>${IC.chev}</button>`).join('')}<button class="addrow" data-act="newArea">＋ Nova oblast</button></div>
+    <button class="collapsed" data-act="foldArchivedAreas">${IC.fold(S.ui.archAreas)}Arhivirane · ${archived.length}</button>
+    ${S.ui.archAreas ? `<div class="card" style="margin-top:8px">${archived.map(a => `<div class="prj">${areaIcon(a)}<span class="main"><div class="ttl" style="color:var(--muted)">${esc(a.name)}</div></span><button class="chip sm" data-act="restoreArea" data-id="${a.id}">Vrati</button></div>`).join('')}</div>` : ''}`;
+};
+A.foldArchivedAreas = () => { S.ui.archAreas = !S.ui.archAreas; render(); };
+A.restoreArea = el => { areaOf(el.dataset.id).status = 'active'; render(); toast('Oblast je vraćena'); };
+A.newArea = () => openPick({ kind: 'newArea', name: '', color: COLORS[2], icon: 'heart' });
+PICK.newArea = p => ({ title: 'Nova oblast', body: `<label class="field"><input class="wide" placeholder="Naziv oblasti" value="${esc(p.name)}" data-in="naName" aria-label="Naziv oblasti"></label>
+  <div class="glabel" style="margin-top:4px">Boja</div><div class="chips">${COLORS.map(c => `<button class="chip ${p.color === c ? 'on' : ''}" data-act="naColor" data-c="${c}" aria-label="Boja"><span class="dot" style="background:${c}"></span></button>`).join('')}</div>
+  <div class="glabel" style="margin-top:4px">Ikonica</div><div class="chips">${Object.keys(AREA_ICON).map(k => `<button class="chip ${p.icon === k ? 'on' : ''}" data-act="naIcon" data-k="${k}" aria-label="${k}">${AREA_ICON[k]}</button>`).join('')}</div>
+  ${p.err ? `<p class="err">${p.err}</p>` : ''}<button class="primary" data-act="naCreate">Napravi oblast</button>` });
+IN.naName = el => { P.name = el.value; };
+A.naColor = el => { P.color = el.dataset.c; renderPick(); };
+A.naIcon = el => { P.icon = el.dataset.k; renderPick(); };
+A.naCreate = () => {
+  const name = P.name.trim();
+  if (!name) { P.err = 'Oblast mora imati naziv.'; return renderPick(); }
+  if (S.areas.some(a => a.name.toLowerCase() === name.toLowerCase())) { P.err = 'Oblast sa ovim nazivom već postoji.'; return renderPick(); }
+  S.areas.push({ id: newId('a'), name, color: P.color, icon: P.icon, status: 'active' }); closePick(); render(); toast(`Oblast „${name}“ je napravljena`);
+};
+// One area: a summary line, then its projects, tasks, goals, habits and library.
+SUB.area = ({ id }) => {
+  const a = areaOf(id), projects = activeProjects().filter(p => p.area === id), tasks = areaTasks(id).sort(byTime);
+  const goals = S.goals.filter(g => g.area === id && g.status === 'active'), lib = S.library.filter(x => x.area === id), habits = S.habits.filter(h => h.area === id);
+  const head = (label, n, act) => `<div class="section" style="justify-content:space-between"><span style="color:var(--text);font-weight:600">${label} <span class="meta" style="display:inline;font-weight:500">· ${n}</span></span>${act ? `<button class="icon-btn" style="width:32px;height:32px;color:var(--link)" data-act="${act}" data-id="${id}" aria-label="Dodaj: ${label}">＋</button>` : ''}</div>`;
+  const shownTasks = S.ui.areaTasksAll ? tasks : tasks.slice(0, 5);
+  return `<div class="status"><span>09:41</span><span>•••</span></div><div class="titlebar">${backBtn()}<button class="icon-btn" data-act="areaMenu" data-id="${id}" aria-label="Radnje za oblast">${IC.dots}</button></div>
+    <h1 class="h1" style="display:flex;gap:10px;align-items:center">${areaIcon(a)}${esc(a.name)}</h1>
+    <div class="summary">${areaSummary(a)} · ${lib.length} u biblioteci</div>
+    ${head('Projekti', projects.length, 'areaNewProject')}${projects.length ? `<div class="card">${projects.map(projectRow).join('')}</div>` : '<p class="note">U ovoj oblasti nema projekata.</p>'}
+    ${head('Zadaci', tasks.length, 'areaNewTask')}${tasks.length ? `<div class="card">${shownTasks.map(t => taskRow(t, { meta: 'plan' })).join('')}${tasks.length > 5 ? `<button class="more-btn" data-act="areaTasksAll">${S.ui.areaTasksAll ? 'Prikaži manje' : `Prikaži još ${tasks.length - 5}`}</button>` : ''}</div>` : '<p class="note">U ovoj oblasti nema otvorenih zadataka.</p>'}
+    ${head('Ciljevi', goals.length, 'areaNewGoal')}${goals.length ? `<div class="card">${goals.map(goalRow).join('')}</div>` : '<p class="note">U ovoj oblasti nema ciljeva.</p>'}
+    ${head('Navike', habits.length, 'areaNewHabit')}${habits.length ? `<div class="card">${habits.map(h => habitRow(h, TI, { meta: h.freq })).join('')}</div>` : '<p class="note">U ovoj oblasti nema navika.</p>'}
+    ${head('Beleške i resursi', lib.length, 'areaNewNote')}${lib.length ? `<div class="card">${lib.map(libRow).join('')}</div>` : '<p class="note">U ovoj oblasti nema beleški ni resursa.</p>'}`;
+};
+A.areaTasksAll = () => { S.ui.areaTasksAll = !S.ui.areaTasksAll; render(); };
+A.areaNewProject = el => openPick({ kind: 'newProject', name: '', color: COLORS[0], area: el.dataset.id });
+A.areaNewTask = el => openQuick({ date: null, project: 'none', area: el.dataset.id });
+A.areaNewGoal = el => openWin({ ...freshGoal(), area: el.dataset.id });
+A.areaNewNote = el => openLibItem('note', el.dataset.id);
+A.areaNewHabit = el => { openNewHabit(); W.area = el.dataset.id; renderWin(); };
+A.areaMenu = el => {
+  const a = areaOf(el.dataset.id);
+  openPick({ kind: 'choice', title: a.name, current: null, options: [{ v: 'edit', label: 'Izmeni oblast', sub: 'Naziv, boja i ikonica' }, { v: 'pin', label: a.pinned ? 'Otkači iz „Još“' : 'Zakači u „Još“' }, { v: 'arch', label: 'Arhiviraj oblast' }, { v: 'del', label: 'Obriši oblast', sub: 'Povezane stavke ostaju, a uklanja se njihova pripadnost ovoj oblasti.' }], onPick: v => {
+    if (v === 'pin') { a.pinned = !a.pinned; render(); toast(a.pinned ? 'Zakačeno u „Još“' : 'Otkačeno'); }
+    else if (v === 'arch') { a.status = 'archived'; a.pinned = false; pop(); toast('Oblast je arhivirana', () => { a.status = 'active'; }); }
+    else if (v === 'del') toast('Traži potvrdu „Obrisati oblast?“, pa nudi Poništi');
+    else toast('Isti mali prozor kao „Nova oblast“');
+  } });
+};
+
+// ===== Beleške i Resursi ====================================================
+SCREEN_TITLE.notes = 'Beleške';
+SCREEN_TITLE.resources = 'Resursi';
+const RES_TYPES = ['Knjiga', 'Video', 'Članak', 'Kurs', 'Dokument', 'Ostalo'];
+const RES_STATUS = ['Nepročitano', 'U čitanju', 'Završeno'];
+function libRow(x) {
+  const meta = x.kind === 'resource' ? [`${x.type} · ${x.status}`, areaOf(x.area)?.name] : [areaOf(x.area)?.name || 'Bez oblasti', x.links.length && `${x.links.length} ${plural(x.links.length, 'link', 'linka', 'linkova')}`, x.files && `${x.files} ${plural(x.files, 'fajl', 'fajla', 'fajlova')}`];
+  const dots = x.tags.map(id => `<span class="dot" style="background:${S.tags.find(t => t.id === id)?.color};width:8px;height:8px"></span>`).join('');
+  return `<div class="trow"><span class="tico">${x.kind === 'note' ? IC.note : IC.link}</span><button class="main" data-act="openLib" data-id="${x.id}"><div class="ttl">${esc(x.title)}</div><div class="meta" style="display:flex;gap:6px;align-items:center">${esc(meta.filter(Boolean).join(' · '))}${dots}</div></button><button class="icon-btn" style="width:36px;height:36px;color:${x.fav ? 'var(--amber)' : '#5B6270'}" data-act="libFav" data-id="${x.id}" aria-pressed="${x.fav}" aria-label="${x.fav ? 'Ukloni iz omiljenog' : 'Dodaj u omiljeno'}">${x.fav ? '★' : '☆'}</button></div>`;
+}
+function libList(kind) {
+  const f = S.ui.libFilters[kind];
+  return S.library.filter(x => x.kind === kind && (!f.fav || x.fav) && (!f.area || (f.area === 'none' ? !x.area : x.area === f.area)) && (!f.tag || x.tags.includes(f.tag)) && (!f.type || x.type === f.type) && (!f.status || x.status === f.status)).sort((a, b) => b.updated.localeCompare(a.updated));
+}
+function libScreen(kind) {
+  const f = S.ui.libFilters[kind], all = S.library.filter(x => x.kind === kind), list = libList(kind);
+  const any = Object.values(f).some(Boolean);
+  const chip = (key, label, value) => `<button class="chip sm ${value ? 'on' : ''}" data-act="libFilter" data-kind="${kind}" data-k="${key}">${esc(value || label)} ▾</button>`;
+  const areaName = f.area === 'none' ? 'Bez oblasti' : areaOf(f.area)?.name;
+  return `<div class="status"><span>09:41</span><span>•••</span></div>${backBtn()}<h1 class="h1">${kind === 'note' ? 'Beleške' : 'Resursi'}</h1>
+    <div class="summary">${any ? `${list.length} od ${all.length}` : all.length} ${kind === 'note' ? plural(all.length, 'beleška', 'beleške', 'beleški') : plural(all.length, 'resurs', 'resursa', 'resursa')}</div>
+    <div class="filters" style="margin-bottom:12px"><button class="chip sm ${f.fav ? 'on' : ''}" data-act="libFavFilter" data-kind="${kind}">${f.fav ? '★' : '☆'} Omiljeno</button>${kind === 'resource' ? chip('type', 'Vrsta', f.type) + chip('status', 'Status', f.status) : ''}${chip('area', 'Oblast', areaName)}${chip('tag', 'Oznaka', S.tags.find(t => t.id === f.tag)?.name)}${any ? `<button class="chip sm quiet" data-act="libClear" data-kind="${kind}">Obriši filtere</button>` : ''}</div>
+    ${list.length ? `<div class="card">${list.map(libRow).join('')}</div>` : `<div class="empty"><strong>${all.length ? 'Nijedna stavka ne odgovara ovim filterima.' : kind === 'note' ? 'Još nema beleški' : 'Još nema resursa'}</strong>${all.length ? '' : '„+“ dole desno dodaje novu.'}</div>`}`;
+}
+SUB.notes = () => libScreen('note');
+SUB.resources = () => libScreen('resource');
+A.libFav = el => { const x = S.library.find(i => i.id === el.dataset.id); x.fav = !x.fav; render(); };
+A.libFavFilter = el => { const f = S.ui.libFilters[el.dataset.kind]; f.fav = !f.fav; render(); };
+A.libClear = el => { S.ui.libFilters[el.dataset.kind] = {}; render(); };
+A.libFilter = el => {
+  const kind = el.dataset.kind, k = el.dataset.k, f = S.ui.libFilters[kind];
+  const options = k === 'area' ? [{ v: '', label: 'Sve oblasti' }, { v: 'none', label: 'Bez oblasti' }, ...S.areas.map(a => ({ v: a.id, label: a.name, dot: a.color }))]
+    : k === 'tag' ? [{ v: '', label: 'Sve oznake' }, ...S.tags.map(t => ({ v: t.id, label: t.name, dot: t.color }))]
+    : k === 'type' ? [{ v: '', label: 'Sve vrste' }, ...RES_TYPES.map(v => ({ v, label: v }))] : [{ v: '', label: 'Svi statusi' }, ...RES_STATUS.map(v => ({ v, label: v }))];
+  openPick({ kind: 'choice', title: { area: 'Oblast', tag: 'Oznaka', type: 'Vrsta', status: 'Status čitanja' }[k], current: f[k] || '', options, onPick: v => { f[k] = v || undefined; render(); } });
+};
+// A note or resource opens in a window like the task window; changes save at once.
+A.openLib = el => openWin({ kind: 'lib', id: el.dataset.id });
+function openLibItem(kind, area = null) {
+  const x = { id: newId('l'), kind, title: '', body: '', area, fav: false, links: [], files: 0, tags: [], clip: '', updated: TODAY, isNew: true, ...(kind === 'resource' ? { type: 'Članak', status: 'Nepročitano', author: '', reviewed: null, linked: { tasks: 0, projects: 0, goals: 0, habits: 0 } } : {}) };
+  S.library.push(x);
+  openWin({ kind: 'lib', id: x.id });
+}
+WIN.lib = w => {
+  const x = S.library.find(i => i.id === w.id), res = x.kind === 'resource';
+  const linkedRows = res ? Object.entries({ tasks: 'Povezani zadaci', projects: 'Povezani projekti', goals: 'Povezani ciljevi', habits: 'Povezane navike' }).map(([k, l]) => prow('soon', IC.link, l, x.linked[k] ? String(x.linked[k]) : '', 'Nijedan', 'data-msg="Višestruki izbor, kao oznake"')).join('') : '';
+  return {
+    tall: true,
+    head: winHead(res ? 'Resurs' : 'Beleška', `<button class="x" style="color:${x.fav ? 'var(--amber)' : 'var(--muted)'}" data-act="libFav" data-id="${x.id}" aria-pressed="${x.fav}" aria-label="Omiljeno">${x.fav ? '★' : '☆'}</button><button class="x" data-act="libMenu" aria-label="Radnje">${IC.dots}</button>`),
+    body: `<textarea class="bigtitle" rows="1" placeholder="${res ? 'Naziv resursa' : 'Naziv beleške'}" data-in="libTitle" aria-label="Naziv">${esc(x.title)}</textarea>
+      <button class="plink" data-act="libArea">${IC.person}${esc(areaOf(x.area)?.name || 'Bez oblasti')}</button>
+      ${res ? `<div class="card">${prow('libType', IC.copy, 'Vrsta', x.type, '')}${prow('libStatus', IC.book, 'Status čitanja', x.status, '')}${prow('soon', IC.person, 'Autor', x.author, 'Bez autora', 'data-msg="Polje za autora"')}${prow('soon', IC.cal, 'Poslednji pregled', x.reviewed ? short(x.reviewed) : '', 'Još nije pregledano', 'data-msg="Isti prozor za datum kao kod zadatka"')}</div>` : ''}
+      <div class="glabel">${res ? 'Opis' : 'Tekst'}</div><textarea class="notes" data-in="libBody" placeholder="${res ? 'Opis' : 'Tekst beleške'}">${esc(x.body)}</textarea>
+      ${x.clip ? `<div class="glabel">Isečak teksta</div><div class="pcard" style="border-left:3px solid #3A3F48;color:var(--muted)">${esc(x.clip)}</div>` : ''}
+      <div class="glabel">Linkovi · ${x.links.length}</div><div class="card">${x.links.map((l, k) => `<div class="prow">${IC.link}<span class="grow" style="color:var(--link);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(l.replace(/^https?:\/\//, ''))}</span><button class="x" data-act="libRmLink" data-k="${k}" aria-label="Ukloni link">✕</button></div>`).join('')}<div class="prow"><span class="ico">${IC.link}</span><input class="grow" style="background:none;border:0;outline:none" placeholder="https://…" data-in="libNewLink" aria-label="Novi link"><button class="chip sm" data-act="libAddLink">Dodaj</button></div></div>
+      <div class="glabel">Organizacija</div><div class="card">${prow('libTags', IC.tag, 'Oznake', S.tags.filter(t => x.tags.includes(t.id)).map(t => t.name).join(', '), 'Nema')}${linkedRows}</div>
+      <div class="glabel">Prilozi · ${x.files}</div><div class="card">${x.files ? `<div class="prow">${IC.file}<span class="grow">${res ? 'Poglavlje-3.pdf' : 'Zapisnik.pdf'}<span class="sub">PDF · 1,2 MB</span></span></div>` : ''}<button class="prow add" data-act="soon" data-msg="Bira fajl, najviše 10 MB">＋ Dodaj prilog</button></div>
+      ${x.err ? `<p class="err" style="margin-top:10px">${x.err}</p>` : ''}`,
+    foot: x.isNew ? `<button class="primary" data-act="libSave">${res ? 'Napravi resurs' : 'Napravi belešku'}</button>` : '',
+  };
+};
+const lib = () => S.library.find(i => i.id === W.id);
+IN.libTitle = el => { lib().title = el.value; };
+IN.libBody = el => { lib().body = el.value; };
+let newLink = '';
+IN.libNewLink = el => { newLink = el.value; };
+A.libAddLink = () => {
+  const x = lib(), v = newLink.trim();
+  if (!/^(https?:\/\/|mailto:)\S+$/.test(v)) return toast('Unesi ispravan veb ili imejl link');
+  if (x.links.includes(v)) return toast('Ovaj link je već dodat');
+  x.links.push(v); newLink = ''; renderWin();
+};
+A.libRmLink = el => { lib().links.splice(Number(el.dataset.k), 1); renderWin(); };
+A.libArea = () => { const x = lib(); openPick({ kind: 'choice', title: 'Oblast', sub: x.title, current: x.area, options: [{ v: null, label: 'Bez oblasti' }, ...activeAreas().map(a => ({ v: a.id, label: a.name, dot: a.color }))], onPick: v => { x.area = v; render(); } }); };
+A.libType = () => { const x = lib(); openPick({ kind: 'choice', title: 'Vrsta', sub: x.title, current: x.type, options: RES_TYPES.map(v => ({ v, label: v })), onPick: v => { x.type = v; render(); } }); };
+A.libStatus = () => { const x = lib(); openPick({ kind: 'choice', title: 'Status čitanja', sub: x.title, current: x.status, options: RES_STATUS.map(v => ({ v, label: v })), onPick: v => { x.status = v; render(); } }); };
+A.libTags = () => { const x = lib(); openPick({ kind: 'libTags', ids: [...x.tags] }); };
+PICK.libTags = p => ({ title: 'Oznake', sub: lib().title, body: `<div class="card" style="margin-bottom:14px">${S.tags.map(t => `<button class="opt" data-act="ltToggle" data-id="${t.id}" aria-pressed="${p.ids.includes(t.id)}"><span class="dot" style="background:${t.color}"></span><span class="lbl">${esc(t.name)}</span><span class="check ${p.ids.includes(t.id) ? 'on' : ''}">${p.ids.includes(t.id) ? IC.tickW : ''}</span></button>`).join('')}</div><button class="primary" data-act="ltApply">Primeni</button>` });
+A.ltToggle = el => { const id = el.dataset.id; P.ids = P.ids.includes(id) ? P.ids.filter(x => x !== id) : [...P.ids, id]; renderPick(); };
+A.ltApply = () => { lib().tags = P.ids; closePick(); render(); };
+// Today's rule stays: a title and at least one link, image or file.
+A.libSave = () => {
+  const x = lib(), what = x.kind === 'note' ? 'Beleška' : 'Resurs';
+  if (!x.title.trim()) { x.err = `${what} mora imati naziv.`; return renderWin(); }
+  if (!x.links.length && !x.files) { x.err = `${what} mora imati bar jedan URL, sliku ili priloženi fajl.`; return renderWin(); }
+  delete x.isNew; delete x.err; render(); toast(`${what} je napravljen${x.kind === 'note' ? 'a' : ''}`);
+};
+A.libMenu = () => { const x = lib(); openPick({ kind: 'choice', title: x.title || 'Stavka', current: null, options: [{ v: 'del', label: x.kind === 'note' ? 'Obriši belešku' : 'Obriši resurs' }], onPick: () => { S.library.splice(S.library.indexOf(x), 1); closeWin(); render(); toast('Obrisano', () => S.library.push(x)); } }); };
+// Closing an unsaved new item drops it.
+const closeWinCore = closeWin;
+closeWin = function () { if (W?.kind === 'lib') { const x = lib(); if (x?.isNew) S.library.splice(S.library.indexOf(x), 1); } closeWinCore(); };
+// ===== Čišćenje =============================================================
+SCREEN_TITLE.cleaning = 'Čišćenje';
+const choreRepeat = r => !r ? 'Ne ponavlja se' : r.freq === 'daily' ? (r.interval > 1 ? `Svakih ${r.interval} dana` : 'Svaki dan') : r.freq === 'weekly' ? (r.interval > 1 ? `Svake ${r.interval}. nedelje` : 'Svake nedelje') : r.interval > 1 ? `Svaka ${r.interval} meseca` : 'Svakog meseca';
+function choreWhen(t) {
+  const d = t.due || t.plan;
+  if (!d) return '<span>Bez datuma</span>';
+  const n = daysTo(d);
+  return n < 0 ? `<span class="red">Kasni · ${short(d)}</span>` : n === 0 ? '<span class="amber">Danas</span>' : n === 1 ? '<span>Sutra</span>' : `<span>${short(d)}</span>`;
+}
+// Chores get a round check here, so they can be done without opening them.
+function choreRow(t) {
+  return `<div class="trow"><button class="round ${t.done ? 'on' : ''}" data-act="toggleTask" data-id="${t.id}" aria-label="${t.done ? 'Vrati' : 'Završi'}: ${esc(t.title)}">${t.done ? IC.tick : ''}</button><button class="main" data-act="openTask" data-id="${t.id}"><div class="ttl ${t.done ? 'done-title' : ''}">${esc(t.title)}</div><div class="meta">${t.done ? `Završeno ${relDay(t.doneAt).toLowerCase()}` : choreRepeat(t.repeat)}</div></button><span class="side">${t.done ? '' : choreWhen(t)}</span></div>`;
+}
+SUB.cleaning = () => {
+  const f = S.ui.room || 'all', rooms = S.rooms.filter(r => f === 'all' || r.id === f);
+  const open = S.tasks.filter(t => t.room && !t.done), late = open.filter(t => (t.due || t.plan) < TODAY).length;
+  let html = `<div class="status"><span>09:41</span><span>•••</span></div>${backBtn()}<h1 class="h1">Čišćenje</h1>
+    <div class="summary">${open.length} ${plural(open.length, 'obaveza', 'obaveze', 'obaveza')}${late ? ` · <span class="red">${late} kasni</span>` : ''}</div>`;
+  if (!S.rooms.length) return html + `<div class="empty"><strong>Još nema prostorija</strong>Napravi prostoriju, pa dodaj obaveze koje se ponavljaju.</div><div class="chips" style="justify-content:center"><button class="chip" data-act="roomPreset" data-v="stan">Primer: stan</button><button class="chip" data-act="roomPreset" data-v="kuca">Primer: kuća</button></div>`;
+  html += `<div class="filters" style="margin-bottom:4px"><button class="chip sm ${f === 'all' ? 'on' : ''}" data-act="roomFilter" data-v="all">Sve prostorije</button>${S.rooms.map(r => `<button class="chip sm ${f === r.id ? 'on' : ''}" data-act="roomFilter" data-v="${r.id}">${esc(r.name)}</button>`).join('')}<button class="chip sm quiet" data-act="newRoom">＋ Prostorija</button></div>`;
+  for (const r of rooms) {
+    const list = S.tasks.filter(t => t.room === r.id && !t.done).sort((a, b) => (a.due || a.plan || '9999').localeCompare(b.due || b.plan || '9999'));
+    const done = S.tasks.filter(t => t.room === r.id && t.done);
+    html += `<div class="section" style="justify-content:space-between"><span style="color:var(--text);font-weight:600">${esc(r.name)} <span class="meta" style="display:inline;font-weight:500">· ${list.length}</span></span><button class="icon-btn" style="width:32px;height:32px" data-act="roomMenu" data-id="${r.id}" aria-label="Radnje za prostoriju">${IC.dots}</button></div>
+      <div class="card">${list.map(choreRow).join('')}<button class="addrow" data-act="newChore" data-room="${r.id}">＋ Dodaj obavezu</button></div>
+      ${done.length ? `<button class="collapsed" data-act="roomDone" data-id="${r.id}" style="margin-top:8px">${IC.fold(S.ui.roomDone?.[r.id])}Završeno · ${done.length}</button>${S.ui.roomDone?.[r.id] ? `<div class="card" style="margin-top:6px">${done.map(choreRow).join('')}</div>` : ''}` : ''}`;
+  }
+  return html;
+};
+A.roomFilter = el => { S.ui.room = el.dataset.v; render(); };
+A.roomDone = el => { S.ui.roomDone = S.ui.roomDone || {}; S.ui.roomDone[el.dataset.id] = !S.ui.roomDone[el.dataset.id]; render(); };
+A.roomMenu = el => { const r = room(el.dataset.id); openPick({ kind: 'choice', title: r.name, current: null, options: [{ v: 'ren', label: 'Preimenuj' }, { v: 'arch', label: 'Arhiviraj prostoriju' }, { v: 'del', label: 'Obriši prostoriju' }], onPick: v => toast(v === 'ren' ? 'Isti mali prozor kao „Nova prostorija“' : 'Traži potvrdu, pa nudi Poništi') }); };
+A.roomPreset = () => toast('Dodaje primer prostorija i obaveza');
+A.newRoom = () => openPick({ kind: 'newRoom', name: '' });
+PICK.newRoom = p => ({ title: 'Nova prostorija', body: `<label class="field"><input class="wide" placeholder="Dnevna soba, kupatilo…" value="${esc(p.name)}" data-in="nrName" aria-label="Naziv prostorije"></label>${p.err ? `<p class="err">${p.err}</p>` : ''}<button class="primary" data-act="nrCreate">Napravi prostoriju</button>` });
+IN.nrName = el => { P.name = el.value; };
+A.nrCreate = () => { const name = P.name.trim(); if (!name) { P.err = 'Prostorija mora imati naziv.'; return renderPick(); } if (S.rooms.some(r => r.name.toLowerCase() === name.toLowerCase())) { P.err = 'Ta prostorija već postoji.'; return renderPick(); } S.rooms.push({ id: newId('r'), name }); closePick(); render(); toast(`Prostorija „${name}“ je napravljena`); };
+// New chore: a name, the room, the first day and how often (the reminder stays in the task window).
+A.newChore = el => openWin({ kind: 'chore', title: '', room: el?.dataset?.room || S.rooms[0]?.id, date: TODAY, freq: 'weekly', interval: 1, err: '' });
+WIN.chore = w => ({
+  head: winHead('Nova obaveza'),
+  body: `<input class="bigtitle" placeholder="Usisaj, obriši prašinu…" value="${esc(w.title)}" data-in="chTitle" aria-label="Obaveza">${w.err ? `<p class="err">${w.err}</p>` : ''}
+    <div class="glabel" style="margin-top:6px">Prostorija</div><div class="chips">${S.rooms.map(r => `<button class="chip sm ${w.room === r.id ? 'on' : ''}" data-act="chRoom" data-v="${r.id}">${esc(r.name)}</button>`).join('')}</div>
+    <div class="glabel" style="margin-top:0">Prvi put</div><div class="chips">${[['Danas', TODAY], ['Sutra', addDays(TODAY, 1)], ['Subota', '2026-10-10']].map(([l, d]) => `<button class="chip sm ${w.date === d ? 'on' : ''}" data-act="chDate" data-v="${d}">${l}</button>`).join('')}</div>
+    <div class="glabel" style="margin-top:0">Ponavljanje</div>${seg('freq', [['daily', 'Svaki dan'], ['weekly', 'Nedeljno'], ['monthly', 'Mesečno']], w.freq)}
+    <div class="field" style="margin-top:10px"><span class="lbl">Na svakih</span>${`<span class="stepper"><button data-act="chStep" data-d="-1" ${w.interval <= 1 ? 'disabled' : ''} aria-label="Manje">−</button><span>${w.interval}</span><button data-act="chStep" data-d="1" aria-label="Više">+</button></span>`}<span class="meta" style="margin:0">${{ daily: 'dana', weekly: 'nedelje', monthly: 'meseca' }[w.freq]}</span></div>
+    <p class="note" style="margin-top:0">${choreRepeat({ freq: w.freq, interval: w.interval })} · prvi put ${relDay(w.date).toLowerCase()}. Ponavljanje nema kraj.</p>`,
+  foot: '<button class="primary" data-act="chCreate">Zakaži obavezu</button>',
+});
+IN.chTitle = el => { W.title = el.value; };
+A.chRoom = el => { W.room = el.dataset.v; renderWin(); };
+A.chDate = el => { W.date = el.dataset.v; renderWin(); };
+A.chStep = el => { W.interval = Math.max(1, W.interval + Number(el.dataset.d)); renderWin(); };
+A.chCreate = () => {
+  if (!W.title.trim()) { W.err = 'Unesi obavezu.'; return renderWin(); }
+  S.tasks.push(T(W.title.trim(), { room: W.room, area: 'a2', plan: W.date, due: W.date, repeat: { freq: W.freq, interval: W.interval, days: [], end: 'never' } }));
+  closeWin(); render(); toast('Obaveza je zakazana');
+};
+
+// ===== Nedeljni pregled =====================================================
+SCREEN_TITLE.review = 'Nedeljni pregled';
+S.reviews = [{ weekStart: '2026-09-28', completedAt: '2026-10-04' }, { weekStart: '2026-09-21', completedAt: '2026-09-27' }, { weekStart: '2026-09-14', completedAt: '2026-09-20' }];
+const reviewDone = () => S.reviews.some(r => r.weekStart === WEEK_START);
+SUB.review = () => {
+  const inboxTasks = S.tasks.filter(t => t.inbox && !t.done);
+  const overdue = liveTasks().filter(t => t.due && t.due < TODAY), missed = liveTasks().filter(t => t.plan && t.plan < TODAY && !(t.due && t.due < TODAY));
+  const step = (n, title, count, ok, body) => `<div class="section" style="gap:10px"><span style="width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:13px;flex:none;${ok ? 'background:var(--green);color:#0F1114' : 'background:#262B33;color:var(--text)'}">${ok ? '✓' : n}</span><span style="color:var(--text)">${title}</span>${count === null ? '' : `<span>· ${count}</span>`}</div>${body}`;
+  const days = Array.from({ length: 7 }, (_, k) => addDays(TODAY, k + 1)).map(d => { const planned = S.tasks.filter(t => !t.done && !t.inbox && t.plan === d).length, dues = S.tasks.filter(t => !t.done && !t.inbox && t.due === d).length; return { d, planned, dues }; });
+  const done = reviewDone(), last = S.reviews.filter(r => r.weekStart !== WEEK_START).slice(0, 4);
+  return `<div class="status"><span>09:41</span><span>•••</span></div>${backBtn()}<h1 class="h1">Nedeljni pregled</h1><div class="summary">Nedelja od ${short(WEEK_START)}</div>
+    ${step(1, 'Isprazni Inbox', inboxTasks.length, !inboxTasks.length, inboxTasks.length ? `<div class="card">${inboxTasks.map(t => inboxRow({ type: 'task', id: t.id, title: t.title, group: t.captured, item: t })).join('')}</div>` : '<p class="note" style="margin-top:0">Inbox je prazan.</p>')}
+    ${step(2, 'Kasni i propušteno', overdue.length + missed.length, !(overdue.length + missed.length), overdue.length + missed.length ? `<div class="card">${[...overdue, ...missed].map(t => `<div class="srow"><button class="main" data-act="openTask" data-id="${t.id}"><div class="ttl">${esc(t.title)}</div><div class="meta">${t.due && t.due < TODAY ? `Rok ${short(t.due)}` : `Propušten plan ${short(t.plan)}`} · ${esc(placeName(t) || 'Bez projekta')}</div></button><button class="plan" data-act="planToday" data-id="${t.id}">+ Danas</button></div>`).join('')}</div>` : '<p class="note" style="margin-top:0">Ništa ne kasni niti je propušteno.</p>')}
+    ${step(3, 'Sledećih 7 dana', null, false, `<div class="card">${days.map(x => `<button class="prow" data-act="reviewDay" data-d="${x.d}"><span class="grow">${WDNAME[mondayIndex(x.d)]}, ${short(x.d)}</span><span class="val ${x.planned + x.dues ? 'set' : ''}">${x.planned} u planu · ${x.dues} ${plural(x.dues, 'rok', 'roka', 'rokova')}</span>${IC.chev}</button>`).join('')}</div>`)}
+    ${step(4, 'Ciljevi', S.goals.filter(g => g.status === 'active').length, false, `<div class="card">${S.goals.filter(g => g.status === 'active').map(goalRow).join('')}</div>`)}
+    ${step(5, 'Navike', S.habits.length, false, `<div class="card">${S.habits.map(h => { const d = h.week.filter(s => s === 'd').length, p = h.weekly || h.week.filter(s => !['n', 's', 'f'].includes(s)).length; return `<div class="prow"><span class="grow">${esc(h.name)}</span><span class="val">niz ${h.streak || 0} · ${p ? Math.round(d / p * 100) : 0}%</span></div>`; }).join('')}</div>`)}
+    ${step(6, 'Oblasti', activeAreas().length, false, `<div class="card">${activeAreas().map(a => `<button class="prow" data-act="go" data-sub="area" data-id="${a.id}">${areaIcon(a)}<span class="grow">${esc(a.name)}</span><span class="val">${openCount(areaTasks(a.id).length)}</span>${IC.chev}</button>`).join('')}</div>`)}
+    <div style="margin-top:18px">${done ? `<div class="pcard" style="display:flex;gap:10px;align-items:center"><span class="round on">${IC.tick}</span><span>Pregled za ovu nedelju je završen ${short(S.reviews[0].completedAt)}.</span></div>` : '<button class="primary" data-act="reviewFinish">Završi nedeljni pregled</button>'}</div>
+    <p class="note">Prethodni pregledi: ${last.map(r => short(r.completedAt)).join(', ')}</p>`;
+};
+A.reviewDay = el => { S.ui.calDay = el.dataset.d; S.ui.calView = 'week'; S.ui.calWeek = addDays(el.dataset.d, -mondayIndex(el.dataset.d)); go('calendar'); };
+A.reviewFinish = () => { S.reviews.unshift({ weekStart: WEEK_START, completedAt: TODAY }); render(); toast('Nedeljni pregled je završen', () => S.reviews.shift()); };
+
+// ===== Oznake ===============================================================
+SCREEN_TITLE.tags = 'Oznake';
+SCREEN_TITLE.tag = e => S.tags.find(t => t.id === e.id)?.name || 'Oznaka';
+const tagTasks = id => S.tasks.filter(t => !t.done && !t.inbox && t.tags.includes(id));
+SUB.tags = () => `<div class="status"><span>09:41</span><span>•••</span></div>${backBtn()}<h1 class="h1">Oznake</h1>
+  <div class="summary">${S.tags.length} ${plural(S.tags.length, 'oznaka', 'oznake', 'oznaka')}</div>
+  <div class="card">${[...S.tags].sort((a, b) => a.name.localeCompare(b.name)).map(t => { const n = tagTasks(t.id).length; return `<button class="prow" data-act="go" data-sub="tag" data-id="${t.id}"><span class="dot" style="background:${t.color}"></span><span class="grow">${esc(t.name)}</span><span class="val">${n} ${plural(n, 'zadatak', 'zadatka', 'zadataka')}</span>${IC.chev}</button>`; }).join('')}<button class="addrow" data-act="newTag">＋ Nova oznaka</button></div>`;
+SUB.tag = ({ id }) => {
+  const t = S.tags.find(x => x.id === id), list = tagTasks(id), libItems = S.library.filter(x => x.tags.includes(id));
+  return `<div class="status"><span>09:41</span><span>•••</span></div><div class="titlebar">${backBtn()}<button class="icon-btn" data-act="tagMenu" data-id="${id}" aria-label="Radnje za oznaku">${IC.dots}</button></div>
+    <h1 class="h1" style="display:flex;gap:10px;align-items:center"><span class="dot" style="background:${t.color};width:12px;height:12px"></span>${esc(t.name)}</h1>
+    <div class="summary">${list.length} ${plural(list.length, 'aktivan zadatak', 'aktivna zadatka', 'aktivnih zadataka')}</div>
+    ${list.length ? `<div class="card">${list.map(x => taskRow(x, { meta: 'plan' })).join('')}</div>` : '<div class="empty"><strong>Nema aktivnih zadataka sa ovom oznakom</strong>Dodeli je kroz brzo dodavanje (#oznaka) ili u prozoru zadatka.</div>'}
+    ${libItems.length ? `<div class="section">U biblioteci <span>· ${libItems.length}</span></div><div class="card">${libItems.map(libRow).join('')}</div>` : ''}`;
+};
+A.newTag = () => openPick({ kind: 'newTag', name: '', color: COLORS[0] });
+PICK.newTag = p => ({ title: p.id ? 'Izmeni oznaku' : 'Nova oznaka', body: `<label class="field"><input class="wide" placeholder="Naziv oznake" value="${esc(p.name)}" data-in="ntName" aria-label="Naziv oznake"></label><div class="glabel" style="margin-top:4px">Boja</div><div class="chips">${COLORS.map(c => `<button class="chip ${p.color === c ? 'on' : ''}" data-act="ntColor" data-c="${c}" aria-label="Boja"><span class="dot" style="background:${c}"></span></button>`).join('')}</div>${p.err ? `<p class="err">${p.err}</p>` : ''}<button class="primary" data-act="ntSave">${p.id ? 'Sačuvaj' : 'Napravi oznaku'}</button>` });
+IN.ntName = el => { P.name = el.value; };
+A.ntColor = el => { P.color = el.dataset.c; renderPick(); };
+A.ntSave = () => {
+  const name = P.name.trim();
+  if (!name) { P.err = 'Oznaci treba naziv.'; return renderPick(); }
+  if (S.tags.some(t => t.id !== P.id && t.name.toLowerCase() === name.toLowerCase())) { P.err = 'Oznaka sa tim nazivom već postoji.'; return renderPick(); }
+  if (P.id) Object.assign(S.tags.find(t => t.id === P.id), { name, color: P.color }); else S.tags.push({ id: newId('tag'), name, color: P.color });
+  closePick(); render(); toast('Sačuvano');
+};
+A.tagMenu = el => { const t = S.tags.find(x => x.id === el.dataset.id); openPick({ kind: 'choice', title: t.name, current: null, options: [{ v: 'edit', label: 'Izmeni oznaku', sub: 'Naziv i boja' }, { v: 'del', label: 'Obriši oznaku', sub: 'Zadaci ostaju, a uklanja se samo ova oznaka sa njih.' }], onPick: v => {
+  if (v === 'edit') return openPick({ kind: 'newTag', id: t.id, name: t.name, color: t.color });
+  const k = S.tags.indexOf(t), had = S.tasks.filter(x => x.tags.includes(t.id));
+  S.tags.splice(k, 1); had.forEach(x => { x.tags = x.tags.filter(id => id !== t.id); }); pop();
+  toast('Oznaka je obrisana', () => { S.tags.splice(k, 0, t); had.forEach(x => x.tags.push(t.id)); });
+} }); };
+// ===== Šabloni ==============================================================
+SCREEN_TITLE.templates = 'Šabloni';
+const TPL_TYPES = [['task', 'Zadaci', IC.checkc], ['project', 'Projekti', IC.folder], ['habit', 'Navike', IC.habit], ['goal', 'Ciljevi', IC.goal]];
+S.templates = [
+  { id: 'tp1', type: 'task', name: 'Nedeljni izveštaj', item: 'Pošalji nedeljni izveštaj', detail: 'Plan: petak · rok +2 dana · 3 podzadatka' },
+  { id: 'tp2', type: 'task', name: 'Putni troškovi', item: 'Predaj putne troškove', detail: 'Rok +5 dana · #Administracija' },
+  { id: 'tp3', type: 'project', name: 'Novi klijent', item: 'Klijent: uvodni projekat', detail: '5 zadataka · Posao' },
+  { id: 'tp4', type: 'habit', name: 'Jutarnja rutina', item: 'Meditacija 10 min', detail: 'Svaki dan · Jutro' },
+  { id: 'tp5', type: 'goal', name: 'Čitanje knjiga', item: 'Pročitaj 6 knjiga', detail: 'Brojevno · 3 etape · rok +6 meseci' },
+];
+SUB.templates = () => `<div class="status"><span>09:41</span><span>•••</span></div>${backBtn()}<h1 class="h1">Šabloni</h1>
+  <div class="summary">Stavke za ponovnu upotrebu, sa datumima u odnosu na dan kad ih praviš.</div>
+  ${TPL_TYPES.map(([type, label, icon]) => { const list = S.templates.filter(t => t.type === type); return list.length ? `<div class="section">${label} <span>· ${list.length}</span></div><div class="card">${list.map(t => `<button class="prow" data-act="tplOpen" data-id="${t.id}"><span class="ico">${icon}</span><span class="grow">${esc(t.name)}<span class="sub">${esc(t.item)} · ${esc(t.detail)}</span></span>${IC.chev}</button>`).join('')}</div>` : ''; }).join('')}
+  <div class="card" style="margin-top:12px"><button class="addrow" data-act="tplNew">＋ Novi šablon</button></div>
+  <p class="note">Šablon se pravi i iz menija zadatka, projekta, navike ili cilja: „Sačuvaj kao šablon“.</p>`;
+A.tplOpen = el => {
+  const t = S.templates.find(x => x.id === el.dataset.id);
+  openPick({ kind: 'tpl', id: t.id });
+};
+PICK.tpl = p => { const t = S.templates.find(x => x.id === p.id); return { title: t.name, sub: `${t.item} · ${t.detail}`, body: `<button class="primary" data-act="tplUse" style="margin-bottom:12px">Upotrebi šablon</button><div class="card"><button class="opt" data-act="soon" data-msg="Izmena: isti prozor kao stavka, datumi su pomeraji u danima">${IC.note}<span class="lbl">Izmeni šablon</span></button><button class="opt" data-act="tplDup">${IC.copy}<span class="lbl">Dupliraj</span></button><button class="opt danger" data-act="tplDel">${IC.trash}<span class="lbl">Obriši šablon<small>Stavke napravljene iz ovog šablona ostaju.</small></span></button></div>` }; };
+// Using a template opens the usual new-item window, already filled; the user still saves it.
+A.tplUse = () => {
+  const t = S.templates.find(x => x.id === P.id); closePick();
+  if (t.type === 'task') { openQuick({ date: null, project: 'none' }); W.text = t.item; renderWin(); }
+  else if (t.type === 'habit') { openNewHabit(); W.name = t.item; W.routine = '0'; renderWin(); }
+  else if (t.type === 'goal') { openWin({ ...freshGoal(), title: t.item, type: 'number', target: 6, unit: 'knjiga', more: true, milestones: ['2 knjige', '4 knjige', '6 knjiga'] }); }
+  else openPick({ kind: 'newProject', name: t.item, color: COLORS[1], area: 'a1' });
+};
+A.tplDup = () => { const t = S.templates.find(x => x.id === P.id); S.templates.push({ ...t, id: newId('tp'), name: `${t.name} (kopija)` }); closePick(); render(); toast('Šablon je dupliran'); };
+A.tplDel = () => { const t = S.templates.find(x => x.id === P.id), k = S.templates.indexOf(t); S.templates.splice(k, 1); closePick(); render(); toast('Šablon je obrisan', () => S.templates.splice(k, 0, t)); };
+A.tplNew = () => openPick({ kind: 'choice', title: 'Novi šablon', current: null, options: TPL_TYPES.map(([v, , icon]) => ({ v, label: { task: 'Šablon zadatka', project: 'Šablon projekta', habit: 'Šablon navike', goal: 'Šablon cilja' }[v], icon })), onPick: () => toast('Otvara prazan prozor stavke, sa „Sačuvaj šablon“') });
+
+// ===== Sačuvani prikazi =====================================================
+SCREEN_TITLE.views = 'Sačuvani prikazi';
+SCREEN_TITLE.view = e => S.views.find(v => v.id === e.id)?.name || 'Prikaz';
+S.views = [
+  { id: 'v1', name: 'Visok prioritet · Posao', type: 'tasks', filters: { area: 'a1', priority: 'high' }, pinned: true },
+  { id: 'v2', name: 'Brojevne navike', type: 'habits', filters: { tracking: 'numeric' }, pinned: false },
+  { id: 'v3', name: 'Ciljevi u Ličnom', type: 'goals', filters: { area: 'a2' }, pinned: false },
+];
+const VIEW_TYPES = [['tasks', 'Zadaci'], ['goals', 'Ciljevi'], ['habits', 'Navike']];
+const VIEW_FILTERS = {
+  tasks: [['area', 'Oblast'], ['project', 'Projekat'], ['tag', 'Oznaka'], ['priority', 'Prioritet'], ['state', 'Završenost']],
+  goals: [['area', 'Oblast'], ['status', 'Status']],
+  habits: [['area', 'Oblast'], ['tracking', 'Praćenje']],
+};
+const FILTER_OPTIONS = {
+  area: () => S.areas.map(a => ({ v: a.id, label: a.name, dot: a.color })), project: () => S.projects.map(p => ({ v: p.id, label: p.name, dot: p.color })), tag: () => S.tags.map(t => ({ v: t.id, label: t.name, dot: t.color })),
+  priority: () => Object.entries(PRI_NAME).map(([v, l]) => ({ v, label: l })), state: () => [{ v: 'open', label: 'Otvoreno' }, { v: 'done', label: 'Završeno' }],
+  status: () => [{ v: 'active', label: 'Aktivno' }, { v: 'paused', label: 'Pauzirano' }, { v: 'done', label: 'Završeno' }], tracking: () => [{ v: 'checkbox', label: 'Kvadratić' }, { v: 'numeric', label: 'Brojevno' }],
+};
+const filterLabel = (k, v) => FILTER_OPTIONS[k]().find(o => o.v === v)?.label || 'Stavka ne postoji';
+function viewSummary(v) {
+  const parts = VIEW_FILTERS[v.type].filter(([k]) => v.filters[k]).map(([k, l]) => `${l}: ${filterLabel(k, v.filters[k])}`);
+  return parts.length ? parts.join(' · ') : { tasks: 'Svi zadaci', goals: 'Svi ciljevi', habits: 'Sve navike' }[v.type];
+}
+function viewResults(v) {
+  const f = v.filters;
+  const stateOk = t => f.state === 'done' ? t.done : f.state === 'open' ? !t.done : true;
+  if (v.type === 'tasks') return S.tasks.filter(t => !t.inbox && stateOk(t) && (!f.area || taskArea(t)?.id === f.area) && (!f.project || t.project === f.project) && (!f.tag || t.tags.includes(f.tag)) && (!f.priority || t.priority === f.priority));
+  if (v.type === 'goals') return S.goals.filter(g => (!f.area || g.area === f.area) && (!f.status || g.status === f.status));
+  return S.habits.filter(h => (!f.tracking || h.tracking === f.tracking));
+}
+SUB.views = () => `<div class="status"><span>09:41</span><span>•••</span></div>${backBtn()}<h1 class="h1">Sačuvani prikazi</h1>
+  <div class="summary">Sačuvani filteri za jednu vrstu stavki.</div>
+  <div class="card">${S.views.map(v => `<button class="prow" data-act="go" data-sub="view" data-id="${v.id}"><span class="ico">${IC.funnel}</span><span class="grow">${esc(v.name)}<span class="sub">${VIEW_TYPES.find(t => t[0] === v.type)[1]}${v.pinned ? ' · zakačen' : ''} · ${esc(viewSummary(v))}</span></span>${IC.chev}</button>`).join('')}<button class="addrow" data-act="viewNew">＋ Novi sačuvani prikaz</button></div>`;
+SUB.view = ({ id }) => {
+  const v = S.views.find(x => x.id === id), list = viewResults(v);
+  const rows = v.type === 'tasks' ? list.map(t => taskRow(t, { meta: 'plan' })) : v.type === 'goals' ? list.map(goalRow) : list.map(h => habitRow(h, TI, { meta: h.freq }));
+  return `<div class="status"><span>09:41</span><span>•••</span></div><div class="titlebar">${backBtn()}<button class="icon-btn" data-act="viewMenu" data-id="${id}" aria-label="Radnje za prikaz">${IC.dots}</button></div>
+    <h1 class="h1">${esc(v.name)}</h1><div class="summary">${esc(viewSummary(v))} · ${list.length}</div>
+    ${rows.length ? `<div class="card">${rows.join('')}</div>` : '<div class="empty"><strong>Nema odgovarajućih stavki</strong>Za drugačije rezultate promeni filtere ovog prikaza.</div>'}`;
+};
+A.viewMenu = el => { const v = S.views.find(x => x.id === el.dataset.id); openPick({ kind: 'choice', title: v.name, current: null, options: [{ v: 'edit', label: 'Izmeni prikaz' }, { v: 'dup', label: 'Dupliraj prikaz' }, { v: 'pin', label: v.pinned ? 'Otkači iz „Još“' : 'Zakači u „Još“' }, { v: 'del', label: 'Obriši prikaz', sub: 'Stavke iz prikaza ostaju.' }], onPick: x => {
+  if (x === 'edit') return openWin({ kind: 'viewEdit', ...JSON.parse(JSON.stringify(v)) });
+  if (x === 'dup') { S.views.push({ ...JSON.parse(JSON.stringify(v)), id: newId('v'), name: `${v.name} (kopija)`, pinned: false }); render(); return toast('Prikaz je dupliran'); }
+  if (x === 'pin') { v.pinned = !v.pinned; render(); return toast(v.pinned ? 'Zakačeno u „Još“' : 'Otkačeno'); }
+  const k = S.views.indexOf(v); S.views.splice(k, 1); pop(); toast('Sačuvani prikaz je obrisan', () => S.views.splice(k, 0, v));
+} }); };
+A.viewNew = () => openWin({ kind: 'viewEdit', id: null, name: '', type: 'tasks', filters: {}, pinned: false, err: '' });
+WIN.viewEdit = w => ({
+  head: winHead(w.id ? 'Izmeni sačuvani prikaz' : 'Novi sačuvani prikaz'),
+  body: `<input class="bigtitle" placeholder="Naziv prikaza" value="${esc(w.name)}" data-in="veName" aria-label="Naziv prikaza">${w.err ? `<p class="err">${w.err}</p>` : ''}
+    <div class="glabel" style="margin-top:6px">Vrsta stavki</div>${seg('type', VIEW_TYPES, w.type)}
+    <div class="glabel">Filteri</div><div class="card">${VIEW_FILTERS[w.type].map(([k, l]) => `<button class="prow" data-act="veFilter" data-k="${k}"><span class="lbl">${l}</span><span class="val ${w.filters[k] ? 'set' : ''}">${w.filters[k] ? esc(filterLabel(k, w.filters[k])) : 'Sve'}</span>${IC.chev}</button>`).join('')}${w.type === 'tasks' ? '<button class="prow" data-act="soon" data-msg="Tačan dan, isti prozor za datum"><span class="lbl">Planirani dan / rok</span><span class="val">Sve</span>' + IC.chev + '</button>' : ''}</div>
+    <button class="prow" style="margin-top:10px;padding:0 4px" data-act="vePin"><span class="check ${w.pinned ? 'on' : ''}">${w.pinned ? IC.tickW : ''}</span><span class="grow">Zakači u „Još“</span></button>
+    <p class="note">Rezultata sada: ${viewResults(w).length}</p>`,
+  foot: '<button class="primary" data-act="veSave">Sačuvaj prikaz</button>',
+});
+IN.veName = el => { W.name = el.value; };
+A.veFilter = el => { const k = el.dataset.k; openPick({ kind: 'choice', title: VIEW_FILTERS[W.type].find(f => f[0] === k)[1], current: W.filters[k] || '', options: [{ v: '', label: 'Sve' }, ...FILTER_OPTIONS[k]()], onPick: v => { if (v) W.filters[k] = v; else delete W.filters[k]; renderWin(); } }); };
+A.vePin = () => { W.pinned = !W.pinned; renderWin(); };
+// Changing the type drops filters that do not apply to it.
+const wSegBase = A.wSeg;
+A.wSeg = el => { if (W?.kind === 'viewEdit' && el.dataset.k === 'type') { const keep = VIEW_FILTERS[el.dataset.v].map(f => f[0]); W.filters = Object.fromEntries(Object.entries(W.filters).filter(([k]) => keep.includes(k))); } wSegBase(el); };
+A.veSave = () => {
+  if (!W.name.trim()) { W.err = 'Unesi naziv prikaza.'; return renderWin(); }
+  const data = { id: W.id || newId('v'), name: W.name.trim(), type: W.type, filters: W.filters, pinned: W.pinned };
+  const old = S.views.find(v => v.id === W.id);
+  if (old) Object.assign(old, data); else S.views.push(data);
+  closeWin(); render(); toast('Prikaz je sačuvan');
+};
+
+// ===== Završeni zadaci (M6: "Obriši završene" lives here) ===================
+SCREEN_TITLE.completed = 'Završeni zadaci';
+SUB.completed = () => {
+  const f = S.ui.doneFilter || {}, from = f.period ? addDays(TODAY, -f.period) : '0000';
+  const list = S.tasks.filter(t => t.done && t.doneAt >= from && (!f.project || t.project === f.project)).sort((a, b) => b.doneAt.localeCompare(a.doneAt));
+  const groups = [...new Set(list.map(t => t.doneAt))];
+  const pName = f.project ? project(f.project).name : '';
+  return `<div class="status"><span>09:41</span><span>•••</span></div>${backBtn()}<h1 class="h1">Završeni zadaci</h1>
+    <div class="summary">${list.length} ${plural(list.length, 'zadatak', 'zadatka', 'zadataka')}</div>
+    <div class="filters" style="margin-bottom:4px"><button class="chip sm ${f.project ? 'on' : ''}" data-act="doneProject">${esc(pName || 'Svi projekti')} ▾</button>${[[0, 'Sve vreme'], [7, '7 dana'], [30, '30 dana']].map(([d, l]) => `<button class="chip sm ${(f.period || 0) === d ? 'on' : ''}" data-act="donePeriod" data-v="${d}">${l}</button>`).join('')}</div>
+    ${groups.map(d => { const rows = list.filter(t => t.doneAt === d); return `<div class="section">${relDay(d)}${['Danas', 'Juče'].includes(relDay(d)) ? ` <span>· ${short(d)}</span>` : ''} <span>· ${rows.length}</span></div><div class="card">${rows.map(t => taskRow(t, { meta: 'today' })).join('')}</div>`; }).join('') || '<div class="empty"><strong>Nijedan završen zadatak ne odgovara ovim filterima</strong>Probaj drugi projekat ili period.</div>'}
+    <div class="card" style="margin-top:18px"><button class="prow danger" data-act="doneClear"><span class="ico">${IC.trash}</span><span class="grow">Obriši završene zadatke<span class="sub">Trajno briše sve završene zadatke i njihove priloge.</span></span></button></div>`;
+};
+A.doneProject = () => openPick({ kind: 'choice', title: 'Projekat', current: S.ui.doneFilter?.project || '', options: [{ v: '', label: 'Svi projekti' }, ...S.projects.map(p => ({ v: p.id, label: p.name + (p.archived ? ' (arhiviran)' : ''), dot: p.color }))], onPick: v => { S.ui.doneFilter = { ...S.ui.doneFilter, project: v || undefined }; render(); } });
+A.donePeriod = el => { S.ui.doneFilter = { ...S.ui.doneFilter, period: Number(el.dataset.v) || undefined }; render(); };
+A.doneClear = () => openPick({ kind: 'confirmClear' });
+PICK.confirmClear = () => { const n = S.tasks.filter(t => t.done).length; return { title: 'Obrisati sve završene zadatke?', body: `<p class="note" style="margin:0 4px 14px">${n} ${plural(n, 'zadatak', 'zadatka', 'zadataka')} i njihovi prilozi biće obrisani. Odmah posle toga možeš da poništiš.</p><button class="dangerbtn" data-act="doneClearYes">Obriši završene</button>` }; };
+A.doneClearYes = () => { const removed = S.tasks.filter(t => t.done); S.tasks = S.tasks.filter(t => !t.done); closePick(); render(); toast('Završeni zadaci su obrisani', () => S.tasks.push(...removed)); };
+
+// ===== Arhivirani projekti ==================================================
+SCREEN_TITLE.archived = 'Arhivirani projekti';
+SUB.archived = () => {
+  const list = S.projects.filter(p => p.archived);
+  return `<div class="status"><span>09:41</span><span>•••</span></div>${backBtn()}<h1 class="h1">Arhivirani projekti</h1>
+    <div class="summary">${list.length} ${plural(list.length, 'arhiviran projekat', 'arhivirana projekta', 'arhiviranih projekata')}</div>
+    ${list.length ? `<div class="card">${list.map(p => `<div class="prj"><span class="dot" style="background:${p.color}"></span><button class="main" data-act="openProject" data-id="${p.id}"><div class="ttl">${esc(p.name)}</div><div class="meta">${areaOf(p.area)?.name || ''} · ${openCount(projectTasks(p.id).filter(t => !t.done).length)}</div></button><button class="chip sm" data-act="restoreProject" data-id="${p.id}">Vrati</button></div>`).join('')}</div>` : '<div class="empty"><strong>Nema arhiviranih projekata</strong>Arhivirani projekti ostaju ovde dok ih ne vratiš.</div>'}`;
+};
+A.restoreProject = el => { const p = project(el.dataset.id); p.archived = false; render(); toast('Projekat je vraćen', () => { p.archived = true; }); };
+// The project menu archives and restores for real; the rest stays a note.
+A.projectMenu = el => {
+  const p = project(el.dataset.id);
+  openPick({ kind: 'choice', title: p.name, current: null, options: [{ v: 'edit', label: 'Preimenuj i boja' }, { v: 'area', label: 'Oblast' }, { v: 'goal', label: 'Povezani cilj' }, { v: 'tpl', label: 'Sačuvaj kao šablon' }, { v: 'arch', label: p.archived ? 'Vrati projekat' : 'Arhiviraj projekat' }, { v: 'del', label: 'Obriši projekat' }], onPick: v => {
+    if (v === 'arch') { p.archived = !p.archived; if (p.archived) pop(); else render(); return toast(p.archived ? 'Projekat je arhiviran' : 'Projekat je vraćen', () => { p.archived = !p.archived; }); }
+    toast(v === 'tpl' ? 'Otvara šablon projekta, popunjen ovim projektom' : 'Isti mali prozor kao ostali');
+  } });
+};
+// ===== Pretraga (same scope, ranking and grouping as today) =================
+// Tasks match on title and notes (completed included); projects on name (archived included).
+function searchResults(q) {
+  const s = q.trim().toLowerCase();
+  if (!s) return null;
+  const tasks = S.tasks.map((t, k) => ({ t, k, rank: t.title.toLowerCase() === s ? 0 : t.title.toLowerCase().includes(s) ? 1 : (t.notes || '').toLowerCase().includes(s) ? 2 : 9 }))
+    .filter(x => x.rank < 9).sort((a, b) => a.rank - b.rank || b.k - a.k).map(x => x.t);
+  const projects = S.projects.filter(p => p.name.toLowerCase().includes(s)).sort((a, b) => a.name.localeCompare(b.name));
+  return { tasks, projects };
+}
+function searchHtml(q) {
+  const r = searchResults(q);
+  if (!r) return '<div class="empty" style="padding-top:30px"><strong>Pretraži zadatke i projekte</strong>Upiši naslov zadatka, belešku ili naziv projekta.</div>';
+  if (!r.tasks.length && !r.projects.length) return `<div class="empty" style="padding-top:30px"><strong>Nema rezultata za „${esc(q)}“</strong></div>`;
+  const taskMeta = t => [placeName(t), t.done ? `Završeno: ${short(t.doneAt)}` : t.plan ? relDay(t.plan) : '', !t.done && t.due ? `Rok: ${short(t.due)}` : ''].filter(Boolean).join(' · ') || 'Zadatak';
+  return (r.tasks.length ? `<div class="section">Zadaci <span>· ${r.tasks.length}</span></div><div class="card">${r.tasks.map(t => `<button class="trow" data-act="openTask" data-id="${t.id}"><span class="${t.done ? 'round on' : 'round'}">${t.done ? IC.tick : ''}</span><span class="main"><div class="ttl">${esc(t.title)}</div><div class="meta">${esc(taskMeta(t))}</div></span></button>`).join('')}</div>` : '')
+    + (r.projects.length ? `<div class="section">Projekti <span>· ${r.projects.length}</span></div><div class="card">${r.projects.map(p => `<button class="prj" data-act="searchProject" data-id="${p.id}"><span class="dot" style="background:${p.color}"></span><span class="main"><div class="ttl">${esc(p.name)}</div><div class="meta">Projekat${p.archived ? ' · arhiviran' : ''}</div></span>${IC.chev}</button>`).join('')}</div>` : '');
+}
+A.search = () => { openWin({ kind: 'search', q: '' }); setTimeout(() => $('srInput')?.focus(), 0); };
+WIN.search = w => ({ tall: true, head: winHead('Pretraga'), body: `<label class="search">${IC.search}<input id="srInput" placeholder="Pretraži zadatke i projekte…" value="${esc(w.q)}" data-in="srQ" aria-label="Pretraga"></label><div id="srResults">${searchHtml(w.q)}</div>` });
+IN.srQ = el => { W.q = el.value; $('srResults').innerHTML = searchHtml(W.q); };
+A.searchProject = el => { closeWin(); R.tab = 'tasks'; R.stack = [{ type: 'project', id: el.dataset.id }]; render(); };
+
+// ===== Fokus (T2a: started from the task menu) ==============================
+// A count-up timer like today's; "Sledeći" walks the overdue and Today tasks.
+let focusTimer = null;
+const focusQueue = () => liveTasks().filter(t => (t.due && t.due < TODAY) || t.plan === TODAY).sort(byTime);
+function openFocus(id) { clearInterval(focusTimer); openWin({ kind: 'focus', id, elapsed: 0, running: true }); focusTimer = setInterval(() => { if (W?.kind !== 'focus') return clearInterval(focusTimer); if (W.running) { W.elapsed++; const el = $('fxTime'); if (el) el.textContent = mmss(W.elapsed); } }, 1000); }
+const mmss = n => `${String(Math.floor(n / 60)).padStart(2, '0')}:${String(n % 60).padStart(2, '0')}`;
+WIN.focus = w => {
+  const t = task(w.id);
+  const meta = [placeName(t), t.due ? (t.due < TODAY ? `Kasni · ${short(t.due)}` : `Rok: ${short(t.due)}`) : '', t.plan ? `Planirano: ${relDay(t.plan)}` : '', t.priority !== 'none' ? `Prioritet: ${PRI_NAME[t.priority]}` : ''].filter(Boolean);
+  return {
+    tall: true, head: winHead('Fokus'),
+    body: `<div class="bigtitle" style="padding-bottom:4px">${esc(t.title)}</div><div class="meta" style="margin:0 2px 18px">${esc(meta.join(' · '))}</div>
+      <div style="display:grid;justify-items:center;gap:6px;margin:6px 0 18px"><div style="width:180px;height:180px;border-radius:50%;border:6px solid ${w.running ? 'var(--green)' : '#2C3139'};display:grid;place-items:center;align-content:center"><span class="meta" style="margin:0">Proteklo</span><strong id="fxTime" style="font-size:40px;font-variant-numeric:tabular-nums">${mmss(w.elapsed)}</strong></div>
+        <div style="display:flex;gap:10px;margin-top:8px"><button class="secondary" style="width:140px" data-act="fxPause">${w.running ? 'Pauziraj' : 'Nastavi'}</button><button class="ghost" data-act="fxReset">Resetuj</button></div></div>
+      ${t.subtasks.length ? `<div class="glabel">Podzadaci · ${t.subtasks.filter(s => s.d).length}/${t.subtasks.length}</div><div class="card">${t.subtasks.map((s, k) => `<button class="prow" data-act="fxSub" data-k="${k}"><span class="box ${s.d ? 'on' : ''}">${s.d ? IC.tick : ''}</span><span class="grow ${s.d ? 'done-title' : ''}">${esc(s.t)}</span></button>`).join('')}</div>` : ''}
+      ${t.notes ? `<div class="glabel">Beleške</div><p class="note" style="margin-top:0;color:var(--text)">${esc(t.notes)}</p>` : ''}`,
+    foot: `<div style="display:flex;gap:8px;margin-bottom:8px"><button class="secondary" style="flex:1" data-act="fxTomorrow">Sutra</button><button class="secondary" style="flex:1" data-act="fxNext">Sledeći</button><button class="secondary" style="flex:1" data-act="fxDetails">Detalji</button></div><button class="primary" data-act="fxDone">Završi zadatak</button>`,
+  };
+};
+A.fxPause = () => { W.running = !W.running; renderWin(); };
+A.fxReset = () => { W.elapsed = 0; renderWin(); };
+A.fxSub = el => { const s = task(W.id).subtasks[Number(el.dataset.k)]; s.d = !s.d; renderWin(); };
+function focusNext(skipId) {
+  const q = focusQueue().filter(t => t.id !== skipId);
+  if (!q.length) { closeWin(); render(); return toast('Nema više ničega za fokus'); }
+  W.id = q[0].id; W.elapsed = 0; W.running = true; render();
+}
+A.fxNext = () => { const q = focusQueue(), k = q.findIndex(t => t.id === W.id); const next = q[(k + 1) % q.length]; if (!next || next.id === W.id) return toast('Nema sledećeg zadatka'); W.id = next.id; W.elapsed = 0; render(); };
+A.fxTomorrow = () => { const t = task(W.id); t.plan = addDays(TODAY, 1); toast('Premešteno za sutra'); focusNext(t.id); };
+A.fxDone = () => { const t = task(W.id); completeTask(t); toast('Zadatak je završen'); focusNext(t.id); };
+A.fxDetails = () => { clearInterval(focusTimer); W = { kind: 'task', id: W.id }; renderWin(); };
+
+// ===== Detalji navike =======================================================
+const HABIT_STATS = { h1: [3, 14, 120], h2: [1, 9, 64], h3: [2, 6, 38], h4: [8, 15, 92], h5: [20, 21, 140], h6: [1, 7, 51] };
+const habitState = (h, day) => {
+  const k = daysTo(day) + TI;
+  if (k >= 0 && k < 7) return h.week[k];
+  if (day > TODAY) return 'f';
+  const n = Number(day.slice(8)) + S.habits.indexOf(h);
+  return h.weekly && n % 2 ? 'n' : n % 5 === 0 ? 'm' : n % 11 === 0 ? 's' : 'd';
+};
+A.habitDetail = () => { const id = P.id; closePick(); openWin({ kind: 'habit', id }); };
+WIN.habit = w => {
+  const h = habit(w.id), [streak0, best, total] = HABIT_STATS[h.id] || [0, 0, 0];
+  const streak = (h.streak ?? streak0) + (h.week[TI] === 'd' ? 1 : 0);
+  const weekDone = h.week.filter(s => s === 'd').length, weekPlan = h.weekly || h.week.filter(s => !['n', 's', 'f'].includes(s)).length;
+  const days = Array.from({ length: 31 }, (_, k) => `2026-10-${String(k + 1).padStart(2, '0')}`);
+  const color = { d: 'background:var(--green);color:#0F1114', m: 'border:2px solid #5A3A3C', s: 'border:2px dashed #5B6270', o: 'border:2px solid #4A505A', f: 'border:2px solid #23272E;color:#5B6270', n: 'color:#3A3F48' };
+  const todayState = { d: 'Urađeno', o: 'Čeka', s: 'Preskočeno', m: 'Propušteno', n: 'Nije u planu' }[h.week[TI]];
+  const missedRecently = h.week.slice(0, TI).includes('m');
+  const tile = (v, l) => `<div style="background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px"><strong style="font-size:20px">${v}</strong><div class="meta">${l}</div></div>`;
+  return {
+    tall: true, head: winHead('Navika', `<button class="x" data-act="habitMore" aria-label="Radnje za naviku">${IC.dots}</button>`),
+    body: `<div class="bigtitle" style="padding-bottom:4px">${esc(h.name)}</div><div class="meta" style="margin:0 2px 12px">${esc(h.freq)} · ${ROUTINES[h.routine][0]} · Aktivna</div>
+      <div class="pcard" style="display:flex;align-items:center;gap:12px">${habitRow(h, TI).replace('class="hrow', 'style="flex:1;padding:0" class="hrow')}</div>
+      <div class="split" style="margin:6px 2px 0"><span class="meta" style="margin:0">Danas: ${todayState}</span>${h.week[TI] !== 'd' ? `<button class="ghost" style="padding:6px 2px" data-act="habitSkipToday">${h.week[TI] === 's' ? 'Poništi preskakanje' : 'Preskoči danas'}</button>` : ''}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px">${tile(`${streak} ${streak === 1 ? 'dan' : 'dana'}`, 'Trenutni niz')}${tile(`${best} dana`, 'Najduži niz')}${tile(total, 'Ukupno unosa')}${tile(`${weekPlan ? Math.round(weekDone / weekPlan * 100) : 0}%`, 'Ostvareno ove nedelje')}</div>
+      <div class="glabel">Oktobar 2026</div><div class="cal"><div class="grid7">${WD.map(d => `<div class="wd">${d}</div>`).join('')}${'<div></div>'.repeat(mondayIndex(days[0]))}${days.map(d => { const st = habitState(h, d); return `<button class="day" data-act="habitHist" data-d="${d}" ${st === 'f' || st === 'n' ? 'disabled' : ''} aria-label="${short(d)}"><span style="width:30px;height:30px;font-size:12px;${color[st]}">${Number(d.slice(8))}</span></button>`; }).join('')}</div></div>
+      <p class="note" style="margin-top:-4px">Dodir na prošli dan menja istoriju (urađeno / propušteno).</p>
+      <div class="glabel">Uvid</div><div class="pcard" style="font-size:14px;display:grid;gap:6px"><span>Ova nedelja: <b>${weekDone} od ${weekPlan}</b></span>${h.tracking === 'numeric' ? `<span>Cilj perioda: <b>${num(h.vals[TI] || 0)} / ${num(h.target)} ${h.unit}</b> · minimum ${num(h.target * 0.75)} · ideal ${num(h.target)}</span>` : ''}<span class="meta" style="margin:0">${missedRecently ? 'Nastavi posle propuštenog dana · u okviru tolerancije od 1 dana.' : 'Nema nedavno propuštenog perioda.'}</span></div>
+      <div class="glabel">Podešavanja</div><div class="card">
+        ${prow('soon', IC.routine, 'Rutina', ROUTINES[h.routine][0], '', 'data-msg="Jutro / Dan / Veče"')}
+        ${prow('soon', IC.track, 'Praćenje', h.tracking === 'numeric' ? `Brojevno · ${num(h.target)} ${h.unit}` : 'Kvadratić', '', 'data-msg="Praćenje se ne menja kad postoji istorija"')}
+        ${h.tracking === 'numeric' ? prow('soon', IC.bolt, 'Brze vrednosti', h.quick.map(v => `+${num(v)}`).join('  '), '', 'data-msg="Isti prozor kao u novoj navici"') : ''}
+        ${prow('soon', IC.repeat, 'Učestalost', h.freq, '', 'data-msg="Isti prozor kao u novoj navici"')}
+        ${prow('soon', IC.bell, 'Podsetnici', h.id === 'h2' ? '07:30' : '', 'Nisu podešeni', 'data-msg="Isključeni podsetnici ostaju sačuvani"')}
+        ${prow('soon', IC.goal, 'Minimalna i idealna', '', 'Kao cilj', 'data-msg="Isti prozor kao u novoj navici"')}
+        ${prow('soon', IC.shield, 'Dani tolerancije', '1 dan', '', 'data-msg="Tolerancija opisuje oporavak; nizovi ostaju isti"')}
+        ${prow('soon', IC.repeat, 'Nastavak', 'Ponavljaj automatski', '', 'data-msg="Automatski / Pitaj za svaki period / Samo jedan period"')}
+        ${prow('soon', IC.short.replace('width="16" height="16"', 'width="20" height="20"'), 'Kraj', 'Nikad', '', 'data-msg="Nikad / Na datum / Posle uspešnih perioda"')}
+        ${prow('soon', IC.goal, 'Povezani ciljevi', h.id === 'h6' || h.id === 'h3' ? 'Polumaraton u aprilu' : '', 'Nijedan', 'data-msg="Višestruki izbor, kao oznake"')}</div>`,
+    foot: '<button class="primary quiet" data-act="habitPause">Pauziraj naviku</button>',
+  };
+};
+A.habitSkipToday = () => { const h = habit(W.id); h.week[TI] = h.week[TI] === 's' ? 'o' : 's'; render(); };
+A.habitHist = el => {
+  const h = habit(W.id), d = el.dataset.d, k = daysTo(d) + TI;
+  if (k < 0 || k > TI) return toast('U prototipu se menjaju dani ove nedelje');
+  if (h.tracking === 'numeric') return openPick({ kind: 'value', id: h.id, i: k, total: h.vals[k] || 0 });
+  h.week[k] = h.week[k] === 'd' ? (k === TI ? 'o' : 'm') : 'd'; render();
+};
+A.habitMore = () => { const h = habit(W.id); openPick({ kind: 'choice', title: h.name, current: null, options: [{ v: 'tpl', label: 'Sačuvaj kao šablon' }, { v: 'snooze', label: 'Odloži podsetnik', sub: '15 min, 1 sat ili za večeras' }, { v: 'arch', label: 'Arhiviraj naviku' }, { v: 'del', label: 'Obriši naviku', sub: 'Uklanjaju se unosi, istorija i podsetnici. Ciljevi ostaju.' }], onPick: v => toast(v === 'del' ? 'Traži potvrdu, pa nudi Poništi' : v === 'arch' ? 'Navika je arhivirana (u prototipu bez promene)' : 'Isti mali prozor kao ostali') }); };
+A.habitPause = () => {
+  const h = habit(W.id), k = S.habits.indexOf(h);
+  S.habits.splice(k, 1); S.pausedHabits.unshift({ name: h.name, when: `Pauzirana od ${short(TODAY)}` });
+  closeWin(); render(); toast('Navika je pauzirana', () => { S.habits.splice(k, 0, h); S.pausedHabits.shift(); });
+};
+
+// ===== "+" on the smaller screens adds what they list ======================
+const fabMain = A.fab;
+A.fab = () => {
+  const top = R.stack.at(-1), t = top?.type;
+  if (t === 'areas') return A.newArea();
+  if (t === 'area') return openQuick({ date: null, project: 'none', area: top.id });
+  if (t === 'notes' || t === 'resources') return openLibItem(t === 'notes' ? 'note' : 'resource');
+  if (t === 'cleaning') return A.newChore();
+  if (t === 'tags' || t === 'tag') return A.newTag();
+  if (t === 'templates') return A.tplNew();
+  if (t === 'views' || t === 'view') return A.viewNew();
+  return fabMain();
 };
 
 bindEvents();

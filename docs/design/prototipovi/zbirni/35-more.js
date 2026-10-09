@@ -2,26 +2,30 @@
 function navRow(act, icon, label, { sub = '', val = '', valClass = '', cls = '', data = '' } = {}) {
   return `<button class="prow ${cls}" data-act="${act}" ${data}><span class="ico">${icon}</span><span class="grow">${label}${sub ? `<span class="sub">${sub}</span>` : ''}</span>${val ? `<span class="val ${valClass}" style="flex:none">${val}</span>` : ''}${IC.chev}</button>`;
 }
-const soonData = name => `data-msg="${name}: manji ekran, dolazi u sledećem koraku"`;
-TAB.more = () => `<div class="status"><span>09:41</span><span>•••</span></div><h1 class="h1">Još</h1>
-  <div class="glabel">Zakačeno</div><div class="card">
-    ${navRow('soon', '<span class="dot" style="background:#3BA7F5;border-radius:4px"></span>', 'Posao', { sub: 'Oblast', data: soonData('Oblast Posao') })}
-    ${navRow('soon', IC.funnel, 'Rok ove nedelje', { sub: 'Sačuvani prikaz', data: soonData('Sačuvani prikaz') })}</div>
+const sub = (type, extra = '') => `data-sub="${type}" ${extra}`;
+TAB.more = () => {
+  const pinnedAreas = activeAreas().filter(a => a.pinned), pinnedViews = S.views.filter(v => v.pinned);
+  const pinned = [...pinnedAreas.map(a => navRow('go', `<span class="dot" style="background:${a.color};border-radius:4px"></span>`, esc(a.name), { sub: 'Oblast', data: sub('area', `data-id="${a.id}"`) })), ...pinnedViews.map(v => navRow('go', IC.funnel, esc(v.name), { sub: 'Sačuvani prikaz', data: sub('view', `data-id="${v.id}"`) }))];
+  const last = S.reviews[0];
+  return `<div class="status"><span>09:41</span><span>•••</span></div><h1 class="h1">Još</h1>
+  ${pinned.length ? `<div class="glabel">Zakačeno</div><div class="card">${pinned.join('')}</div>` : ''}
   <div class="glabel">Planiranje</div><div class="card">
     ${navRow('openGoals', IC.goal, 'Ciljevi', { val: String(S.goals.filter(g => g.status === 'active').length) })}
-    ${navRow('soon', IC.area, 'Oblasti', { val: String(S.areas.length), data: soonData('Oblasti') })}
-    ${navRow('soon', IC.broom, 'Čišćenje', { val: '2 sobe', data: soonData('Čišćenje') })}
-    ${navRow('soon', IC.review, 'Nedeljni pregled', { val: 'Poslednji 4. okt', data: soonData('Nedeljni pregled') })}</div>
+    ${navRow('go', IC.area, 'Oblasti', { val: String(activeAreas().length), data: sub('areas') })}
+    ${navRow('go', IC.broom, 'Čišćenje', { val: `${S.rooms.length} ${plural(S.rooms.length, 'prostorija', 'prostorije', 'prostorija')}`, data: sub('cleaning') })}
+    ${navRow('go', IC.review, 'Nedeljni pregled', { val: reviewDone() ? 'Završen' : last ? `Poslednji ${short(last.completedAt)}` : '', data: sub('review') })}</div>
   <div class="glabel">Biblioteka</div><div class="card">
-    ${navRow('soon', IC.note, 'Beleške', { val: '12', data: soonData('Beleške') })}
-    ${navRow('soon', IC.link, 'Resursi', { val: '8', data: soonData('Resursi') })}
-    ${navRow('soon', IC.tag, 'Oznake', { val: String(S.tags.length), data: soonData('Oznake') })}
-    ${navRow('soon', IC.copy, 'Šabloni', { val: '3', data: soonData('Šabloni') })}
-    ${navRow('soon', IC.funnel, 'Sačuvani prikazi', { val: '2', data: soonData('Sačuvani prikazi') })}</div>
+    ${navRow('go', IC.note, 'Beleške', { val: String(S.library.filter(x => x.kind === 'note').length), data: sub('notes') })}
+    ${navRow('go', IC.link, 'Resursi', { val: String(S.library.filter(x => x.kind === 'resource').length), data: sub('resources') })}
+    ${navRow('go', IC.tag, 'Oznake', { val: String(S.tags.length), data: sub('tags') })}
+    ${navRow('go', IC.copy, 'Šabloni', { val: String(S.templates.length), data: sub('templates') })}
+    ${navRow('go', IC.funnel, 'Sačuvani prikazi', { val: String(S.views.length), data: sub('views') })}</div>
   <div class="glabel">Arhiva</div><div class="card">
-    ${navRow('soon', IC.checkc, 'Završeni zadaci', { data: soonData('Završeni zadaci (sa „Obriši završene“)') })}
-    ${navRow('soon', IC.archive, 'Arhivirani projekti', { data: soonData('Arhivirani projekti') })}</div>
+    ${navRow('go', IC.checkc, 'Završeni zadaci', { val: String(S.tasks.filter(t => t.done).length), data: sub('completed') })}
+    ${navRow('go', IC.archive, 'Arhivirani projekti', { val: String(S.projects.filter(p => p.archived).length), data: sub('archived') })}</div>
   <div class="card" style="margin-top:18px">${navRow('openSettings', IC.gear, 'Podešavanja', { sub: S.settings.sync ? 'Sinhronizovano pre 2 min' : 'Podaci su samo na ovom uređaju' })}</div>`;
+};
+A.go = el => push({ type: el.dataset.sub, ...(el.dataset.id ? { id: el.dataset.id } : {}) });
 A.openGoals = () => push({ type: 'goals' });
 A.openSettings = () => push({ type: 'settings' });
 
@@ -69,8 +73,8 @@ SUB.goals = () => {
     groups = [...map].map(([k, items]) => ({ icon: k === 'none' ? '' : IC.month, label: k === 'none' ? 'Bez datuma' : `${cap(MONTHS[Number(k.slice(5)) - 1])} ${k.slice(0, 4)}`, items }));
   }
   const fold = (key, label, list) => `<button class="collapsed" data-act="goalFold" data-k="${key}">${IC.fold(S.ui.goalFold[key])}${label} · ${list.length}</button>${S.ui.goalFold[key] ? `<div class="card" style="margin-top:8px">${list.map(x => `<div class="goalrow"><div class="ttl" style="color:var(--muted)">${esc(x.title)}</div><div class="meta">${x.when}</div></div>`).join('')}</div>` : ''}`;
-  return `<div class="status"><span>09:41</span><span>•••</span></div><button class="back" data-act="back">${IC.left}Još</button>
-    <div class="titlebar"><h1 class="h1">Ciljevi</h1><button class="icon-btn" data-act="soon" data-msg="Pretraga: posebni ekran, dolazi kasnije" aria-label="Pretraga">${IC.search}</button></div>
+  return `<div class="status"><span>09:41</span><span>•••</span></div>${backBtn()}
+    <div class="titlebar"><h1 class="h1">Ciljevi</h1><button class="icon-btn" data-act="search" aria-label="Pretraga">${IC.search}</button></div>
     <div class="summary">${active.length} ${plural(active.length, 'aktivan', 'aktivna', 'aktivnih')}${risk ? ` · <span class="amber">${risk} u riziku</span>` : ''}${late ? ` · <span class="red">${late} kasni</span>` : ''}</div>
     <div class="seg" role="tablist"><button role="tab" class="${S.ui.goalGroup === 'horizon' ? 'on' : ''}" data-act="goalGroup" data-v="horizon">Horizont</button><button role="tab" class="${S.ui.goalGroup === 'date' ? 'on' : ''}" data-act="goalGroup" data-v="date">Rok</button></div>
     ${groups.filter(x => x.items.length).map(x => `<div class="section">${x.icon}${x.label} <span>· ${x.items.length}</span></div><div class="card">${x.items.map(goalRow).join('')}</div>`).join('')}
@@ -120,7 +124,7 @@ WIN.goal = w => {
 A.msToggle = el => { const m = goal(W.id).milestones[Number(el.dataset.k)]; m.d = !m.d; render(); toast(m.d ? 'Etapa je završena' : 'Etapa je vraćena'); };
 A.msAdd = () => { const g = goal(W.id); g.milestones.push({ t: `Nova etapa ${g.milestones.length + 1}`, d: false, date: addDays(g.date || TODAY, 0) }); render(); };
 A.goalToProject = el => { closeWin(); R.tab = 'tasks'; R.stack = [{ type: 'project', id: el.dataset.id }]; render(); };
-A.goalArea = () => { const g = goal(W.id); openPick({ kind: 'choice', title: 'Oblast', sub: g.title, current: g.area, options: S.areas.map(a => ({ v: a.id, label: a.name, dot: a.color })), onPick: v => { g.area = v; render(); toast('Sačuvano'); } }); };
+A.goalArea = () => { const g = goal(W.id); openPick({ kind: 'choice', title: 'Oblast', sub: g.title, current: g.area, options: activeAreas().map(a => ({ v: a.id, label: a.name, dot: a.color })), onPick: v => { g.area = v; render(); toast('Sačuvano'); } }); };
 A.goalHorizon = () => { const g = goal(W.id); openPick({ kind: 'choice', title: 'Horizont', sub: g.title, current: g.horizon, options: HORIZONS.map(([v, l]) => ({ v, label: l, icon: IC[v] })), onPick: v => { g.horizon = v; render(); toast('Sačuvano'); } }); };
 A.goalDate = () => { const g = goal(W.id); openPick({ kind: 'goalDate', target: g, value: g.date }); };
 A.goalComplete = () => {
@@ -182,7 +186,7 @@ IN.ngUnit = el => { W.unit = el.value; };
 A.ngMore = () => { W.more = !W.more; renderWin(); };
 A.ngAddMs = () => { W.milestones.push(`Etapa ${W.milestones.length + 1}`); renderWin(); };
 A.ngRmMs = el => { W.milestones.splice(Number(el.dataset.k), 1); renderWin(); };
-A.ngArea = () => openPick({ kind: 'choice', title: 'Oblast', sub: W.title || 'Novi cilj', current: W.area, options: S.areas.map(a => ({ v: a.id, label: a.name, dot: a.color })), onPick: v => { W.area = v; renderWin(); } });
+A.ngArea = () => openPick({ kind: 'choice', title: 'Oblast', sub: W.title || 'Novi cilj', current: W.area, options: activeAreas().map(a => ({ v: a.id, label: a.name, dot: a.color })), onPick: v => { W.area = v; renderWin(); } });
 A.ngDate = () => openPick({ kind: 'goalDate', target: W, value: W.date });
 A.ngCreate = () => {
   const d = W;
@@ -199,7 +203,7 @@ A.ngCreate = () => {
 const hoursLabel = m => m === 0 ? 'Isključen' : durLabel(m);
 SUB.settings = () => {
   const st = S.settings;
-  return `<div class="status"><span>09:41</span><span>•••</span></div><button class="back" data-act="back">${IC.left}Još</button><h1 class="h1">Podešavanja</h1>
+  return `<div class="status"><span>09:41</span><span>•••</span></div>${backBtn()}<h1 class="h1">Podešavanja</h1>
   <div class="glabel">Nalog</div><div class="card">${navRow('setSheet', IC.sync, 'Sinhronizacija', { sub: st.sync || 'Za rad na više uređaja', val: st.sync ? 'Uključena' : 'Isključena', valClass: st.sync ? 'green' : '', data: 'data-k="sync"' })}</div>
   <div class="glabel">Opšte</div><div class="card">
     ${navRow('setSheet', IC.cal, 'Prvi dan nedelje', { val: st.weekStart, data: 'data-k="week"' })}

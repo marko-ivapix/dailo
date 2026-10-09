@@ -178,3 +178,24 @@ Images 3–9: "Edit task", and the Project, Planned date, Priority, Reminder, Ta
 | I4 | **Groups by capture time** stay: Danas, Juče, Ove nedelje, Ranije. | accepted as the basis (no objection) |
 | I5 | **Quick buttons under every row stay:** a task gets Danas / Sutra / Kad stignem / Projekat…; another item gets Otvori / Oblast… / Razvrstano. "Ukloni" is renamed "Razvrstano", because it only takes the item out of Inbox. A new "Oblast…" sorts a non-task item into an area. | decided |
 | I6 | **Every sorting action** shows a message with "Poništi". An empty Inbox shows a check and "Sve je razvrstano". | accepted as the basis (no objection) |
+
+## Smaller screens (Claude's proposal, 2026-10-09, in `dailo-prototip.html`)
+
+Built from an inventory of the current screens, so no feature is dropped. All open from "Još" except Search (the magnifier), Focus (the task window menu) and Habit details (the habit menu).
+
+| # | Proposal | Status |
+| --- | --- | --- |
+| S1 | **Oblasti:** rows with the area icon and color, the name and "2 projekta · 10 otvorenih · 1 cilj"; archived areas fold at the bottom with "Vrati" instead of the Sve / Aktivno / Arhivirano tabs; "+ Nova oblast" (name, color, icon; a duplicate name is rejected). | proposed |
+| S2 | **One area:** a summary line instead of the six number cards; sections Projekti, Zadaci (5, then "Prikaži još"), Ciljevi, Navike and Beleške i resursi, each with "+"; "⋯" with Izmeni, Zakači u „Još“, Arhiviraj and Obriši. | proposed |
+| S3 | **Beleške and Resursi:** one list, newest first, with a star; filter chips (Omiljeno, Oblast, Oznaka; resources also Vrsta and Status) and "Obriši filtere". An item opens in a window like the task window: area, (resource: type, reading status, author, last review), text, clipped text, links, tags, linked items, attachments; star and "⋯" (delete) in the header; changes save at once. Today's rule stays: a title and at least one link, image or file. | proposed |
+| S4 | **Čišćenje:** room chips, a section per room, and a round check that completes a chore and schedules the next one (today a chore has to be opened); "+ Dodaj obavezu" per room; done chores fold per room; the new-chore window (name, room, first day, how often); the apartment and house examples only in the empty state. Rooms do not appear in Zadaci → Projekti. | proposed |
+| S5 | **Nedeljni pregled:** six numbered steps; steps 1 and 2 turn into a green check when empty; step 3 rows open that day in the Calendar (Predstojeće moved there, C9); "Završi nedeljni pregled" and the earlier reviews. | proposed |
+| S6 | **Oznake:** a list with task counts; a tag screen with its tasks and, new, the notes and resources with that tag; "⋯" edit and delete (with Undo). | proposed |
+| S7 | **Šabloni:** grouped by type instead of tabs; a tap opens "Upotrebi šablon" (the usual new-item window, already filled), Izmeni, Dupliraj, Obriši. Saving a template stays in the item menus ("Sačuvaj kao šablon"). | proposed |
+| S8 | **Sačuvani prikazi:** rows with type, "zakačen" and the filter summary; a result screen; "⋯" with Izmeni, Dupliraj, Zakači u „Još“, Obriši; the edit window has the type switch and one row per filter; pinned views appear under "Zakačeno" in "Još". | proposed |
+| S9 | **Završeni zadaci:** project and period chips, groups by day, the checkbox restores with Undo, and "Obriši završene zadatke" at the bottom with a confirmation (M6). | proposed |
+| S10 | **Arhivirani projekti:** rows with "Vrati"; archiving from the project menu; tasks of an archived project leave every list until it is restored. | proposed |
+| S11 | **Pretraga:** a full-height window with the field on top. Scope, ranking and grouping stay exactly as today (tasks by title and notes, completed included; projects by name, archived included), as the compatibility rules require; a wider search needs its own approved spec. | proposed |
+| S12 | **Fokus:** from the task window menu ("Započni fokus"); today's count-up timer with Pauziraj / Resetuj, the subtasks (proposed: tickable, today read-only), the notes, and Sutra / Sledeći / Detalji / Završi zadatak. | proposed |
+| S13 | **Detalji navike:** a window from the habit menu: today's check and "Preskoči danas", four numbers (current streak, longest streak, total check-ins, this week), the month calendar where a tap on a past day edits the history, an "Uvid" card (week, period target, recovery), the settings rows (routine, tracking, frequency, reminders, minimum and ideal, grace days, continuation, end, linked goals), "⋯" (template, snooze, archive, delete) and "Pauziraj naviku" at the bottom. | proposed |
+| S14 | **Repeating tasks** create their next occurrence when completed anywhere (Today, Calendar, Čišćenje), as the app does today; the message says when it comes next. | proposed |

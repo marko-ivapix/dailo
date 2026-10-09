@@ -48,7 +48,7 @@ WIN.task = w => {
 };
 IN.taskTitle = el => { task(W.id).title = el.value; };
 IN.taskNotes = el => { task(W.id).notes = el.value; };
-A.taskComplete = () => { const t = task(W.id); t.done = !t.done; t.doneAt = t.done ? TODAY : null; if (t.done) t.inbox = false; render(); toast(t.done ? 'Zadatak je završen' : 'Zadatak je vraćen'); };
+A.taskComplete = () => { const t = task(W.id); if (!t.done) t.inbox = false; const { next, undo } = completeTask(t); render(); toast(t.done ? (next ? `Završeno · sledeći put ${relDay(next.plan || next.due)}` : 'Zadatak je završen') : 'Zadatak je vraćen', undo); };
 A.subToggle = el => { const s = task(W.id).subtasks[Number(el.dataset.k)]; s.d = !s.d; renderWin(); };
 A.subAdd = () => { const t = task(W.id); t.subtasks.push({ t: `Novi podzadatak ${t.subtasks.length + 1}`, d: false }); renderWin(); };
 // The task menu holds Focus (T2a) and Delete (I2).
@@ -57,7 +57,8 @@ A.taskMenu = () => {
   openPick({ kind: 'choice', title: t.title, current: null, options: [{ v: 'focus', label: 'Započni fokus', icon: IC.timer }, { v: 'dup', label: 'Dupliraj', icon: IC.copy }, { v: 'tpl', label: 'Sačuvaj kao šablon', icon: IC.copy }, { v: 'del', label: 'Obriši zadatak', icon: IC.trash }], onPick: v => {
     if (v === 'del') { const k = S.tasks.indexOf(t); S.tasks.splice(k, 1); closeWin(); render(); toast('Zadatak je obrisan', () => S.tasks.splice(k, 0, t)); }
     else if (v === 'dup') { S.tasks.push({ ...JSON.parse(JSON.stringify(t)), id: newId('t'), title: `${t.title} (kopija)` }); render(); toast('Napravljena je kopija'); }
-    else toast(v === 'focus' ? 'Fokus: tajmer za ovaj zadatak (poseban ekran)' : 'Šablon je sačuvan');
+    else if (v === 'focus') openFocus(t.id);
+    else toast('Otvara šablon zadatka, popunjen ovim zadatkom');
   } });
 };
 
@@ -162,7 +163,7 @@ A.durPick = el => { task(W.id).duration = Number(el.dataset.v) || null; closePic
 function projectList(p) {
   const q = (p.q || '').toLowerCase();
   let html = p.allowNone ? `<button class="opt" data-act="pjPick" data-id=""><span class="lbl">Bez projekta</span><span class="radio ${!p.current ? 'on' : ''}"></span></button>` : '';
-  for (const a of S.areas) for (const pr of S.projects.filter(x => x.area === a.id && x.name.toLowerCase().includes(q))) html += `<button class="opt" data-act="pjPick" data-id="${pr.id}"><span class="dot" style="background:${pr.color}"></span><span class="lbl">${esc(pr.name)}<small>Oblast: ${esc(a.name)}</small></span><span class="radio ${p.current === pr.id ? 'on' : ''}"></span></button>`;
+  for (const a of activeAreas()) for (const pr of activeProjects().filter(x => x.area === a.id && x.name.toLowerCase().includes(q))) html += `<button class="opt" data-act="pjPick" data-id="${pr.id}"><span class="dot" style="background:${pr.color}"></span><span class="lbl">${esc(pr.name)}<small>Oblast: ${esc(a.name)}</small></span><span class="radio ${p.current === pr.id ? 'on' : ''}"></span></button>`;
   return html + '<button class="opt" data-act="newProject" style="color:var(--link)">＋ Novi projekat</button>';
 }
 PICK.project = p => ({ title: 'Projekat', sub: p.sub, body: `<label class="search">${IC.search}<input placeholder="Pretraži projekte" value="${esc(p.q || '')}" data-in="pjSearch" aria-label="Pretraži projekte"></label><div class="card" id="pjList" style="margin-bottom:10px">${projectList(p)}</div><p class="note" style="margin-top:0">Zadatak dobija oblast svog projekta. Dodir odmah primenjuje izbor.</p>` });
