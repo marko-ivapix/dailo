@@ -55,6 +55,11 @@ input.dispatchEvent(new window.Event('input', { bubbles: true }));
 window.document.querySelector('[data-action="create-task"]').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
 await new Promise(resolve => setTimeout(resolve, 50));
 if (!window.TodoApp.state.tasks.some(task => task.title === title)) fail('the task was not created');
+// Android Back (M4): it closes the open dialog, then reports nothing left to close.
+window.TodoApp.openQuickAdd();
+if (!window.document.querySelector('#quick-title')) fail('Quick Add did not reopen');
+if (window.TodoApp.handleBackButton() !== true || window.document.querySelector('#quick-title')) fail('Back did not close Quick Add');
+if (window.TodoApp.handleBackButton() !== false) fail('Back reported a closed overlay when none was open');
 window.dispatchEvent(new window.Event('pagehide'));
 const saved = keep(window);
 first.dom.window.close();
@@ -65,5 +70,5 @@ if (!found) fail('the task is missing after reopening');
 const errors = [...first.errors, ...second.errors];
 second.dom.window.close();
 if (errors.length) fail(`script errors: ${errors.join(' | ')}`);
-console.log(`smoke: OK — started, created "${title}", reopened and found it (tasks: ${second.window.TodoApp.state?.tasks?.length ?? 'n/a'})`);
+console.log(`smoke: OK — started, created "${title}", Back closed Quick Add, reopened and found it (tasks: ${second.window.TodoApp.state?.tasks?.length ?? 'n/a'})`);
 process.exit(0);

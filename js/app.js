@@ -4680,7 +4680,8 @@
     document.addEventListener('dragleave', handleDragLeave);
     document.addEventListener('drop', handleDrop);
     document.addEventListener('dragend', handleDragEnd);
-    window.addEventListener('hashchange', () => { closePopover(); closeModal(); render(); });
+    // The first-sync choice stays open across a route change: closing it would run its cancel, which signs out (audit P-3).
+    window.addEventListener('hashchange', () => { closePopover(); if (modalState?.type !== 'sync-choice') closeModal(); render(); });
     window.addEventListener('storage', event => {
       if (globalOperation) return;
       if (event.key !== STORAGE_KEY) return;
@@ -4725,11 +4726,25 @@
     } else checkReminders();
   }
 
-  // Native integration (audit M3): resume, links that leave the app, leftovers of an interrupted share.
+  // Android Back works like Escape: it closes the top sheet, menu, popover, inline editor or dialog and reports
+  // whether anything closed; otherwise the platform goes to the previous screen or minimizes (audit P-3, M4).
+  // A reset or restore that is already running is never interrupted.
+  const overlaySnapshot = () => [mobileMoreOpen, $('#mobile-quick-add-toggle')?.getAttribute('aria-expanded'), popoverEl, modalState, goalPropertyEditor, habitPropertyEditor, document.activeElement];
+  function handleBackButton() {
+    if (globalOperation?.busy) return true;
+    const before = overlaySnapshot();
+    const target = document.activeElement || document.body; // an element: the key handler reads target.closest
+    target.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    const after = overlaySnapshot();
+    return before.some((value, index) => value !== after[index]);
+  }
+
+  // Native integration (audit M3): resume, Back, links that leave the app, leftovers of an interrupted share.
   function startPlatform() {
     const platform = globalThis.DailoPlatform;
     if (!platform) return;
     platform.lifecycle.onResume(resumeApp);
+    platform.backButton.setHandler(handleBackButton);
     platform.links.interceptExternalLinks(document, { onlinePages: { 'uputstvo.html': Release.GUIDE_URL } });
     platform.files.cleanupSharedFiles().catch(console.error);
   }
@@ -4795,7 +4810,8 @@
     updateStoragePersistence(false).catch(console.error);
     registerServiceWorker();
     startPlatform();
-    if (!location.hash) location.hash = '#today';
+    // replace, not assign: the first screen must not leave an extra step for Back.
+    if (!location.hash) location.replace('#today');
     setInterval(() => {
       if (globalOperation || startupPromise || recovery || !state) return;
       if (runScheduledTaskTemplates()) render();
@@ -4803,6 +4819,6 @@
     }, 30000);
   }
 
-  window.TodoApp = { init, get ready() { return startupPromise || Promise.resolve(); }, get state() { return state; }, deleteLifecycle, render, openQuickAdd, openSearch, checkReminders, captureGoalProgress, evaluateGoalProgressChanges, setHabitLog, refreshHabitMetrics, refreshHabitDateBoundary, evaluateHabitBoundaries, snoozeHabit };
+  window.TodoApp = { init, handleBackButton, get ready() { return startupPromise || Promise.resolve(); }, get state() { return state; }, deleteLifecycle, render, openQuickAdd, openSearch, checkReminders, captureGoalProgress, evaluateGoalProgressChanges, setHabitLog, refreshHabitMetrics, refreshHabitDateBoundary, evaluateHabitBoundaries, snoozeHabit };
   init();
 })();
