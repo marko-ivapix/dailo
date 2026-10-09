@@ -104,6 +104,12 @@
   .jday b { font-size: 15px; font-weight: 600; }
   .jday i { width: 5px; height: 5px; border-radius: 50%; background: transparent; }
   .jday.has i { background: var(--link); }
+  .jday em { font-style: normal; font-size: 13px; line-height: 1; margin-top: 1px; }
+  .jweek { display: flex; padding: 8px 6px; }
+  .jweek button { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px 0; border-radius: 10px; }
+  .jweek button:disabled { opacity: .35; }
+  .jweek .jw-face { font-size: 20px; line-height: 26px; color: var(--muted); }
+  .jweek small { font-size: 11px; color: var(--muted); }
   .jday.today { border-color: var(--blue); }
   .jday:disabled { opacity: .35; }
   .jrow { display: flex; flex-direction: column; gap: 4px; width: 100%; padding: 12px 14px; text-align: left; border-bottom: 1px solid var(--line); }

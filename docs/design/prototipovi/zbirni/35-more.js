@@ -209,7 +209,8 @@ SUB.settings = () => {
   <div class="glabel">Opšte</div><div class="card">
     ${navRow('setSheet', IC.cal, 'Prvi dan nedelje', { val: st.weekStart, data: 'data-k="week"' })}
     ${navRow('setSheet', IC.timer, 'Dnevni kapacitet', { val: hoursLabel(st.capacity), data: 'data-k="capacity"' })}
-    ${navRow('soon', IC.bell, 'Podsetnici', { val: 'Uključeni', data: 'data-msg="Podsetnici u pregledaču; na telefonu sa aplikacijom"' })}</div>
+    ${navRow('soon', IC.bell, 'Podsetnici', { val: 'Uključeni', data: 'data-msg="Podsetnici u pregledaču; na telefonu sa aplikacijom"' })}
+    ${navRow('jRemind', IC.book, 'Podsetnik za dnevnik', { sub: 'Poruka na Danas uveče', val: st.journalTime || 'Isključen' })}</div>
   <div class="glabel">Podaci</div><div class="card">
     ${navRow('setSheet', IC.upload, 'Rezervna kopija', { sub: `Poslednja ${st.lastBackup}`, data: 'data-k="backup"' })}
     ${navRow('soon', IC.download, 'Vrati iz kopije', { sub: 'Zamenjuje trenutne podatke', data: 'data-msg="Bira ZIP, proverava ga, pa traži potvrdu"' })}

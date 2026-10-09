@@ -212,8 +212,14 @@ Built from an inventory of the current screens, so no feature is dropped. All op
 | J3 | **Screen:** the month with arrows, a strip of its days (a dot marks a day with an entry, future days are disabled, a tap opens that day), its own search field, and the entries newest first (date, mood, two lines of text). "+" opens today's entry. | decided |
 | J4 | **Evening notice on Today:** "Zapiši kako je prošao dan" with the day's summary, "Zapiši" and "Ne danas", after 20:00 and only while today has no entry (T6 conditional notices; the prototype shows it at any hour). | decided |
 | J5 | **Search:** entries are not in global Search (its scope must not change); the Dnevnik screen has its own search over the text. | decided |
+| J6 | **Reminder time:** Settings → Opšte → "Podsetnik za dnevnik" sets when the J4 notice appears (19:00, 20:00 by default, 21:00, 22:00) or turns it off. | decided |
+| J7 | **Mood in the day strip:** a day with a mood shows its face instead of the dot, so the month reads at a glance. | decided |
+| J8 | **Dnevnik in the weekly review:** under "Poslednjih 7 dana", a "Dnevnik ove nedelje" row of seven faces (a pencil for an entry without mood, a dot for none, future days disabled); a tap opens that day's entry. | decided |
+| J9 | **"+ Zadatak za sutra" in the entry:** opens Quick Add planned for the day after the entry (never before today), titled from the selected text or a "Sutra: …" line; adding or closing returns to the entry. | decided |
 
-**J1–J5 need a data-model change at implementation time:** a new journal collection (one record per date: text, mood, timestamps), included in backup export/import validation and in Supabase sync like the other records. It gets its own versioned spec and a failing test first.
+Later, with the mobile technology: locking the journal (Face ID / fingerprint), a photo in an entry (with attachments in V2.1) and "Na današnji dan". Not planned: tags in the journal and separate mood charts.
+
+**J1–J9 need a data-model change at implementation time:** a new journal collection (one record per date: text, mood, timestamps) and the reminder time setting, included in backup export/import validation and in Supabase sync like the other records. It gets its own versioned spec and a failing test first.
 
 ## Desktop (Claude's proposal, 2026-10-09, `dailo-racunar.html`)
 

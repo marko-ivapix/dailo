@@ -10,7 +10,7 @@ The sample day is Thursday, 8 October 2026.
 
 | File | Shows | Decisions |
 | --- | --- | --- |
-| `dailo-prototip.html` | **Combined prototype:** every decided screen in one phone frame, joined by the bottom navigation and sharing one set of data; since 2026-10-09 also the smaller screens (areas, notes and resources, recurring tasks ("Redovne obaveze", formerly cleaning), weekly review, tags, templates, saved views, completed, archived projects, search, focus, habit details), the shared repeat editor (S15) and the journal "Dnevnik" | all, S1–S15, J1–J5 |
+| `dailo-prototip.html` | **Combined prototype:** every decided screen in one phone frame, joined by the bottom navigation and sharing one set of data; since 2026-10-09 also the smaller screens (areas, notes and resources, recurring tasks ("Redovne obaveze", formerly cleaning), weekly review, tags, templates, saved views, completed, archived projects, search, focus, habit details), the shared repeat editor (S15) and the journal "Dnevnik" | all, S1–S15, J1–J9 |
 | `dailo-racunar.html` | **Desktop prototype** (1280 × 800): the same parts plus the desktop layer (`zbirni/60-desktop.css`, `60-desktop.js`): sidebar, centered windows, the floating "+", popovers, two columns, the 7-column week and the month with titles, drag and drop, shortcuts | K1–K12 |
 | `danas-predlog.html` | Today: sections, limits, habit rows | T1–T7 |
 | `navike-predlog.html` | Early habit-row options for Today | T4, T5 |
