@@ -199,3 +199,21 @@ Built from an inventory of the current screens, so no feature is dropped. All op
 | S12 | **Fokus:** from the task window menu ("Započni fokus"); today's count-up timer with Pauziraj / Resetuj, the subtasks, which can be ticked here (today they are read-only), the notes, and Sutra / Sledeći / Detalji / Završi zadatak. | decided |
 | S13 | **Detalji navike:** a window from the habit menu: today's check and "Preskoči danas", four numbers (current streak, longest streak, total check-ins, this week), the month calendar where a tap on a past day edits the history, an "Uvid" card (week, period target, recovery), the settings rows (routine, tracking, frequency, reminders, minimum and ideal, grace days, continuation, end, linked goals), "⋯" (template, snooze, archive, delete) and "Pauziraj naviku" at the bottom. | proposed |
 | S14 | **Repeating tasks** create their next occurrence when completed anywhere (Today, Calendar, Čišćenje), as the app does today; the message says when it comes next. | proposed |
+
+## Desktop (Claude's proposal, 2026-10-09, `dailo-racunar.html`)
+
+The desktop prototype is built from the same parts as `dailo-prototip.html` plus `zbirni/60-desktop.css` and `60-desktop.js`, so both share data and behavior. Frame: 1280 × 800.
+
+| # | Proposal | Status |
+| --- | --- | --- |
+| K1 | **Sidebar instead of the bottom navigation and "Još":** brand and sync state; "+ Novi zadatak" (the label follows the screen, e.g. "Nova navika"; shortcut Q) instead of the floating "+"; Pretraga (/); Danas with its count, Inbox with the badge, Zadaci, Kalendar, Navike; a "Prevuci ovde za sutra" drop zone; Zakačeno; Projekti grouped by area, with open counts; Planiranje, Biblioteka and Arhiva as in "Još" (M4); Podešavanja at the bottom. Screens opened from the sidebar have no back button. | proposed |
+| K2 | **Content width:** lists stay in a centered column of at most 760 px; the calendar week and month use the full width. | proposed |
+| K3 | **Density (G5):** rows of about 44 px and 14 px text, with a hover background. Settings → Računar → "Zbijeniji prikaz" (on by default) brings back the phone sizes when turned off. | proposed |
+| K4 | **Task, goal, habit, note, new habit, new goal and focus open in a 400 px panel on the right;** the list stays visible and usable, and another row opens in the same panel. Esc closes it. (On the phone they stay bottom windows, D1.) | proposed |
+| K5 | **Short windows are centered dialogs** over a dimmed screen: Quick Add, Search (like a command palette), Razvrstaj redom, new chore, saved view editing. | proposed |
+| K6 | **Pickers are popovers next to the row** that opened them (E2). | proposed |
+| K7 | **Two columns where there is room:** Today has tasks on the left and habits on the right; Habits has the list on the left and Napredak on the right. With the panel open they fall back to one column. | proposed |
+| K8 | **Calendar:** Nedelja is 7 columns (C3) with cards (time and duration), dashed goal and milestone deadlines, "+ Dodaj" per day and a thin load bar per day against the daily capacity. Mesec shows up to 3 titles per day and "+N još" (the phone shows only dots, C1), with the selected day's list below. Predstojeće is the phone list. | proposed |
+| K9 | **Drag and drop:** any task row or card onto a calendar day, onto Danas or "Sutra" in the sidebar, or onto a project in the sidebar; the message offers Undo. | proposed |
+| K10 | **Keyboard:** Q new item, / search, Esc closes, 1–5 the main screens; shortcuts stay editable (Settings → Računar → Prečice na tastaturi). | proposed |
+| K11 | **Settings → Računar:** "Prečice na tastaturi" and "Zbijeniji prikaz", only on the desktop (M5). | proposed |

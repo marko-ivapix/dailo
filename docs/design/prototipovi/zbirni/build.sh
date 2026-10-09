@@ -16,3 +16,17 @@ for f in $PARTS; do cat "$f"; done > "$check"
 node --check "$check"
 rm -r "$dir"
 wc -l "$out"
+# The desktop prototype: the same parts plus the desktop stylesheet and script.
+desk=../dailo-racunar.html
+{
+  awk '/<\/head>/ { print "<style>"; while ((getline line < "60-desktop.css") > 0) print line; print "</style>" } { print }' 00-head.html
+  cat 10-body.html
+  echo '<script>'
+  for f in $PARTS 60-desktop.js; do cat "$f"; done
+  cat 99-tail.html
+} > "$desk"
+dir=$(mktemp -d)
+for f in $PARTS 60-desktop.js; do cat "$f"; done > "$dir/all.js"
+node --check "$dir/all.js"
+rm -r "$dir"
+wc -l "$desk"

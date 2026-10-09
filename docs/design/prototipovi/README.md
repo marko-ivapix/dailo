@@ -11,6 +11,7 @@ The sample day is Thursday, 8 October 2026.
 | File | Shows | Decisions |
 | --- | --- | --- |
 | `dailo-prototip.html` | **Combined prototype:** every decided screen in one phone frame, joined by the bottom navigation and sharing one set of data; since 2026-10-09 also the smaller screens (areas, notes and resources, cleaning, weekly review, tags, templates, saved views, completed, archived projects, search, focus, habit details) | all, S1–S14 |
+| `dailo-racunar.html` | **Desktop prototype** (1280 × 800): the same parts plus the desktop layer (`zbirni/60-desktop.css`, `60-desktop.js`): sidebar, right panel, popovers, two columns, the 7-column week, drag and drop, shortcuts | K1–K11 |
 | `danas-predlog.html` | Today: sections, limits, habit rows | T1–T7 |
 | `navike-predlog.html` | Early habit-row options for Today | T4, T5 |
 | `kalendar-predlog.html` | Calendar month with the day list and the "Raspored" view | C1–C9 |
@@ -33,6 +34,6 @@ The sample day is Thursday, 8 October 2026.
 sh docs/design/prototipovi/zbirni/build.sh
 ```
 
-The script joins the parts into `dailo-prototip.html` and runs `node --check` on the joined script. During the
+The script joins the parts into `dailo-prototip.html` and, with the desktop layer, into `dailo-racunar.html`, and runs `node --check` on both joined scripts. During the
 review the prototypes were also driven in jsdom (every screen, sheet and flow, no script errors). They have not
 been checked in a real browser by Claude; visual review is the user's.
