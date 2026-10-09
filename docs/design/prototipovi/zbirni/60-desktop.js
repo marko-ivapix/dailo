@@ -3,7 +3,7 @@
 document.body.classList.add('desk');
 $('phone').classList.add('desk');
 $('phone').insertAdjacentHTML('afterbegin', '<aside id="side" aria-label="Glavna navigacija"></aside>');
-document.querySelector('.top').innerHTML = '<b>Prototip za računar (1280 × 800).</b> Isti podaci i ekrani kao na telefonu. Levo je bočni meni (donja traka i „Još“ zajedno). Zadatak, cilj, navika i beleška se otvaraju u panelu desno, a liste ostaju vidljive. Mali izbori su prozorčići pored reda. Zadatak prevuci na dan u kalendaru, na „Danas“ ili „Sutra“ ili na projekat u bočnom meniju. Prečice: Q novi zadatak, / pretraga, Esc zatvara.';
+document.querySelector('.top').innerHTML = '<b>Prototip za računar (1280 × 800).</b> Isti podaci i ekrani kao na telefonu. Levo je bočni meni (donja traka i „Još“ zajedno). Zadatak, cilj, navika i beleška se otvaraju u prozoru u sredini; „+“ dole desno dodaje ono što pripada ekranu. Mali izbori su prozorčići pored reda. Zadatak prevuci na dan u kalendaru, na „Danas“ ili „Sutra“ ili na projekat u bočnom meniju. Prečice: Q novi zadatak, / pretraga, Esc zatvara.';
 
 // ----- Sidebar --------------------------------------------------------------
 const routeKey = () => { const top = R.stack.at(-1); return top ? `${top.type}:${top.id || ''}` : `tab:${R.tab}`; };
@@ -19,7 +19,6 @@ function renderSidebar() {
   const nav = (key, label, path) => sbItem(`tab:${key}`, 'tab', `data-tab="${key}" ${key === 'today' ? 'data-drop-plan="today"' : ''}`, SV(path, 18), label, key === 'inbox' && inboxCount() ? `<span class="sb-badge">${inboxCount()}</span>` : key === 'today' ? `<span class="sb-n">${liveTasks().filter(t => t.plan === TODAY).length}</span>` : '');
   const pinned = [...activeAreas().filter(a => a.pinned).map(a => sbItem(`area:${a.id}`, 'deskGo', deskSub('more', 'area', a.id), `<span class="dot" style="background:${a.color};border-radius:3px"></span>`, esc(a.name))), ...S.views.filter(v => v.pinned).map(v => sbItem(`view:${v.id}`, 'deskGo', deskSub('more', 'view', v.id), SV('<path d="M4 5h16l-6 7.5V19l-4 1.5v-8z"/>', 16), esc(v.name)))];
   $('side').innerHTML = `<div class="sb-top"><strong><i></i>Dailo</strong><span class="meta" style="margin:0">${S.settings.sync ? 'Sinhronizovano' : 'Na uređaju'}</span></div>
-    <button class="sb-add" data-act="fab">${SV('<path d="M12 5v14M5 12h14"/>', 16)}<span>${addLabel()}</span><kbd>Q</kbd></button>
     <button class="sb-search" data-act="search">${SV('<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>', 16)}<span>Pretraga</span><kbd>/</kbd></button>
     ${NAV.filter(n => n[0] !== 'more').map(([k, l, p]) => nav(k, l, p)).join('')}
     <div class="sb-drop" data-drop-plan="tomorrow">${SV('<path d="M5 6v6a4 4 0 0 0 4 4h10M15 12l4 4-4 4"/>', 14)}Prevuci ovde za sutra</div>
@@ -39,16 +38,15 @@ function renderSidebar() {
     <div class="sb-foot">${sbItem('settings:', 'deskGo', deskSub('more', 'settings'), IC.gear.replace('width="20" height="20"', 'width="18" height="18"'), 'Podešavanja')}</div>`;
 }
 renderNav = renderSidebar;
+
 A.deskGo = el => { closePick(); closeWin(); R.tab = el.dataset.tab; R.stack = [{ type: el.dataset.sub, ...(el.dataset.id ? { id: el.dataset.id } : {}) }]; render(); };
 // Screens opened from the sidebar need no back button; deeper ones keep it.
 const backBtnPhone = backBtn;
 backBtn = function () { return R.stack.length <= 1 ? '' : backBtnPhone(); };
 
-// ----- Windows as a right panel or a centered dialog --------------------------
-const renderWinPhone = renderWin;
-renderWin = function () { renderWinPhone(); $('phone').classList.toggle('panel-open', $('win').classList.contains('tall')); };
-const closeWinPhone = closeWin;
-closeWin = function () { closeWinPhone(); $('phone').classList.remove('panel-open'); };
+// ----- Windows: centered dialogs (decided 2026-10-09); the "+" names what it adds --
+const renderNavDesk = renderNav;
+renderNav = function () { renderNavDesk(); const label = `${addLabel()} (Q)`; $('fab').setAttribute('aria-label', label); $('fab').title = label; };
 
 // Search is a centered dialog on the desktop, like a command palette.
 const searchWinPhone = WIN.search;
@@ -147,7 +145,7 @@ function dropTask(id, target) {
 // ----- Settings: the desktop-only rows (M5) ----------------------------------
 const settingsPhone = SUB.settings;
 SUB.settings = () => settingsPhone().replace(/<p class="note">Na računaru[\s\S]*?<\/p>/, `<div class="glabel">Računar</div><div class="card">${navRow('deskShortcuts', SV('<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h1M11 10h1M15 10h2M7 14h10"/>', 20), 'Prečice na tastaturi', { val: 'Q · / · Esc' })}<button class="prow" data-act="deskDensity"><span class="ico">${SV('<path d="M4 6h16M4 10h16M4 14h16M4 18h16"/>', 20)}</span><span class="grow">Zbijeniji prikaz<span class="sub">Niži redovi u listama</span></span><span class="check ${S.settings.compact !== false ? 'on' : ''}">${S.settings.compact !== false ? IC.tickW : ''}</span></button></div>`);
-A.deskShortcuts = () => openPick({ kind: 'choice', title: 'Prečice na tastaturi', current: null, options: [['Q', 'Novi zadatak (ili nova stavka ekrana)'], ['/', 'Pretraga'], ['Esc', 'Zatvara prozor ili panel'], ['1–5', 'Danas, Inbox, Zadaci, Kalendar, Navike']].map(([v, l]) => ({ v, label: l, icon: `<kbd style="min-width:34px;text-align:center">${v}</kbd>` })), onPick: () => toast('Prečica se menja ovde, kao danas u Podešavanjima') });
+A.deskShortcuts = () => openPick({ kind: 'choice', title: 'Prečice na tastaturi', current: null, options: [['Q', 'Novi zadatak (ili nova stavka ekrana)'], ['/', 'Pretraga'], ['Esc', 'Zatvara prozor'], ['1–5', 'Danas, Inbox, Zadaci, Kalendar, Navike']].map(([v, l]) => ({ v, label: l, icon: `<kbd style="min-width:34px;text-align:center">${v}</kbd>` })), onPick: () => toast('Prečica se menja ovde, kao danas u Podešavanjima') });
 A.deskDensity = () => { S.settings.compact = S.settings.compact === false; document.body.classList.toggle('desk', true); $('phone').classList.toggle('desk-roomy', S.settings.compact === false); render(); };
 
 // ----- Keyboard -------------------------------------------------------------

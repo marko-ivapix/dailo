@@ -288,7 +288,9 @@
   /* ===== Desktop layer (dailo-racunar.html) ===== */
   body.desk .top { max-width: 1280px; }
   body.desk .phone { max-width: 1280px; width: 1280px; height: 800px; border-radius: 14px; }
-  .desk .nav, .desk .fab, .desk .status { display: none; }
+  .desk .nav, .desk .status { display: none; }
+  /* The floating "+" stays on the desktop (decided 2026-10-09), at the bottom right of the content. */
+  .desk .fab { right: 32px; bottom: 32px; }
 
   /* Sidebar: the bottom navigation and "Još" become one list */
   #side { display: none; }
@@ -296,12 +298,9 @@
   .sb-top { display: flex; align-items: center; justify-content: space-between; padding: 2px 6px 12px; }
   .sb-top strong { font-size: 17px; letter-spacing: -.2px; display: flex; gap: 8px; align-items: center; }
   .sb-top strong i { width: 18px; height: 18px; border-radius: 6px; background: linear-gradient(135deg, #2A47FF, #8FA2FF); display: inline-block; }
-  .sb-add { display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 12px; border-radius: 10px; background: var(--blue); color: #fff; font-weight: 600; font-size: 14px; margin-bottom: 6px; }
-  .sb-add span { flex: 1; }
   .sb-search { display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 10px; border-radius: 9px; background: #15181D; border: 1px solid var(--line); color: var(--muted); font-size: 13.5px; margin-bottom: 8px; }
   .sb-search span { flex: 1; }
   kbd { font: 11px/1 inherit; padding: 3px 5px; border-radius: 5px; border: 1px solid #343a44; color: var(--muted); background: #1B1F25; }
-  .sb-add kbd { border-color: rgba(255, 255, 255, .35); color: #fff; background: rgba(255, 255, 255, .12); }
   .sb-item { display: flex; align-items: center; gap: 10px; min-height: 32px; padding: 0 8px; border-radius: 8px; color: #C7CBD1; font-size: 14px; width: 100%; }
   .sb-item svg { color: var(--muted); }
   .sb-item:hover { background: #15181D; }
@@ -319,7 +318,6 @@
   /* Main column: a readable width, wide only where it helps (the week) */
   .desk .screen { left: 248px; top: 0; bottom: 0; right: 0; padding: 26px 40px 60px; }
   .desk .screen:not(.wide) { padding-inline: max(40px, calc((100% - 760px) / 2)); }
-  .desk.panel-open .screen { right: 400px; }
   .desk .h1 { font-size: 26px; }
   .desk .date { font-size: 13px; }
   .desk .back { font-size: 14px; min-height: 32px; }
@@ -337,13 +335,11 @@
   .desk .trow:hover, .desk .prow:hover, .desk .prj:hover, .desk .goalrow:hover, .desk .hrow:hover, .desk .item:hover { background: #1A1E24; }
   .desk .trow[draggable="true"] { cursor: grab; }
 
-  /* Windows: tall ones become a right-hand panel; short ones a centered dialog */
-  .desk #win.tall { top: 0; bottom: 0; right: 0; left: auto; width: 400px; border-radius: 0; border-top: 0; border-left: 1px solid var(--line); transform: translateX(105%); }
-  .desk #win.tall.show { transform: none; }
+  /* Windows: every window is a centered dialog over a dimmed screen (decided 2026-10-09) */
+  .desk #win { left: 50%; right: auto; bottom: auto; top: 90px; width: 560px; border-radius: 16px; border: 1px solid var(--line); transform: translate(-50%, -16px); opacity: 0; pointer-events: none; transition: opacity .15s, transform .15s; max-height: 80%; }
+  .desk #win.tall { top: 5%; bottom: 5%; width: 640px; max-height: none; }
+  .desk #win.show { transform: translate(-50%, 0); opacity: 1; pointer-events: auto; }
   .desk #win .grab { display: none; }
-  .desk #win:not(.tall) { left: 50%; right: auto; bottom: auto; top: 90px; width: 560px; border-radius: 16px; border: 1px solid var(--line); transform: translate(-50%, -16px); opacity: 0; pointer-events: none; transition: opacity .15s, transform .15s; max-height: 80%; }
-  .desk #win:not(.tall).show { transform: translate(-50%, 0); opacity: 1; pointer-events: auto; }
-  .desk.panel-open #winDim { display: none; }
   .desk .shead { padding-top: 14px; }
 
   /* Pickers: a popover next to the row (E2) */
@@ -2405,7 +2401,7 @@ A.fab = () => {
 document.body.classList.add('desk');
 $('phone').classList.add('desk');
 $('phone').insertAdjacentHTML('afterbegin', '<aside id="side" aria-label="Glavna navigacija"></aside>');
-document.querySelector('.top').innerHTML = '<b>Prototip za računar (1280 × 800).</b> Isti podaci i ekrani kao na telefonu. Levo je bočni meni (donja traka i „Još“ zajedno). Zadatak, cilj, navika i beleška se otvaraju u panelu desno, a liste ostaju vidljive. Mali izbori su prozorčići pored reda. Zadatak prevuci na dan u kalendaru, na „Danas“ ili „Sutra“ ili na projekat u bočnom meniju. Prečice: Q novi zadatak, / pretraga, Esc zatvara.';
+document.querySelector('.top').innerHTML = '<b>Prototip za računar (1280 × 800).</b> Isti podaci i ekrani kao na telefonu. Levo je bočni meni (donja traka i „Još“ zajedno). Zadatak, cilj, navika i beleška se otvaraju u prozoru u sredini; „+“ dole desno dodaje ono što pripada ekranu. Mali izbori su prozorčići pored reda. Zadatak prevuci na dan u kalendaru, na „Danas“ ili „Sutra“ ili na projekat u bočnom meniju. Prečice: Q novi zadatak, / pretraga, Esc zatvara.';
 
 // ----- Sidebar --------------------------------------------------------------
 const routeKey = () => { const top = R.stack.at(-1); return top ? `${top.type}:${top.id || ''}` : `tab:${R.tab}`; };
@@ -2421,7 +2417,6 @@ function renderSidebar() {
   const nav = (key, label, path) => sbItem(`tab:${key}`, 'tab', `data-tab="${key}" ${key === 'today' ? 'data-drop-plan="today"' : ''}`, SV(path, 18), label, key === 'inbox' && inboxCount() ? `<span class="sb-badge">${inboxCount()}</span>` : key === 'today' ? `<span class="sb-n">${liveTasks().filter(t => t.plan === TODAY).length}</span>` : '');
   const pinned = [...activeAreas().filter(a => a.pinned).map(a => sbItem(`area:${a.id}`, 'deskGo', deskSub('more', 'area', a.id), `<span class="dot" style="background:${a.color};border-radius:3px"></span>`, esc(a.name))), ...S.views.filter(v => v.pinned).map(v => sbItem(`view:${v.id}`, 'deskGo', deskSub('more', 'view', v.id), SV('<path d="M4 5h16l-6 7.5V19l-4 1.5v-8z"/>', 16), esc(v.name)))];
   $('side').innerHTML = `<div class="sb-top"><strong><i></i>Dailo</strong><span class="meta" style="margin:0">${S.settings.sync ? 'Sinhronizovano' : 'Na uređaju'}</span></div>
-    <button class="sb-add" data-act="fab">${SV('<path d="M12 5v14M5 12h14"/>', 16)}<span>${addLabel()}</span><kbd>Q</kbd></button>
     <button class="sb-search" data-act="search">${SV('<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>', 16)}<span>Pretraga</span><kbd>/</kbd></button>
     ${NAV.filter(n => n[0] !== 'more').map(([k, l, p]) => nav(k, l, p)).join('')}
     <div class="sb-drop" data-drop-plan="tomorrow">${SV('<path d="M5 6v6a4 4 0 0 0 4 4h10M15 12l4 4-4 4"/>', 14)}Prevuci ovde za sutra</div>
@@ -2441,16 +2436,15 @@ function renderSidebar() {
     <div class="sb-foot">${sbItem('settings:', 'deskGo', deskSub('more', 'settings'), IC.gear.replace('width="20" height="20"', 'width="18" height="18"'), 'Podešavanja')}</div>`;
 }
 renderNav = renderSidebar;
+
 A.deskGo = el => { closePick(); closeWin(); R.tab = el.dataset.tab; R.stack = [{ type: el.dataset.sub, ...(el.dataset.id ? { id: el.dataset.id } : {}) }]; render(); };
 // Screens opened from the sidebar need no back button; deeper ones keep it.
 const backBtnPhone = backBtn;
 backBtn = function () { return R.stack.length <= 1 ? '' : backBtnPhone(); };
 
-// ----- Windows as a right panel or a centered dialog --------------------------
-const renderWinPhone = renderWin;
-renderWin = function () { renderWinPhone(); $('phone').classList.toggle('panel-open', $('win').classList.contains('tall')); };
-const closeWinPhone = closeWin;
-closeWin = function () { closeWinPhone(); $('phone').classList.remove('panel-open'); };
+// ----- Windows: centered dialogs (decided 2026-10-09); the "+" names what it adds --
+const renderNavDesk = renderNav;
+renderNav = function () { renderNavDesk(); const label = `${addLabel()} (Q)`; $('fab').setAttribute('aria-label', label); $('fab').title = label; };
 
 // Search is a centered dialog on the desktop, like a command palette.
 const searchWinPhone = WIN.search;
@@ -2549,7 +2543,7 @@ function dropTask(id, target) {
 // ----- Settings: the desktop-only rows (M5) ----------------------------------
 const settingsPhone = SUB.settings;
 SUB.settings = () => settingsPhone().replace(/<p class="note">Na računaru[\s\S]*?<\/p>/, `<div class="glabel">Računar</div><div class="card">${navRow('deskShortcuts', SV('<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h1M11 10h1M15 10h2M7 14h10"/>', 20), 'Prečice na tastaturi', { val: 'Q · / · Esc' })}<button class="prow" data-act="deskDensity"><span class="ico">${SV('<path d="M4 6h16M4 10h16M4 14h16M4 18h16"/>', 20)}</span><span class="grow">Zbijeniji prikaz<span class="sub">Niži redovi u listama</span></span><span class="check ${S.settings.compact !== false ? 'on' : ''}">${S.settings.compact !== false ? IC.tickW : ''}</span></button></div>`);
-A.deskShortcuts = () => openPick({ kind: 'choice', title: 'Prečice na tastaturi', current: null, options: [['Q', 'Novi zadatak (ili nova stavka ekrana)'], ['/', 'Pretraga'], ['Esc', 'Zatvara prozor ili panel'], ['1–5', 'Danas, Inbox, Zadaci, Kalendar, Navike']].map(([v, l]) => ({ v, label: l, icon: `<kbd style="min-width:34px;text-align:center">${v}</kbd>` })), onPick: () => toast('Prečica se menja ovde, kao danas u Podešavanjima') });
+A.deskShortcuts = () => openPick({ kind: 'choice', title: 'Prečice na tastaturi', current: null, options: [['Q', 'Novi zadatak (ili nova stavka ekrana)'], ['/', 'Pretraga'], ['Esc', 'Zatvara prozor'], ['1–5', 'Danas, Inbox, Zadaci, Kalendar, Navike']].map(([v, l]) => ({ v, label: l, icon: `<kbd style="min-width:34px;text-align:center">${v}</kbd>` })), onPick: () => toast('Prečica se menja ovde, kao danas u Podešavanjima') });
 A.deskDensity = () => { S.settings.compact = S.settings.compact === false; document.body.classList.toggle('desk', true); $('phone').classList.toggle('desk-roomy', S.settings.compact === false); render(); };
 
 // ----- Keyboard -------------------------------------------------------------

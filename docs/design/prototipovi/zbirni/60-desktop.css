@@ -1,7 +1,9 @@
   /* ===== Desktop layer (dailo-racunar.html) ===== */
   body.desk .top { max-width: 1280px; }
   body.desk .phone { max-width: 1280px; width: 1280px; height: 800px; border-radius: 14px; }
-  .desk .nav, .desk .fab, .desk .status { display: none; }
+  .desk .nav, .desk .status { display: none; }
+  /* The floating "+" stays on the desktop (decided 2026-10-09), at the bottom right of the content. */
+  .desk .fab { right: 32px; bottom: 32px; }
 
   /* Sidebar: the bottom navigation and "Još" become one list */
   #side { display: none; }
@@ -9,12 +11,9 @@
   .sb-top { display: flex; align-items: center; justify-content: space-between; padding: 2px 6px 12px; }
   .sb-top strong { font-size: 17px; letter-spacing: -.2px; display: flex; gap: 8px; align-items: center; }
   .sb-top strong i { width: 18px; height: 18px; border-radius: 6px; background: linear-gradient(135deg, #2A47FF, #8FA2FF); display: inline-block; }
-  .sb-add { display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 12px; border-radius: 10px; background: var(--blue); color: #fff; font-weight: 600; font-size: 14px; margin-bottom: 6px; }
-  .sb-add span { flex: 1; }
   .sb-search { display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 10px; border-radius: 9px; background: #15181D; border: 1px solid var(--line); color: var(--muted); font-size: 13.5px; margin-bottom: 8px; }
   .sb-search span { flex: 1; }
   kbd { font: 11px/1 inherit; padding: 3px 5px; border-radius: 5px; border: 1px solid #343a44; color: var(--muted); background: #1B1F25; }
-  .sb-add kbd { border-color: rgba(255, 255, 255, .35); color: #fff; background: rgba(255, 255, 255, .12); }
   .sb-item { display: flex; align-items: center; gap: 10px; min-height: 32px; padding: 0 8px; border-radius: 8px; color: #C7CBD1; font-size: 14px; width: 100%; }
   .sb-item svg { color: var(--muted); }
   .sb-item:hover { background: #15181D; }
@@ -32,7 +31,6 @@
   /* Main column: a readable width, wide only where it helps (the week) */
   .desk .screen { left: 248px; top: 0; bottom: 0; right: 0; padding: 26px 40px 60px; }
   .desk .screen:not(.wide) { padding-inline: max(40px, calc((100% - 760px) / 2)); }
-  .desk.panel-open .screen { right: 400px; }
   .desk .h1 { font-size: 26px; }
   .desk .date { font-size: 13px; }
   .desk .back { font-size: 14px; min-height: 32px; }
@@ -50,13 +48,11 @@
   .desk .trow:hover, .desk .prow:hover, .desk .prj:hover, .desk .goalrow:hover, .desk .hrow:hover, .desk .item:hover { background: #1A1E24; }
   .desk .trow[draggable="true"] { cursor: grab; }
 
-  /* Windows: tall ones become a right-hand panel; short ones a centered dialog */
-  .desk #win.tall { top: 0; bottom: 0; right: 0; left: auto; width: 400px; border-radius: 0; border-top: 0; border-left: 1px solid var(--line); transform: translateX(105%); }
-  .desk #win.tall.show { transform: none; }
+  /* Windows: every window is a centered dialog over a dimmed screen (decided 2026-10-09) */
+  .desk #win { left: 50%; right: auto; bottom: auto; top: 90px; width: 560px; border-radius: 16px; border: 1px solid var(--line); transform: translate(-50%, -16px); opacity: 0; pointer-events: none; transition: opacity .15s, transform .15s; max-height: 80%; }
+  .desk #win.tall { top: 5%; bottom: 5%; width: 640px; max-height: none; }
+  .desk #win.show { transform: translate(-50%, 0); opacity: 1; pointer-events: auto; }
   .desk #win .grab { display: none; }
-  .desk #win:not(.tall) { left: 50%; right: auto; bottom: auto; top: 90px; width: 560px; border-radius: 16px; border: 1px solid var(--line); transform: translate(-50%, -16px); opacity: 0; pointer-events: none; transition: opacity .15s, transform .15s; max-height: 80%; }
-  .desk #win:not(.tall).show { transform: translate(-50%, 0); opacity: 1; pointer-events: auto; }
-  .desk.panel-open #winDim { display: none; }
   .desk .shead { padding-top: 14px; }
 
   /* Pickers: a popover next to the row (E2) */
