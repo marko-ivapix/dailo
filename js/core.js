@@ -44,6 +44,15 @@
     return new Date(y, m - 1, d);
   }
 
+  // The local calendar day of an instant ("2026-10-08T22:30:00Z" is 2026-10-09 in Belgrade). A plain
+  // YYYY-MM-DD value is already a calendar day and passes through. Never cut an ISO instant with slice(0, 10).
+  function localDateOf(value) {
+    if (typeof value !== 'string' || !value) return null;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+    const date = new Date(value);
+    return Number.isFinite(date.getTime()) ? dateOnly(date) : null;
+  }
+
   function addDays(value, amount) {
     const base = typeof value === 'string' ? parseDateOnly(value) : new Date(value);
     const copy = new Date(base.getFullYear(), base.getMonth(), base.getDate());
@@ -213,7 +222,7 @@
     suggestions.sort((a, b) => rank[a.reason] - rank[b.reason] || String(a.task.title).localeCompare(String(b.task.title)));
 
     const completed = tasks
-      .filter(t => t.isCompleted && t.completedAt && String(t.completedAt).slice(0, 10) === today)
+      .filter(t => t.isCompleted && t.completedAt && localDateOf(String(t.completedAt)) === today)
       .sort((a, b) => String(b.completedAt).localeCompare(String(a.completedAt)));
 
     return { overdue, today: todayTasks, suggestions, completed };
@@ -898,7 +907,7 @@
     const start = typeof range === 'string' ? range : range?.start;
     const end = typeof range === 'string' ? undefined : range?.end;
     return [...source].filter(event => {
-      const date = String(event?.createdAt || '').slice(0, 10);
+      const date = localDateOf(String(event?.createdAt || ''));
       return event?.goalId === goal?.id && ['progressChanged', 'manualProgress'].includes(event.type) && date
         && (!start || date >= start) && (!end || date <= end);
     }).sort((a, b) => {
@@ -906,7 +915,7 @@
       return (Number.isFinite(left) ? left : 0) - (Number.isFinite(right) ? right : 0) || String(a.id).localeCompare(String(b.id));
     }).map(event => ({
       id: event.id,
-      date: String(event.createdAt).slice(0, 10),
+      date: localDateOf(String(event.createdAt)),
       percent: clampPercent(safeNumber(event.data?.to ?? event.data?.value ?? event.data?.percent)),
       type: event.type,
     }));
@@ -1388,6 +1397,41 @@
       .find(key => Object.hasOwn(input, key) && !Array.isArray(input[key]));
   }
 
+  // Sync (audit Y-2): another device may delete a project, area, goal, task or habit that local records still
+  // point to. Those references are dropped (a task leaves the deleted project, a link disappears) instead of
+  // rejecting the whole state, which would stop sync for good. Returns a copy; valid links stay as they are.
+  function pruneDanglingReferences(input) {
+    if (!input || typeof input !== 'object') return input;
+    const state = JSON.parse(JSON.stringify(input));
+    const ids = key => new Set((Array.isArray(state[key]) ? state[key] : []).filter(item => item && item.id).map(item => item.id));
+    const projects = ids('projects'), areas = ids('areas'), goals = ids('goals'), tasks = ids('tasks'), habits = ids('habits');
+    const keep = (list, valid) => Array.isArray(list) ? list.filter(id => valid.has(id)) : list;
+    const area = item => { if (item && item.areaId && !areas.has(item.areaId)) item.areaId = null; };
+    for (const task of state.tasks || []) {
+      if (!task) continue;
+      if (task.projectId && !projects.has(task.projectId)) task.projectId = null;
+      area(task);
+      task.goalIds = keep(task.goalIds, goals);
+    }
+    for (const project of state.projects || []) { if (!project) continue; area(project); project.goalIds = keep(project.goalIds, goals); }
+    for (const key of ['notes', 'resources', 'goals', 'habits']) for (const item of state[key] || []) area(item);
+    for (const resource of state.resources || []) {
+      if (!resource) continue;
+      resource.relatedTaskIds = keep(resource.relatedTaskIds, tasks);
+      resource.relatedProjectIds = keep(resource.relatedProjectIds, projects);
+      resource.relatedGoalIds = keep(resource.relatedGoalIds, goals);
+      resource.relatedHabitIds = keep(resource.relatedHabitIds, habits);
+    }
+    return state;
+  }
+
+  // Attachments open inside the app only when the type cannot run script in the app's origin (audit S-1):
+  // raster images, PDF and plain text. Everything else (HTML, SVG, XML, scripts, unknown) is downloaded.
+  function attachmentOpensInline(mimeType) {
+    const type = String(mimeType || '').split(';')[0].trim().toLowerCase();
+    return /^image\/(png|jpe?g|gif|webp|heic|heif|avif|bmp)$/.test(type) || type === 'application/pdf' || type === 'text/plain';
+  }
+
   function isNullableEntityId(value) {
     return value === null || typeof value === 'string' && value.trim();
   }
@@ -1674,7 +1718,10 @@
   return {
     dateOnly,
     parseDateOnly,
+    localDateOf,
     addDays,
+    pruneDanglingReferences,
+    attachmentOpensInline,
     templateFromEntity,
     resolveTemplateVariables,
     instantiateTemplate,

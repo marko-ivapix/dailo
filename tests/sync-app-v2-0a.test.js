@@ -117,6 +117,7 @@ function syncHarness({ state = baseState(), habitLogs = [], meta = null, fake = 
       createAutomaticSnapshot: async (source, now, options) => { calls.snapshots.push(clone({ tasks: source.tasks.map(item => item.id), options })); return 'snap'; },
     },
     normalizeState: value => clone(value),
+    Core: { pruneDanglingReferences: require('../js/core.js').pruneDanglingReferences },
     saveState() { calls.saves += 1; return true; },
     refreshHabitMetrics: async () => { context.state.habitLogCache = 'refreshed'; },
     render() { calls.renders += 1; }, renderModal() {}, closePopover() {}, captureModalReturnFocus() {},

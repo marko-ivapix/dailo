@@ -1098,7 +1098,7 @@
     html += weeklyReviewNotice();
     const focusIds = Core.selectFocusTasks(state.tasks, state.settings.focusTaskIds);
     const focusTasks = focusIds.map(getTask);
-    const completedToday = state.tasks.filter(task => task.isCompleted && String(task.completedAt || '').slice(0, 10) === today);
+    const completedToday = state.tasks.filter(task => task.isCompleted && Core.localDateOf(String(task.completedAt || '')) === today);
     const dashboardTools = id => `<span class="dashboard-tools"><button class="btn-icon" type="button" data-action="dashboard-move" data-dashboard-section="${id}" data-direction="up" aria-label="${tr('Move section up')}"><i class="ph ph-caret-up"></i></button><button class="btn-icon ${state.settings.dashboard?.pinnedSectionIds?.includes(id) ? 'is-active' : ''}" type="button" data-action="dashboard-pin" data-dashboard-section="${id}" aria-label="${tr('Pin section')}" aria-pressed="${state.settings.dashboard?.pinnedSectionIds?.includes(id) ? 'true' : 'false'}"><i class="ph ph-push-pin"></i></button><button class="btn-icon" type="button" data-action="dashboard-move" data-dashboard-section="${id}" data-direction="down" aria-label="${tr('Move section down')}"><i class="ph ph-caret-down"></i></button></span>`;
     html += `<section class="section today-focus" data-today-focus data-dashboard-section="focus" aria-labelledby="today-focus-heading"><div class="section-header"><h2 class="section-label" id="today-focus-heading">${tr('Daily focus')}</h2><span class="section-count">${focusTasks.length} / 3</span>${dashboardTools('focus')}</div>${focusTasks.length ? `<div class="task-list">${focusTasks.map(task => taskRow(task, 'focus')).join('')}</div>` : `<p class="area-empty-copy">${tr('Choose up to three open tasks using the focus button or Task properties.')}</p>`}</section>`;
     html += `<section class="section daily-review" data-daily-review data-dashboard-section="review" aria-labelledby="daily-review-heading"><div class="section-header"><h2 class="section-label" id="daily-review-heading">${tr('Daily review')}</h2>${dashboardTools('review')}</div><div class="daily-review-stats"><span data-daily-review-completed>${trn(completedToday.length, '{count} completed today', '{count} completed today')}</span><span data-daily-review-open>${trn(sections.today.length, '{count} unfinished planned task', '{count} unfinished planned tasks')}</span><span>${tr('{minutes} min planned remaining', { minutes: plannedMinutes })}</span></div></section>`;
@@ -1258,7 +1258,7 @@
     if (!tasks.length) return html + emptyState(tr('No completed tasks match these filters.'), tr('Try a different project or time period.'));
     const groups = new Map();
     for (const task of tasks) {
-      const date = String(task.completedAt || '').slice(0, 10) || 'unknown';
+      const date = Core.localDateOf(String(task.completedAt || '')) || 'unknown';
       if (!groups.has(date)) groups.set(date, []);
       groups.get(date).push(task);
     }
@@ -1866,6 +1866,8 @@
 
   async function openAttachment(attachmentId, download = false) {
     const record = await Attachments?.get(attachmentId); if (!record) return;
+    // Only types that cannot run script in the app's origin open inline; the rest is downloaded (audit S-1).
+    if (!download && !Core.attachmentOpensInline(record.blob?.type || record.mimeType)) download = true;
     const url = URL.createObjectURL(record.blob);
     if (download) { const a=document.createElement('a'); a.href=url; a.download=record.fileName; document.body.appendChild(a); a.click(); a.remove(); }
     else { try { window.open(url, '_blank', 'noopener'); } catch (_) {} }
@@ -1903,7 +1905,7 @@
     const project = getProject(task.projectId);
     const parts = [];
     if (project) parts.push(project.name);
-    if (task.isCompleted && task.completedAt) parts.push(tr('Completed {date}', { date: relativeDateLabel(String(task.completedAt).slice(0,10)) }));
+    if (task.isCompleted && task.completedAt) parts.push(tr('Completed {date}', { date: relativeDateLabel(Core.localDateOf(String(task.completedAt))) }));
     else if (task.plannedDate === Core.dateOnly()) parts.push(tr('Today'));
     if (task.dueDate) parts.push(tr('Due {date}', { date: relativeDateLabel(task.dueDate) }));
     return `<button class="search-result" type="button" data-action="open-task" data-task-id="${esc(task.id)}"><span class="search-result-icon">${task.isCompleted ? '<i class="ph-fill ph-check-circle" style="color:var(--success)"></i>' : '<i class="ph ph-circle"></i>'}</span><span><span class="search-result-title">${esc(task.title)}</span><span class="search-result-meta">${esc(parts.join(' · ') || tr('Task'))}</span></span></button>`;
@@ -3470,7 +3472,7 @@
     const previous = state;
     applyingSync = true;
     try {
-      state = normalizeState(result.state);
+      state = normalizeState(Core.pruneDanglingReferences(result.state));
       if (!saveState()) { state = previous; throw new Error(msg('Changes could not be saved locally. Try again.')); }
     } finally { applyingSync = false; }
     if (result.habitLogDeletes.length) await TodoStorage.habitLogs.deleteMany(result.habitLogDeletes);

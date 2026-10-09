@@ -636,17 +636,17 @@
     return snapshot;
   }
 
+  // Each object and Blob counts once: a snapshot lists its attachments twice (attachments and
+  // attachmentRefs share one array) and IndexedDB stores shared references once (audit E-2).
   function estimateSnapshotBytes(value, seen = new Set()) {
     if (value == null || typeof value === 'boolean' || typeof value === 'number') return 8;
     if (typeof value === 'string') return value.length * 2;
-    if (typeof root.Blob !== 'undefined' && value instanceof root.Blob) return value.size;
     if (typeof value !== 'object' || seen.has(value)) return 0;
     seen.add(value);
-    const total = Array.isArray(value)
+    if (typeof root.Blob !== 'undefined' && value instanceof root.Blob) return value.size;
+    return Array.isArray(value)
       ? value.reduce((sum, item) => sum + estimateSnapshotBytes(item, seen), 0)
       : Object.entries(value).reduce((sum, [key, item]) => sum + key.length * 2 + estimateSnapshotBytes(item, seen), 0);
-    seen.delete(value);
-    return total;
   }
 
   let automaticSnapshotWork = Promise.resolve();

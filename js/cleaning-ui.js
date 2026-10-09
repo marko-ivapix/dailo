@@ -20,7 +20,7 @@
     const taskMeta = task => {
       const date = task.dueDate || task.plannedDate;
       const dateLabel = date ? relativeDateLabel(date) : tr('No date');
-      const status = task.isCompleted ? `${tr('Completed')}${task.completedAt ? ` · ${relativeDateLabel(task.completedAt.slice(0, 10))}` : ''}` : date && date < today ? tr('Overdue') : dateLabel;
+      const status = task.isCompleted ? `${tr('Completed')}${task.completedAt ? ` · ${relativeDateLabel(Core.localDateOf(task.completedAt))}` : ''}` : date && date < today ? tr('Overdue') : dateLabel;
       return `${status}${!task.isCompleted && date && date < today ? ` · ${dateLabel}` : ''} · ${ctx.recurrenceLabel(task.recurrence)}`;
     };
     const choreRow = (task, completed) => `<div class="cleaning-chore-row${completed ? ' is-completed' : ''}${!completed && (task.dueDate || task.plannedDate) < today ? ' is-overdue' : ''}"><span class="cleaning-chore-title"><i class="ph ${completed ? 'ph-check-circle' : 'ph-broom'}"></i>${esc(task.title)}</span><span class="cleaning-chore-meta">${esc(taskMeta(task))}</span><button class="btn-icon" type="button" data-action="open-task" data-task-id="${esc(task.id)}" aria-label="${tr('Open chore')}"><i class="ph ph-arrow-up-right"></i></button></div>`;

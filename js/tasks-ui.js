@@ -19,7 +19,7 @@
     if (task.durationMinutes) meta.push(`<span>${tr('{minutes} min', { minutes: ctx.esc(task.durationMinutes) })}</span>`);
     if (options.upcomingReason === 'planned' && task.plannedDate) meta.push(`<span>${tr('Planned {date}', { date: ctx.esc(ctx.relativeDateLabel(task.plannedDate, today)) })}</span>`);
     if (options.suggestionReason === 'missed-plan') meta.push(`<span>${tr('Missed {date}', { date: ctx.esc(ctx.relativeDateLabel(task.plannedDate, today)) })}</span>`);
-    if (task.isCompleted && task.completedAt) meta.push(`<span class="success">${tr('Completed {date}', { date: ctx.esc(ctx.relativeDateLabel(String(task.completedAt).slice(0,10), today)) })}</span>`);
+    if (task.isCompleted && task.completedAt) meta.push(`<span class="success">${tr('Completed {date}', { date: ctx.esc(ctx.relativeDateLabel(ctx.Core.localDateOf(String(task.completedAt)), today)) })}</span>`);
     const combinedMeta = meta.map((m, i) => `${i ? '<span class="separator">·</span>' : ''}${m}`).join('');
     const draggable = options.draggable && !task.isCompleted;
     const rowClass = `task-row ${task.isCompleted ? 'is-completed' : ''}`;

@@ -18,6 +18,10 @@
   const DEVICE_SETTINGS = ['backupStatus', 'compactDensity'];
   const DEVICE_FIELDS = { tasks: ['attachmentIds'], notes: ['attachmentIds'], resources: ['attachmentIds'] };
   const PULL_OVERLAP_MS = 5000;
+  // Record types this build understands. Rows of any other type come from a newer app version: they are
+  // left alone on the server and never enter the shadow, so this build can never push deletions for them.
+  const KNOWN_TYPES = new Set([...COLLECTIONS, 'settings', 'habitLogs']);
+  const knownRow = row => KNOWN_TYPES.has(row?.type);
 
   class SyncError extends Error {
     constructor(message, status = 0) {
@@ -82,6 +86,7 @@
     for (const key of Object.keys(shadow)) {
       if (records.has(key)) continue;
       const [type, ...rest] = key.split('/');
+      if (!KNOWN_TYPES.has(type)) continue;
       deletes.push({ type, id: rest.join('/') });
     }
     return { upserts, deletes };
@@ -233,7 +238,7 @@
 
       if (!shadow) {
         const remoteRows = await client.pull(session, null);
-        const live = remoteRows.filter(row => !row.deleted);
+        const live = remoteRows.filter(row => !row.deleted && knownRow(row));
         const remoteHasData = live.some(row => row.type !== 'settings');
         const localHasData = [...records.values()].some(record => record.type !== 'settings');
         const chosen = mode || (remoteHasData && localHasData ? null : localHasData ? 'merge' : 'server');
@@ -277,6 +282,7 @@
       const current = await readLocal();
       const currentRecords = collectRecords(current.state, current.habitLogs);
       const incoming = pulled.filter(row => {
+        if (!knownRow(row)) return false;
         const key = keyOf(row.type, row.id);
         return row.deleted ? own(shadow, key) || currentRecords.has(key) : shadow[key] !== hashRecord(row.data);
       });
