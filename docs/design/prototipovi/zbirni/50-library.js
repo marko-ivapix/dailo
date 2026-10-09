@@ -172,11 +172,11 @@ A.libTags = () => { const x = lib(); openPick({ kind: 'libTags', ids: [...x.tags
 PICK.libTags = p => ({ title: 'Oznake', sub: lib().title, body: `<div class="card" style="margin-bottom:14px">${S.tags.map(t => `<button class="opt" data-act="ltToggle" data-id="${t.id}" aria-pressed="${p.ids.includes(t.id)}"><span class="dot" style="background:${t.color}"></span><span class="lbl">${esc(t.name)}</span><span class="check ${p.ids.includes(t.id) ? 'on' : ''}">${p.ids.includes(t.id) ? IC.tickW : ''}</span></button>`).join('')}</div><button class="primary" data-act="ltApply">Primeni</button>` });
 A.ltToggle = el => { const id = el.dataset.id; P.ids = P.ids.includes(id) ? P.ids.filter(x => x !== id) : [...P.ids, id]; renderPick(); };
 A.ltApply = () => { lib().tags = P.ids; closePick(); render(); };
-// Today's rule stays: a title and at least one link, image or file.
+// A note needs only a title (decided 2026-10-09); a resource still needs a link, image or file.
 A.libSave = () => {
   const x = lib(), what = x.kind === 'note' ? 'Beleška' : 'Resurs';
   if (!x.title.trim()) { x.err = `${what} mora imati naziv.`; return renderWin(); }
-  if (!x.links.length && !x.files) { x.err = `${what} mora imati bar jedan URL, sliku ili priloženi fajl.`; return renderWin(); }
+  if (x.kind === 'resource' && !x.links.length && !x.files) { x.err = 'Resurs mora imati bar jedan URL, sliku ili priloženi fajl.'; return renderWin(); }
   delete x.isNew; delete x.err; render(); toast(`${what} je napravljen${x.kind === 'note' ? 'a' : ''}`);
 };
 A.libMenu = () => { const x = lib(); openPick({ kind: 'choice', title: x.title || 'Stavka', current: null, options: [{ v: 'del', label: x.kind === 'note' ? 'Obriši belešku' : 'Obriši resurs' }], onPick: () => { S.library.splice(S.library.indexOf(x), 1); closeWin(); render(); toast('Obrisano', () => S.library.push(x)); } }); };
