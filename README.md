@@ -17,12 +17,34 @@ python3 -m http.server 8080
 
 Then open `http://localhost:8080`.
 
+For checks and the iPhone/Android app (Node 22 or newer):
+
+```bash
+npm ci              # exact versions from package-lock.json
+npm run verify      # JavaScript syntax + the Node suite
+npm run smoke       # boots index.html in jsdom: create a task, Back, reopen
+npm run cap:sync    # copies the shell into www/ and syncs the iOS and Android projects
+npm run cap:ios     # opens Xcode (macOS)
+npm run cap:android # opens Android Studio
+```
+
+The step-by-step Serbian guide for the Mac, iPhone and Android phone is `docs/v2/capacitor-mac.md`.
+
 - The service worker registers only on `https:` or `localhost`/`127.0.0.1`. On a plain-HTTP LAN address the app still works, without offline caching.
 - Shell files are served cache-first until `sw.js` changes. While developing on localhost, bypass or unregister the worker in the browser's developer tools to see edited files.
 - GitHub Pages serves the repository over HTTPS at `https://marko-ivapix.github.io/dailo/`. All paths and the manifest/service-worker scope are relative (`./`), so install and offline start work under the `/dailo/` sub-path; the user confirmed both on iPhone from this URL on 2026-10-08. Pages publishes `main`, which carries V1.9.1 since PR #6; V1.10, V1.11 and V1.12 are there since PR #7. V2.0-a is on branch `ccr-95f6062b-lgg2fr` until it is merged.
 - The Serbian beta tester guide is at `https://marko-ivapix.github.io/dailo/uputstvo.html` (also linked from Settings → About). It is not precached, so it opens only online.
 
-## V2.0-a Sync in the web app (current release)
+## 2.0.0-alpha.2 — Capacitor app and modernization (current release)
+
+The same app now also runs as a native app for iPhone and Android through Capacitor 8 (`cloud.ivapix.dailo`), after a technical audit (`docs/superpowers/specs/2026-10-09-modernization-capacitor-audit.md`) and ten phases (`docs/superpowers/plans/2026-10-09-modernization-capacitor.md`, evidence in `docs/superpowers/progress-modernization.md`). On branch `feature/capacitor-modernization` until it is merged.
+
+- **In the app:** reminders as phone notifications even when Dailo is closed; backups and attachments through the system share sheet; links open outside the app; Android Back closes sheets and dialogs; a durable copy of the metadata in the app's files; a first-run notice to import a backup from the web version or sign in.
+- **Everywhere:** sync never deletes record types it does not know and no longer stops on links to records deleted elsewhere; completion and history days are local days; only images, PDF and plain text open inline; snooze choices never land in the past; popovers survive the on-screen keyboard; 16 px fields and 44 px targets on touch screens; the toast sits above the bottom navigation; icon-only buttons have names; a Content Security Policy.
+- **Tooling:** `package.json` with exact versions, `npm run verify`, a jsdom smoke test, `npm run build` (copies the precached shell into `www/`; no bundler).
+- **Checks:** 476 Node tests passed, syntax 92/92, smoke OK, `cap sync` OK. Native compile, simulators/emulators and phones are **manual-pending**: the cloud session has no macOS and no Android SDK.
+
+## V2.0-a Sync in the web app
 
 Version `2.0.0-alpha.1`. Optional sync between devices through Supabase, with sign-in by a one-time code sent by e-mail (no password). **It is off in this build:** until the Supabase project exists and its URL and public key are in `js/sync-config.js`, the Settings card is hidden and Dailo works exactly as V1.12.
 
@@ -445,7 +467,7 @@ Goal creation keeps milestones, reminders and source-specific links under More. 
 - multi-day hourly grid, block resizing and automatic scheduling (V1.12 adds a single-day hour grid in Calendar → Dan)
 - elapsed-time tracking (optional planned Task duration is supported)
 - comments / collaboration
-- sync of attachments and goal history (V2.1), native iPhone/Android apps (V2.0-b), password or social sign-in, sharing between users
+- sync of attachments and goal history (V2.1), the App Store / Google Play release (V2.0-c), password or social sign-in, sharing between users
 - AI planning
 - integrations
 - inline image/PDF attachment preview

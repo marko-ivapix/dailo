@@ -1,10 +1,10 @@
 # Claude Code continuation handoff
 
-**Updated:** 2026-10-08\
+**Updated:** 2026-10-09\
 **Product:** Dailo local-first productivity prototype  
-**Current release:** V2.0-a Sync in the web app (`2.0.0-alpha.1`, on `ccr-95f6062b-lgg2fr`: Steps 1–2 `65aeabf`, Step 3 `7a834db`, Step 4 in the commit that carries these docs; not yet merged into `main`). Sync stays off until the user supplies the Supabase project URL and public key for `js/sync-config.js`; until then the app behaves as V1.12. `main` carries V1.12 Duration and time-blocking (`1.12.0`, commit `d00855b`), after V1.10 Smart Quick Add (`c64bd81`) and V1.11 Weekly review (`5bbd820`). All three were merged into `main` together through PR #7 (`31fb23d`) and are packaged as `Dailo-v1.12-distributable.zip` (the current artifact, built from the commit that carries these docs and added in the next commit; it closes roadmap Phase 4). `main` carries V1.9.1 (PR #6, `3597343`): V1.9 Beta-ready (PR #5) plus plan Step 7 — problem-report address, Serbian tester guide `uputstvo.html`, beta checklist `docs/beta/provera-pre-bete.md` — packaged as `Dailo-v1.9.1-distributable.zip` (previous artifact). Behavior baseline V1.7, visual layer V1.8 (`Dailo-v1.8-distributable.zip` is an older artifact)\
+**Current release:** `2.0.0-alpha.2` — the Capacitor modernization M1–M10 on branch `feature/capacitor-modernization` (from `ccr-95f6062b-lgg2fr`; audit, plan and ledger listed below; not yet merged). Before it: V2.0-a Sync in the web app (`2.0.0-alpha.1`, on `ccr-95f6062b-lgg2fr`: Steps 1–2 `65aeabf`, Step 3 `7a834db`, Step 4 in the commit that carries these docs; not yet merged into `main`). Sync stays off until the user supplies the Supabase project URL and public key for `js/sync-config.js`; until then the app behaves as V1.12. `main` carries V1.12 Duration and time-blocking (`1.12.0`, commit `d00855b`), after V1.10 Smart Quick Add (`c64bd81`) and V1.11 Weekly review (`5bbd820`). All three were merged into `main` together through PR #7 (`31fb23d`) and are packaged as `Dailo-v1.12-distributable.zip` (the current artifact, built from the commit that carries these docs and added in the next commit; it closes roadmap Phase 4). `main` carries V1.9.1 (PR #6, `3597343`): V1.9 Beta-ready (PR #5) plus plan Step 7 — problem-report address, Serbian tester guide `uputstvo.html`, beta checklist `docs/beta/provera-pre-bete.md` — packaged as `Dailo-v1.9.1-distributable.zip` (previous artifact). Behavior baseline V1.7, visual layer V1.8 (`Dailo-v1.8-distributable.zip` is an older artifact)\
 **Manual:** iPhone B1–B5 passed (user report, 2026-10-08); the update notice (B6) and B7–B30 are open (B25–B30 cover the V1.10 Quick Add syntax, the duration chip, the weekly review, the Calendar day view, daily capacity and drag on Mac)\
-**Next:** the user creates the Supabase project (`docs/v2/podesavanje-supabase.md`) and sends the project URL and public key; then the sync checks B31–B36. V2.0-b (a Capacitor shell for iPhone and Android) was built on 2026-10-08 (`51c098f`, `2bfc2d0`, `d41d203`) and reverted the same day at the user's request: the mobile app waits until the design is reworked and the mobile technology is agreed with the user. The code stays in git history. Next is design work from the user's examples, then a decision on the mobile technology. The V2.0 spec (`docs/superpowers/specs/2026-10-08-todo-v2-0-design.md`) was approved on 2026-10-08 and `AGENTS.md` was amended: optional Supabase sync is allowed, the app keeps working without an account, and the service-role key never enters the repository
+**Next:** the user builds the app on the Mac per `docs/v2/capacitor-mac.md` and reports the first native checks (create a task, close, reopen; reminders; Back; export). Then the redesign in versioned steps. Still open from before: the user creates the Supabase project (`docs/v2/podesavanje-supabase.md`) and sends the project URL and public key; then the sync checks B31–B36. V2.0-b (a Capacitor shell for iPhone and Android) was built on 2026-10-08 (`51c098f`, `2bfc2d0`, `d41d203`) and reverted the same day at the user's request: the mobile app waits until the design is reworked and the mobile technology is agreed with the user. The code stays in git history. Next is design work from the user's examples, then a decision on the mobile technology. The V2.0 spec (`docs/superpowers/specs/2026-10-08-todo-v2-0-design.md`) was approved on 2026-10-08 and `AGENTS.md` was amended: optional Supabase sync is allowed, the app keeps working without an account, and the service-role key never enters the repository
 
 This is the shortest reliable handoff for continuing the project in Claude Code. Read it after `AGENTS.md` and before opening individual modules.
 
@@ -67,12 +67,19 @@ The last verified source checkpoint is the V2.0-a release commit that carries th
 - iPhone results reported by the user on 2026-10-08 (V1.9 ledger table, B1–B5): install from Safari, standalone layout clear of the status bar and home indicator, airplane-mode start, Serbian UI and Quick Add, favorite star, persistent storage granted, ZIP export and import. Everything else, including the V1.10–V1.12 features (beta checklist B25–B30), is **manual-pending**.
 - The V1.8 work (`4cfab6c`) and `Dailo-v1.8-distributable.zip` were merged into `feature/todo-v1-3` (PR #1) and then into `main` (PR #2, `994ac71`) on 2026-10-07; packaging evidence is in `docs/superpowers/progress-v1-8.md`. The two branches had unrelated histories; PR #2 joined them with an `-s ours` merge that kept the `feature/todo-v1-3` tree, so `main` carries the V1.8 tree and the older V1.2/early-V1.3 `main` commits remain only as history.
 
+- **Modernization M1–M10 (2026-10-09, `2.0.0-alpha.2`).** The user chose Capacitor and asked for an audit and phased modernization. Audit: `docs/superpowers/specs/2026-10-09-modernization-capacitor-audit.md` (findings with file, problem, consequence and confirmed/assumption/not-verifiable labels; verified versions; data, migration and Capacitor strategy). Plan: `docs/superpowers/plans/2026-10-09-modernization-capacitor.md`. Evidence per phase with commits: `docs/superpowers/progress-modernization.md`.
+  - M1 tooling (`51da530`): `package.json`, `tools/check-syntax.mjs`, `tools/build-www.mjs`, `tools/shell-files.mjs`, later `tools/smoke-boot.mjs`.
+  - M2 data (`cbcaf91`): sync never deletes unknown record types; `Core.pruneDanglingReferences` after pulls; `Core.localDateOf` for completion and history days; `Core.attachmentOpensInline`; snapshot size counts shared Blobs once.
+  - M3 platform (`fdd7297`): `js/platform.js` (`DailoPlatform`), vendored `vendor/capacitor/capacitor.js`, no service worker in the app, share-sheet export, external links, pause flush.
+  - M4 Back (`49814b4`), M5 durable mirror (`619a9a2`), M6 native reminders and H-2 snooze boundaries (`50879cb`), M7 mobile quality and CSP (`a873a7e`), M8 Capacitor shell (`7d897b2`), M9 first-run transfer (`5655998`), M10 release and docs (the commit that carries this text).
+
 ## Verified automated baseline
 
-Run from the repository root:
+Run from the repository root. Since M1 the short form is `npm ci && npm run verify && npm run smoke`; the long form:
 
 ```bash
-node --test tests/*.test.js
+node --test "tests/*.test.js"
+node tools/check-syntax.mjs
 for file in js/*.js vendor/*.js tests/*.js tests/support/*.js sw.js; do node --check "$file"; done
 python3 - <<'PY'
 import ast, pathlib
@@ -89,7 +96,9 @@ git diff --check
 
 Use `./.venv/bin/python` instead of `python3` where a local `.venv` exists; no packages are needed for these checks.
 
-The verified V2.0-a baseline (2026-10-08, the release commit that carries these docs; `docs/superpowers/progress-v2-0a.md`) is:
+The verified `2.0.0-alpha.2` baseline (2026-10-09, `docs/superpowers/progress-modernization.md`): Node 476 tests, 476 passed, 0 failed, 0 todo (58 files); JavaScript syntax 92/92 (`tools/check-syntax.mjs`: js, vendor, vendor/capacitor, tests, tests/support, tools, sw.js); `npm run smoke` OK; Python AST 20/20 (tests and tools); path adapter OK; registry 3/3; static contracts 10/10; `npm run cap:sync` OK (six plugins on both platforms). Native compile, simulator, emulator and device checks: **manual-pending**.
+
+The earlier V2.0-a baseline (2026-10-08; `docs/superpowers/progress-v2-0a.md`) was:
 
 | Check | Result |
 | --- | ---: |
@@ -169,7 +178,7 @@ Next:
 
 1. **V2.0** — spec `docs/superpowers/specs/2026-10-08-todo-v2-0-design.md`, approved on 2026-10-08 with the user's six decisions: iPhone and Android together; e-mail one-time code (no password) only with V2.0; last-write-wins per record; attachments in V2.1; "Dailo" with the id `cloud.ivapix.dailo`; the privacy page before the store release. V2.0-a (web sync) is implemented. What remains:
    - **the user:** creates the Supabase EU project per `docs/v2/podesavanje-supabase.md` and sends the project URL and the public key, which then go into `js/sync-config.js` (with a version bump so installed apps update). Then run checks B31–B36. Real sign-in and two-device sync are **manual-pending** until then.
-   - **V2.0-b:** on hold. The Capacitor shell was built and reverted on 2026-10-08 (`51c098f`, `2bfc2d0`, `d41d203`); the user first wants the design reworked, then to agree on the mobile technology. Do not restore it without the user's decision.
+   - **V2.0-b:** done as the modernization (2026-10-09): the user chose Capacitor; M8 restored the projects from `d41d203` and synced them; M3–M9 add the platform layer, Back, durable mirror, reminders, mobile quality and the transfer path. Native builds and device checks are the user's (`docs/v2/capacitor-mac.md`).
    - **V2.0-c:** privacy page, store texts, TestFlight and Play internal testing; it needs Apple Developer and Google Play accounts and signing on the user's Mac.
 2. **With the user** — a PR for V2.0-a when the user asks, the beta checklist B6–B30, invites for testers (Phase 3), and fixes as patches with a failing test first.
 
@@ -184,5 +193,5 @@ Keep behavior and persistence unchanged in visual work. Do not mix a visual chan
 ## Suggested Claude Code opening prompt
 
 ```text
-Continue Dailo from the current V2.0-a source tree. Read AGENTS.md, CLAUDE.md and docs/claude/CONTINUATION.md first. Inspect source/tests before changing anything. Native browser and iPhone acceptance is manual-pending except what the user reported (V1.9 ledger table); do not claim it from static checks. Preserve Search, no-bulk-actions, local-first storage, delete/Undo and typed RESET/RESTORE invariants, and route every new user-visible string through the Serbian i18n catalog. The V2.0 spec (docs/superpowers/specs/2026-10-08-todo-v2-0-design.md) is approved: sync is optional, the app works without an account, and the service_role key never enters the repository; only the user supplies the Supabase URL and public key. Any new feature still needs its own versioned spec and plan, and a failing test first.
+Continue Dailo from the current 2.0.0-alpha.2 source tree (branch feature/capacitor-modernization until merged). Run npm ci, npm run verify and npm run smoke first. Read AGENTS.md, CLAUDE.md and docs/claude/CONTINUATION.md first. Inspect source/tests before changing anything. Native browser and iPhone acceptance is manual-pending except what the user reported (V1.9 ledger table); do not claim it from static checks. Preserve Search, no-bulk-actions, local-first storage, delete/Undo and typed RESET/RESTORE invariants, and route every new user-visible string through the Serbian i18n catalog. The V2.0 spec (docs/superpowers/specs/2026-10-08-todo-v2-0-design.md) is approved: sync is optional, the app works without an account, and the service_role key never enters the repository; only the user supplies the Supabase URL and public key. Any new feature still needs its own versioned spec and plan, and a failing test first.
 ```

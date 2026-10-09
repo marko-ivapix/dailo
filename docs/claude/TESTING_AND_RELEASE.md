@@ -4,11 +4,20 @@ This document records the current verification path. It does not turn source ins
 
 ## Run the local automated suite
 
-From the repository root (branch `main`):
+From the repository root. Since the modernization (M1) the npm scripts are the short form:
 
 ```bash
-node --test tests/*.test.js
-for file in js/*.js vendor/*.js tests/*.js tests/support/*.js sw.js; do node --check "$file"; done
+npm ci            # jsdom (smoke) and Capacitor (native projects), exact versions from package-lock.json
+npm run verify    # node tools/check-syntax.mjs && node --test "tests/*.test.js"
+npm run smoke     # jsdom boot of index.html: create a task, Back closes Quick Add, reopen, find it
+npm run cap:sync  # npm run build (www/) + npx cap sync (iOS and Android)
+```
+
+The long form, which needs no `node_modules`:
+
+```bash
+node --test "tests/*.test.js"
+node tools/check-syntax.mjs
 python3 - <<'PY'
 import ast, pathlib
 paths = sorted(pathlib.Path('tests').glob('*.py'))
@@ -24,7 +33,28 @@ git diff --check
 
 These checks need no Python packages. Where a local `.venv` exists (gitignored, so not in cloud clones), `./.venv/bin/python` can replace `python3`.
 
-Current V2.0-a evidence (2026-10-08, the release commit after `7a834db`; see `docs/superpowers/progress-v2-0a.md`), Node v22.22.0 and Python 3.13.16:
+Current `2.0.0-alpha.2` evidence (2026-10-09, modernization M1–M10 on `feature/capacitor-modernization`; see `docs/superpowers/progress-modernization.md`):
+
+| Check | Result |
+| --- | ---: |
+| Complete Node suite | **476 tests: 476 passed, 0 failed, 0 todo**; 58 `tests/*.test.js` files |
+| JavaScript syntax (`tools/check-syntax.mjs`) | **92 files passed** |
+| jsdom smoke (`npm run smoke`) | passed |
+| Python AST parsing | **20 files passed** (`tests/*.py`, `tools/*.py`) |
+| Static browser contracts | **10/10 passed** (`--dry-run`) |
+| Browser-regression registry contracts | **3/3 passed** |
+| Browser-path adapter unittest | passed |
+| `npm run cap:sync` | passed; six plugins reported for iOS and Android |
+| `npx cap doctor` | versions 8.5.3; "Xcode is not installed" (Linux) |
+| Native compile, simulator/emulator, devices | **not run here** (no macOS; no Android SDK, `dl.google.com`/`maven.google.com` blocked) — manual-pending |
+
+Other facts at `2.0.0-alpha.2`: the Serbian catalog has 1522 entries; the `sw.js` precache list has 43 files (adds `vendor/capacitor/capacitor.js` and `js/platform.js`); `www/` holds those files without `sw.js`. Only `tests/release-m10.test.js` pins the exact version. `npm audit` reports 3 moderate findings in `uuid` through `xcode` inside `@capacitor/cli` (build tool only; accepted, see the ledger).
+
+### Native build and device checks (the user's Mac)
+
+Follow `docs/v2/capacitor-mac.md`: `npm ci`, `npm run verify`, `npm run cap:sync`, then `npm run cap:ios` (Xcode 26+, signing team, run on the iPhone) and `npm run cap:android` (Android Studio Otter 2025.2.1+, JDK 21 bundled, run on the phone). The first flow to report: create a task, close the app completely, reopen it, the task is there. Then reminders while closed (and the tap), Android Back, keyboard over Quick Add, ZIP export through the share sheet, the online guide link, and the first-run transfer notice. Record results in `docs/superpowers/progress-modernization.md` only from the user's report.
+
+Earlier V2.0-a evidence (2026-10-08, the release commit after `7a834db`; see `docs/superpowers/progress-v2-0a.md`), Node v22.22.0 and Python 3.13.16:
 
 | Check | Result |
 | --- | ---: |
@@ -102,7 +132,7 @@ V1.7 release evidence (re-run 2026-10-07, before V1.8):
 
 Node tests cover pure Core rules, migrations, storage/backup validation, Goal and Habit calculations, Calendar projections, Today projections, templates, Notes/Resources, recovery status and selected controller/adapter behavior. The V1.9 files add the fixes and `makeUuid` (`fixes`), release metadata and the report gate (`release`), backup reminder and persistence (`data-protection`), manifest/icons/meta (`install`), vendored assets and the service worker (`offline`), the i18n mechanism, catalog completeness and untranslated-text audit (`i18n`; since V1.9.1 also English fallbacks inside `${…}` expressions and `msg()`-only `validationResult:` literals), and Serbian Quick Add (`quick-add`). `tests/beta-v1-9-1.test.js` (V1.9.1) checks the version and report address, the About guide and report links, and the guide page `uputstvo.html` (Serbian Latin, headings, local-only references). `tests/quick-add-v1-10.test.js` (V1.10, 13 tests) checks `Core.parseQuickAdd` (clause and token tables in Serbian and English, order independence, one clause per kind, invalid and look-alike phrases, loose name matching, `parsePlan: false`, unchanged V1.5/V1.9 results), `createTask` precedence and Inbox placement in a VM slice, the preview markup, and a version of 1.10.0 or later. `tests/weekly-review-v1-11.test.js` (V1.11, 8 tests) checks `Core.deriveWeeklyReview` (every section, Sunday weeks, completed goals and archived habits left out), the review log (sanitizing, record, replace, cap 26), the due window, the backup round trip and the rejection of an invalid `weeklyReviews` (by editing a valid ZIP), the page sections, empty and done states, the app wiring (route, sidebar, "Još" menu, Today notice, completion action), `index.html`/`sw.js` loading and a version of 1.11.0 or later; since V1.11 `tests/i18n-v1-9.test.js` also requires a Latin-only catalog (12 tests in that file). `tests/time-blocking-v1-12.test.js` (V1.12, 10 tests) checks `Core.daySchedule` (blocks, estimates, open-only conflicts, unscheduled order, range), `Core.dayLoad`, the capacity default/validation and backup rejection, the day view (switch, capacity bar and over state, unscheduled inputs, grid rows, block geometry and classes, empty day, capacity off), `ui.calendarView` normalization and one-day navigation, the Today capacity item, the Settings select, the Quick Add chip and its precedence, and (since V2.0-a) a version of 1.12 or later. `tests/sync-v2-0a.test.js` (V2.0-a, 12 tests) checks the sync core against `tests/support/fake-supabase.js`: record collection, diff and apply, OTP sign-in and refresh, two-device convergence, last write wins with server history, habit-log convergence, the first-sync modes (including the newer-`updatedAt` merge), expired sessions, paging, offline errors, account deletion and static SQL checks. `tests/sync-app-v2-0a.test.js` (V2.0-a, 14 tests) checks script order and precache, the config guard against secret keys, the Settings card states and privacy note, the app sync block in a VM (waiting conditions, push and apply, deferral, failed save, sign-in with the same or another account, expired session, first-sync choice and snapshot, sign-out, account deletion with the typed word, fresh start after reset or restore), the wiring, the forced snapshot, the text-save timer fix and the exact version `2.0.0-alpha.1`. Two older tests (`tests/tasks-today-v1-5.test.js`, `tests/tasks-today-v1-6.test.js`) stub `weeklyReviewNotice` and `todayCapacityItem` because they slice `renderToday()`; their assertions are unchanged. Since V2.0-a, `tests/final-integration-v1-5.test.js` stubs `startSync` (it slices `init`) and `tests/tasks-today-v1-5.test.js` stubs `scheduleSync` (it slices `saveState`).
 
-Release version convention (since V1.10): only the newest release test pins the exact `APP_VERSION` and `sw.js` `VERSION` (now `tests/sync-app-v2-0a.test.js`: `2.0.0-alpha.1`). Older release tests require "this version or later": `tests/release-v1-9.test.js` V1.9 (and accepts a pre-release suffix such as `-alpha.1`), `tests/beta-v1-9-1.test.js` 1.9.1, `tests/quick-add-v1-10.test.js` 1.10.0, `tests/weekly-review-v1-11.test.js` 1.11.0 and `tests/time-blocking-v1-12.test.js` 1.12; the V1.9.1–V1.12 tests and `tests/offline-v1-9.test.js` also check that `sw.js` follows `APP_VERSION`. A new release moves the exact pin into its own test.
+Release version convention (since V1.10): only the newest release test pins the exact `APP_VERSION` and `sw.js` `VERSION` (now `tests/release-m10.test.js`: `2.0.0-alpha.2`, together with `package.json` and its lock). Older release tests require "this version or later": `tests/release-v1-9.test.js` V1.9 (and accepts a pre-release suffix such as `-alpha.1`), `tests/beta-v1-9-1.test.js` 1.9.1, `tests/quick-add-v1-10.test.js` 1.10.0, `tests/weekly-review-v1-11.test.js` 1.11.0 and `tests/time-blocking-v1-12.test.js` 1.12; the V1.9.1–V1.12 tests and `tests/offline-v1-9.test.js` also check that `sw.js` follows `APP_VERSION`. A new release moves the exact pin into its own test.
 
 Node runs in English: only `tests/i18n-v1-9.test.js` loads `js/i18n-sr.js` to assert Serbian output (each test file runs in its own process), and VM sandboxes get the English `I18n` from `tests/support/i18n.js`. Several tests use VM contexts, memory storage doubles or static source/CSS assertions. They are valuable regression checks but do not prove native browser persistence or visual layout.
 

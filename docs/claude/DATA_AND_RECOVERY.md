@@ -78,6 +78,15 @@ Snapshots can include normalized metadata, attachment records/Blobs, Habit logs 
 - **Reset or ZIP restore while signed in:** a committed full reset or restore clears the shadow and cursor (`forgetSyncShadow`, the session stays), so the next sync is a first sync. After a reset (empty device) the account data comes back; after a restore, with data on both sides, the choice dialog opens. Nothing is deleted on the server by a reset; removing the server data takes "Obriši nalog". A selective restore of one item syncs like a normal edit.
 - **Account deletion** (`delete_my_account()`) removes the server rows, history and auth user; local data stays.
 
+## Native app storage and moving data (modernization, 2.0.0-alpha.2)
+
+- **Same layers.** In the Capacitor app `localStorage` and IndexedDB live in the app's WebView container (origin `capacitor://localhost` on iOS, `https://localhost` on Android), separate from Safari and Chrome. Nothing is migrated automatically between the browser and the app.
+- **Durable mirror.** The app also writes the canonical `todoAppData` text to `Library/dailo/state.json` (Filesystem `LIBRARY` directory; a temporary file first, then delete-and-rename; writes queued; non-object JSON refused). It is written 1 s after a save, after a start-up load and after a reset/restore commit, and at once on pause. At start, only when `localStorage` has no canonical key, the mirror (or its temporary copy) is put back and the normal load validates and migrates it. Existing data is never replaced by the mirror. Habit logs, goal history and attachments are not mirrored; they are in IndexedDB and, for logs, in sync.
+- **Device-local keys** (outside state, sync and ZIP backups): `dailoSync` (V2.0-a), `dailoNotified` (moments the phone was asked to show), `dailoNotifyAsked` (the system question was asked once), `dailoSample` (fingerprint of the first-run examples) and `dailoTransferDismissed`.
+- **Moving data from the web version.** ZIP: export in the browser, import in the app (validated restore with confirmation and Undo; carries attachments and goal history within the import limits). Sync: sign in on both; while the app still holds only its untouched first-run examples, the first sync takes the account's data (`server` mode) after the usual forced recovery copy instead of asking.
+- **Sync data fixes (M2).** A client never deletes record types it does not know (newer apps can add types safely); pulled deletions prune dangling links (`Core.pruneDanglingReferences`) before normalization, so a project deleted on another device no longer stops sync.
+- **Android backup.** `android:allowBackup="true"` stays, so Android's own backup can carry the WebView data and the mirror; not verified on a device.
+
 ## Device storage protection (V1.9)
 
 - **Eviction risk.** WebKit can delete script-writable storage (localStorage, IndexedDB) for sites not opened for 7 days. Apps installed to the Home Screen are exempt, so installing is the main protection; persistence and the backup reminder are backstops.

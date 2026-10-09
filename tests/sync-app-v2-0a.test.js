@@ -373,9 +373,10 @@ test('a fired text save clears its timer, so a finished edit does not hold the s
   assert.equal(context.saves, 1, 'nothing is left to flush');
 });
 
-test('V2.0-a is released as 2.0.0-alpha.1', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.1');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.1';/);
+test('V2.0-a shipped as 2.0.0-alpha.1 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d+$|^2\.\d+\.\d+/);
+  assert.ok(Release.APP_VERSION !== '2.0.0-alpha.0');
+  assert.match(read('sw.js'), new RegExp(`const VERSION = '${Release.APP_VERSION.replace(/\./g, '\\.')}';`));
 });
 
 test('after a reset or a restored backup the next sync asks again instead of pushing deletions', async () => {
