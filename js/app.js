@@ -79,14 +79,23 @@
     });
   }
 
+  // R9c (GO7, K12): on Ciljevi the floating "+" opens "Novi cilj" directly and its label says so; elsewhere it opens the menu.
+  const quickAddOpensGoal = () => location.hash === '#goals';
+  function syncQuickAddToggle() {
+    const toggle = $('#mobile-quick-add-toggle');
+    if (toggle && (quickAddOpensGoal() || !toggle.hasAttribute('aria-expanded'))) setMobileQuickAddOpen(false);
+  }
+
   function setMobileQuickAddOpen(open) {
     const root = $('#mobile-quick-add');
     const toggle = $('#mobile-quick-add-toggle');
     const menu = $('#mobile-quick-add-menu');
     if (!root || !toggle || !menu) return;
+    const direct = !open && quickAddOpensGoal();
     root.classList.toggle('is-open', open);
-    toggle.setAttribute('aria-expanded', String(open));
-    toggle.setAttribute('aria-label', open ? tr('Close quick add menu') : tr('Open quick add menu'));
+    if (direct) toggle.removeAttribute('aria-expanded');
+    else toggle.setAttribute('aria-expanded', String(open));
+    toggle.setAttribute('aria-label', direct ? tr('New goal') : open ? tr('Close quick add menu') : tr('Open quick add menu'));
     menu.hidden = !open;
   }
 
@@ -987,6 +996,7 @@
     if (route.type === 'habit') { history.replaceState(null, '', '#habits'); openHabitDetails(route.id); }
     // An old #goal/<id> address shows Ciljevi with the goal window on top (R9b).
     if (route.type === 'goal') { history.replaceState(null, '', '#goals'); openGoalDetails(route.id); }
+    syncQuickAddToggle(); // after the redirects above
   }
 
   function pageHeader(title, subtitle, options = {}) {
@@ -1539,14 +1549,14 @@
     };
   }
 
-  function openGoalModal(goalId = null, context = {}) {
+  // Redesign R9c (GO7): the window only creates; a goal is edited in its window (R9b).
+  function openGoalModal(context = {}) {
     const returnFocus = goalFocusTarget();
     captureModalReturnFocus();
     closePopover();
-    const goal = goalId ? getGoal(goalId) : null;
-    modalState = { type: 'goal', goalId, draft: goalDraft(goal, context.areaId), error: '', returnFocus };
+    modalState = { type: 'goal', draft: goalDraft(null, context.areaId), error: '', returnFocus };
     modalState.templateContext = context;
-    if (!goal && context.targetDate) modalState.draft.targetDate = context.targetDate;
+    if (context.targetDate) modalState.draft.targetDate = context.targetDate;
     renderModal(); requestAnimationFrame(() => $('#goal-title')?.focus());
   }
 
@@ -4622,7 +4632,7 @@
       return;
     }
     const action = el.dataset.action;
-    if (action === 'toggle-mobile-quick-add') { setMobileQuickAddOpen(el.getAttribute('aria-expanded') !== 'true'); return; }
+    if (action === 'toggle-mobile-quick-add') { if (quickAddOpensGoal()) { openGoalModal(); return; } setMobileQuickAddOpen(el.getAttribute('aria-expanded') !== 'true'); return; }
     if (el.closest('#mobile-quick-add-menu')) {
       setMobileQuickAddOpen(false);
       $('#mobile-quick-add-toggle')?.focus();
@@ -4936,7 +4946,7 @@
       const physicalKey = /^Key[A-Z]$/.test(event.code || '') ? event.code.slice(3) : /^Digit[0-9]$/.test(event.code || '') ? event.code.slice(5) : event.key;
       const combination=Core.normalizeShortcut([event.ctrlKey || event.metaKey?'Ctrl/Cmd':null,event.altKey?'Alt':null,event.shiftKey?'Shift':null,physicalKey].filter(Boolean).join('+'));
       const command=Object.keys(SHORTCUT_DEFAULTS).find(key=>combination && state.settings.shortcuts[key]===combination);
-      if(command){event.preventDefault();if(command==='newTask')openQuickAdd();else if(command==='search')openSearch();else navigate(command);return;}
+      if(command){event.preventDefault();if(command==='newTask'){if(quickAddOpensGoal())openGoalModal();else openQuickAdd();}else if(command==='search')openSearch();else navigate(command);return;}
       // Preserve the existing convenient Search alias, without bypassing suppression.
       if(state.settings.shortcuts.search !== null && event.key==='/' && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey){event.preventDefault();openSearch();return;}
     }

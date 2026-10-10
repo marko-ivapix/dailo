@@ -2638,6 +2638,13 @@ a.btn { text-decoration: none; }
 .goal-details-complete { min-height: 44px; }
 .goal-milestone-delete { color: var(--danger); }
 
+/* Redesign R9c — the new goal window (GO7). */
+.goal-window .quick-title-input { margin-bottom: 2px; }
+.goal-window .habit-window-block .sheet-note { margin: 0; }
+.goal-window .goal-details-label { margin-top: 14px; }
+.goal-draft-milestone { grid-template-columns: minmax(0, 1fr) auto auto; }
+.goal-draft-milestone .btn-icon { color: var(--ink-3); }
+
 /* Keep primary compact actions touchable after all density rules. */
 @media (max-width: 700px), (pointer: coarse) {
   .task-actions .btn-icon,

@@ -129,7 +129,7 @@
     else if (action === 'area-menu') openAreaMenu(ctx, element, areaId);
     else if (action === 'area-new-task') ctx.openQuickAdd({ areaId, anytime: true });
     else if (action === 'area-new-project') ctx.openProjectModal(null, { areaId });
-    else if (action === 'area-new-goal') ctx.openGoalModal(null, { areaId });
+    else if (action === 'area-new-goal') ctx.openGoalModal({ areaId });
     else if (action === 'area-new-habit') ctx.openHabitModal(null, { areaId });
     else if (action === 'select-area-color' && ctx.modalState?.type === 'area') { ctx.modalState.draft.color = element.dataset.color; ctx.renderModal(); }
     else if (action === 'select-area-icon' && ctx.modalState?.type === 'area') { ctx.modalState.draft.icon = element.dataset.icon; ctx.renderModal(); }
