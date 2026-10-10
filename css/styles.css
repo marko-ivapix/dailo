@@ -2276,7 +2276,7 @@ a.btn { text-decoration: none; }
 .today-card > .task-row, .today-card > .today-row { border-radius: 0; }
 .today-empty { margin: 12px 10px; color: var(--ink-3); font-size: 14px; }
 .today-more { width: 100%; min-height: 40px; border: 0; border-top: 1px solid var(--line-1); background: none; color: var(--blue-300); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; }
-.task-row--today { grid-template-columns: auto minmax(0, 1fr) auto auto; min-height: 52px; }
+.task-row--today { min-height: 52px; }
 .task-side { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-3); font-size: 12px; white-space: nowrap; }
 .task-flag { font-size: 15px; }
 .task-flag--high { color: var(--danger); }
@@ -2848,6 +2848,51 @@ a.btn { text-decoration: none; }
 .review-day-row:last-child, .review-row:last-child { border-bottom: 0; }
 .review-day-busy, .review-row-meta { color: var(--ink-2); font-size: 13px; }
 .review-day-free { color: var(--ink-3); font-size: 13px; }
+
+/* Redesign R14 — the first phone review (T1, T3, T6 and G2 amended 2026-10-10). */
+/* T1: one header row at every width; search and the ⋯ menus are visible buttons at the top right. */
+.page-header { flex-direction: row; align-items: center; }
+.page-header > :first-child { flex: 1; min-width: 0; }
+.page-actions { width: auto; flex: none; flex-wrap: nowrap; justify-content: flex-end; }
+.page-actions .btn { flex: none; }
+.page-actions > .btn-icon { width: 44px; height: 44px; min-height: 44px; border: 1px solid var(--line-2); border-radius: 12px; background: var(--graphite-850); color: var(--ink-1); }
+.page-actions > .btn-icon:hover { border-color: var(--line-3); background: var(--graphite-800); }
+.page-actions > .btn-icon i { font-size: 20px; }
+/* T3: text first, the flag and due label under the title, the checkbox at the far right. */
+.task-row--today { display: flex; align-items: center; }
+.task-row--today > .task-main { flex: 1; min-width: 0; }
+.task-row--today > :not(.task-main) { flex: none; }
+.task-meta .task-flag { margin-right: 4px; font-size: 13px; vertical-align: -2px; }
+.deadline-row { grid-template-columns: minmax(0, 1fr) 44px; }
+.deadline-icon { width: 44px; }
+/* Inbox and suggestion chips under the title: visible pills that keep the 44 px touch height. */
+.task-row--today .quick-actions { gap: 0 6px; margin-top: 2px; }
+.task-row--today .quick-chip { position: relative; isolation: isolate; min-height: 44px; padding: 0 12px; border: 0; background: none; color: var(--ink-2); font-size: 13px; }
+.task-row--today .quick-chip::before { content: ""; position: absolute; inset: 6px 0; z-index: -1; border: 1px solid var(--line-2); border-radius: 999px; background: var(--graphite-800); }
+.task-row--today .quick-chip:hover { background: none; color: var(--ink-1); }
+.task-row--today .quick-chip:hover::before { border-color: var(--line-3); background: var(--graphite-750); }
+/* The task window's title field always shows its border; it turns blue while it is edited. */
+.task-window-title { margin: 4px 0 8px; padding: 10px 12px; border: 1px solid var(--line-2); border-radius: var(--radius-md); background: var(--graphite-900); }
+.task-window-title:hover { border-color: var(--line-3); }
+.task-window-title:focus { border-color: var(--blue-300); background: var(--graphite-900); }
+/* G2: the "+" menu over a dimmed scrim, labels as pills, icons in one column above the "+". */
+.mobile-quick-add-scrim { position: fixed; inset: 0; z-index: 85; background: rgba(5, 6, 8, .68); animation: fade-in var(--motion-base) var(--ease-enter); }
+.mobile-quick-add-scrim[hidden] { display: none; }
+.mobile-quick-add-menu { gap: 10px; padding-bottom: 4px; }
+.mobile-quick-add-menu:not([hidden]) { animation: none; }
+.mobile-quick-add-option { flex-direction: row; gap: 12px; font: 500 15px/1 var(--font-ui); }
+.mobile-quick-add-option span { padding: 9px 14px; border: 0; border-radius: 999px; background: var(--graphite-800); color: var(--ink-1); box-shadow: var(--shadow-popover); }
+.mobile-quick-add-option i { width: 44px; height: 44px; border: 1px solid var(--line-2); border-radius: 12px; background: var(--graphite-850); color: var(--blue-300); font-size: 21px; box-shadow: var(--shadow-popover); }
+.mobile-quick-add-option:hover span, .mobile-quick-add-option:hover i { background: var(--graphite-700); }
+@media (prefers-reduced-motion: no-preference) {
+  .mobile-quick-add-menu:not([hidden]) .mobile-quick-add-option { animation: quick-add-option-in 180ms var(--ease-enter) both; }
+  .mobile-quick-add-option:nth-last-child(2) { animation-delay: 30ms; }
+  .mobile-quick-add-option:nth-last-child(3) { animation-delay: 60ms; }
+  .mobile-quick-add-option:nth-last-child(4) { animation-delay: 90ms; }
+  .mobile-quick-add-option:nth-last-child(5) { animation-delay: 120ms; }
+  .mobile-quick-add-option:nth-last-child(6) { animation-delay: 150ms; }
+}
+@keyframes quick-add-option-in { from { opacity: 0; transform: translateY(8px) scale(.96); } }
 
 /* Keep primary compact actions touchable after all density rules. */
 @media (max-width: 700px), (pointer: coarse) {

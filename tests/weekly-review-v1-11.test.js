@@ -168,10 +168,10 @@ test('the app routes, links, notices and records the weekly review', () => {
   const slice = (from, to) => app.slice(app.indexOf(from), app.indexOf(to));
   const context = { Core: { ...Core, dateOnly: value => (value ? Core.dateOnly(value) : TODAY) }, state: { settings: { weekStartsOn: 1 } } };
   vm.createContext(withI18n(context));
-  vm.runInContext(slice('  function weeklyReviewNotice(', '  function completeWeeklyReview('), context);
-  assert.match(vm.runInContext('weeklyReviewNotice()', context), /data-weekly-review-notice[\s\S]*data-route="review"[\s\S]*Start review/);
-  context.state.settings.weeklyReviews = [{ weekStart: '2026-10-05', completedAt: '2026-10-09T08:00:00.000Z' }];
-  assert.equal(vm.runInContext('weeklyReviewNotice()', context), '');
+  // R14 (T6 amended 2026-10-10): the Today notice left; Core.weeklyReviewDue keeps the rule.
+  assert.doesNotMatch(app, /weeklyReviewNotice/);
+  assert.equal(Core.weeklyReviewDue({ weekStartsOn: 1 }, TODAY, 1), true);
+  assert.equal(Core.weeklyReviewDue({ weekStartsOn: 1, weeklyReviews: [{ weekStart: '2026-10-05', completedAt: '2026-10-09T08:00:00.000Z' }] }, TODAY, 1), false);
 
   const saved = [];
   const recordContext = { Core: context.Core, state: { settings: { weekStartsOn: 1 } }, nowIso: () => '2026-10-09T17:00:00.000Z', saveState: () => saved.push(true), setToastMessage: message => { recordContext.toast = message; }, render() {} };
@@ -182,7 +182,6 @@ test('the app routes, links, notices and records the weekly review', () => {
   assert.equal(saved.length, 1);
   assert.equal(recordContext.toast, 'Weekly review completed.');
   assert.match(app, /action === 'complete-weekly-review'\) completeWeeklyReview\(\)/);
-  assert.match(app, /html \+= weeklyReviewNotice\(\);/);
 });
 
 test('V1.11 shipped as 1.11.0 or later so installed apps get the update notice', () => {

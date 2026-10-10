@@ -515,6 +515,24 @@ if (window.TodoApp.state.settings.journalReminderTime !== null) fail('Podsetnik 
 const weekStartBack = window.document.querySelector('#preference-week-start');
 weekStartBack.value = 'monday';
 weekStartBack.dispatchEvent(new window.Event('change', { bubbles: true }));
+// Redesign R14: Today has no weekly review notice; task rows end with their checkbox and show the due label under the
+// title; "+" opens its menu over the scrim and a tap on the scrim closes both; a task opens without focusing its title.
+window.location.hash = '#today';
+await new Promise(resolve => setTimeout(resolve, 50));
+if (window.document.querySelector('#main [data-weekly-review-notice]')) fail('Today still shows the weekly review notice');
+const todayRows = [...window.document.querySelectorAll('#main .task-row--today')];
+if (!todayRows.length || todayRows.some(row => !row.lastElementChild?.matches('.complete-control'))) fail('a Today task row does not end with its checkbox');
+const dueLabels = [...window.document.querySelectorAll('#main .task-row--today .task-due')];
+if (!dueLabels.length || dueLabels.some(label => !label.closest('.task-meta'))) fail('a due label is not under the task title');
+click('#mobile-quick-add-toggle');
+if (window.document.querySelector('#mobile-quick-add-menu')?.hidden || window.document.querySelector('#mobile-quick-add-scrim')?.hidden) fail('"+" did not open its menu over the scrim');
+click('#mobile-quick-add-scrim');
+if (!window.document.querySelector('#mobile-quick-add-menu')?.hidden || !window.document.querySelector('#mobile-quick-add-scrim')?.hidden || window.document.querySelector('#modal-root .modal')) fail('a tap on the scrim did not just close the menu');
+click('#main .task-row--today .task-main');
+await new Promise(resolve => setTimeout(resolve, 50));
+if (!window.document.querySelector('#detail-title') || window.document.activeElement?.id === 'detail-title') fail('the task window focused its title (the keyboard would open)');
+click('#modal-root [data-action="close-modal"]');
+await new Promise(resolve => setTimeout(resolve, 20));
 window.dispatchEvent(new window.Event('pagehide'));
 const saved = keep(window);
 first.dom.window.close();
@@ -525,5 +543,5 @@ if (!found) fail('the task is missing after reopening');
 const errors = [...first.errors, ...second.errors];
 second.dom.window.close();
 if (errors.length) fail(`script errors: ${errors.join(' | ')}`);
-console.log(`smoke: OK — started, created "${title}", Back closed Quick Add, route change named the page and focused its heading, Još opened Ciljevi, focus survived a re-render, Today checked in a habit, the Zadaci switch showed the projects and opened one, the task window's date sheet planned a task, Quick Add filed a task under \"Bez projekta\", \"Razvrstaj redom\" planned an Inbox task for today, the Calendar listed a picked day and its Raspored, Navike opened a past day and Nedelja, the new habit window created a numeric weekday habit, Detalji navike changed a day and an old address opened the window, Ciljevi grouped by month, the goal window set a target date and an old address opened it, the \"+\" on Ciljevi created a numeric goal, Oblasti made an area and its \"+\" filed a task there, Beleške made a text-only note in its window, Oznake made a tag and opened its screen, Sačuvani prikazi saved a habits view and opened it, Završeni zadaci restored a task and Poništi completed it again, Search grouped the results and Fokus ticked a subtask, the repeat editor set \"Sredom i subotom\", a repeating task's title saved without a question and \"Ovo i buduća\" moved its rule until Poništi, Redovne obaveze made a group and its \"+ Dodaj obavezu\" scheduled a monthly chore, Dnevnik saved today's entry with a mood and its search found it, Nedeljni pregled showed seven columns and today's journal face and recorded the review, Podešavanja applied the week start and turned the journal reminder off at once, reopened and found it (tasks: ${second.window.TodoApp.state?.tasks?.length ?? 'n/a'})`);
+console.log(`smoke: OK — started, created "${title}", Back closed Quick Add, route change named the page and focused its heading, Još opened Ciljevi, focus survived a re-render, Today checked in a habit, the Zadaci switch showed the projects and opened one, the task window's date sheet planned a task, Quick Add filed a task under \"Bez projekta\", \"Razvrstaj redom\" planned an Inbox task for today, the Calendar listed a picked day and its Raspored, Navike opened a past day and Nedelja, the new habit window created a numeric weekday habit, Detalji navike changed a day and an old address opened the window, Ciljevi grouped by month, the goal window set a target date and an old address opened it, the \"+\" on Ciljevi created a numeric goal, Oblasti made an area and its \"+\" filed a task there, Beleške made a text-only note in its window, Oznake made a tag and opened its screen, Sačuvani prikazi saved a habits view and opened it, Završeni zadaci restored a task and Poništi completed it again, Search grouped the results and Fokus ticked a subtask, the repeat editor set \"Sredom i subotom\", a repeating task's title saved without a question and \"Ovo i buduća\" moved its rule until Poništi, Redovne obaveze made a group and its \"+ Dodaj obavezu\" scheduled a monthly chore, Dnevnik saved today's entry with a mood and its search found it, Nedeljni pregled showed seven columns and today's journal face and recorded the review, Podešavanja applied the week start and turned the journal reminder off at once, Today had no weekly review notice and rows ended with their checkbox, the \"+\" scrim closed the menu, a task opened without focusing its title, reopened and found it (tasks: ${second.window.TodoApp.state?.tasks?.length ?? 'n/a'})`);
 process.exit(0);

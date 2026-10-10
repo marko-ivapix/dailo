@@ -18,7 +18,7 @@
 | # | Decision | Status |
 | --- | --- | --- |
 | G1 | **Phone bottom navigation:** Danas, Inbox, Zadaci, Kalendar, Navike, Još (six items). Goals and the other routes move under "Još". What "Zadaci" shows is decided in Z1–Z7; still open: whether six labels fit at 320–375 px. | decided |
-| G2 | **Adding:** one floating "+" at the bottom right (as today). No "+" in screen headers. | decided |
+| G2 | **Adding:** one floating "+" at the bottom right (as today). No "+" in screen headers. Its menu (amended 2026-10-10 after the first phone review, R14) opens over a dark scrim, with label pills on the left and the icons in one column above the "+". | decided |
 | G3 | **Background:** neutral graphite (the current `#0F1114` family), not the navy of image 1. The user left it to Claude's recommendation: the blue accent and the red, amber and green status colors read more clearly on a neutral base. | decided |
 | G4 | **Font:** Geist for now; it may change later. | decided |
 | G5 | **Density:** phone rows as in image 1 (large and easy to touch); a denser variant for desktop (settled by K3 on 2026-10-09: about 44 px rows on the desktop, "Zbijeniji prikaz" on by default). | decided (2026-10-09) |
@@ -28,13 +28,13 @@
 
 | # | Decision | Status |
 | --- | --- | --- |
-| T1 | **Structure as in image 1:** the date above a large "Danas" title, the search icon at the top right, and sections with counts (Zakasnelo, Planirano danas, Navike, Završeno collapsed). | decided |
+| T1 | **Structure as in image 1:** the date above a large "Danas" title, the search icon at the top right, and sections with counts (Zakasnelo, Planirano danas, Navike, Završeno collapsed). R14 (2026-10-10): the search is a visible button, and every header stays one row on phones. | decided |
 | T2 | **A simpler Today:** the Focus queue, the Daily review and Daily actions cards, goals and milestones, and the capacity item leave Today. | decided |
 | T2a | **Where they go:** Claude's proposal below, accepted by the user. | decided |
-| T3 | **Task rows** keep two labels on the right (priority and due date), with shorter text. | decided |
+| T3 | **Task rows** keep two labels on the right (priority and due date), with shorter text. **Amended 2026-10-10 (first phone review, R14):** the flag and due date move into the meta line under the title, and the checkbox goes to the far right. Goal and milestone rows follow, with the target icon on the right. | decided (amended 2026-10-10) |
 | T4 | **Habit tracking** (revised 2026-10-08): both checkbox and numeric habits stay; a new habit defaults to checkbox and every day (7 days a week). Today shows a checkbox habit as a round check (T5); how a numeric habit is shown on Today is open (H6). | decided |
 | T5 | **Habits:** variant B (compact), but stacked one below another. Low rows with a round check instead of a square: one tap marks the habit done, and a long press offers skip and details. A weekly habit shows "2/4 nedeljno". Done habits move to the bottom. | decided |
-| T6 | **Conditional notices** (backup reminder, weekly review prompt) stay at the top, only while they apply. | decided |
+| T6 | **Conditional notices** (backup reminder, weekly review prompt) stay at the top, only while they apply. **Amended 2026-10-10 (R14):** the weekly review prompt no longer appears on Today; the review stays in "Još". | decided (amended 2026-10-10) |
 | T7 | **Limits:** at most 3 rows in Zakasnelo, 5 in Planirano danas and 5 in Navike. "Prikaži još N" opens the section in place, then "Prikaži manje". The choice is remembered on the device. Mock sent on 2026-10-08. | decided |
 
 **T2a, accepted 2026-10-08:**

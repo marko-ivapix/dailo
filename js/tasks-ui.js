@@ -8,20 +8,21 @@
     const esc = ctx.esc;
     const project = ctx.getProject(task.projectId);
     const place = options.hidePlace ? '' : project ? project.name : ctx.getArea?.(task.areaId)?.name;
-    // R11d: Redovne obaveze passes its own meta line (place and repeat sentence) and right side (when).
-    const meta = options.metaText ?? [task.plannedTime, place].filter(Boolean).join(' · ');
     const flag = ['high', 'medium'].includes(task.priority) ? `<i class="ph ph-flag task-flag task-flag--${task.priority}" role="img" aria-label="${tr('{priority} priority', { priority: task.priority === 'high' ? tr('High') : tr('Medium') })}"></i>` : '';
     const due = task.isCompleted ? '' : ctx.todayDueLabel(task.dueDate, ctx.Core.dateOnly());
+    // R14 (T3): the flag and the due label lead the meta line under the title; the checkbox closes the row on the right.
+    // R11d: Redovne obaveze passes its own meta line (place and repeat sentence) and right side (when).
+    const meta = options.metaText != null ? esc(options.metaText) : flag + [due, ...[task.plannedTime, place].filter(Boolean).map(esc)].filter(Boolean).join(' · ');
     const draggable = options.draggable && !task.isCompleted;
     const chip = (action, label) => `<button class="quick-chip" type="button" data-action="${action}" data-task-id="${esc(task.id)}">${label}</button>`;
     // Redesign R6 (I5): an Inbox task is sorted with Danas, Sutra, Kad stignem or Projekat….
     const addToday = options.inbox ? `<div class="quick-actions">${chip('inbox-today', tr('Today'))}${chip('inbox-tomorrow', tr('Tomorrow'))}${chip('inbox-anytime', tr('Anytime'))}${chip('inbox-project', tr('Project…'))}</div>`
       : options.addToday ? `<div class="quick-actions">${chip('inbox-today', `+ ${tr('Today')}`)}</div>` : '';
     return `<article class="task-row task-row--today ${task.isCompleted ? 'is-completed' : ''}" data-task-row-compact data-task-id="${esc(task.id)}" data-list-context="${esc(listContext)}" ${draggable ? 'draggable="true"' : ''}>
-      <button class="complete-control ${task.isCompleted ? 'is-completed' : ''}" type="button" data-action="toggle-complete" data-inline-today-complete data-task-id="${esc(task.id)}" aria-label="${task.isCompleted ? tr('Mark incomplete') : tr('Complete task')}">${task.isCompleted ? '<i class="ph ph-check"></i>' : ''}</button>
-      <div class="task-main" data-action="open-task" data-task-id="${esc(task.id)}" role="button" tabindex="0"><div class="task-title">${esc(task.title)}</div>${meta ? `<div class="task-meta">${esc(meta)}</div>` : ''}${addToday}</div>
-      <span class="task-side">${options.sideHtml ?? `${flag}${due}`}</span>
+      <div class="task-main" data-action="open-task" data-task-id="${esc(task.id)}" role="button" tabindex="0"><div class="task-title">${esc(task.title)}</div>${meta ? `<div class="task-meta">${meta}</div>` : ''}${addToday}</div>
+      ${options.sideHtml ? `<span class="task-side">${options.sideHtml}</span>` : ''}
       <div class="task-actions" data-task-compact-actions><button class="btn-icon" type="button" data-action="task-menu" data-task-id="${esc(task.id)}" aria-label="${tr('Task actions')}"><i class="ph ph-dots-three"></i></button></div>
+      <button class="complete-control ${task.isCompleted ? 'is-completed' : ''}" type="button" data-action="toggle-complete" data-inline-today-complete data-task-id="${esc(task.id)}" aria-label="${task.isCompleted ? tr('Mark incomplete') : tr('Complete task')}">${task.isCompleted ? '<i class="ph ph-check"></i>' : ''}</button>
     </article>`;
   }
 
