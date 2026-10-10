@@ -58,8 +58,7 @@ test('T5: the habit row is a flex line, so the circle lines up with the task che
   assert.match(rule('.habit-today-row > .habit-check'), /width: 44px; height: 44px;/);
 });
 
-test('R14b is released as 2.0.0-alpha.36', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.36');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.36';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.36');
+test('R14b shipped as 2.0.0-alpha.36 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 99) >= 36);
 });
