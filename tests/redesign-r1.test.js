@@ -75,8 +75,8 @@ test('T1: the header Search is a magnifier icon with a name', () => {
   assert.match(fn('pageHeader'), /<button class="btn-icon page-search" type="button" data-action="open-search" aria-label="\$\{tr\('Search'\)\}"><i class="ph ph-magnifying-glass" aria-hidden="true"><\/i><\/button>/);
 });
 
-test('R1 is released as 2.0.0-alpha.5', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.5');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.5';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.5');
+test('R1 shipped as 2.0.0-alpha.5 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.([5-9]|\d{2,})$|^2\.\d+\.\d+/);
+  assert.match(read('sw.js'), new RegExp(`const VERSION = '${Release.APP_VERSION.replace(/\./g, '\\.')}';`));
+  assert.equal(JSON.parse(read('package.json')).version, Release.APP_VERSION);
 });

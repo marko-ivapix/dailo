@@ -4148,14 +4148,15 @@
     clearTimeout(notificationTimer);
     notificationTimer = setTimeout(() => { reconcileNotifications().catch(console.error); }, delay);
   }
-  async function reconcileNotifications() {
+  // ask: false (the pause flush) never shows the system question while the app leaves the screen.
+  async function reconcileNotifications({ ask = true } = {}) {
     clearTimeout(notificationTimer); notificationTimer = null;
     const platform = globalThis.DailoPlatform;
     if (!platform?.isNative || !state || globalOperation || recovery) return;
     const items = Core.notificationPlan(state, nowIso(), { logs: state.habitLogCache || {} }).map(item => ({ ...item, body: notificationBody(item) }));
     let result = await platform.notifications.reconcile(items);
     // The system question is asked once, when there is first something to notify about; later from Settings.
-    if (result.status === 'permission' && result.permission === 'prompt' && items.length && !localStorage.getItem('dailoNotifyAsked')) {
+    if (ask && result.status === 'permission' && result.permission === 'prompt' && items.length && !localStorage.getItem('dailoNotifyAsked')) {
       try { localStorage.setItem('dailoNotifyAsked', nowIso()); } catch (_) { /* asked again next time */ }
       if (await platform.notifications.requestPermission() === 'granted') result = await platform.notifications.reconcile(items);
     }
@@ -4917,7 +4918,8 @@
     const draftTask = modalState?.type === 'task' ? getTask(modalState.taskId) : null;
     if (reason === 'pagehide' || !draftTask || !taskRecurrence(draftTask)) flushTaskDraft();
     flushTextSave(); saveState();
-    if (globalThis.DailoPlatform?.isNative) writeDurableMirror();
+    // The app may be swiped away next: write the mirror and hand reminders to the phone now, not after the save timer.
+    if (globalThis.DailoPlatform?.isNative) { writeDurableMirror(); reconcileNotifications({ ask: false }).catch(console.error); }
   }
 
   // Back in the foreground: a new day, due reminders and a sync round, without waiting for the 30-second timer.
