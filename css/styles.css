@@ -2820,6 +2820,35 @@ a.btn { text-decoration: none; }
 /* Redesign R12c — the evening journal notice (J4). */
 .journal-notice .backup-reminder-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
+/* Redesign R13 — Nedeljni pregled (S5, J8). */
+.review-card-title { margin: 16px 0 8px; color: var(--ink-2); font-size: 13px; font-weight: 600; }
+.review-chart-card { padding: 12px 12px 10px; }
+.review-chart { display: grid; }
+.review-chart-title { margin: 0 0 8px; color: var(--ink-3); font-size: 12px; }
+.review-columns { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; align-items: end; height: 110px; }
+.review-column { height: 100%; display: grid; grid-template-rows: 16px 1fr 16px; align-items: end; justify-items: center; gap: 2px; padding: 0; border: 0; background: none; color: var(--ink-3); font: inherit; cursor: pointer; }
+.review-column-value { color: var(--ink-1); font-size: 12px; font-weight: 600; }
+.review-column-fill { width: 70%; min-height: 3px; border-radius: 4px 4px 2px 2px; background: var(--graphite-750); align-self: end; }
+.review-column.is-selected .review-column-fill { background: var(--blue-500); }
+.review-column-day { font-size: 11px; }
+.review-chart-caption { margin: 8px 0 10px; color: var(--ink-2); font-size: 13px; }
+.review-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.review-tile { display: grid; gap: 2px; padding: 10px; border: 1px solid var(--line-1); border-radius: var(--radius-md); }
+.review-tile strong { color: var(--ink-1); font-size: 20px; font-variant-numeric: tabular-nums; }
+.review-tile span { color: var(--ink-2); font-size: 13px; }
+.review-tile small { color: var(--ink-3); font-size: 11px; }
+.review-journal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; padding: 8px; }
+.review-journal-day { min-height: 52px; display: grid; justify-items: center; align-content: center; gap: 2px; border: 0; border-radius: var(--radius-md); background: none; color: var(--ink-2); font: inherit; cursor: pointer; }
+.review-journal-day:disabled { opacity: 0.4; cursor: default; }
+.review-journal-mark { font-size: 18px; line-height: 1; }
+.review-journal-day small { color: var(--ink-3); font-size: 11px; }
+.review-step.is-done .weekly-review-number { background: var(--success); color: #0f1114; }
+.review-step-done { color: var(--ink-3); font-weight: 500; }
+.review-day-row, .review-row { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 14px; border: 0; border-bottom: 1px solid var(--line-1); background: none; color: var(--ink-1); font: inherit; text-align: left; cursor: pointer; }
+.review-day-row:last-child, .review-row:last-child { border-bottom: 0; }
+.review-day-busy, .review-row-meta { color: var(--ink-2); font-size: 13px; }
+.review-day-free { color: var(--ink-3); font-size: 13px; }
+
 /* Keep primary compact actions touchable after all density rules. */
 @media (max-width: 700px), (pointer: coarse) {
   .task-actions .btn-icon,

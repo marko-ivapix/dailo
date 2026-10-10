@@ -799,6 +799,36 @@
     };
   }
 
+  // Redesign R13 (S5): "Poslednjih 7 dana" on the weekly review — completed tasks per day for today and the six days
+  // before, the previous 7 days' total, tasks created in the window, and this week's habits so far (planned days and
+  // how many were done; a weekly-target habit counts its target and at most the target as done). Null when nothing
+  // is planned.
+  function weeklyReviewStats(state, habitLogs = [], today = dateOnly(), weekStartsOn = 'monday') {
+    const tasks = state?.tasks || [];
+    const completedOn = date => tasks.filter(task => task && task.isCompleted && localDateOf(task.completedAt) === date).length;
+    const days = Array.from({ length: 7 }, (_, index) => addDays(today, index - 6)).map(date => ({ date, completed: completedOn(date) }));
+    const previousTotal = Array.from({ length: 7 }, (_, index) => completedOn(addDays(today, index - 13))).reduce((sum, count) => sum + count, 0);
+    const first = days[0].date;
+    const added = tasks.filter(task => { const created = localDateOf(task?.createdAt); return created && created >= first && created <= today; }).length;
+    const weekStart = weekStartFor(today, weekStartsOn);
+    const weekDays = [];
+    for (let date = weekStart; date && date <= today; date = addDays(date, 1)) weekDays.push(date);
+    let planned = 0, done = 0;
+    for (const habit of (state?.habits || []).filter(item => item && item.status === 'active')) {
+      const logs = (habitLogs || []).filter(log => log && log.habitId === habit.id);
+      const doneDays = weekDays.filter(date => habitStatusForDate(habit, logs, date, date).status === 'done').length;
+      if (habit.frequencyType === 'timesPerWeek') {
+        const target = habitTargetFor(habit, weekStart);
+        planned += target; done += Math.min(doneDays, target);
+      } else {
+        const scheduled = weekDays.filter(date => habitScheduledOn(habit, date));
+        planned += scheduled.length;
+        done += scheduled.filter(date => habitStatusForDate(habit, logs, date, date).status === 'done').length;
+      }
+    }
+    return { days, total: days.reduce((sum, day) => sum + day.completed, 0), previousTotal, added, habitsPercent: planned ? Math.round(done / planned * 100) : null };
+  }
+
   function oldestCreatedAt(state) {
     let oldest = null;
     for (const key of ['tasks', 'goals', 'habits', 'notes', 'resources']) {
@@ -2129,6 +2159,7 @@
     journalEntryFor,
     journalReminderTime,
     journalDaySummary,
+    weeklyReviewStats,
     normalizeRecurrenceV3,
     shouldGenerateRecurrence,
     splitRecurrenceForFuture,

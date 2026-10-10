@@ -478,6 +478,21 @@ if (smokeEntry?.mood !== 4 || smokeEntry?.text !== 'Smoke dnevnik: miran dan' ||
 type('#journal-query', 'MIRAN');
 if (!window.document.querySelector(`#journal-list [data-date="${smokeEntry.date}"]`)) fail('the journal search did not find the entry');
 type('#journal-query', '');
+// Redesign R13: Još → Nedeljni pregled → seven columns → a column shows its count → today's journal face → Završi.
+click('#mobile-bottom-nav [data-route="more"]');
+await new Promise(resolve => setTimeout(resolve, 50));
+click('#main .more-row[data-route="review"]');
+await new Promise(resolve => setTimeout(resolve, 50));
+const reviewColumns = window.document.querySelectorAll('#main .review-column');
+if (reviewColumns.length !== 7) fail(`Nedeljni pregled has ${reviewColumns.length} columns`);
+const firstColumn = reviewColumns[0];
+click(`#main .review-column[data-date="${firstColumn.dataset.date}"]`);
+await new Promise(resolve => setTimeout(resolve, 20));
+if (window.document.querySelector(`#main .review-column[data-date="${firstColumn.dataset.date}"]`)?.getAttribute('aria-pressed') !== 'true') fail('a column did not become selected');
+if (window.document.querySelector(`#main .review-journal-day[data-date="${window.TodoCore.dateOnly()}"] .review-journal-mark`)?.textContent !== '🙂') fail('"Dnevnik ove nedelje" does not show today\'s face');
+click('#main [data-action="complete-weekly-review"]');
+await new Promise(resolve => setTimeout(resolve, 50));
+if (!window.document.querySelector('#main [data-weekly-review-done]')) fail('Završi nedeljni pregled did not record the review');
 // Redesign R10g: Još → Podešavanja → Opšte, Podaci, Pomoć → Prvi dan nedelje → Nedelja applies at once; no sidebar.
 click('#mobile-bottom-nav [data-route="more"]');
 await new Promise(resolve => setTimeout(resolve, 50));
@@ -510,5 +525,5 @@ if (!found) fail('the task is missing after reopening');
 const errors = [...first.errors, ...second.errors];
 second.dom.window.close();
 if (errors.length) fail(`script errors: ${errors.join(' | ')}`);
-console.log(`smoke: OK — started, created "${title}", Back closed Quick Add, route change named the page and focused its heading, Još opened Ciljevi, focus survived a re-render, Today checked in a habit, the Zadaci switch showed the projects and opened one, the task window's date sheet planned a task, Quick Add filed a task under \"Bez projekta\", \"Razvrstaj redom\" planned an Inbox task for today, the Calendar listed a picked day and its Raspored, Navike opened a past day and Nedelja, the new habit window created a numeric weekday habit, Detalji navike changed a day and an old address opened the window, Ciljevi grouped by month, the goal window set a target date and an old address opened it, the \"+\" on Ciljevi created a numeric goal, Oblasti made an area and its \"+\" filed a task there, Beleške made a text-only note in its window, Oznake made a tag and opened its screen, Sačuvani prikazi saved a habits view and opened it, Završeni zadaci restored a task and Poništi completed it again, Search grouped the results and Fokus ticked a subtask, the repeat editor set \"Sredom i subotom\", a repeating task's title saved without a question and \"Ovo i buduća\" moved its rule until Poništi, Redovne obaveze made a group and its \"+ Dodaj obavezu\" scheduled a monthly chore, Dnevnik saved today's entry with a mood and its search found it, Podešavanja applied the week start and turned the journal reminder off at once, reopened and found it (tasks: ${second.window.TodoApp.state?.tasks?.length ?? 'n/a'})`);
+console.log(`smoke: OK — started, created "${title}", Back closed Quick Add, route change named the page and focused its heading, Još opened Ciljevi, focus survived a re-render, Today checked in a habit, the Zadaci switch showed the projects and opened one, the task window's date sheet planned a task, Quick Add filed a task under \"Bez projekta\", \"Razvrstaj redom\" planned an Inbox task for today, the Calendar listed a picked day and its Raspored, Navike opened a past day and Nedelja, the new habit window created a numeric weekday habit, Detalji navike changed a day and an old address opened the window, Ciljevi grouped by month, the goal window set a target date and an old address opened it, the \"+\" on Ciljevi created a numeric goal, Oblasti made an area and its \"+\" filed a task there, Beleške made a text-only note in its window, Oznake made a tag and opened its screen, Sačuvani prikazi saved a habits view and opened it, Završeni zadaci restored a task and Poništi completed it again, Search grouped the results and Fokus ticked a subtask, the repeat editor set \"Sredom i subotom\", a repeating task's title saved without a question and \"Ovo i buduća\" moved its rule until Poništi, Redovne obaveze made a group and its \"+ Dodaj obavezu\" scheduled a monthly chore, Dnevnik saved today's entry with a mood and its search found it, Nedeljni pregled showed seven columns and today's journal face and recorded the review, Podešavanja applied the week start and turned the journal reminder off at once, reopened and found it (tasks: ${second.window.TodoApp.state?.tasks?.length ?? 'n/a'})`);
 process.exit(0);
