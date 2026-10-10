@@ -25,15 +25,14 @@ test('dialogs use visible headings as accessible names and modal focus hooks', (
   assert.match(app, /popoverEl\.setAttribute\('aria-labelledby',/);
 });
 
-test('Areas tabs expose tab semantics, panel relationship, and arrow-key navigation', () => {
-  assert.match(areas, /role="tablist"/);
-  assert.match(areas, /role="tab"/);
-  assert.match(areas, /aria-selected=/);
-  assert.match(areas, /aria-controls="areas-panel"/);
-  assert.match(areas, /id="areas-panel"[\s\S]*role="tabpanel"/);
-  assert.match(app, /function handleAreaTabKeydown\(/);
-  assert.match(app, /ArrowRight|ArrowLeft/);
-  assert.match(app, /next\?\.click\(\);[\s\S]*?requestAnimationFrame\(\(\) => \$\('\.area-tabs \[aria-selected="true"\]'\)\?\.focus\(\)\)/);
+// Redesign R10a (S1): the Sve / Aktivno / Arhivirano tabs left. Archived areas fold behind a button that reports its
+// state, and the area window's color and icon choices report theirs.
+test('Oblasti folds archived areas behind aria-expanded; the area window choices expose aria-pressed', () => {
+  assert.doesNotMatch(areas, /role="tablist"|handleAreaTabKeydown/);
+  assert.doesNotMatch(app, /handleAreaTabKeydown/);
+  assert.match(areas, /data-action="areas-fold" aria-expanded="\$\{open\}"/);
+  assert.match(areas, /data-action="select-area-color"[^`]*aria-pressed="\$\{color === d\.color\}"/);
+  assert.match(areas, /data-action="select-area-icon"[^`]*aria-pressed="\$\{icon === d\.icon\}"/);
 });
 
 test('aria-live is limited to status/toast output instead of the application shell', () => {

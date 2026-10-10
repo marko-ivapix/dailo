@@ -31,6 +31,12 @@
     return tr('Daily');
   }
 
+  // Redesign R10a (S2): a compact row with the frequency that opens the habit details window.
+  function renderHabitListRow(ctx, habit) {
+    const { esc } = ctx;
+    return `<div class="today-row area-habit-row"><button class="today-row-main" type="button" data-route="habit/${esc(habit.id)}"><span class="task-title">${esc(habit.name)}</span><span class="task-meta">${esc(habitFrequencyLabel(ctx, habit))}</span></button></div>`;
+  }
+
   function habitProgressLabel(ctx, habit, metrics = ctx.habitMetrics(habit)) {
     // A numeric target describes one check-in; X/week is a separate weekly
     // target and must remain visible when both are configured.
@@ -993,6 +999,7 @@
       if (route.type === 'habits') return renderHabits(ctx);
       if (route.type === 'habit') return renderHabits(ctx); // R8c: app.js opens the details window on top
       if (route.type === 'habit-row') return renderHabitRow(ctx, route.habit, route.todayStatus);
+      if (route.type === 'habit-list-row') return renderHabitListRow(ctx, route.habit);
       if (route.type === 'habit-today-row') return renderHabitTodayRow(ctx, route.habit, route.todayStatus);
       if (route.type !== 'modal') return false;
       const renderers = { habit: renderHabitModal, 'habit-details': renderHabitDetails, 'habit-finished': renderHabitFinishedModal, 'habit-value': renderHabitValueModal };

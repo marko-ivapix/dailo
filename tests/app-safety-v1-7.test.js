@@ -139,15 +139,15 @@ test('an open popover suppresses global shortcuts behind it (the More sheet it c
   let searches = 0;
   const ctx = {
     globalOperation: null, modalState: null, popoverEl: { contains: () => false, querySelectorAll: () => [] },
-    goalPropertyEditor: null, habitPropertyEditor: null,
     state: { settings: { shortcuts: { search: 'Ctrl/Cmd+K' } } },
     SHORTCUT_DEFAULTS: { search: 'Ctrl/Cmd+K' }, Core,
-    handleAreaTabKeydown: () => false, trapPopoverFocus() {},
+    trapPopoverFocus() {},
     callDomainHook: () => undefined, openSearch: () => { searches++; }, openQuickAdd() {}, navigate() {},
     $: () => null,
   };
   vm.createContext(withI18n(ctx));
-  vm.runInContext(functionSource('function handleKeydown(', 'function handleAreaTabKeydown('), ctx);
+  // Redesign R10a: the area tabs and their arrow-key handler left; the function now ends before handleDblKeyActivation.
+  vm.runInContext(functionSource('function handleKeydown(', 'function handleDblKeyActivation('), ctx);
   const event = {
     key: 'k', code: 'KeyK', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false,
     repeat: false, isComposing: false, preventDefault() {},

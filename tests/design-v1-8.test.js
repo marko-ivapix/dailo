@@ -256,14 +256,11 @@ test('the monthly tracker keeps its cell geometry and uses token colors per chec
 
 // Phase 8 — Areas, Projects, Notes and Resources
 
-test('Area tabs are underline tabs keyed on aria-selected, keeping their tab semantics', () => {
+// Redesign R10a (S1): the area tabs left; archived areas fold at the bottom of "Oblasti" instead.
+test('Oblasti has no tabs; the archived areas fold behind an expandable trigger', () => {
   const areasUi = read('js/areas-ui.js');
-  assert.match(areasUi, /role="tablist"/);
-  assert.match(areasUi, /role="tab"[^>]*aria-selected=/);
-  assert.match(rule(v18, '.area-tabs'), /border-bottom:\s*1px solid var\(--line-1\)/);
-  const underline = rule(v18, '.area-tabs button[aria-selected="true"]::after');
-  assert.match(underline, /height:\s*2px/);
-  assert.match(underline, /background:\s*var\(--blue-300\)/);
+  assert.doesNotMatch(areasUi, /role="tablist"|role="tab"/);
+  assert.match(areasUi, /<button class="collapsible-trigger" type="button" data-action="areas-fold" aria-expanded="\$\{open\}">/);
 });
 
 test('organizational lists share the hairline card and display numerals', () => {

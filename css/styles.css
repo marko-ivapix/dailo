@@ -2645,6 +2645,26 @@ a.btn { text-decoration: none; }
 .goal-draft-milestone { grid-template-columns: minmax(0, 1fr) auto auto; }
 .goal-draft-milestone .btn-icon { color: var(--ink-3); }
 
+/* Redesign R10a — Oblasti and one area (S1, S2). */
+.area-list-row { width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 10px 10px; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.areas-list > .area-list-row + .area-list-row { border-top: 1px solid var(--line-1); }
+.area-list-row > .ph-caret-right { color: var(--ink-4); }
+.area-list-row:focus-visible { outline: none; box-shadow: var(--focus-ring-inset); }
+.area-list-icon { font-size: 20px; }
+.area-list-main { display: grid; gap: 2px; min-width: 0; }
+.areas-list .inline-add { margin: 2px 6px 6px; }
+.areas-fold { margin-top: 14px; }
+.areas-fold .today-card { margin-top: 8px; }
+.area-section { margin-top: 16px; }
+.area-section .section-header { align-items: center; }
+.area-section-add { color: var(--blue-300); }
+.area-empty-hint { margin: 4px 2px 0; color: var(--ink-3); font-size: 13px; }
+.area-library-row .task-title i { color: var(--ink-3); }
+.area-habit-row .task-meta,
+.area-library-row .task-meta { color: var(--ink-3); }
+.area-window .quick-title-input { margin-bottom: 6px; }
+.area-window .habit-window-label { margin: 12px 2px 8px; }
+
 /* Keep primary compact actions touchable after all density rules. */
 @media (max-width: 700px), (pointer: coarse) {
   .task-actions .btn-icon,

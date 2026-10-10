@@ -17,16 +17,6 @@
     return Object.entries(options).map(([key, label]) => `<option value="${context.esc(key)}" ${value === key ? 'selected' : ''}>${context.esc(label)}</option>`).join('');
   }
 
-  function renderAreaKnowledge(context, areaId) {
-    const { state, knowledgeCollection, esc } = context;
-    let html = '';
-    for (const type of ['note', 'resource']) {
-      const items = state[knowledgeCollection(type)].filter(item => item.areaId === areaId);
-      html += `<section class="section area-detail-section"><div class="section-header"><h2 class="section-label">${knowledgeCollection(type) === 'notes' ? tr('Notes') : tr('Resources')}</h2><span class="section-count">${items.length}</span></div>${items.length ? items.map(item => renderKnowledgeRow(context, type, item)).join('') : `<p class="area-empty-copy">${knowledgeCollection(type) === 'notes' ? tr('No notes in this Area.') : tr('No resources in this Area.')}</p>`}<button class="inline-add" type="button" data-action="new-knowledge" data-owner-type="${type}" data-area-id="${esc(areaId)}"><i class="ph ph-plus"></i> ${type === 'note' ? tr('New note') : tr('New resource')}</button></section>`;
-    }
-    return html;
-  }
-
   function renderKnowledgeRow(context, type, item) {
     const { esc, getArea, state } = context;
     const areaName = getArea(item.areaId)?.name || tr('No area');
@@ -214,7 +204,6 @@
       if (route.type === 'notes' || route.type === 'resources') return renderKnowledgeList(context, route.type === 'notes' ? 'note' : 'resource');
       if (route.type === 'note' || route.type === 'resource') return renderKnowledgeDetail(context, route.type, route.id);
       // Internal render requests keep Area composition and overlay ownership in app.js.
-      if (route.type === 'area-knowledge') return renderAreaKnowledge(context, route.id);
       if (route.type === 'modal' && route.modalType === 'knowledge') return renderKnowledgeModal(context);
     },
     handleAction(action, event, context) {

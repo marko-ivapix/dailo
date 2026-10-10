@@ -636,6 +636,7 @@
       if (route.type === 'goals') return renderGoals(ctx);
       if (route.type === 'goal') return renderGoals(ctx); // R9b: app.js opens the goal window on top
       if (route.type === 'goal-row') return renderGoalRow(ctx, route.goal);
+      if (route.type === 'goal-list-row') return renderGoalListRow(ctx, route.goal); // R10a: the Ciljevi row in an area
       if (route.type !== 'modal') return false;
       const renderers = { 'goal-details': renderGoalDetails, goal: renderGoalModal, 'goal-source': renderGoalSourceModal, milestone: renderMilestoneModal, 'goal-links': renderGoalLinksModal, 'goal-reminders': renderGoalRemindersModal, 'goal-reached': renderGoalReachedModal, 'goal-history': renderGoalHistoryModal };
       return renderers[route.modalType]?.(ctx);

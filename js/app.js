@@ -287,7 +287,6 @@
     next.ui.completedPeriod = Number(next.ui.completedPeriod) || 0;
     next.ui.inboxFilter = INBOX_FILTERS.some(([value]) => value === next.ui.inboxFilter) ? next.ui.inboxFilter : 'all';
     next.ui.selectedTagId = next.ui.selectedTagId || '';
-    next.ui.areaTab = ['all', 'active', 'archived'].includes(next.ui.areaTab) ? next.ui.areaTab : 'all';
     // Redesign R7 (C1, C6): Nedelja, Mesec or Predstojeće; a stored V1.12 "day" view is the week on its Raspored.
     if (next.ui.calendarView === 'day') next.ui.calendarDayMode = 'schedule';
     next.ui.calendarView = ['week', 'month', 'upcoming'].includes(next.ui.calendarView) ? next.ui.calendarView : 'week';
@@ -623,9 +622,11 @@
       },
       openProjectModal, saveProjectModal, archiveProject, restoreProject, deleteProject,
       openQuickAdd, openGoalModal, openHabitModal,
-      renderAreaTaskRow(task, areaId) { return taskRow(task, `area:${areaId}`); },
+      renderAreaTaskRow(task, areaId) { return taskRow(task, `area:${areaId}`, { today: true }); },
+      renderGoalListRow(goal) { return callDomainHook('renderRoute', { type: 'goal-list-row', goal }) || ''; },
+      renderHabitListRow(habit) { return callDomainHook('renderRoute', { type: 'habit-list-row', habit }) || ''; },
+      projectOverviewRow(project) { return projectOverviewRow(project, listTasks()); },
       renderGoalRow, renderHabitRow,
-      renderAreaKnowledge(areaId) { return callDomainHook('renderRoute', { type: 'area-knowledge', id: areaId }) || ''; },
       renderSavedViewItem(view, item, today) {
         return view.type === 'tasks' ? taskRow(item, 'saved-view') : view.type === 'goals' ? renderGoalRow(item) : renderHabitRow(item, item.status === 'active' ? Core.habitStatusForDate(item, state.habitLogCache?.[item.id] || [], today, today) : null);
       },
@@ -4615,11 +4616,6 @@
     const routeEl = event.target.closest('[data-route]');
     if (routeEl) { event.preventDefault(); navigate(routeEl.dataset.route); return; }
 
-    const areaTab = event.target.closest('[data-tab]');
-    if (areaTab) {
-      if (callDomainHook('handleAction', 'area-tab', event) !== undefined) return;
-      state.ui.areaTab = areaTab.dataset.tab; saveAndRender(); return;
-    }
     const templateTab=event.target.closest('[data-template-type]');
     if(templateTab){if(callDomainHook('handleAction','template-type',event)!==undefined)return;state.ui.templateType=templateTab.dataset.templateType;saveAndRender();return;}
 
@@ -4909,7 +4905,6 @@
   function handleKeydown(event) {
     if (globalOperation && !['Escape','Tab'].includes(event.key)) return;
     const target = event.target;
-    if (handleAreaTabKeydown(event)) return;
     const typing = target && (target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"]') || target.isContentEditable);
     if (popoverEl && event.key === 'Tab') { trapPopoverFocus(event); return; }
 
@@ -4960,19 +4955,6 @@
     if (modalState?.type === 'task' && ['detail-title', 'detail-duration-minutes'].includes(target?.id) && event.key === 'Enter') { event.preventDefault(); target.blur(); return; }
     if (modalState?.type === 'task' && target?.id === 'detail-subtask' && event.key === 'Enter') { event.preventDefault(); addDetailSubtask(target.dataset.taskId, target.value); return; }
     if (['sync-email', 'sync-code'].includes(target?.id) && event.key === 'Enter' && !event.isComposing) { event.preventDefault(); if (target.id === 'sync-email') requestSyncCode(); else verifySyncCode(); return; }
-  }
-
-  function handleAreaTabKeydown(event) {
-    const areaTab = event.target?.closest?.('.area-tabs [role="tab"]');
-    if (!areaTab || !['ArrowRight', 'ArrowLeft'].includes(event.key)) return false;
-    const tabs = $$('.area-tabs [role="tab"]');
-    const index = tabs.indexOf(areaTab);
-    const next = tabs[(index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length];
-    event.preventDefault();
-    next?.focus();
-    next?.click();
-    requestAnimationFrame(() => $('.area-tabs [aria-selected="true"]')?.focus());
-    return true;
   }
 
   function handleDblKeyActivation(event) {

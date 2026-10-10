@@ -2,58 +2,75 @@
   'use strict';
   const { tr, trn } = window.TodoI18n;
 
-  function areaSummaryCards(ctx, summary, areaId) {
-    const { state } = ctx;
-    return `<div class="area-summary" aria-label="${tr('Area summary')}"><div><strong>${summary.projects}</strong><span>${tr('Projects')}</span></div><div><strong>${summary.openTasks}</strong><span>${tr('Open tasks')}</span></div><div><strong>${summary.activeGoals}</strong><span>${tr('Active goals')}</span></div><div><strong>${summary.activeHabits}</strong><span>${tr('Active habits')}</span></div><div><strong>${state.notes.filter(item => item.areaId === areaId).length}</strong><span>${tr('Notes')}</span></div><div><strong>${state.resources.filter(item => item.areaId === areaId).length}</strong><span>${tr('Resources')}</span></div></div>`;
+  // Redesign R10a (S1, S2): the counts an area shows; "otvorenih" are the open, sorted tasks it lists.
+  function areaContents(ctx, areaId) {
+    const { state, Core, listTasks } = ctx;
+    const projects = (state.projects || []).filter(project => project.areaId === areaId && !project.isArchived);
+    const tasks = listTasks().filter(task => !task.isCompleted && !task.isInbox && Core.effectiveTaskArea(task, state.projects || []) === areaId);
+    const goals = (state.goals || []).filter(goal => goal.areaId === areaId && goal.status === 'active');
+    const habits = (state.habits || []).filter(habit => habit.areaId === areaId && habit.status === 'active');
+    const library = [...(state.notes || []).map(item => ['note', item]), ...(state.resources || []).map(item => ['resource', item])]
+      .filter(([, item]) => item.areaId === areaId)
+      .sort((a, b) => String(b[1].updatedAt || b[1].createdAt || '').localeCompare(String(a[1].updatedAt || a[1].createdAt || '')));
+    return { projects, tasks, goals, habits, library };
+  }
+  function areaSummaryLine(contents) {
+    return [
+      contents.projects.length ? trn(contents.projects.length, '{count} project', '{count} projects') : '',
+      trn(contents.tasks.length, '{count} open', '{count} open'),
+      contents.goals.length ? trn(contents.goals.length, '{count} goal', '{count} goals') : '',
+    ].filter(Boolean).join(' · ');
   }
 
-  function areaIcon(ctx, area) {
+  function areaIcon(ctx, area, cls = '') {
     const { esc, AREA_ICONS, PROJECT_COLORS } = ctx;
-    return `<i class="ph ${esc(area.icon || AREA_ICONS[0])}" style="color:${esc(area.color || PROJECT_COLORS[0])}"></i>`;
+    return `<i class="ph ${esc(area.icon || AREA_ICONS[0])}${cls ? ` ${cls}` : ''}" style="color:${esc(area.color || PROJECT_COLORS[0])}" aria-hidden="true"></i>`;
   }
 
   function renderAreas(ctx) {
-    const { state, sortedAreas, Core, pageHeader, emptyState, esc } = ctx;
-    const tab = state.ui.areaTab || 'all';
+    const { state, sortedAreas, pageHeader, emptyState, esc } = ctx;
     const all = sortedAreas();
-    const areas = all.filter(area => tab === 'all' || area.status === tab);
-    const actions = `<button class="btn btn-primary" type="button" data-action="new-area"><i class="ph ph-plus"></i> ${tr('New area')}</button>`;
-    const activeCount = all.filter(area => area.status === 'active').length;
-    let html = pageHeader(tr('Areas'), trn(activeCount, '{count} active area', '{count} active areas'), { add: false, actionHtml: actions });
-    html += `<div class="area-tabs" role="tablist" aria-label="${tr('Area status')}"><button id="area-tab-all" type="button" role="tab" data-tab="all" aria-selected="${tab === 'all'}" aria-controls="areas-panel" tabindex="${tab === 'all' ? '0' : '-1'}" class="${tab === 'all' ? 'is-active' : ''}">${tr('All')}</button><button id="area-tab-active" type="button" role="tab" data-tab="active" aria-selected="${tab === 'active'}" aria-controls="areas-panel" tabindex="${tab === 'active' ? '0' : '-1'}" class="${tab === 'active' ? 'is-active' : ''}">${tr('Active')}</button><button id="area-tab-archived" type="button" role="tab" data-tab="archived" aria-selected="${tab === 'archived'}" aria-controls="areas-panel" tabindex="${tab === 'archived' ? '0' : '-1'}" class="${tab === 'archived' ? 'is-active' : ''}">${tr('Archived')}</button></div>`;
-    const areaPanel = areas.length ? `<div class="area-list v17-area-list">${areas.map(area => {
-      const summary = Core.areaSummary(area.id, state);
-      const notes = state.notes.filter(item => item.areaId === area.id).length;
-      const resources = state.resources.filter(item => item.areaId === area.id).length;
-      return `<article class="area-row" data-area-id="${esc(area.id)}"><button class="area-open" type="button" data-route="area/${esc(area.id)}">${areaIcon(ctx, area)}<span><strong>${esc(area.name)}</strong><small>${trn(summary.projects, '{count} project', '{count} projects')} · ${trn(summary.openTasks, '{count} open task', '{count} open tasks')} · ${trn(summary.activeGoals, '{count} active goal', '{count} active goals')} · ${trn(summary.activeHabits, '{count} active habit', '{count} active habits')} · ${trn(notes, '{count} note', '{count} notes')} · ${trn(resources, '{count} resource', '{count} resources')}</small></span></button><div class="area-row-actions">${area.isPinned && area.status === 'active' ? `<i class="ph ph-push-pin" aria-label="${tr('Pinned')}"></i>` : ''}<button class="btn-icon" type="button" data-action="area-menu" data-area-id="${esc(area.id)}" aria-label="${tr('Area actions')}"><i class="ph ph-dots-three"></i></button></div></article>`;
-    }).join('')}</div>` : emptyState(tab === 'archived' ? tr('No archived areas.') : tr('No areas yet.'), tab === 'archived' ? tr('Archived areas can be restored here.') : tr('Areas organize projects, standalone tasks, goals and habits.'), tab === 'archived' ? '' : tr('New area'), tab === 'archived' ? '' : 'new-area');
-    return `${html}<div id="areas-panel" role="tabpanel" aria-labelledby="area-tab-${tab}" tabindex="0">${areaPanel}</div>`;
+    const active = all.filter(area => area.status !== 'archived');
+    const archived = all.filter(area => area.status === 'archived');
+    const html = pageHeader(tr('Areas'), trn(active.length, '{count} active area', '{count} active areas'), { add: false });
+    if (!all.length) return html + emptyState(tr('No areas yet.'), tr('Areas organize projects, standalone tasks, goals and habits.'), tr('New area'), 'new-area');
+    const rows = active.map(area => {
+      const meta = [areaSummaryLine(areaContents(ctx, area.id)), area.isPinned ? tr('pinned') : ''].filter(Boolean).join(' · ');
+      return `<button class="area-list-row" type="button" data-route="area/${esc(area.id)}">${areaIcon(ctx, area, 'area-list-icon')}<span class="area-list-main"><span class="task-title">${esc(area.name)}</span><span class="task-meta">${esc(meta)}</span></span><i class="ph ph-caret-right" aria-hidden="true"></i></button>`;
+    }).join('');
+    const open = state.ui.areasArchivedOpen === true;
+    const fold = archived.length ? `<section class="areas-fold"><button class="collapsible-trigger" type="button" data-action="areas-fold" aria-expanded="${open}"><span class="left"><i class="ph ph-caret-${open ? 'up' : 'down'}" aria-hidden="true"></i> ${tr('Archived areas')} · ${archived.length}</span></button>${open ? `<div class="today-card">${archived.map(area => `<div class="today-row goals-fold-row"><button class="today-row-main" type="button" data-route="area/${esc(area.id)}"><span class="task-title">${esc(area.name)}</span></button><button class="quick-chip" type="button" data-action="restore-area" data-area-id="${esc(area.id)}">${tr('Restore')}</button></div>`).join('')}</div>` : ''}</section>` : '';
+    return `${html}<div class="today-card areas-list">${rows}<button class="inline-add" type="button" data-action="new-area"><i class="ph ph-plus" aria-hidden="true"></i> ${tr('New area')}</button></div>${fold}`;
   }
 
+  let tasksOpenFor = null;
   function renderArea(ctx, areaId) {
-    const { state, Core, getArea, pageHeader, esc, renderAreaTaskRow, renderAreaKnowledge, renderGoalRow, renderHabitRow } = ctx;
+    const { getArea, pageHeader, esc, renderAreaTaskRow, projectOverviewRow, renderGoalListRow, renderHabitListRow } = ctx;
     const area = getArea(areaId);
     if (!area) return renderAreas(ctx);
-    const summary = Core.areaSummary(areaId, state);
-    const projects = (state.projects || []).filter(project => project.areaId === areaId);
-    // Project tasks belong here through their Project's Area; direct Area tasks stay
-    // visible too. This is the same effective relation used by the summary and views.
-    const tasks = (state.tasks || []).filter(task => !task.isCompleted && Core.effectiveTaskArea(task, state.projects || []) === areaId);
-    const goals = (state.goals || []).filter(goal => goal.areaId === areaId);
-    const habits = (state.habits || []).filter(habit => habit.areaId === areaId);
-    let html = pageHeader(area.name, area.status === 'archived' ? tr('Archived area') : tr('Organize the work that belongs together'), { add: false, actionHtml: `<button class="btn-icon" type="button" data-action="area-menu" data-area-id="${esc(area.id)}" aria-label="${tr('Area actions')}"><i class="ph ph-dots-three"></i></button>` });
-    html += `<div class="area-detail-label">${areaIcon(ctx, area)} <span>${tr('Area')}</span></div>${areaSummaryCards(ctx, summary, areaId)}`;
-    html += `<section class="section area-detail-section"><div class="section-header"><h2 class="section-label">${tr('Projects')}</h2><span class="section-count">${projects.length}</span></div>${projects.length ? `<div class="area-object-list">${projects.map(project => { const openTasks = (state.tasks || []).filter(task => task.projectId === project.id && !task.isCompleted).length; return `<button class="area-object area-project" type="button" data-route="project/${esc(project.id)}"><span class="project-dot" style="--project-color:${esc(project.color)}"></span><span><strong>${esc(project.name)}</strong><small>${trn(openTasks, '{count} open task', '{count} open tasks')}${project.isArchived ? ` · ${tr('Archived')}` : ''}</small></span></button>`; }).join('')}</div>` : `<p class="area-empty-copy">${tr('No projects in this Area.')}</p>`}<button class="inline-add" type="button" data-action="area-new-project" data-area-id="${esc(area.id)}"><i class="ph ph-plus"></i> ${tr('New project')}</button></section>`;
-    html += `<section class="section area-detail-section"><div class="section-header"><h2 class="section-label">${tr('Tasks')}</h2><span class="section-count">${tasks.length}</span></div>${tasks.length ? `<div class="task-list">${tasks.map(task => renderAreaTaskRow(task, area.id)).join('')}</div>` : `<p class="area-empty-copy">${tr('No open tasks in this Area.')}</p>`}<button class="inline-add" type="button" data-action="area-new-task" data-area-id="${esc(area.id)}"><i class="ph ph-plus"></i> ${tr('New task')}</button></section>`;
-    html += `<section class="section area-detail-section"><div class="section-header"><h2 class="section-label">${tr('Goals')}</h2><span class="section-count">${goals.length}</span></div>${goals.length ? `<div class="goal-list">${goals.map(renderGoalRow).join('')}</div>` : `<p class="area-empty-copy">${tr('No goals in this Area.')}</p>`}<button class="inline-add" type="button" data-action="area-new-goal" data-area-id="${esc(area.id)}"><i class="ph ph-plus"></i> ${tr('New goal')}</button></section>`;
-    html += `<section class="section area-detail-section"><div class="section-header"><h2 class="section-label">${tr('Habits')}</h2><span class="section-count">${habits.length}</span></div>${habits.length ? `<div class="habit-list">${habits.map(habit => renderHabitRow(habit)).join('')}</div>` : `<p class="area-empty-copy">${tr('No habits in this Area.')}</p>`}<button class="inline-add" type="button" data-action="area-new-habit" data-area-id="${esc(area.id)}"><i class="ph ph-plus"></i> ${tr('New habit')}</button></section>`;
-    return html + renderAreaKnowledge(areaId);
+    const contents = areaContents(ctx, areaId);
+    const { projects, tasks, goals, habits, library } = contents;
+    const id = esc(area.id);
+    const summary = [area.status === 'archived' ? tr('Archived area') : '', areaSummaryLine(contents), trn(library.length, '{count} in the library', '{count} in the library')].filter(Boolean).join(' · ');
+    let html = pageHeader(area.name, summary, { add: false, actionHtml: `<button class="btn-icon" type="button" data-action="area-menu" data-area-id="${id}" aria-label="${tr('Area actions')}"><i class="ph ph-dots-three"></i></button>` });
+    if (!projects.length && !tasks.length && !goals.length && !habits.length && !library.length) html += `<p class="area-empty-hint">${tr('This area is empty. Add a project, task, goal, habit or note with “+”.')}</p>`;
+    const section = (label, count, action, body, extra = '') => `<section class="section area-section"><div class="section-header"><h2 class="section-label">${label} · ${count}</h2><button class="btn-icon area-section-add" type="button" data-action="${action}" data-area-id="${id}"${extra} aria-label="${esc(tr('Add: {name}', { name: label }))}"><i class="ph ph-plus" aria-hidden="true"></i></button></div>${count ? body : ''}</section>`;
+    const all = tasksOpenFor === area.id;
+    const shown = all ? tasks : tasks.slice(0, 5);
+    const more = tasks.length > 5 ? `<button class="today-more" type="button" data-action="area-all-tasks" data-area-id="${id}" aria-expanded="${all}">${all ? tr('Show less') : tr('Show {count} more', { count: tasks.length - 5 })}</button>` : '';
+    const libraryRow = ([type, item]) => `<div class="today-row area-library-row"><button class="today-row-main" type="button" data-route="${type}/${esc(item.id)}"><span class="task-title"><i class="ph ${type === 'note' ? 'ph-note' : 'ph-link'}" aria-hidden="true"></i> ${esc(item.title)}</span><span class="task-meta">${type === 'note' ? tr('Note') : tr('Resource')}</span></button></div>`;
+    html += section(tr('Projects'), projects.length, 'area-new-project', `<div class="more-card">${projects.map(project => projectOverviewRow(project)).join('')}</div>`);
+    html += section(tr('Tasks'), tasks.length, 'area-new-task', `<div class="task-list today-card">${shown.map(task => renderAreaTaskRow(task, area.id)).join('')}${more}</div>`);
+    html += section(tr('Goals'), goals.length, 'area-new-goal', `<div class="today-card goals-list">${goals.map(goal => renderGoalListRow(goal)).join('')}</div>`);
+    html += section(tr('Habits'), habits.length, 'area-new-habit', `<div class="today-card">${habits.map(habit => renderHabitListRow(habit)).join('')}</div>`);
+    html += section(tr('Notes and resources'), library.length, 'new-knowledge', `<div class="today-card">${library.map(libraryRow).join('')}</div>`, ' data-owner-type="note"');
+    return html;
   }
 
   function renderAreaModal(ctx) {
     const { modalState, modalFrame, PROJECT_COLORS, AREA_ICONS, esc } = ctx;
     const editing = Boolean(modalState.areaId), d = modalState.draft;
-    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">${editing ? tr('Edit area') : tr('New area')}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div><label class="field-label" for="area-name">${tr('Name')}</label><input id="area-name" class="input ${modalState.error ? 'is-error' : ''}" type="text" maxlength="100" value="${esc(d.name)}" placeholder="${tr('Area name')}" />${modalState.error ? `<div class="validation">${esc(modalState.error)}</div>` : ''}<div style="height:18px"></div><span class="field-label">${tr('Color')}</span><div class="color-grid">${PROJECT_COLORS.map(color => `<button class="color-swatch ${color === d.color ? 'is-selected' : ''}" type="button" data-action="select-area-color" data-color="${color}" style="--swatch:${color}" aria-label="${tr('Select area color')}"></button>`).join('')}</div><div style="height:18px"></div><span class="field-label">${tr('Icon')}</span><div class="area-icon-grid">${AREA_ICONS.map(icon => `<button class="area-icon-choice ${icon === d.icon ? 'is-selected' : ''}" type="button" data-action="select-area-icon" data-icon="${icon}" aria-label="${tr('Select area icon')}"><i class="ph ${icon}"></i></button>`).join('')}</div><div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">${tr('Cancel')}</button><button class="btn btn-primary" type="button" data-action="save-area">${editing ? tr('Save changes') : tr('Create area')}</button></div></div></div>`, 'quick');
+    return modalFrame(`<div class="modal-inner quick-sheet area-window"><div class="modal-header"><h2 class="modal-title">${editing ? tr('Edit area') : tr('New area')}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div><input id="area-name" class="quick-title-input${modalState.error ? ' is-error' : ''}" type="text" maxlength="100" autocomplete="off" placeholder="${tr('Area name')}" value="${esc(d.name)}" aria-label="${tr('Area name')}">${modalState.error ? `<div class="validation" role="alert">${esc(modalState.error)}</div>` : ''}<span class="habit-window-label">${tr('Color')}</span><div class="color-grid">${PROJECT_COLORS.map(color => `<button class="color-swatch ${color === d.color ? 'is-selected' : ''}" type="button" data-action="select-area-color" data-color="${color}" style="--swatch:${color}" aria-label="${tr('Select area color')}" aria-pressed="${color === d.color}"></button>`).join('')}</div><span class="habit-window-label">${tr('Icon')}</span><div class="area-icon-grid">${AREA_ICONS.map(icon => `<button class="area-icon-choice ${icon === d.icon ? 'is-selected' : ''}" type="button" data-action="select-area-icon" data-icon="${icon}" aria-label="${tr('Select area icon')}" aria-pressed="${icon === d.icon}"><i class="ph ${icon}"></i></button>`).join('')}</div><div class="quick-sheet-footer"><span></span><button class="btn btn-primary habit-window-save" type="button" data-action="save-area">${editing ? tr('Save changes') : tr('Create area')}</button></div></div>`, 'quick');
   }
 
   function openAreaModal(ctx, areaId = null) {
@@ -83,7 +100,9 @@
     } else {
       state.areas.push({ id: uid('area'), name, color: modalState.draft.color, icon: modalState.draft.icon, status: 'active', isPinned: false, createdAt: nowIso(), updatedAt: nowIso() });
     }
+    const created = !modalState.areaId;
     saveState(); closeModal(); render();
+    if (created) ctx.setToastMessage(tr('Area “{name}” created', { name })); // R10a: a new area stays on the current screen
   }
 
   function openAreaMenu(ctx, anchor, areaId) {
@@ -93,7 +112,7 @@
       ? `<button class="popover-option" type="button" data-pop-action="restore-area" data-area-id="${esc(areaId)}"><i class="ph ph-arrow-counter-clockwise"></i>${tr('Restore area')}</button>`
       : `<button class="popover-option" type="button" data-pop-action="archive-area" data-area-id="${esc(areaId)}"><i class="ph ph-archive"></i>${tr('Archive area')}</button>`;
     const pinAction = area.status === 'active'
-      ? `<button class="popover-option" type="button" data-pop-action="${area.isPinned ? 'unpin-area' : 'pin-area'}" data-area-id="${esc(areaId)}"><i class="ph ${area.isPinned ? 'ph-push-pin-slash' : 'ph-push-pin'}"></i>${area.isPinned ? tr('Unpin from sidebar') : tr('Pin to sidebar')}</button>`
+      ? `<button class="popover-option" type="button" data-pop-action="${area.isPinned ? 'unpin-area' : 'pin-area'}" data-area-id="${esc(areaId)}"><i class="ph ${area.isPinned ? 'ph-push-pin-slash' : 'ph-push-pin'}"></i>${area.isPinned ? tr('Unpin from “More”') : tr('Pin to “More”')}</button>`
       : '';
     const html = `<button class="popover-option" type="button" data-pop-action="edit-area" data-area-id="${esc(areaId)}"><i class="ph ph-pencil-simple"></i>${tr('Edit area')}</button>${pinAction}${archiveAction}<div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="delete-area" data-area-id="${esc(areaId)}" style="color:var(--danger)"><i class="ph ph-trash"></i>${tr('Delete area')}</button>`;
     openPopover(anchor, html, { type: 'area-menu', areaId });
@@ -122,7 +141,7 @@
   }
 
   function handleAction(action, event, ctx) {
-    const element = event?.target.closest('[data-action], [data-pop-action], [data-tab]');
+    const element = event?.target.closest('[data-action], [data-pop-action]');
     if (!element) return false;
     const areaId = element.dataset.areaId;
     if (action === 'new-area') openAreaModal(ctx);
@@ -134,10 +153,11 @@
     else if (action === 'select-area-color' && ctx.modalState?.type === 'area') { ctx.modalState.draft.color = element.dataset.color; ctx.renderModal(); }
     else if (action === 'select-area-icon' && ctx.modalState?.type === 'area') { ctx.modalState.draft.icon = element.dataset.icon; ctx.renderModal(); }
     else if (action === 'save-area' && ctx.modalState?.type === 'area') saveAreaModal(ctx);
-    else if (action === 'area-tab') { ctx.state.ui.areaTab = element.dataset.tab; ctx.saveAndRender(); }
+    else if (action === 'areas-fold') { ctx.state.ui.areasArchivedOpen = !ctx.state.ui.areasArchivedOpen; ctx.saveAndRender(); }
+    else if (action === 'area-all-tasks') { tasksOpenFor = tasksOpenFor === areaId ? null : areaId; ctx.render(); }
     else if (action === 'edit-area' && element.dataset.popAction) { ctx.closePopover(); openAreaModal(ctx, areaId); }
     else if (action === 'archive-area' && element.dataset.popAction) archiveArea(ctx, areaId);
-    else if (action === 'restore-area' && element.dataset.popAction) restoreArea(ctx, areaId);
+    else if (action === 'restore-area') restoreArea(ctx, areaId);
     else if ((action === 'pin-area' || action === 'unpin-area') && element.dataset.popAction) toggleAreaPin(ctx, areaId);
     else if (action === 'delete-area' && element.dataset.popAction) { ctx.closePopover(); ctx.requestDeleteEntity('area', areaId); }
     else return false;
