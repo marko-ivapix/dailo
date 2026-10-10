@@ -2541,6 +2541,29 @@ a.btn { text-decoration: none; }
 .habits-fold-row { grid-template-columns: minmax(0, 1fr) auto; }
 .habits-fold-row .task-title { color: var(--ink-2); }
 
+/* Redesign R8b — the new habit window and its sheets (N1–N6). */
+.habit-window .quick-title-input { margin-bottom: 2px; }
+.habit-window-card { display: grid; margin-top: 10px; padding: 2px 4px; border: 1px solid var(--line-1); border-radius: var(--radius-md); background: var(--graphite-850); }
+.habit-window-card > * + * { border-top: 1px solid var(--line-1); }
+.habit-window-block { display: grid; gap: 8px; padding: 10px 8px; }
+.habit-window-label { display: inline-flex; align-items: center; gap: 10px; color: var(--ink-2); font-size: 14px; }
+.habit-window-label i { color: var(--ink-3); font-size: 18px; }
+.habit-window-seg { display: flex; width: 100%; margin: 0; }
+.habit-window-seg .btn { flex: 1; }
+.habit-window-target { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--ink-2); font-size: 14px; }
+.habit-window-target .input { width: 84px; }
+.habit-window-more { width: 100%; display: flex; align-items: center; justify-content: space-between; margin-top: 10px; padding: 12px 14px; border: 1px solid var(--line-1); border-radius: var(--radius-md); background: var(--graphite-850); color: var(--ink-1); font: inherit; cursor: pointer; }
+.habit-window-more span { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-3); font-size: 13px; }
+.habit-window-save { width: 100%; min-height: 48px; }
+.habit-weekdays { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; margin: 4px 0 8px; }
+.habit-weekday { min-height: 40px; border: 1px solid var(--line-2); border-radius: var(--radius-md); background: none; color: var(--ink-2); font: inherit; font-size: 13px; cursor: pointer; }
+.habit-weekday.is-on { border-color: var(--line-3); background: var(--graphite-750); color: var(--ink-1); font-weight: 600; }
+.habit-stepper-field { justify-content: space-between; }
+.habit-stepper { display: inline-flex; align-items: center; gap: 8px; }
+.habit-stepper-value { min-width: 24px; color: var(--ink-1); font-weight: 600; text-align: center; font-variant-numeric: tabular-nums; }
+.habit-reminder-time .input { flex: 1; }
+.habit-reminder-add { margin: 2px 0 4px; }
+
 /* Keep primary compact actions touchable after all density rules. */
 @media (max-width: 700px), (pointer: coarse) {
   .task-actions .btn-icon,

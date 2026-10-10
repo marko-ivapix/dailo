@@ -274,8 +274,9 @@ test('the R8a layer and the Serbian labels', () => {
   assert.match(sr, /"streak \{count\} days": \{ one: "niz \{count\} dan", few: "niz \{count\} dana", other: "niz \{count\} dana" \}/);
 });
 
-test('R8a is released as 2.0.0-alpha.13', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.13');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.13';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.13');
+test('R8a shipped as 2.0.0-alpha.13 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 99) >= 13);
+  assert.match(read('sw.js'), new RegExp(`const VERSION = '${Release.APP_VERSION.replace(/\./g, '\\.')}';`));
+  assert.equal(JSON.parse(read('package.json')).version, Release.APP_VERSION);
 });

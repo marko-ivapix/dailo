@@ -600,6 +600,8 @@
       openGoalHistory,
       nowIso, uid, copyTemplate, saveState, navigate, setToastMessage, requestDeleteEntity, openConfirm, setUndo,
       calendarDate, parseLocalDate, formatDate, navigateCalendar, openPlanPicker, listTasks, deadlineRow,
+      refreshSheet,
+      openHabitStartSheet(anchor) { openDateSheet(anchor, { type: 'habit' }, 'start'); },
       calendarTaskRow(task) { return taskRow(task, 'calendar', { today: true }); },
       templateTypes: TEMPLATE_TYPES, templateLabel, openTemplateEditorFromSource, saveTemplateRecord, duplicateTemplateRecord,
       captureModalReturnFocus,
@@ -2152,31 +2154,35 @@
     return `${html}</div></div>`;
   }
   function openDateSheet(anchor, target, kind) {
-    const source = target.type === 'quick' ? modalState?.draft : getTask(target.taskId);
+    // R8b: a habit's "Početak" (target.type === 'habit', kind 'start') uses the same sheet on the habit window's draft.
+    const source = target.type === 'quick' || target.type === 'habit' ? modalState?.draft : getTask(target.taskId);
     if (!source) return;
     // In Quick Add the sheet starts from the effective plan: the parsed date until one is picked.
     const plan = target.type === 'quick' && !source.explicitPlan ? (source.parsedPlanDate || source.plannedDate) : source.plannedDate;
-    const date = (kind === 'plan' ? plan : source.dueDate) || null;
+    const date = (kind === 'plan' ? plan : kind === 'start' ? source.startDate : source.dueDate) || null;
     const base = parseLocalDate(date || Core.dateOnly());
-    const sheet = { target, kind, date, time: (kind === 'plan' ? source.plannedTime : source.dueTime) || null, view: { y: base.getFullYear(), m: base.getMonth() } };
+    const sheet = { target, kind, date, time: kind === 'start' ? null : (kind === 'plan' ? source.plannedTime : source.dueTime) || null, view: { y: base.getFullYear(), m: base.getMonth() } };
     dateSheet = sheet;
     openPopover(anchor, dateSheetHtml(), { type: 'date-sheet', target });
     dateSheet = sheet; // openPopover closes the previous sheet first, which clears the sheet state
   }
   function dateSheetHtml() {
     const { target, kind, date, time, view } = dateSheet;
-    const source = target.type === 'quick' ? modalState?.draft : getTask(target.taskId);
+    const source = target.type === 'quick' || target.type === 'habit' ? modalState?.draft : getTask(target.taskId);
     const today = Core.dateOnly();
     const quick = [[tr('Today'), today], [tr('Tomorrow'), Core.addDays(today, 1)], [tr('Start of next week'), nextMonday(today)]];
+    const chips = `<div class="sheet-chips">${quick.map(([label, value]) => `<button class="quick-chip${date === value ? ' is-selected' : ''}" type="button" data-pop-action="date-sheet-pick" data-date="${value}" aria-pressed="${date === value}">${esc(label)}</button>`).join('')}</div>`;
+    if (kind === 'start') return `<div class="popover-title">${tr('Start')}</div><p class="sheet-subtitle">${esc(source?.name?.trim() || tr('New habit'))}</p>${chips}${monthGrid(date, view, today)}<div class="sheet-footer"><span></span><button class="btn btn-primary" type="button" data-pop-action="date-sheet-apply">${tr('Apply')}</button></div>`;
     const otherDate = kind === 'plan' ? source?.dueDate : source?.plannedDate;
     const otherTime = kind === 'plan' ? source?.dueTime : source?.plannedTime;
     const other = otherDate ? `${relativeDateLabel(otherDate)}${otherTime ? ` · ${otherTime}` : ''}` : '';
     const note = kind === 'plan' ? (other ? tr('The due date stays: {date}', { date: other }) : tr('No due date is set.')) : (other ? tr('The planned date stays: {date}', { date: other }) : tr('No planned date is set.'));
-    return `<div class="popover-title">${kind === 'plan' ? tr('Planned') : tr('Due date')}</div>${source?.title ? `<p class="sheet-subtitle">${esc(source.title)}</p>` : ''}<div class="sheet-chips">${quick.map(([label, value]) => `<button class="quick-chip${date === value ? ' is-selected' : ''}" type="button" data-pop-action="date-sheet-pick" data-date="${value}" aria-pressed="${date === value}">${esc(label)}</button>`).join('')}</div>${monthGrid(date, view, today)}<label class="sheet-field"><i class="ph ph-clock" aria-hidden="true"></i><span>${tr('Time')}</span><input id="date-sheet-time" class="input" type="time" value="${esc(time || '')}"></label><p class="sheet-note">${esc(note)}</p><div class="sheet-footer"><button class="btn btn-ghost" type="button" data-pop-action="date-sheet-clear">${tr('Remove date')}</button><button class="btn btn-primary" type="button" data-pop-action="date-sheet-apply">${tr('Apply')}</button></div>`;
+    return `<div class="popover-title">${kind === 'plan' ? tr('Planned') : tr('Due date')}</div>${source?.title ? `<p class="sheet-subtitle">${esc(source.title)}</p>` : ''}${chips}${monthGrid(date, view, today)}<label class="sheet-field"><i class="ph ph-clock" aria-hidden="true"></i><span>${tr('Time')}</span><input id="date-sheet-time" class="input" type="time" value="${esc(time || '')}"></label><p class="sheet-note">${esc(note)}</p><div class="sheet-footer"><button class="btn btn-ghost" type="button" data-pop-action="date-sheet-clear">${tr('Remove date')}</button><button class="btn btn-primary" type="button" data-pop-action="date-sheet-apply">${tr('Apply')}</button></div>`;
   }
   function applyDateSheet(clear) {
     if (!dateSheet) return;
     const { target, kind } = dateSheet;
+    if (target.type === 'habit') { modalState.draft.startDate = dateSheet.date || Core.dateOnly(); closePopover(); renderModal(); return; }
     const date = clear ? null : dateSheet.date;
     const time = date ? Core.normalizeTime($('#date-sheet-time', popoverEl)?.value ?? dateSheet.time) : null;
     if (target.type === 'quick') {
