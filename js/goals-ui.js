@@ -7,11 +7,7 @@
   // UI only: live app state and persistence/overlay helpers arrive per invocation.
   const HORIZONS = Object.freeze({ short: msg('Short-term'), mid: msg('Mid-term'), long: msg('Long-term') });
   const HABIT_METRICS = Object.freeze({ totalCheckins: msg('Check-ins'), streak: msg('Streak'), successfulPeriods: msg('Periods') });
-  const HORIZON_DETAILS = Object.freeze({
-    short: { icon: 'ph-flag', copy: msg('Near-term outcomes to move forward now.'), empty: msg('No short-term goals here.') },
-    mid: { icon: 'ph-path', copy: msg('Outcomes taking shape over the coming months.'), empty: msg('No mid-term goals here.') },
-    long: { icon: 'ph-mountains', copy: msg('Long-range direction and durable ambitions.'), empty: msg('No long-term goals here.') }
-  });
+
 
   function normalizeHorizon(value) {
     return Object.hasOwn(HORIZONS, value) ? value : 'short';
@@ -19,13 +15,6 @@
 
   function horizonOptions(value) {
     return Object.entries(HORIZONS).map(([key, label]) => `<option value="${key}" ${normalizeHorizon(value) === key ? 'selected' : ''}>${tr(label)}</option>`).join('');
-  }
-
-  function renderGoalSection(ctx, label, goals, emptyCopy, group = {}) {
-    const icon = group.icon ? `<i class="ph ${group.icon}" aria-hidden="true"></i>` : '';
-    const copy = group.copy ? `<p>${ctx.esc(group.copy)}</p>` : '';
-    const groupClass = group.className ? ` ${group.className}` : '';
-    return `<section class="section goal-group${groupClass}"><div class="section-header goal-group-header"><div class="goal-group-heading">${icon}<div><h2 class="section-label">${ctx.esc(label)}</h2>${copy}</div></div><span class="section-count">${goals.length}</span></div>${goals.length ? `<div class="goal-list">${goals.map(goal => renderGoalRow(ctx, goal)).join('')}</div>` : `<p class="area-empty-copy">${ctx.esc(emptyCopy)}</p>`}</section>`;
   }
 
   function renderGoalRow(ctx, goal) {
@@ -36,52 +25,77 @@
     return `<article class="goal-row ${overdue ? 'is-overdue' : ''}" data-goal-id="${esc(goal.id)}"><button class="goal-open" type="button" data-route="goal/${esc(goal.id)}"><span class="goal-row-top"><strong>${esc(goal.title)}</strong><small class="goal-status goal-status--${esc(goal.status)} ${overdue ? 'is-overdue' : ''}">${esc(goalStatusLabel(goal))}</small></span><span class="goal-progress"><span style="width:${Math.max(0, Math.min(100, progress.percent))}%"></span></span><span class="goal-row-meta"><small class="goal-progress-label">${esc(goalProgressLabel(goal))}</small>${target}</span></button><button class="btn-icon" type="button" data-action="goal-menu" data-goal-id="${esc(goal.id)}" aria-label="${tr('Goal actions')}"><i class="ph ph-dots-three"></i></button></article>`;
   }
 
-  function renderGoalDashboard(ctx, goals) {
-    const { Core, esc, goalProgressLabel } = ctx;
-    const active = goals.filter(goal => goal.status === 'active'); const today = Core.dateOnly();
-    const avg = active.length ? Math.round(active.reduce((sum, goal) => sum + Core.computeGoalProgress(goal, ctx.state, ctx.state.habitMetrics || {}).percent, 0) / active.length) : 0;
-    const dueSoon = active.filter(goal => goal.targetDate && goal.targetDate >= today && goal.targetDate <= Core.addDays(today, 7)).length;
-    const overdue = active.filter(goal => Core.isGoalOverdue(goal, today)).length;
-    const milestoneTotal = active.reduce((sum, goal) => sum + (goal.milestones || []).length, 0);
-    const milestoneDone = active.reduce((sum, goal) => sum + (goal.milestones || []).filter(milestone => milestone.isCompleted).length, 0);
-    const horizonBars = Object.entries(HORIZONS).map(([key, label]) => {
-      const count = active.filter(goal => normalizeHorizon(goal.horizon) === key).length;
-      const width = active.length ? Math.round((count / active.length) * 100) : 0;
-      return `<div class="goal-dashboard-bar"><span>${esc(tr(label))}</span><div><i style="--goal-bar-width:${width}%"></i></div><strong>${count}</strong></div>`;
-    }).join('');
-    const spotlight = active.slice(0, 4).map(goal => {
-      const progress = Core.computeGoalProgress(goal, ctx.state, ctx.state.habitMetrics || {});
-      const milestoneDone = (goal.milestones || []).filter(milestone => milestone.isCompleted).length;
-      return `<button class="goal-dashboard-spotlight" type="button" data-route="goal/${esc(goal.id)}"><span><strong>${esc(goal.title)}</strong><small>${esc(goalProgressLabel(goal))} · ${tr('{done}/{total} milestones', { done: milestoneDone, total: (goal.milestones || []).length })}</small></span><b>${Math.round(progress.percent)}%</b><i><span style="width:${Math.max(0, Math.min(100, progress.percent))}%"></span></i></button>`;
-    }).join('');
-    return `<section class="goal-dashboard"><div class="goal-dashboard-head"><div><h2>${tr('Goal pulse')}</h2><p>${tr('A quick view of what is moving and what needs attention.')}</p></div><div class="goal-dashboard-summary"><span>${trn(active.length, '{count} active', '{count} active', { count: `<strong>${active.length}</strong>` })}</span><span>${tr('{value} average', { value: `<strong>${avg}%</strong>` })}</span><span class="${overdue ? 'is-danger' : ''}">${trn(overdue, '{count} overdue', '{count} overdue', { count: `<strong>${overdue}</strong>` })}</span><span>${tr('{count} next 7 days', { count: `<strong>${dueSoon}</strong>` })}</span><span>${tr('{value} milestones', { value: `<strong>${milestoneDone}/${milestoneTotal}</strong>` })}</span></div></div><div class="goal-dashboard-body"><div class="goal-dashboard-spotlights">${spotlight || `<p class="area-empty-copy">${tr('No active goals to highlight.')}</p>`}</div><aside class="goal-dashboard-analysis"><h3>${tr('Horizons')}</h3><div class="goal-dashboard-bars">${horizonBars}</div><p>${active.length ? tr('Active goals are grouped by short, mid and long-term direction.') : tr('Paused goals are grouped by short, mid and long-term direction.')}</p></aside></div></section>`;
+  // Redesign R9a (GO1–GO4): the Goals list. Health follows the shown percentage: complete at 100%, overdue once the
+  // target date has passed, at risk within seven days below 75%.
+  const HORIZON_ICONS = Object.freeze({ short: 'ph-flag', mid: 'ph-path', long: 'ph-mountains' });
+  const plainNumber = value => Number(value || 0).toLocaleString(I18n.locale(), { maximumFractionDigits: 2 });
+  function goalPercent(ctx, goal) {
+    return Math.round(Math.max(0, Math.min(100, ctx.Core.computeGoalProgress(goal, ctx.state, ctx.state.habitMetrics || {}).percent)));
+  }
+  function goalTone(ctx, goal, percent) {
+    const today = ctx.Core.dateOnly();
+    if (goal.status === 'completed' || percent >= 100) return 'complete';
+    if (goal.status === 'active' && goal.targetDate && goal.targetDate < today) return 'overdue';
+    if (goal.status === 'active' && goal.targetDate && goal.targetDate <= ctx.Core.addDays(today, 7) && percent < 75) return 'risk';
+    return 'ok';
+  }
+  function goalMeta(ctx, goal) {
+    const progress = ctx.Core.computeGoalProgress(goal, ctx.state, ctx.state.habitMetrics || {});
+    if (goal.progressMode === 'linkedTasks') return tr('{current} of {target} tasks', { current: progress.current, target: progress.target });
+    if (goal.progressMode === 'linkedHabits') return trn((goal.habitLinks || []).filter(link => link?.habitId).length, '{count} habit', '{count} habits');
+    if (goal.progressType === 'numeric') return `${tr('{current} of {target}', { current: plainNumber(progress.current), target: plainNumber(progress.target) })}${goal.unit ? ` ${goal.unit}` : ''}`;
+    return tr('Manual');
+  }
+  function renderGoalListRow(ctx, goal) {
+    const { esc } = ctx;
+    const percent = goalPercent(ctx, goal);
+    const tone = goalTone(ctx, goal, percent);
+    const date = goal.targetDate ? ctx.formatDate(goal.targetDate) : '';
+    const side = !goal.targetDate ? `<span class="goal-list-date">${tr('No date')}</span>`
+      : tone === 'overdue' ? `<span class="goal-list-date is-overdue">${esc(tr('Overdue · {date}', { date }))}</span>`
+      : tone === 'risk' ? `<span class="goal-list-date is-risk">${esc(tr('At risk · {date}', { date }))}</span>`
+      : `<span class="goal-list-date">${esc(date)}</span>`;
+    return `<button class="goal-list-row" type="button" data-route="goal/${esc(goal.id)}"><span class="goal-list-top"><span class="task-title">${esc(goal.title)}</span><span class="goal-list-percent">${percent}%</span></span><span class="goal-list-bar is-${tone}" aria-hidden="true"><i style="width:${percent}%"></i></span><span class="goal-list-meta"><span>${esc(goalMeta(ctx, goal))}</span>${side}</span></button>`;
+  }
+  function goalFold(ctx, key, label, goals, action, actionLabel, meta) {
+    if (!goals.length) return '';
+    const { esc, state } = ctx;
+    const open = state.ui[{ done: 'goalsDoneOpen', paused: 'goalsPausedOpen', archived: 'goalsArchivedOpen' }[key]] === true;
+    const rows = open ? `<div class="today-card">${goals.map(goal => `<div class="today-row goals-fold-row"><button class="today-row-main" type="button" data-route="goal/${esc(goal.id)}"><span class="task-title">${esc(goal.title)}</span><span class="task-meta">${esc(meta(goal))}</span></button>${action ? `<button class="quick-chip" type="button" data-action="${action}" data-goal-id="${esc(goal.id)}">${actionLabel}</button>` : ''}</div>`).join('')}</div>` : '';
+    return `<section class="goals-fold"><button class="collapsible-trigger" type="button" data-action="goals-fold" data-fold="${key}" aria-expanded="${open}"><span class="left"><i class="ph ph-caret-${open ? 'up' : 'down'}" aria-hidden="true"></i> ${label} · ${goals.length}</span></button>${rows}</section>`;
   }
 
   function renderGoals(ctx) {
-    const { state, Core, pageHeader, emptyState } = ctx;
-    const tab = ['active', 'all', 'archived', 'month'].includes(state.ui.goalTab) ? state.ui.goalTab : 'active';
-    const goals = [...(state.goals || [])].filter(goal => tab === 'month' ? goal.status === 'active' : tab === 'all' || (tab === 'archived' ? goal.status === 'archived' : goal.status !== 'archived')).sort((a, b) => String(a.targetDate || '9999-12-31').localeCompare(String(b.targetDate || '9999-12-31')) || a.title.localeCompare(b.title));
-    const subtitle = tab === 'month' ? trn(goals.length, '{count} active goal', '{count} active goals') : tab === 'archived' ? trn(goals.length, '{count} archived goal', '{count} archived goals') : trn(goals.length, '{count} visible goal', '{count} visible goals');
-    let html = pageHeader(tr('Goals'), subtitle, { add: false, actionHtml: `<button class="btn btn-primary" type="button" data-action="new-goal"><i class="ph ph-plus"></i> ${tr('New goal')}</button>` });
-    html += `<div class="area-tabs">${[['active', msg('Active')], ['all', msg('All')], ['archived', msg('Archived')], ['month', msg('By month')]].map(([key, label]) => `<button type="button" data-goal-tab="${key}" class="${tab === key ? 'is-active' : ''}">${tr(label)}</button>`).join('')}</div>`;
-    if (tab === 'month') {
-      const months = new Map();
-      const undated = [];
-      for (const goal of goals) {
-        if (!goal.targetDate) { undated.push(goal); continue; }
-        const month = goal.targetDate.slice(0, 7);
-        if (!months.has(month)) months.set(month, []);
-        months.get(month).push(goal);
-      }
-      for (const [month, items] of months) {
-        const label = Core.parseDateOnly(month + '-01').toLocaleDateString(I18n.locale(), { month: 'long', year: 'numeric' });
-        html += renderGoalSection(ctx, label, items, tr('No active goals in this month.'), { icon: 'ph-calendar-blank', copy: tr('Goals with target dates in this month.'), className: 'goal-group--month' });
-      }
-      return html + renderGoalSection(ctx, tr('Undated'), undated, tr('No undated active goals.'), { icon: 'ph-calendar-x', copy: tr('Active goals without a target date.'), className: 'goal-group--undated' });
-    }
+    const { state, Core, esc, pageHeader, emptyState } = ctx;
+    const goals = [...(state.goals || [])];
+    let html = pageHeader(tr('Goals'), '', { add: false });
     if (!goals.length) return html + emptyState(tr('No goals here yet.'), tr('Create a goal to track a meaningful outcome.'), tr('New goal'), 'new-goal');
-    if (tab === 'active') html += renderGoalDashboard(ctx, goals);
-    return html + Object.entries(HORIZONS).map(([horizon, label]) => renderGoalSection(ctx, tr(label), goals.filter(goal => normalizeHorizon(goal.horizon) === horizon), tr(HORIZON_DETAILS[horizon].empty), { ...HORIZON_DETAILS[horizon], copy: tr(HORIZON_DETAILS[horizon].copy), className: `goal-group--${horizon}` })).join('');
+    const byDate = (a, b) => String(a.targetDate || '9999-12-31').localeCompare(String(b.targetDate || '9999-12-31')) || String(a.title).localeCompare(String(b.title));
+    const active = goals.filter(goal => goal.status === 'active').sort(byDate);
+    const tones = active.map(goal => goalTone(ctx, goal, goalPercent(ctx, goal)));
+    const risk = tones.filter(tone => tone === 'risk').length;
+    const late = tones.filter(tone => tone === 'overdue').length;
+    html += `<p class="goals-summary">${esc(trn(active.length, '{count} active', '{count} active'))}${risk ? ` · <span class="is-risk">${esc(trn(risk, '{count} at risk', '{count} at risk'))}</span>` : ''}${late ? ` · <span class="is-overdue">${esc(trn(late, '{count} overdue', '{count} overdue'))}</span>` : ''}</p>`;
+    const group = state.ui.goalGroup === 'date' ? 'date' : 'horizon';
+    html += `<div class="view-tabs goals-group-switch" role="group" aria-label="${tr('Group goals')}">${[['horizon', tr('Horizon')], ['date', tr('Due date')]].map(([key, label]) => `<button class="btn${group === key ? ' is-selected' : ''}" type="button" data-action="goals-group" data-view="${key}" aria-pressed="${group === key}">${label}</button>`).join('')}</div>`;
+    let groups;
+    if (group === 'horizon') groups = Object.keys(HORIZONS).map(key => ({ key, icon: HORIZON_ICONS[key], label: tr(HORIZONS[key]), goals: active.filter(goal => normalizeHorizon(goal.horizon) === key) }));
+    else {
+      const months = new Map();
+      for (const goal of active) {
+        const key = goal.targetDate ? goal.targetDate.slice(0, 7) : 'none';
+        if (!months.has(key)) months.set(key, []);
+        months.get(key).push(goal);
+      }
+      const label = key => { const name = new Intl.DateTimeFormat(I18n.locale(), { month: 'long', year: 'numeric' }).format(Core.parseDateOnly(`${key}-01`)); return name.charAt(0).toLocaleUpperCase(I18n.locale()) + name.slice(1); };
+      groups = [...months].sort(([a], [b]) => (a === 'none') - (b === 'none') || a.localeCompare(b)).map(([key, items]) => ({ key, icon: key === 'none' ? 'ph-calendar-x' : 'ph-calendar-blank', label: key === 'none' ? tr('No date') : label(key), goals: items }));
+    }
+    html += groups.filter(item => item.goals.length).map(item => `<section class="section goals-group" data-goal-group="${esc(item.key)}"><div class="section-header"><h2 class="section-label"><i class="ph ${item.icon}" aria-hidden="true"></i> ${esc(item.label)}</h2><span class="section-count">${item.goals.length}</span></div><div class="today-card goals-list">${item.goals.map(goal => renderGoalListRow(ctx, goal)).join('')}</div></section>`).join('');
+    if (!active.length) html += `<p class="today-empty">${tr('No active goals.')}</p>`;
+    html += goalFold(ctx, 'done', tr('Achieved goals'), goals.filter(goal => goal.status === 'completed'), '', '', goal => (goal.completedAt ? tr('Achieved {date}', { date: ctx.formatDate(Core.localDateOf(String(goal.completedAt))) }) : goalMeta(ctx, goal)));
+    html += goalFold(ctx, 'paused', tr('Paused goals'), goals.filter(goal => goal.status === 'paused'), 'resume-goal', tr('Resume'), goal => goalMeta(ctx, goal));
+    html += goalFold(ctx, 'archived', tr('Archived goals'), goals.filter(goal => goal.status === 'archived'), 'restore-goal', tr('Restore'), goal => goalMeta(ctx, goal));
+    return html;
   }
 
   function renderGoal(ctx, goalId) {
@@ -442,14 +456,12 @@
   function handleAction(action, event, ctx) {
     const { $, closeModal, render, renderModal, updateGoalStatus, saveAndRender } = ctx;
     if (action === 'read-goal-draft') { readGoalDraft(ctx); return true; }
-    if (action === 'goal-tab') {
-      ctx.state.ui.goalTab = event.target.closest('[data-goal-tab]').dataset.goalTab;
-      saveAndRender(); return true;
-    }
     if (action === 'goal-property') { openGoalProperty(ctx, event.target.closest('[data-goal-property]')); return true; }
     const el = event?.target.closest('[data-action], [data-pop-action]');
     if (!el) return false;
-    if (action === 'calendar-new-goal') ctx.openGoalModal(null, { targetDate: el.dataset.date });
+    if (action === 'goals-group') { ctx.state.ui.goalGroup = el.dataset.view === 'date' ? 'date' : 'horizon'; saveAndRender(); }
+    else if (action === 'goals-fold') { const key = { done: 'goalsDoneOpen', paused: 'goalsPausedOpen', archived: 'goalsArchivedOpen' }[el.dataset.fold]; if (key) { ctx.state.ui[key] = !ctx.state.ui[key]; saveAndRender(); } }
+    else if (action === 'calendar-new-goal') ctx.openGoalModal(null, { targetDate: el.dataset.date });
     else if (action === 'new-goal') ctx.openGoalModal(null, { inbox: Boolean(event?.target?.closest?.('#mobile-quick-add-menu')) });
     else if (action === 'toggle-goal-more') { readGoalDraft(ctx); ctx.modalState.draft.moreOpen = !ctx.modalState.draft.moreOpen; renderModal(); requestAnimationFrame(() => $('[data-action="toggle-goal-more"]')?.focus()); }
     else if (action === 'draft-goal-links') openGoalLinksModal(ctx);

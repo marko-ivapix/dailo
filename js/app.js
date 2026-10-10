@@ -4601,8 +4601,6 @@
       if (callDomainHook('handleAction', 'area-tab', event) !== undefined) return;
       state.ui.areaTab = areaTab.dataset.tab; saveAndRender(); return;
     }
-    const goalTab = event.target.closest('[data-goal-tab]');
-    if (goalTab && callDomainHook('handleAction', 'goal-tab', event) !== undefined) return;
     const templateTab=event.target.closest('[data-template-type]');
     if(templateTab){if(callDomainHook('handleAction','template-type',event)!==undefined)return;state.ui.templateType=templateTab.dataset.templateType;saveAndRender();return;}
 

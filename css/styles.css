@@ -2586,6 +2586,32 @@ a.btn { text-decoration: none; }
 .habit-details-insight p { margin: 0; }
 .habit-details-status { width: 100%; min-height: 48px; }
 
+/* Redesign R9a — the Goals list (GO1–GO4). */
+.goals-summary { margin: -6px 2px 12px; color: var(--ink-3); font-size: 13px; }
+.goals-summary .is-risk { color: var(--warning); }
+.goals-summary .is-overdue { color: var(--danger); }
+.goals-group-switch { display: flex; width: 100%; }
+.goals-group-switch .btn { flex: 1; }
+.goals-group { margin-top: 16px; }
+.goals-group .section-label i { color: var(--ink-3); }
+.goal-list-row { width: 100%; display: grid; gap: 6px; padding: 10px 10px; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.goals-list > .goal-list-row + .goal-list-row { border-top: 1px solid var(--line-1); }
+.goal-list-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.goal-list-percent { color: var(--ink-1); font-weight: 600; font-variant-numeric: tabular-nums; }
+.goal-list-bar { display: block; height: 4px; overflow: hidden; border-radius: 2px; background: var(--line-1); }
+.goal-list-bar i { display: block; height: 100%; border-radius: 2px; background: var(--success); }
+.goal-list-bar.is-risk i { background: var(--warning); }
+.goal-list-bar.is-overdue i { background: var(--danger); }
+.goal-list-meta { display: flex; justify-content: space-between; gap: 10px; color: var(--ink-3); font-size: 12px; }
+.goal-list-date { white-space: nowrap; }
+.goal-list-date.is-risk { color: var(--warning); }
+.goal-list-date.is-overdue { color: var(--danger); }
+.goal-list-row:focus-visible { outline: none; box-shadow: var(--focus-ring-inset); }
+.goals-fold { margin-top: 14px; }
+.goals-fold .today-card { margin-top: 8px; }
+.goals-fold-row { grid-template-columns: minmax(0, 1fr) auto; }
+.goals-fold-row .task-title { color: var(--ink-2); }
+
 /* Keep primary compact actions touchable after all density rules. */
 @media (max-width: 700px), (pointer: coarse) {
   .task-actions .btn-icon,
