@@ -128,8 +128,7 @@ test('the R13 layer and the Serbian labels', () => {
   }
 });
 
-test('R13 is released as 2.0.0-alpha.34', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.34');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.34';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.34');
+test('R13 shipped as 2.0.0-alpha.34 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 99) >= 34);
 });

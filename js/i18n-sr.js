@@ -1456,9 +1456,6 @@
 
     // V1.11 Weekly review (js/review-ui.js, js/app.js)
     "Weekly review": "Nedeljni pregled",
-    "Time for the weekly review": "Vreme je za nedeljni pregled",
-    "A few minutes to empty the Inbox, catch up on overdue tasks and look at the week ahead.": "Nekoliko minuta da isprazniš Inbox, središ zakasnele zadatke i pogledaš nedelju pred tobom.",
-    "Start review": "Započni pregled",
     "Weekly review completed.": "Nedeljni pregled je završen.",
     "Week of {date}": "Nedelja od {date}",
     "Empty the Inbox": "Isprazni Inbox",

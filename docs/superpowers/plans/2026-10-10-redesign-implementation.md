@@ -34,6 +34,7 @@
 | R11 | **Repeat editor and "Redovne obaveze":** the extended recurrence rule (weekdays, day of month or last day, nth weekday, yearly, end), the shared editor, the "only this / this and future" question only for date and repeat changes, recurring tasks screen | S4, S14, S15, E7 | **recurrence rule** (own spec). Ships as R11a (the rule in Core, backups and templates), R11b (the editor), R11c (the repeat controls and the narrower question), R11d (Redovne obaveze and its groups) and R11e (the "Nova redovna obaveza" window). |
 | R12 | **Journal:** collection, screen, evening notice, reminder time, mood strip, weekly-review row, "+ Zadatak za sutra" | J1–J9 | **journal collection** (own spec). Ships as R12a (the collection and setting in Core, backups and sync), R12b (the Dnevnik screen and the entry window) and R12c (the evening notice and the reminder setting); the weekly-review row (J8) comes with R13. |
 | R13 | **Weekly review:** one screen with the "Poslednjih 7 dana" chart and the journal row | S5, J8 | none |
+| R14 | **The first phone review (2026-10-10):** search button in one header row, no weekly review notice on Today, due date under the title and the checkbox on the right, the "+" menu over a scrim, Inbox chips as pills, the task window opening without the keyboard and a bordered title field | T1, T3, T6, G2 (amended) | none |
 
 ## Test levels
 

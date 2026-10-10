@@ -100,6 +100,9 @@
     else toggle.setAttribute('aria-expanded', String(open));
     toggle.setAttribute('aria-label', direct ? tr(direct[0]) : open ? tr('Close quick add menu') : tr('Open quick add menu'));
     menu.hidden = !open;
+    // R14 (G2): the open menu dims the screen; a tap on the scrim lands outside #mobile-quick-add and only closes it.
+    const scrim = $('#mobile-quick-add-scrim');
+    if (scrim) scrim.hidden = !open;
   }
 
   // Goal panels retain a logical trigger because rendering replaces its node.
@@ -1061,9 +1064,11 @@
   }
 
   // Redesign R2 (T2a): a goal or milestone deadline as a row with the target icon; it opens the goal.
+  // R14 (T3): like a task row, the due label joins the meta line and the icon sits on the right.
   function deadlineRow({ goal, milestone }, today = Core.dateOnly()) {
     const meta = milestone ? tr('Milestone · {goal}', { goal: goal.title }) : tr('Goal · {percent}%', { percent: Math.round(Core.computeGoalProgress(goal, state, state.habitMetrics || {}).percent) });
-    return `<article class="today-row deadline-row" data-goal-id="${esc(goal.id)}"><span class="deadline-icon" aria-hidden="true"><i class="ph ph-target"></i></span><button class="today-row-main" type="button" data-route="goal/${esc(goal.id)}"><span class="task-title">${esc(milestone ? milestone.title : goal.title)}</span><span class="task-meta">${esc(meta)}</span></button><span class="task-side">${todayDueLabel(milestone ? milestone.date : goal.targetDate, today)}</span></article>`;
+    const due = todayDueLabel(milestone ? milestone.date : goal.targetDate, today);
+    return `<article class="today-row deadline-row" data-goal-id="${esc(goal.id)}"><button class="today-row-main" type="button" data-route="goal/${esc(goal.id)}"><span class="task-title">${esc(milestone ? milestone.title : goal.title)}</span><span class="task-meta">${esc(meta)}${due ? ` · ${due}` : ''}</span></button><span class="deadline-icon" aria-hidden="true"><i class="ph ph-target"></i></span></article>`;
   }
 
   // Redesign R2 (T1–T7): the date above "Danas", notices while they apply, then Zakasnelo, Planirano danas,
@@ -1074,7 +1079,7 @@
     let html = pageHeader(tr('Today'), '', { add: false, eyebrow: formatPageToday(today) });
     if (globalThis.DailoPlatform?.isNative) html += transferNotice();
     html += backupReminderNotice();
-    html += weeklyReviewNotice();
+    // R14 (T6 amended): the weekly review prompt left Today; the review stays in Još.
     html += callDomainHook('renderRoute', { type: 'journal-notice' }) || '';
     const section = (key, label, count, body, danger = false) => `<section class="section today-section today-section--${key}" data-today-section="${key}"><div class="section-header"><h2 class="section-label${danger ? ' danger' : ''}">${label}</h2><span class="section-count">${count}</span></div>${body}</section>`;
     const overdueRows = [
@@ -1436,7 +1441,8 @@
     closePopover();
     modalState = { type: 'task', taskId, titleDraft: task.title, notesDraft: task.notes || '', error: '', attachmentRecords: [], attachmentMessage: '' };
     renderModal();
-    requestAnimationFrame(() => $('#detail-title')?.focus());
+    // R14: the window opens without the keyboard; a tap on the title edits it.
+    requestAnimationFrame(() => $('#modal-root [data-action="close-modal"]')?.focus());
     loadTaskAttachments(taskId);
   }
 
@@ -4242,12 +4248,6 @@
   }
   function dismissTransferNotice() {
     try { localStorage.setItem('dailoTransferDismissed', nowIso()); } catch (_) { /* shown again next time */ }
-  }
-
-  // Weekly review prompt (V1.11): on the last three days of the week until the review is recorded.
-  function weeklyReviewNotice() {
-    if (!Core.weeklyReviewDue(state.settings, Core.dateOnly(), state.settings.weekStartsOn)) return '';
-    return `<section class="weekly-review-notice" data-weekly-review-notice role="status" aria-label="${tr('Weekly review')}"><i class="ph ph-clipboard-text weekly-review-notice-icon" aria-hidden="true"></i><div class="backup-reminder-copy"><strong>${tr('Time for the weekly review')}</strong><span>${tr('A few minutes to empty the Inbox, catch up on overdue tasks and look at the week ahead.')}</span></div><button class="btn btn-primary" type="button" data-route="review">${tr('Start review')}</button></section>`;
   }
 
   function completeWeeklyReview() {

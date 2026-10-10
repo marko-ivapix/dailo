@@ -86,7 +86,7 @@ Spec: `docs/superpowers/specs/2026-10-08-todo-v1-12-design.md`. Plan: `docs/supe
 
 Version `1.11.0`. Once a week, one guided page walks through everything that drifts and ends with a recorded "review done".
 
-- **Where.** "Nedeljni pregled" in the sidebar PROGRESS group and in the phone "Još" menu (route `#review`). On the last three days of the week (Friday–Sunday for Monday weeks), Today shows a quiet notice "Vreme je za nedeljni pregled" with "Započni pregled" until this week's review is done. It is never a modal.
+- **Where.** "Nedeljni pregled" in the sidebar PROGRESS group and in the phone "Još" menu (route `#review`). On the last three days of the week (Friday–Sunday for Monday weeks), Today shows a quiet notice "Vreme je za nedeljni pregled" with "Započni pregled" until this week's review is done. It is never a modal. (Since `2.0.0-alpha.35`, R14, the notice no longer appears on Today; the review is in "Još".)
 - **Six steps**, each with the existing row actions or links and a one-line note when there is nothing to do:
   1. "Isprazni Inbox": Inbox tasks with the Inbox quick actions;
   2. "Kasni i propušteno": overdue tasks, then missed plans, with the overdue quick actions;

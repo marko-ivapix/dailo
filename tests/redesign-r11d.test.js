@@ -203,8 +203,9 @@ test('M4, S4: the Još row, and groups stay out of Zadaci → Projekti and Arhiv
   assert.match(read('js/projects-ui.js'), /isArchived && !project\.isCleaningRoom/);
   assert.match(app, /renderChoreRow\(task, options = \{\}\) \{ return taskRow\(task, 'cleaning', \{ today: true, metaText: options\.metaText, sideHtml: options\.sideHtml \}\); \}/);
   const tasksUi = read('js/tasks-ui.js');
-  assert.match(tasksUi, /const meta = options\.metaText \?\? \[task\.plannedTime, place\]\.filter\(Boolean\)\.join\(' · '\);/);
-  assert.match(tasksUi, /<span class="task-side">\$\{options\.sideHtml \?\? `\$\{flag\}\$\{due\}`\}<\/span>/);
+  // R14 (T3): the flag and due label moved into the meta line; the side span holds only the passed side text.
+  assert.match(tasksUi, /const meta = options\.metaText != null \? esc\(options\.metaText\) : flag \+ \[due, \.\.\.\[task\.plannedTime, place\]\.filter\(Boolean\)\.map\(esc\)\]\.filter\(Boolean\)\.join\(' · '\);/);
+  assert.match(tasksUi, /\$\{options\.sideHtml \? `<span class="task-side">\$\{options\.sideHtml\}<\/span>` : ''\}/);
 });
 
 test('the R11d layer and the Serbian labels', () => {

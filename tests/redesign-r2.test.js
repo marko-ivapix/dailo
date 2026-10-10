@@ -73,23 +73,24 @@ test('G6: due labels are red when late, amber today, gray later', () => {
   assert.match(sr, /"Due tomorrow": "Rok sutra"/);
 });
 
-test('T3: a Today task row has the checkbox, title, time · place and the flag and due label on the right', () => {
+// R14 (T3 amended 2026-10-10): the flag and due label moved under the title and the checkbox to the far right;
+// tests/redesign-r14.test.js pins the order.
+test('T3: a Today task row has the checkbox, title and a meta line with flag, due label, time and place', () => {
   const module = moduleFor('js/tasks-ui.js');
   const ctx = { Core, esc: String, getProject: id => (id === 'p' ? { id: 'p', name: 'Posao', color: '#123456' } : null), getArea: id => (id === 'a' ? { id: 'a', name: 'Kuća' } : null), todayDueLabel: date => (date ? `<due ${date}>` : ''), state: { settings: { focusTaskIds: [] } } };
   const high = module.renderTaskRow({ id: 't1', title: 'Report', projectId: 'p', plannedTime: '09:30', priority: 'high', dueDate: TODAY, tagIds: [] }, 'today', { today: true, draggable: true }, ctx);
   assert.match(high, /class="task-row task-row--today "/);
   assert.match(high, /data-inline-today-complete/);
-  assert.match(high, /<div class="task-meta">09:30 · Posao<\/div>/);
-  assert.match(high, /<span class="task-side"><i class="ph ph-flag task-flag task-flag--high" role="img" aria-label="High priority"><\/i><due [^>]+><\/span>/);
+  assert.match(high, /<div class="task-meta"><i class="ph ph-flag task-flag task-flag--high" role="img" aria-label="High priority"><\/i><due [^>]+> · 09:30 · Posao<\/div>/);
   assert.match(high, /draggable="true"/);
   assert.match(high, /data-action="task-menu"/, 'the menu stays until R3');
   assert.doesNotMatch(high, /toggle-focus-task|task-plan-picker/);
   const area = module.renderTaskRow({ id: 't2', title: 'Clean', areaId: 'a', priority: 'low', tagIds: [] }, 'today', { today: true }, ctx);
   assert.match(area, /<div class="task-meta">Kuća<\/div>/);
-  assert.match(area, /<span class="task-side"><\/span>/, 'no flag for low priority');
+  assert.doesNotMatch(area, /task-flag|task-side/, 'no flag for low priority');
   const medium = module.renderTaskRow({ id: 't3', title: 'Call', priority: 'medium', tagIds: [] }, 'today', { today: true }, ctx);
   assert.match(medium, /task-flag--medium" role="img" aria-label="Medium priority"/);
-  assert.doesNotMatch(medium, /task-meta/);
+  assert.match(medium, /<div class="task-meta"><i class="ph ph-flag task-flag task-flag--medium"[^>]*><\/i><\/div>/);
   const done = module.renderTaskRow({ id: 't4', title: 'Done', isCompleted: true, dueDate: day(-1), tagIds: [] }, 'completed', { today: true }, ctx);
   assert.match(done, /task-row--today is-completed/);
   assert.doesNotMatch(done, /<due /, 'no due label once done');
@@ -102,12 +103,14 @@ test('T2a: goals and milestones are rows with a target icon that open the goal',
   const ctx = todayContext(state, { Core: { ...Core, computeGoalProgress: () => ({ percent: 44.6 }) } });
   const goal = { id: 'g1', title: 'Marathon', targetDate: day(-1) };
   const goalRow = ctx.deadlineRow({ goal }, TODAY);
-  assert.match(goalRow, /^<article class="today-row deadline-row" data-goal-id="g1"><span class="deadline-icon" aria-hidden="true"><i class="ph ph-target"><\/i><\/span>/);
-  assert.match(goalRow, /<button class="today-row-main" type="button" data-route="goal\/g1"><span class="task-title">Marathon<\/span><span class="task-meta">Goal · 45%<\/span><\/button>/);
+  // R14: the target icon moved to the right and the due label into the meta line.
+  assert.match(goalRow, /^<article class="today-row deadline-row" data-goal-id="g1"><button class="today-row-main"/);
+  assert.match(goalRow, /<span class="deadline-icon" aria-hidden="true"><i class="ph ph-target"><\/i><\/span><\/article>$/);
+  assert.match(goalRow, /<button class="today-row-main" type="button" data-route="goal\/g1"><span class="task-title">Marathon<\/span><span class="task-meta">Goal · 45% · <span class="task-due is-overdue">/);
   assert.match(goalRow, /task-due is-overdue/);
   assert.doesNotMatch(goalRow, /task-row|complete-control/, 'not a task: no swipe, no checkbox');
   const milestoneRow = ctx.deadlineRow({ goal, milestone: { id: 'm1', title: '10 km', date: TODAY } }, TODAY);
-  assert.match(milestoneRow, /<span class="task-title">10 km<\/span><span class="task-meta">Milestone · Marathon<\/span>/);
+  assert.match(milestoneRow, /<span class="task-title">10 km<\/span><span class="task-meta">Milestone · Marathon · <span class="task-due is-today">/);
   assert.match(milestoneRow, /task-due is-today/);
   assert.match(sr, /"Goal · \{percent\}%": "Cilj · \{percent\}%"/);
   assert.match(sr, /"Milestone · \{goal\}": "Etapa · \{goal\}"/);
@@ -119,7 +122,7 @@ function renderTodayWith(stateExtra = {}, stubs = {}) {
   state.habitLogCache = stubs.logs || {};
   const ctx = todayContext(state, {
     pageHeader: (title, subtitle, options) => `<header title="${title}" eyebrow="${options.eyebrow}" add="${options.add}"></header>`,
-    transferNotice: () => '<transfer>', backupReminderNotice: () => '<backup>', weeklyReviewNotice: () => '<review>', callDomainHook: () => '', // R12c: the journal notice comes from journal-ui.js
+    transferNotice: () => '<transfer>', backupReminderNotice: () => '<backup>', callDomainHook: () => '<journal>', // R12c: the journal notice comes from journal-ui.js; R14: no weekly-review notice
     taskRow: (task, context, options) => `<task ${task.id} ${context}${options.today ? ' today' : ''}${options.draggable ? ' drag' : ''}>`,
     renderHabitTodayRow: (habit, status) => `<habit ${habit.id} ${status.status}>`,
     globalThis: { DailoPlatform: stubs.native ? { isNative: true } : undefined },
@@ -141,7 +144,7 @@ test('T1, T6: the header, the notices and the sections in order with their count
     { id: 'h2', name: 'Walk', status: 'active', frequencyType: 'daily', startDate: day(-10) },
   ];
   const html = renderTodayWith({ tasks, goals, habits }, { native: true, logs: { h1: [{ habitId: 'h1', date: TODAY, status: 'done' }] } });
-  assert.match(html, new RegExp(`^<header title="Today" eyebrow="LONG\\(${TODAY}\\)" add="false"></header><transfer><backup><review>`));
+  assert.match(html, new RegExp(`^<header title="Today" eyebrow="LONG\\(${TODAY}\\)" add="false"></header><transfer><backup><journal>`));
   const order = [...html.matchAll(/data-today-section="([^"]+)"/g)].map(match => match[1]);
   assert.deepEqual(order, ['overdue', 'today', 'habits', 'completed']);
   assert.match(html, /<h2 class="section-label danger">Past due<\/h2><span class="section-count">2<\/span>/);

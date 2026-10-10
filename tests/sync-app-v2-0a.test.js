@@ -90,12 +90,12 @@ test('Settings shows the sync card only when sync is configured: e-mail, then co
   assert.match(renderSettings(view({ signedIn: true, email: 'ana@example.com' })), /<span data-sync-status>Never<\/span>/);
 });
 
-// Runs the app's sync block (from its marker to the weekly review prompt) against the fake server.
+// Runs the app's sync block (from its marker to completeWeeklyReview; R14 removed the weekly review prompt) against the fake server.
 function syncHarness({ state = baseState(), habitLogs = [], meta = null, fake = createFakeSupabase() } = {}) {
   const app = read('js/app.js');
   const start = app.indexOf('  // Optional sync (V2.0-a).');
-  const end = app.indexOf('  // Weekly review prompt (V1.11)');
-  assert.ok(start > 0 && end > start, 'the sync block sits before the weekly review prompt');
+  const end = app.indexOf('  function completeWeeklyReview(');
+  assert.ok(start > 0 && end > start, 'the sync block sits before completeWeeklyReview');
   const storage = new Map(meta ? [['dailoSync', JSON.stringify(meta)]] : []);
   const logs = new Map(habitLogs.map(log => [log.id, clone(log)]));
   const calls = { saves: 0, renders: 0, snapshots: [], toasts: [], timers: [], confirm: null };
