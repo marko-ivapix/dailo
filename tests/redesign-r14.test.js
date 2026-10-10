@@ -137,10 +137,9 @@ test('G2: the menu lines its icons up above the "+", labels as pills on the left
   assert.deepEqual([...index.matchAll(/class="mobile-quick-add-option" type="button" data-action="([^"]+)"(?: data-owner-type="([^"]+)")?/g)].map(match => match[2] || match[1]), ['quick-add', 'new-goal', 'new-habit', 'note', 'resource', 'new-project']);
 });
 
-test('R14 is released as 2.0.0-alpha.35', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.35');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.35';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.35');
+test('R14 shipped as 2.0.0-alpha.35 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 99) >= 35);
 });
 
 test('I5: Inbox chips are visible pills under the title and keep a 44 px touch height', () => {
