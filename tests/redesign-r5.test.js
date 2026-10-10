@@ -195,8 +195,9 @@ test('the floating "+" adds a task for the screen it is on', () => {
   assert.match(sr, /"Restore the project to add tasks\.": "Vrati projekat da bi dodao zadatke\."/);
 });
 
-test('R5 is released as 2.0.0-alpha.10', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.10');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.10';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.10');
+test('R5 shipped as 2.0.0-alpha.10 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 99) >= 10);
+  assert.match(read('sw.js'), new RegExp(`const VERSION = '${Release.APP_VERSION.replace(/\./g, '\\.')}';`));
+  assert.equal(JSON.parse(read('package.json')).version, Release.APP_VERSION);
 });

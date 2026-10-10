@@ -750,10 +750,34 @@
     return true;
   }
 
+  function inboxItem(type, id) {
+    const collection = type === 'note' ? 'notes' : type === 'resource' ? 'resources' : `${type}s`;
+    return (state[collection] || []).find(item => item.id === id) || null;
+  }
+
+  // Redesign R6 (I5, I6): "Razvrstano" only takes the item out of Inbox, with Undo.
   function removeInboxRecord(type, id) {
     if (!removeInboxRecordFromState(state, type, id, nowIso())) return;
-    saveAndRender();
-    setToastMessage(tr('Item removed from Inbox.'));
+    saveAndRender(); renderModal();
+    setUndo(msg('Sorted'), () => { const item = inboxItem(type, id); if (!item) return; item.isInbox = true; item.updatedAt = nowIso(); saveState(); render(); renderModal(); });
+  }
+
+  // Redesign R6 (I5): "Oblast…" sorts a note, resource, goal or habit into an area, with Undo.
+  function openInboxAreaSheet(anchor, type, id) {
+    const item = inboxItem(type, id);
+    if (!item) return;
+    const areas = sortedAreas().filter(area => area.status !== 'archived');
+    const options = areas.map(area => `<button class="popover-option sheet-option${item.areaId === area.id ? ' is-selected' : ''}" type="button" data-pop-action="inbox-set-area" data-inbox-type="${esc(type)}" data-inbox-id="${esc(id)}" data-area-id="${esc(area.id)}"><span class="sheet-option-label">${esc(area.name)}</span><span class="sheet-radio${item.areaId === area.id ? ' is-on' : ''}" aria-hidden="true"></span></button>`).join('');
+    openPopover(anchor, `<div class="popover-title">${tr('Area')}</div><p class="sheet-subtitle">${esc(item.title || item.name || '')}</p><div class="sheet-card">${options || `<div class="popover-empty">${tr('No areas yet.')}</div>`}</div><p class="sheet-note">${tr('A tap sorts the item into the area.')}</p>`, { type: 'inbox-area' });
+  }
+  function setInboxArea(type, id, areaId) {
+    const item = inboxItem(type, id);
+    const area = getArea(areaId);
+    if (!item || !area) return;
+    const previous = { areaId: item.areaId ?? null, isInbox: item.isInbox };
+    item.areaId = area.id; item.isInbox = false; item.updatedAt = nowIso();
+    closePopover(); saveState(); render(); renderModal();
+    setUndo(msg('Moved to area'), () => { const current = inboxItem(type, id); if (!current) return; Object.assign(current, previous, { updatedAt: nowIso() }); saveState(); render(); renderModal(); });
   }
 
   function inboxGroupForDate(value, today = Core.dateOnly()) {
@@ -772,14 +796,17 @@
     return msg('Earlier');
   }
 
+  // Redesign R6 (I5): a task is a Today row with Danas / Sutra / Kad stignem / Projekat…; another item has its
+  // icon, title and type with Otvori / Oblast… / Razvrstano.
   function renderInboxRecord(record) {
-    if (record.type === 'task') return taskRow(record.item, 'inbox', { draggable: true, inbox: true });
+    if (record.type === 'task') return taskRow(record.item, 'inbox', { today: true, inbox: true, draggable: true });
     const item = record.item;
     const label = { goal: msg('Goal'), habit: msg('Habit'), note: msg('Note'), resource: msg('Resource') }[record.type] || msg('Item');
-    const openLabel = { goal: msg('Open goal'), habit: msg('Open habit'), note: msg('Open note'), resource: msg('Open resource') }[record.type] || msg('Open item');
-    const title = item.title || item.name || tr(label);
-    return `<article class="inbox-mixed-row" data-inbox-type="${esc(record.type)}" data-inbox-id="${esc(item.id)}"><button class="inbox-mixed-open" type="button" data-route="${esc(record.type)}/${esc(item.id)}"><span class="inbox-mixed-icon"><i class="ph ${record.type === 'goal' ? 'ph-target' : record.type === 'habit' ? 'ph-repeat' : record.type === 'note' ? 'ph-note' : 'ph-link'}"></i></span><span><strong>${esc(title)}</strong><small>${esc(tr(label))} · ${tr('Needs organizing')}</small></span></button><span class="inbox-mixed-actions"><button class="quick-chip" type="button" data-action="inbox-remove" data-inbox-type="${esc(record.type)}" data-inbox-id="${esc(item.id)}">${tr('Remove')}</button><button class="btn-icon" type="button" data-route="${esc(record.type)}/${esc(item.id)}" aria-label="${esc(tr(openLabel))}"><i class="ph ph-arrow-up-right"></i></button></span></article>`;
+    const icon = record.type === 'goal' ? 'ph-target' : record.type === 'habit' ? 'ph-repeat' : record.type === 'note' ? 'ph-note' : 'ph-link';
+    const attrs = `data-inbox-type="${esc(record.type)}" data-inbox-id="${esc(item.id)}"`;
+    return `<article class="today-row inbox-item-row" ${attrs}><span class="inbox-item-icon" aria-hidden="true"><i class="ph ${icon}"></i></span><button class="today-row-main" type="button" data-route="${esc(record.type)}/${esc(item.id)}"><span class="task-title">${esc(item.title || item.name || tr(label))}</span><span class="task-meta">${tr(label)}</span></button><div class="quick-actions inbox-item-chips"><button class="quick-chip" type="button" data-route="${esc(record.type)}/${esc(item.id)}">${tr('Open details')}</button><button class="quick-chip" type="button" data-action="inbox-area" ${attrs}>${tr('Area…')}</button><button class="quick-chip" type="button" data-action="inbox-remove" ${attrs}>${tr('Sorted')}</button></div></article>`;
   }
+
 
   function projectTasks(projectId, completed = false) {
     return state.tasks
@@ -1093,14 +1120,16 @@
     return html;
   }
 
+  // Redesign R6 (I1–I6): the waiting count, "Razvrstaj redom", filters only for the types present, the capture groups.
   function renderInbox() {
-    const filter = INBOX_FILTERS.some(([value]) => value === state.ui.inboxFilter) ? state.ui.inboxFilter : 'all';
+    const all = activeInboxRecords('all');
+    const present = INBOX_FILTERS.filter(([value]) => value !== 'all' && activeInboxRecords(value).length);
+    const filter = present.some(([value]) => value === state.ui.inboxFilter) ? state.ui.inboxFilter : 'all';
     const records = activeInboxRecords(filter);
-    const counts = Object.fromEntries(INBOX_FILTERS.map(([value]) => [value, activeInboxRecords(value).length]));
-    let html = pageHeader(tr('Inbox'), trn(records.length, '{count} item waiting to be organized', '{count} items waiting to be organized'), {});
-    html += `<section class="inbox-toolbar" aria-label="${tr('Inbox filters')}"><div class="inbox-filter-tabs" role="tablist" aria-label="${tr('Filter Inbox')}">${INBOX_FILTERS.map(([value, label]) => `<button class="inbox-filter-tab ${filter === value ? 'is-active' : ''}" type="button" role="tab" aria-selected="${filter === value}" data-action="inbox-filter" data-inbox-filter="${value}">${tr(label)}<span class="inbox-filter-count">${counts[value]}</span></button>`).join('')}</div><p class="inbox-triage-hint"><i class="ph ph-sparkle"></i> ${tr('Process one item at a time: plan it, assign it or keep it in Anytime.')}</p></section>`;
-    const emptyTitle = { all: msg('Inbox zero.'), tasks: msg('No tasks in Inbox.'), goals: msg('No goals in Inbox.'), habits: msg('No habits in Inbox.'), notes: msg('No notes in Inbox.'), resources: msg('No resources in Inbox.') }[filter] || msg('Inbox zero.');
-    if (!records.length) return html + emptyState(tr(emptyTitle), filter === 'all' ? tr('Everything has been organized.') : tr('New items of this type will appear here when captured for Inbox.'), tr('Add task'), 'quick-add');
+    let html = pageHeader(tr('Inbox'), all.length ? trn(all.length, '{count} item waiting to be organized', '{count} items waiting to be organized') : tr('Nothing is waiting'), {});
+    if (!all.length) return html + `<div class="empty-state inbox-empty"><i class="ph ph-check-circle" aria-hidden="true"></i><h3>${tr('Inbox is empty')}</h3><p>${tr('Everything is sorted.')}</p></div>`;
+    html += `<button class="inbox-triage-button" type="button" data-action="inbox-triage"><i class="ph ph-stack" aria-hidden="true"></i><span><strong>${tr('Sort one by one')}</strong> · ${tr('one at a time')}</span><i class="ph ph-caret-right" aria-hidden="true"></i></button>`;
+    if (present.length > 1) html += `<div class="inbox-filter-tabs" role="tablist" aria-label="${tr('Filter Inbox')}">${[INBOX_FILTERS[0], ...present].map(([value, label]) => `<button class="inbox-filter-tab ${filter === value ? 'is-active' : ''}" type="button" role="tab" aria-selected="${filter === value}" data-action="inbox-filter" data-inbox-filter="${value}">${tr(label)}<span class="inbox-filter-count">${value === 'all' ? all.length : activeInboxRecords(value).length}</span></button>`).join('')}</div>`;
     const groups = new Map();
     for (const record of records) {
       const group = inboxGroupForDate(record.item.createdAt);
@@ -1111,10 +1140,43 @@
     for (const label of order) {
       const items = groups.get(label);
       if (!items?.length) continue;
-      html += `<section class="inbox-group" aria-labelledby="inbox-group-${label.replace(/ /g, '-').toLowerCase()}"><div class="inbox-group-label" id="inbox-group-${label.replace(/ /g, '-').toLowerCase()}"><strong>${tr(label)}</strong><span>${items.length}</span></div><div class="inbox-group-items">${items.map(renderInboxRecord).join('')}</div></section>`;
+      html += `<section class="inbox-group" aria-labelledby="inbox-group-${label.replace(/ /g, '-').toLowerCase()}"><div class="inbox-group-label" id="inbox-group-${label.replace(/ /g, '-').toLowerCase()}"><strong>${tr(label)}</strong><span>${items.length}</span></div><div class="inbox-group-items today-card" data-list-context="inbox">${items.map(renderInboxRecord).join('')}</div></section>`;
     }
     return html;
   }
+
+  // Redesign R6 (I2): "Razvrstaj redom" — one item at a time, in the current filter's order.
+  function openInboxTriage() {
+    const present = INBOX_FILTERS.filter(([value]) => value !== 'all' && activeInboxRecords(value).length);
+    const filter = present.some(([value]) => value === state.ui.inboxFilter) ? state.ui.inboxFilter : 'all';
+    captureModalReturnFocus();
+    modalState = { type: 'inbox-triage', queue: activeInboxRecords(filter).map(record => [record.type, record.item.id]), index: 0 };
+    renderModal();
+    requestAnimationFrame(() => $('#modal-root .inbox-triage-actions button')?.focus());
+  }
+  function inboxTriageOpen(type, id) {
+    const item = inboxItem(type, id);
+    return Boolean(item && item.isInbox === true && !item.isCompleted);
+  }
+  function renderInboxTriage() {
+    const queue = modalState.queue || [];
+    const open = queue.filter(([type, id]) => inboxTriageOpen(type, id));
+    const header = `<div class="modal-header"><h2 class="modal-title">${tr('Sorting')}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div>`;
+    if (!open.length) return modalFrame(`<div class="modal-inner">${header}<div class="empty-state inbox-empty"><i class="ph ph-check-circle" aria-hidden="true"></i><h3>${tr('Finished')}</h3><p>${activeInboxRecords('all').length ? tr('This list is sorted.') : tr('Inbox is empty.')}</p></div><div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-secondary" type="button" data-action="close-modal">${tr('Close')}</button></div></div></div>`, 'quick inbox-triage-modal');
+    if (modalState.index >= open.length) modalState.index = 0;
+    const [type, id] = open[modalState.index];
+    const item = inboxItem(type, id);
+    const label = { task: msg('Task'), goal: msg('Goal'), habit: msg('Habit'), note: msg('Note'), resource: msg('Resource') }[type];
+    const added = tr(inboxGroupForDate(item.createdAt)).toLocaleLowerCase(I18n.locale());
+    const attrs = `data-inbox-type="${esc(type)}" data-inbox-id="${esc(id)}"`;
+    const button = (action, text, extra = '', primary = false) => `<button class="btn ${primary ? 'btn-primary' : 'btn-secondary'}" type="button" data-action="${action}" ${extra}>${text}</button>`;
+    const actions = type === 'task'
+      ? ['inbox-today', 'inbox-tomorrow', 'inbox-anytime', 'inbox-project'].map((action, index) => button(action, [tr('Today'), tr('Tomorrow'), tr('Anytime'), tr('Project…')][index], `data-task-id="${esc(id)}"`)).join('')
+      : button('inbox-triage-open', tr('Open details'), attrs) + button('inbox-area', tr('Area…'), attrs) + button('inbox-remove', tr('Sorted'), attrs, true);
+    const due = type === 'task' && item.dueDate ? `<p class="inbox-triage-due">${todayDueLabel(item.dueDate)}</p>` : '';
+    return modalFrame(`<div class="modal-inner">${header}<div class="inbox-triage-card"><p class="inbox-triage-meta">${esc(tr('{type} · added {when}', { type: tr(label), when: added }))}</p><p class="inbox-triage-title">${esc(item.title || item.name || '')}</p>${due}</div><div class="inbox-triage-actions">${actions}</div><div class="inbox-triage-footer"><span>${esc(tr('{current} of {total}', { current: queue.length - open.length + 1, total: queue.length }))}</span><button class="btn btn-ghost" type="button" data-action="inbox-triage-skip">${tr('Skip')}</button></div></div>`, 'quick inbox-triage-modal');
+  }
+
 
   // Redesign R1 (M4): "Još" lists every screen that is not in the bottom bar, in cards.
   function moreRow(route, icon, label, value = '', sub = '') {
@@ -1596,6 +1658,7 @@
     else if (modalState.type === 'template-picker') root.innerHTML = renderTemplatePicker();
     else if (modalState.type === 'recurrence-scope') root.innerHTML = renderRecurrenceScope();
     else if (modalState.type === 'sync-choice') root.innerHTML = renderSyncChoice();
+    else if (modalState.type === 'inbox-triage') root.innerHTML = renderInboxTriage();
     if (['project','habit','goal'].includes(modalState.type) && !modalState.taskId && !modalState.projectId && !modalState.habitId && !modalState.goalId) {
       $('.modal-inner',root)?.insertAdjacentHTML('afterbegin',`<button class="btn btn-ghost" type="button" data-action="from-template"><i class="ph ph-copy"></i> ${tr('From template')}</button>`);
     }
@@ -2649,7 +2712,11 @@
     }
     const task = getTask(taskId);
     if (!task) return;
-    closePopover();requestTaskEdit(taskId,{projectId:projectId || null,areaId:null,...(projectId?{isInbox:false}:{})});
+    // Redesign R6 (I6): moving a task out of Inbox into a project can be undone.
+    const previous = { projectId: task.projectId ?? null, areaId: task.areaId ?? null, isInbox: task.isInbox };
+    closePopover();
+    const asked = requestTaskEdit(taskId,{projectId:projectId || null,areaId:null,...(projectId?{isInbox:false}:{})});
+    if (!asked && previous.isInbox && projectId) setUndo(msg('Task moved to project'), () => { const current = getTask(taskId); if (!current) return; Object.assign(current, previous, { updatedAt: nowIso() }); saveState(); render(); renderModal(); });
   }
 
   function setPlan(targetType, taskId, date) {
@@ -4639,9 +4706,14 @@
     else if (action === 'add-all-suggestions') addAllSuggestions();
     else if (action === 'inbox-filter') { state.ui.inboxFilter = INBOX_FILTERS.some(([value]) => value === el.dataset.inboxFilter) ? el.dataset.inboxFilter : 'all'; saveAndRender(); }
     else if (action === 'inbox-remove') removeInboxRecord(el.dataset.inboxType, el.dataset.inboxId);
-    else if (action === 'inbox-today') addTaskToToday(el.dataset.taskId);
-    else if (action === 'inbox-tomorrow') moveTaskToTomorrow(el.dataset.taskId);
-    else if (action === 'inbox-anytime') moveTaskToAnytime(el.dataset.taskId);
+    else if (action === 'inbox-area') openInboxAreaSheet(el, el.dataset.inboxType, el.dataset.inboxId);
+    else if (action === 'inbox-project') openProjectPicker(el, { type: 'task', taskId: el.dataset.taskId });
+    else if (action === 'inbox-triage') openInboxTriage();
+    else if (action === 'inbox-triage-skip') { modalState.index += 1; renderModal(); }
+    else if (action === 'inbox-triage-open') { const route = `${el.dataset.inboxType}/${el.dataset.inboxId}`; closeModal(); navigate(route); }
+    else if (action === 'inbox-today') { addTaskToToday(el.dataset.taskId); if (modalState?.type === 'inbox-triage') renderModal(); }
+    else if (action === 'inbox-tomorrow') { moveTaskToTomorrow(el.dataset.taskId); if (modalState?.type === 'inbox-triage') renderModal(); }
+    else if (action === 'inbox-anytime') { moveTaskToAnytime(el.dataset.taskId); if (modalState?.type === 'inbox-triage') renderModal(); }
     else if (action === 'task-project-picker') showTaskProjectPicker(el.dataset.taskId, el);
     else if (action === 'task-plan-picker') showTaskPlanPicker(el.dataset.taskId, el);
     else if (action === 'task-due-picker') showTaskDuePicker(el.dataset.taskId, el);
@@ -4737,6 +4809,7 @@
     else if (action === 'project-goals') openProjectGoalsSheet(button, button.dataset.projectId);
     else if (action === 'project-goal-toggle' && projectGoalSheet) { const id = button.dataset.goalId; const on = !projectGoalSheet.ids.has(id); if (on) projectGoalSheet.ids.add(id); else projectGoalSheet.ids.delete(id); button.classList.toggle('is-selected', on); button.setAttribute('aria-pressed', String(on)); const check = button.querySelector('.sheet-check'); if (check) { check.classList.toggle('is-on', on); check.innerHTML = on ? '<i class="ph ph-check"></i>' : ''; } }
     else if (action === 'project-goals-apply') applyProjectGoals();
+    else if (action === 'inbox-set-area') setInboxArea(button.dataset.inboxType, button.dataset.inboxId, button.dataset.areaId);
     else if (action === 'set-project') setProject(button.dataset.targetType, button.dataset.taskId, button.dataset.projectId);
     else if (action === 'toggle-tag') toggleTag(button.dataset.targetType, button.dataset.taskId, button.dataset.tagId);
     else if (action === 'set-priority') setPriority(button.dataset.targetType, button.dataset.taskId, button.dataset.priority);

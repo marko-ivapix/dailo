@@ -2403,6 +2403,23 @@ a.btn { text-decoration: none; }
 .project-archived-notice { margin-top: 12px; }
 .project-goal-link { display: inline-flex; align-items: center; gap: 6px; margin: 8px 0 4px; padding: 4px 0; border: 0; background: none; color: var(--blue-300); font: inherit; font-size: 14px; cursor: pointer; }
 
+/* Redesign R6 — Inbox (I1–I6). */
+.inbox-triage-button { width: 100%; min-height: 52px; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; margin: 4px 0 12px; padding: 8px 14px; border: 1px solid var(--line-2); border-radius: var(--radius-md); background: var(--graphite-850); color: var(--ink-2); font: inherit; text-align: left; cursor: pointer; }
+.inbox-triage-button strong { color: var(--ink-1); }
+.inbox-empty { display: grid; justify-items: center; gap: 6px; padding: 32px 16px; text-align: center; }
+.inbox-empty > i { color: var(--success); font-size: 44px; }
+.inbox-item-row { grid-template-columns: auto minmax(0, 1fr); }
+.inbox-item-icon { display: inline-grid; place-items: center; width: 28px; color: var(--ink-3); font-size: 18px; }
+.inbox-item-chips { grid-column: 2 / -1; margin-top: 2px; }
+.inbox-triage-card { margin: 4px 0 14px; padding: 16px; border: 1px solid var(--line-1); border-radius: var(--radius-md); background: var(--graphite-900); }
+.inbox-triage-meta { margin: 0 0 6px; color: var(--ink-3); font-size: 13px; }
+.inbox-triage-title { margin: 0; color: var(--ink-1); font-size: 20px; font-weight: 600; overflow-wrap: anywhere; }
+.inbox-triage-due { margin: 6px 0 0; font-size: 13px; }
+.inbox-triage-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.inbox-triage-actions .btn { min-height: 52px; }
+.inbox-triage-actions .btn-primary { grid-column: 1 / -1; }
+.inbox-triage-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; color: var(--ink-3); font-size: 13px; }
+
 /* Keep primary compact actions touchable after all density rules. */
 @media (max-width: 700px), (pointer: coarse) {
   .task-actions .btn-icon,
