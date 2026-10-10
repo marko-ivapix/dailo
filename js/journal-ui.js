@@ -114,14 +114,36 @@
     ctx.openQuickAdd({ plannedDate: next < today ? today : next, title, returnTo: { type: 'journal', date } });
   }
 
+  // Redesign R12c (J4): the evening notice on Today, from the reminder time while today has no entry. "Ne danas"
+  // hides it until tomorrow on this device only (device-local key, outside state, backups and sync).
+  const LATER_KEY = 'dailoJournalLater';
+  function noticeHtml(ctx) {
+    const { Core, state } = ctx;
+    const time = Core.journalReminderTime(state.settings), today = Core.dateOnly(), now = new Date(ctx.nowIso());
+    if (!time || Core.dateOnly(now) !== today) return '';
+    const [hours, minutes] = time.split(':').map(Number);
+    if (now.getHours() * 60 + now.getMinutes() < hours * 60 + minutes) return '';
+    const item = entryFor(ctx, today);
+    if (item && (item.text.trim() || item.mood)) return '';
+    try { if (localStorage.getItem(LATER_KEY) === today) return ''; } catch (_) { /* shown when storage is unavailable */ }
+    return `<section class="weekly-review-notice journal-notice" data-journal-notice role="status" aria-label="${tr('Journal')}"><i class="ph ph-book-open weekly-review-notice-icon" aria-hidden="true"></i><div class="backup-reminder-copy"><strong>${tr('Write down how the day went')}</strong><span>${ctx.esc(summaryText(ctx, today))}.</span></div><div class="backup-reminder-actions"><button class="btn btn-primary" type="button" data-action="open-journal">${tr('Write')}</button><button class="btn btn-ghost" type="button" data-action="journal-not-today">${tr('Not today')}</button></div></section>`;
+  }
+
   window.TodoDomainModules?.register({
     name: 'journal',
     renderRoute(route, ctx) {
       if (route.type === 'journal') return renderList(ctx);
+      if (route.type === 'journal-notice') return noticeHtml(ctx);
       if (route.type === 'modal' && route.modalType === 'journal') return renderEntry(ctx);
     },
     handleAction(action, event, ctx) {
       if (action === 'journal-closing') { closing(ctx); return true; }
+      if (action === 'journal-not-today') {
+        try { localStorage.setItem(LATER_KEY, ctx.Core.dateOnly()); } catch (_) { /* shown again next time */ }
+        ctx.render();
+        ctx.setToastMessage(tr('The reminder comes back tomorrow evening'));
+        return true;
+      }
       const el = event?.target?.closest?.('[data-action], [data-pop-action]');
       if (action === 'open-journal') { openEntry(ctx, el?.dataset?.date); return true; }
       if (action === 'journal-month') {

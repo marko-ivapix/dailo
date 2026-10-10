@@ -61,7 +61,7 @@ test('Today counts overdue and planned work; suggestions moved to Zadaci', () =>
   const state = Core.normalizeState({ version: 3, tasks, projects: [], tags: [], areas: [], goals: [], habits: [], notes: [], resources: [], templates: [], savedViews: [], settings: {}, ui: {} });
   const source = fs.readFileSync(require.resolve('../js/app.js'), 'utf8');
   const fn = name => { const start = source.indexOf(`  function ${name}(`); return source.slice(start, source.indexOf('\n  }\n', start) + 4); };
-  const context = { state, Core, esc: String, formatDate: String, formatPageToday: String, pageHeader: () => '', backupReminderNotice: () => '', weeklyReviewNotice: () => '', renderHabitTodayRow: () => '', taskRow: task => `<t ${task.id}>` };
+  const context = { state, Core, esc: String, formatDate: String, formatPageToday: String, pageHeader: () => '', backupReminderNotice: () => '', callDomainHook: () => '' /* R12c: journal notice */, weeklyReviewNotice: () => '', renderHabitTodayRow: () => '', taskRow: task => `<t ${task.id}>` };
   vm.createContext(withI18n(context));
   vm.runInContext(`const TODAY_LIMITS = { overdue: 3, today: 5, habits: 5 };\n${fn('todayLimited')}${fn('todayDueLabel')}${fn('deadlineRow')}${fn('listTasks')}${fn('renderToday')}`, context);
   const html = vm.runInContext('renderToday()', context);

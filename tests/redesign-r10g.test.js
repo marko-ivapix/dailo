@@ -38,7 +38,8 @@ test('M5: Settings has Opšte, Podaci, Pomoć and Računar in that order (and Na
   const html = renderSettings();
   assert.match(html, /^<header title="Settings" subtitle=""><\/header>/);
   assert.deepEqual(groups(html), [
-    ['General', ['Week starts on', 'Daily capacity', 'Browser reminders']],
+    // R12c (J6) adds "Podsetnik za dnevnik" at the end of Opšte.
+    ['General', ['Week starts on', 'Daily capacity', 'Browser reminders', 'Journal reminder']],
     ['Data', ['Backup', 'Backup reminder', 'Restore from backup', 'Local snapshots', 'Persistent storage', 'Populate demo workspace', 'Reset app data']],
     ['Help', ['Guide', 'Report a problem', 'Install app', 'Privacy', 'About']],
     ['Computer', ['Search', 'Compact density']],

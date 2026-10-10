@@ -1075,6 +1075,7 @@
     if (globalThis.DailoPlatform?.isNative) html += transferNotice();
     html += backupReminderNotice();
     html += weeklyReviewNotice();
+    html += callDomainHook('renderRoute', { type: 'journal-notice' }) || '';
     const section = (key, label, count, body, danger = false) => `<section class="section today-section today-section--${key}" data-today-section="${key}"><div class="section-header"><h2 class="section-label${danger ? ' danger' : ''}">${label}</h2><span class="section-count">${count}</span></div>${body}</section>`;
     const overdueRows = [
       ...sections.overdue.map(task => taskRow(task, 'today', { today: true })),
@@ -5106,6 +5107,8 @@
     if (['attachment-input', 'attachment-image-input'].includes(event.target.id)) { receiveAttachmentFiles(event.target.dataset, [...event.target.files]); event.target.value=''; return; }
     // R10g (M5): the week start and density apply at once; the week-start history is kept (M11).
     if (['preference-week-start', 'preference-density'].includes(event.target.id)) { savePersonalization(); return; }
+    // R12c (J6): when the evening journal notice appears, or off.
+    if (event.target.id === 'journal-reminder-time') { const value = event.target.value; if (value === 'off' || Core.normalizeTime(value) === value) { state.settings.journalReminderTime = value === 'off' ? null : value; saveAndRender(); } return; }
     if (event.target.id === 'daily-capacity') { const minutes = Number(event.target.value); if (Number.isInteger(minutes) && minutes >= 0 && minutes <= 1440) { state.settings.dailyCapacityMinutes = minutes; saveAndRender(); } return; }
     if (event.target.id === 'backup-reminder-days') { const days = Number(event.target.value); if (Number.isInteger(days) && days >= 0 && days <= 90) { state.settings.backupReminderDays = days; saveAndRender(); } return; }
     if (event.target.id === 'backup-import-input') { const file=event.target.files?.[0]; event.target.value=''; if(file) inspectImportBackup(file); return; }

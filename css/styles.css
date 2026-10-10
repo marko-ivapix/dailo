@@ -2817,6 +2817,9 @@ a.btn { text-decoration: none; }
 .journal-text { width: 100%; min-height: 200px; resize: vertical; }
 .journal-task { margin-top: 10px; }
 
+/* Redesign R12c — the evening journal notice (J4). */
+.journal-notice .backup-reminder-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
 /* Keep primary compact actions touchable after all density rules. */
 @media (max-width: 700px), (pointer: coarse) {
   .task-actions .btn-icon,

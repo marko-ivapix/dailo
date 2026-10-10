@@ -119,7 +119,7 @@ function renderTodayWith(stateExtra = {}, stubs = {}) {
   state.habitLogCache = stubs.logs || {};
   const ctx = todayContext(state, {
     pageHeader: (title, subtitle, options) => `<header title="${title}" eyebrow="${options.eyebrow}" add="${options.add}"></header>`,
-    transferNotice: () => '<transfer>', backupReminderNotice: () => '<backup>', weeklyReviewNotice: () => '<review>',
+    transferNotice: () => '<transfer>', backupReminderNotice: () => '<backup>', weeklyReviewNotice: () => '<review>', callDomainHook: () => '', // R12c: the journal notice comes from journal-ui.js
     taskRow: (task, context, options) => `<task ${task.id} ${context}${options.today ? ' today' : ''}${options.draggable ? ' drag' : ''}>`,
     renderHabitTodayRow: (habit, status) => `<habit ${habit.id} ${status.status}>`,
     globalThis: { DailoPlatform: stubs.native ? { isNative: true } : undefined },
