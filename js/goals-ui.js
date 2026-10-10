@@ -143,7 +143,11 @@
     // Etape
     const milestones = [...(goal.milestones || [])].sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
     const done = milestones.filter(item => item.isCompleted).length;
-    const milestoneRows = milestones.map(item => `<div class="today-row goal-milestone-row${item.isCompleted ? ' is-done' : ''}"><button class="habit-check" type="button" data-action="toggle-milestone" data-goal-id="${id}" data-milestone-id="${esc(item.id)}" aria-pressed="${Boolean(item.isCompleted)}" aria-label="${esc(`${tr('Complete milestone')}: ${item.title}`)}">${roundCheck(item.isCompleted)}</button><button class="today-row-main" type="button" data-action="edit-milestone" data-goal-id="${id}" data-milestone-id="${esc(item.id)}"><span class="task-title">${esc(item.title)}</span></button><span class="task-side">${item.isCompleted ? esc(ctx.formatDate(item.completedAt ? Core.localDateOf(String(item.completedAt)) : item.date)) : item.date ? ctx.todayDueLabel(item.date) : ''}</span></div>`).join('');
+    // R14c (GO5 amended): like a task row, the date sits under the title and the circle closes the row on the right.
+    const milestoneRows = milestones.map(item => {
+      const date = item.isCompleted ? esc(ctx.formatDate(item.completedAt ? Core.localDateOf(String(item.completedAt)) : item.date)) : item.date ? ctx.todayDueLabel(item.date) : '';
+      return `<div class="today-row goal-milestone-row${item.isCompleted ? ' is-done' : ''}"><button class="today-row-main" type="button" data-action="edit-milestone" data-goal-id="${id}" data-milestone-id="${esc(item.id)}"><span class="task-title">${esc(item.title)}</span>${date ? `<span class="task-meta">${date}</span>` : ''}</button><button class="habit-check" type="button" data-action="toggle-milestone" data-goal-id="${id}" data-milestone-id="${esc(item.id)}" aria-pressed="${Boolean(item.isCompleted)}" aria-label="${esc(`${tr('Complete milestone')}: ${item.title}`)}">${roundCheck(item.isCompleted)}</button></div>`;
+    }).join('');
     html += `<h3 class="goal-details-label">${tr('Milestones')} · ${done}/${milestones.length}</h3><div class="today-card goal-details-milestones">${milestoneRows}<button class="inline-add" type="button" data-action="new-milestone" data-goal-id="${id}"><i class="ph ph-plus" aria-hidden="true"></i> ${tr('Add milestone')}</button></div>`;
     // What feeds the goal
     if (goal.progressMode === 'linkedTasks') {

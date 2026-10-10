@@ -78,9 +78,10 @@ test('GO5: the window has "Cilj" with ⋯ and X, a renamable title, the area lin
 test('GO5: Etape with round checks, the editor and "+ Dodaj etapu"', () => {
   const html = render(goalCtx());
   assert.match(html, /<h3 class="goal-details-label">Milestones · 1\/2<\/h3><div class="today-card goal-details-milestones">/);
-  assert.match(html, /<div class="today-row goal-milestone-row is-done"><button class="habit-check" type="button" data-action="toggle-milestone" data-goal-id="g" data-milestone-id="m1" aria-pressed="true" aria-label="Complete milestone: Collect papers">/);
-  assert.match(html, /<button class="today-row-main" type="button" data-action="edit-milestone" data-goal-id="g" data-milestone-id="m1"><span class="task-title">Collect papers<\/span><\/button><span class="task-side">D:2026-09-25<\/span><\/div>/);
-  assert.match(html, new RegExp(`data-milestone-id="m2"><span class="task-title">Fill in the form<\\/span><\\/button><span class="task-side"><due ${plus(5)}><\\/span>`));
+  // R14c: the date sits under the title and the circle closes the row on the right.
+  assert.match(html, /<div class="today-row goal-milestone-row is-done"><button class="today-row-main" type="button" data-action="edit-milestone" data-goal-id="g" data-milestone-id="m1"><span class="task-title">Collect papers<\/span><span class="task-meta">D:2026-09-25<\/span><\/button><button class="habit-check" type="button" data-action="toggle-milestone" data-goal-id="g" data-milestone-id="m1" aria-pressed="true" aria-label="Complete milestone: Collect papers">/);
+  assert.match(html, new RegExp(`data-milestone-id="m2"><span class="task-title">Fill in the form<\\/span><span class="task-meta"><due ${plus(5)}><\\/span><\\/button><button class="habit-check"`));
+  assert.match(html, /aria-label="Complete milestone: Collect papers">[\s\S]*?<\/svg><\/button><\/div>/, 'the circle is the last part of the row');
   assert.match(html, /<button class="inline-add" type="button" data-action="new-milestone" data-goal-id="g"><i class="ph ph-plus" aria-hidden="true"><\/i> Add milestone<\/button><\/div>/);
   const module = moduleFor();
   const ctx = goalCtx();

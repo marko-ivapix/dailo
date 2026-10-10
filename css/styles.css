@@ -2900,6 +2900,11 @@ a.btn { text-decoration: none; }
 .habit-today-row > :not(.today-row-main) { flex: none; }
 .habit-today-row > .habit-check { width: 44px; height: 44px; }
 
+/* Redesign R14c — milestone circles on the right (GO5 amended 2026-10-10). */
+.goal-milestone-row { display: flex; align-items: center; }
+.goal-milestone-row > .today-row-main { flex: 1; min-width: 0; }
+.goal-milestone-row > .habit-check { flex: none; width: 44px; height: 44px; }
+
 /* Keep primary compact actions touchable after all density rules. */
 @media (max-width: 700px), (pointer: coarse) {
   .task-actions .btn-icon,
