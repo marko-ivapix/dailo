@@ -173,7 +173,7 @@
 
   function editRow(ctx, button, remove = false) {
     readDraft(ctx); const editor = ctx.modalState, { parent, last } = templatePath(editor.draft.data, button.dataset.path, true); parent[last] ||= [];
-    if (!remove) { const kind = button.dataset.kind; parent[last].push(kind === 'task' ? ctx.Core.templateFromEntity('task', { title: '', subtasks: [] }).data : kind === 'reminder' ? { time: '09:00', enabled: true } : { title: '', dateOffsetDays: null, isCompleted: false, completedAt: null }); ctx.renderModal(); return; }
+    if (!remove) { const kind = button.dataset.kind; parent[last].push(kind === 'task' ? ctx.Core.templateFromEntity('task', { title: '', subtasks: [] }).data : kind === 'reminder' ? { time: ctx.Core.defaultReminderTime(ctx.state.settings), enabled: true } : { title: '', dateOffsetDays: null, isCompleted: false, completedAt: null }); ctx.renderModal(); return; }
     const index = Number(button.dataset.index), snapshot = ctx.copyTemplate(parent[last][index]);
     const removedSelections = button.dataset.path === 'tasks' ? (editor.draft.data.goalLinkConfigs || []).filter(config => (config.selectedTaskIndices || []).includes(index)).map(config => config.goalId) : [];
     const adjustSelections = (data, inserting = false) => {

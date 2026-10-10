@@ -385,6 +385,7 @@
       projectLinks: Array.isArray(goal.projectLinks) ? goal.projectLinks : [], taskIds: Array.isArray(goal.taskIds) ? goal.taskIds : [],
       habitLinks: Array.isArray(goal.habitLinks) ? goal.habitLinks : [], milestones: Array.isArray(goal.milestones) ? goal.milestones : [],
       reminderFiredMoments: Array.isArray(goal.reminderFiredMoments) ? goal.reminderFiredMoments : [],
+      // Loading keeps a stored goal's reminder time; only new goals take the default reminder time (R18).
       reminders: { sevenDaysBefore: false, threeDaysBefore: false, oneDayBefore: false, onTargetDate: false, time: '09:00', ...(goal.reminders || {}) },
     }));
     next.habits = (next.habits || []).map(habit => ({
@@ -1586,7 +1587,7 @@
       progressMode: goal?.progressMode || 'manual', progressType: goal?.progressType || 'percentage',
       currentValue: goal?.currentValue ?? 0, targetValue: goal?.targetValue ?? 100, unit: goal?.unit || '', targetDate: goal?.targetDate || '',
       projectLinks: copyTemplate(goal?.projectLinks || []), taskIds: [...(goal?.taskIds || [])], habitLinks: copyTemplate(goal?.habitLinks || []),
-      milestones: copyTemplate(goal?.milestones || []), reminders: { sevenDaysBefore: false, threeDaysBefore: false, oneDayBefore: false, onTargetDate: false, time: '09:00', ...goal?.reminders },
+      milestones: copyTemplate(goal?.milestones || []), reminders: { sevenDaysBefore: false, threeDaysBefore: false, oneDayBefore: false, onTargetDate: false, time: Core.defaultReminderTime(state.settings), ...goal?.reminders },
     };
   }
 
@@ -2463,16 +2464,18 @@
     if (!task) return;
     const pad = value => String(value).padStart(2, '0');
     const parts = instant => { const date = new Date(instant); return { date: Core.dateOnly(date), time: `${pad(date.getHours())}:${pad(date.getMinutes())}` }; };
+    // R18 (a): the proposed hour follows Settings → Opšte → "Podrazumevano vreme podsetnika".
+    const morning = Core.defaultReminderTime(state.settings);
     let presets;
     if (task.plannedDate && task.plannedTime) {
       const base = new Date(`${task.plannedDate}T${task.plannedTime}:00`).getTime();
-      presets = [[tr('At the planned time'), parts(base)], [tr('15 min before'), parts(base - 15 * 60000)], [tr('1 h before'), parts(base - 3600000)], [tr('Day before at 9:00'), { date: Core.addDays(task.plannedDate, -1), time: '09:00' }]];
+      presets = [[tr('At the planned time'), parts(base)], [tr('15 min before'), parts(base - 15 * 60000)], [tr('1 h before'), parts(base - 3600000)], [tr('Day before at {time}', { time: morning }), { date: Core.addDays(task.plannedDate, -1), time: morning }]];
     } else {
       const later = Core.laterToday(new Date()); // null late in the evening: the option is not offered (audit H-2)
-      presets = [...(later ? [[tr('Later today'), parts(later)]] : []), [tr('Tomorrow morning'), { date: Core.addDays(Core.dateOnly(), 1), time: '09:00' }]];
+      presets = [...(later ? [[tr('Later today'), parts(later)]] : []), [tr('Tomorrow at {time}', { time: morning }), { date: Core.addDays(Core.dateOnly(), 1), time: morning }]];
     }
     const current = task.reminderAt ? parts(task.reminderAt) : null;
-    const sheet = { target, presets, date: current?.date || task.plannedDate || Core.dateOnly(), time: current?.time || task.plannedTime || '09:00' };
+    const sheet = { target, presets, date: current?.date || task.plannedDate || Core.dateOnly(), time: current?.time || task.plannedTime || morning };
     reminderSheet = sheet;
     openPopover(anchor, reminderSheetHtml(), { type: 'reminder', target });
     reminderSheet = sheet;
@@ -3736,7 +3739,7 @@
     if (!name) { modalState.error = modalState.kind === 'goal' ? tr('Goal needs a name.') : tr('Habit needs a name.'); renderModal(); return; }
     const item = { id: uid(modalState.kind), name, areaId: modalState.areaId, status: 'active', createdAt: nowIso(), updatedAt: nowIso() };
     if (modalState.kind === 'goal') {
-      state.goals.push({ ...goalDraft(null, modalState.areaId), ...item, title: name, projectLinks: [], taskIds: [], habitLinks: [], milestones: [], reminders: { sevenDaysBefore: false, threeDaysBefore: false, oneDayBefore: false, onTargetDate: false, time: '09:00' }, completedAt: null });
+      state.goals.push({ ...goalDraft(null, modalState.areaId), ...item, title: name, projectLinks: [], taskIds: [], habitLinks: [], milestones: [], reminders: { sevenDaysBefore: false, threeDaysBefore: false, oneDayBefore: false, onTargetDate: false, time: Core.defaultReminderTime(state.settings) }, completedAt: null });
       putGoalHistory(item.id, 'created');
     } else state.habits.push({ ...habitDraft(null, modalState.areaId), ...item, goalIds: [], reminderFiredMoments: [] });
     saveState(); closeModal(); refreshHabitMetrics().then(render);
@@ -4675,6 +4678,15 @@
   // backups) records which moments the phone was asked to show, so the in-app checker records those without a
   // second toast. Call sites check isNative inline, like the other platform hooks.
   const NOTIFIED_KEY = 'dailoNotified';
+  // R18 (c): planned-time reminders already shown in the open app, { taskId: moment }; device-local, outside backups.
+  const PLANNED_FIRED_KEY = 'dailoPlannedFired';
+  function readPlannedFired() {
+    try { const value = JSON.parse(localStorage.getItem(PLANNED_FIRED_KEY) || '{}'); return value && typeof value === 'object' ? value : {}; } catch (_) { return {}; }
+  }
+  function writePlannedFired(value) {
+    const oldest = Core.addDays(Core.dateOnly(), -2);
+    try { localStorage.setItem(PLANNED_FIRED_KEY, JSON.stringify(Object.fromEntries(Object.entries(value).filter(([, moment]) => String(moment).slice(0, 10) >= oldest)))); } catch (_) { /* shown again at most once more */ }
+  }
   function readNotified() {
     try { const value = JSON.parse(localStorage.getItem(NOTIFIED_KEY) || '{}'); return value && typeof value === 'object' ? value : {}; } catch (_) { return {}; }
   }
@@ -4691,6 +4703,7 @@
     try { localStorage.setItem(NOTIFIED_KEY, JSON.stringify(Object.fromEntries([...past, ...items.map(item => [item.key, item.at])]))); } catch (_) { /* the checker then toasts as well */ }
   }
   function notificationBody(item) {
+    if (item.kind === 'journal') return tr('Write down how the day went');
     const day = Core.localDateOf(item.at);
     if (item.kind === 'task') return item.date ? tr('Due {date}', { date: relativeDateLabel(item.date, day) }) : tr('Task reminder');
     if (item.kind === 'goal') return item.date ? tr('Goal target {date}', { date: relativeDateLabel(item.date, day) }) : tr('Goal reminder');
@@ -4706,7 +4719,7 @@
     clearTimeout(notificationTimer); notificationTimer = null;
     const platform = globalThis.DailoPlatform;
     if (!platform?.isNative || !state || globalOperation || recovery) return;
-    const items = Core.notificationPlan(state, nowIso(), { logs: state.habitLogCache || {} }).map(item => ({ ...item, body: notificationBody(item) }));
+    const items = Core.notificationPlan(state, nowIso(), { logs: state.habitLogCache || {}, plannedFired: readPlannedFired() }).map(item => ({ ...item, title: item.kind === 'journal' ? tr('Journal') : item.title, body: notificationBody(item) }));
     let result = await platform.notifications.reconcile(items);
     // The system question is asked once, when there is first something to notify about; later from Settings.
     if (ask && result.status === 'permission' && result.permission === 'prompt' && items.length && !localStorage.getItem('dailoNotifyAsked')) {
@@ -4727,6 +4740,7 @@
     const [kind, ...rest] = String(extra?.route || '').split('/');
     const id = decodeURIComponent(rest.join('/'));
     if (!state || globalOperation || recovery || modalState || !id) return;
+    if (kind === 'journal') { navigate('#journal'); return; }
     if (kind === 'task') { if (getTask(id)) openTaskDetail(id); return; }
     if ((kind === 'goal' && getGoal(id)) || (kind === 'habit' && getHabit(id))) navigate(`#${kind}/${encodeURIComponent(id)}`);
   }
@@ -4776,13 +4790,17 @@
       const fired = new Set(habit.reminderFiredMoments || []);
       return (habit.reminders || []).filter(reminder => reminder.enabled && Core.normalizeTime(reminder.time)).map(reminder => ({ habit, moment: Core.combineDateTime(today, reminder.time) })).filter(item => item.moment && !fired.has(item.moment) && new Date(item.moment).getTime() <= new Date(now).getTime());
     });
-    if (!dueTasks.length && !dueGoals.length && !dueHabits.length) return;
+    // R18 (c): a task's planned time, when switched on, within two hours of it and once per moment.
+    const plannedFired = readPlannedFired();
+    const duePlanned = Core.plannedTimeReminders(state.settings) ? state.tasks.map(task => ({ task, moment: Core.plannedReminderDue(task, now, plannedFired[task.id]) })).filter(item => item.moment) : [];
+    if (!dueTasks.length && !dueGoals.length && !dueHabits.length && !duePlanned.length) return;
     // On the phone a reminder the system already showed as a notification is only recorded here (audit M6).
     const shown = phoneShownKeys();
     const unseen = [
       ...dueTasks.filter(task => !shown.has(Core.notificationKey('task', task.id, task.reminderAt))).map(task => task.title),
       ...dueGoals.filter(({ goal, moment }) => !shown.has(Core.notificationKey('goal', goal.id, moment))).map(({ goal }) => goal.title),
       ...dueHabits.filter(({ habit, moment }) => !shown.has(Core.notificationKey('habit', habit.id, moment))).map(({ habit }) => habit.name),
+      ...duePlanned.filter(({ task, moment }) => !shown.has(Core.notificationKey('task', task.id, `planned:${moment}`))).map(({ task }) => task.title),
     ];
     // Fired markers are device-local and not an edit: no updatedAt bump, so nothing is pushed (audit R-3).
     for (const task of dueTasks) {
@@ -4802,6 +4820,12 @@
       if (snooze) { habit.pendingSnoozeAt = null; habit.snoozedUntil = null; habit.updatedAt = now; }
       if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
         try { new Notification(habit.name, { body: tr('Habit reminder') }); } catch (_) { /* in-app reminder remains */ }
+      }
+    }
+    if (duePlanned.length) {
+      writePlannedFired({ ...plannedFired, ...Object.fromEntries(duePlanned.map(({ task, moment }) => [task.id, moment])) });
+      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        for (const { task } of duePlanned) { try { new Notification(task.title, { body: tr('Task reminder') }); } catch (_) { /* in-app reminder remains */ } }
       }
     }
     saveState();
@@ -5123,6 +5147,10 @@
     if (['preference-week-start', 'preference-density'].includes(event.target.id)) { savePersonalization(); return; }
     // R12c (J6): when the evening journal notice appears, or off.
     if (event.target.id === 'journal-reminder-time') { const value = event.target.value; if (value === 'off' || Core.normalizeTime(value) === value) { state.settings.journalReminderTime = value === 'off' ? null : value; saveAndRender(); } return; }
+    // R18: the reminder settings apply at once (the phone plan is rebuilt on save).
+    if (event.target.id === 'default-reminder-time') { const value = Core.normalizeTime(event.target.value); if (value) { state.settings.defaultReminderTime = value; saveAndRender(); } return; }
+    if (event.target.id === 'planned-time-reminders') { state.settings.plannedTimeReminders = event.target.checked; saveAndRender(); return; }
+    if (event.target.id === 'journal-notifications') { state.settings.journalNotifications = event.target.checked; saveAndRender(); return; }
     if (event.target.id === 'daily-capacity') { const minutes = Number(event.target.value); if (Number.isInteger(minutes) && minutes >= 0 && minutes <= 1440) { state.settings.dailyCapacityMinutes = minutes; saveAndRender(); } return; }
     if (event.target.id === 'backup-reminder-days') { const days = Number(event.target.value); if (Number.isInteger(days) && days >= 0 && days <= 90) { state.settings.backupReminderDays = days; saveAndRender(); } return; }
     if (event.target.id === 'backup-import-input') { const file=event.target.files?.[0]; event.target.value=''; if(file) inspectImportBackup(file); return; }

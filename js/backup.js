@@ -291,7 +291,9 @@
     if (state.settings != null) {
       if (!object(state.settings)) fail('settings');
       enumField(state.settings, 'todayFocusFilter', ['all', 'open', 'completed', 'important', 'dueToday']);
-      for (const key of ['todayFocusStrip', 'compactDensity']) booleanField(state.settings, key);
+      for (const key of ['todayFocusStrip', 'compactDensity', 'plannedTimeReminders', 'journalNotifications']) booleanField(state.settings, key);
+      // R18: the hour Dailo proposes for reminders.
+      if (state.settings.defaultReminderTime != null && root.TodoCore.normalizeTime(state.settings.defaultReminderTime) !== state.settings.defaultReminderTime) fail('defaultReminderTime');
       if (state.settings.todayVisibleSections != null && (!Array.isArray(state.settings.todayVisibleSections)
         || state.settings.todayVisibleSections.some(section => !['focus', 'review', 'actions'].includes(section))
         || new Set(state.settings.todayVisibleSections).size !== state.settings.todayVisibleSections.length)) fail('todayVisibleSections');
