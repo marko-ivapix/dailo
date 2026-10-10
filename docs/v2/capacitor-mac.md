@@ -57,6 +57,10 @@ Sa besplatnim Apple ID-jem aplikacija radi 7 dana. Posle toga je ponovo pokreni 
 3. Poveži telefon kablom i na telefonu dozvoli otklanjanje grešaka za ovaj računar.
 4. U Android Studiju gore izaberi telefon i klikni ▶ (Run).
 
+Probne Android verzije su potpisane stalnim probnim ključem iz projekta (`android/app/debug.keystore`), i one iz Android Studija i APK koji Claude napravi u oblaku. Zato nova verzija ide preko stare, a podaci ostaju.
+
+**APK bez Android Studija:** prebaci `.apk` na telefon i dodirni ga. Dozvoli instalaciju iz tog izvora; ako Play Protect upozori, izaberi „Ipak instaliraj“.
+
 ## Prva provera u aplikaciji
 
 Upiši rezultat svake provere (prošlo / nije prošlo, telefon i verzija sistema) i pošalji ga; tek tada se računa kao provereno.
@@ -93,4 +97,4 @@ npm run cap:sync
 
 Zatim u Xcode-u ili Android Studiju ponovo ▶.
 
-Ključevi i lozinke nikad ne idu u repozitorijum. Potpisivanje ostaje samo u Xcode-u i Android Studiju na tvom Mac-u.
+Ključevi za objavu (App Store, Play prodavnica) i lozinke nikad ne idu u repozitorijum; to potpisivanje ostaje u Xcode-u i Android Studiju na tvom Mac-u. U repozitorijumu je samo probni Android ključ (standardna lozinka `android`), koji se nikad ne koristi za objavu.

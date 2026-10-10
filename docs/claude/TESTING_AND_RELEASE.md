@@ -58,6 +58,22 @@ Other facts at `2.0.0-alpha.2`: the Serbian catalog has 1522 entries (1523 at `2
 
 Follow `docs/v2/capacitor-mac.md`: `npm ci`, `npm run verify`, `npm run cap:sync`, then `npm run cap:ios` (Xcode 26+, signing team, run on the iPhone) and `npm run cap:android` (Android Studio Otter 2025.2.1+, JDK 21 bundled, run on the phone). The first flow to report: create a task, close the app completely, reopen it, the task is there. Then reminders while closed (and the tap), Android Back, keyboard over Quick Add, ZIP export through the share sheet, the online guide link, and the first-run transfer notice. Record results in `docs/superpowers/progress-modernization.md` only from the user's report.
 
+Debug signing: every debug build (Android Studio or Gradle, on the Mac or in the cloud) is signed with the shared key `android/app/debug.keystore` (`signingConfigs.debug`, standard passwords `android`), so a newer test APK installs over an older one and keeps its data. `tests/android-debug-signing.test.js` pins the file and keeps signing out of the release build type. The release key (Play Store) is separate and never enters the repository.
+
+Android APK in a cloud session (needs `dl.google.com` in the environment's allowed domains; verified 2026-10-10):
+
+```bash
+export ANDROID_HOME=$HOME/android-sdk
+# command-line tools: commandlinetools-linux-<latest>_latest.zip from dl.google.com/android/repository/ → $ANDROID_HOME/cmdline-tools/latest
+yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
+$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-36" "platform-tools" "build-tools;36.0.0"
+echo "sdk.dir=$ANDROID_HOME" > android/local.properties   # gitignored
+npm ci && npm run cap:sync
+(cd android && ./gradlew assembleDebug)                    # android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+If Maven Central answers 429, add a Gradle init script outside the repository (`~/.gradle/init.d/`) that points `repo.maven.apache.org` at `https://maven-central.storage-download.googleapis.com/maven2/`.
+
 Earlier V2.0-a evidence (2026-10-08, the release commit after `7a834db`; see `docs/superpowers/progress-v2-0a.md`), Node v22.22.0 and Python 3.13.16:
 
 | Check | Result |
