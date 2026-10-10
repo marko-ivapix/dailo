@@ -24,26 +24,43 @@ function fixture() {
   return { adapters, ctx, goal, habit, state, inputs, event, persisted: () => persisted };
 }
 
+// Redesign R9b (GO5): the goal page became the goal window. Health and contributions are checked there; the target and
+// unit are edited in the source window and the current value in the "Ažuriraj napredak" sheet.
+function goalWindow(f) {
+  Object.assign(f.ctx, {
+    modalState: { type: 'goal-details', goalId: 'g', showAllTasks: false },
+    modalFrame: content => content, formatDate: value => value, todayDueLabel: value => value, reviewTaskRow: task => `<row ${task.id}>`,
+    setModalState: value => { f.ctx.modalState = value; }, renderModal() {}, closePopover() {}, openPopover() {}, refreshSheet() {},
+    goalFocusTarget: () => null, goalDraft: goal => ({ ...goal }), templateMenuEntry: () => '',
+  });
+  return () => f.adapters.goals.renderRoute({ type: 'modal', modalType: 'goal-details' }, f.ctx);
+}
+
 test('Goal detail derives health and task contributions from the same deduplicated task set', () => {
   const f = fixture();
   f.goal.progressMode = 'linkedTasks'; f.goal.taskIds = ['done'];
   f.goal.projectLinks = [{ projectId: 'p', contributionMode: 'allTasks' }];
   f.state.projects = [{ id: 'p', name: 'Reading' }];
   f.state.tasks = [{ id: 'done', title: 'Read chapter', projectId: 'p', isCompleted: true }, { id: 'open', title: 'Read more', projectId: 'p' }];
-  const html = f.adapters.goals.renderRoute({ type: 'goal', id: 'g' }, f.ctx);
+  const render = goalWindow(f);
+  const html = render();
   assert.match(html, /data-goal-health="at-risk"/);
-  assert.match(html, /1 of 2 tasks completed/);
+  assert.match(html, /<span>1 of 2 tasks<\/span>/);
+  assert.match(html, /Tasks · 1 open<\/h3><div class="task-list today-card goal-details-tasks"><row open><\/div>/);
   f.state.tasks[1].isCompleted = true;
-  assert.match(f.adapters.goals.renderRoute({ type: 'goal', id: 'g' }, f.ctx), /data-goal-health="complete"/);
+  assert.match(render(), /data-goal-health="complete"/);
   assert.equal(f.goal.status, 'active');
 });
 
 test('Goal numeric edits persist fractional current, target and unit without lifecycle changes', () => {
   const f = fixture();
-  for (const [field, value] of [['targetValue', '12.5'], ['unit', 'chapters']]) {
-    f.ctx.goalPropertyEditor = { goal: f.goal, field, value };
-    f.adapters.goals.handleAction('save-goal-property', f.event, f.ctx);
-  }
+  goalWindow(f);
+  f.ctx.closeModal = () => { f.ctx.modalState = f.ctx.modalState.returnTo; };
+  f.adapters.goals.handleAction('edit-goal-source', f.event, f.ctx);
+  Object.assign(f.inputs, { '#goal-progress-mode': { value: 'manual' }, '#goal-progress-type': { value: 'numeric' }, '#goal-target': { value: '12.5' }, '#goal-unit': { value: 'chapters' } });
+  f.adapters.goals.handleAction('save-goal-source', f.event, f.ctx);
+  assert.equal(f.ctx.modalState.type, 'goal-details', 'the source window returns to the goal window');
+  f.adapters.goals.handleAction('goal-details-progress', f.event, f.ctx);
   f.inputs['#goal-current-value'] = { value: '3.5' };
   f.adapters.goals.handleAction('save-goal-progress', f.event, f.ctx);
   assert.equal(f.persisted().goals[0].currentValue, 3.5);
@@ -143,8 +160,8 @@ test('Goal habit contributions cap each link and escape names', () => {
   Object.assign(f.goal, { progressMode: 'linkedHabits', habitLinks: [{ habitId: 'h', metric: 'totalCheckins', target: 2 }] });
   f.habit.name = '<img src=x>';
   f.state.habitMetrics.h = { totalCheckins: 4 };
-  const html = f.adapters.goals.renderRoute({ type: 'goal', id: 'g' }, f.ctx);
+  const html = goalWindow(f)();
   assert.match(html, /data-goal-health="complete"/);
-  assert.match(html, /4 \/ 2 Check-ins · 100%/);
+  assert.match(html, /<span class="habits-bar-count">100%<\/span>[\s\S]*4 \/ 2 Check-ins/);
   assert.doesNotMatch(html, /<img src=x>/);
 });

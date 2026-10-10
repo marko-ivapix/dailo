@@ -60,8 +60,6 @@
   let suppressTaskSwipeClick = false;
   let modalReturnFocus = null;
   let popoverReturnFocus = null;
-  let goalPropertyEditor = null;
-  let createdGoalFocusId = null;
   const knowledgeAttachmentCache = new Map();
   let syncMeta = null;
   let syncUi = { step: 'email', email: '', busy: false, error: '' };
@@ -106,7 +104,7 @@
       const trigger = target.element?.isConnected ? target.element : target.selector && $(target.selector);
       const modal = $('#modal-root .modal');
       // A new decision may now be the highest overlay; never focus behind it.
-      const control = modal ? (modal.contains(trigger) ? trigger : [...modal.querySelectorAll('input, select, textarea')].find(el => el.offsetParent !== null) || modal.querySelector('.modal-footer button, button')) : trigger || $('#main [data-goal-property="title"]') || $('#main [data-habit-property="name"]') || $('#main');
+      const control = modal ? (modal.contains(trigger) ? trigger : [...modal.querySelectorAll('input, select, textarea')].find(el => el.offsetParent !== null) || modal.querySelector('.modal-footer button, button')) : trigger || $('#main');
       control?.focus();
     });
   }
@@ -578,13 +576,10 @@
       get modalState() { return modalState; },
       get undoHold() { return undoHold; },
       setModalState(value) { modalState = value; },
-      get goalPropertyEditor() { return goalPropertyEditor; },
-      set goalPropertyEditor(value) { goalPropertyEditor = value; },
       get popoverEl() { return popoverEl; },
       getHabit, habitMetrics, habitDraft, openHabitModal, refreshHabitMetrics,
       setHabitLog, updateHabitStatus, snoozeHabit, syncHabitGoalLinks,
       areaDefaults: { color: PROJECT_COLORS[0], icon: AREA_ICONS[0] },
-      setCreatedGoalFocusId(value) { createdGoalFocusId = value; },
       Core, getTask, getGoal, getProject, allProjects, sortedProjects, projectTasks, goalProgressLabel, goalStatusLabel, relativeDateLabel, formatReminder, recurrenceLabel, priorityLabel, priorityIcon, tagSummary, clampOrder, emptyState,
       render, restoreGoalFocus, captureGoalProgress, evaluateGoalProgressChanges,
       putGoalHistory, goalDraft, openGoalModal, openPopover, templateMenuEntry, syncGoalLinks,
@@ -597,7 +592,7 @@
       openGoalHistory,
       nowIso, uid, copyTemplate, saveState, navigate, setToastMessage, requestDeleteEntity, openConfirm, setUndo,
       calendarDate, parseLocalDate, formatDate, navigateCalendar, openPlanPicker, listTasks, deadlineRow,
-      refreshSheet, openHabitDetails,
+      refreshSheet, openHabitDetails, openGoalDetails,
       openHabitStartSheet(anchor) { openDateSheet(anchor, { type: 'habit' }, 'start'); },
       calendarTaskRow(task) { return taskRow(task, 'calendar', { today: true }); },
       templateTypes: TEMPLATE_TYPES, templateLabel, openTemplateEditorFromSource, saveTemplateRecord, duplicateTemplateRecord,
@@ -706,6 +701,9 @@
     // Redesign R8c (S13): a habit's details open as a window over the current screen.
     const habitRoute = /^#?habit\/(.+)$/.exec(route);
     if (habitRoute) { openHabitDetails(decodeURIComponent(habitRoute[1])); return; }
+    // Redesign R9b (GO5): so does a goal.
+    const goalRoute = /^#?goal\/(.+)$/.exec(route);
+    if (goalRoute) { openGoalDetails(decodeURIComponent(goalRoute[1])); return; }
     const target = route.startsWith('#') ? route : `#${route}`;
     if (location.hash === target) render();
     else location.hash = target;
@@ -987,10 +985,8 @@
     main.innerHTML = `${warning}<div class="content ${route.type === 'calendar' && state.ui.calendarView !== 'upcoming' ? 'calendar-content' : ''}">${content}</div>`;
     // An old #habit/<id> address shows the Habits screen with the details window on top (R8c).
     if (route.type === 'habit') { history.replaceState(null, '', '#habits'); openHabitDetails(route.id); }
-    if (createdGoalFocusId && route.type === 'goal' && route.id === createdGoalFocusId) {
-      createdGoalFocusId = null;
-      restoreGoalFocus(goalFocusTarget(main.querySelector('[data-goal-property="title"]')));
-    }
+    // An old #goal/<id> address shows Ciljevi with the goal window on top (R9b).
+    if (route.type === 'goal') { history.replaceState(null, '', '#goals'); openGoalDetails(route.id); }
   }
 
   function pageHeader(title, subtitle, options = {}) {
@@ -1577,6 +1573,16 @@
     requestAnimationFrame(() => $('#modal-root [data-action="close-modal"]')?.focus());
   }
 
+  // Redesign R9b (GO5): a goal opens as a window like the task window.
+  function openGoalDetails(goalId) {
+    if (!getGoal(goalId)) return;
+    closePopover();
+    if (modalState?.type !== 'goal-details') captureModalReturnFocus();
+    modalState = { type: 'goal-details', goalId, showAllTasks: false };
+    renderModal();
+    requestAnimationFrame(() => $('#modal-root [data-action="close-modal"]')?.focus());
+  }
+
   function openConfirm(config) {
     captureModalReturnFocus();
     closePopover();
@@ -1590,6 +1596,9 @@
     if (modalState?.previous?.type === 'goal') {
       const target = modalState.returnFocus; modalState = modalState.previous; renderModal(); restoreGoalFocus(target); return;
     }
+    // Source, reminders, links, milestone and history windows return to the goal window (R9b).
+    if (modalState?.returnTo) restoreGoalFocus(modalState.returnFocus);
+    if (modalState?.returnTo) { const back = modalState.returnTo; modalState = back; renderModal(); return; }
     if(modalState?.type==='recurrence-scope'){cancelRecurrenceScope();return;}
     if(modalState?.type==='template-picker'){modalState=modalState.previous;renderModal();return;}
     if(modalState?.onCancel){const cancel=modalState.onCancel;cancel();return;}
@@ -2779,9 +2788,9 @@
       const current = getTask(taskId); if (!current) return;
       Object.assign(current,copyTemplate(previous),{updatedAt:nowIso()});
       if (generatedId) {state.tasks = state.tasks.filter(item => item.id !== generatedId);removeCloneGoalLinks(generatedId);}
-      saveState(); render();
+      saveState(); render(); if (modalState?.type === 'goal-details') renderModal();
     });
-    render(); if (modalState?.type === 'task') renderModal(); evaluateGoalProgressChanges(goalProgressBefore);
+    render(); if (['task', 'goal-details'].includes(modalState?.type)) renderModal(); evaluateGoalProgressChanges(goalProgressBefore);
   }
 
   async function duplicateTask(taskId, copyFiles = false) {
@@ -3475,7 +3484,7 @@
   function openGoalHistory(goalId, trigger) {
     if (!getGoal(goalId)) return;
     closePopover();
-    modalState = { type: 'goal-history', goalId, events: null, error: '', returnFocus: goalFocusTarget(trigger) };
+    modalState = { type: 'goal-history', goalId, events: null, error: '', returnFocus: goalFocusTarget(trigger), returnTo: modalState?.type === 'goal-details' ? modalState : null };
     renderModal();
     TodoStorage.goalHistory.listByGoal(goalId).then(events => {
       if (modalState?.type !== 'goal-history' || modalState.goalId !== goalId) return;
@@ -4606,8 +4615,6 @@
 
     const pop = event.target.closest('[data-pop-action]');
     if (pop) { if (callDomainHook('handleAction', pop.dataset.popAction, event) === undefined) handlePopoverAction(pop); return; }
-    const goalProperty = event.target.closest('[data-goal-property]');
-    if (goalProperty && callDomainHook('handleAction', 'goal-property', event) !== undefined) return;
 
     const el = event.target.closest('[data-action]');
     if (!el) {
@@ -4894,9 +4901,6 @@
     const target = event.target;
     if (handleAreaTabKeydown(event)) return;
     const typing = target && (target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"]') || target.isContentEditable);
-    if (goalPropertyEditor && !modalState && !popoverEl && (event.key === 'Escape' || (event.key === 'Enter' && typing && !event.isComposing))) {
-      if (callDomainHook('handleInput', event) !== undefined) return;
-    }
     if (popoverEl && event.key === 'Tab') { trapPopoverFocus(event); return; }
 
     if (modalState && event.key === 'Tab') {
@@ -5275,7 +5279,7 @@
   // Android Back works like Escape: it closes the top sheet, menu, popover, inline editor or dialog and reports
   // whether anything closed; otherwise the platform goes to the previous screen or minimizes (audit P-3, M4).
   // A reset or restore that is already running is never interrupted.
-  const overlaySnapshot = () => [$('#mobile-quick-add-toggle')?.getAttribute('aria-expanded'), popoverEl, modalState, goalPropertyEditor, document.activeElement];
+  const overlaySnapshot = () => [$('#mobile-quick-add-toggle')?.getAttribute('aria-expanded'), popoverEl, modalState, document.activeElement];
   function handleBackButton() {
     if (globalOperation?.busy) return true;
     const before = overlaySnapshot();

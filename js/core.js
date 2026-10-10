@@ -2039,6 +2039,7 @@
     getHabitTargetStatus,
     getTimedTaskBlocks,
     computeGoalProgress,
+    goalTaskSet,
     goalProgressSummary,
     goalProgressHistory,
     isGoalOverdue,
