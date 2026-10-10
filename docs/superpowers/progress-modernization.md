@@ -36,12 +36,13 @@ Only checks that actually ran are recorded as passed. Native compilation, emulat
 | --- | --- | --- | --- |
 | 2026-10-10 | Android phone (model and Android version not reported) | debug APK from `e5f1cfa` (`2.0.0-alpha.5`, shared debug key), built in the cloud | Installed; "Instalirao sam, radi" (the app starts and works). Whether it was installed over the first APK, and the individual first checks below, were not reported. |
 | 2026-10-10 | the same Android phone (model and version not reported) | the same APK (`e5f1cfa`) | **Passed:** a task stays after closing the app completely and reopening it. **Failed:** a reminder set 2–3 minutes ahead did not arrive with the app closed (fix above, `2.0.0-alpha.6`; permission and exact-alarm state not yet reported). |
+| 2026-10-10 | the user's Mac, Xcode 27.0, iOS Simulator | the user's clone, following the steps for branch `feature/redesign` (`2.0.0-alpha.6` expected; the version shown in the app not yet reported) | **Passed:** `npm run cap:ios`, Swift packages resolved, **Build Succeeded**, the app opened in the Simulator. One compiler warning comes from the third-party Filesystem plugin (`LegacyFilesystemImplementation.swift:77`, unused `responseType`), harmless. The user finds the Simulator slow. The first checks (reopen, reminder) and an iPhone run are not reported yet. |
 
 ## Not verified in this environment (manual-pending)
 
 The cloud session has no macOS. Since 2026-10-10 it can build the Android debug APK (row above; the SDK is installed per session). Nothing below may be reported as passed until the user reports it:
 
-- iOS: Xcode build and signing, Simulator, iPhone run; Android: Emulator (the Gradle debug build passes in the cloud, and the user reported the APK installed and working on a phone, see above).
+- iOS: signing and the iPhone run, the first checks in the Simulator (the Xcode build and the Simulator start passed on the user's Mac, see above); Android: Emulator (the Gradle debug build passes in the cloud, and the user reported the APK installed and working on a phone, see above).
 - The first native flow: create a task, close the app completely, reopen it, the task is there.
 - Reminders while the app is closed, foreground banners, the tap that opens the item, the permission question and the denied state, Android exact alarms.
 - Android Back on each overlay; the keyboard over Quick Add (no zoom, nothing hidden); safe areas and the status bar.
