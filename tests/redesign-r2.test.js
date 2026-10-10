@@ -306,8 +306,8 @@ test('T2, M3, M6: the removed cards, capacity item and Today settings are gone; 
   assert.equal(normalized.todayFocusFilter, 'open');
 });
 
-test('R2 is released as 2.0.0-alpha.7', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.7');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.7';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.7');
+test('R2 shipped as 2.0.0-alpha.7 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.([7-9]|\d{2,})$|^2\.\d+\.\d+/);
+  assert.match(read('sw.js'), new RegExp(`const VERSION = '${Release.APP_VERSION.replace(/\./g, '\\.')}';`));
+  assert.equal(JSON.parse(read('package.json')).version, Release.APP_VERSION);
 });

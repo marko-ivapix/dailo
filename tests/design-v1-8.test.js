@@ -173,18 +173,15 @@ test('modals are 12px graphite panels with overlay elevation and bottom-sheet gr
   assert.match(phone, /\.modal-backdrop-task-detail-modal \.modal::before[^{]*\{[^}]*width:\s*32px/);
 });
 
+// Redesign R3 (E1): the window's rows sit in hairline cards; "Više opcija" keeps the key/value rows.
 test('Task Properties keeps collapsed disclosures and presents grouped key/value rows', () => {
   const tasksUi = read('js/tasks-ui.js');
-  for (const name of ['task-properties-disclosure', 'task-schedule-disclosure', 'task-links-notes-disclosure']) {
-    assert.match(tasksUi, new RegExp(`<details class="detail-section detail-disclosure ${name}">`));
-  }
-  assert.match(rule(v18, '.task-properties-summary'), /min-height:\s*32px/);
-  assert.match(rule(v18, '.task-properties-summary:hover'), /background:\s*var\(--graphite-800\)/);
-  const group = rule(v18, '.task-property-group');
-  assert.match(group, /background:\s*var\(--graphite-900\)/);
-  assert.match(group, /border-color:\s*var\(--line-1\)/);
+  assert.match(tasksUi, /<details class="task-window-more">/);
+  assert.match(tasksUi, /class="property-row" for="detail-area"/);
+  const r3 = css.slice(css.indexOf('/* Redesign R3'));
+  assert.match(r3, /\.task-window-card \{[^}]*border: 1px solid var\(--line-1\)/);
+  assert.match(r3, /\.task-window-card \{[^}]*background: var\(--graphite-850\)/);
   assert.match(rule(v18, '.property-value'), /color:\s*var\(--ink-1\)/);
-  assert.match(rule(v18, '.property-chip'), /border-radius:\s*var\(--radius-sm\)/);
 });
 
 test('popovers keep focus rings visible and toasts distinguish alerts from confirmations', () => {

@@ -2304,6 +2304,69 @@ a.btn { text-decoration: none; }
 .habit-value-modal .quick-actions { margin-bottom: 12px; }
 @media (pointer: coarse) { .habit-check { width: 44px; height: 44px; } }
 
+/* Redesign R3 — bottom sheets (E2) and the task window (D1–D4, E1–E9). */
+.sheet-backdrop { position: fixed; inset: 0; z-index: 129; background: rgba(5, 6, 8, .55); animation: fade-in var(--motion-base) var(--ease-enter); }
+.popover.popover--sheet { left: 50%; right: auto; top: auto; bottom: 0; width: min(560px, 100vw); max-height: min(86dvh, 720px); overflow: auto; transform: translateX(-50%); padding: 0 16px calc(16px + env(safe-area-inset-bottom)); border-radius: 18px 18px 0 0; border-bottom: 0; animation: sheet-in var(--motion-slow) var(--ease-enter); }
+@keyframes sheet-in { from { transform: translate(-50%, 24px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
+.sheet-header { position: sticky; top: 0; z-index: 1; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; margin: 0 -16px 8px; padding: 18px 12px 6px 16px; background: var(--graphite-850); }
+.sheet-grabber { position: absolute; top: 6px; left: 50%; width: 36px; height: 4px; margin-left: -18px; border-radius: 2px; background: var(--line-3); }
+.sheet-header .popover-title { margin: 0; padding: 0; color: var(--ink-1); font-size: 17px; font-weight: 600; letter-spacing: 0; text-transform: none; }
+.sheet-header .sheet-close { grid-column: 2; }
+.sheet-subtitle { margin: -4px 0 12px; color: var(--ink-3); font-size: 13px; overflow-wrap: anywhere; }
+.sheet-card { display: grid; margin-bottom: 12px; padding: 2px; border: 1px solid var(--line-1); border-radius: var(--radius-md); background: var(--graphite-900); }
+.sheet-option { min-height: 48px; display: flex; align-items: center; gap: 10px; }
+.sheet-option-label { flex: 1; min-width: 0; display: grid; gap: 2px; text-align: left; }
+.sheet-option-label small { color: var(--ink-3); font-size: 12px; }
+.sheet-option-value { color: var(--ink-3); font-size: 13px; }
+.sheet-radio { width: 18px; height: 18px; flex: none; border: 2px solid var(--line-3); border-radius: 50%; }
+.sheet-radio.is-on { border-color: var(--blue-300); box-shadow: inset 0 0 0 3px var(--graphite-900), inset 0 0 0 9px var(--blue-300); }
+.sheet-check { width: 20px; height: 20px; flex: none; display: inline-grid; place-items: center; border: 2px solid var(--line-3); border-radius: 6px; color: var(--graphite-900); }
+.sheet-check.is-on { border-color: var(--blue-300); background: var(--blue-300); }
+.sheet-add { color: var(--blue-300); }
+.sheet-search { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; padding: 0 10px; border: 1px solid var(--line-2); border-radius: var(--radius-md); background: var(--graphite-900); color: var(--ink-3); }
+.sheet-search .input { border: 0; background: none; padding-inline: 0; }
+.sheet-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.quick-chip.is-selected { border-color: var(--blue-300); color: var(--ink-1); }
+.sheet-field { display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(0, 150px); align-items: center; gap: 10px; margin-bottom: 10px; color: var(--ink-2); }
+.sheet-note, .sheet-summary { margin: 0 0 12px; color: var(--ink-3); font-size: 13px; }
+.sheet-summary { color: var(--ink-1); font-weight: 500; }
+.sheet-group-title { margin: 4px 0 6px; color: var(--ink-3); font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+.sheet-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 4px; }
+.sheet-footer .btn-primary { min-width: 140px; }
+.sheet-calendar { margin-bottom: 12px; }
+.sheet-calendar-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.sheet-calendar-title { color: var(--ink-1); font-weight: 600; text-transform: capitalize; }
+.sheet-calendar-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; text-align: center; }
+.sheet-calendar-weekday { padding: 4px 0; color: var(--ink-4); font-size: 11px; text-transform: capitalize; }
+.sheet-calendar-day { height: 40px; border: 0; border-radius: 50%; background: none; color: var(--ink-2); font: inherit; cursor: pointer; }
+.sheet-calendar-day.is-today { color: var(--blue-300); font-weight: 600; }
+.sheet-calendar-day.is-selected { background: var(--blue-500); color: #fff; }
+.task-flag--none { color: var(--ink-4); }
+.task-flag--low { color: var(--ink-3); }
+.task-window { padding-bottom: 0; }
+.task-window-header { align-items: center; }
+.task-window-kind { color: var(--ink-3); font-size: 13px; font-weight: 500; }
+.task-window-actions { display: flex; gap: 4px; }
+.task-window-title { width: 100%; margin: 4px 0 6px; font-size: 22px; font-weight: 600; }
+.task-window-project { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 8px; padding: 4px 0; border: 0; background: none; color: var(--blue-300); font: inherit; font-size: 14px; cursor: pointer; }
+.task-window-group { display: block; margin: 16px 0 6px; color: var(--ink-3); font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+.task-window-card { display: grid; padding: 2px; border: 1px solid var(--line-1); border-radius: var(--radius-md); background: var(--graphite-850); }
+.task-window-row { min-height: 48px; display: grid; grid-template-columns: 22px auto minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 6px 10px; border: 0; border-radius: var(--radius-sm); background: none; color: var(--ink-2); font: inherit; text-align: left; cursor: pointer; }
+.task-window-row + .task-window-row { border-top: 1px solid var(--line-1); border-radius: 0; }
+.task-window-row:hover { background: var(--graphite-800); }
+.task-window-row-label { color: var(--ink-1); }
+.task-window-row-value { justify-self: end; min-width: 0; display: inline-flex; align-items: center; gap: 6px; color: var(--ink-4); font-size: 13px; text-align: right; }
+.task-window-row-value.is-set { color: var(--ink-2); }
+.task-window-row-value.is-overdue { color: var(--danger); }
+.task-window-row-value.is-today { color: var(--warning); }
+.task-window-row-caret { color: var(--ink-4); }
+.task-window-attachments { margin-top: 12px; }
+.task-window-more { margin-top: 16px; }
+.task-window-more > summary { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 4px; color: var(--ink-1); cursor: pointer; list-style: none; }
+.task-window-more-meta { flex: 1; color: var(--ink-4); font-size: 13px; text-align: right; }
+.task-window-footer { position: sticky; bottom: 0; margin-top: 18px; padding: 10px 0 4px; background: linear-gradient(to bottom, transparent, var(--graphite-850) 30%); }
+.task-complete-button { width: 100%; min-height: 50px; font-size: 16px; }
+
 /* Keep primary compact actions touchable after all density rules. */
 @media (max-width: 700px), (pointer: coarse) {
   .task-actions .btn-icon,

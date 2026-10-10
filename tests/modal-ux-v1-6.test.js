@@ -7,17 +7,16 @@ const app = fs.readFileSync(require.resolve('../js/app.js'), 'utf8');
 const html = fs.readFileSync(require.resolve('../index.html'), 'utf8');
 const css = fs.readFileSync(require.resolve('../css/styles.css'), 'utf8');
 
+// Redesign R3 (E1): Planiranje and Organizacija rows replace the chips and the three disclosures; only
+// "Više opcija" stays folded.
 test('task editor keeps optional sections collapsed and exposes compact essentials', () => {
-  assert.match(tasksUi, /class="task-quick-properties"/);
-  assert.match(tasksUi, /<details class="detail-section detail-disclosure task-properties-disclosure">/);
-  assert.match(tasksUi, /<details class="detail-section detail-disclosure task-schedule-disclosure">/);
-  assert.match(tasksUi, /<details class="detail-section detail-disclosure task-links-notes-disclosure">/);
-  assert.doesNotMatch(tasksUi, /<details[^>]+task-properties-disclosure[^>]+open/);
-  assert.doesNotMatch(tasksUi, /<details[^>]+task-schedule-disclosure[^>]+open/);
-  assert.doesNotMatch(tasksUi, /<details[^>]+task-links-notes-disclosure[^>]+open/);
-  assert.match(tasksUi, /class="detail-section task-notes-field"/);
+  assert.match(tasksUi, /<h3 class="task-window-group">\$\{tr\('Planning'\)\}<\/h3>/);
+  assert.match(tasksUi, /<h3 class="task-window-group">\$\{tr\('Organization'\)\}<\/h3>/);
+  assert.match(tasksUi, /<details class="task-window-more">/);
+  assert.doesNotMatch(tasksUi, /<details[^>]+task-window-more[^>]+open/);
+  assert.doesNotMatch(tasksUi, /task-quick-properties|task-properties-disclosure|task-schedule-disclosure|task-links-notes-disclosure/);
   assert.match(tasksUi, /id="detail-notes" class="detail-notes"/);
-  assert.match(tasksUi, /data-action="task-tags-picker" data-task-id=/);
+  assert.match(tasksUi, /row\('task-tags-picker', 'ph-tag', tr\('Tags'\)/);
   assert.match(tasksUi, /aria-labelledby="task-modal-title"/);
   assert.match(tasksUi, /'task-detail-modal'/);
 });

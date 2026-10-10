@@ -97,8 +97,8 @@
   function goalFocusTarget(element = document.activeElement) {
     if (!(element instanceof HTMLElement)) return null;
     const keys = ['action', 'goalProperty', 'goalId', 'milestoneId', 'habitProperty', 'habitId', 'areaId', 'ownerType', 'ownerId', 'date'];
-    const attrs = keys.filter(key => element.dataset[key] !== undefined).map(key => `[data-${key.replace(/[A-Z]/g, c => '-' + c.toLowerCase())}="${CSS.escape(element.dataset[key])}"]`).join('');
-    return { element, selector: attrs || (element.id ? '#' + CSS.escape(element.id) : '') };
+    const attrs = keys.filter(key => element.dataset[key] !== undefined).map(key => `[data-${key.replace(/[A-Z]/g, c => '-' + c.toLowerCase())}="${cssEscape(element.dataset[key])}"]`).join('');
+    return { element, selector: attrs || (element.id ? '#' + cssEscape(element.id) : '') };
   }
 
   function restoreGoalFocus(target) {
@@ -124,6 +124,9 @@
   function parseLocalDate(value) {
     return Core.parseDateOnly(value);
   }
+
+  // CSS.escape with a fallback for WebViews and jsdom that lack it (selectors for focus return and lookups).
+  const cssEscape = value => (globalThis.CSS?.escape ? globalThis.CSS.escape(value) : String(value).replace(/["\\\]#.:]/g, '\\$&'));
 
   function formatDate(value, mode = 'short') {
     const date = parseLocalDate(value);
@@ -1997,39 +2000,146 @@
     return PROJECT_COLORS[state.projects.length % PROJECT_COLORS.length];
   }
 
+  // Redesign R3 (E8): projects grouped by area with "Oblast: …", a search field and "+ Novi projekat".
+  // A tap applies the choice (E3).
   function openProjectPicker(anchor, target) {
-    const currentId = target.type === 'quick' ? modalState?.draft.projectId : getTask(target.taskId)?.projectId;
+    const source = target.type === 'quick' ? modalState?.draft : getTask(target.taskId);
+    const currentId = source?.projectId || null;
+    const attrs = `data-target-type="${target.type}"${target.taskId ? ` data-task-id="${esc(target.taskId)}"` : ''}`;
     const projects = sortedProjects();
-    const html = `<div class="popover-title">${tr('Project')}</div><button class="popover-option ${!currentId ? 'is-selected' : ''}" type="button" data-pop-action="set-project" data-project-id="" data-target-type="${target.type}" ${target.taskId ? `data-task-id="${esc(target.taskId)}"` : ''}><i class="ph ph-minus-circle"></i>${tr('No project')}${!currentId ? '<i class="ph ph-check spacer"></i>' : ''}</button>${projects.map(p => `<button class="popover-option ${p.id === currentId ? 'is-selected' : ''}" type="button" data-pop-action="set-project" data-project-id="${esc(p.id)}" data-target-type="${target.type}" ${target.taskId ? `data-task-id="${esc(target.taskId)}"` : ''}><span class="project-dot" style="--project-color:${esc(p.color)}"></span>${esc(p.name)}${p.id === currentId ? '<i class="ph ph-check spacer"></i>' : ''}</button>`).join('')}<div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="inline-new-project" data-target-type="${target.type}" ${target.taskId ? `data-task-id="${esc(target.taskId)}"` : ''}><i class="ph ph-plus"></i>${tr('New project')}</button>`;
+    const activeAreas = sortedAreas().filter(area => area.status !== 'archived');
+    const ordered = [...activeAreas.flatMap(area => projects.filter(project => project.areaId === area.id)), ...projects.filter(project => !activeAreas.some(area => area.id === project.areaId))];
+    const option = project => {
+      const area = getArea(project.areaId);
+      return `<button class="popover-option sheet-option${project.id === currentId ? ' is-selected' : ''}" type="button" data-sheet-item data-search="${esc(project.name.toLowerCase())}" data-pop-action="set-project" data-project-id="${esc(project.id)}" ${attrs}><span class="project-dot" style="--project-color:${esc(project.color)}"></span><span class="sheet-option-label">${esc(project.name)}${area ? `<small>${esc(tr('Area: {area}', { area: area.name }))}</small>` : ''}</span><span class="sheet-radio${project.id === currentId ? ' is-on' : ''}" aria-hidden="true"></span></button>`;
+    };
+    const html = `<div class="popover-title">${tr('Project')}</div>${source?.title ? `<p class="sheet-subtitle">${esc(source.title)}</p>` : ''}<label class="sheet-search"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input class="input" type="search" data-sheet-search placeholder="${tr('Search projects')}" aria-label="${tr('Search projects')}"></label><div class="sheet-card"><button class="popover-option sheet-option${!currentId ? ' is-selected' : ''}" type="button" data-pop-action="set-project" data-project-id="" ${attrs}><span class="sheet-option-label">${tr('No project')}</span><span class="sheet-radio${!currentId ? ' is-on' : ''}" aria-hidden="true"></span></button>${ordered.map(option).join('')}<button class="popover-option sheet-option sheet-add" type="button" data-pop-action="inline-new-project" ${attrs}><i class="ph ph-plus" aria-hidden="true"></i>${tr('New project')}</button></div><p class="sheet-note">${tr("The task takes its project's area. A tap applies the choice.")}</p>`;
     openPopover(anchor, html, { type: 'project', target });
   }
 
-  function openPlanPicker(anchor, target) {
-    const task = target.type === 'quick' ? modalState.draft : getTask(target.taskId);
+  // Redesign R3 (E4): one date sheet for Planirano and Rok, in the task window and in Quick Add.
+  let dateSheet = null, reminderSheet = null, tagSheet = null;
+  function nextMonday(today) {
+    const weekday = parseLocalDate(today).getDay();
+    return Core.addDays(today, ((8 - weekday) % 7) || 7);
+  }
+  function monthGrid(selected, view, today = Core.dateOnly()) {
+    const sundayFirst = Core.weekStartKey(state.settings.weekStartsOn) === 'sunday';
+    const first = new Date(view.y, view.m, 1, 12);
+    const count = new Date(view.y, view.m + 1, 0).getDate();
+    const lead = (first.getDay() - (sundayFirst ? 0 : 1) + 7) % 7;
+    const weekday = new Intl.DateTimeFormat(I18n.locale(), { weekday: 'short' });
+    const names = Array.from({ length: 7 }, (_, index) => weekday.format(new Date(2026, 0, 4 + index + (sundayFirst ? 0 : 1), 12)));
+    const title = new Intl.DateTimeFormat(I18n.locale(), { month: 'long', year: 'numeric' }).format(first);
+    let html = `<div class="sheet-calendar"><div class="sheet-calendar-head"><button class="btn-icon" type="button" data-pop-action="date-sheet-month" data-step="-1" aria-label="${tr('Previous month')}"><i class="ph ph-caret-left"></i></button><span class="sheet-calendar-title">${esc(title)}</span><button class="btn-icon" type="button" data-pop-action="date-sheet-month" data-step="1" aria-label="${tr('Next month')}"><i class="ph ph-caret-right"></i></button></div><div class="sheet-calendar-grid">${names.map(name => `<span class="sheet-calendar-weekday">${esc(name)}</span>`).join('')}${'<span></span>'.repeat(lead)}`;
+    for (let dayNumber = 1; dayNumber <= count; dayNumber += 1) {
+      const date = Core.dateOnly(new Date(view.y, view.m, dayNumber, 12));
+      html += `<button class="sheet-calendar-day${date === selected ? ' is-selected' : ''}${date === today ? ' is-today' : ''}" type="button" data-pop-action="date-sheet-pick" data-date="${date}" aria-pressed="${date === selected}" aria-label="${esc(formatDate(date, 'full'))}">${dayNumber}</button>`;
+    }
+    return `${html}</div></div>`;
+  }
+  function openDateSheet(anchor, target, kind) {
+    const source = target.type === 'quick' ? modalState?.draft : getTask(target.taskId);
+    if (!source) return;
+    const date = (kind === 'plan' ? source.plannedDate : source.dueDate) || null;
+    const base = parseLocalDate(date || Core.dateOnly());
+    const sheet = { target, kind, date, time: (kind === 'plan' ? source.plannedTime : source.dueTime) || null, view: { y: base.getFullYear(), m: base.getMonth() } };
+    dateSheet = sheet;
+    openPopover(anchor, dateSheetHtml(), { type: 'date-sheet', target });
+    dateSheet = sheet; // openPopover closes the previous sheet first, which clears the sheet state
+  }
+  function dateSheetHtml() {
+    const { target, kind, date, time, view } = dateSheet;
+    const source = target.type === 'quick' ? modalState?.draft : getTask(target.taskId);
     const today = Core.dateOnly();
-    const html = `<div class="popover-title">${tr('Plan for')}</div>${dateOption(tr('Today'), today, task.plannedDate, 'set-plan', target)}${dateOption(tr('Tomorrow'), Core.addDays(today,1), task.plannedDate, 'set-plan', target)}<button class="popover-option" type="button" data-pop-action="show-custom-date" data-date-kind="plan" data-target-type="${target.type}" ${target.taskId ? `data-task-id="${esc(target.taskId)}"` : ''}><i class="ph ph-calendar-blank"></i>${tr('Pick a date...')}</button>${task.plannedDate ? `<div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="set-plan" data-date="" data-target-type="${target.type}" ${target.taskId ? `data-task-id="${esc(target.taskId)}"` : ''}><i class="ph ph-x"></i>${tr('Remove plan')}</button>` : ''}`;
-    openPopover(anchor, html, { type: 'plan', target });
+    const quick = [[tr('Today'), today], [tr('Tomorrow'), Core.addDays(today, 1)], [tr('Start of next week'), nextMonday(today)]];
+    const otherDate = kind === 'plan' ? source?.dueDate : source?.plannedDate;
+    const otherTime = kind === 'plan' ? source?.dueTime : source?.plannedTime;
+    const other = otherDate ? `${relativeDateLabel(otherDate)}${otherTime ? ` · ${otherTime}` : ''}` : '';
+    const note = kind === 'plan' ? (other ? tr('The due date stays: {date}', { date: other }) : tr('No due date is set.')) : (other ? tr('The planned date stays: {date}', { date: other }) : tr('No planned date is set.'));
+    return `<div class="popover-title">${kind === 'plan' ? tr('Planned') : tr('Due date')}</div>${source?.title ? `<p class="sheet-subtitle">${esc(source.title)}</p>` : ''}<div class="sheet-chips">${quick.map(([label, value]) => `<button class="quick-chip${date === value ? ' is-selected' : ''}" type="button" data-pop-action="date-sheet-pick" data-date="${value}" aria-pressed="${date === value}">${esc(label)}</button>`).join('')}</div>${monthGrid(date, view, today)}<label class="sheet-field"><i class="ph ph-clock" aria-hidden="true"></i><span>${tr('Time')}</span><input id="date-sheet-time" class="input" type="time" value="${esc(time || '')}"></label><p class="sheet-note">${esc(note)}</p><div class="sheet-footer"><button class="btn btn-ghost" type="button" data-pop-action="date-sheet-clear">${tr('Remove date')}</button><button class="btn btn-primary" type="button" data-pop-action="date-sheet-apply">${tr('Apply')}</button></div>`;
+  }
+  function applyDateSheet(clear) {
+    if (!dateSheet) return;
+    const { target, kind } = dateSheet;
+    const date = clear ? null : dateSheet.date;
+    const time = date ? Core.normalizeTime($('#date-sheet-time', popoverEl)?.value ?? dateSheet.time) : null;
+    if (target.type === 'quick') {
+      const draft = modalState.draft;
+      if (kind === 'plan') Object.assign(draft, { plannedDate: date, plannedTime: time, explicitPlan: true, parsedPlanDate: null, explicitPlannedTime: Boolean(time) });
+      else Object.assign(draft, { dueDate: date, dueTime: time });
+      closePopover(); renderModal(); return;
+    }
+    closePopover();
+    requestTaskEdit(target.taskId, kind === 'plan' ? { plannedDate: date, plannedTime: time, ...(date ? { isInbox: false } : {}) } : { dueDate: date, dueTime: time });
+  }
+
+  function openPlanPicker(anchor, target) {
+    openDateSheet(anchor, target, 'plan');
   }
 
   function openDuePicker(anchor, target) {
-    const task = target.type === 'quick' ? modalState.draft : getTask(target.taskId);
-    const today = Core.dateOnly();
-    const weekend = nextWeekend(today);
-    const html = `<div class="popover-title">${tr('Due date')}</div>${dateOption(tr('Today'), today, task.dueDate, 'set-due', target)}${dateOption(tr('Tomorrow'), Core.addDays(today,1), task.dueDate, 'set-due', target)}${dateOption(tr('This weekend'), weekend, task.dueDate, 'set-due', target)}<button class="popover-option" type="button" data-pop-action="show-custom-date" data-date-kind="due" data-target-type="${target.type}" ${target.taskId ? `data-task-id="${esc(target.taskId)}"` : ''}><i class="ph ph-calendar-blank"></i>${tr('Pick a date...')}</button>${task.dueDate ? `<div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="set-due" data-date="" data-target-type="${target.type}" ${target.taskId ? `data-task-id="${esc(target.taskId)}"` : ''}><i class="ph ph-x"></i>${tr('Clear due date')}</button>` : ''}`;
-    openPopover(anchor, html, { type: 'due', target });
+    openDateSheet(anchor, target, 'due');
   }
 
+  // Redesign R3 (E9): several tags at once, saved together with "Primeni".
   function openTagPicker(anchor, target) {
     const selected = target.type === 'quick' ? (modalState.draft.tagIds || []) : (getTask(target.taskId)?.tagIds || []);
-    const options = (state.tags || []).map(tag => `<button class="popover-option ${selected.includes(tag.id) ? 'is-selected' : ''}" type="button" data-pop-action="toggle-tag" data-tag-id="${esc(tag.id)}" data-target-type="${target.type}" ${target.taskId ? `data-task-id="${esc(target.taskId)}"` : ''}><span class="tag-dot" style="--tag-color:${esc(tag.color)}"></span>${esc(tag.name)}${selected.includes(tag.id) ? '<i class="ph ph-check spacer"></i>' : ''}</button>`).join('');
-    const html = `<div class="popover-title">${tr('Tags')}</div>${options || `<div class="popover-empty">${tr('No tags yet')}</div>`}<div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="inline-new-tag" data-target-type="${target.type}" ${target.taskId ? `data-task-id="${esc(target.taskId)}"` : ''}><i class="ph ph-plus"></i>${tr('New tag')}</button>`;
-    openPopover(anchor, html, { type: 'tag-picker' });
+    const sheet = { target, ids: new Set(selected) };
+    tagSheet = sheet;
+    openPopover(anchor, tagSheetHtml(), { type: 'tag-picker', target });
+    tagSheet = sheet;
+  }
+  function tagSheetHtml() {
+    const { target, ids } = tagSheet;
+    const attrs = `data-target-type="${target.type}"${target.taskId ? ` data-task-id="${esc(target.taskId)}"` : ''}`;
+    const source = target.type === 'quick' ? modalState?.draft : getTask(target.taskId);
+    const tags = [...(state.tags || [])].sort((a, b) => String(a.name).localeCompare(String(b.name)));
+    const options = tags.map(tag => { const on = ids.has(tag.id); return `<button class="popover-option sheet-option${on ? ' is-selected' : ''}" type="button" data-sheet-item data-search="${esc(String(tag.name).toLowerCase())}" data-pop-action="tag-sheet-toggle" data-tag-id="${esc(tag.id)}" aria-pressed="${on}"><span class="tag-dot" style="--tag-color:${esc(tag.color)}"></span><span class="sheet-option-label">${esc(tag.name)}</span><span class="sheet-check${on ? ' is-on' : ''}" aria-hidden="true">${on ? '<i class="ph ph-check"></i>' : ''}</span></button>`; }).join('');
+    return `<div class="popover-title">${tr('Tags')}</div>${source?.title ? `<p class="sheet-subtitle">${esc(source.title)}</p>` : ''}<label class="sheet-search"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input class="input" type="search" data-sheet-search placeholder="${tr('Search tags')}" aria-label="${tr('Search tags')}"></label><div class="sheet-card">${options || `<div class="popover-empty">${tr('No tags yet')}</div>`}<button class="popover-option sheet-option sheet-add" type="button" data-pop-action="inline-new-tag" ${attrs}><i class="ph ph-plus" aria-hidden="true"></i>${tr('New tag')}</button></div><div class="sheet-footer"><span></span><button class="btn btn-primary" type="button" data-pop-action="tag-sheet-apply">${tr('Apply')}</button></div>`;
+  }
+  function toggleTagSheet(button) {
+    if (!tagSheet) return;
+    const id = button.dataset.tagId;
+    const on = !tagSheet.ids.has(id);
+    if (on) tagSheet.ids.add(id); else tagSheet.ids.delete(id);
+    button.classList.toggle('is-selected', on);
+    button.setAttribute('aria-pressed', String(on));
+    const check = button.querySelector('.sheet-check');
+    if (check) { check.classList.toggle('is-on', on); check.innerHTML = on ? '<i class="ph ph-check"></i>' : ''; }
+  }
+  function applyTagSheet() {
+    if (!tagSheet) return;
+    const { target } = tagSheet;
+    const tagIds = [...tagSheet.ids].filter(id => getTag(id));
+    if (target.type === 'quick') { modalState.draft.tagIds = tagIds; closePopover(); renderModal(); return; }
+    closePopover();
+    requestTaskEdit(target.taskId, { tagIds });
   }
 
+  // Redesign R3 (E5): Bez, Nizak, Srednji, Visok with flags; a tap applies (E3).
   function openPriorityPicker(anchor, target) {
-    const current = target.type === 'quick' ? (modalState.draft.priority || 'none') : (getTask(target.taskId)?.priority || 'none');
-    const html = `<div class="popover-title">${tr('Priority')}</div>${['none','low','medium','high'].map(value => `<button class="popover-option ${current === value ? 'is-selected' : ''}" type="button" data-pop-action="set-priority" data-priority="${value}" data-target-type="${target.type}" ${target.taskId ? `data-task-id="${esc(target.taskId)}"` : ''}>${value === 'none' ? '<i class="ph ph-minus"></i>' : priorityIcon(value)}${esc(priorityLabel(value))}${current === value ? '<i class="ph ph-check spacer"></i>' : ''}</button>`).join('')}`;
+    const source = target.type === 'quick' ? modalState?.draft : getTask(target.taskId);
+    const current = source?.priority || 'none';
+    const attrs = `data-target-type="${target.type}"${target.taskId ? ` data-task-id="${esc(target.taskId)}"` : ''}`;
+    const label = value => (value === 'none' ? tr('No priority') : priorityLabel(value));
+    const html = `<div class="popover-title">${tr('Priority')}</div>${source?.title ? `<p class="sheet-subtitle">${esc(source.title)}</p>` : ''}<div class="sheet-card">${['none', 'low', 'medium', 'high'].map(value => `<button class="popover-option sheet-option${current === value ? ' is-selected' : ''}" type="button" data-pop-action="set-priority" data-priority="${value}" ${attrs}><i class="ph ph-flag task-flag task-flag--${value}" aria-hidden="true"></i><span class="sheet-option-label">${esc(label(value))}</span><span class="sheet-radio${current === value ? ' is-on' : ''}" aria-hidden="true"></span></button>`).join('')}</div><p class="sheet-note">${tr('Priority does not change the order.')}</p>`;
     openPopover(anchor, html, { type: 'priority-picker' });
+  }
+
+  // Redesign R3: the task's duration. A chip applies at once; another number applies with "Primeni".
+  function openTaskDurationPicker(anchor, taskId) {
+    const task = getTask(taskId);
+    if (!task) return;
+    const current = task.durationMinutes || null;
+    const chip = minutes => `<button class="quick-chip${current === minutes ? ' is-selected' : ''}" type="button" data-pop-action="set-task-duration" data-task-id="${esc(taskId)}" data-minutes="${minutes}" aria-pressed="${current === minutes}">${esc(durationLabel(minutes))}</button>`;
+    const html = `<div class="popover-title">${tr('Duration')}</div><p class="sheet-subtitle">${esc(task.title)}</p><div class="sheet-chips">${[15, 30, 45, 60, 90, 120].map(chip).join('')}</div><label class="sheet-field"><i class="ph ph-timer" aria-hidden="true"></i><span>${tr('Other duration (min)')}</span><input id="task-duration-custom" class="input" type="number" min="1" max="1440" step="1" value="${esc(current || '')}"></label><p class="sheet-note">${tr('A tap sets the duration at once. Durations show in the Calendar day view.')}</p><div class="sheet-footer">${current ? `<button class="btn btn-ghost" type="button" data-pop-action="set-task-duration" data-task-id="${esc(taskId)}" data-minutes="">${tr('Remove duration')}</button>` : '<span></span>'}<button class="btn btn-primary" type="button" data-pop-action="set-task-duration-custom" data-task-id="${esc(taskId)}">${tr('Apply')}</button></div>`;
+    openPopover(anchor, html, { type: 'task-duration', taskId });
+  }
+  function setTaskDuration(taskId, value) {
+    const minutes = Number(value);
+    closePopover();
+    requestTaskEdit(taskId, { durationMinutes: Number.isInteger(minutes) && minutes > 0 && minutes <= 1440 ? minutes : null });
   }
 
   function toggleTag(targetType, taskId, tagId) {
@@ -2051,21 +2161,22 @@
   function setPopoverContent(html) {
     if (!popoverEl) return;
     popoverEl.innerHTML = html;
+    decorateSheet(popoverEl);
     const title = popoverEl.querySelector('.popover-title');
     if (title) {
       title.id = title.id || `popover-title-${Date.now().toString(36)}`;
       popoverEl.setAttribute('role', 'dialog');
       popoverEl.setAttribute('aria-labelledby', title.id);
     }
-    requestAnimationFrame(() => popoverEl?.querySelector('input, select, textarea, button')?.focus());
+    requestAnimationFrame(() => (popoverEl && sheetInitialFocus(popoverEl))?.focus());
   }
 
   function popoverFocusTarget(anchor) {
     if (!(anchor instanceof HTMLElement)) return null;
     const keys = ['action', 'popAction', 'taskId', 'targetType', 'dateKind', 'areaId', 'goalId', 'habitId', 'tagId'];
     const attrs = keys.filter(key => anchor.dataset[key] !== undefined)
-      .map(key => `[data-${key.replace(/[A-Z]/g, c => '-' + c.toLowerCase())}="${CSS.escape(anchor.dataset[key])}"]`).join('');
-    return { element: anchor, selector: attrs || (anchor.id ? '#' + CSS.escape(anchor.id) : ''), modalScoped: Boolean(anchor.closest('.modal')) };
+      .map(key => `[data-${key.replace(/[A-Z]/g, c => '-' + c.toLowerCase())}="${cssEscape(anchor.dataset[key])}"]`).join('');
+    return { element: anchor, selector: attrs || (anchor.id ? '#' + cssEscape(anchor.id) : ''), modalScoped: Boolean(anchor.closest('.modal')) };
   }
 
   function inlineNewTag(button) {
@@ -2075,16 +2186,40 @@
     requestAnimationFrame(()=>$('#inline-tag-name',popoverEl)?.focus());
   }
 
+  // Redesign R3 (E6): quick choices from the planned time (or, without one, later today and tomorrow morning),
+  // the date and time, the sentence, the task's dates, "Ukloni podsetnik" and "Primeni".
   function openReminderPicker(anchor, target) {
     const task = target.type === 'quick' ? modalState.draft : getTask(target.taskId);
     if (!task) return;
-    const later = Core.laterToday(new Date()); // null late in the evening: the option is not offered (audit H-2)
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    tomorrow.setHours(9, 0, 0, 0);
-    const targetAttrs = `data-target-type="${target.type}" ${target.taskId ? `data-task-id="${esc(target.taskId)}"` : ''}`;
-    const html = `<div class="popover-title">${tr('Reminder')}</div>${later ? `<button class="popover-option" type="button" data-pop-action="set-reminder" data-reminder="${esc(later)}" ${targetAttrs}><i class="ph ph-clock"></i>${tr('Later today')}</button>` : ''}<button class="popover-option" type="button" data-pop-action="set-reminder" data-reminder="${esc(tomorrow.toISOString())}" ${targetAttrs}><i class="ph ph-sun-horizon"></i>${tr('Tomorrow morning')}</button><button class="popover-option" type="button" data-pop-action="show-custom-reminder" ${targetAttrs}><i class="ph ph-calendar-blank"></i>${tr('Custom date & time...')}</button>${task.reminderAt ? `<div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="set-reminder" data-reminder="" ${targetAttrs}><i class="ph ph-x"></i>${tr('Clear reminder')}</button>` : ''}`;
-    openPopover(anchor, html, { type: 'reminder', target });
+    const pad = value => String(value).padStart(2, '0');
+    const parts = instant => { const date = new Date(instant); return { date: Core.dateOnly(date), time: `${pad(date.getHours())}:${pad(date.getMinutes())}` }; };
+    let presets;
+    if (task.plannedDate && task.plannedTime) {
+      const base = new Date(`${task.plannedDate}T${task.plannedTime}:00`).getTime();
+      presets = [[tr('At the planned time'), parts(base)], [tr('15 min before'), parts(base - 15 * 60000)], [tr('1 h before'), parts(base - 3600000)], [tr('Day before at 9:00'), { date: Core.addDays(task.plannedDate, -1), time: '09:00' }]];
+    } else {
+      const later = Core.laterToday(new Date()); // null late in the evening: the option is not offered (audit H-2)
+      presets = [...(later ? [[tr('Later today'), parts(later)]] : []), [tr('Tomorrow morning'), { date: Core.addDays(Core.dateOnly(), 1), time: '09:00' }]];
+    }
+    const current = task.reminderAt ? parts(task.reminderAt) : null;
+    const sheet = { target, presets, date: current?.date || task.plannedDate || Core.dateOnly(), time: current?.time || task.plannedTime || '09:00' };
+    reminderSheet = sheet;
+    openPopover(anchor, reminderSheetHtml(), { type: 'reminder', target });
+    reminderSheet = sheet;
+  }
+  function reminderSheetHtml() {
+    const { target, presets, date, time } = reminderSheet;
+    const task = target.type === 'quick' ? modalState?.draft : getTask(target.taskId);
+    const when = (day, at) => (day ? `${relativeDateLabel(day)}${at ? ` · ${at}` : ''}` : '—');
+    const chips = presets.map(([label, value]) => `<button class="quick-chip${value.date === date && value.time === time ? ' is-selected' : ''}" type="button" data-pop-action="reminder-preset" data-date="${value.date}" data-time="${value.time}" aria-pressed="${value.date === date && value.time === time}">${esc(label)}</button>`).join('');
+    return `<div class="popover-title">${tr('Reminder')}</div>${task?.title ? `<p class="sheet-subtitle">${esc(task.title)}</p>` : ''}<div class="sheet-chips">${chips}</div>${task?.plannedDate && task?.plannedTime ? '' : `<p class="sheet-note">${tr('Quick choices for the planned time appear when the task has one.')}</p>`}<label class="sheet-field"><i class="ph ph-calendar-blank" aria-hidden="true"></i><span>${tr('Date')}</span><input id="reminder-date" class="input" type="date" value="${esc(date)}"></label><label class="sheet-field"><i class="ph ph-clock" aria-hidden="true"></i><span>${tr('Time')}</span><input id="reminder-time" class="input" type="time" value="${esc(time)}"></label><p class="sheet-summary" data-reminder-summary>${esc(tr('Remind me {date} at {time}', { date: relativeDateLabel(date), time }))}</p><h3 class="sheet-group-title">${tr('Task dates')}</h3><div class="sheet-card"><div class="sheet-option"><i class="ph ph-calendar-check" aria-hidden="true"></i><span class="sheet-option-label">${tr('Planned')}</span><span class="sheet-option-value">${esc(when(task?.plannedDate, task?.plannedTime))}</span></div><div class="sheet-option"><i class="ph ph-hourglass-medium" aria-hidden="true"></i><span class="sheet-option-label">${tr('Due date')}</span><span class="sheet-option-value">${esc(when(task?.dueDate, task?.dueTime))}</span></div></div><div class="sheet-footer">${task?.reminderAt ? `<button class="btn btn-ghost" type="button" data-pop-action="reminder-clear">${tr('Clear reminder')}</button>` : '<span></span>'}<button class="btn btn-primary" type="button" data-pop-action="reminder-apply">${tr('Apply')}</button></div>`;
+  }
+  function applyReminderSheet() {
+    if (!reminderSheet) return;
+    const date = $('#reminder-date', popoverEl)?.value || reminderSheet.date;
+    const time = Core.normalizeTime($('#reminder-time', popoverEl)?.value || reminderSheet.time);
+    const value = date && time ? fromLocalDateTimeValue(`${date}T${time}`) : null;
+    if (value) setReminder(reminderSheet.target.type, reminderSheet.target.taskId, value);
   }
 
   function openRepeatPicker(anchor, target) {
@@ -2099,14 +2234,6 @@
     openPopover(anchor, html, { type: 'repeat', target });
   }
 
-  function showCustomReminder(button) {
-    if (!popoverEl) return;
-    const targetType = button.dataset.targetType;
-    const taskId = button.dataset.taskId || '';
-    const source = targetType === 'quick' ? modalState.draft : getTask(taskId);
-    const value = toLocalDateTimeValue(source?.reminderAt || new Date(Date.now() + 60 * 60 * 1000).toISOString());
-    setPopoverContent(`<div class="popover-title">${tr('Reminder')}</div><div class="popover-inline-form"><input id="custom-reminder-input" class="date-native" type="datetime-local" value="${esc(value)}" /><div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn btn-ghost" type="button" data-pop-action="custom-reminder-cancel">${tr('Cancel')}</button><button class="btn btn-primary" type="button" data-pop-action="custom-reminder-apply" data-target-type="${targetType}" ${taskId ? `data-task-id="${esc(taskId)}"` : ''}>${tr('Apply')}</button></div></div>`);
-  }
 
   function showCustomRepeat(button) {
     if (!popoverEl) return;
@@ -2153,22 +2280,14 @@
     closePopover();requestTaskEdit(taskId,{recurrence:taskRecurrence(task)?recurrence:value?{...value,seriesId:value.seriesId || taskId}:null});
   }
 
-  function dateOption(label, date, current, action, target) {
-    return `<button class="popover-option ${date === current ? 'is-selected' : ''}" type="button" data-pop-action="${action}" data-date="${date}" data-target-type="${target.type}" ${target.taskId ? `data-task-id="${esc(target.taskId)}"` : ''}>${esc(label)}${date === current ? '<i class="ph ph-check spacer"></i>' : ''}</button>`;
-  }
 
-  function nextWeekend(today) {
-    const date = parseLocalDate(today);
-    const day = date.getDay();
-    const daysToSat = (6 - day + 7) % 7 || 7;
-    return Core.addDays(today, daysToSat);
-  }
 
   function openTaskMenu(anchor, taskId) {
     const task = getTask(taskId); if (!task) return;
     const today = Core.dateOnly();
     const todayAction = task.plannedDate === today ? '' : `<button class="popover-option" type="button" data-pop-action="task-add-today" data-task-id="${esc(taskId)}"><i class="ph ph-sun"></i>${tr('Add to Today')}</button>`;
-    const html = `${todayAction}<button class="popover-option" type="button" data-pop-action="task-move-tomorrow" data-task-id="${esc(taskId)}"><i class="ph ph-arrow-right"></i>${tr('Move to Tomorrow')}</button><button class="popover-option" type="button" data-pop-action="task-move-anytime" data-task-id="${esc(taskId)}"><i class="ph ph-infinity"></i>${tr('Move to Anytime')}</button><button class="popover-option" type="button" data-pop-action="task-open-plan" data-task-id="${esc(taskId)}"><i class="ph ph-calendar-check"></i>${tr('Plan for...')}</button><button class="popover-option" type="button" data-pop-action="task-open-due" data-task-id="${esc(taskId)}"><i class="ph ph-flag"></i>${tr('Change due date')}</button><button class="popover-option" type="button" data-pop-action="task-open-project" data-task-id="${esc(taskId)}"><i class="ph ph-folder-simple"></i>${tr('Move to project')}</button><button class="popover-option" type="button" data-pop-action="task-duplicate" data-task-id="${esc(taskId)}"><i class="ph ph-copy"></i>${tr('Duplicate')}</button><div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="task-delete" data-task-id="${esc(taskId)}" style="color:var(--danger)"><i class="ph ph-trash"></i>${tr('Delete')}</button>`;
+    const focus = task.isCompleted ? '' : `<button class="popover-option" type="button" data-pop-action="task-start-focus" data-task-id="${esc(taskId)}"><i class="ph ph-timer"></i>${tr('Start focus')}</button>`;
+    const html = `${focus}${todayAction}<button class="popover-option" type="button" data-pop-action="task-move-tomorrow" data-task-id="${esc(taskId)}"><i class="ph ph-arrow-right"></i>${tr('Move to Tomorrow')}</button><button class="popover-option" type="button" data-pop-action="task-move-anytime" data-task-id="${esc(taskId)}"><i class="ph ph-infinity"></i>${tr('Move to Anytime')}</button><button class="popover-option" type="button" data-pop-action="task-open-plan" data-task-id="${esc(taskId)}"><i class="ph ph-calendar-check"></i>${tr('Plan for...')}</button><button class="popover-option" type="button" data-pop-action="task-open-due" data-task-id="${esc(taskId)}"><i class="ph ph-flag"></i>${tr('Change due date')}</button><button class="popover-option" type="button" data-pop-action="task-open-project" data-task-id="${esc(taskId)}"><i class="ph ph-folder-simple"></i>${tr('Move to project')}</button><button class="popover-option" type="button" data-pop-action="task-duplicate" data-task-id="${esc(taskId)}"><i class="ph ph-copy"></i>${tr('Duplicate')}</button><div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="task-delete" data-task-id="${esc(taskId)}" style="color:var(--danger)"><i class="ph ph-trash"></i>${tr('Delete')}</button>`;
     openPopover(anchor, templateMenuEntry('task',taskId)+html, { type: 'task-menu', taskId });
   }
 
@@ -2184,11 +2303,36 @@
     openPopover(anchor, html, { type: 'more' });
   }
 
+  // Redesign R3 (E2): every popover is a bottom sheet over a dimmed backdrop, with a grabber, its title and X.
+  function decorateSheet(el) {
+    const header = document.createElement('div');
+    header.className = 'sheet-header';
+    header.innerHTML = '<span class="sheet-grabber" aria-hidden="true"></span>';
+    const title = el.querySelector(':scope > .popover-title');
+    if (title) header.appendChild(title);
+    header.insertAdjacentHTML('beforeend', `<button class="btn-icon sheet-close" type="button" data-pop-action="close-sheet" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button>`);
+    el.prepend(header);
+  }
+
+  function sheetInitialFocus(el) {
+    return el.querySelector('[data-sheet-focus]') || el.querySelector('.popover-option.is-selected, .quick-chip.is-selected') || el.querySelector('.popover-option')
+      || [...el.querySelectorAll('button, input, select, textarea, [tabindex]:not([tabindex="-1"])')].find(node => !node.matches('.sheet-close, [data-sheet-search]')) || el.querySelector('.sheet-close');
+  }
+
+  // Replaces a sheet's content in place and keeps the focus on the control that was used.
+  function refreshSheet(html, focusSelector) {
+    if (!popoverEl) return;
+    popoverEl.innerHTML = html;
+    decorateSheet(popoverEl);
+    requestAnimationFrame(() => ((focusSelector && popoverEl?.querySelector(focusSelector)) || (popoverEl && sheetInitialFocus(popoverEl)))?.focus());
+  }
+
   function openPopover(anchor, html, meta = {}) {
     closePopover();
-    const rect = anchor.getBoundingClientRect();
+    const backdrop = document.createElement('div');
+    backdrop.className = 'sheet-backdrop';
     const el = document.createElement('div');
-    el.className = 'popover';
+    el.className = 'popover popover--sheet';
     el.dataset.popoverType = meta.type || '';
     el.innerHTML = html;
     el.setAttribute('role', 'dialog');
@@ -2199,26 +2343,21 @@
     } else el.setAttribute('aria-label', tr('Menu'));
     popoverReturnFocus = popoverFocusTarget(anchor);
     el.returnFocus = popoverReturnFocus;
+    el.setAttribute('aria-modal', 'true');
+    decorateSheet(el);
+    el.backdrop = backdrop;
+    document.body.appendChild(backdrop);
     document.body.appendChild(el);
-    const width = el.offsetWidth || 300;
-    const height = el.offsetHeight || 260;
-    let left = Math.min(rect.left, window.innerWidth - width - 12);
-    left = Math.max(12, left);
-    let top = rect.bottom + 6;
-    if (top + height > window.innerHeight - 12) top = Math.max(12, rect.top - height - 6);
-    el.style.left = `${left}px`;
-    el.style.top = `${top}px`;
     popoverEl = el;
-    popoverEl.setAttribute('role', 'dialog');
-    if (title) popoverEl.setAttribute('aria-labelledby', title.id);
-    requestAnimationFrame(() => el.querySelector('button, input, select, textarea, [tabindex]:not([tabindex="-1"])')?.focus());
+    requestAnimationFrame(() => sheetInitialFocus(el)?.focus());
   }
 
   function closePopover() {
     const target = popoverEl?.goalReturnFocus;
     const returnFocus = popoverEl?.returnFocus || popoverReturnFocus;
-    if (popoverEl) popoverEl.remove();
+    if (popoverEl) { popoverEl.backdrop?.remove(); popoverEl.remove(); }
     popoverEl = null;
+    dateSheet = null; reminderSheet = null; tagSheet = null;
     popoverReturnFocus = null;
     restoreGoalFocus(target);
     if (!target && returnFocus) requestAnimationFrame(() => {
@@ -2244,14 +2383,6 @@
     else if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
   }
 
-  function showCustomDate(popButton) {
-    const kind = popButton.dataset.dateKind;
-    const targetType = popButton.dataset.targetType;
-    const taskId = popButton.dataset.taskId || '';
-    if (!popoverEl) return;
-    setPopoverContent(`<div class="popover-title">${kind === 'plan' ? tr('Plan for') : tr('Due date')}</div><div class="popover-inline-form"><input id="custom-date-input" class="date-native" type="date" /><div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn btn-ghost" type="button" data-pop-action="custom-date-cancel">${tr('Cancel')}</button><button class="btn btn-primary" type="button" data-pop-action="custom-date-apply" data-date-kind="${kind}" data-target-type="${targetType}" ${taskId ? `data-task-id="${esc(taskId)}"` : ''}>${tr('Apply')}</button></div></div>`);
-    requestAnimationFrame(() => $('#custom-date-input', popoverEl)?.focus());
-  }
 
   function inlineNewProject(button) {
     const targetType = button.dataset.targetType;
@@ -3428,7 +3559,7 @@
 
   function editSubtask(taskId, subtaskId) {
     const task = getTask(taskId); const sub = task?.subtasks.find(s => s.id === subtaskId); if (!sub) return;
-    const row = document.querySelector(`[data-parent-task-id="${CSS.escape(taskId)}"][data-subtask-id="${CSS.escape(subtaskId)}"]`);
+    const row = document.querySelector(`[data-parent-task-id="${cssEscape(taskId)}"][data-subtask-id="${cssEscape(subtaskId)}"]`);
     const title = row?.querySelector('.subtask-title'); if (!title) return;
     const input = document.createElement('input');
     input.className = 'input'; input.style.minHeight = '34px'; input.value = sub.title;
@@ -4369,6 +4500,7 @@
     else if (action === 'task-repeat-picker') showTaskRepeatPicker(el.dataset.taskId, el);
     else if (action === 'task-tags-picker') openTagPicker(el, { type: 'task', taskId: el.dataset.taskId });
     else if (action === 'task-priority-picker') openPriorityPicker(el, { type: 'task', taskId: el.dataset.taskId });
+    else if (action === 'task-duration-picker') openTaskDurationPicker(el, el.dataset.taskId);
     else if (action === 'quick-project-picker') openProjectPicker(el, { type: 'quick' });
     else if (action === 'quick-plan-picker') openPlanPicker(el, { type: 'quick' });
     else if (action === 'quick-due-picker') openDuePicker(el, { type: 'quick' });
@@ -4434,7 +4566,31 @@
 
   function handlePopoverAction(button) {
     const action = button.dataset.popAction;
-    if (action === 'set-project') setProject(button.dataset.targetType, button.dataset.taskId, button.dataset.projectId);
+    if (action === 'close-sheet') closePopover();
+    else if (action === 'date-sheet-pick' && dateSheet) {
+      dateSheet.time = $('#date-sheet-time', popoverEl)?.value ?? dateSheet.time;
+      dateSheet.date = button.dataset.date;
+      const picked = parseLocalDate(dateSheet.date);
+      dateSheet.view = { y: picked.getFullYear(), m: picked.getMonth() };
+      refreshSheet(dateSheetHtml(), `.sheet-calendar-day[data-date="${dateSheet.date}"]`);
+    }
+    else if (action === 'date-sheet-month' && dateSheet) {
+      dateSheet.time = $('#date-sheet-time', popoverEl)?.value ?? dateSheet.time;
+      const month = new Date(dateSheet.view.y, dateSheet.view.m + Number(button.dataset.step || 0), 1);
+      dateSheet.view = { y: month.getFullYear(), m: month.getMonth() };
+      refreshSheet(dateSheetHtml(), `[data-pop-action="date-sheet-month"][data-step="${Number(button.dataset.step) < 0 ? -1 : 1}"]`);
+    }
+    else if (action === 'date-sheet-apply') applyDateSheet(false);
+    else if (action === 'date-sheet-clear') applyDateSheet(true);
+    else if (action === 'reminder-preset' && reminderSheet) { Object.assign(reminderSheet, { date: button.dataset.date, time: button.dataset.time }); refreshSheet(reminderSheetHtml(), `[data-pop-action="reminder-preset"][data-date="${button.dataset.date}"][data-time="${button.dataset.time}"]`); }
+    else if (action === 'reminder-apply') applyReminderSheet();
+    else if (action === 'reminder-clear' && reminderSheet) setReminder(reminderSheet.target.type, reminderSheet.target.taskId, '');
+    else if (action === 'tag-sheet-toggle') toggleTagSheet(button);
+    else if (action === 'tag-sheet-apply') applyTagSheet();
+    else if (action === 'set-task-duration') setTaskDuration(button.dataset.taskId, button.dataset.minutes);
+    else if (action === 'set-task-duration-custom') setTaskDuration(button.dataset.taskId, $('#task-duration-custom', popoverEl)?.value);
+    else if (action === 'task-start-focus') { const id = button.dataset.taskId; closePopover(); openFocusMode(id); }
+    else if (action === 'set-project') setProject(button.dataset.targetType, button.dataset.taskId, button.dataset.projectId);
     else if (action === 'toggle-tag') toggleTag(button.dataset.targetType, button.dataset.taskId, button.dataset.tagId);
     else if (action === 'set-priority') setPriority(button.dataset.targetType, button.dataset.taskId, button.dataset.priority);
     else if (action === 'set-plan') setPlan(button.dataset.targetType, button.dataset.taskId, button.dataset.date);
@@ -4442,23 +4598,18 @@
     else if (action === 'set-reminder') setReminder(button.dataset.targetType, button.dataset.taskId, button.dataset.reminder);
     else if (action === 'set-duration') setQuickDuration(button.dataset.minutes);
     else if (action === 'set-repeat') setRecurrence(button.dataset.targetType, button.dataset.taskId, button.dataset.frequency ? { frequency: button.dataset.frequency, interval: Number(button.dataset.interval) || 1 } : null);
-    else if (action === 'show-custom-reminder') showCustomReminder(button);
     else if (action === 'show-custom-repeat') showCustomRepeat(button);
-    else if (action === 'custom-reminder-cancel' || action === 'custom-repeat-cancel') closePopover();
-    else if (action === 'custom-reminder-apply') { const value = fromLocalDateTimeValue($('#custom-reminder-input', popoverEl)?.value); if (value) setReminder(button.dataset.targetType, button.dataset.taskId, value); }
+    else if (action === 'custom-repeat-cancel') closePopover();
     else if (['pause-recurrence','resume-recurrence','skip-recurrence','end-recurrence'].includes(action)) manageRecurrence(button.dataset.taskId,action);
     else if (action === 'custom-repeat-apply') {
       const interval=Number($('#repeat-interval',popoverEl)?.value),frequency=$('#repeat-frequency',popoverEl)?.value || 'weekly',endType=$('#repeat-end-type',popoverEl)?.value || 'never',endDate=$('#repeat-end-date',popoverEl)?.value || null,endAfterOccurrences=Number($('#repeat-end-count',popoverEl)?.value) || null;
       if(!Number.isInteger(interval) || interval<1 || endType==='afterOccurrences' && (!Number.isInteger(endAfterOccurrences) || endAfterOccurrences<1) || endType==='date' && !endDate){const error=$('#repeat-error',popoverEl);error.hidden=false;error.textContent=tr('Provide a positive whole-number interval/count and a valid end date.');return;}
       setRecurrence(button.dataset.targetType,button.dataset.taskId,{frequency,interval,endType,endDate,endAfterOccurrences});
     }
-    else if (action === 'show-custom-date') showCustomDate(button);
-    else if (action === 'custom-date-cancel') closePopover();
-    else if (action === 'custom-date-apply') { const value = $('#custom-date-input', popoverEl)?.value; if (!value) return; if (button.dataset.dateKind === 'plan') setPlan(button.dataset.targetType, button.dataset.taskId, value); else setDue(button.dataset.targetType, button.dataset.taskId, value); }
     else if (action === 'inline-new-tag') inlineNewTag(button);
     else if (action === 'inline-select-tag-color') { $$('.color-swatch', popoverEl).forEach(s => s.classList.toggle('is-selected', s === button)); const create = $('[data-pop-action="inline-tag-create"]', popoverEl); if (create) create.dataset.color = button.dataset.color; }
     else if (action === 'inline-tag-cancel') closePopover();
-    else if (action === 'inline-tag-create') { const name = Core.normalizeTagName($('#inline-tag-name',popoverEl)?.value); const valid=Core.validateTagName(state.tags||[],name); if(!valid.ok){const er=$('#inline-tag-error',popoverEl); if(er){er.hidden=false;er.textContent=valid.reason==='duplicate-tag'?tr('A tag with this name already exists.'):tr('Tag needs a name.');} return;} const tag={id:uid('tag'),name,color:button.dataset.color||PROJECT_COLORS[0],createdAt:nowIso(),updatedAt:nowIso()}; state.tags.push(tag); saveState(); toggleTag(button.dataset.targetType, button.dataset.taskId, tag.id); render(); }
+    else if (action === 'inline-tag-create') { const name = Core.normalizeTagName($('#inline-tag-name',popoverEl)?.value); const valid=Core.validateTagName(state.tags||[],name); if(!valid.ok){const er=$('#inline-tag-error',popoverEl); if(er){er.hidden=false;er.textContent=valid.reason==='duplicate-tag'?tr('A tag with this name already exists.'):tr('Tag needs a name.');} return;} const tag={id:uid('tag'),name,color:button.dataset.color||PROJECT_COLORS[0],createdAt:nowIso(),updatedAt:nowIso()}; state.tags.push(tag); saveState(); if (tagSheet) { tagSheet.ids.add(tag.id); refreshSheet(tagSheetHtml(), `[data-tag-id="${cssEscape(tag.id)}"]`); } else toggleTag(button.dataset.targetType, button.dataset.taskId, tag.id); render(); }
     else if (action === 'inline-new-project') inlineNewProject(button);
     else if (action === 'inline-select-color') { $$('.color-swatch', popoverEl).forEach(s => s.classList.toggle('is-selected', s === button)); const create = $('[data-pop-action="inline-project-create"]', popoverEl); if (create) create.dataset.color = button.dataset.color; }
     else if (action === 'inline-project-cancel') closePopover();
@@ -4473,13 +4624,13 @@
     else if (action === 'task-add-today') { closePopover(); addTaskToToday(button.dataset.taskId); }
     else if (action === 'task-move-tomorrow') { closePopover(); moveTaskToTomorrow(button.dataset.taskId); }
     else if (action === 'task-move-anytime') { closePopover(); moveTaskToAnytime(button.dataset.taskId); }
-    else if (action === 'task-open-plan') { const taskId=button.dataset.taskId; closePopover(); const anchor=document.querySelector(`[data-action="task-menu"][data-task-id="${CSS.escape(taskId)}"]`) || button; openPlanPicker(anchor,{type:'task',taskId}); }
+    else if (action === 'task-open-plan') { const taskId=button.dataset.taskId; closePopover(); const anchor=document.querySelector(`[data-action="task-menu"][data-task-id="${cssEscape(taskId)}"]`) || button; openPlanPicker(anchor,{type:'task',taskId}); }
     else if (action === 'task-duplicate') startDuplicate(button.dataset.taskId);
     else if (action === 'attachment-open') openAttachment(button.dataset.attachmentId, false);
     else if (action === 'attachment-download') openAttachment(button.dataset.attachmentId, true);
     else if (action === 'attachment-delete') deleteAttachment(button.dataset.attachmentId, { ownerType: button.dataset.ownerType, ownerId: button.dataset.ownerId });
-    else if (action === 'task-open-project') { const taskId = button.dataset.taskId; closePopover(); const anchor = document.querySelector(`[data-action="task-menu"][data-task-id="${CSS.escape(taskId)}"]`) || button; openProjectPicker(anchor, { type: 'task', taskId }); }
-    else if (action === 'task-open-due') { const taskId = button.dataset.taskId; closePopover(); const anchor = document.querySelector(`[data-action="task-menu"][data-task-id="${CSS.escape(taskId)}"]`) || button; openDuePicker(anchor, { type: 'task', taskId }); }
+    else if (action === 'task-open-project') { const taskId = button.dataset.taskId; closePopover(); const anchor = document.querySelector(`[data-action="task-menu"][data-task-id="${cssEscape(taskId)}"]`) || button; openProjectPicker(anchor, { type: 'task', taskId }); }
+    else if (action === 'task-open-due') { const taskId = button.dataset.taskId; closePopover(); const anchor = document.querySelector(`[data-action="task-menu"][data-task-id="${cssEscape(taskId)}"]`) || button; openDuePicker(anchor, { type: 'task', taskId }); }
     else if (action === 'task-delete') { const id = button.dataset.taskId; closePopover(); deleteTask(id); }
     else if (action === 'edit-tag') { const id = button.dataset.tagId; closePopover(); openTagModal(id); }
     else if (action === 'delete-tag') deleteTag(button.dataset.tagId);
@@ -4488,6 +4639,18 @@
 
   function handleInput(event) {
     if (globalOperation) return;
+    // Redesign R3 (E8, E9): the search field of a sheet filters its rows.
+    if (event.target.matches?.('[data-sheet-search]')) {
+      const query = event.target.value.trim().toLowerCase();
+      popoverEl?.querySelectorAll('[data-sheet-item]').forEach(item => { item.hidden = Boolean(query) && !String(item.dataset.search || '').includes(query); });
+      return;
+    }
+    if (reminderSheet && ['reminder-date', 'reminder-time'].includes(event.target.id)) {
+      if (event.target.value) reminderSheet[event.target.id === 'reminder-date' ? 'date' : 'time'] = event.target.value;
+      const summary = popoverEl?.querySelector('[data-reminder-summary]');
+      if (summary) summary.textContent = tr('Remind me {date} at {time}', { date: relativeDateLabel(reminderSheet.date), time: reminderSheet.time });
+      return;
+    }
     if (callDomainHook('handleInput', event) !== undefined) return;
     if (modalState?.type === 'quick') {
       if (event.target.id === 'quick-title') { modalState.draft.title = event.target.value; modalState.error = ''; const parsed=parseQuickAddTitle(event.target.value, !modalState.draft.explicitPlan); const slot=document.querySelector('[data-quick-preview-slot]'); if(slot) slot.innerHTML=quickParsePreview(parsed); if (!modalState.draft.explicitPlan) { modalState.draft.parsedPlanDate=parsed.plannedDate; const b=document.querySelector('[data-action="quick-plan-picker"]'); if(b) b.innerHTML=`<i class="ph ph-calendar-check"></i>${parsed.plannedDate ? esc(relativeDateLabel(parsed.plannedDate)) : tr('Plan for')}`; } }

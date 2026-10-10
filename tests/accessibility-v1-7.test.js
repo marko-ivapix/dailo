@@ -46,11 +46,15 @@ test('primary compact mobile controls retain 44px touch targets', () => {
   assert.match(css, /Keep primary compact actions touchable after all density rules[\s\S]*?\.task-actions \.btn-icon,[\s\S]*?min-height: 44px/);
 });
 
+// Redesign R3: the reminder sheet re-renders in place (refreshSheet) with its title, and a swapped sheet gets its
+// grabber, title and X back (decorateSheet); focus goes to the first useful control, not the X.
 test('popover headings stay labelled after repeat and reminder content swaps', () => {
   assert.match(app, /function setPopoverContent\(html\)/);
-  assert.match(app, /setPopoverContent\(`<div class="popover-title">\$\{tr\('Reminder'\)\}/);
+  assert.match(app, /return `<div class="popover-title">\$\{tr\('Reminder'\)\}<\/div>/);
+  assert.match(app, /refreshSheet\(reminderSheetHtml\(\)/);
   assert.match(app, /setPopoverContent\(`<div class="popover-title">\$\{tr\('Custom repeat'\)\}/);
-  assert.match(app, /setPopoverContent[\s\S]*?requestAnimationFrame\(\(\) => popoverEl\?\.querySelector\('input, select, textarea, button'\)\?\.focus\(\)\)/);
+  assert.match(app, /popoverEl\.innerHTML = html;\n    decorateSheet\(popoverEl\);/);
+  assert.match(app, /setPopoverContent[\s\S]*?requestAnimationFrame\(\(\) => \(popoverEl && sheetInitialFocus\(popoverEl\)\)\?\.focus\(\)\)/);
   assert.match(app, /closePopover\(\)[\s\S]*?openerIsActive[\s\S]*?focusRoot\?\.querySelector\(returnFocus\.selector\)/);
   assert.match(app, /function popoverFocusTarget\(/);
   assert.match(app, /popoverReturnFocus = popoverFocusTarget\(anchor\)/);
