@@ -100,9 +100,10 @@ function appContext(modalDraft = {}) {
   const state = { tasks: [], tags: [...tags], projects: [...projects], areas: [...areas], settings: {} };
   const context = { Core, state, modalState: { type: 'quick', defaults, draft: { title: '', subtasks: [], explicitPlan: false, ...modalDraft } },
     syncQuickDraftFromDom() {}, uid: () => 'task_1', nowIso: () => '2026-10-07T10:00:00.000Z', nextOrder: () => 0,
-    saveState() {}, closeModal() {}, render() {}, renderModal() {}, requestAnimationFrame() {}, $() {}, syncTemplateEntityGoalLinks() {} };
+    saveState() {}, closeModal() {}, render() {}, renderModal() {}, requestAnimationFrame() {}, $() {}, syncTemplateEntityGoalLinks() {}, getProject: id => state.projects.find(project => project.id === id) };
   vm.createContext(withI18n(context));
-  vm.runInContext(`${slice('  function createTask(', '  function syncQuickDraftFromDom()')}\n${slice('  function parseQuickAddTitle(', '  function nextOrder(')}`, context);
+  // Redesign R4: createTask files the task through quickPlace (picked place, parsed project, Inbox).
+  vm.runInContext(`${slice('  function createTask(', '  function syncQuickDraftFromDom()')}\n${slice('  function parseQuickAddTitle(', '  function nextOrder(')}\n${slice('  function quickPlace(', '  // S7: the "Iz šablona" chip')}`, context);
   return { context, today };
 }
 

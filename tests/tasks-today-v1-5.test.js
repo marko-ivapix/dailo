@@ -32,14 +32,16 @@ test('Add another retains implicit Today and resets explicit times before parsin
   const source = fs.readFileSync(require.resolve('../js/app.js'), 'utf8');
   const create = source.slice(source.indexOf('  function createTask('), source.indexOf('  function syncQuickDraftFromDom()'));
   const parse = source.slice(source.indexOf('  function parseQuickAddTitle('), source.indexOf('  function nextOrder('));
+  // Redesign R4: createTask files the task through quickPlace.
+  const place = source.slice(source.indexOf('  function quickPlace('), source.indexOf('  // S7: the "Iz šablona" chip'));
   const today = Core.dateOnly();
   const defaults = { projectId: null, areaId: null, plannedDate: today, explicitPlan: false };
   const context = { Core, state: taskState([]), modalState: { type: 'quick', defaults,
     draft: { title: 'First today 09:30', explicitPlan: false, plannedDate: today, plannedTime: '14:00', dueTime: '15:00', explicitPlannedTime: true, subtasks: [] } },
     syncQuickDraftFromDom() {}, uid: () => 'task', nowIso: () => new Date().toISOString(), nextOrder: () => 0,
-    saveState() {}, closeModal() {}, render() {}, renderModal() {}, requestAnimationFrame() {}, $() {} };
+    saveState() {}, closeModal() {}, render() {}, renderModal() {}, requestAnimationFrame() {}, $() {}, getProject: () => null };
   vm.createContext(withI18n(context));
-  vm.runInContext(`${parse}\n${create}\ncreateTask(true)`, context);
+  vm.runInContext(`${parse}\n${place}\n${create}\ncreateTask(true)`, context);
   assert.equal(context.modalState.draft.explicitPlan, false);
   assert.equal(context.modalState.draft.plannedTime, null);
   assert.equal(context.modalState.draft.dueTime, null);

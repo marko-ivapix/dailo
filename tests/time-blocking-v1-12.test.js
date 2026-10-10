@@ -148,28 +148,16 @@ test('Settings offers the daily capacity and the app stores a valid choice', () 
   assert.match(read('js/app.js'), /event\.target\.id === 'daily-capacity'\) \{ const minutes = Number\(event\.target\.value\); if \(Number\.isInteger\(minutes\) && minutes >= 0 && minutes <= 1440\)/);
 });
 
+// Redesign R4: Quick Add has no duration chip any more. A typed "45 min" is still recognized, and the task window's
+// Trajanje sheet (R3) sets the duration with the same preset values.
 test('Quick Add has a duration chip with preset values that wins over the parsed duration', () => {
   const app = read('js/app.js');
-  assert.match(app, /data-action="quick-duration-picker"><i class="ph ph-timer"><\/i>\$\{d\.durationMinutes \? esc\(durationLabel\(d\.durationMinutes\)\) : tr\('Duration'\)\}/);
-  const slice = (from, to) => app.slice(app.indexOf(from), app.indexOf(to));
-  const context = { Core, modalState: { type: 'quick', draft: { durationMinutes: null } }, esc: String, popover: null, openPopover(anchor, html) { context.popover = html; }, closePopover() { context.closed = true; }, renderModal() { context.rendered = true; } };
-  vm.createContext(withI18n(context));
-  vm.runInContext(`${slice('  function durationLabel(', '  const TODAY_LIMITS')}\n${slice('  function openDurationPicker(', '  function setReminder(')}`, context);
-  vm.runInContext('openDurationPicker({})', context);
-  for (const minutes of [15, 30, 45, 60, 90, 120]) assert.match(context.popover, new RegExp(`data-pop-action="set-duration" data-minutes="${minutes}"`));
-  assert.doesNotMatch(context.popover, /data-minutes=""/, 'nothing to remove yet');
-  context.modalState.draft.durationMinutes = 30;
-  vm.runInContext('openDurationPicker({})', context);
-  assert.match(context.popover, /class="popover-option is-selected" type="button" data-pop-action="set-duration" data-minutes="30"/);
-  assert.match(context.popover, /data-pop-action="set-duration" data-minutes=""><i class="ph ph-x"><\/i>Remove duration/);
-  vm.runInContext("setQuickDuration('45')", context);
-  assert.equal(context.modalState.draft.durationMinutes, 45);
-  vm.runInContext("setQuickDuration('')", context);
-  assert.equal(context.modalState.draft.durationMinutes, null);
-  assert.ok(context.closed && context.rendered);
-  assert.match(app, /action === 'set-duration'\) setQuickDuration\(button\.dataset\.minutes\)/);
+  assert.doesNotMatch(app, /quick-duration-picker|function openDurationPicker|setQuickDuration/);
+  assert.match(app, /durationMinutes: d\.durationMinutes \|\| parsed\.durationMinutes \|\| null/, 'a parsed duration still applies');
+  const picker = app.slice(app.indexOf('  function openTaskDurationPicker('), app.indexOf('  function setTaskDuration('));
+  assert.match(picker, /\[15, 30, 45, 60, 90, 120\]\.map\(chip\)/);
+  assert.match(picker, /data-pop-action="set-task-duration"/);
 });
-
 // The newest release test pins the exact version; this one only requires V1.12 or later.
 test('V1.12 shipped as 1.12.0 or later', () => {
   const [major, minor] = Release.APP_VERSION.split('.').map(Number);

@@ -283,8 +283,8 @@ test('the task menu offers "Započni fokus" for an open task', () => {
   assert.match(app, /else if \(action === 'task-start-focus'\) \{ const id = button\.dataset\.taskId; closePopover\(\); openFocusMode\(id\); \}/);
 });
 
-test('R3 is released as 2.0.0-alpha.8', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.8');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.8';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.8');
+test('R3 shipped as 2.0.0-alpha.8 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.([8-9]|\d{2,})$|^2\.\d+\.\d+/);
+  assert.match(read('sw.js'), new RegExp(`const VERSION = '${Release.APP_VERSION.replace(/\./g, '\\.')}';`));
+  assert.equal(JSON.parse(read('package.json')).version, Release.APP_VERSION);
 });

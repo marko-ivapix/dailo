@@ -1339,7 +1339,7 @@
       defaults,
       draft: {
         title: '', notes: '', projectId: defaults.projectId, areaId: defaults.areaId, plannedDate: defaults.plannedDate, parsedPlanDate: null, explicitPlan: defaults.explicitPlan,
-        dueDate: null, plannedTime: null, dueTime: null, explicitPlannedTime: false, reminderAt: null, reminderFiredAt: null, recurrence: null, tagIds: [], priority: 'none', subtasks: [], moreOpen: false,
+        dueDate: null, plannedTime: null, dueTime: null, explicitPlannedTime: false, reminderAt: null, reminderFiredAt: null, recurrence: null, tagIds: [], priority: 'none', subtasks: [],
       },
       error: '',
     };
@@ -1564,7 +1564,7 @@
     else if (modalState.type === 'template-picker') root.innerHTML = renderTemplatePicker();
     else if (modalState.type === 'recurrence-scope') root.innerHTML = renderRecurrenceScope();
     else if (modalState.type === 'sync-choice') root.innerHTML = renderSyncChoice();
-    if (['quick','project','habit','goal'].includes(modalState.type) && !modalState.taskId && !modalState.projectId && !modalState.habitId && !modalState.goalId) {
+    if (['project','habit','goal'].includes(modalState.type) && !modalState.taskId && !modalState.projectId && !modalState.habitId && !modalState.goalId) {
       $('.modal-inner',root)?.insertAdjacentHTML('afterbegin',`<button class="btn btn-ghost" type="button" data-action="from-template"><i class="ph ph-copy"></i> ${tr('From template')}</button>`);
     }
     if (['confirm','recurrence-scope'].includes(modalState?.type)) requestAnimationFrame(() => root.querySelector('.modal button, .modal [href], .modal input, .modal select, .modal textarea, .modal [tabindex]:not([tabindex="-1"])')?.focus());
@@ -1681,7 +1681,7 @@
     if(template.type==='task') {
       if(context.projectId && getProject(context.projectId))item.projectId=context.projectId;
       if(item.projectId)item.areaId=null;
-      modalState.draft={...modalState.draft,...item,explicitPlan:true,parsedPlanDate:null,moreOpen:false};
+      modalState.draft={...modalState.draft,...item,explicitPlan:true,parsedPlanDate:null};
     } else if(template.type==='project')modalState.draft={...item};
     else if(template.type==='habit')modalState.draft=habitDraft(item);
     else modalState.draft=goalDraft(item);
@@ -1736,32 +1736,101 @@
     return items.length ? `<div class="quick-parse-preview" data-quick-preview role="group" aria-label="${tr('Recognized in title')}">${items.join('')}</div>` : '';
   }
 
+  // Redesign R4 (Q1, Q2, S7): Quick Add as a bottom sheet. The title, the Smart Quick Add preview, the date and
+  // place selectors, the template chip, "Više opcija" (saves and opens the task window) and "Dodaj zadatak".
   function renderQuickModal() {
     const d = modalState.draft;
-    const project = getProject(d.projectId);
-    const effectivePlan = d.explicitPlan ? d.plannedDate : (d.parsedPlanDate || d.plannedDate);
-    const assignedTags = (d.tagIds || []).map(getTag).filter(Boolean);
-    return modalFrame(`<div class="modal-inner">
-      <input id="quick-title" class="quick-title-input ${modalState.error ? 'is-error' : ''}" type="text" maxlength="500" autocomplete="off" placeholder="${tr('What needs to be done?')}" value="${esc(d.title)}" aria-label="${tr('Task title')}" />
+    const parsed = parseQuickAddTitle(d.title, !d.explicitPlan);
+    const plan = d.explicitPlan ? d.plannedDate : (parsed.plannedDate || d.plannedDate);
+    const time = d.explicitPlannedTime ? d.plannedTime : (d.plannedTime || parsed.plannedTime);
+    return modalFrame(`<div class="modal-inner quick-sheet">
+      <div class="modal-header"><h2 class="modal-title">${tr('New task')}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div>
+      <input id="quick-title" class="quick-title-input${modalState.error ? ' is-error' : ''}" type="text" maxlength="500" autocomplete="off" placeholder="${tr('What needs to be done?')}" value="${esc(d.title)}" aria-label="${tr('Task title')}" />
       ${modalState.error ? `<div class="validation">${esc(modalState.error)}</div>` : ''}
-      <div class="quick-parse-slot" data-quick-preview-slot aria-live="polite">${quickParsePreview(parseQuickAddTitle(d.title, !d.explicitPlan))}</div>
-      <div class="quick-properties">
-        <button class="property-chip" type="button" data-action="quick-project-picker"><i class="ph ph-folder-simple"></i>${project ? `<span class="project-dot" style="--project-color:${esc(project.color)}"></span>${esc(project.name)}` : tr('Project')}</button>
-        <button class="property-chip" type="button" data-action="quick-plan-picker"><i class="ph ph-calendar-check"></i>${effectivePlan ? esc(relativeDateLabel(effectivePlan)) : tr('Plan for')}</button>
-        <button class="property-chip" type="button" data-action="quick-due-picker"><i class="ph ph-flag"></i>${d.dueDate ? esc(tr('Due {date}', { date: relativeDateLabel(d.dueDate) })) : tr('Due date')}</button>
-        <button class="property-chip" type="button" data-action="quick-duration-picker"><i class="ph ph-timer"></i>${d.durationMinutes ? esc(durationLabel(d.durationMinutes)) : tr('Duration')}</button>
-        <button class="property-chip" type="button" data-action="quick-reminder-picker"><i class="ph ph-bell"></i>${d.reminderAt ? esc(formatReminder(d.reminderAt)) : tr('Reminder')}</button>
-        <button class="property-chip" type="button" data-action="quick-repeat-picker"><i class="ph ph-arrows-clockwise"></i>${d.recurrence ? esc(recurrenceLabel(d.recurrence)) : tr('Repeat')}</button>
-      </div>
-      <button class="btn btn-ghost quick-more" type="button" data-action="toggle-quick-more"><i class="ph ph-caret-${d.moreOpen ? 'up' : 'down'}"></i> ${tr('More')}</button>
-      ${d.moreOpen ? `<div class="quick-extra"><div><label class="field-label" for="quick-notes">${tr('Notes')}</label><textarea id="quick-notes" class="textarea" placeholder="${tr('Add notes...')}">${esc(d.notes)}</textarea></div><div class="quick-advanced-grid"><button class="property-row compact-property" type="button" data-action="quick-tags-picker"><span class="property-key">${tr('Tags')}</span><span class="property-value">${assignedTags.length ? assignedTags.map(t => `<span class="tag-inline"><span class="tag-dot" style="--tag-color:${esc(t.color)}"></span>${esc(t.name)}</span>`).join(' ') : tr('No tags')}</span></button><button class="property-row compact-property" type="button" data-action="quick-priority-picker"><span class="property-key">${tr('Priority')}</span><span class="property-value">${esc(priorityLabel(d.priority))}</span></button></div><div><div class="detail-heading"><span>${tr('Subtasks')}</span><span>${d.subtasks.length}</span></div><div class="subtask-list">${d.subtasks.map(s => quickDraftSubtaskRow(s)).join('')}</div><div class="add-subtask-input"><span></span><input id="quick-subtask" class="input" type="text" placeholder="${tr('Add subtask...')}" /></div></div></div>` : ''}
-      ${d.moreOpen ? `<div class="quick-advanced-grid"><label class="property-row" for="quick-planned-time"><span class="property-key">${tr('Planned time')}</span><input id="quick-planned-time" class="input task-time-input" type="time" value="${esc(d.plannedTime || '')}"></label><label class="property-row" for="quick-due-time"><span class="property-key">${tr('Due time')}</span><input id="quick-due-time" class="input task-time-input" type="time" value="${esc(d.dueTime || '')}"></label></div>` : ''}
-      <div class="modal-footer"><span class="shortcut-hint">${tr('↵ Add · ⇧↵ Add another')}</span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">${tr('Cancel')}</button><button class="btn btn-primary" type="button" data-action="create-task">${tr('Add task')}</button></div></div>
+      <div class="quick-parse-slot" data-quick-preview-slot aria-live="polite">${quickParsePreview(parsed)}</div>
+      <div class="quick-selectors"><button class="quick-selector" type="button" data-action="quick-plan-picker"><i class="ph ph-calendar-check" aria-hidden="true"></i><span data-quick-plan-label>${esc(quickPlanLabel(plan, time))}</span><i class="ph ph-caret-right" aria-hidden="true"></i></button><button class="quick-selector" type="button" data-action="quick-project-picker"><i class="ph ph-folder-simple" aria-hidden="true"></i><span data-quick-place-label>${esc(quickPlace(d, parsed).label)}</span><i class="ph ph-caret-right" aria-hidden="true"></i></button></div>
+      ${quickTemplateRow()}
+      <button class="quick-more-options" type="button" data-action="quick-more-options"><span>${tr('More options')}</span><span class="quick-more-meta">${tr('Due date, reminder, tags')}</span><i class="ph ph-caret-right" aria-hidden="true"></i></button>
+      <div class="quick-sheet-footer"><span class="shortcut-hint">${tr('↵ Add · ⇧↵ Add another')}</span><button class="btn btn-primary quick-add-button" type="button" data-action="create-task">${tr('Add task')}</button></div>
     </div>`, 'quick');
   }
 
-  function quickDraftSubtaskRow(subtask) {
-    return `<div class="subtask-row"><button class="complete-control ${subtask.isCompleted ? 'is-completed' : ''}" type="button" data-action="quick-toggle-subtask" data-subtask-id="${esc(subtask.id)}" aria-label="${subtask.isCompleted ? tr('Mark subtask incomplete') : tr('Complete subtask')}">${subtask.isCompleted ? '<i class="ph ph-check"></i>' : ''}</button><span class="subtask-title">${esc(subtask.title)}</span><button class="btn-icon" type="button" data-action="quick-delete-subtask" data-subtask-id="${esc(subtask.id)}" aria-label="${tr('Delete subtask')}"><i class="ph ph-x"></i></button></div>`;
+  function quickPlanLabel(plan, time) {
+    return plan ? `${relativeDateLabel(plan)}${time ? ` · ${time}` : ''}` : tr('No date');
+  }
+
+  // Where a Quick Add task goes: its project, "Bez projekta" (it skips Inbox) or Inbox. A picked place wins over a
+  // parsed +project; a task with a date and no project is never in Inbox.
+  function quickPlace(d, parsed = parseQuickAddTitle(d.title, !d.explicitPlan)) {
+    const projectId = d.placePicked ? (d.projectId || null) : (d.projectId || parsed.projectId || null);
+    const plan = d.explicitPlan ? d.plannedDate : (parsed.plannedDate || d.plannedDate);
+    const processed = d.processed ?? Boolean(modalState?.defaults?.processed);
+    const isInbox = !projectId && !processed && !plan;
+    return { projectId, isInbox, label: projectId ? (getProject(projectId)?.name || tr('No project')) : isInbox ? tr('Inbox') : tr('No project') };
+  }
+
+  // S7: the "Iz šablona" chip, shown only when task templates exist.
+  function quickTemplateRow() {
+    const templates = (state.templates || []).filter(template => template.type === 'task');
+    if (!templates.length) return '';
+    const chosen = modalState.quickTemplate && templates.find(template => template.id === modalState.quickTemplate.id);
+    if (!chosen) return `<div class="quick-template-row"><button class="quick-chip" type="button" data-action="quick-template"><i class="ph ph-copy" aria-hidden="true"></i>${tr('From template')}</button></div>`;
+    return `<div class="quick-template-row"><button class="quick-chip is-selected" type="button" data-action="quick-template"><i class="ph ph-copy" aria-hidden="true"></i>${esc(tr('Template: {name}', { name: chosen.name }))}</button><button class="quick-chip" type="button" data-action="quick-template-clear" aria-label="${tr('Remove template')}"><i class="ph ph-x" aria-hidden="true"></i></button></div><p class="quick-template-summary">${esc(quickTemplateSummary(chosen))}</p>`;
+  }
+
+  function quickTemplateSummary(template) {
+    const item = Core.instantiateTemplate(template, Core.dateOnly(), { state, makeId: () => 'preview', nowIso: nowIso() }).task;
+    return [item.plannedDate && relativeDateLabel(item.plannedDate), item.dueDate && tr('Due {date}', { date: relativeDateLabel(item.dueDate) }), item.subtasks.length && trn(item.subtasks.length, '{count} subtask', '{count} subtasks'), ...(item.tagIds || []).map(getTag).filter(Boolean).map(tag => `#${tag.name}`)].filter(Boolean).join(' · ') || item.title || template.name;
+  }
+
+  function openQuickTemplatePicker(anchor) {
+    const templates = (state.templates || []).filter(template => template.type === 'task');
+    const current = modalState?.quickTemplate?.id;
+    const html = `<div class="popover-title">${tr('Task template')}</div><div class="sheet-card">${templates.map(template => `<button class="popover-option sheet-option${template.id === current ? ' is-selected' : ''}" type="button" data-pop-action="quick-template-pick" data-template-id="${esc(template.id)}"><i class="ph ph-copy" aria-hidden="true"></i><span class="sheet-option-label">${esc(template.name)}<small>${esc(quickTemplateSummary(template))}</small></span><span class="sheet-radio${template.id === current ? ' is-on' : ''}" aria-hidden="true"></span></button>`).join('')}</div>`;
+    openPopover(anchor, html, { type: 'quick-template' });
+  }
+
+  // S7: a template fills what the draft does not have yet. A typed title, a picked date and a picked place win;
+  // the due date moves with the plan. ✕ restores what the template replaced.
+  const QUICK_TEMPLATE_FIELDS = ['plannedDate', 'plannedTime', 'dueDate', 'dueTime', 'subtasks', 'tagIds', 'priority', 'notes', 'durationMinutes', 'reminderAt', 'recurrence', 'goalIds', 'projectId', 'areaId'];
+  function applyQuickTemplate(id) {
+    const template = (state.templates || []).find(item => item.id === id && item.type === 'task');
+    if (!template || modalState?.type !== 'quick') return;
+    syncQuickDraftFromDom();
+    if (modalState.quickTemplate) clearQuickTemplate();
+    const d = modalState.draft;
+    const offset = Number.isInteger(template.data?.plannedOffsetDays) ? template.data.plannedOffsetDays : 0;
+    const context = d.explicitPlan && d.plannedDate ? Core.addDays(d.plannedDate, -offset) : (modalState.templateContext?.plannedDate || Core.dateOnly());
+    const out = Core.instantiateTemplate(template, context, { state, makeId: uid, nowIso: nowIso() });
+    const item = out.task;
+    const before = copyTemplate(Object.fromEntries([...QUICK_TEMPLATE_FIELDS, 'title'].map(key => [key, d[key] ?? null])));
+    if (!String(d.title || '').trim()) d.title = item.title || '';
+    if (!d.explicitPlan && item.plannedDate) { d.plannedDate = item.plannedDate; if (!d.plannedTime) d.plannedTime = item.plannedTime || null; }
+    if (!d.dueDate) { d.dueDate = item.dueDate || null; d.dueTime = d.dueTime || item.dueTime || null; }
+    if (!d.subtasks?.length) d.subtasks = item.subtasks || [];
+    d.tagIds = [...new Set([...(d.tagIds || []), ...(item.tagIds || [])])];
+    if (!d.priority || d.priority === 'none') d.priority = item.priority || 'none';
+    for (const key of ['notes', 'durationMinutes', 'reminderAt', 'recurrence']) if (!d[key]) d[key] = item[key] ?? d[key] ?? null;
+    d.goalIds = [...new Set([...(d.goalIds || []), ...(item.goalIds || [])])];
+    if (!d.placePicked && !d.projectId && item.projectId) { d.projectId = item.projectId; d.areaId = null; }
+    else if (!d.projectId && !d.areaId && item.areaId) d.areaId = item.areaId;
+    modalState.quickTemplate = { id, title: item.title || '', before };
+    modalState.templateInstance = out;
+  }
+  function clearQuickTemplate() {
+    const applied = modalState?.quickTemplate;
+    if (!applied) return;
+    syncQuickDraftFromDom();
+    const d = modalState.draft;
+    const title = d.title === applied.title ? applied.before.title : d.title;
+    for (const key of QUICK_TEMPLATE_FIELDS) {
+      if ((key === 'plannedDate' || key === 'plannedTime') && d.explicitPlan) continue;
+      if ((key === 'projectId' || key === 'areaId') && d.placePicked) continue;
+      d[key] = applied.before[key];
+    }
+    d.title = title || '';
+    modalState.quickTemplate = null;
+    modalState.templateInstance = null;
   }
 
   function priorityLabel(value) {
@@ -2013,7 +2082,13 @@
       const area = getArea(project.areaId);
       return `<button class="popover-option sheet-option${project.id === currentId ? ' is-selected' : ''}" type="button" data-sheet-item data-search="${esc(project.name.toLowerCase())}" data-pop-action="set-project" data-project-id="${esc(project.id)}" ${attrs}><span class="project-dot" style="--project-color:${esc(project.color)}"></span><span class="sheet-option-label">${esc(project.name)}${area ? `<small>${esc(tr('Area: {area}', { area: area.name }))}</small>` : ''}</span><span class="sheet-radio${project.id === currentId ? ' is-on' : ''}" aria-hidden="true"></span></button>`;
     };
-    const html = `<div class="popover-title">${tr('Project')}</div>${source?.title ? `<p class="sheet-subtitle">${esc(source.title)}</p>` : ''}<label class="sheet-search"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input class="input" type="search" data-sheet-search placeholder="${tr('Search projects')}" aria-label="${tr('Search projects')}"></label><div class="sheet-card"><button class="popover-option sheet-option${!currentId ? ' is-selected' : ''}" type="button" data-pop-action="set-project" data-project-id="" ${attrs}><span class="sheet-option-label">${tr('No project')}</span><span class="sheet-radio${!currentId ? ' is-on' : ''}" aria-hidden="true"></span></button>${ordered.map(option).join('')}<button class="popover-option sheet-option sheet-add" type="button" data-pop-action="inline-new-project" ${attrs}><i class="ph ph-plus" aria-hidden="true"></i>${tr('New project')}</button></div><p class="sheet-note">${tr("The task takes its project's area. A tap applies the choice.")}</p>`;
+    // Redesign R4: in Quick Add the sheet asks where the task goes, with Inbox and "Bez projekta" on top.
+    const quick = target.type === 'quick';
+    const inbox = quick && !currentId && !(source?.processed ?? Boolean(modalState?.defaults?.processed));
+    const none = !currentId && !inbox;
+    const noneRow = `<button class="popover-option sheet-option${none ? ' is-selected' : ''}" type="button" ${quick ? 'data-pop-action="quick-place" data-place="none"' : `data-pop-action="set-project" data-project-id="" ${attrs}`}><span class="sheet-option-label">${tr('No project')}</span><span class="sheet-radio${none ? ' is-on' : ''}" aria-hidden="true"></span></button>`;
+    const inboxRow = quick ? `<button class="popover-option sheet-option${inbox ? ' is-selected' : ''}" type="button" data-pop-action="quick-place" data-place="inbox"><i class="ph ph-tray" aria-hidden="true"></i><span class="sheet-option-label">${tr('Inbox')}<small>${tr('Sort it later')}</small></span><span class="sheet-radio${inbox ? ' is-on' : ''}" aria-hidden="true"></span></button>` : '';
+    const html = `<div class="popover-title">${quick ? tr('Where does the task go') : tr('Project')}</div>${source?.title ? `<p class="sheet-subtitle">${esc(source.title)}</p>` : ''}<label class="sheet-search"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input class="input" type="search" data-sheet-search placeholder="${tr('Search projects')}" aria-label="${tr('Search projects')}"></label><div class="sheet-card">${inboxRow}${noneRow}${ordered.map(option).join('')}<button class="popover-option sheet-option sheet-add" type="button" data-pop-action="inline-new-project" ${attrs}><i class="ph ph-plus" aria-hidden="true"></i>${tr('New project')}</button></div><p class="sheet-note">${tr("The task takes its project's area. A tap applies the choice.")}</p>`;
     openPopover(anchor, html, { type: 'project', target });
   }
 
@@ -2041,7 +2116,9 @@
   function openDateSheet(anchor, target, kind) {
     const source = target.type === 'quick' ? modalState?.draft : getTask(target.taskId);
     if (!source) return;
-    const date = (kind === 'plan' ? source.plannedDate : source.dueDate) || null;
+    // In Quick Add the sheet starts from the effective plan: the parsed date until one is picked.
+    const plan = target.type === 'quick' && !source.explicitPlan ? (source.parsedPlanDate || source.plannedDate) : source.plannedDate;
+    const date = (kind === 'plan' ? plan : source.dueDate) || null;
     const base = parseLocalDate(date || Core.dateOnly());
     const sheet = { target, kind, date, time: (kind === 'plan' ? source.plannedTime : source.dueTime) || null, view: { y: base.getFullYear(), m: base.getMonth() } };
     dateSheet = sheet;
@@ -2243,19 +2320,6 @@
     const current = source?.recurrence || { frequency: 'weekly', interval: 2 };
     setPopoverContent(`<div class="popover-title">${tr('Custom repeat')}</div><div class="popover-inline-form"><label class="field-label" for="repeat-interval">${tr('Repeat every')}</label><div class="repeat-custom-row"><input id="repeat-interval" class="input" type="number" min="1" max="99" value="${Math.max(1, Number(current.interval) || 1)}" /><select id="repeat-frequency" class="input"><option value="daily" ${current.frequency === 'daily' ? 'selected' : ''}>${tr('days')}</option><option value="weekly" ${current.frequency === 'weekly' ? 'selected' : ''}>${tr('weeks')}</option><option value="monthly" ${current.frequency === 'monthly' ? 'selected' : ''}>${tr('months')}</option></select></div><div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn btn-ghost" type="button" data-pop-action="custom-repeat-cancel">${tr('Cancel')}</button><button class="btn btn-primary" type="button" data-pop-action="custom-repeat-apply" data-target-type="${targetType}" ${taskId ? `data-task-id="${esc(taskId)}"` : ''}>${tr('Apply')}</button></div></div>`);
     $('.repeat-custom-row',popoverEl).insertAdjacentHTML('afterend',`<label class="field-label">${tr('End condition')}<select id="repeat-end-type" class="input"><option value="never" ${!current.endType || current.endType==='never'?'selected':''}>${tr('Never')}</option><option value="date" ${current.endType==='date'?'selected':''}>${tr('End on date')}</option><option value="afterOccurrences" ${current.endType==='afterOccurrences'?'selected':''}>${tr('End after N occurrences (including initial)')}</option></select></label><label class="field-label">${tr('End date')}<input id="repeat-end-date" class="input" type="date" value="${esc(current.endDate || '')}"></label><label class="field-label">${tr('Total occurrences')}<input id="repeat-end-count" class="input" type="number" min="1" step="1" value="${esc(current.endAfterOccurrences || '')}"></label><p class="validation" role="alert" id="repeat-error" hidden></p>`);
-  }
-
-  function openDurationPicker(anchor) {
-    const current = modalState?.draft?.durationMinutes || null;
-    const option = minutes => `<button class="popover-option ${current === minutes ? 'is-selected' : ''}" type="button" data-pop-action="set-duration" data-minutes="${minutes}"><i class="ph ph-timer"></i>${esc(durationLabel(minutes))}</button>`;
-    const html = `<div class="popover-title">${tr('Duration')}</div>${[15, 30, 45, 60, 90, 120].map(option).join('')}${current ? `<div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="set-duration" data-minutes=""><i class="ph ph-x"></i>${tr('Remove duration')}</button>` : ''}`;
-    openPopover(anchor, html, { type: 'duration' });
-  }
-
-  function setQuickDuration(value) {
-    const minutes = Number(value);
-    modalState.draft.durationMinutes = Number.isInteger(minutes) && minutes > 0 ? minutes : null;
-    closePopover(); renderModal();
   }
 
   function setReminder(targetType, taskId, value) {
@@ -2501,6 +2565,7 @@
   function setProject(targetType, taskId, projectId) {
     if (targetType === 'quick') {
       modalState.draft.projectId = projectId || null;
+      modalState.draft.placePicked = true;
       if (projectId) modalState.draft.areaId = null;
       if (projectId) modalState.draft.isInbox = false;
       closePopover();
@@ -2531,7 +2596,7 @@
     closePopover();requestTaskEdit(taskId,{dueDate:date || null});
   }
 
-  function createTask(keepOpen = false) {
+  function createTask(keepOpen = false, openWindow = false) {
     if (!modalState || modalState.type !== 'quick') return;
     syncQuickDraftFromDom();
     const d = modalState.draft;
@@ -2542,9 +2607,8 @@
       modalState.error = tr('Task needs a title.');
       renderModal(); requestAnimationFrame(() => $('#quick-title')?.focus()); return;
     }
-    // Picker values win over parsed ones; a project wins over an Area.
-    const projectId = d.projectId || parsed.projectId || null;
-    const isInbox = modalState.defaults.processed ? false : !(projectId || resolvedPlan);
+    // Picker values win over parsed ones; a project wins over an Area; a picked place wins over +project (R4).
+    const { projectId, isInbox } = quickPlace(d, parsed);
     const task = {
       id: uid('task'), title, notes: d.notes || '', projectId, areaId: projectId ? null : (d.areaId || parsed.areaId || null), goalIds: [...(d.goalIds || [])], plannedTime: d.explicitPlannedTime ? d.plannedTime : (d.plannedTime || parsed.plannedTime || null), dueTime: d.dueTime || null, durationMinutes: d.durationMinutes || parsed.durationMinutes || null,
       plannedDate: resolvedPlan || null, dueDate: d.dueDate || parsed.dueDate || null,
@@ -2562,17 +2626,17 @@
     saveState();
     if (keepOpen) {
       const defaults = modalState.defaults;
-      modalState = { type: 'quick', defaults, draft: { title: '', notes: '', projectId: defaults.projectId, areaId: defaults.areaId, plannedDate: defaults.plannedDate, parsedPlanDate: null, explicitPlan: Boolean(defaults.explicitPlan), dueDate: null, plannedTime: null, dueTime: null, explicitPlannedTime: false, reminderAt: null, reminderFiredAt: null, recurrence: null, tagIds: [], priority: 'none', subtasks: [], moreOpen: false }, error: '' };
+      modalState = { type: 'quick', templateContext: modalState.templateContext, defaults, draft: { title: '', notes: '', projectId: defaults.projectId, areaId: defaults.areaId, plannedDate: defaults.plannedDate, parsedPlanDate: null, explicitPlan: Boolean(defaults.explicitPlan), dueDate: null, plannedTime: null, dueTime: null, explicitPlannedTime: false, reminderAt: null, reminderFiredAt: null, recurrence: null, tagIds: [], priority: 'none', subtasks: [] }, error: '' };
       render(); renderModal(); requestAnimationFrame(() => $('#quick-title')?.focus());
     } else {
       closeModal(); render();
+      if (openWindow) openTaskDetail(task.id);
     }
   }
 
   function syncQuickDraftFromDom() {
     if (modalState?.type !== 'quick') return;
     const title = $('#quick-title'); if (title) modalState.draft.title = title.value;
-    const notes = $('#quick-notes'); if (notes) modalState.draft.notes = notes.value;
   }
 
   function parseQuickAddTitle(rawTitle, parsePlan = true) {
@@ -4451,7 +4515,7 @@
     else if(action==='more-route'){closePopover();navigate(el.dataset.moreRoute);}
     else if(action==='choose-template')chooseTemplate(el.dataset.templateId);
     else if(action==='template-picker-back'){if(modalState.previous?.type==='goal')closeModal();else{modalState=modalState.previous;renderModal();}}
-    else if(action==='use-template'){const template=state.templates.find(t=>t.id===el.dataset.templateId);if(template){if(template.type==='task')openQuickAdd();else if(template.type==='project')openProjectModal();else if(template.type==='habit')openHabitModal();else openGoalModal();openTemplatePicker();chooseTemplate(template.id);}}
+    else if(action==='use-template'){const template=state.templates.find(t=>t.id===el.dataset.templateId);if(template){if(template.type==='task'){openQuickAdd();applyQuickTemplate(template.id);renderModal();}else{if(template.type==='project')openProjectModal();else if(template.type==='habit')openHabitModal();else openGoalModal();openTemplatePicker();chooseTemplate(template.id);}}}
     else if (action === 'toggle-sidebar') { state.ui.sidebarCollapsed = !state.ui.sidebarCollapsed; saveAndRender(); }
     else if (action === 'quick-add') openQuickAdd({ projectId: el.dataset.projectId || null, areaId: el.dataset.areaId || null, today: el.dataset.today === 'true', anytime: el.dataset.anytime === 'true' });
     else if (action === 'open-task') openTaskDetail(el.dataset.taskId);
@@ -4505,24 +4569,15 @@
     else if (action === 'quick-plan-picker') openPlanPicker(el, { type: 'quick' });
     else if (action === 'quick-due-picker') openDuePicker(el, { type: 'quick' });
     else if (action === 'quick-reminder-picker') openReminderPicker(el, { type: 'quick' });
-    else if (action === 'quick-duration-picker') openDurationPicker(el);
     else if (action === 'quick-repeat-picker') openRepeatPicker(el, { type: 'quick' });
     else if (action === 'quick-tags-picker') openTagPicker(el, { type: 'quick' });
     else if (action === 'quick-priority-picker') openPriorityPicker(el, { type: 'quick' });
-    else if (action === 'toggle-quick-more') {
-      syncQuickDraftFromDom();
-      modalState.draft.moreOpen = !modalState.draft.moreOpen;
-      renderModal();
-      requestAnimationFrame(() => {
-        const target = modalState.draft.moreOpen ? ($('#quick-notes') || $('#quick-planned-time')) : $('[data-action="toggle-quick-more"]');
-        target?.focus();
-      });
-    }
+    else if (action === 'quick-template') openQuickTemplatePicker(el);
+    else if (action === 'quick-template-clear') { clearQuickTemplate(); renderModal(); requestAnimationFrame(() => $('[data-action="quick-template"]')?.focus()); }
+    else if (action === 'quick-more-options') createTask(false, true);
     else if (action === 'create-task') createTask(false);
     else if (action === 'close-modal') closeModal();
     else if (action === 'modal-backdrop' && event.target === el) closeModal();
-    else if (action === 'quick-toggle-subtask') { const s = modalState.draft.subtasks.find(x => x.id === el.dataset.subtaskId); if (s) { syncQuickDraftFromDom(); s.isCompleted = !s.isCompleted; renderModal(); } }
-    else if (action === 'quick-delete-subtask') { syncQuickDraftFromDom(); modalState.draft.subtasks = modalState.draft.subtasks.filter(x => x.id !== el.dataset.subtaskId); renderModal(); }
     else if (action === 'toggle-subtask') toggleSubtask(el.dataset.taskId, el.dataset.subtaskId);
     else if (action === 'delete-subtask') deleteSubtask(el.dataset.taskId, el.dataset.subtaskId);
     else if (action === 'edit-subtask') editSubtask(el.dataset.taskId, el.dataset.subtaskId);
@@ -4567,6 +4622,8 @@
   function handlePopoverAction(button) {
     const action = button.dataset.popAction;
     if (action === 'close-sheet') closePopover();
+    else if (action === 'quick-place' && modalState?.type === 'quick') { const inbox = button.dataset.place === 'inbox'; Object.assign(modalState.draft, { projectId: null, processed: !inbox, placePicked: true }); closePopover(); renderModal(); }
+    else if (action === 'quick-template-pick') { const id = button.dataset.templateId; closePopover(); applyQuickTemplate(id); renderModal(); requestAnimationFrame(() => $('#quick-title')?.focus()); }
     else if (action === 'date-sheet-pick' && dateSheet) {
       dateSheet.time = $('#date-sheet-time', popoverEl)?.value ?? dateSheet.time;
       dateSheet.date = button.dataset.date;
@@ -4596,7 +4653,6 @@
     else if (action === 'set-plan') setPlan(button.dataset.targetType, button.dataset.taskId, button.dataset.date);
     else if (action === 'set-due') setDue(button.dataset.targetType, button.dataset.taskId, button.dataset.date);
     else if (action === 'set-reminder') setReminder(button.dataset.targetType, button.dataset.taskId, button.dataset.reminder);
-    else if (action === 'set-duration') setQuickDuration(button.dataset.minutes);
     else if (action === 'set-repeat') setRecurrence(button.dataset.targetType, button.dataset.taskId, button.dataset.frequency ? { frequency: button.dataset.frequency, interval: Number(button.dataset.interval) || 1 } : null);
     else if (action === 'show-custom-repeat') showCustomRepeat(button);
     else if (action === 'custom-repeat-cancel') closePopover();
@@ -4653,8 +4709,15 @@
     }
     if (callDomainHook('handleInput', event) !== undefined) return;
     if (modalState?.type === 'quick') {
-      if (event.target.id === 'quick-title') { modalState.draft.title = event.target.value; modalState.error = ''; const parsed=parseQuickAddTitle(event.target.value, !modalState.draft.explicitPlan); const slot=document.querySelector('[data-quick-preview-slot]'); if(slot) slot.innerHTML=quickParsePreview(parsed); if (!modalState.draft.explicitPlan) { modalState.draft.parsedPlanDate=parsed.plannedDate; const b=document.querySelector('[data-action="quick-plan-picker"]'); if(b) b.innerHTML=`<i class="ph ph-calendar-check"></i>${parsed.plannedDate ? esc(relativeDateLabel(parsed.plannedDate)) : tr('Plan for')}`; } }
-      else if (event.target.id === 'quick-notes') modalState.draft.notes = event.target.value;
+      if (event.target.id === 'quick-title') {
+        const d = modalState.draft; d.title = event.target.value; modalState.error = '';
+        const parsed = parseQuickAddTitle(event.target.value, !d.explicitPlan);
+        const slot = document.querySelector('[data-quick-preview-slot]'); if (slot) slot.innerHTML = quickParsePreview(parsed);
+        if (!d.explicitPlan) d.parsedPlanDate = parsed.plannedDate;
+        // Redesign R4: the selectors follow the title without redrawing the field.
+        const planLabel = document.querySelector('[data-quick-plan-label]'); if (planLabel) planLabel.textContent = quickPlanLabel(d.explicitPlan ? d.plannedDate : (parsed.plannedDate || d.plannedDate), d.explicitPlannedTime ? d.plannedTime : (d.plannedTime || parsed.plannedTime));
+        const placeLabel = document.querySelector('[data-quick-place-label]'); if (placeLabel) placeLabel.textContent = quickPlace(modalState.draft, parsed).label;
+      }
     }
     if (modalState?.type === 'task') {
       const task = getTask(modalState.taskId);
@@ -4671,12 +4734,6 @@
 
   function handleChange(event) {
     if (globalOperation) return;
-    if (modalState?.type === 'quick' && ['quick-planned-time', 'quick-due-time'].includes(event.target.id)) {
-      const planned = event.target.id === 'quick-planned-time';
-      modalState.draft[planned ? 'plannedTime' : 'dueTime'] = Core.normalizeTime(event.target.value);
-      if (planned) modalState.draft.explicitPlannedTime = true;
-      return;
-    }
     if (event.target.matches('[data-task-duration]')) {
       const value = Number(event.target.value);
       updateTask(event.target.dataset.taskId, { durationMinutes: Number.isInteger(value) && value > 0 ? value : null }, false);
@@ -4765,10 +4822,6 @@
     }
     if (callDomainHook('handleInput', event) !== undefined) return;
 
-    if (modalState?.type === 'quick' && target?.id === 'quick-subtask' && event.key === 'Enter') {
-      event.preventDefault(); syncQuickDraftFromDom(); const title = target.value.trim(); if (!title) { target.blur(); return; }
-      modalState.draft.subtasks.push({ id: uid('sub'), title, isCompleted: false, order: modalState.draft.subtasks.length }); renderModal(); requestAnimationFrame(() => $('#quick-subtask')?.focus()); return;
-    }
 
     if (modalState?.type === 'task' && ['detail-title', 'detail-duration-minutes'].includes(target?.id) && event.key === 'Enter') { event.preventDefault(); target.blur(); return; }
     if (modalState?.type === 'task' && target?.id === 'detail-subtask' && event.key === 'Enter') { event.preventDefault(); addDetailSubtask(target.dataset.taskId, target.value); return; }

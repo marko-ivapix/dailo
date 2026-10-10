@@ -2367,6 +2367,23 @@ a.btn { text-decoration: none; }
 .task-window-footer { position: sticky; bottom: 0; margin-top: 18px; padding: 10px 0 4px; background: linear-gradient(to bottom, transparent, var(--graphite-850) 30%); }
 .task-complete-button { width: 100%; min-height: 50px; font-size: 16px; }
 
+/* Redesign R4 — Quick Add as a bottom sheet at every width (Q1, Q2, S7). */
+.modal-backdrop-quick { place-items: end center; align-items: end; padding: 0; }
+.modal-backdrop-quick .modal { width: min(560px, 100vw); max-height: min(86dvh, 720px); border-radius: 18px 18px 0 0; border-bottom: 0; }
+.quick-sheet { padding-bottom: max(14px, env(safe-area-inset-bottom)); }
+.quick-sheet .modal-header { margin-bottom: 4px; }
+.quick-selectors { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 10px 0; }
+.quick-selector { min-height: 48px; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid var(--line-2); border-radius: var(--radius-md); background: var(--graphite-900); color: var(--ink-1); font: inherit; text-align: left; cursor: pointer; }
+.quick-selector span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.quick-selector .ph-caret-right { color: var(--ink-4); }
+.quick-template-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 2px 0 6px; }
+.quick-template-summary { margin: 0 2px 8px; color: var(--ink-3); font-size: 12px; }
+.quick-more-options { width: 100%; min-height: 44px; display: flex; align-items: center; gap: 8px; padding: 0 2px; border: 0; background: none; color: var(--ink-1); font: inherit; cursor: pointer; }
+.quick-more-meta { flex: 1; color: var(--ink-4); font-size: 13px; text-align: right; }
+.quick-sheet-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; }
+.quick-add-button { flex: 1; max-width: 260px; min-height: 48px; margin-left: auto; }
+@media (pointer: coarse) { .quick-sheet-footer .shortcut-hint { display: none; } .quick-add-button { max-width: none; } }
+
 /* Keep primary compact actions touchable after all density rules. */
 @media (max-width: 700px), (pointer: coarse) {
   .task-actions .btn-icon,

@@ -118,6 +118,17 @@ window.document.querySelector('.popover [data-pop-action="date-sheet-apply"]').d
 await new Promise(resolve => setTimeout(resolve, 50));
 if (window.TodoApp.state.tasks.find(task => task.id === created.id)?.plannedDate !== tomorrow || window.document.querySelector('.popover')) fail('the date sheet did not plan the task for tomorrow');
 window.TodoApp.handleBackButton();
+// Redesign R4: Quick Add's place sheet; "Bez projekta" keeps a task without a date out of Inbox.
+window.TodoApp.openQuickAdd();
+window.document.querySelector('#modal-root [data-action="quick-project-picker"]').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+window.document.querySelector('.popover [data-pop-action="quick-place"][data-place="none"]')?.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+const placed = window.document.querySelector('#quick-title');
+if (!placed || window.document.querySelector('[data-quick-place-label]')?.textContent !== 'Bez projekta') fail('Quick Add did not take "Bez projekta"');
+placed.value = `Smoke bez projekta ${Date.now()}`;
+placed.dispatchEvent(new window.Event('input', { bubbles: true }));
+window.document.querySelector('[data-action="create-task"]').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+await new Promise(resolve => setTimeout(resolve, 50));
+if (window.TodoApp.state.tasks.find(task => task.title === placed.value)?.isInbox !== false) fail('a "Bez projekta" task went to Inbox');
 window.dispatchEvent(new window.Event('pagehide'));
 const saved = keep(window);
 first.dom.window.close();
@@ -128,5 +139,5 @@ if (!found) fail('the task is missing after reopening');
 const errors = [...first.errors, ...second.errors];
 second.dom.window.close();
 if (errors.length) fail(`script errors: ${errors.join(' | ')}`);
-console.log(`smoke: OK — started, created "${title}", Back closed Quick Add, route change named the page and focused its heading, Još opened Ciljevi, focus survived a re-render, Today checked in a habit, the Zadaci switch showed the projects, the task window's date sheet planned a task, reopened and found it (tasks: ${second.window.TodoApp.state?.tasks?.length ?? 'n/a'})`);
+console.log(`smoke: OK — started, created "${title}", Back closed Quick Add, route change named the page and focused its heading, Još opened Ciljevi, focus survived a re-render, Today checked in a habit, the Zadaci switch showed the projects, the task window's date sheet planned a task, Quick Add filed a task under \"Bez projekta\", reopened and found it (tasks: ${second.window.TodoApp.state?.tasks?.length ?? 'n/a'})`);
 process.exit(0);

@@ -12,7 +12,8 @@ test('icon-only task and subtask controls expose item-specific accessible names'
   assert.match(tasks, /data-action="task-menu"[\s\S]*?aria-label="\$\{tr\('Task actions'\)\}"/);
   assert.match(tasks, /data-action="toggle-subtask"[\s\S]*?aria-label="\$\{subtask\.isCompleted \? tr\('Mark subtask incomplete'\) : tr\('Complete subtask'\)\}"/);
   assert.match(tasks, /data-action="delete-subtask"[\s\S]*?aria-label="\$\{tr\('Delete subtask'\)\}"/);
-  assert.match(app, /data-action="quick-delete-subtask"[\s\S]*?aria-label="\$\{tr\('Delete subtask'\)\}"/);
+  // Redesign R4: Quick Add no longer edits subtasks; they are added in the task window ("Više opcija").
+  assert.doesNotMatch(app, /quick-delete-subtask/);
 });
 
 test('dialogs use visible headings as accessible names and modal focus hooks', () => {
