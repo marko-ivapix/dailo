@@ -60,9 +60,10 @@ test('metrics, completion and the weekly chart score each week with its own targ
   assert.equal(Core.habitCompletionForDates(changed, logs, ['2026-09-29', '2026-10-01'], '2026-10-09', 'monday'), 100);
 });
 
+// Redesign R8c: the settings panels gave way to the details window, which saves through commitHabitDetails.
 test('both habit save paths record a weekly target change for the current week', () => {
   const habitsUi = read('js/habits-ui.js');
-  for (const name of ['saveHabitModal', 'saveHabitSettings']) {
+  for (const name of ['saveHabitModal', 'commitHabitDetails']) {
     assert.match(fn(habitsUi, name), /Core\.recordHabitTargetChange\(habit, [^;]+Core\.habitPeriodKey\(\{ frequencyType: 'timesPerWeek' \}, Core\.dateOnly\(\), Core\.habitWeekRule\((ctx\.)?state\.settings\)\)\)/, name);
   }
 });
@@ -105,7 +106,9 @@ test('a completed week keeps its result after the week start changes', () => {
 
 test('the app records week-start changes and passes the history to every habit calculation', () => {
   assert.match(fn(app, 'savePersonalization'), /weekStartHistory: Core\.recordWeekStartChange\(state\.settings, \$\('#preference-week-start'\)\?\.value, Core\.dateOnly\(\)\)/);
-  assert.match(app, /function resetPersonalization\(\) \{ state\.settings = \{ \.\.\.Core\.resetV16Settings\(state\.settings\), weekStartHistory: Core\.recordWeekStartChange\(state\.settings, 'monday', Core\.dateOnly\(\)\) \};/, 'a reset to Monday is a change too');
+  // Redesign R10g (M5): the "reset personalization" button left Settings; the week start applies on change through
+  // savePersonalization, which records the history (above).
+  assert.doesNotMatch(app, /function resetPersonalization\(/);
   for (const file of ['js/app.js', 'js/habits-ui.js', 'js/calendar-ui.js']) {
     const source = read(file);
     for (const call of ['deriveHabitMetrics', 'habitReminderActive', 'habitCompletionForDates', 'habitAnalytics', 'habitPeriodKey']) {
@@ -193,8 +196,8 @@ test('typing updates the query at once and rebuilds the results after a short pa
   assert.match(app, /modalState\.query = event\.target\.value;\n\s+scheduleSearchResults\(\);/);
 });
 
-test('M11 is released as 2.0.0-alpha.3', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.3');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.3';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.3');
+test('M11 shipped as 2.0.0-alpha.3 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.([3-9]|\d{2,})$|^2\.\d+\.\d+/);
+  assert.match(read('sw.js'), new RegExp(`const VERSION = '${Release.APP_VERSION.replace(/\./g, '\\.')}';`));
+  assert.equal(JSON.parse(read('package.json')).version, Release.APP_VERSION);
 });

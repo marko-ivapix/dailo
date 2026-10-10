@@ -7,25 +7,10 @@
   // UI only: live app state and persistence/overlay helpers arrive per invocation.
   const HORIZONS = Object.freeze({ short: msg('Short-term'), mid: msg('Mid-term'), long: msg('Long-term') });
   const HABIT_METRICS = Object.freeze({ totalCheckins: msg('Check-ins'), streak: msg('Streak'), successfulPeriods: msg('Periods') });
-  const HORIZON_DETAILS = Object.freeze({
-    short: { icon: 'ph-flag', copy: msg('Near-term outcomes to move forward now.'), empty: msg('No short-term goals here.') },
-    mid: { icon: 'ph-path', copy: msg('Outcomes taking shape over the coming months.'), empty: msg('No mid-term goals here.') },
-    long: { icon: 'ph-mountains', copy: msg('Long-range direction and durable ambitions.'), empty: msg('No long-term goals here.') }
-  });
+
 
   function normalizeHorizon(value) {
     return Object.hasOwn(HORIZONS, value) ? value : 'short';
-  }
-
-  function horizonOptions(value) {
-    return Object.entries(HORIZONS).map(([key, label]) => `<option value="${key}" ${normalizeHorizon(value) === key ? 'selected' : ''}>${tr(label)}</option>`).join('');
-  }
-
-  function renderGoalSection(ctx, label, goals, emptyCopy, group = {}) {
-    const icon = group.icon ? `<i class="ph ${group.icon}" aria-hidden="true"></i>` : '';
-    const copy = group.copy ? `<p>${ctx.esc(group.copy)}</p>` : '';
-    const groupClass = group.className ? ` ${group.className}` : '';
-    return `<section class="section goal-group${groupClass}"><div class="section-header goal-group-header"><div class="goal-group-heading">${icon}<div><h2 class="section-label">${ctx.esc(label)}</h2>${copy}</div></div><span class="section-count">${goals.length}</span></div>${goals.length ? `<div class="goal-list">${goals.map(goal => renderGoalRow(ctx, goal)).join('')}</div>` : `<p class="area-empty-copy">${ctx.esc(emptyCopy)}</p>`}</section>`;
   }
 
   function renderGoalRow(ctx, goal) {
@@ -36,130 +21,242 @@
     return `<article class="goal-row ${overdue ? 'is-overdue' : ''}" data-goal-id="${esc(goal.id)}"><button class="goal-open" type="button" data-route="goal/${esc(goal.id)}"><span class="goal-row-top"><strong>${esc(goal.title)}</strong><small class="goal-status goal-status--${esc(goal.status)} ${overdue ? 'is-overdue' : ''}">${esc(goalStatusLabel(goal))}</small></span><span class="goal-progress"><span style="width:${Math.max(0, Math.min(100, progress.percent))}%"></span></span><span class="goal-row-meta"><small class="goal-progress-label">${esc(goalProgressLabel(goal))}</small>${target}</span></button><button class="btn-icon" type="button" data-action="goal-menu" data-goal-id="${esc(goal.id)}" aria-label="${tr('Goal actions')}"><i class="ph ph-dots-three"></i></button></article>`;
   }
 
-  function renderGoalDashboard(ctx, goals) {
-    const { Core, esc, goalProgressLabel } = ctx;
-    const active = goals.filter(goal => goal.status === 'active'); const today = Core.dateOnly();
-    const avg = active.length ? Math.round(active.reduce((sum, goal) => sum + Core.computeGoalProgress(goal, ctx.state, ctx.state.habitMetrics || {}).percent, 0) / active.length) : 0;
-    const dueSoon = active.filter(goal => goal.targetDate && goal.targetDate >= today && goal.targetDate <= Core.addDays(today, 7)).length;
-    const overdue = active.filter(goal => Core.isGoalOverdue(goal, today)).length;
-    const milestoneTotal = active.reduce((sum, goal) => sum + (goal.milestones || []).length, 0);
-    const milestoneDone = active.reduce((sum, goal) => sum + (goal.milestones || []).filter(milestone => milestone.isCompleted).length, 0);
-    const horizonBars = Object.entries(HORIZONS).map(([key, label]) => {
-      const count = active.filter(goal => normalizeHorizon(goal.horizon) === key).length;
-      const width = active.length ? Math.round((count / active.length) * 100) : 0;
-      return `<div class="goal-dashboard-bar"><span>${esc(tr(label))}</span><div><i style="--goal-bar-width:${width}%"></i></div><strong>${count}</strong></div>`;
-    }).join('');
-    const spotlight = active.slice(0, 4).map(goal => {
-      const progress = Core.computeGoalProgress(goal, ctx.state, ctx.state.habitMetrics || {});
-      const milestoneDone = (goal.milestones || []).filter(milestone => milestone.isCompleted).length;
-      return `<button class="goal-dashboard-spotlight" type="button" data-route="goal/${esc(goal.id)}"><span><strong>${esc(goal.title)}</strong><small>${esc(goalProgressLabel(goal))} · ${tr('{done}/{total} milestones', { done: milestoneDone, total: (goal.milestones || []).length })}</small></span><b>${Math.round(progress.percent)}%</b><i><span style="width:${Math.max(0, Math.min(100, progress.percent))}%"></span></i></button>`;
-    }).join('');
-    return `<section class="goal-dashboard"><div class="goal-dashboard-head"><div><h2>${tr('Goal pulse')}</h2><p>${tr('A quick view of what is moving and what needs attention.')}</p></div><div class="goal-dashboard-summary"><span>${trn(active.length, '{count} active', '{count} active', { count: `<strong>${active.length}</strong>` })}</span><span>${tr('{value} average', { value: `<strong>${avg}%</strong>` })}</span><span class="${overdue ? 'is-danger' : ''}">${trn(overdue, '{count} overdue', '{count} overdue', { count: `<strong>${overdue}</strong>` })}</span><span>${tr('{count} next 7 days', { count: `<strong>${dueSoon}</strong>` })}</span><span>${tr('{value} milestones', { value: `<strong>${milestoneDone}/${milestoneTotal}</strong>` })}</span></div></div><div class="goal-dashboard-body"><div class="goal-dashboard-spotlights">${spotlight || `<p class="area-empty-copy">${tr('No active goals to highlight.')}</p>`}</div><aside class="goal-dashboard-analysis"><h3>${tr('Horizons')}</h3><div class="goal-dashboard-bars">${horizonBars}</div><p>${active.length ? tr('Active goals are grouped by short, mid and long-term direction.') : tr('Paused goals are grouped by short, mid and long-term direction.')}</p></aside></div></section>`;
+  // Redesign R9a (GO1–GO4): the Goals list. Health follows the shown percentage: complete at 100%, overdue once the
+  // target date has passed, at risk within seven days below 75%.
+  const HORIZON_ICONS = Object.freeze({ short: 'ph-flag', mid: 'ph-path', long: 'ph-mountains' });
+  const plainNumber = value => Number(value || 0).toLocaleString(I18n.locale(), { maximumFractionDigits: 2 });
+  function goalPercent(ctx, goal) {
+    return Math.round(Math.max(0, Math.min(100, ctx.Core.computeGoalProgress(goal, ctx.state, ctx.state.habitMetrics || {}).percent)));
+  }
+  function goalTone(ctx, goal, percent) {
+    const today = ctx.Core.dateOnly();
+    if (goal.status === 'completed' || percent >= 100) return 'complete';
+    if (goal.status === 'active' && goal.targetDate && goal.targetDate < today) return 'overdue';
+    if (goal.status === 'active' && goal.targetDate && goal.targetDate <= ctx.Core.addDays(today, 7) && percent < 75) return 'risk';
+    return 'ok';
+  }
+  function goalMeta(ctx, goal) {
+    const progress = ctx.Core.computeGoalProgress(goal, ctx.state, ctx.state.habitMetrics || {});
+    if (goal.progressMode === 'linkedTasks') return tr('{current} of {target} tasks', { current: progress.current, target: progress.target });
+    if (goal.progressMode === 'linkedHabits') return trn((goal.habitLinks || []).filter(link => link?.habitId).length, '{count} habit', '{count} habits');
+    if (goal.progressType === 'numeric') return `${tr('{current} of {target}', { current: plainNumber(progress.current), target: plainNumber(progress.target) })}${goal.unit ? ` ${goal.unit}` : ''}`;
+    return tr('Manual');
+  }
+  function renderGoalListRow(ctx, goal) {
+    const { esc } = ctx;
+    const percent = goalPercent(ctx, goal);
+    const tone = goalTone(ctx, goal, percent);
+    const date = goal.targetDate ? ctx.formatDate(goal.targetDate) : '';
+    const side = !goal.targetDate ? `<span class="goal-list-date">${tr('No date')}</span>`
+      : tone === 'overdue' ? `<span class="goal-list-date is-overdue">${esc(tr('Overdue · {date}', { date }))}</span>`
+      : tone === 'risk' ? `<span class="goal-list-date is-risk">${esc(tr('At risk · {date}', { date }))}</span>`
+      : `<span class="goal-list-date">${esc(date)}</span>`;
+    return `<button class="goal-list-row" type="button" data-route="goal/${esc(goal.id)}"><span class="goal-list-top"><span class="task-title">${esc(goal.title)}</span><span class="goal-list-percent">${percent}%</span></span><span class="goal-list-bar is-${tone}" aria-hidden="true"><i style="width:${percent}%"></i></span><span class="goal-list-meta"><span>${esc(goalMeta(ctx, goal))}</span>${side}</span></button>`;
+  }
+  function goalFold(ctx, key, label, goals, action, actionLabel, meta) {
+    if (!goals.length) return '';
+    const { esc, state } = ctx;
+    const open = state.ui[{ done: 'goalsDoneOpen', paused: 'goalsPausedOpen', archived: 'goalsArchivedOpen' }[key]] === true;
+    const rows = open ? `<div class="today-card">${goals.map(goal => `<div class="today-row goals-fold-row"><button class="today-row-main" type="button" data-route="goal/${esc(goal.id)}"><span class="task-title">${esc(goal.title)}</span><span class="task-meta">${esc(meta(goal))}</span></button>${action ? `<button class="quick-chip" type="button" data-action="${action}" data-goal-id="${esc(goal.id)}">${actionLabel}</button>` : ''}</div>`).join('')}</div>` : '';
+    return `<section class="goals-fold"><button class="collapsible-trigger" type="button" data-action="goals-fold" data-fold="${key}" aria-expanded="${open}"><span class="left"><i class="ph ph-caret-${open ? 'up' : 'down'}" aria-hidden="true"></i> ${label} · ${goals.length}</span></button>${rows}</section>`;
   }
 
   function renderGoals(ctx) {
-    const { state, Core, pageHeader, emptyState } = ctx;
-    const tab = ['active', 'all', 'archived', 'month'].includes(state.ui.goalTab) ? state.ui.goalTab : 'active';
-    const goals = [...(state.goals || [])].filter(goal => tab === 'month' ? goal.status === 'active' : tab === 'all' || (tab === 'archived' ? goal.status === 'archived' : goal.status !== 'archived')).sort((a, b) => String(a.targetDate || '9999-12-31').localeCompare(String(b.targetDate || '9999-12-31')) || a.title.localeCompare(b.title));
-    const subtitle = tab === 'month' ? trn(goals.length, '{count} active goal', '{count} active goals') : tab === 'archived' ? trn(goals.length, '{count} archived goal', '{count} archived goals') : trn(goals.length, '{count} visible goal', '{count} visible goals');
-    let html = pageHeader(tr('Goals'), subtitle, { add: false, actionHtml: `<button class="btn btn-primary" type="button" data-action="new-goal"><i class="ph ph-plus"></i> ${tr('New goal')}</button>` });
-    html += `<div class="area-tabs">${[['active', msg('Active')], ['all', msg('All')], ['archived', msg('Archived')], ['month', msg('By month')]].map(([key, label]) => `<button type="button" data-goal-tab="${key}" class="${tab === key ? 'is-active' : ''}">${tr(label)}</button>`).join('')}</div>`;
-    if (tab === 'month') {
-      const months = new Map();
-      const undated = [];
-      for (const goal of goals) {
-        if (!goal.targetDate) { undated.push(goal); continue; }
-        const month = goal.targetDate.slice(0, 7);
-        if (!months.has(month)) months.set(month, []);
-        months.get(month).push(goal);
-      }
-      for (const [month, items] of months) {
-        const label = Core.parseDateOnly(month + '-01').toLocaleDateString(I18n.locale(), { month: 'long', year: 'numeric' });
-        html += renderGoalSection(ctx, label, items, tr('No active goals in this month.'), { icon: 'ph-calendar-blank', copy: tr('Goals with target dates in this month.'), className: 'goal-group--month' });
-      }
-      return html + renderGoalSection(ctx, tr('Undated'), undated, tr('No undated active goals.'), { icon: 'ph-calendar-x', copy: tr('Active goals without a target date.'), className: 'goal-group--undated' });
-    }
+    const { state, Core, esc, pageHeader, emptyState } = ctx;
+    const goals = [...(state.goals || [])];
+    let html = pageHeader(tr('Goals'), '', { add: false });
     if (!goals.length) return html + emptyState(tr('No goals here yet.'), tr('Create a goal to track a meaningful outcome.'), tr('New goal'), 'new-goal');
-    if (tab === 'active') html += renderGoalDashboard(ctx, goals);
-    return html + Object.entries(HORIZONS).map(([horizon, label]) => renderGoalSection(ctx, tr(label), goals.filter(goal => normalizeHorizon(goal.horizon) === horizon), tr(HORIZON_DETAILS[horizon].empty), { ...HORIZON_DETAILS[horizon], copy: tr(HORIZON_DETAILS[horizon].copy), className: `goal-group--${horizon}` })).join('');
-  }
-
-  function renderGoal(ctx, goalId) {
-    const { state, Core, esc, getGoal, goalProgressLabel, goalStatusLabel, relativeDateLabel, pageHeader } = ctx;
-    const goal = getGoal(goalId); if (!goal) return renderGoals(ctx);
-    const progress = Core.goalProgressSummary(goal, state, state.habitMetrics || {});
-    // Linked modes use their derived percentage for health, never stale manual values.
-    const health = Core.getGoalHealth({ ...goal, progressMode: 'manual', progressType: 'percentage', currentValue: progress.percent }, Core.parseDateOnly(Core.dateOnly()));
-    const milestones = [...goal.milestones].sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
-    const links = goal.projectLinks || [];
-    const linkedProjects = links.map(link => state.projects.find(project => project.id === link.projectId)).filter(Boolean);
-    const linkedTasks = state.tasks.filter(task => (goal.taskIds || []).includes(task.id));
-    const linkedHabits = (goal.habitLinks || []).map(link => state.habits.find(habit => habit.id === link.habitId)).filter(Boolean);
-    const statusAction = goal.status === 'paused' ? 'resume-goal' : goal.status === 'active' ? 'pause-goal' : goal.status === 'completed' ? 'restore-goal' : 'restore-goal';
-    const statusText = goal.status === 'paused' ? tr('Resume') : goal.status === 'active' ? tr('Pause') : tr('Restore');
-    let html = pageHeader(goal.title, goalStatusLabel(goal), { add: false, actionHtml: `<button class="btn btn-secondary" type="button" data-action="edit-goal" data-goal-id="${esc(goal.id)}"><i class="ph ph-pencil-simple"></i> ${tr('Edit')}</button><button class="btn-icon" type="button" data-action="goal-menu" data-goal-id="${esc(goal.id)}" aria-label="${tr('Goal actions')}"><i class="ph ph-dots-three"></i></button>` });
-    html += `<section class="insight-card" data-goal-health="${health}"><h2>${tr('Goal health')}</h2><strong>${tr({ 'on-track': msg('On track'), 'at-risk': msg('At risk'), overdue: msg('Overdue'), complete: msg('Achieved') }[health])}</strong><p>${health === 'at-risk' ? tr('Target is within seven days and progress is below 75%.') : health === 'overdue' ? tr('The target date has passed.') : health === 'complete' ? tr('Target reached. Your Goal status remains your choice.') : tr('Progress and target date are on track.')}</p></section>`;
-    if (goal.progressMode === 'linkedTasks') {
-      html += `<section class="insight-card" data-goal-contributions="tasks"><h2>${tr('Task contribution')}</h2><strong>${trn(progress.target, '{current} of {count} task completed', '{current} of {count} tasks completed', { current: progress.current })}</strong><p>${tr('Direct and Project tasks count once each. Subtasks are not separate contributions.')}</p></section>`;
-    } else if (goal.progressMode === 'linkedHabits') {
-      html += `<section class="insight-card" data-goal-contributions="habits"><h2>${tr('Habit contributions')}</h2>${(goal.habitLinks || []).map(link => {
-        const habit = state.habits.find(item => item.id === link.habitId);
-        const actual = Number(state.habitMetrics?.[link.habitId]?.[link.metric]) || 0;
-        const percent = link.target > 0 ? Math.max(0, Math.min(100, actual / link.target * 100)) : 0;
-        return `<p><strong>${esc(habit?.name || tr('Unavailable habit'))}</strong> · ${esc(actual)} / ${esc(link.target)} ${esc(HABIT_METRICS[link.metric] ? tr(HABIT_METRICS[link.metric]) : link.metric)} · ${Math.round(percent)}%</p>`;
-      }).join('') || `<p>${tr('No linked Habits yet.')}</p>`}<p>${tr('Each linked Habit has equal weight; its contribution is capped at 100%.')}</p></section>`;
+    const byDate = (a, b) => String(a.targetDate || '9999-12-31').localeCompare(String(b.targetDate || '9999-12-31')) || String(a.title).localeCompare(String(b.title));
+    const active = goals.filter(goal => goal.status === 'active').sort(byDate);
+    const tones = active.map(goal => goalTone(ctx, goal, goalPercent(ctx, goal)));
+    const risk = tones.filter(tone => tone === 'risk').length;
+    const late = tones.filter(tone => tone === 'overdue').length;
+    html += `<p class="goals-summary">${esc(trn(active.length, '{count} active', '{count} active'))}${risk ? ` · <span class="is-risk">${esc(trn(risk, '{count} at risk', '{count} at risk'))}</span>` : ''}${late ? ` · <span class="is-overdue">${esc(trn(late, '{count} overdue', '{count} overdue'))}</span>` : ''}</p>`;
+    const group = state.ui.goalGroup === 'date' ? 'date' : 'horizon';
+    html += `<div class="view-tabs goals-group-switch" role="group" aria-label="${tr('Group goals')}">${[['horizon', tr('Horizon')], ['date', tr('Due date')]].map(([key, label]) => `<button class="btn${group === key ? ' is-selected' : ''}" type="button" data-action="goals-group" data-view="${key}" aria-pressed="${group === key}">${label}</button>`).join('')}</div>`;
+    let groups;
+    if (group === 'horizon') groups = Object.keys(HORIZONS).map(key => ({ key, icon: HORIZON_ICONS[key], label: tr(HORIZONS[key]), goals: active.filter(goal => normalizeHorizon(goal.horizon) === key) }));
+    else {
+      const months = new Map();
+      for (const goal of active) {
+        const key = goal.targetDate ? goal.targetDate.slice(0, 7) : 'none';
+        if (!months.has(key)) months.set(key, []);
+        months.get(key).push(goal);
+      }
+      const label = key => { const name = new Intl.DateTimeFormat(I18n.locale(), { month: 'long', year: 'numeric' }).format(Core.parseDateOnly(`${key}-01`)); return name.charAt(0).toLocaleUpperCase(I18n.locale()) + name.slice(1); };
+      groups = [...months].sort(([a], [b]) => (a === 'none') - (b === 'none') || a.localeCompare(b)).map(([key, items]) => ({ key, icon: key === 'none' ? 'ph-calendar-x' : 'ph-calendar-blank', label: key === 'none' ? tr('No date') : label(key), goals: items }));
     }
-    html += `<div class="form-stack goal-properties">${[['title',msg('Title')],['areaId',msg('Area')],['horizon',msg('Horizon')],['targetValue',msg('Target value')],['unit',msg('Unit')],['targetDate',msg('Target date')]].map(([field,label]) => renderGoalProperty(ctx, goal, field, label)).join('')}<div class="goal-detail-actions"><button class="btn btn-secondary" type="button" data-action="edit-goal-source" data-goal-id="${esc(goal.id)}">${tr('Progress source')}</button><button class="btn btn-secondary" type="button" data-action="goal-status-menu" data-goal-id="${esc(goal.id)}">${tr('Status: {status}', { status: esc(goalStatusLabel(goal)) })}</button></div></div>`;
-    const linkedWork = goal.progressMode === 'linkedTasks' ? trn(progress.linkedTasks.open, '{count} open task', '{count} open tasks') : goal.progressMode === 'linkedHabits' ? trn(progress.linkedHabits.remaining, '{count} Habit remaining', '{count} Habits remaining') : goal.unit ? `${progress.remaining} ${goal.unit}` : tr('{value} remaining', { value: progress.remaining });
-    html += `<section class="goal-detail-card"><div class="goal-detail-context"><span class="goal-status goal-status--${esc(goal.status)} ${Core.isGoalOverdue(goal, Core.dateOnly()) ? 'is-overdue' : ''}">${esc(goalStatusLabel(goal))}</span><span class="goal-target ${Core.isGoalOverdue(goal, Core.dateOnly()) ? 'is-overdue' : ''}"><i class="ph ph-calendar"></i>${goal.targetDate ? esc(relativeDateLabel(goal.targetDate)) : tr('No target date')}</span><button class="btn btn-ghost goal-history-link" type="button" data-action="open-goal-history" data-goal-id="${esc(goal.id)}"><i class="ph ph-clock-counter-clockwise"></i> ${tr('History')}</button></div><div class="goal-progress-large"><strong>${esc(goalProgressLabel(goal))}</strong><span class="goal-progress"><span style="width:${Math.max(0, Math.min(100, progress.percent))}%"></span></span></div><details class="goal-progress-history"><summary>${tr('Progress summary')}</summary><p>${esc(linkedWork)} · ${tr('{percent}% complete', { percent: Math.round(progress.percent) })}</p></details>${goal.progressMode === 'manual' ? `<label class="field-label" for="goal-current-value">${goal.progressType === 'numeric' ? tr('Current value') : tr('Progress percentage')}<input id="goal-current-value" class="input" type="number" value="${esc(goal.currentValue)}" data-goal-id="${esc(goal.id)}" /></label><button class="btn btn-secondary" type="button" data-action="save-goal-progress" data-goal-id="${esc(goal.id)}">${tr('Update progress')}</button>` : `<p class="area-empty-copy">${goal.progressMode === 'linkedTasks' ? tr('Progress is calculated from linked tasks.') : tr('Progress is calculated from linked habits.')}</p>`}<div class="goal-detail-actions"><button class="btn btn-ghost" type="button" data-action="${statusAction}" data-goal-id="${esc(goal.id)}">${statusText}</button>${goal.status !== 'completed' && goal.status !== 'archived' ? `<button class="btn btn-secondary" type="button" data-action="complete-goal" data-goal-id="${esc(goal.id)}">${tr('Mark completed')}</button>` : ''}</div></section>`;
-    const linkRows = [...linkedProjects.map(project => `<button class="goal-link-chip" type="button" data-route="project/${esc(project.id)}"><i class="ph ph-cube"></i>${esc(project.name)}<small>${tr('Project')}</small></button>`), ...linkedTasks.map(task => `<button class="goal-link-chip" type="button" data-action="open-task" data-task-id="${esc(task.id)}"><i class="ph ph-check-square"></i>${esc(task.title)}<small>${tr('Task')}</small></button>`), ...linkedHabits.map(habit => `<button class="goal-link-chip" type="button" data-route="habit/${esc(habit.id)}"><i class="ph ph-repeat"></i>${esc(habit.name)}<small>${tr('Habit')}</small></button>`)].join('');
-    const directTaskLinks = (goal.taskIds || []).length; const habitLinkCount = (goal.habitLinks || []).length;
-    html += `<section class="section"><div class="section-header"><h2 class="section-label">${tr('Linked work')}</h2><button class="btn btn-ghost" type="button" data-action="edit-goal-links" data-goal-id="${esc(goal.id)}">${tr('Manage links')}</button></div><p class="area-empty-copy">${trn(links.length, '{count} project link', '{count} project links')} · ${trn(directTaskLinks, '{count} direct task link', '{count} direct task links')} · ${trn(habitLinkCount, '{count} habit link', '{count} habit links')}</p>${linkRows ? `<div class="goal-link-list">${linkRows}</div>` : ''}</section>`;
-    html += `<section class="section"><div class="section-header"><h2 class="section-label">${tr('Milestones')}</h2><button class="btn btn-ghost" type="button" data-action="new-milestone" data-goal-id="${esc(goal.id)}">${tr('Add milestone')}</button></div>${milestones.length ? `<div class="milestone-list">${milestones.map(milestone => `<div class="milestone-row ${!milestone.isCompleted && milestone.date && milestone.date < Core.dateOnly() ? 'is-overdue' : ''}"><button class="check-toggle ${milestone.isCompleted ? 'is-checked' : ''}" type="button" data-action="toggle-milestone" data-goal-id="${esc(goal.id)}" data-milestone-id="${esc(milestone.id)}" aria-label="${tr('Complete milestone')}" aria-pressed="${milestone.isCompleted ? 'true' : 'false'}"><i class="ph ${milestone.isCompleted ? 'ph-check' : 'ph-circle'}"></i></button><span><strong>${esc(milestone.title)}</strong><small>${milestone.date ? esc(relativeDateLabel(milestone.date)) : tr('No date')}</small></span><button class="btn-icon" type="button" data-action="edit-milestone" data-goal-id="${esc(goal.id)}" data-milestone-id="${esc(milestone.id)}" aria-label="${tr('Edit milestone')}"><i class="ph ph-pencil-simple"></i></button><button class="btn-icon" type="button" data-action="delete-milestone" data-goal-id="${esc(goal.id)}" data-milestone-id="${esc(milestone.id)}" aria-label="${tr('Delete milestone')}"><i class="ph ph-trash"></i></button></div>`).join('')}</div>` : `<p class="area-empty-copy">${tr('No milestones yet.')}</p>`}</section>`;
-    html += `<section class="section"><div class="section-header"><h2 class="section-label">${tr('Reminders')}</h2><button class="btn btn-ghost" type="button" data-action="edit-goal-reminders" data-goal-id="${esc(goal.id)}">${tr('Edit reminders')}</button></div><p class="area-empty-copy">${Core.goalReminderMoments(goal).length ? trn(Core.goalReminderMoments(goal).length, '{count} reminder point at {time}', '{count} reminder points at {time}', { time: esc(goal.reminders.time) }) : tr('No reminders enabled.')}</p></section>`;
-    html += `<section class="section"><div class="section-header"><h2 class="section-label">${tr('History')}</h2><button class="btn btn-ghost" type="button" data-action="open-goal-history" data-goal-id="${esc(goal.id)}">${tr('View history')}</button></div><p class="area-empty-copy">${tr('Significant Goal changes are kept here.')}</p></section>`;
+    html += groups.filter(item => item.goals.length).map(item => `<section class="section goals-group" data-goal-group="${esc(item.key)}"><div class="section-header"><h2 class="section-label"><i class="ph ${item.icon}" aria-hidden="true"></i> ${esc(item.label)}</h2><span class="section-count">${item.goals.length}</span></div><div class="today-card goals-list">${item.goals.map(goal => renderGoalListRow(ctx, goal)).join('')}</div></section>`).join('');
+    if (!active.length) html += `<p class="today-empty">${tr('No active goals.')}</p>`;
+    html += goalFold(ctx, 'done', tr('Achieved goals'), goals.filter(goal => goal.status === 'completed'), '', '', goal => (goal.completedAt ? tr('Achieved {date}', { date: ctx.formatDate(Core.localDateOf(String(goal.completedAt))) }) : goalMeta(ctx, goal)));
+    html += goalFold(ctx, 'paused', tr('Paused goals'), goals.filter(goal => goal.status === 'paused'), 'resume-goal', tr('Resume'), goal => goalMeta(ctx, goal));
+    html += goalFold(ctx, 'archived', tr('Archived goals'), goals.filter(goal => goal.status === 'archived'), 'restore-goal', tr('Restore'), goal => goalMeta(ctx, goal));
     return html;
   }
 
-  function renderGoalProperty(ctx, goal, field, label) {
-    const { state, esc, getArea } = ctx;
-    const editor = ctx.goalPropertyEditor?.goal === goal && ctx.goalPropertyEditor.field === field ? ctx.goalPropertyEditor : null;
-    const value = field === 'horizon' ? tr(HORIZONS[normalizeHorizon(goal.horizon)]) : field === 'areaId' ? getArea(goal.areaId)?.name || tr('No area') : goal[field] ?? '';
-    if (!editor) return `<div class="goal-property"><span class="field-label">${tr(label)}</span><button class="btn btn-ghost" type="button" data-goal-property="${field}" data-goal-id="${esc(goal.id)}">${esc(value || (field === 'targetDate' ? tr('No date') : tr('Not set')))}</button></div>`;
-    const id = 'goal-detail-' + field;
-    const input = field === 'horizon' ? `<select id="${id}" class="input">${horizonOptions(editor.value)}</select>` : field === 'areaId' ? `<select id="${id}" class="input"><option value="">${tr('No area')}</option>${state.areas.filter(a => a.status === 'active' || a.id === goal.areaId).map(a => `<option value="${esc(a.id)}" ${a.id === editor.value ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select>` : `<input id="${id}" class="input" type="${field === 'targetValue' ? 'number' : field === 'targetDate' ? 'date' : 'text'}" ${field === 'targetValue' ? 'step="any"' : field === 'title' ? 'maxlength="120"' : field === 'unit' ? 'maxlength="40"' : ''} value="${esc(editor.value)}" ${editor.error ? 'aria-invalid="true" aria-describedby="goal-property-error"' : ''} />`;
-    return `<div class="goal-property-editor"><label class="field-label" for="${id}">${tr(label)}</label>${input}${editor.error ? `<p id="goal-property-error" class="validation" role="alert">${esc(editor.error)}</p>` : ''}<div class="goal-detail-actions"><button class="btn btn-secondary" type="button" data-action="save-goal-property">${tr({ title: msg('Save title'), areaId: msg('Save area'), horizon: msg('Save horizon'), targetValue: msg('Save target value'), unit: msg('Save unit'), targetDate: msg('Save target date') }[field])}</button><button class="btn btn-ghost" type="button" data-action="cancel-goal-property">${tr('Cancel')}</button></div></div>`;
+  // Redesign R9b (GO5, GO6): the goal window over the current screen. Small sheets save at once; the source, reminders,
+  // links, milestone and history windows return here (returnTo).
+  const HEALTH = Object.freeze({
+    ok: { attr: 'on-track', label: msg('On track'), text: msg('Progress and target date are on track.') },
+    risk: { attr: 'at-risk', label: msg('At risk'), text: msg('Target is within seven days and progress is below 75%.') },
+    overdue: { attr: 'overdue', label: msg('Overdue'), text: msg('The target date has passed.') },
+    complete: { attr: 'complete', label: msg('Achieved'), text: msg('Target reached. Your Goal status remains your choice.') },
+  });
+  let sheet = null;
+  const roundCheck = done => (done ? '<svg class="habit-circle is-done" viewBox="0 0 28 28" aria-hidden="true"><circle class="habit-circle-fill" cx="14" cy="14" r="12.5"/><path class="habit-circle-tick" d="M8.5 14.5l3.5 3.5 7.5-8"/></svg>' : '<svg class="habit-circle" viewBox="0 0 28 28" aria-hidden="true"><circle class="habit-circle-track" cx="14" cy="14" r="11"/></svg>');
+  function goalDetailsRow(ctx, goal, action, icon, label, value, empty = tr('Not set')) {
+    return `<button class="task-window-row" type="button" data-action="${action}" data-goal-id="${ctx.esc(goal.id)}"><i class="ph ${icon}" aria-hidden="true"></i><span class="task-window-row-label">${label}</span><span class="task-window-row-value${value ? ' is-set' : ''}">${ctx.esc(value || empty)}</span><i class="ph ph-caret-right task-window-row-caret" aria-hidden="true"></i></button>`;
+  }
+  function goalSourceLabel(goal) {
+    if (goal.progressMode === 'linkedTasks') return tr('Linked tasks');
+    if (goal.progressMode === 'linkedHabits') return tr('Linked habits');
+    return `${tr('Manual')} · ${goal.progressType === 'numeric' ? `${plainNumber(goal.targetValue)}${goal.unit ? ` ${goal.unit}` : ''}` : tr('Percentage')}`;
   }
 
-  function openGoalProperty(ctx, element) {
-    const { $, getGoal, render, goalFocusTarget } = ctx;
-    const goal = getGoal(element.dataset.goalId); if (!goal) return;
-    ctx.goalPropertyEditor = { goal, field: element.dataset.goalProperty, value: goal[element.dataset.goalProperty] ?? '', returnFocus: goalFocusTarget(element) };
-    render(); requestAnimationFrame(() => $('#goal-detail-' + ctx.goalPropertyEditor?.field)?.focus());
+  const REMINDER_POINTS = ['sevenDaysBefore', 'threeDaysBefore', 'oneDayBefore', 'onTargetDate'];
+  function reminderSummary(goal) {
+    const points = REMINDER_POINTS.filter(key => goal.reminders?.[key]).length;
+    return points ? trn(points, '{count} reminder point at {time}', '{count} reminder points at {time}', { time: goal.reminders?.time || '09:00' }) : '';
+  }
+  function linkedSummary(goal) {
+    return [
+      (goal.projectLinks || []).length ? trn(goal.projectLinks.length, '{count} project', '{count} projects') : '',
+      (goal.taskIds || []).length ? trn(goal.taskIds.length, '{count} task', '{count} tasks') : '',
+      (goal.habitLinks || []).length ? trn(goal.habitLinks.length, '{count} habit', '{count} habits') : '',
+    ].filter(Boolean).join(' · ');
   }
 
-  function cancelGoalProperty(ctx) {
-    const { render, restoreGoalFocus } = ctx;
-    const target = ctx.goalPropertyEditor?.returnFocus; ctx.goalPropertyEditor = null; render(); restoreGoalFocus(target);
+  function renderGoalDetails(ctx) {
+    const { state, Core, esc, modalFrame, getGoal } = ctx;
+    const goal = getGoal(ctx.modalState.goalId);
+    if (!goal) return '';
+    const id = esc(goal.id);
+    const percent = goalPercent(ctx, goal);
+    const tone = goalTone(ctx, goal, percent);
+    const health = HEALTH[tone];
+    const manual = !['linkedTasks', 'linkedHabits'].includes(goal.progressMode);
+    const area = (state.areas || []).find(item => item.id === goal.areaId)?.name;
+    let html = `<div class="modal-header task-window-header"><span class="task-window-kind">${tr('Goal')}</span><div class="task-window-actions"><button class="btn-icon" type="button" data-action="goal-details-menu" data-goal-id="${id}" aria-label="${tr('Goal actions')}"><i class="ph ph-dots-three"></i></button><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div></div>`;
+    html += `<h2 class="goal-details-heading"><button class="goal-details-title" type="button" data-action="goal-details-rename" data-goal-id="${id}">${esc(goal.title)}</button></h2><button class="goal-details-area" type="button" data-action="goal-details-area" data-goal-id="${id}"><i class="ph ph-squares-four" aria-hidden="true"></i>${esc(area || tr('No area'))}</button>`;
+    const explain = goal.progressMode === 'linkedTasks' ? tr('Progress is calculated from linked tasks.') : tr('Each linked Habit has equal weight; its contribution is capped at 100%.');
+    html += `<div class="goal-details-progress"><div class="goal-details-big"><strong>${percent}%</strong><span>${esc(goalMeta(ctx, goal))}</span></div><span class="goal-list-bar is-${tone}" aria-hidden="true"><i style="width:${percent}%"></i></span><p class="goal-details-health" data-goal-health="${health.attr}"><span class="goal-details-dot is-${tone}" aria-hidden="true"></span><strong>${tr(health.label)}</strong> · ${tr(health.text)}</p>${manual ? `<button class="btn btn-secondary goal-details-update" type="button" data-action="goal-details-progress" data-goal-id="${id}">${tr('Update progress')}</button>` : `<p class="sheet-note">${explain}</p>`}</div>`;
+    // Etape
+    const milestones = [...(goal.milestones || [])].sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
+    const done = milestones.filter(item => item.isCompleted).length;
+    const milestoneRows = milestones.map(item => `<div class="today-row goal-milestone-row${item.isCompleted ? ' is-done' : ''}"><button class="habit-check" type="button" data-action="toggle-milestone" data-goal-id="${id}" data-milestone-id="${esc(item.id)}" aria-pressed="${Boolean(item.isCompleted)}" aria-label="${esc(`${tr('Complete milestone')}: ${item.title}`)}">${roundCheck(item.isCompleted)}</button><button class="today-row-main" type="button" data-action="edit-milestone" data-goal-id="${id}" data-milestone-id="${esc(item.id)}"><span class="task-title">${esc(item.title)}</span></button><span class="task-side">${item.isCompleted ? esc(ctx.formatDate(item.completedAt ? Core.localDateOf(String(item.completedAt)) : item.date)) : item.date ? ctx.todayDueLabel(item.date) : ''}</span></div>`).join('');
+    html += `<h3 class="goal-details-label">${tr('Milestones')} · ${done}/${milestones.length}</h3><div class="today-card goal-details-milestones">${milestoneRows}<button class="inline-add" type="button" data-action="new-milestone" data-goal-id="${id}"><i class="ph ph-plus" aria-hidden="true"></i> ${tr('Add milestone')}</button></div>`;
+    // What feeds the goal
+    if (goal.progressMode === 'linkedTasks') {
+      const open = Core.goalTaskSet(goal, state).filter(task => !task.isCompleted);
+      const all = ctx.modalState.showAllTasks === true;
+      const shown = all ? open : open.slice(0, 3);
+      const more = open.length > 3 ? `<button class="today-more" type="button" data-action="goal-details-all-tasks" aria-expanded="${all}">${all ? tr('Show less') : tr('Show {count} more', { count: open.length - 3 })}</button>` : '';
+      html += `<h3 class="goal-details-label">${tr('Tasks')} · ${esc(trn(open.length, '{count} open', '{count} open'))}</h3><div class="task-list today-card goal-details-tasks">${shown.map(task => ctx.reviewTaskRow(task, 'goal', { today: true })).join('')}${more}</div>`;
+    } else if (goal.progressMode === 'linkedHabits') {
+      const bars = (goal.habitLinks || []).filter(link => link?.habitId).map(link => {
+        const habit = (state.habits || []).find(item => item.id === link.habitId);
+        const actual = Number(state.habitMetrics?.[link.habitId]?.[link.metric]) || 0;
+        const target = Number(link.target) || 0;
+        const share = target > 0 ? Math.round(Math.max(0, Math.min(100, actual / target * 100))) : 0;
+        return `<div class="habits-bar"><span class="habits-bar-name">${esc(habit?.name || tr('Unavailable habit'))}</span><span class="habits-bar-count">${share}%</span><span class="habits-bar-track" aria-hidden="true"><i style="width:${share}%"></i></span><span class="task-meta goal-habit-meta">${esc(`${plainNumber(actual)} / ${plainNumber(target)} ${HABIT_METRICS[link.metric] ? tr(HABIT_METRICS[link.metric]) : link.metric}`)}</span></div>`;
+      }).join('');
+      html += `<h3 class="goal-details-label">${tr('Habit contributions')}</h3><div class="today-card habits-bars">${bars || `<p class="today-empty">${tr('No linked Habits yet.')}</p>`}</div>`;
+    }
+    // Planiranje and Organizacija
+    const reminder = reminderSummary(goal);
+    const linked = linkedSummary(goal);
+    html += `<h3 class="goal-details-label">${tr('Planning')}</h3><div class="habit-window-card">${goalDetailsRow(ctx, goal, 'goal-details-date', 'ph-calendar-blank', tr('Target date'), goal.targetDate ? ctx.formatDate(goal.targetDate) : '', tr('No target date'))}${goalDetailsRow(ctx, goal, 'goal-details-horizon', 'ph-path', tr('Horizon'), tr(HORIZONS[normalizeHorizon(goal.horizon)]))}${goalDetailsRow(ctx, goal, 'edit-goal-source', 'ph-gauge', tr('Progress source'), goalSourceLabel(goal))}${goalDetailsRow(ctx, goal, 'edit-goal-reminders', 'ph-bell', tr('Reminder'), reminder)}</div>`;
+    html += `<h3 class="goal-details-label">${tr('Organization')}</h3><div class="habit-window-card">${goalDetailsRow(ctx, goal, 'goal-details-area', 'ph-squares-four', tr('Area'), area, tr('No area'))}${goalDetailsRow(ctx, goal, 'edit-goal-links', 'ph-link', tr('Linked'), linked, tr('None'))}</div>`;
+    html += `<button class="habit-window-more" type="button" data-action="goal-details-menu" data-goal-id="${id}"><strong>${tr('More options')}</strong><span>${tr('History, pause, archive')} <i class="ph ph-caret-right" aria-hidden="true"></i></span></button>`;
+    // GO6
+    const footer = goal.status === 'completed' ? `<button class="btn btn-secondary goal-details-complete" type="button" data-action="restore-goal" data-goal-id="${id}">${tr('Restore as active')}</button>`
+      : goal.status === 'archived' ? `<button class="btn btn-secondary goal-details-complete" type="button" data-action="restore-goal" data-goal-id="${id}">${tr('Restore goal')}</button>`
+      : `<button class="btn ${percent >= 100 ? 'btn-primary' : 'btn-secondary'} goal-details-complete" type="button" data-action="complete-goal" data-goal-id="${id}">${tr('Mark as achieved')}</button>`;
+    html += `<div class="quick-sheet-footer"><span></span>${footer}</div>`;
+    return modalFrame(`<div class="modal-inner quick-sheet goal-details">${html}</div>`, 'quick');
   }
 
-  function saveGoalProperty(ctx) {
-    const { $, getGoal, render, restoreGoalFocus, captureGoalProgress, evaluateGoalProgressChanges, nowIso, putGoalHistory, saveState } = ctx;
-    const editor = ctx.goalPropertyEditor;
-    if (!editor || getGoal(editor.goal.id) !== editor.goal) { cancelGoalProperty(ctx); return; }
-    const { goal, field } = editor; editor.value = $('#goal-detail-' + field)?.value ?? editor.value;
-    const value = field === 'horizon' ? normalizeHorizon(editor.value) : field === 'targetValue' ? Number(editor.value) : field === 'areaId' || field === 'targetDate' ? editor.value || null : String(editor.value).trim();
-    const error = field === 'title' && !value ? tr('Goal needs a title.') : field === 'targetValue' && (!Number.isFinite(value) || value <= 0) ? tr('Enter a target above zero.') : '';
-    if (error) { editor.error = error; render(); requestAnimationFrame(() => $('#goal-detail-' + field)?.focus()); return; }
-    const before = captureGoalProgress([goal.id]); const old = goal[field];
-    if (old !== value) { goal[field] = value; goal.updatedAt = nowIso(); if (field === 'targetDate') putGoalHistory(goal.id, 'targetDateChanged', { from: old, to: value }); saveState(); }
-    const target = editor.returnFocus; ctx.goalPropertyEditor = null; render(); restoreGoalFocus(target); evaluateGoalProgressChanges(before);
+  // The window's small sheets: rename, area, horizon, target date and progress.
+  const sheetHead = (ctx, title, goal) => `<div class="popover-title">${title}</div><p class="sheet-subtitle">${ctx.esc(goal.title)}</p>`;
+  const applyFooter = (action, left = '<span></span>') => `<div class="sheet-footer">${left}<button class="btn btn-primary" type="button" data-pop-action="${action}">${tr('Apply')}</button></div>`;
+  function saveGoalChanges(ctx, goal, changes) {
+    Object.assign(goal, changes, { updatedAt: ctx.nowIso() });
+    sheet = null; ctx.saveState(); ctx.closePopover(); ctx.render(); ctx.renderModal();
+  }
+  function dateSheetHtml(ctx) {
+    const goal = sheet.draft ? { title: ctx.modalState.draft.title.trim() || tr('New goal') } : ctx.getGoal(sheet.goalId);
+    const today = ctx.Core.dateOnly();
+    const quick = [[tr('In a month'), ctx.Core.addDays(today, 30)], [tr('In 3 months'), ctx.Core.addDays(today, 91)], [tr('End of the year'), `${today.slice(0, 4)}-12-31`]];
+    return `${sheetHead(ctx, tr('Target date'), goal)}<div class="sheet-chips">${quick.map(([label, value]) => `<button class="quick-chip${sheet.date === value ? ' is-selected' : ''}" type="button" data-pop-action="goal-date-pick" data-date="${value}" aria-pressed="${sheet.date === value}">${label}</button>`).join('')}</div><label class="sheet-field"><i class="ph ph-calendar-blank" aria-hidden="true"></i><span>${tr('Date')}</span><input id="goal-date-value" class="input" type="date" value="${ctx.esc(sheet.date || '')}"></label><p class="sheet-note">${tr('Seven days before the target date, a goal below 75% is marked “At risk”.')}</p>${applyFooter('goal-date-apply', `<button class="btn btn-ghost" type="button" data-pop-action="goal-date-clear">${tr('No date')}</button>`)}`;
+  }
+  function setGoalDate(ctx, date) {
+    if (sheet?.draft) { ctx.modalState.draft.targetDate = date; sheet = null; ctx.closePopover(); ctx.renderModal(); return; }
+    const goal = ctx.getGoal(sheet?.goalId);
+    if (!goal) return;
+    const before = ctx.captureGoalProgress([goal.id]);
+    const old = goal.targetDate || null;
+    if (old !== date) ctx.putGoalHistory(goal.id, 'targetDateChanged', { from: old, to: date });
+    saveGoalChanges(ctx, goal, { targetDate: date });
+    ctx.evaluateGoalProgressChanges(before);
+  }
+  function progressSheetHtml(ctx) {
+    const goal = ctx.getGoal(sheet.goalId);
+    const numeric = goal.progressType === 'numeric';
+    const target = Number(goal.targetValue) || 0;
+    const steps = numeric ? [1, 5, 10].map(value => value * Math.max(1, Math.round(target / 40))) : [5, 10, 25];
+    const unit = goal.unit ? ` ${goal.unit}` : '';
+    return `${sheetHead(ctx, tr('Update progress'), goal)}<div class="sheet-chips">${steps.map(value => `<button class="quick-chip" type="button" data-pop-action="goal-progress-add" data-value="${value}">+${numeric ? `${plainNumber(value)}${unit}` : `${value}%`}</button>`).join('')}</div><label class="sheet-field"><span>${numeric ? tr('Current value') : tr('Progress percentage')}</span><input id="goal-current-value" class="input" type="number" min="0" step="any" value="${ctx.esc(sheet.value)}"><span>${numeric ? ctx.esc(tr('of {target}', { target: `${plainNumber(target)}${unit}` })) : '%'}</span></label><p class="sheet-note">${tr('Every change is kept in the goal history.')}</p>${applyFooter('save-goal-progress" data-goal-id="' + ctx.esc(goal.id))}`;
+  }
+
+  const DETAIL_ACTIONS = new Set(['goal-details-menu', 'goal-details-all-tasks', 'goal-details-rename', 'goal-rename-apply', 'goal-details-area', 'goal-set-area', 'goal-details-horizon', 'goal-set-horizon', 'goal-details-date', 'goal-date-pick', 'goal-date-apply', 'goal-date-clear', 'goal-details-progress', 'goal-progress-add']);
+  function handleGoalDetailsAction(action, el, ctx) {
+    if (!DETAIL_ACTIONS.has(action)) return false;
+    const goal = ctx.getGoal(el.dataset.goalId || sheet?.goalId || ctx.modalState?.goalId);
+    if (action === 'goal-details-menu') { if (goal) openGoalMenu(ctx, el, goal.id, { details: true }); return true; }
+    if (action === 'goal-details-all-tasks') { if (ctx.modalState?.type === 'goal-details') { ctx.modalState.showAllTasks = !ctx.modalState.showAllTasks; ctx.renderModal(); } return true; }
+    if (!goal) return false;
+    if (action === 'goal-details-rename') { sheet = { kind: 'rename', goalId: goal.id, error: '' }; ctx.openPopover(el, renameSheetHtml(ctx, goal), { type: 'goal-rename' }); return true; }
+    if (action === 'goal-rename-apply' && sheet?.kind === 'rename') {
+      const title = String(ctx.$('#goal-rename')?.value ?? goal.title).trim();
+      if (!title) { sheet.error = tr('Goal needs a title.'); ctx.refreshSheet(renameSheetHtml(ctx, goal)); return true; }
+      saveGoalChanges(ctx, goal, { title }); return true;
+    }
+    if (action === 'goal-details-area') {
+      sheet = { kind: 'area', goalId: goal.id };
+      const areas = (ctx.state.areas || []).filter(area => area.status !== 'archived' || area.id === goal.areaId);
+      const option = (areaId, label) => `<button class="popover-option sheet-option${(goal.areaId || '') === areaId ? ' is-selected' : ''}" type="button" data-pop-action="goal-set-area" data-goal-id="${ctx.esc(goal.id)}" data-area-id="${ctx.esc(areaId)}"><span class="sheet-option-label">${ctx.esc(label)}</span><span class="sheet-radio${(goal.areaId || '') === areaId ? ' is-on' : ''}" aria-hidden="true"></span></button>`;
+      ctx.openPopover(el, `${sheetHead(ctx, tr('Area'), goal)}<div class="sheet-card">${option('', tr('No area'))}${areas.map(area => option(area.id, area.name)).join('')}</div>`, { type: 'goal-area' });
+      return true;
+    }
+    if (action === 'goal-set-area') { saveGoalChanges(ctx, goal, { areaId: (ctx.state.areas || []).some(area => area.id === el.dataset.areaId) ? el.dataset.areaId : null }); return true; }
+    if (action === 'goal-details-horizon') {
+      sheet = { kind: 'horizon', goalId: goal.id };
+      const current = normalizeHorizon(goal.horizon);
+      ctx.openPopover(el, `${sheetHead(ctx, tr('Horizon'), goal)}<div class="sheet-card" role="radiogroup" aria-label="${tr('Horizon')}">${Object.entries(HORIZONS).map(([value, label]) => `<button class="popover-option sheet-option${current === value ? ' is-selected' : ''}" type="button" role="radio" aria-checked="${current === value}" data-pop-action="goal-set-horizon" data-value="${value}" data-goal-id="${ctx.esc(goal.id)}"><i class="ph ${HORIZON_ICONS[value]}" aria-hidden="true"></i><span class="sheet-option-label">${tr(label)}</span><span class="sheet-radio${current === value ? ' is-on' : ''}" aria-hidden="true"></span></button>`).join('')}</div>`, { type: 'goal-horizon' });
+      return true;
+    }
+    if (action === 'goal-set-horizon') { saveGoalChanges(ctx, goal, { horizon: normalizeHorizon(el.dataset.value) }); return true; }
+    if (action === 'goal-details-date') { sheet = { kind: 'date', goalId: goal.id, date: goal.targetDate || null }; ctx.openPopover(el, dateSheetHtml(ctx), { type: 'goal-date' }); return true; }
+    if (action === 'goal-date-pick' && sheet?.kind === 'date') { sheet.date = el.dataset.date; ctx.refreshSheet(dateSheetHtml(ctx)); return true; }
+    if (action === 'goal-date-apply' && sheet?.kind === 'date') { const typed = ctx.$('#goal-date-value')?.value; setGoalDate(ctx, ctx.Core.parseDateOnly(typed) ? typed : sheet.date || null); return true; }
+    if (action === 'goal-date-clear' && sheet?.kind === 'date') { setGoalDate(ctx, null); return true; }
+    if (action === 'goal-details-progress') { sheet = { kind: 'progress', goalId: goal.id, value: Number(goal.currentValue) || 0 }; ctx.openPopover(el, progressSheetHtml(ctx), { type: 'goal-progress' }); return true; }
+    if (action === 'goal-progress-add' && sheet?.kind === 'progress') {
+      const max = goal.progressType === 'numeric' ? Number(goal.targetValue) || Infinity : 100;
+      const current = Number(ctx.$('#goal-current-value')?.value ?? sheet.value) || 0;
+      sheet.value = Math.min(max, Math.round((current + Number(el.dataset.value || 0)) * 100) / 100);
+      ctx.refreshSheet(progressSheetHtml(ctx)); return true;
+    }
+    return false;
+  }
+  function renameSheetHtml(ctx, goal) {
+    return `<div class="popover-title">${tr('Title')}</div><label class="sheet-field"><span>${tr('Title')}</span><input id="goal-rename" class="input" maxlength="120" value="${ctx.esc(goal.title)}" data-sheet-focus></label>${sheet?.error ? `<p class="validation" role="alert">${ctx.esc(sheet.error)}</p>` : ''}${applyFooter('goal-rename-apply')}`;
   }
 
   function openGoalSourceModal(ctx, goalId) {
     const { getGoal, renderModal, goalFocusTarget, goalDraft } = ctx;
     const goal = getGoal(goalId); if (!goal) return;
-    ctx.setModalState({ type: 'goal-source', goalId, source: goal, draft: goalDraft(goal), returnFocus: goalFocusTarget(), error: '' }); renderModal();
+    ctx.setModalState({ type: 'goal-source', goalId, source: goal, draft: goalDraft(goal), returnFocus: goalFocusTarget(), error: '', returnTo: ctx.modalState?.type === 'goal-details' ? ctx.modalState : null }); renderModal();
   }
 
   function saveGoalSource(ctx) {
@@ -169,15 +266,9 @@
     readGoalDraft(ctx); const d = ctx.modalState.draft;
     if (d.progressMode === 'manual' && d.progressType === 'numeric' && !(Number.isFinite(d.targetValue) && d.targetValue > 0)) { ctx.modalState.error = tr('Numeric goals need a target above zero.'); renderModal(); return; }
     const before = captureGoalProgress([goal.id]);
-    goal.progressMode = d.progressMode; goal.progressType = d.progressType; goal.updatedAt = nowIso(); saveState(); closeModal(); render(); evaluateGoalProgressChanges(before);
-  }
-
-  function openGoalStatusMenu(ctx, anchor, goalId) {
-    const { esc, getGoal, goalFocusTarget, openPopover } = ctx;
-    const goal = getGoal(goalId); if (!goal) return;
-    const choices = [['active','resume-goal',msg('Active')],['paused','pause-goal',msg('Paused')],['completed','complete-goal',msg('Completed')],['archived','archive-goal',msg('Archived')]];
-    openPopover(anchor, choices.map(([status,action,label]) => `<button class="popover-option" type="button" data-pop-action="${action}" data-goal-id="${esc(goalId)}" ${goal.status === status ? 'disabled' : ''}>${tr(label)}</button>`).join(''), { type: 'goal-status' });
-    ctx.popoverEl.goalReturnFocus = goalFocusTarget(anchor); ctx.popoverEl.querySelector('button:not([disabled])')?.focus();
+    goal.progressMode = d.progressMode; goal.progressType = d.progressType;
+    if (d.progressMode === 'manual' && d.progressType === 'numeric') { goal.targetValue = d.targetValue; goal.unit = String(d.unit || '').trim(); }
+    goal.updatedAt = nowIso(); saveState(); closeModal(); render(); evaluateGoalProgressChanges(before);
   }
 
   function openMilestoneModal(ctx, goalId, milestoneId = null) {
@@ -185,7 +276,7 @@
     const previous = ctx.modalState?.type === 'goal' ? ctx.modalState : null;
     if (previous) readGoalDraft(ctx);
     const milestone = milestoneId ? (previous?.draft || getGoal(goalId))?.milestones.find(item => item.id === milestoneId) : null;
-    ctx.setModalState({ type: 'milestone', goalId, milestoneId, previous, returnFocus: goalFocusTarget(), draft: { title: milestone?.title || '', date: milestone?.date || '' }, error: '' });
+    ctx.setModalState({ type: 'milestone', goalId, milestoneId, previous, returnTo: ctx.modalState?.type === 'goal-details' ? ctx.modalState : null, returnFocus: goalFocusTarget(), draft: { title: milestone?.title || '', date: milestone?.date || '' }, error: '' });
     renderModal(); requestAnimationFrame(() => $('#milestone-title')?.focus());
   }
 
@@ -194,7 +285,7 @@
     const previous = ctx.modalState?.type === 'goal' ? ctx.modalState : null;
     if (previous) readGoalDraft(ctx);
     const goal = previous?.draft || getGoal(goalId); if (!goal) return;
-    ctx.setModalState({ type: 'goal-links', goalId, previous, returnFocus: goalFocusTarget(), draft: { taskIds: [...(goal.taskIds || [])], projectLinks: copyTemplate(goal.projectLinks || []), habitLinks: copyTemplate(goal.habitLinks || []) } });
+    ctx.setModalState({ type: 'goal-links', goalId, previous, returnTo: ctx.modalState?.type === 'goal-details' ? ctx.modalState : null, returnFocus: goalFocusTarget(), draft: { taskIds: [...(goal.taskIds || [])], projectLinks: copyTemplate(goal.projectLinks || []), habitLinks: copyTemplate(goal.habitLinks || []) } });
     renderModal();
   }
 
@@ -203,31 +294,78 @@
     const previous = ctx.modalState?.type === 'goal' ? ctx.modalState : null;
     if (previous) readGoalDraft(ctx);
     const goal = previous?.draft || getGoal(goalId); if (!goal) return;
-    ctx.setModalState({ type: 'goal-reminders', goalId, previous, returnFocus: goalFocusTarget(), draft: { ...goal.reminders } });
+    ctx.setModalState({ type: 'goal-reminders', goalId, previous, returnTo: ctx.modalState?.type === 'goal-details' ? ctx.modalState : null, returnFocus: goalFocusTarget(), draft: { ...goal.reminders } });
     renderModal();
   }
 
+  // Redesign R9c (GO7): "Novi cilj" is a tall sheet like the new habit window (N1). Editing happens in the goal window.
+  function draftRow(ctx, action, icon, label, value, empty = tr('Not set')) {
+    return `<button class="task-window-row" type="button" data-action="${action}"><i class="ph ${icon}" aria-hidden="true"></i><span class="task-window-row-label">${label}</span><span class="task-window-row-value${value ? ' is-set' : ''}">${ctx.esc(value || empty)}</span><i class="ph ph-caret-right task-window-row-caret" aria-hidden="true"></i></button>`;
+  }
+  function draftSegment(action, label, options, current) {
+    return `<div class="view-tabs habit-window-seg" role="group" aria-label="${label}">${options.map(([value, text]) => `<button class="btn${current === value ? ' is-selected' : ''}" type="button" data-action="${action}" data-value="${value}" aria-pressed="${current === value}">${text}</button>`).join('')}</div>`;
+  }
   function renderGoalModal(ctx) {
     const { state, esc, modalFrame } = ctx;
-    const d = ctx.modalState.draft; const editing = Boolean(ctx.modalState.goalId);
-    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">${editing ? tr('Edit goal') : tr('New goal')}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div><div class="form-stack"><label class="field-label">${tr('Title')}<input id="goal-title" class="input" maxlength="120" value="${esc(d.title)}" placeholder="${tr('What do you want to achieve?')}" /></label><label class="field-label">${tr('Area')}<select id="goal-area" class="input"><option value="">${tr('No area')}</option>${state.areas.filter(area => area.status === 'active' || area.id === d.areaId).map(area => `<option value="${esc(area.id)}" ${area.id === d.areaId ? 'selected' : ''}>${esc(area.name)}</option>`).join('')}</select></label><label class="field-label">${tr('Horizon')}<select id="goal-horizon" class="input">${horizonOptions(d.horizon)}</select></label>${goalSourceFields(ctx, d)}<label class="field-label">${tr('Target date')}<input id="goal-target-date" class="input" type="date" value="${esc(d.targetDate)}" /></label><button class="btn btn-ghost" type="button" data-action="toggle-goal-more" aria-expanded="${Boolean(d.moreOpen)}" aria-controls="goal-more">${tr('More')}</button>${d.moreOpen ? `<div id="goal-more" class="form-stack"><div class="section-header"><h3 class="section-label">${tr('Milestones')}</h3><button class="btn btn-ghost" type="button" data-action="draft-goal-milestone">${tr('Add milestone')}</button></div>${d.milestones.map(m => `<div class="milestone-row goal-draft-milestone"><span><strong>${esc(m.title)}</strong><small>${esc(m.date || tr('No date'))}</small></span><button class="btn-icon" type="button" data-action="draft-goal-milestone" data-milestone-id="${esc(m.id)}" aria-label="${tr('Edit milestone')}"><i class="ph ph-pencil-simple"></i></button><button class="btn-icon" type="button" data-action="delete-draft-goal-milestone" data-milestone-id="${esc(m.id)}" aria-label="${tr('Delete milestone')}"><i class="ph ph-trash"></i></button></div>`).join('')}<button class="btn btn-secondary" type="button" data-action="draft-goal-reminders">${tr('Reminders')}</button><button class="btn btn-secondary" type="button" data-action="draft-goal-links">${d.progressMode === 'linkedTasks' ? tr('Linked Projects / Tasks') : d.progressMode === 'linkedHabits' ? tr('Linked Projects / Habits') : tr('Linked Projects')}</button><p class="area-empty-copy">${trn(d.projectLinks.length, '{count} project link', '{count} project links')} · ${trn(d.taskIds.length, '{count} task link', '{count} task links')} · ${trn(d.habitLinks.length, '{count} habit link', '{count} habit links')}</p></div>` : ''}${ctx.modalState.error ? `<p class="validation" role="alert">${esc(ctx.modalState.error)}</p>` : ''}</div><div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">${tr('Cancel')}</button><button class="btn btn-primary" type="button" data-action="save-goal">${editing ? tr('Save changes') : tr('Create goal')}</button></div></div></div>`, 'quick');
+    const d = ctx.modalState.draft;
+    const error = ctx.modalState.error;
+    const mode = PROGRESS_MODES.includes(d.progressMode) ? d.progressMode : 'manual';
+    const numeric = d.progressType === 'numeric';
+    const area = (state.areas || []).find(item => item.id === d.areaId)?.name || '';
+    const source = mode === 'manual'
+      ? `${draftSegment('goal-draft-type', tr('Type'), [['percentage', tr('Percentage')], ['numeric', tr('Number')]], numeric ? 'numeric' : 'percentage')}${numeric ? `<div class="habit-window-target"><label for="goal-target">${tr('Target')}</label><input id="goal-target" class="input" type="number" min="0" step="any" value="${esc(d.targetValue)}"><input id="goal-unit" class="input" maxlength="40" value="${esc(d.unit)}" placeholder="${tr('unit')}" aria-label="${tr('Unit')}"></div>` : ''}`
+      : `<p class="sheet-note">${mode === 'linkedTasks' ? `${tr('Progress is calculated from linked tasks.')} ${tr('Link tasks or projects under “More settings”.')}` : `${tr('Each linked Habit has equal weight; its contribution is capped at 100%.')} ${tr('Link habits under “More settings”.')}`}</p>`;
+    const card = `<div class="habit-window-card">${draftRow(ctx, 'goal-draft-area', 'ph-squares-four', tr('Area'), area, tr('No area (optional)'))}<div class="habit-window-block"><span class="habit-window-label"><i class="ph ph-path" aria-hidden="true"></i>${tr('Horizon')}</span>${draftSegment('goal-draft-horizon', tr('Horizon'), Object.entries(HORIZONS).map(([value, label]) => [value, tr(label)]), normalizeHorizon(d.horizon))}</div><div class="habit-window-block"><span class="habit-window-label"><i class="ph ph-gauge" aria-hidden="true"></i>${tr('Progress')}</span>${draftSegment('goal-draft-mode', tr('Progress'), [['manual', tr('Manual')], ['linkedTasks', tr('Tasks')], ['linkedHabits', tr('Habits')]], mode)}${source}</div>${draftRow(ctx, 'goal-draft-date', 'ph-calendar-blank', tr('Target date'), d.targetDate ? ctx.formatDate(d.targetDate) : '', tr('No target date'))}</div>`;
+    const open = d.moreOpen === true;
+    const milestones = (d.milestones || []).map(item => `<div class="today-row goal-draft-milestone"><button class="today-row-main" type="button" data-action="draft-goal-milestone" data-milestone-id="${esc(item.id)}"><span class="task-title">${esc(item.title)}</span></button><span class="task-side">${item.date ? esc(ctx.formatDate(item.date)) : ''}</span><button class="btn-icon" type="button" data-action="delete-draft-goal-milestone" data-milestone-id="${esc(item.id)}" aria-label="${esc(`${tr('Delete milestone')}: ${item.title}`)}"><i class="ph ph-x"></i></button></div>`).join('');
+    const more = open ? `<h3 class="goal-details-label">${tr('Milestones')}</h3><div class="today-card goal-details-milestones">${milestones}<button class="inline-add" type="button" data-action="draft-goal-milestone"><i class="ph ph-plus" aria-hidden="true"></i> ${tr('Add milestone')}</button></div><div class="habit-window-card">${draftRow(ctx, 'draft-goal-reminders', 'ph-bell', tr('Reminder'), reminderSummary(d))}${draftRow(ctx, 'draft-goal-links', 'ph-link', tr('Linked'), linkedSummary(d), tr('None'))}</div>` : '';
+    return modalFrame(`<div class="modal-inner quick-sheet habit-window goal-window"><div class="modal-header"><h2 class="modal-title">${tr('New goal')}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div><input id="goal-title" class="quick-title-input${error ? ' is-error' : ''}" type="text" maxlength="120" autocomplete="off" placeholder="${tr('What do you want to achieve?')}" value="${esc(d.title)}" aria-label="${tr('Goal name')}">${error ? `<div class="validation" role="alert">${esc(error)}</div>` : ''}${card}<button class="habit-window-more" type="button" data-action="toggle-goal-more" aria-expanded="${open}"><strong>${tr('More settings')}</strong><span>${open ? tr('Hide') : tr('Milestones, reminder, links')} <i class="ph ph-caret-${open ? 'up' : 'down'}" aria-hidden="true"></i></span></button>${more}<div class="quick-sheet-footer"><span></span><button class="btn btn-primary habit-window-save" type="button" data-action="save-goal">${tr('Create goal')}</button></div></div>`, 'quick');
   }
 
-  function goalSourceFields(ctx, d, includeValues = true) {
+  const PROGRESS_MODES = ['manual', 'linkedTasks', 'linkedHabits'];
+  const DRAFT_ACTIONS = new Set(['goal-draft-area', 'goal-draft-set-area', 'goal-draft-horizon', 'goal-draft-mode', 'goal-draft-type', 'goal-draft-date']);
+  function handleGoalDraftAction(action, el, ctx) {
+    if (sheet?.draft && ['goal-date-pick', 'goal-date-apply', 'goal-date-clear'].includes(action) && ctx.modalState?.type === 'goal') {
+      if (action === 'goal-date-pick') { sheet.date = el.dataset.date; ctx.refreshSheet(dateSheetHtml(ctx)); }
+      else if (action === 'goal-date-apply') { const typed = ctx.$('#goal-date-value')?.value; setGoalDate(ctx, ctx.Core.parseDateOnly(typed) ? typed : sheet.date || null); }
+      else setGoalDate(ctx, null);
+      return true;
+    }
+    if (!DRAFT_ACTIONS.has(action) || ctx.modalState?.type !== 'goal') return false;
+    const d = readGoalDraft(ctx);
+    const subtitle = { title: d.title.trim() || tr('New goal') };
+    if (action === 'goal-draft-horizon') d.horizon = normalizeHorizon(el.dataset.value);
+    else if (action === 'goal-draft-mode') d.progressMode = PROGRESS_MODES.includes(el.dataset.value) ? el.dataset.value : 'manual';
+    else if (action === 'goal-draft-type') d.progressType = el.dataset.value === 'numeric' ? 'numeric' : 'percentage';
+    else if (action === 'goal-draft-date') { sheet = { kind: 'date', draft: true, date: d.targetDate || null }; ctx.openPopover(el, dateSheetHtml(ctx), { type: 'goal-date' }); return true; }
+    else if (action === 'goal-draft-area') {
+      sheet = { kind: 'area', draft: true };
+      const areas = (ctx.state.areas || []).filter(area => area.status !== 'archived' || area.id === d.areaId);
+      const option = (areaId, label) => `<button class="popover-option sheet-option${(d.areaId || '') === areaId ? ' is-selected' : ''}" type="button" data-pop-action="goal-draft-set-area" data-area-id="${ctx.esc(areaId)}"><span class="sheet-option-label">${ctx.esc(label)}</span><span class="sheet-radio${(d.areaId || '') === areaId ? ' is-on' : ''}" aria-hidden="true"></span></button>`;
+      ctx.openPopover(el, `${sheetHead(ctx, tr('Area'), subtitle)}<div class="sheet-card">${option('', tr('No area'))}${areas.map(area => option(area.id, area.name)).join('')}</div>`, { type: 'goal-area' });
+      return true;
+    } else if (action === 'goal-draft-set-area') { d.areaId = (ctx.state.areas || []).some(area => area.id === el.dataset.areaId) ? el.dataset.areaId : null; sheet = null; ctx.closePopover(); }
+    ctx.renderModal();
+    if (action === 'goal-draft-type' && d.progressType === 'numeric') requestAnimationFrame(() => ctx.$('#goal-target')?.focus?.());
+    return true;
+  }
+
+  // The source window's fields; a numeric manual goal also edits its target and unit (R9b).
+  function goalSourceFields(ctx, d) {
     const { esc } = ctx;
-    return `<label class="field-label">${tr('Progress source')}<select id="goal-progress-mode" class="input">${[['manual',msg('Manual')],['linkedTasks',msg('Linked tasks')],['linkedHabits',msg('Linked habits')]].map(([v,l]) => `<option value="${v}" ${d.progressMode === v ? 'selected' : ''}>${tr(l)}</option>`).join('')}</select></label><div class="goal-modal-manual ${d.progressMode === 'manual' ? '' : 'is-hidden'}"><label class="field-label">${tr('Type')}<select id="goal-progress-type" class="input"><option value="percentage" ${d.progressType === 'percentage' ? 'selected' : ''}>${tr('Percentage')}</option><option value="numeric" ${d.progressType === 'numeric' ? 'selected' : ''}>${tr('Numeric target')}</option></select></label>${includeValues ? `<div class="goal-form-grid"><label class="field-label">${tr('Current')}<input id="goal-current" class="input" type="number" step="any" value="${esc(d.currentValue)}" /></label><label class="field-label">${tr('Target')}<input id="goal-target" class="input" type="number" step="any" value="${esc(d.targetValue)}" /></label></div><label class="field-label">${tr('Unit')}<input id="goal-unit" class="input" maxlength="40" value="${esc(d.unit)}" /></label>` : ''}</div>`;
+    return `<label class="field-label">${tr('Progress source')}<select id="goal-progress-mode" class="input">${[['manual',msg('Manual')],['linkedTasks',msg('Linked tasks')],['linkedHabits',msg('Linked habits')]].map(([v,l]) => `<option value="${v}" ${d.progressMode === v ? 'selected' : ''}>${tr(l)}</option>`).join('')}</select></label><div class="goal-modal-manual ${d.progressMode === 'manual' ? '' : 'is-hidden'}"><label class="field-label">${tr('Type')}<select id="goal-progress-type" class="input"><option value="percentage" ${d.progressType === 'percentage' ? 'selected' : ''}>${tr('Percentage')}</option><option value="numeric" ${d.progressType === 'numeric' ? 'selected' : ''}>${tr('Numeric target')}</option></select></label><div class="goal-form-grid"><label class="field-label">${tr('Target')}<input id="goal-target" class="input" type="number" step="any" value="${esc(d.targetValue)}" /></label><label class="field-label">${tr('Unit')}<input id="goal-unit" class="input" maxlength="40" value="${esc(d.unit)}" /></label></div></div>`;
   }
 
   function renderGoalSourceModal(ctx) {
     const { esc, modalFrame } = ctx;
-    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">${tr('Goal progress source')}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div><div class="form-stack">${goalSourceFields(ctx, ctx.modalState.draft, false)}<p class="area-empty-copy">${tr('Only the selected source contributes. Existing links and manual values are retained.')}</p>${ctx.modalState.error ? `<p class="validation" role="alert">${esc(ctx.modalState.error)}</p>` : ''}</div><div class="modal-footer"><button class="btn btn-ghost" type="button" data-action="close-modal">${tr('Cancel')}</button><button class="btn btn-primary" type="button" data-action="save-goal-source">${tr('Save source')}</button></div></div>`, 'small-modal');
+    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">${tr('Goal progress source')}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div><div class="form-stack">${goalSourceFields(ctx, ctx.modalState.draft)}<p class="area-empty-copy">${tr('Only the selected source contributes. Existing links and manual values are retained.')}</p>${ctx.modalState.error ? `<p class="validation" role="alert">${esc(ctx.modalState.error)}</p>` : ''}</div><div class="modal-footer"><button class="btn btn-ghost" type="button" data-action="close-modal">${tr('Cancel')}</button><button class="btn btn-primary" type="button" data-action="save-goal-source">${tr('Save source')}</button></div></div>`, 'small-modal');
   }
 
   function renderMilestoneModal(ctx) {
     const { esc, modalFrame } = ctx;
     const d = ctx.modalState.draft;
     const editing = Boolean(ctx.modalState.milestoneId);
-    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">${editing ? tr('Edit milestone') : tr('New milestone')}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div><div class="form-stack"><label class="field-label">${tr('Title')}<input id="milestone-title" class="input" maxlength="120" value="${esc(d.title)}" /></label><label class="field-label">${tr('Date')}<input id="milestone-date" class="input" type="date" value="${esc(d.date)}" /></label>${ctx.modalState.error ? `<p class="validation" role="alert">${esc(ctx.modalState.error)}</p>` : ''}</div><div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">${tr('Cancel')}</button><button class="btn btn-primary" type="button" data-action="save-milestone">${editing ? tr('Save milestone') : tr('Add milestone')}</button></div></div></div>`, 'small-modal');
+    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">${editing ? tr('Edit milestone') : tr('New milestone')}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div><div class="form-stack"><label class="field-label">${tr('Title')}<input id="milestone-title" class="input" maxlength="120" value="${esc(d.title)}" /></label><label class="field-label">${tr('Date')}<input id="milestone-date" class="input" type="date" value="${esc(d.date)}" /></label>${ctx.modalState.error ? `<p class="validation" role="alert">${esc(ctx.modalState.error)}</p>` : ''}</div><div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">${tr('Cancel')}</button>${editing && !ctx.modalState.previous ? `<button class="btn btn-ghost goal-milestone-delete" type="button" data-action="delete-milestone" data-goal-id="${esc(ctx.modalState.goalId)}" data-milestone-id="${esc(ctx.modalState.milestoneId)}">${tr('Delete')}</button>` : ''}<button class="btn btn-primary" type="button" data-action="save-milestone">${editing ? tr('Save milestone') : tr('Add milestone')}</button></div></div></div>`, 'small-modal');
   }
 
   function renderGoalLinksModal(ctx) {
@@ -311,11 +449,13 @@
     return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">${tr('Goal history')}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div>${rangeControl}${body}<div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">${tr('Close')}</button></div></div></div>`, 'quick');
   }
 
-  function openGoalMenu(ctx, anchor, goalId) {
+  // R9b: the window's ⋯ adds Istorija and leaves Izmeni and Označi kao ostvaren to the rows and the bottom button.
+  function openGoalMenu(ctx, anchor, goalId, options = {}) {
     const { esc, getGoal, openPopover, templateMenuEntry } = ctx;
     const goal = getGoal(goalId); if (!goal) return;
     const lifecycle = goal.status === 'archived' ? '<button class="popover-option" type="button" data-pop-action="restore-goal" data-goal-id="' + esc(goalId) + '"><i class="ph ph-arrow-counter-clockwise"></i>' + tr('Restore goal') + '</button>' : `<button class="popover-option" type="button" data-pop-action="${goal.status === 'paused' ? 'resume-goal' : 'pause-goal'}" data-goal-id="${esc(goalId)}"><i class="ph ph-pause"></i>${goal.status === 'paused' ? tr('Resume goal') : tr('Pause goal')}</button>`;
-    const html = `<button class="popover-option" type="button" data-pop-action="edit-goal" data-goal-id="${esc(goalId)}"><i class="ph ph-pencil-simple"></i>${tr('Edit goal')}</button>${lifecycle}${goal.status !== 'completed' && goal.status !== 'archived' ? `<button class="popover-option" type="button" data-pop-action="complete-goal" data-goal-id="${esc(goalId)}"><i class="ph ph-check-circle"></i>${tr('Mark completed')}</button>` : ''}${goal.status !== 'archived' ? `<button class="popover-option" type="button" data-pop-action="archive-goal" data-goal-id="${esc(goalId)}"><i class="ph ph-archive"></i>${tr('Archive goal')}</button>` : ''}<div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="delete-goal" data-goal-id="${esc(goalId)}" style="color:var(--danger)"><i class="ph ph-trash"></i>${tr('Delete goal')}</button>`;
+    const head = options.details ? `<button class="popover-option" type="button" data-pop-action="open-goal-history" data-goal-id="${esc(goalId)}"><i class="ph ph-clock-counter-clockwise"></i>${tr('History')}</button>` : `<button class="popover-option" type="button" data-pop-action="edit-goal" data-goal-id="${esc(goalId)}"><i class="ph ph-pencil-simple"></i>${tr('Edit goal')}</button>`;
+    const html = `${head}${lifecycle}${!options.details && goal.status !== 'completed' && goal.status !== 'archived' ? `<button class="popover-option" type="button" data-pop-action="complete-goal" data-goal-id="${esc(goalId)}"><i class="ph ph-check-circle"></i>${tr('Mark completed')}</button>` : ''}${goal.status !== 'archived' ? `<button class="popover-option" type="button" data-pop-action="archive-goal" data-goal-id="${esc(goalId)}"><i class="ph ph-archive"></i>${tr('Archive goal')}</button>` : ''}<div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="delete-goal" data-goal-id="${esc(goalId)}" style="color:var(--danger)"><i class="ph ph-trash"></i>${tr('Delete goal')}</button>`;
     openPopover(anchor, templateMenuEntry('goal',goalId)+html, { type: 'goal-menu', goalId });
   }
 
@@ -330,32 +470,20 @@
   }
 
   function saveGoalModal(ctx) {
-    const { state, Core, getGoal, render, renderModal, nowIso, putGoalHistory, saveState, closeModal, syncGoalLinks, uid, navigate, maybePromptGoalReached } = ctx;
+    const { state, render, renderModal, nowIso, putGoalHistory, saveState, closeModal, syncGoalLinks, uid, setToastMessage } = ctx;
     if (ctx.modalState?.type !== 'goal') return;
     const d = readGoalDraft(ctx);
     if (!String(d.title).trim()) { ctx.modalState.error = tr('Goal needs a title.'); renderModal(); return; }
     if (d.progressMode === 'manual' && d.progressType === 'numeric' && !(Number.isFinite(d.targetValue) && d.targetValue > 0)) { ctx.modalState.error = tr('Numeric goals need a target above zero.'); renderModal(); return; }
     const { moreOpen, ...fields } = d;
     fields.horizon = normalizeHorizon(d.horizon);
-    if (ctx.modalState.goalId) {
-      const goal = getGoal(ctx.modalState.goalId); if (!goal) return;
-      const oldProgress = Core.computeGoalProgress(goal, state, state.habitMetrics || {}).percent;
-      const oldDate = goal.targetDate;
-      const oldProjects = new Set(goal.projectLinks.map(link => link.projectId));
-      syncGoalLinks(goal, d.projectLinks, d.taskIds, d.habitLinks);
-      Object.assign(goal, { ...fields, title: d.title.trim(), updatedAt: nowIso() });
-      d.projectLinks.forEach(link => { if (!oldProjects.has(link.projectId)) putGoalHistory(goal.id, 'projectLinked', { projectId: link.projectId }); });
-      oldProjects.forEach(projectId => { if (!d.projectLinks.some(link => link.projectId === projectId)) putGoalHistory(goal.id, 'projectUnlinked', { projectId }); });
-      const nextProgress = Core.computeGoalProgress(goal, state, state.habitMetrics || {}).percent;
-      if (nextProgress !== oldProgress) putGoalHistory(goal.id, 'progressChanged', { from: oldProgress, to: nextProgress });
-      if (oldDate !== goal.targetDate) putGoalHistory(goal.id, 'targetDateChanged', { from: oldDate, to: goal.targetDate });
-      ctx.modalState.savedGoalSource = goal;
-      saveState(); closeModal(); render(); maybePromptGoalReached(goal, oldProgress);
-    } else {
-      const goal = { ...(ctx.modalState.templateInstance?.goal || {}), id: uid('goal'), ...fields, title: d.title.trim(), isInbox: Boolean(ctx.modalState.templateContext?.inbox), createdAt: nowIso(), updatedAt: nowIso(), completedAt: null };
-      ctx.modalState.savedGoalSource = goal;
-      state.goals.push(goal); syncGoalLinks(goal, d.projectLinks, d.taskIds, d.habitLinks); putGoalHistory(goal.id, 'created'); saveState(); closeModal(); ctx.setCreatedGoalFocusId(goal.id); navigate(`goal/${goal.id}`);
-    }
+    fields.unit = String(d.unit || '').trim();
+    fields.targetDate = d.targetDate || null;
+    const goal = { ...(ctx.modalState.templateInstance?.goal || {}), id: uid('goal'), ...fields, title: d.title.trim(), isInbox: Boolean(ctx.modalState.templateContext?.inbox), createdAt: nowIso(), updatedAt: nowIso(), completedAt: null };
+    ctx.modalState.savedGoalSource = goal;
+    state.goals.push(goal); syncGoalLinks(goal, d.projectLinks, d.taskIds, d.habitLinks); putGoalHistory(goal.id, 'created');
+    // R9c (GO7, N1): a new goal stays on the current screen.
+    saveState(); closeModal(); render(); setToastMessage(tr('Goal created'));
   }
 
   function saveGoalProgress(ctx, goalId) {
@@ -365,7 +493,7 @@
     goal.currentValue = Number($('#goal-current-value')?.value || 0); goal.updatedAt = nowIso();
     const after = Core.computeGoalProgress(goal, state, state.habitMetrics || {}).percent;
     if (after !== before) putGoalHistory(goalId, 'progressChanged', { from: before, to: after });
-    saveState(); render(); maybePromptGoalReached(goal, before);
+    saveState(); ctx.closePopover?.(); sheet = null; render(); if (ctx.modalState?.type === 'goal-details') ctx.renderModal(); maybePromptGoalReached(goal, before);
   }
 
   function saveMilestoneModal(ctx) {
@@ -385,7 +513,7 @@
   function toggleMilestone(ctx, goalId, milestoneId) {
     const { getGoal, render, renderModal, nowIso, saveState } = ctx;
     const goal = getGoal(goalId); const milestone = goal?.milestones.find(item => item.id === milestoneId); if (!milestone) return;
-    milestone.isCompleted = !milestone.isCompleted; milestone.completedAt = milestone.isCompleted ? nowIso() : null; goal.updatedAt = nowIso(); saveState(); render(); if (ctx.modalState?.type === 'calendar-day') renderModal();
+    milestone.isCompleted = !milestone.isCompleted; milestone.completedAt = milestone.isCompleted ? nowIso() : null; goal.updatedAt = nowIso(); saveState(); render(); if (ctx.modalState?.type === 'goal-details') renderModal();
   }
 
   function readGoalLinkDraft(ctx) {
@@ -442,25 +570,20 @@
   function handleAction(action, event, ctx) {
     const { $, closeModal, render, renderModal, updateGoalStatus, saveAndRender } = ctx;
     if (action === 'read-goal-draft') { readGoalDraft(ctx); return true; }
-    if (action === 'goal-tab') {
-      ctx.state.ui.goalTab = event.target.closest('[data-goal-tab]').dataset.goalTab;
-      saveAndRender(); return true;
-    }
-    if (action === 'goal-property') { openGoalProperty(ctx, event.target.closest('[data-goal-property]')); return true; }
     const el = event?.target.closest('[data-action], [data-pop-action]');
     if (!el) return false;
-    if (action === 'calendar-new-goal') ctx.openGoalModal(null, { targetDate: el.dataset.date });
-    else if (action === 'new-goal') ctx.openGoalModal(null, { inbox: Boolean(event?.target?.closest?.('#mobile-quick-add-menu')) });
+    if (handleGoalDraftAction(action, el, ctx) || handleGoalDetailsAction(action, el, ctx)) return true;
+    if (action === 'goals-group') { ctx.state.ui.goalGroup = el.dataset.view === 'date' ? 'date' : 'horizon'; saveAndRender(); }
+    else if (action === 'goals-fold') { const key = { done: 'goalsDoneOpen', paused: 'goalsPausedOpen', archived: 'goalsArchivedOpen' }[el.dataset.fold]; if (key) { ctx.state.ui[key] = !ctx.state.ui[key]; saveAndRender(); } }
+    else if (action === 'calendar-new-goal') ctx.openGoalModal({ targetDate: el.dataset.date });
+    else if (action === 'new-goal') ctx.openGoalModal({ inbox: Boolean(event?.target?.closest?.('#mobile-quick-add-menu')) });
     else if (action === 'toggle-goal-more') { readGoalDraft(ctx); ctx.modalState.draft.moreOpen = !ctx.modalState.draft.moreOpen; renderModal(); requestAnimationFrame(() => $('[data-action="toggle-goal-more"]')?.focus()); }
     else if (action === 'draft-goal-links') openGoalLinksModal(ctx);
     else if (action === 'draft-goal-reminders') openGoalRemindersModal(ctx);
     else if (action === 'draft-goal-milestone') openMilestoneModal(ctx, null, el.dataset.milestoneId);
     else if (action === 'edit-goal-source') openGoalSourceModal(ctx, el.dataset.goalId);
     else if (action === 'save-goal-source') saveGoalSource(ctx);
-    else if (action === 'save-goal-property') saveGoalProperty(ctx);
-    else if (action === 'cancel-goal-property') cancelGoalProperty(ctx);
-    else if (action === 'goal-status-menu') openGoalStatusMenu(ctx, el, el.dataset.goalId);
-    else if (action === 'edit-goal') { if (el.dataset.popAction) ctx.closePopover(); ctx.openGoalModal(el.dataset.goalId); }
+    else if (action === 'edit-goal') { if (el.dataset.popAction) ctx.closePopover(); ctx.openGoalDetails(el.dataset.goalId); }
     else if (action === 'goal-menu') openGoalMenu(ctx, el, el.dataset.goalId);
     else if (action === 'save-goal') saveGoalModal(ctx);
     else if (action === 'save-goal-progress') saveGoalProgress(ctx, el.dataset.goalId);
@@ -478,7 +601,7 @@
     else if (action === 'toggle-milestone') toggleMilestone(ctx, el.dataset.goalId, el.dataset.milestoneId);
     else if (action === 'edit-goal-reminders') openGoalRemindersModal(ctx, el.dataset.goalId);
     else if (action === 'save-goal-reminders') saveGoalReminders(ctx);
-    else if (action === 'area-new-goal') ctx.openGoalModal(null, { areaId: el.dataset.areaId });
+    else if (action === 'area-new-goal') ctx.openGoalModal({ areaId: el.dataset.areaId });
     else return false;
     return true;
   }
@@ -486,22 +609,11 @@
   function handleInput(event, ctx) {
     const { $, renderModal } = ctx;
     const target = event.target;
-    if (event.type === 'keydown') {
-      const typing = target && (target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"]') || target.isContentEditable);
-      if (ctx.goalPropertyEditor && !ctx.modalState && !ctx.popoverEl && (event.key === 'Escape' || (event.key === 'Enter' && typing && !event.isComposing))) {
-        event.preventDefault();
-        if (event.key === 'Escape') cancelGoalProperty(ctx); else saveGoalProperty(ctx);
-        return true;
-      }
-      return false;
-    }
     if (!['input', 'change'].includes(event.type)) return false;
+    if (target.id === 'goal-date-value' && sheet?.kind === 'date') { sheet.date = ctx.Core.parseDateOnly(target.value) ? target.value : null; if (event.type === 'change') ctx.refreshSheet(dateSheetHtml(ctx)); return true; }
     if (event.type === 'change' && ctx.modalState?.type === 'goal-history' && target.id === 'goal-history-range') {
       ctx.modalState.historyRange = target.value === 'month' ? 'month' : 'week';
       renderModal(); return true;
-    }
-    if (ctx.goalPropertyEditor && target.id === 'goal-detail-' + ctx.goalPropertyEditor.field) {
-      ctx.goalPropertyEditor.value = target.value; return true;
     }
     if (['goal', 'goal-source'].includes(ctx.modalState?.type) && target.id.startsWith('goal-')) {
       readGoalDraft(ctx);
@@ -522,10 +634,11 @@
     name: 'goals',
     renderRoute(route, ctx) {
       if (route.type === 'goals') return renderGoals(ctx);
-      if (route.type === 'goal') return renderGoal(ctx, route.id);
+      if (route.type === 'goal') return renderGoals(ctx); // R9b: app.js opens the goal window on top
       if (route.type === 'goal-row') return renderGoalRow(ctx, route.goal);
+      if (route.type === 'goal-list-row') return renderGoalListRow(ctx, route.goal); // R10a: the Ciljevi row in an area
       if (route.type !== 'modal') return false;
-      const renderers = { goal: renderGoalModal, 'goal-source': renderGoalSourceModal, milestone: renderMilestoneModal, 'goal-links': renderGoalLinksModal, 'goal-reminders': renderGoalRemindersModal, 'goal-reached': renderGoalReachedModal, 'goal-history': renderGoalHistoryModal };
+      const renderers = { 'goal-details': renderGoalDetails, goal: renderGoalModal, 'goal-source': renderGoalSourceModal, milestone: renderMilestoneModal, 'goal-links': renderGoalLinksModal, 'goal-reminders': renderGoalRemindersModal, 'goal-reached': renderGoalReachedModal, 'goal-history': renderGoalHistoryModal };
       return renderers[route.modalType]?.(ctx);
     },
     handleAction,

@@ -7,57 +7,42 @@ const app = fs.readFileSync(require.resolve('../js/app.js'), 'utf8');
 const css = fs.readFileSync(require.resolve('../css/styles.css'), 'utf8');
 const calendar = fs.readFileSync(require.resolve('../js/calendar-ui.js'), 'utf8');
 
+// Redesign R1 (G1, M4): six bottom destinations; "Još" is a screen instead of a sheet. Anytime and Projects live
+// under Zadaci, and Search is the magnifier in every page header. R7 (C9): Upcoming is the Calendar's Predstojeće.
 const moreRoutes = [
-  ['upcoming', 'Upcoming'], ['anytime', 'Anytime'], ['projects', 'Projects'],
   ['areas', 'Areas'], ['tags', 'Tags'], ['notes', 'Notes'], ['resources', 'Resources'],
-  ['cleaning', 'Cleaning'], ['templates', 'Templates'], ['saved-views', 'Saved Views'],
-  ['completed', 'Completed'], ['archived', 'Archived Projects'], ['search', 'Search'],
+  // R11d (S4, M4): Čišćenje is now "Redovne obaveze".
+  ['cleaning', 'Recurring tasks'], ['templates', 'Templates'], ['saved-views', 'Saved Views'],
+  ['completed', 'Completed'], ['archived', 'Archived Projects'], ['goals', 'Goals'], ['review', 'Weekly review'],
   ['settings', 'Settings']
 ];
 
-test('mobile navigation keeps five primary destinations and adds More', () => {
+test('mobile navigation has six destinations ending with Još', () => {
   const nav = html.match(/<nav id="mobile-bottom-nav"[\s\S]*?<\/nav>/)?.[0] || '';
-  for (const route of ['today', 'inbox', 'calendar', 'goals', 'habits']) assert.match(nav, new RegExp(`data-route="${route}"`));
-  assert.match(nav, /id="mobile-more-trigger"/);
-  assert.match(nav, />Još<\//, 'the More trigger has a visible (Serbian) label');
+  for (const route of ['today', 'inbox', 'tasks', 'calendar', 'habits', 'more']) assert.match(nav, new RegExp(`data-route="${route}"`));
+  assert.match(nav, />Još<\//, 'the More item has a visible (Serbian) label');
   assert.match(css, /grid-template-columns:\s*repeat\(6,/);
 });
 
-test('mobile More sheet lists every hidden route with dialog and selection hooks', () => {
-  assert.match(app, /MOBILE_MORE_ROUTES/);
-  assert.match(app, /id="mobile-more-sheet"/);
-  assert.match(app, /role="dialog" aria-modal="true"/);
-  assert.match(app, /data-action="close-mobile-more"/);
+test('the Još screen and Zadaci reach every secondary route', () => {
+  const screens = app.slice(app.indexOf('  function moreRow('), app.indexOf('  function renderAnytime('));
   for (const [route, label] of moreRoutes) {
-    assert.match(app, new RegExp(`['"]${route}['"]`));
-    assert.match(app, new RegExp(`['"]${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}['"]`));
+    assert.match(screens, new RegExp(`'${route}'`), route);
+    assert.match(screens, new RegExp(`tr\\('${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}'\\)`), label);
   }
+  assert.match(screens, /tr\('Anytime'\)/);
+  assert.match(screens, /tr\('Projects'\)/);
+  assert.match(app, /data-action="open-search"/);
 });
 
-test('mobile More sheet restores focus and tracks the current route', () => {
-  assert.match(app, /mobileMoreReturnFocus/);
-  assert.match(app, /const current = currentRoute\(\)/);
-  assert.match(app, /data-mobile-more-route/);
-  assert.match(app, /closeMobileMore\(\)/);
-  assert.match(app, /event\.key === 'Escape'[\s\S]*?closeMobileMore\(\)/);
-  assert.match(css, /\.mobile-more-backdrop[\s\S]*?position:\s*fixed/);
-});
-
-test('More sheet is available wherever the mobile bottom navigation is visible', () => {
-  assert.match(css, /@media \(max-width: 1023px\)[\s\S]*?\.mobile-more-backdrop[\s\S]*?display:\s*flex/);
-});
-
-test('More sheet traps Tab focus within its dialog', () => {
-  assert.match(app, /function trapMobileMoreFocus\(/);
-  assert.match(app, /if \(mobileMoreOpen && event\.key === 'Tab'[\s\S]*?trapMobileMoreFocus\(event\)/);
-});
-
+// Redesign R7 (C1, C3): the week is a strip of seven days that fits a phone without scrolling; the columns of
+// cards appear only from 1024 px.
 test('Calendar Week keeps visible day context on narrow viewports', () => {
-  assert.match(calendar, /class="calendar-scroll"/);
-  assert.match(calendar, /class="calendar-week"/);
-  assert.match(css, /@media \(max-width: 700px\)[\s\S]*?\.calendar-scroll[\s\S]*?overflow-x:\s*auto/);
-  assert.match(css, /@media \(max-width: 700px\)[\s\S]*?\.calendar-week[\s\S]*?min-width/);
-  assert.match(css, /@media \(max-width: 700px\)[\s\S]*?\.calendar-day-heading/);
+  assert.match(calendar, /class="calendar-strip"/);
+  assert.match(calendar, /class="calendar-strip-day\$\{classes\}"/);
+  assert.match(css, /\.calendar-strip, \.calendar-month-grid \{ display: grid; grid-template-columns: repeat\(7, minmax\(0, 1fr\)\); \}/);
+  assert.match(css, /@media \(min-width: 1024px\) \{[\s\S]*?\.calendar-cards \{ display: grid;/);
+  assert.match(app, /route\.type === 'upcoming'\) content|BOTTOM_NAV_PARENT = \{[^}]*upcoming: 'calendar'/);
 });
 
 test('stale-data notice covers both external writes and canonical removal', () => {

@@ -87,6 +87,15 @@ The historical specifications and checklists remain unchanged as traceability re
 
 Known gaps from the audit, not in this round: tokens in localStorage (Keychain/Keystore later), color validation, export limits, fired-reminder markers still synced (R-3), render/save cost at large data (Q-1), focus after re-render (A-2).
 
+## M12 — audit fixes (2.0.0-alpha.4, 2026-10-10)
+
+| Area | Behavior |
+| --- | --- |
+| Colors | Project, tag and area colors from backups or sync must be `#rgb`/`#rrggbb`; anything else becomes the palette color. |
+| Backups | The export stops with the import's own message when the data is over a limit, so every exported ZIP imports; limits raised to 1,000 attachments, 250 MB of attachments and 300 MB in total. |
+| Reminders with sync | A reminder that fires on one device no longer changes the record for the others; a new device does not replay old reminders; a task reminder moved later fires again. |
+| Accessibility | Focus stays on the same control after a re-render; a route change updates the browser/page title ("{page} · Dailo") and moves focus to the page heading. |
+
 ## M11 — the user's decisions (2.0.0-alpha.3, 2026-10-09)
 
 | Area | Behavior |

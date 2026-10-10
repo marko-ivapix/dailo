@@ -9,12 +9,16 @@ def read(path):
     return (ROOT / path).read_text()
 
 
-def test_knowledge_editor_uses_name_and_requires_a_source_for_both_views():
+# Redesign R10b (S3): the editor became the item window. A note needs only a Name (decided 2026-10-09); a resource still
+# needs a link, image or file.
+def test_knowledge_window_uses_name_and_requires_a_source_only_for_resources():
     source = read('js/knowledge.js')
-    assert "tr('Name')}<input id=\"knowledge-title\"" in source
-    assert "tr('Notes need a Name and at least one URL, image, or attached file.')" in source
-    assert "tr('Resources need a Name and at least one URL, image, or attached file.')" in source
-    assert "type === 'note' ? tr('Body') : tr('Description')" in source
+    core = read('js/core.js')
+    assert '<input id="knowledge-title" class="quick-title-input' in source
+    assert 'aria-label="${tr(\'Name\')}"' in source
+    assert "tr('Resource needs at least one URL, image, or attached file.')" in source
+    assert "resource ? tr('Description') : tr('Text')" in source
+    assert "if (type === 'resource' && !linkUrls.length && !attachmentIds.length) errors.push('source');" in core
 
 
 def test_notes_and_resources_keep_separate_routes_and_shared_delete_undo_flow():
@@ -36,7 +40,7 @@ def test_knowledge_attachment_reads_use_the_owner_snapshot_pipeline():
 
 
 if __name__ == '__main__':
-    test_knowledge_editor_uses_name_and_requires_a_source_for_both_views()
+    test_knowledge_window_uses_name_and_requires_a_source_only_for_resources()
     test_notes_and_resources_keep_separate_routes_and_shared_delete_undo_flow()
     test_knowledge_attachment_reads_use_the_owner_snapshot_pipeline()
     print('PASS: V1.6 knowledge static scenarios 3/3')

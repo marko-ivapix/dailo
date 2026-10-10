@@ -20,14 +20,41 @@
   };
   const typeLabel = (ctx, type) => (TYPE_LABELS[type] ? tr(TYPE_LABELS[type]) : ctx.templateLabel(type));
 
-  function renderTemplates(ctx) {
-    const { state, templateTypes, pageHeader, esc } = ctx;
-    const type = templateTypes.includes(state.ui.templateType) ? state.ui.templateType : 'task';
-    const rows = state.templates.filter(template => template.type === type);
-    return pageHeader(tr('Templates'), tr('Reusable snapshots with relative dates.'), { add: false, actionHtml: `<button class="btn btn-primary" type="button" data-action="new-template"><i class="ph ph-plus"></i> ${tr('New template')}</button>` }) + `<div class="view-tabs">${templateTypes.map(templateType => `<button class="btn ${templateType === type ? 'btn-secondary' : 'btn-ghost'}" type="button" data-template-type="${templateType}">${typeLabel(ctx, templateType)}</button>`).join('')}</div><section class="section">${rows.length ? rows.map(template => `<article class="goal-row" data-template-row="${esc(template.id)}"><div class="goal-open"><strong>${esc(template.name)}</strong><small>${esc(template.data.title || template.data.name || '')}</small></div><div class="modal-footer-actions" aria-label="${tr('{name} actions', { name: esc(template.name) })}"><button class="btn-icon" type="button" data-action="use-template" data-template-id="${esc(template.id)}" aria-label="${tr('Use template')}" title="${tr('Use template')}"><i class="ph ph-plus"></i></button><button class="btn-icon" type="button" data-action="edit-template" data-template-id="${esc(template.id)}" aria-label="${tr('Edit template')}" title="${tr('Edit template')}"><i class="ph ph-pencil-simple"></i></button><button class="btn-icon" type="button" data-action="duplicate-template" data-template-id="${esc(template.id)}" aria-label="${tr('Duplicate template')}" title="${tr('Duplicate template')}"><i class="ph ph-copy"></i></button><button class="btn-icon" type="button" data-action="delete-template" data-template-id="${esc(template.id)}" aria-label="${tr('Delete template')}" title="${tr('Delete template')}"><i class="ph ph-trash"></i></button></div></article>`).join('') : `<p class="area-empty-copy">${tr('No templates yet. Create one or save an existing item as a template.')}</p>`}</section>`;
+  // Redesign R10d (S7): templates grouped by type; a tap opens a sheet with "Upotrebi šablon" and the actions.
+  const GROUP_LABELS = { task: msg('Tasks'), project: msg('Projects'), habit: msg('Habits'), goal: msg('Goals') };
+  const GROUP_ICONS = { task: 'ph-check-square', project: 'ph-folder', habit: 'ph-repeat', goal: 'ph-target' };
+  function templateDetail(template) {
+    const data = template.data || {};
+    const count = template.type === 'task' && data.subtasks?.length ? trn(data.subtasks.length, '{count} subtask', '{count} subtasks')
+      : template.type === 'project' && data.tasks?.length ? trn(data.tasks.length, '{count} task', '{count} tasks')
+        : template.type === 'goal' && data.milestones?.length ? trn(data.milestones.length, '{count} milestone', '{count} milestones') : '';
+    return [data.title || data.name || '', count].filter(Boolean).join(' · ');
   }
 
-  function openEditor(ctx, templateId = null, type = ctx.state.ui.templateType || 'task', snapshot = null) {
+  function renderTemplates(ctx) {
+    const { state, templateTypes, pageHeader, esc } = ctx;
+    let html = pageHeader(tr('Templates'), tr('Reusable items with dates relative to the day you make them.'), { add: false });
+    for (const type of templateTypes) {
+      const rows = state.templates.filter(template => template.type === type);
+      if (!rows.length) continue;
+      html += `<section class="section templates-group"><div class="section-header"><h2 class="section-label"><i class="ph ${GROUP_ICONS[type] || 'ph-copy'}" aria-hidden="true"></i> ${GROUP_LABELS[type] ? tr(GROUP_LABELS[type]) : typeLabel(ctx, type)} · ${rows.length}</h2></div><div class="today-card templates-list">${rows.map(template => `<button class="template-list-row" type="button" data-action="template-open" data-template-id="${esc(template.id)}"><span class="template-list-main"><span class="task-title">${esc(template.name)}</span><span class="task-meta">${esc(templateDetail(template))}</span></span><i class="ph ph-caret-right" aria-hidden="true"></i></button>`).join('')}</div></section>`;
+    }
+    if (!state.templates.length) html += `<p class="today-empty">${tr('No templates yet. Create one or save an existing item as a template.')}</p>`;
+    return `${html}<div class="today-card templates-add"><button class="inline-add" type="button" data-action="new-template"><i class="ph ph-plus" aria-hidden="true"></i> ${tr('New template')}</button></div><p class="sheet-note templates-note">${tr('“Save as template” in the menu of a task, project, habit or goal also makes one.')}</p>`;
+  }
+
+  function openTemplateSheet(ctx, anchor, templateId) {
+    const { state, esc } = ctx;
+    const template = state.templates.find(item => item.id === templateId); if (!template) return;
+    const id = esc(template.id);
+    ctx.openPopover(anchor, `<div class="popover-title">${esc(template.name)}</div><p class="sheet-subtitle">${esc(templateDetail(template))}</p><button class="btn btn-primary sheet-primary" type="button" data-pop-action="use-template" data-template-id="${id}">${tr('Use template')}</button><div class="sheet-card"><button class="popover-option" type="button" data-pop-action="edit-template" data-template-id="${id}"><i class="ph ph-pencil-simple"></i>${tr('Edit template')}</button><button class="popover-option" type="button" data-pop-action="duplicate-template" data-template-id="${id}"><i class="ph ph-copy"></i>${tr('Duplicate template')}</button><button class="popover-option" type="button" style="color:var(--danger)" data-pop-action="delete-template" data-template-id="${id}"><i class="ph ph-trash"></i>${tr('Delete template')}</button></div>`, { type: 'template-sheet', templateId });
+  }
+
+  function openTypeSheet(ctx, anchor) {
+    ctx.openPopover(anchor, `<div class="popover-title">${tr('New template')}</div><div class="sheet-card">${ctx.templateTypes.map(type => `<button class="popover-option" type="button" data-pop-action="new-template-type" data-template-type="${type}"><i class="ph ${GROUP_ICONS[type] || 'ph-copy'}" aria-hidden="true"></i>${EDITOR_TITLES[type] ? tr(EDITOR_TITLES[type][0]) : typeLabel(ctx, type)}</button>`).join('')}</div>`, { type: 'template-type' });
+  }
+
+  function openEditor(ctx, templateId = null, type = 'task', snapshot = null) {
     const { state, Core, copyTemplate, closePopover, captureModalReturnFocus, setModalState, renderModal, $ } = ctx;
     captureModalReturnFocus();
     closePopover();
@@ -60,7 +87,7 @@
       html += field('notes', tr('Notes'), 'notes') + field('projectId', tr('Project'), 'text', choices('projects')) + field('tagIds', tr('Tags (select multiple)'), 'ids', state.tags.map(tag => [tag.id, tag.name])) + field('priority', tr('Priority'), 'text', [['none', tr('None')], ['low', tr('Low')], ['medium', tr('Medium')], ['high', tr('High')]]) + field('plannedOffsetDays', tr('Planned day offset (blank = none)'), 'number') + field('plannedTime', tr('Planned time'), 'time') + field('dueOffsetDays', tr('Due day offset (blank = none)'), 'number') + field('dueTime', tr('Due time'), 'time') + field('reminderOffsetDays', tr('Reminder day offset (blank = none)'), 'number') + field('reminderTime', tr('Reminder local time'), 'time') + field('scheduleEnabled', tr('Create automatically on date'), 'boolean') + field('scheduleDate', tr('Automatic creation date'), 'date');
       html += field('durationMinutes', tr('Duration in minutes (blank = none)'), 'number');
       const recurrence = data.recurrence || {};
-      html += templateField(ctx, recurrence, 'frequency', tr('Repeat'), 'text', [['', tr('Does not repeat')], ['daily', tr('Daily')], ['weekly', tr('Weekly')], ['monthly', tr('Monthly')]], `${prefix}recurrence.`) + templateField(ctx, recurrence, 'interval', tr('Repeat interval'), 'number', null, `${prefix}recurrence.`);
+      html += templateField(ctx, recurrence, 'frequency', tr('Repeat'), 'text', [['', tr('Does not repeat')], ['daily', tr('Daily')], ['weekly', tr('Weekly')], ['monthly', tr('Monthly')], ['yearly', tr('Yearly')]], `${prefix}recurrence.`) + templateField(ctx, recurrence, 'interval', tr('Repeat interval'), 'number', null, `${prefix}recurrence.`);
       html += templateField(ctx, recurrence, 'endType', tr('Repeat end condition'), 'text', [['never', tr('Never')], ['date', tr('On relative date')], ['afterOccurrences', tr('After N occurrences')]], `${prefix}recurrence.`) + templateField(ctx, recurrence, 'endOffsetDays', tr('Repeat end day offset'), 'number', null, `${prefix}recurrence.`) + templateField(ctx, recurrence, 'endAfterOccurrences', tr('Repeat total occurrences'), 'number', null, `${prefix}recurrence.`);
       html += templateRows(ctx, 'subtasks', data.subtasks || [], prefix, 'subtask');
     } else if (type === 'project') html += field('color', tr('Color'), 'color') + templateRows(ctx, 'tasks', data.tasks || [], prefix, 'task');
@@ -178,12 +205,14 @@
       if (action === 'open-template-editor') { openEditor(ctx, null, event.templateType, event.snapshot); return true; }
       const element = event?.target?.closest?.('[data-action], [data-pop-action]');
       if (!element) return false;
-      if (action === 'template-type') { ctx.state.ui.templateType = element.dataset.templateType; ctx.saveAndRender(); }
-      else if (action === 'new-template') openEditor(ctx);
+      if (action === 'template-open') openTemplateSheet(ctx, element, element.dataset.templateId);
+      else if (action === 'new-template') openTypeSheet(ctx, element);
+      else if (action === 'new-template-type') openEditor(ctx, null, ctx.templateTypes.includes(element.dataset.templateType) ? element.dataset.templateType : 'task');
+      else if (action === 'use-template' && element.dataset.popAction) { ctx.closePopover(); ctx.useTemplate(element.dataset.templateId); }
       else if (action === 'edit-template') openEditor(ctx, element.dataset.templateId);
       else if (action === 'save-template' && !element.dataset.popAction) save(ctx);
-      else if (action === 'delete-template') ctx.requestDeleteEntity('template', element.dataset.templateId);
-      else if (action === 'duplicate-template') ctx.duplicateTemplateRecord(element.dataset.templateId);
+      else if (action === 'delete-template') { ctx.closePopover(); ctx.requestDeleteEntity('template', element.dataset.templateId); }
+      else if (action === 'duplicate-template') { ctx.closePopover(); ctx.duplicateTemplateRecord(element.dataset.templateId); }
       else if (action === 'template-add-row' || action === 'template-remove-row') editRow(ctx, element, action === 'template-remove-row');
       else if (action === 'save-template' && element.dataset.popAction) ctx.openTemplateEditorFromSource(element.dataset.templateSourceType, element.dataset.templateSourceId);
       else return false;

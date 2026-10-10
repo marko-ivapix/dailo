@@ -22,18 +22,16 @@
 <body>
   <noscript>Dailo zahteva JavaScript.</noscript>
   <div id="app" class="app-shell">
-    <aside id="sidebar" class="sidebar" aria-label="Glavna navigacija"></aside>
     <main id="main" class="main" tabindex="-1"></main>
   </div>
   <nav id="mobile-bottom-nav" class="mobile-bottom-nav" aria-label="Brza navigacija">
     <button class="mobile-bottom-nav-item" type="button" data-route="today"><i class="ph ph-sun" aria-hidden="true"></i><span>Danas</span></button>
     <button class="mobile-bottom-nav-item" type="button" data-route="inbox"><i class="ph ph-tray" aria-hidden="true"></i><span>Inbox</span><b id="mobile-inbox-badge" class="mobile-bottom-nav-badge" hidden></b></button>
+    <button class="mobile-bottom-nav-item" type="button" data-route="tasks"><i class="ph ph-list-checks" aria-hidden="true"></i><span>Zadaci</span></button>
     <button class="mobile-bottom-nav-item" type="button" data-route="calendar"><i class="ph ph-calendar-blank" aria-hidden="true"></i><span>Kalendar</span></button>
-    <button class="mobile-bottom-nav-item" type="button" data-route="goals"><i class="ph ph-target" aria-hidden="true"></i><span>Ciljevi</span></button>
     <button class="mobile-bottom-nav-item" type="button" data-route="habits"><i class="ph ph-repeat" aria-hidden="true"></i><span>Navike</span></button>
-    <button id="mobile-more-trigger" class="mobile-bottom-nav-item" type="button" data-action="open-mobile-more" aria-haspopup="dialog" aria-expanded="false"><i class="ph ph-dots-three-outline" aria-hidden="true"></i><span>Još</span></button>
+    <button class="mobile-bottom-nav-item" type="button" data-route="more"><i class="ph ph-dots-three-outline" aria-hidden="true"></i><span>Još</span></button>
   </nav>
-  <div id="mobile-more-sheet-root" hidden></div>
   <div id="mobile-quick-add" class="mobile-quick-add">
     <div id="mobile-quick-add-menu" class="mobile-quick-add-menu" hidden>
       <button class="mobile-quick-add-option" type="button" data-action="quick-add"><span>Zadatak</span><i class="ph ph-check-square-offset" aria-hidden="true"></i></button>
@@ -73,6 +71,7 @@
   <script src="js/tasks-ui.js"></script>
   <script src="js/cleaning-ui.js"></script>
   <script src="js/review-ui.js"></script>
+  <script src="js/journal-ui.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

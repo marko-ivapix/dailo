@@ -35,21 +35,22 @@ const localStore = initial => {
   return { get state() { return state; }, readLocal: async () => ({ state, habitLogs: [] }), writeLocal: async result => { state = result.state; } };
 };
 
+// R12a made "journal" a known type; these tests use a made-up type a newer app might add.
 test('Y-1: an older client never deletes record types it does not know', async () => {
   const server = fakeServer();
   const local = localStore({ ...base(), tasks: [task('t1')] });
   const meta = { session: { accessToken: 'x' } };
   assert.equal((await Sync.syncOnce({ client: server.client, meta, ...local })).status, 'ok');
-  server.put('journal', 'j1', { id: 'j1', text: 'from a newer app' });
+  server.put('futureType', 'f1', { id: 'f1', text: 'from a newer app' });
   await Sync.syncOnce({ client: server.client, meta, ...local });
   await Sync.syncOnce({ client: server.client, meta, ...local });
-  assert.equal(server.rows.get('journal/j1').deleted, false, 'the unknown row stays on the server');
-  assert.ok(!Object.keys(meta.shadow).some(key => key.startsWith('journal/')), 'unknown types never enter the shadow');
+  assert.equal(server.rows.get('futureType/f1').deleted, false, 'the unknown row stays on the server');
+  assert.ok(!Object.keys(meta.shadow).some(key => key.startsWith('futureType/')), 'unknown types never enter the shadow');
 });
 
 test('Y-1: a shadow that already holds unknown types (older build) does not push deletions for them', () => {
   const records = Sync.collectRecords({ ...base(), tasks: [task('t1')] });
-  const { deletes } = Sync.diffRecords(records, { 'journal/j1': 'hash', 'tasks/t0': 'hash' });
+  const { deletes } = Sync.diffRecords(records, { 'futureType/f1': 'hash', 'tasks/t0': 'hash' });
   assert.deepEqual(deletes, [{ type: 'tasks', id: 't0' }], 'only known types are deleted');
 });
 
@@ -57,12 +58,12 @@ test('Y-1: first sync in "device" and "server" mode leaves unknown types alone',
   for (const mode of ['device', 'server']) {
     const server = fakeServer();
     server.put('tasks', 'r1', task('r1'));
-    server.put('journal', 'j1', { id: 'j1', text: 'keep me' });
+    server.put('futureType', 'f1', { id: 'f1', text: 'keep me' });
     const local = localStore({ ...base(), tasks: [task('t1')] });
     const meta = { session: { accessToken: 'x' } };
     assert.equal((await Sync.syncOnce({ client: server.client, meta, mode, ...local })).status, 'ok');
     await Sync.syncOnce({ client: server.client, meta, ...local });
-    assert.equal(server.rows.get('journal/j1').deleted, false, `${mode}: the unknown row survives`);
+    assert.equal(server.rows.get('futureType/f1').deleted, false, `${mode}: the unknown row survives`);
   }
 });
 
@@ -108,7 +109,7 @@ test('Y-2: pulled tombstones no longer stop sync on normalization', () => {
 
 test('Y-2: the app prunes pulled data before normalizing it', () => {
   const block = read('js/app.js').match(/async function applySyncResult[\s\S]*?\n  }\n/)[0];
-  assert.match(block, /normalizeState\(Core\.pruneDanglingReferences\(result\.state\)\)/);
+  assert.match(block, /normalizeState\((Core\.settleArrivedReminders\(previous, )?Core\.pruneDanglingReferences\(result\.state\)/, 'M12 wraps the pruned state in settleArrivedReminders');
 });
 
 test('D-1: localDateOf turns an instant into the local calendar day', () => {

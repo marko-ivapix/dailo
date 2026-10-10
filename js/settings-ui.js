@@ -17,8 +17,11 @@
     return row(tr('Reminders'), text, 'enable-notifications', label) + exact;
   }
 
+  // Keyboard shortcut rows (Računar).
+  const SHORTCUT_ROWS = ctx => { const { state, shortcutLabels, esc } = ctx; return Object.entries(shortcutLabels).map(([key,label])=>`<div class="settings-row shortcut-row"><label class="settings-label" for="shortcut-${key}"><strong>${esc(tr(label))}</strong></label><input class="input shortcut-input" id="shortcut-${key}" data-shortcut="${key}" aria-label="${esc(tr('{command} shortcut', { command: tr(label) }))}" placeholder="${tr('Disabled')}" value="${esc(state.settings.shortcuts[key] || '')}" /><button class="btn btn-secondary" data-action="save-shortcut" data-command="${key}">${tr('Save')}</button><button class="btn btn-ghost" data-action="disable-shortcut" data-command="${key}">${tr('Disable')}</button></div>`).join(''); };
+
   function renderSettings(ctx) {
-    const { state, pageHeader, shortcutLabels, shortcutError, notificationButtonLabel, esc } = ctx;
+    const { state, pageHeader, shortcutError, notificationButtonLabel, esc } = ctx;
     const backupStatus = state.settings.backupStatus || {};
     const statusTime = value => (value && !Number.isNaN(Date.parse(value))
       ? `<time datetime="${esc(value)}">${esc(new Date(value).toLocaleString(I18n.locale(), { dateStyle: 'medium', timeStyle: 'short' }))}</time>`
@@ -39,10 +42,13 @@
     const release = ctx.release || {};
     const installed = Boolean(ctx.environmentInfo?.().standalone);
     const reportHref = release.problemReportMailto?.({ email: release.REPORT_EMAIL, version: release.APP_VERSION, ...(ctx.environmentInfo?.() || {}) }) || null;
-    const todayFilters = [['all', msg('All')], ['open', msg('Open')], ['completed', msg('Completed')], ['important', msg('Important')], ['dueToday', msg('Due today')]];
-    const todayCards = [['focus', msg('Daily focus')], ['review', msg('Daily review')], ['actions', msg('Daily actions')]];
     const sundayFirst = state.settings.weekStartsOn === 0 || state.settings.weekStartsOn === 'sunday';
     const capacity = ctx.Core?.dailyCapacityMinutes ? ctx.Core.dailyCapacityMinutes(state.settings) : 360;
+    // R12c (J6): the evening journal notice — off or a time; a time synced from elsewhere is listed too.
+    const rawJournalTime = state.settings.journalReminderTime;
+    const journalTime = rawJournalTime === null ? null : typeof rawJournalTime === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(rawJournalTime) ? rawJournalTime : '20:00';
+    const journalOptions = `<option value="off"${journalTime ? '' : ' selected'}>${tr('Off')}</option>` + [...new Set(['19:00', '20:00', '21:00', '22:00', ...(journalTime ? [journalTime] : [])])].sort()
+      .map(time => `<option value="${time}"${time === journalTime ? ' selected' : ''}>${esc(tr('From {time}', { time }))}</option>`).join('');
     const capacityOptions = [...new Set([0, 120, 240, 300, 360, 420, 480, 600, 720, capacity])].sort((a, b) => a - b)
       .map(minutes => `<option value="${minutes}"${minutes === capacity ? ' selected' : ''}>${minutes ? tr('{hours} h', { hours: new Intl.NumberFormat(I18n.locale(), { maximumFractionDigits: 1 }).format(minutes / 60) }) : tr('Off')}</option>`).join('');
     const sync = ctx.syncView?.() || { configured: false };
@@ -50,7 +56,7 @@
     const syncError = sync.error ? `<p class="validation" role="alert">${esc(trMessage(sync.error))}</p>` : '';
     const syncCard = !sync.configured ? '' : `
       <section class="settings-card" data-settings-sync>
-        <h2>${tr('Sync')}</h2>
+        <h2>${tr('Account')}</h2>
         ${sync.signedIn ? `<div class="settings-row"><div class="settings-label"><strong>${tr('Account')}</strong><span>${esc(sync.email)}</span></div></div>
         <div class="settings-row"><div class="settings-label"><strong>${tr('Last sync')}</strong><span data-sync-status>${sync.running ? tr('Syncing…') : statusTime(sync.lastSyncAt)}${sync.lastError ? `<br><span class="validation" role="alert">${esc(trMessage(sync.lastError))}</span>` : ''}</span></div><button class="btn btn-secondary" type="button" data-action="sync-now"${sync.running ? ' disabled' : ''}><i class="ph ph-arrows-clockwise"></i> ${tr('Sync now')}</button></div>
         <p class="area-empty-copy">${tr('Tasks, projects, goals, habits, notes and settings sync between your devices. Attachments stay on the device where they were added.')}</p>
@@ -65,57 +71,41 @@
     const privacy = !sync.configured ? tr('Your data stays only on this device. Dailo has no server or account.')
       : sync.signedIn ? tr('Your data is on this device and in your sync account on a server in the EU. Attachments stay only on this device.')
         : tr('Your data stays only on this device until you sign in to sync.');
-    return `${pageHeader(tr('Settings'), tr('Preferences and local data'), { add: false })}
-      <section class="settings-card">
+    // Redesign R10g (M5, M6): Nalog, Opšte, Podaci, Pomoć and Računar (desktop only); a choice applies at once.
+    return `${pageHeader(tr('Settings'), '', { add: false })}
+${syncCard}
+      <section class="settings-card" data-settings-general>
         <h2>${tr('General')}</h2>
-        <div class="settings-row"><div class="settings-label"><strong>${tr('Install app')}</strong>${installed
-          ? `<span data-install-status="installed">${tr('Installed. Dailo opens from your Home Screen like an app.')}</span>`
-          : `<span data-install-status="browser">${tr('On iPhone, in Safari tap Share, then Add to Home Screen, then Add. Install first and then start using Dailo: data in Safari and in the installed app are kept separately.')}</span>`}</div></div>
-        <div class="settings-row">
-          <div class="settings-label"><strong>${tr('Theme')}</strong><span>${tr('The dark theme is currently the only one.')}</span></div>
-          <button class="btn btn-secondary" type="button" disabled aria-disabled="true">${tr('Dark')}</button>
-        </div>
-      </section>
-      <section class="settings-card">
-        <h2>${tr('Keyboard shortcuts')}</h2>
-        <p class="area-empty-copy">${tr('Use a letter or digit with optional Ctrl/Cmd, Alt and Shift. Leave disabled commands unassigned.')}</p>
-        ${shortcutError()?`<p class="validation" role="alert">${esc(shortcutError())}</p>`:''}
-        ${Object.entries(shortcutLabels).map(([key,label])=>`<div class="settings-row shortcut-row"><label class="settings-label" for="shortcut-${key}"><strong>${esc(tr(label))}</strong></label><input class="input shortcut-input" id="shortcut-${key}" data-shortcut="${key}" aria-label="${esc(tr('{command} shortcut', { command: tr(label) }))}" placeholder="${tr('Disabled')}" value="${esc(state.settings.shortcuts[key] || '')}" /><button class="btn btn-secondary" data-action="save-shortcut" data-command="${key}">${tr('Save')}</button><button class="btn btn-ghost" data-action="disable-shortcut" data-command="${key}">${tr('Disable')}</button></div>`).join('')}
-        <button class="btn btn-secondary" data-action="reset-shortcuts">${tr('Reset to defaults')}</button>
-      </section>
-      <section class="settings-card">
-        <h2>${tr('Personalization')}</h2>
-        <div class="settings-row"><label class="settings-label" for="preference-density"><strong>${tr('Compact density')}</strong><span>${tr('Keep task rows and controls tight.')}</span></label><input id="preference-density" type="checkbox" ${state.settings.compactDensity !== false ? 'checked' : ''}></div>
-        <div class="settings-row"><label class="settings-label" for="preference-today-filter"><strong>${tr('Default Today filter')}</strong><span>${tr('Choose what Today shows when you return.')}</span></label><select class="input" id="preference-today-filter">${todayFilters.map(([value, label]) => `<option value="${value}"${state.settings.todayFocusFilter === value ? ' selected' : ''}>${tr(label)}</option>`).join('')}</select></div>
         <div class="settings-row"><label class="settings-label" for="preference-week-start"><strong>${tr('Week starts on')}</strong><span>${tr('Used by weekly views and habit periods.')}</span></label><select class="input" id="preference-week-start"><option value="monday"${!sundayFirst ? ' selected' : ''}>${tr('Monday')}</option><option value="sunday"${sundayFirst ? ' selected' : ''}>${tr('Sunday')}</option></select></div>
-        <div class="settings-row"><label class="settings-label" for="daily-capacity"><strong>${tr('Daily capacity')}</strong><span>${tr('Planned work per day, compared with task durations on Today and in the Calendar day view.')}</span></label><select class="input" id="daily-capacity">${capacityOptions}</select></div>
-        <fieldset class="settings-row"><legend class="settings-label"><strong>${tr('Today cards')}</strong><span>${tr('Choose the dashboard cards you want to see.')}</span></legend>${todayCards.map(([value, label]) => `<label><input type="checkbox" data-preference-today-section value="${value}" ${(state.settings.todayVisibleSections || []).includes(value) ? 'checked' : ''}> ${tr(label)}</label>`).join('')}</fieldset>
-        <div class="settings-row"><label class="settings-label" for="preference-focus-strip"><strong>${tr('Today summary')}</strong><span>${tr('Show the compact open, completed and planned summary.')}</span></label><input id="preference-focus-strip" type="checkbox" ${state.settings.todayFocusStrip !== false ? 'checked' : ''}></div>
-        <button class="btn btn-secondary" type="button" data-action="save-personalization">${tr('Save preferences')}</button> <button class="btn btn-ghost" type="button" data-action="reset-personalization">${tr('Reset personalization')}</button>
-      </section>
-      <section class="settings-card">
-        <h2>${tr('Notifications')}</h2>
+        <div class="settings-row"><label class="settings-label" for="daily-capacity"><strong>${tr('Daily capacity')}</strong><span>${tr('Planned work per day, compared with task durations in the Calendar day view.')}</span></label><select class="input" id="daily-capacity">${capacityOptions}</select></div>
         ${reminderRows(ctx.notificationSettings?.() || null, notificationButtonLabel)}
+        <div class="settings-row"><label class="settings-label" for="journal-reminder-time"><strong>${tr('Journal reminder')}</strong><span>${tr('When “Write down how the day went” appears on Today.')}</span></label><select class="input" id="journal-reminder-time">${journalOptions}</select></div>
       </section>
-      <section class="settings-card">
+      <section class="settings-card" data-settings-data>
         <h2>${tr('Data')}</h2>
-        <div class="settings-row"><div class="settings-label"><strong>${tr('Backup status')}</strong><span>${tr('Last export:')} ${statusTime(backupStatus.lastExport)}<br>${tr('Last import:')} ${statusTime(backupStatus.lastImport)}<br>${tr('Recovery snapshot:')} ${backupStatus.snapshotAvailable ? tr('Available') : tr('None pending')}<br>${tr('Validation:')} ${esc(trMessage(backupStatus.validationResult || msg('Not yet validated')))}</span></div></div>
-        <div class="settings-row"><div class="settings-label"><strong>${tr('Persistent storage')}</strong><span data-storage-persistence="${esc(persistence.state)}">${esc(persistenceText)}${esc(usage)}</span></div>${persistence.state === 'denied' ? `<button class="btn btn-secondary" type="button" data-action="request-storage-persistence">${tr('Request')}</button>` : ''}</div>
-        <div class="settings-row"><label class="settings-label" for="backup-reminder-days"><strong>${tr('Backup reminder')}</strong><span>${tr('Today reminds you to export a backup when the last one is older than this.')}</span></label><select class="input" id="backup-reminder-days">${reminderOptions}</select></div>
+        <div class="settings-row"><div class="settings-label"><strong>${tr('Backup')}</strong><span>${tr('Last export:')} ${statusTime(backupStatus.lastExport)}<br>${tr('Last import:')} ${statusTime(backupStatus.lastImport)}<br>${tr('Recovery snapshot:')} ${backupStatus.snapshotAvailable ? tr('Available') : tr('None pending')}<br>${tr('Validation:')} ${esc(trMessage(backupStatus.validationResult || msg('Not yet validated')))}</span></div><button class="btn btn-secondary" type="button" data-action="export-backup"><i class="ph ph-download-simple"></i> ${tr('Export ZIP')}</button></div>
+        <div class="settings-row settings-sub"><label class="settings-label" for="backup-reminder-days"><strong>${tr('Backup reminder')}</strong><span>${tr('Today reminds you to export a backup when the last one is older than this.')}</span></label><select class="input" id="backup-reminder-days">${reminderOptions}</select></div>
+        <div class="settings-row"><div class="settings-label"><strong>${tr('Restore from backup')}</strong><span>${tr('Validate a ZIP first, then replace current data only after you confirm.')}</span></div><div><button class="btn btn-secondary" type="button" data-action="import-backup"><i class="ph ph-upload-simple"></i> ${tr('Import ZIP')}</button><input id="backup-import-input" type="file" accept=".zip,application/zip" hidden /></div></div>
         <div class="settings-row"><div class="settings-label"><strong>${tr('Local snapshots')}</strong><span>${tr('Five automatic copies, at most once every five minutes after saving. Restore one item with its files and history.')}</span></div><button class="btn btn-secondary" type="button" data-action="open-local-snapshots">${tr('Browse snapshots')}</button></div>
-        <div class="settings-row"><div class="settings-label"><strong>${tr('Export backup')}</strong><span>${tr('Download a portable ZIP with all local data, including Notes, Resources and files.')}</span></div><button class="btn btn-secondary" type="button" data-action="export-backup"><i class="ph ph-download-simple"></i> ${tr('Export ZIP')}</button></div>
-        <div class="settings-row"><div class="settings-label"><strong>${tr('Import backup')}</strong><span>${tr('Validate a ZIP first, then replace current data only after you confirm.')}</span></div><div><button class="btn btn-secondary" type="button" data-action="import-backup"><i class="ph ph-upload-simple"></i> ${tr('Import ZIP')}</button><input id="backup-import-input" type="file" accept=".zip,application/zip" hidden /></div></div>
+        <div class="settings-row"><div class="settings-label"><strong>${tr('Persistent storage')}</strong><span data-storage-persistence="${esc(persistence.state)}">${esc(persistenceText)}${esc(usage)}</span></div>${persistence.state === 'denied' ? `<button class="btn btn-secondary" type="button" data-action="request-storage-persistence">${tr('Request')}</button>` : ''}</div>
         <div class="settings-row"><div class="settings-label"><strong>${tr('Populate demo workspace')}</strong><span>${tr('Add missing editable examples across Areas, Projects, Tasks, Goals, Habits, Cleaning, Tags, Notes and Resources. Existing items and edits stay intact.')}</span></div><button class="btn btn-secondary" type="button" data-action="add-starter-examples">${tr('Populate workspace')}</button></div>
-        <div class="settings-row"><div class="settings-label"><strong>${tr('Clear completed tasks')}</strong><span>${tr('Permanently delete all completed tasks and their attachments.')}</span></div><button class="btn btn-secondary" type="button" data-action="clear-completed">${tr('Clear')}</button></div>
         <div class="settings-row"><div class="settings-label"><strong>${tr('Reset app data')}</strong><span>${tr('A safety ZIP is created first, then local tasks, projects, tags, attachments and preferences are cleared.')}</span></div><button class="btn btn-ghost" type="button" data-action="reset-app" style="color:var(--danger)">${tr('Reset')}</button></div>
       </section>
-${syncCard}
       <section class="settings-card" data-settings-about>
-        <h2>${tr('About')}</h2>
-        <div class="settings-row"><div class="settings-label"><strong>${tr('Version')}</strong><span>Dailo ${esc(release.APP_VERSION || '')}</span></div></div>
+        <h2>${tr('Help')}</h2>
+        <div class="settings-row"><div class="settings-label"><strong>${tr('Guide')}</strong><span>${tr('How to install Dailo, keep backups and report problems.')}</span></div><a class="btn btn-secondary" href="uputstvo.html" target="_blank" rel="noopener" data-beta-guide>${tr('Open guide')}</a></div>
         ${reportHref ? `<div class="settings-row"><div class="settings-label"><strong>${tr('Report a problem')}</strong><span>${tr('Opens an e-mail with the app version and device details. Your data is not attached.')}</span></div><a class="btn btn-secondary" href="${esc(reportHref)}" data-report-problem>${tr('Report a problem')}</a></div>` : ''}
-        <div class="settings-row"><div class="settings-label"><strong>${tr('Beta tester guide')}</strong><span>${tr('How to install Dailo, keep backups and report problems.')}</span></div><a class="btn btn-secondary" href="uputstvo.html" target="_blank" rel="noopener" data-beta-guide>${tr('Open guide')}</a></div>
+        ${installed ? '' : `<div class="settings-row"><div class="settings-label"><strong>${tr('Install app')}</strong><span data-install-status="browser">${tr('On iPhone, in Safari tap Share, then Add to Home Screen, then Add. Install first and then start using Dailo: data in Safari and in the installed app are kept separately.')}</span></div></div>`}
         <div class="settings-row"><div class="settings-label"><strong>${tr('Privacy')}</strong><span data-privacy-note>${privacy}</span></div></div>
+        <div class="settings-row"><div class="settings-label"><strong>${tr('About')}</strong><span>Dailo ${esc(release.APP_VERSION || '')}</span></div></div>
+      </section>
+      <section class="settings-card settings-desktop" data-settings-desktop>
+        <h2>${tr('Computer')}</h2>
+        <p class="area-empty-copy">${tr('Use a letter or digit with optional Ctrl/Cmd, Alt and Shift. Leave disabled commands unassigned.')}</p>
+        ${shortcutError()?`<p class="validation" role="alert">${esc(shortcutError())}</p>`:''}
+        ${SHORTCUT_ROWS(ctx)}
+        <button class="btn btn-secondary" data-action="reset-shortcuts">${tr('Reset to defaults')}</button>
+        <div class="settings-row"><label class="settings-label" for="preference-density"><strong>${tr('Compact density')}</strong><span>${tr('Keep task rows and controls tight.')}</span></label><input id="preference-density" type="checkbox" ${state.settings.compactDensity !== false ? 'checked' : ''}></div>
       </section>`;
   }
 
@@ -130,8 +120,6 @@ ${syncCard}
       if (action === 'save-shortcut') ctx.saveShortcut(element.dataset.command);
       else if (action === 'disable-shortcut') ctx.disableShortcut(element.dataset.command);
       else if (action === 'reset-shortcuts') ctx.resetShortcuts();
-      else if (action === 'save-personalization') ctx.savePersonalization();
-      else if (action === 'reset-personalization') ctx.resetPersonalization();
       else return false;
       return true;
     }

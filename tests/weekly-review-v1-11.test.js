@@ -115,6 +115,8 @@ function renderReview(stateOverrides = {}) {
     pageHeader: (title, subtitle) => `<header><h1>${title}</h1><p>${subtitle}</p></header>`,
     reviewTaskRow: (item, context, options) => `<div data-row="${item.id}" data-context="${context}" data-options="${Object.keys(options).join(',')}"></div>`,
     relativeDateLabel: value => `D:${value}`, formatDate: value => `F:${value}`, goalProgressLabel: () => '10%', habitMetrics: habit => state.habitMetrics[habit.id] || {},
+    // R13: the goal rows are the Ciljevi rows.
+    renderGoalListRow: goal => `<a data-route="goal/${goal.id}">${goal.title}</a>`,
   };
   return { adapter, html: adapter.renderRoute({ type: 'review' }, ctx), ignored: adapter.renderRoute({ type: 'today' }, ctx) };
 }
@@ -128,8 +130,9 @@ test('the review page lists the six sections with existing row actions and links
   assert.match(html, /data-row="i1" data-context="inbox" data-options="inbox"/);
   assert.match(html, /data-row="o1" data-context="today" data-options="overdue"/);
   assert.match(html, /data-row="m1" data-context="today" data-options="overdue"/);
-  assert.match(html, /data-route="upcoming"/);
-  assert.match(html, /data-route="goal\/g1"[^>]*>[\s\S]*?Maraton[\s\S]*?Overdue/);
+  // R13: the next days open the Calendar instead of Upcoming; goals are the Ciljevi rows.
+  assert.match(html, /data-action="review-open-day"/);
+  assert.match(html, /data-route="goal\/g1"[^>]*>Maraton/);
   assert.match(html, /data-route="habit\/h1"[^>]*>[\s\S]*?Šetnja[\s\S]*?4[\s\S]*?80%/);
   assert.match(html, /data-route="area\/a1"[^>]*>[\s\S]*?Zdravlje[\s\S]*?2 open tasks/);
   assert.doesNotMatch(html, /Gotovo|Stara|n4/);
@@ -138,7 +141,9 @@ test('the review page lists the six sections with existing row actions and links
 
 test('an empty week says so per section; a recorded week shows when it was done and recent reviews', () => {
   const empty = renderReview({ tasks: [], goals: [], habits: [], areas: [] }).html;
-  for (const text of ['The Inbox is empty.', 'Nothing overdue or missed.', 'No active goals.', 'No active habits.', 'No Areas yet.']) assert.ok(empty.includes(text), text);
+  // R13: empty first steps fold into "· done"; the others still say so.
+  assert.equal((empty.match(/review-step is-done/g) || []).length, 2);
+  for (const text of ['No active goals.', 'No active habits.', 'No Areas yet.']) assert.ok(empty.includes(text), text);
   const done = renderReview({ settings: { weekStartsOn: 1, weeklyReviews: [
     { weekStart: '2026-10-05', completedAt: '2026-10-09T17:00:00.000Z' }, { weekStart: '2026-09-28', completedAt: '2026-10-03T09:00:00.000Z' },
   ] } }).html;
@@ -150,9 +155,10 @@ test('an empty week says so per section; a recorded week shows when it was done 
 
 test('the app routes, links, notices and records the weekly review', () => {
   const app = read('js/app.js');
-  assert.match(app, /'completed', 'review', 'settings'\]\.includes\(hash\)/);
-  assert.match(app, /link\('review','ph-clipboard-text',tr\('Weekly review'\)\)/);
-  assert.match(app, /\['review', msg\('Weekly review'\), 'ph-clipboard-text'\]/);
+  // R12b added 'journal' after 'settings' in the route list.
+  assert.match(app, /'completed', 'review', 'settings'(, 'journal')?\]\.includes\(hash\)/);
+  // Redesign R1: the Još screen replaced the More sheet's route list.
+  assert.match(app, /moreRow\('review', 'ph-clipboard-text', tr\('Weekly review'\)\)/);
   assert.match(app, /reviewTaskRow\(task, context, options = \{\}\) \{\s*return taskRow\(task, context, options\);/);
   const html = read('index.html');
   assert.ok(html.indexOf('src="js/review-ui.js"') > html.indexOf('src="js/domain-modules.js"'));

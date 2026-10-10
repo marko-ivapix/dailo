@@ -1,4 +1,4 @@
-"""Static V1.6 Today focus-strip and compact task-row contract."""
+"""Static Today and compact task-row contract (V1.6, rewritten for Redesign R2)."""
 from pathlib import Path
 
 
@@ -9,12 +9,14 @@ def read(path):
     return (ROOT / path).read_text()
 
 
-def test_today_has_focus_strip_and_filter_controls():
+def test_today_sections_replace_focus_strip_and_filter():
+    # Redesign R2 (T1, T2, M3): Zakasnelo, Planirano danas, Navike and Završeno replace the
+    # focus strip, its filter and its counts.
     source = read('js/app.js')
-    assert 'data-today-focus-strip' in source
-    assert 'data-today-filter' in source
-    assert 'data-today-open-count' in source
-    assert 'data-today-completed-count' in source
+    assert 'data-today-focus-strip' not in source
+    assert 'data-today-filter' not in source
+    assert "tr('Planned today')" in source
+    assert 'data-action="today-expand"' in source
     assert 'data-action="quick-add" data-today="true"' in source
 
 
@@ -30,9 +32,9 @@ def test_mobile_navigation_and_touch_targets_are_wired():
     html = read('index.html')
     app = read('js/app.js')
     styles = read('css/styles.css')
-    assert 'id="mobile-more-trigger"' in html
-    assert 'data-action="open-mobile-more"' in html
-    assert 'data-mobile-more-route' in app
+    # Redesign R1: "Još" is a bottom-bar route to a screen instead of a sheet.
+    assert 'data-route="more"' in html
+    assert 'function renderMoreScreen(' in app
     assert 'aria-modal="true"' in app
     assert 'min-height: 44px' in styles
 
@@ -40,9 +42,9 @@ def test_mobile_navigation_and_touch_targets_are_wired():
 def test_mobile_navigation_exposes_all_secondary_routes():
     html = read('index.html')
     app = read('js/app.js')
-    assert 'id="mobile-more-trigger"' in html
+    assert 'data-route="more"' in html
     for route in ('upcoming', 'projects', 'areas', 'notes', 'resources', 'templates', 'saved-views', 'settings'):
-        assert f"['{route}'" in app or f'"{route}"' in app
+        assert f"'{route}'" in app or f'"{route}"' in app
 
 
 def test_compact_touch_layout_keeps_primary_actions_at_44px():

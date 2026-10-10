@@ -62,12 +62,13 @@ function calendarAdapter() {
   return adapter;
 }
 
+// Redesign R7 (C6): the V1.12 "Dan" view is now the selected day's "Raspored" under the week or the month.
 function renderDay(tasks, settings = {}) {
-  const state = { tasks, habits: [], goals: [], settings: { weekStartsOn: 1, ...settings }, ui: { calendarView: 'day', calendarDate: DAY, calendarVisibility: { tasks: true, habits: true, goals: true, milestones: true } } };
+  const state = { tasks, habits: [], goals: [], settings: { weekStartsOn: 1, ...settings }, ui: { calendarView: 'week', calendarDayMode: 'schedule', calendarDate: DAY } };
   const ctx = {
-    state, Core, calendarDate: () => DAY, calendarLogs: () => [], parseLocalDate: value => { const [y, m, d] = value.split('-').map(Number); return new Date(y, m - 1, d); },
+    state, Core, calendarDate: () => DAY, listTasks: () => state.tasks, parseLocalDate: value => { const [y, m, d] = value.split('-').map(Number); return new Date(y, m - 1, d); },
     formatDate: value => `F:${value}`, pageHeader: title => `<h1>${title}</h1>`, esc: value => String(value), durationLabel: minutes => `${minutes}m`,
-    goalProgressLabel: () => '', goalStatusLabel: () => '',
+    calendarTaskRow: item => `<row ${item.id}>`, deadlineRow: () => '',
   };
   return calendarAdapter().renderRoute({ type: 'calendar' }, ctx);
 }
@@ -80,8 +81,8 @@ test('the calendar day view shows capacity, tasks without a time and an hour gri
     task('d', { plannedTime: '16:00', durationMinutes: 30, isCompleted: true }),
     task('u1', { title: 'Bez vremena jedan' }),
   ]);
-  assert.match(html, /data-action="calendar-view" data-view="day" aria-pressed="true"/);
-  assert.match(html, /data-action="calendar-prev" aria-label="Previous day"/);
+  assert.match(html, /data-action="calendar-day-mode" data-mode="schedule" aria-pressed="true"/);
+  assert.match(html, /data-action="calendar-prev" aria-label="Previous week"/);
   assert.match(html, /<div class="day-capacity" data-day-capacity role="status"><span>Planned 120m of 360m<\/span>/);
   assert.match(html, /<div class="day-unscheduled-item" draggable="true" data-calendar-drag="task" data-calendar-item-id="u1">/);
   assert.match(html, /<input class="input task-time-input" type="time" data-task-time="plannedTime" data-task-id="u1" aria-label="Time for Bez vremena jedan">/);
@@ -95,46 +96,46 @@ test('the calendar day view shows capacity, tasks without a time and an hour gri
   assert.match(html, /class="day-grid-block is-completed"[^>]*data-task-id="d"/);
 });
 
-test('an over-full day warns, an empty day offers to add a task, and capacity can be off', () => {
+test('an over-full day warns, an empty day points to "+", and capacity can be off', () => {
   const over = renderDay([task('a', { durationMinutes: 300 }), task('b', { durationMinutes: 120 })]);
   assert.match(over, /<div class="day-capacity is-over" data-day-capacity role="status"><span>Planned 420m of 360m<\/span>[\s\S]*Over capacity by 60m/);
   const empty = renderDay([]);
-  assert.match(empty, /No tasks planned for this day\./);
-  assert.match(empty, /data-action="calendar-new-task" data-date="2026-10-09"/);
+  // R7 (C8): the floating "+" adds for the selected day, so the empty day has no button of its own.
+  assert.match(empty, /No tasks for this day\. “\+” adds a task for this day\./);
+  assert.doesNotMatch(empty, /calendar-new-task/);
   assert.doesNotMatch(empty, /data-day-capacity/);
   assert.doesNotMatch(renderDay([task('a', { durationMinutes: 60 })], { dailyCapacityMinutes: 0 }), /data-day-capacity/);
 });
 
-test('the day view is a stored calendar view and moves by one day', () => {
+// Redesign R7 (C6): a stored "day" view opens the week with its Raspored; the arrows move by week.
+test('a stored day view becomes the week on Raspored; the arrows move by week', () => {
   const app = read('js/app.js');
-  assert.match(app, /next\.ui\.calendarView = \['day', 'week', 'month'\]\.includes\(next\.ui\.calendarView\) \? next\.ui\.calendarView : 'week';/);
+  assert.match(app, /if \(next\.ui\.calendarView === 'day'\) next\.ui\.calendarDayMode = 'schedule';\n {4}next\.ui\.calendarView = \['week', 'month', 'upcoming'\]\.includes\(next\.ui\.calendarView\) \? next\.ui\.calendarView : 'week';/);
   const start = app.indexOf('  function navigateCalendar(');
   const navigate = app.slice(start, app.indexOf('\n  function ', start + 1));
-  const context = { Core, state: { ui: { calendarView: 'day', calendarDate: DAY } }, calendarDate: () => context.state.ui.calendarDate, parseLocalDate: value => new Date(`${value}T00:00:00`), saveAndRender() {} };
+  const context = { Core, state: { ui: { calendarView: 'week', calendarDate: DAY } }, calendarDate: () => context.state.ui.calendarDate, parseLocalDate: value => new Date(`${value}T00:00:00`), saveAndRender() {} };
   vm.createContext(context);
   vm.runInContext(navigate, context);
   vm.runInContext('navigateCalendar(1)', context);
-  assert.equal(context.state.ui.calendarDate, '2026-10-10');
+  assert.equal(context.state.ui.calendarDate, '2026-10-16');
   const adapter = calendarAdapter();
-  const ctx = { state: { ui: { calendarView: 'week' } }, saveAndRender() {} };
+  const ctx = { state: { ui: { calendarView: 'week' } }, currentRoute: () => ({ type: 'calendar' }), saveAndRender() {} };
   adapter.handleAction('calendar-view', { target: { closest: () => ({ dataset: { view: 'day' } }) } }, ctx);
-  assert.equal(ctx.state.ui.calendarView, 'day');
+  assert.equal(ctx.state.ui.calendarView, 'week');
 });
 
-test('Today shows the planned load against capacity once a task has a duration', () => {
+// Redesign R2 (T2a): capacity left Today and stays only in the Calendar's Raspored (R7); durations format the same.
+test('capacity is shown only in the Calendar day view; durations format as before', () => {
   const app = read('js/app.js');
   const slice = (from, to) => app.slice(app.indexOf(from), app.indexOf(to));
-  const context = { Core, state: { tasks: [task('a', { plannedDate: Core.dateOnly(), durationMinutes: 300 }), task('b', { plannedDate: Core.dateOnly(), durationMinutes: 90 })], settings: {} } };
+  const context = { Core, state: { tasks: [], settings: {} } };
   vm.createContext(withI18n(context));
-  vm.runInContext(`${slice('  function durationLabel(', '  function todayCapacityItem(')}\n${slice('  function todayCapacityItem(', '  function renderToday(')}`, context);
-  assert.match(vm.runInContext('todayCapacityItem()', context), /<span class="today-capacity is-over" data-today-capacity aria-label="Over capacity: 6 h 30 min of 6 h">6 h 30 min \/ 6 h<\/span>/);
-  context.state.settings.dailyCapacityMinutes = 480;
-  assert.match(vm.runInContext('todayCapacityItem()', context), /<span class="today-capacity" data-today-capacity>6 h 30 min \/ 8 h<\/span>/);
-  context.state.tasks = [task('c', { plannedDate: Core.dateOnly() })];
-  assert.equal(vm.runInContext('todayCapacityItem()', context), '');
+  vm.runInContext(slice('  function durationLabel(', '  const TODAY_LIMITS'), context);
   assert.equal(vm.runInContext('durationLabel(45)', context), '45 min');
   assert.equal(vm.runInContext('durationLabel(120)', context), '2 h');
-  assert.match(app, /data-today-open-count>[^`]*<\/span>\$\{todayCapacityItem\(\)\}/);
+  assert.equal(vm.runInContext('durationLabel(390)', context), '6 h 30 min');
+  assert.doesNotMatch(app, /todayCapacityItem|data-today-capacity/);
+  assert.match(read('js/calendar-ui.js'), /const load = Core\.dayLoad\(tasks, date\);/);
 });
 
 test('Settings offers the daily capacity and the app stores a valid choice', () => {
@@ -150,28 +151,16 @@ test('Settings offers the daily capacity and the app stores a valid choice', () 
   assert.match(read('js/app.js'), /event\.target\.id === 'daily-capacity'\) \{ const minutes = Number\(event\.target\.value\); if \(Number\.isInteger\(minutes\) && minutes >= 0 && minutes <= 1440\)/);
 });
 
+// Redesign R4: Quick Add has no duration chip any more. A typed "45 min" is still recognized, and the task window's
+// Trajanje sheet (R3) sets the duration with the same preset values.
 test('Quick Add has a duration chip with preset values that wins over the parsed duration', () => {
   const app = read('js/app.js');
-  assert.match(app, /data-action="quick-duration-picker"><i class="ph ph-timer"><\/i>\$\{d\.durationMinutes \? esc\(durationLabel\(d\.durationMinutes\)\) : tr\('Duration'\)\}/);
-  const slice = (from, to) => app.slice(app.indexOf(from), app.indexOf(to));
-  const context = { Core, modalState: { type: 'quick', draft: { durationMinutes: null } }, esc: String, popover: null, openPopover(anchor, html) { context.popover = html; }, closePopover() { context.closed = true; }, renderModal() { context.rendered = true; } };
-  vm.createContext(withI18n(context));
-  vm.runInContext(`${slice('  function durationLabel(', '  function todayCapacityItem(')}\n${slice('  function openDurationPicker(', '  function setReminder(')}`, context);
-  vm.runInContext('openDurationPicker({})', context);
-  for (const minutes of [15, 30, 45, 60, 90, 120]) assert.match(context.popover, new RegExp(`data-pop-action="set-duration" data-minutes="${minutes}"`));
-  assert.doesNotMatch(context.popover, /data-minutes=""/, 'nothing to remove yet');
-  context.modalState.draft.durationMinutes = 30;
-  vm.runInContext('openDurationPicker({})', context);
-  assert.match(context.popover, /class="popover-option is-selected" type="button" data-pop-action="set-duration" data-minutes="30"/);
-  assert.match(context.popover, /data-pop-action="set-duration" data-minutes=""><i class="ph ph-x"><\/i>Remove duration/);
-  vm.runInContext("setQuickDuration('45')", context);
-  assert.equal(context.modalState.draft.durationMinutes, 45);
-  vm.runInContext("setQuickDuration('')", context);
-  assert.equal(context.modalState.draft.durationMinutes, null);
-  assert.ok(context.closed && context.rendered);
-  assert.match(app, /action === 'set-duration'\) setQuickDuration\(button\.dataset\.minutes\)/);
+  assert.doesNotMatch(app, /quick-duration-picker|function openDurationPicker|setQuickDuration/);
+  assert.match(app, /durationMinutes: d\.durationMinutes \|\| parsed\.durationMinutes \|\| null/, 'a parsed duration still applies');
+  const picker = app.slice(app.indexOf('  function openTaskDurationPicker('), app.indexOf('  function setTaskDuration('));
+  assert.match(picker, /\[15, 30, 45, 60, 90, 120\]\.map\(chip\)/);
+  assert.match(picker, /data-pop-action="set-task-duration"/);
 });
-
 // The newest release test pins the exact version; this one only requires V1.12 or later.
 test('V1.12 shipped as 1.12.0 or later', () => {
   const [major, minor] = Release.APP_VERSION.split('.').map(Number);

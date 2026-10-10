@@ -103,10 +103,9 @@ test('the bottom bar is opaque graphite with a 2px accent indicator on the activ
   assert.match(rule(v18, '.mobile-bottom-nav-item.is-active'), /background:\s*transparent/);
 });
 
-test('the More sheet reads as a bottom sheet with a grabber and full-height route rows', () => {
-  assert.match(rule(v18, '.mobile-more-sheet::before'), /width:\s*32px/);
+test('Još keeps full-height route rows (the bottom sheet became a screen in redesign R1)', () => {
   assert.match(rule(v18, '.mobile-more-route'), /min-height:\s*46px/);
-  assert.match(rule(v18, '.mobile-more-backdrop'), /padding:\s*12px 0 0/);
+  assert.doesNotMatch(css, /\.mobile-more-sheet|\.mobile-more-backdrop/);
 });
 
 test('Quick Add keeps its 44px floating composition as a rounded-square primary control', () => {
@@ -174,18 +173,15 @@ test('modals are 12px graphite panels with overlay elevation and bottom-sheet gr
   assert.match(phone, /\.modal-backdrop-task-detail-modal \.modal::before[^{]*\{[^}]*width:\s*32px/);
 });
 
+// Redesign R3 (E1): the window's rows sit in hairline cards; "Više opcija" keeps the key/value rows.
 test('Task Properties keeps collapsed disclosures and presents grouped key/value rows', () => {
   const tasksUi = read('js/tasks-ui.js');
-  for (const name of ['task-properties-disclosure', 'task-schedule-disclosure', 'task-links-notes-disclosure']) {
-    assert.match(tasksUi, new RegExp(`<details class="detail-section detail-disclosure ${name}">`));
-  }
-  assert.match(rule(v18, '.task-properties-summary'), /min-height:\s*32px/);
-  assert.match(rule(v18, '.task-properties-summary:hover'), /background:\s*var\(--graphite-800\)/);
-  const group = rule(v18, '.task-property-group');
-  assert.match(group, /background:\s*var\(--graphite-900\)/);
-  assert.match(group, /border-color:\s*var\(--line-1\)/);
+  assert.match(tasksUi, /<details class="task-window-more">/);
+  assert.match(tasksUi, /class="property-row" for="detail-area"/);
+  const r3 = css.slice(css.indexOf('/* Redesign R3'));
+  assert.match(r3, /\.task-window-card \{[^}]*border: 1px solid var\(--line-1\)/);
+  assert.match(r3, /\.task-window-card \{[^}]*background: var\(--graphite-850\)/);
   assert.match(rule(v18, '.property-value'), /color:\s*var\(--ink-1\)/);
-  assert.match(rule(v18, '.property-chip'), /border-radius:\s*var\(--radius-sm\)/);
 });
 
 test('popovers keep focus rings visible and toasts distinguish alerts from confirmations', () => {
@@ -260,14 +256,11 @@ test('the monthly tracker keeps its cell geometry and uses token colors per chec
 
 // Phase 8 — Areas, Projects, Notes and Resources
 
-test('Area tabs are underline tabs keyed on aria-selected, keeping their tab semantics', () => {
+// Redesign R10a (S1): the area tabs left; archived areas fold at the bottom of "Oblasti" instead.
+test('Oblasti has no tabs; the archived areas fold behind an expandable trigger', () => {
   const areasUi = read('js/areas-ui.js');
-  assert.match(areasUi, /role="tablist"/);
-  assert.match(areasUi, /role="tab"[^>]*aria-selected=/);
-  assert.match(rule(v18, '.area-tabs'), /border-bottom:\s*1px solid var\(--line-1\)/);
-  const underline = rule(v18, '.area-tabs button[aria-selected="true"]::after');
-  assert.match(underline, /height:\s*2px/);
-  assert.match(underline, /background:\s*var\(--blue-300\)/);
+  assert.doesNotMatch(areasUi, /role="tablist"|role="tab"/);
+  assert.match(areasUi, /<button class="collapsible-trigger" type="button" data-action="areas-fold" aria-expanded="\$\{open\}">/);
 });
 
 test('organizational lists share the hairline card and display numerals', () => {
@@ -280,10 +273,12 @@ test('organizational lists share the hairline card and display numerals', () => 
   assert.match(rule(v18, '.tag-dot'), /border-radius:\s*2px/);
 });
 
-test('Notes and Resources keep their own rows with accent clips and a filter panel', () => {
-  assert.match(read('js/knowledge.js'), /class="goal-row knowledge-row"/);
-  assert.match(rule(v18, '.knowledge-clip blockquote'), /border-left:\s*2px solid var\(--blue-300\)/);
-  assert.match(rule(v18, '.filter-bar, .knowledge-filters'), /background:\s*var\(--graphite-850\)/);
+// Redesign R10b (S3): the knowledge rows became Today-style rows in one card, the filter selects became chips, and the
+// clip shows as a quote in the item window with the same blue accent.
+test('Notes and Resources keep their own rows with accent clips and filter chips', () => {
+  assert.match(read('js/knowledge.js'), /class="today-row knowledge-row"/);
+  assert.match(read('js/knowledge.js'), /class="sheet-chips knowledge-chips"/);
+  assert.match(rule(css, '.knowledge-clip-quote'), /border-left:\s*2px solid var\(--blue-300\)/);
 });
 
 test('attachment drop zones keep hover and drag-over feedback after the V1.8 section background', () => {
@@ -296,12 +291,12 @@ test('attachment drop zones keep hover and drag-over feedback after the V1.8 sec
 
 // Phase 9 — Templates, Settings and More
 
-test('template rows use the segmented type switch and do not pretend their text is clickable', () => {
-  assert.match(read('js/templates-ui.js'), /<div class="view-tabs">/);
-  assert.match(rule(v18, '.view-tabs'), /margin-bottom:\s*14px/);
-  const text = rule(v18, '[data-template-row] .goal-open');
-  assert.match(text, /cursor:\s*default/);
-  assert.match(rule(v18, '[data-template-row] .goal-open:hover'), /background:\s*transparent/);
+// Redesign R10d (S7): the type tabs gave way to groups, and a whole template row is a button that opens its sheet.
+test('template rows are grouped buttons that open a sheet; the editor fields stay a grid', () => {
+  const templates = read('js/templates-ui.js');
+  assert.doesNotMatch(templates, /<div class="view-tabs">|data-template-type="\$\{templateType\}"/);
+  assert.match(templates, /<button class="template-list-row" type="button" data-action="template-open"/);
+  assert.match(rule(css, '.template-list-row:focus-visible,\n.view-list-row:focus-visible'), /box-shadow:\s*var\(--focus-ring-inset\)/);
   assert.match(rule(v18, '.template-fields'), /display:\s*grid/);
 });
 

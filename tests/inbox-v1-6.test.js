@@ -74,7 +74,8 @@ test('mixed Inbox records can be removed without deleting the entity', () => {
 test('Quick Add makes new non-task records available in Inbox filters', () => {
   assert.match(fs.readFileSync(require.resolve('../js/goals-ui.js'), 'utf8'), /isInbox: Boolean\(ctx\.modalState\.templateContext\?\.inbox\)/);
   assert.match(fs.readFileSync(require.resolve('../js/habits-ui.js'), 'utf8'), /isInbox: Boolean\(ctx\.modalState\.templateContext\?\.inbox\)/);
-  assert.match(fs.readFileSync(require.resolve('../js/knowledge.js'), 'utf8'), /if \(isNew\) item\.isInbox = Boolean\(dialog\.inbox\)/);
+  // Redesign R10b: the knowledge window only creates through saveKnowledge, so the flag is set unconditionally there.
+  assert.match(fs.readFileSync(require.resolve('../js/knowledge.js'), 'utf8'), /item\.isInbox = Boolean\(dialog\.inbox\);/);
   assert.match(fs.readFileSync(require.resolve('../js/goals-ui.js'), 'utf8'), /closest\?\.\('#mobile-quick-add-menu'\)/);
   assert.match(fs.readFileSync(require.resolve('../js/habits-ui.js'), 'utf8'), /closest\?\.\('#mobile-quick-add-menu'\)/);
   assert.match(fs.readFileSync(require.resolve('../js/knowledge.js'), 'utf8'), /closest\?\.\('#mobile-quick-add-menu'\)/);

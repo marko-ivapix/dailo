@@ -81,7 +81,7 @@
     if (type === 'task') {
       data = pick(['title','notes','projectId','areaId','goalIds','tagIds','priority','plannedTime','dueTime','durationMinutes']);
       const rule = normalizeRecurrenceV3(entity.recurrence);
-      data.recurrence = rule ? {frequency:rule.frequency,interval:rule.interval,endType:rule.endType,endAfterOccurrences:rule.endAfterOccurrences,endOffsetDays:templateOffset(rule.endDate,contextDate)} : null;
+      data.recurrence = rule ? {frequency:rule.frequency,interval:rule.interval,...Object.fromEntries(RECURRENCE_EXTRA_KEYS.filter(key => rule[key] !== undefined).map(key => [key, templateCopy(rule[key])])),endType:rule.endType,endAfterOccurrences:rule.endAfterOccurrences,endOffsetDays:templateOffset(rule.endDate,contextDate)} : null;
       data.plannedOffsetDays = templateOffset(entity.plannedDate, contextDate);
       data.dueOffsetDays = templateOffset(entity.dueDate, contextDate);
       data.subtasks = (entity.subtasks || []).map((s, order) => ({ title:s.title, order, isCompleted:false, completedAt:null }));
@@ -150,7 +150,7 @@
     };};
     if (template.type === 'task') return {task:task(d,ids.taskId)};
     if (template.type === 'project') {
-      const project = {...common,id:ids.projectId || makeId('project'),name:d.name || '',color:d.color || '#5362FF',areaId:live('areas',d.areaId),goalIds:links('goals',d.goalIds),isArchived:false,archivedAt:null,order:null};
+      const project = {...common,id:ids.projectId || makeId('project'),name:d.name || '',color:safeColor(d.color, '#5362FF'),areaId:live('areas',d.areaId),goalIds:links('goals',d.goalIds),isArchived:false,archivedAt:null,order:null};
       const tasks=(d.tasks || []).map(child=>task(child,null,project.id));
       return {project,tasks,goalLinks:configs.map(c=>({goalId:c.goalId,contributionMode:c.contributionMode,selectedTaskIds:[...new Set((c.selectedTaskIndices || []).filter(i=>Number.isInteger(i) && tasks[i]).map(i=>tasks[i].id))]}))};
     }
@@ -267,6 +267,10 @@
         .map(milestone => ({ goal, milestone }))),
       overdueGoals: activeGoals.filter(goal => goal.targetDate && goal.targetDate < today),
       goals: activeGoals.filter(goal => goal.targetDate === today),
+      // Redesign R2 (T2a): open milestones of active goals due today join "Planirano danas".
+      milestones: activeGoals.flatMap(goal => (goal.milestones || [])
+        .filter(milestone => milestone.date === today && !milestone.isCompleted)
+        .map(milestone => ({ goal, milestone }))),
     };
   }
 
@@ -349,6 +353,23 @@
     });
   }
 
+  // Redesign R7 (C2, C4, C9): what a calendar day lists. Open tasks sit on their plan day, or on their due day when
+  // they have none; timed ones by time, the rest by title. Goal targets and open milestones of active goals come
+  // as deadlines. Habits stay on the Habits screen. The caller passes the listed tasks (no archived projects).
+  function calendarDayItems(state, date) {
+    const byTitle = (a, b) => String(a.title).localeCompare(String(b.title));
+    const tasks = (state?.tasks || []).filter(task => task && !task.isCompleted && (task.plannedDate ? task.plannedDate === date : task.dueDate === date));
+    const timed = tasks.filter(task => task.plannedDate === date && normalizeTime(task.plannedTime))
+      .sort((a, b) => a.plannedTime.localeCompare(b.plannedTime) || byTitle(a, b));
+    const untimed = tasks.filter(task => !timed.includes(task)).sort(byTitle);
+    const goals = (state?.goals || []).filter(goal => goal?.status === 'active');
+    const deadlines = [
+      ...goals.filter(goal => goal.targetDate === date).map(goal => ({ goal })),
+      ...goals.flatMap(goal => (goal.milestones || []).filter(milestone => milestone?.date === date && !milestone.isCompleted).map(milestone => ({ goal, milestone }))),
+    ];
+    return { date, timed, untimed, deadlines, count: timed.length + untimed.length + deadlines.length };
+  }
+
   function calendarTimeBlocks(state, date) {
     if (!parseDateOnly(date) || state?.ui?.calendarVisibility?.tasks === false) return [];
     return (state?.tasks || []).flatMap(task => {
@@ -365,12 +386,26 @@
     return tasks.filter(task => !task.isCompleted && !task.isInbox && !task.plannedDate);
   }
 
+  // R11a: weekly on chosen weekdays, monthly by day or nth weekday, and yearly. A field that does
+  // not fit its frequency is dropped, so the rule falls back to the plain interval.
+  const RECURRENCE_EXTRA_KEYS = ['weekdays', 'monthMode', 'monthDay', 'weekOfMonth', 'weekday'];
+  const isWeekday = value => Number.isInteger(value) && value >= 0 && value <= 6;
+  function recurrenceExtras(recurrence, frequency) {
+    if (frequency === 'weekly' && Array.isArray(recurrence.weekdays) && recurrence.weekdays.length && recurrence.weekdays.every(isWeekday)) {
+      return { weekdays: [...new Set(recurrence.weekdays)].sort((a, b) => a - b) };
+    }
+    if (frequency !== 'monthly') return {};
+    const { monthMode, monthDay, weekOfMonth, weekday } = recurrence;
+    if (monthMode === 'day' && (monthDay === 'last' || Number.isInteger(monthDay) && monthDay >= 1 && monthDay <= 31)) return { monthMode, monthDay };
+    if (monthMode === 'weekday' && (weekOfMonth === 'last' || Number.isInteger(weekOfMonth) && weekOfMonth >= 1 && weekOfMonth <= 4) && isWeekday(weekday)) return { monthMode, weekOfMonth, weekday };
+    return {};
+  }
   function normalizeRecurrence(recurrence) {
     if (!recurrence || typeof recurrence !== 'object') return null;
-    const frequency = ['daily', 'weekly', 'monthly'].includes(recurrence.frequency) ? recurrence.frequency : null;
+    const frequency = ['daily', 'weekly', 'monthly', 'yearly'].includes(recurrence.frequency) ? recurrence.frequency : null;
     if (!frequency) return null;
     const interval = Math.max(1, Math.floor(Number(recurrence.interval) || 1));
-    return { frequency, interval };
+    return { frequency, interval, ...recurrenceExtras(recurrence, frequency) };
   }
 
   function normalizeRecurrenceV3(value) {
@@ -406,21 +441,96 @@
     return clone;
   }
 
+  const lastDayOfMonth = (year, month) => new Date(year, month + 1, 0).getDate();
+  // The rule's day in a month: the chosen day (clamped) or the nth / last weekday; a rule without a
+  // month mode keeps the given day, clamped to shorter months.
+  function recurrenceDayInMonth(year, month, rule, fallbackDay) {
+    const last = lastDayOfMonth(year, month);
+    if (rule.monthMode === 'day') return rule.monthDay === 'last' ? last : Math.min(rule.monthDay, last);
+    if (rule.monthMode === 'weekday') {
+      if (rule.weekOfMonth === 'last') return last - ((new Date(year, month, last).getDay() - rule.weekday + 7) % 7);
+      return 1 + ((rule.weekday - new Date(year, month, 1).getDay() + 7) % 7) + (rule.weekOfMonth - 1) * 7;
+    }
+    return Math.min(fallbackDay, last);
+  }
+  // Weeks start on Monday: 0 = Monday … 6 = Sunday.
+  const mondayIndex = day => (day + 6) % 7;
+
   function nextRecurrenceDate(value, recurrence) {
     const normalized = normalizeRecurrence(recurrence);
     const date = parseDateOnly(value);
     if (!normalized || !date) return null;
     if (normalized.frequency === 'daily') return addDays(value, normalized.interval);
+    if (normalized.frequency === 'weekly' && normalized.weekdays) {
+      const order = normalized.weekdays.map(mondayIndex).sort((a, b) => a - b), current = mondayIndex(date.getDay());
+      const later = order.find(index => index > current);
+      if (later !== undefined) return addDays(value, later - current);
+      return addDays(value, normalized.interval * 7 - current + order[0]);
+    }
     if (normalized.frequency === 'weekly') return addDays(value, normalized.interval * 7);
+    if (normalized.frequency === 'yearly') {
+      const year = date.getFullYear() + normalized.interval;
+      return dateOnly(new Date(year, date.getMonth(), Math.min(date.getDate(), lastDayOfMonth(year, date.getMonth()))));
+    }
 
-    const year = date.getFullYear();
-    const monthIndex = date.getMonth();
-    const day = date.getDate();
-    const targetMonthIndex = monthIndex + normalized.interval;
-    const targetYear = year + Math.floor(targetMonthIndex / 12);
+    const targetMonthIndex = date.getMonth() + normalized.interval;
+    const targetYear = date.getFullYear() + Math.floor(targetMonthIndex / 12);
     const normalizedMonth = ((targetMonthIndex % 12) + 12) % 12;
-    const lastDay = new Date(targetYear, normalizedMonth + 1, 0).getDate();
-    return dateOnly(new Date(targetYear, normalizedMonth, Math.min(day, lastDay)));
+    return dateOnly(new Date(targetYear, normalizedMonth, recurrenceDayInMonth(targetYear, normalizedMonth, normalized, date.getDate())));
+  }
+
+  // The first day on or after `start` that matches the rule (S15: "the first time is the first
+  // matching day from the start"). Rules without chosen days start on the start itself.
+  function firstRecurrenceDate(start, recurrence) {
+    const rule = normalizeRecurrence(recurrence);
+    const date = parseDateOnly(start);
+    if (!rule || !date) return null;
+    if (rule.weekdays) {
+      const offset = [0, 1, 2, 3, 4, 5, 6].find(days => rule.weekdays.includes((date.getDay() + days) % 7));
+      return addDays(start, offset);
+    }
+    if (rule.monthMode) {
+      const day = recurrenceDayInMonth(date.getFullYear(), date.getMonth(), rule, date.getDate());
+      if (day >= date.getDate()) return dateOnly(new Date(date.getFullYear(), date.getMonth(), day));
+      const next = new Date(date.getFullYear(), date.getMonth() + 1, 1);
+      return dateOnly(new Date(next.getFullYear(), next.getMonth(), recurrenceDayInMonth(next.getFullYear(), next.getMonth(), rule, 1)));
+    }
+    return start;
+  }
+
+  // R11c (S14): "Ovo i buduća" moves the rule's chosen day along with the occurrence. Returns only the
+  // changed fields; "last day", plain intervals, daily and yearly rules follow the date by themselves.
+  function recurrenceDayShift(recurrence, fromDate, toDate) {
+    const rule = normalizeRecurrence(recurrence);
+    const from = parseDateOnly(fromDate), to = parseDateOnly(toDate);
+    if (!rule || !from || !to || fromDate === toDate) return {};
+    if (rule.weekdays) {
+      if (!rule.weekdays.includes(from.getDay())) return {};
+      return { weekdays: [...new Set(rule.weekdays.map(day => (day === from.getDay() ? to.getDay() : day)))].sort((a, b) => a - b) };
+    }
+    if (rule.monthMode === 'day') return rule.monthDay === from.getDate() ? { monthDay: to.getDate() } : {};
+    if (rule.monthMode === 'weekday') {
+      if (rule.weekday !== from.getDay()) return {};
+      const nth = Math.ceil(to.getDate() / 7);
+      return { weekOfMonth: rule.weekOfMonth === 'last' || nth > 4 ? 'last' : nth, weekday: to.getDay() };
+    }
+    return {};
+  }
+
+  // The next `count` dates from the first one, stopping at the rule's end date or remaining count.
+  // Dates before `from` (e.g. today) are left out but still count toward the remaining count.
+  function upcomingRecurrenceDates(start, recurrence, count = 5, from = null) {
+    const rule = normalizeRecurrenceV3(recurrence);
+    if (!rule) return [];
+    const limit = Math.max(0, Math.floor(Number(count) || 0));
+    let remaining = rule.endType === 'afterOccurrences' && rule.endAfterOccurrences ? Math.max(0, rule.endAfterOccurrences - rule.occurrencesCreated) : Infinity;
+    const dates = [];
+    for (let current = firstRecurrenceDate(start, rule), steps = 0; current && dates.length < limit && remaining > 0 && steps < 10000; current = nextRecurrenceDate(current, rule), steps += 1) {
+      if (rule.endType === 'date' && rule.endDate && current > rule.endDate) break;
+      remaining -= 1;
+      if (!from || current >= from) dates.push(current);
+    }
+    return dates;
   }
 
   function advanceIsoTimestamp(value, recurrence) {
@@ -434,7 +544,10 @@
     // appointment from (for example) 09:30 to 08:30.
     if (normalized.frequency === 'daily') date.setDate(date.getDate() + normalized.interval);
     else if (normalized.frequency === 'weekly') date.setDate(date.getDate() + normalized.interval * 7);
-    else {
+    else if (normalized.frequency === 'yearly') {
+      const targetYear = date.getFullYear() + normalized.interval, month = date.getMonth();
+      date.setFullYear(targetYear, month, Math.min(date.getDate(), lastDayOfMonth(targetYear, month)));
+    } else {
       const originalDay = date.getDate();
       const targetMonthIndex = date.getMonth() + normalized.interval;
       const targetYear = date.getFullYear() + Math.floor(targetMonthIndex / 12);
@@ -453,13 +566,26 @@
     const now = new Date(nowIso);
     const nowDate = Number.isNaN(now.getTime()) ? dateOnly() : dateOnly(new Date(now.getFullYear(), now.getMonth(), now.getDate()));
     const advance=value=>{let next=nextRecurrenceDate(value,recurrence);if(recurrence.skipNext)next=nextRecurrenceDate(next,recurrence);return next;};
-    let plannedDate = source.plannedDate ? advance(source.plannedDate) : null;
-    const dueDate = source.dueDate ? advance(source.dueDate) : null;
-    if (!plannedDate && !dueDate) plannedDate = advance(nowDate);
+    let plannedDate, dueDate, reminderAt;
+    if (recurrence.weekdays || recurrence.monthMode) {
+      // R11a: the plan day (or else the due day) moves to the next occurrence; the due day and the
+      // reminder keep their distance to it, the reminder on the same local wall-clock time.
+      const anchor = source.plannedDate || source.dueDate || nowDate;
+      const shift = templateOffset(advance(anchor), anchor);
+      plannedDate = source.plannedDate ? addDays(source.plannedDate, shift) : source.dueDate ? null : addDays(anchor, shift);
+      dueDate = source.dueDate ? addDays(source.dueDate, shift) : null;
+      const reminder = source.reminderAt ? new Date(source.reminderAt) : null;
+      if (reminder && !Number.isNaN(reminder.getTime())) reminder.setDate(reminder.getDate() + shift);
+      reminderAt = reminder && !Number.isNaN(reminder.getTime()) ? reminder.toISOString() : null;
+    } else {
+      plannedDate = source.plannedDate ? advance(source.plannedDate) : null;
+      dueDate = source.dueDate ? advance(source.dueDate) : null;
+      if (!plannedDate && !dueDate) plannedDate = advance(nowDate);
+      reminderAt=source.reminderAt?advanceIsoTimestamp(source.reminderAt,recurrence):null;
+      if(reminderAt && recurrence.skipNext)reminderAt=advanceIsoTimestamp(reminderAt,recurrence);
+    }
     if(!shouldGenerateRecurrence(recurrence,plannedDate || dueDate))return null;
     const id = String(newId || `task_${Date.now().toString(36)}`);
-    let reminderAt=source.reminderAt?advanceIsoTimestamp(source.reminderAt,recurrence):null;
-    if(reminderAt && recurrence.skipNext)reminderAt=advanceIsoTimestamp(reminderAt,recurrence);
     return {
       ...templateCopy(source),
       id,
@@ -487,8 +613,16 @@
     };
   }
 
+  // A task reminder counts as fired only up to the moment it fired for (audit R-3): the fired marker is
+  // device-local, so a reminder moved later on another device must fire again here.
+  function taskReminderFired(task) {
+    const fired = task?.reminderFiredAt ? new Date(task.reminderFiredAt).getTime() : NaN;
+    const moment = reminderInstant(task?.reminderAt);
+    return Number.isFinite(fired) && (moment === null || fired >= moment);
+  }
+
   function isReminderDue(task, nowIso) {
-    if (!task || task.isCompleted || !task.reminderAt || task.reminderFiredAt) return false;
+    if (!task || task.isCompleted || !task.reminderAt || taskReminderFired(task)) return false;
     const reminder = reminderInstant(task.reminderAt);
     const now = new Date(nowIso).getTime();
     return reminder !== null && Number.isFinite(now) && reminder <= now;
@@ -663,6 +797,36 @@
       habits: (source.habits || []).filter(habit => habit && habit.status === 'active'),
       areas: (source.areas || []).filter(Boolean).map(area => ({ area, open: areaSummary(area.id, source).openTasks })),
     };
+  }
+
+  // Redesign R13 (S5): "Poslednjih 7 dana" on the weekly review — completed tasks per day for today and the six days
+  // before, the previous 7 days' total, tasks created in the window, and this week's habits so far (planned days and
+  // how many were done; a weekly-target habit counts its target and at most the target as done). Null when nothing
+  // is planned.
+  function weeklyReviewStats(state, habitLogs = [], today = dateOnly(), weekStartsOn = 'monday') {
+    const tasks = state?.tasks || [];
+    const completedOn = date => tasks.filter(task => task && task.isCompleted && localDateOf(task.completedAt) === date).length;
+    const days = Array.from({ length: 7 }, (_, index) => addDays(today, index - 6)).map(date => ({ date, completed: completedOn(date) }));
+    const previousTotal = Array.from({ length: 7 }, (_, index) => completedOn(addDays(today, index - 13))).reduce((sum, count) => sum + count, 0);
+    const first = days[0].date;
+    const added = tasks.filter(task => { const created = localDateOf(task?.createdAt); return created && created >= first && created <= today; }).length;
+    const weekStart = weekStartFor(today, weekStartsOn);
+    const weekDays = [];
+    for (let date = weekStart; date && date <= today; date = addDays(date, 1)) weekDays.push(date);
+    let planned = 0, done = 0;
+    for (const habit of (state?.habits || []).filter(item => item && item.status === 'active')) {
+      const logs = (habitLogs || []).filter(log => log && log.habitId === habit.id);
+      const doneDays = weekDays.filter(date => habitStatusForDate(habit, logs, date, date).status === 'done').length;
+      if (habit.frequencyType === 'timesPerWeek') {
+        const target = habitTargetFor(habit, weekStart);
+        planned += target; done += Math.min(doneDays, target);
+      } else {
+        const scheduled = weekDays.filter(date => habitScheduledOn(habit, date));
+        planned += scheduled.length;
+        done += scheduled.filter(date => habitStatusForDate(habit, logs, date, date).status === 'done').length;
+      }
+    }
+    return { days, total: days.reduce((sum, day) => sum + day.completed, 0), previousTotal, added, habitsPercent: planned ? Math.round(done / planned * 100) : null };
   }
 
   function oldestCreatedAt(state) {
@@ -1063,6 +1227,50 @@
     return { status: date < today ? 'missed' : 'pending', value: null, percent: 0 };
   }
 
+  // Redesign R8a (H2–H4, H7): one habit on one day for the Habits screen. 'future' and 'unscheduled' days are
+  // inactive; 'open' is today, or a weekly-target day without a check-in (such a habit never misses one day).
+  // `planned` says whether the day counts in that day's share: a weekly-target habit counts when it is checked
+  // in, or today while its week's target is still open. Skipped days never count.
+  function habitDayState(habit, logs, date, today = dateOnly(), weekRule = 'monday') {
+    if (!parseDateOnly(date) || date > today) return { state: 'future', planned: false, value: null };
+    const status = habitStatusForDate(habit, logs, date, today);
+    if (status.status === 'unscheduled') return { state: 'unscheduled', planned: false, value: null };
+    if (status.status === 'skipped') return { state: 'skipped', planned: false, value: status.value };
+    if (status.status === 'done') return { state: 'done', planned: true, value: status.value };
+    if (habit?.frequencyType === 'timesPerWeek') {
+      const week = habitPeriodKey(habit, date, weekRule);
+      const done = new Set((logs || []).filter(log => log && log.date <= today && (!habit.id || log.habitId === habit.id) && habitPeriodKey(habit, log.date, weekRule) === week && habitStatusForDate(habit, logs, log.date, today).status === 'done').map(log => log.date)).size;
+      return { state: 'open', planned: date === today && done < habitTargetFor(habit, week), value: status.value };
+    }
+    return { state: date === today ? 'open' : 'missed', planned: true, value: status.value };
+  }
+
+  // The share of a day's planned habits that are done; percent is null when nothing was planned that day.
+  function habitDayPercent(habits, logsByHabit, date, today = dateOnly(), weekRule = 'monday') {
+    let done = 0; let planned = 0;
+    for (const habit of habits || []) {
+      const day = habitDayState(habit, logsByHabit?.[habit.id] || [], date, today, weekRule);
+      if (!day.planned) continue;
+      planned += 1;
+      if (day.state === 'done') done += 1;
+    }
+    return { done, planned, percent: planned ? Math.round(done / planned * 100) : null };
+  }
+
+  // A habit's week (H7): the done days against the plan, which is the weekly target or the scheduled days of the
+  // whole week without the skipped ones, so the bar fills during the week.
+  function habitWeekProgress(habit, logs, weekStart, today = dateOnly(), weekRule = 'monday') {
+    let done = 0; let scheduled = 0;
+    for (let index = 0; index < 7; index += 1) {
+      const date = addDays(weekStart, index);
+      const status = date <= today ? habitStatusForDate(habit, logs, date, today).status : null;
+      if (status === 'done') done += 1;
+      if (status !== 'skipped' && habitScheduledOn(habit, date, { historical: true })) scheduled += 1;
+    }
+    const planned = habit?.frequencyType === 'timesPerWeek' ? habitTargetFor(habit, habitPeriodKey(habit, weekStart, weekRule)) : scheduled;
+    return { done, planned };
+  }
+
   function habitCompletionForDates(habit, logs, dates, today = dateOnly(), weekStartsOn = 'monday') {
     const recordedDates = new Set((logs || []).filter(log => log && log.date <= today && (!habit?.id || log.habitId === habit.id)).map(log => log.date));
     const eligible = [...new Set((dates || []).filter(date => typeof date === 'string' && date && date <= today && (habitScheduledOn(habit, date, { historical: true }) || recordedDates.has(date))))];
@@ -1237,7 +1445,7 @@
       list.push({ key: notificationKey(kind, item.id, moment), kind, id: item.id, at: new Date(time).toISOString(), title, route: `${kind}/${encodeURIComponent(item.id)}`, date });
     };
     for (const task of state.tasks || []) {
-      if (!task.isCompleted && task.reminderAt && !task.reminderFiredAt) add('task', task, task.reminderAt, task.title, task.dueDate || null);
+      if (!task.isCompleted && task.reminderAt && !taskReminderFired(task)) add('task', task, task.reminderAt, task.title, task.dueDate || null);
     }
     for (const goal of state.goals || []) {
       if (goal.status !== 'active') continue;
@@ -1270,6 +1478,23 @@
       }
     }
     return list.sort((a, b) => a.at.localeCompare(b.at) || a.key.localeCompare(b.key)).slice(0, limit);
+  }
+
+  // Records that first arrive through sync (audit R-3): their past reminder moments are marked as handled on this
+  // device, so a new device does not replay old reminders. Records this device already had are left as they are.
+  function settleArrivedReminders(previous, next, now) {
+    const at = new Date(now).getTime();
+    if (!next || !Number.isFinite(at)) return next;
+    const known = type => new Set((previous?.[type] || []).map(item => item?.id));
+    const past = moment => { const time = reminderInstant(moment); return time !== null && time <= at; };
+    const today = dateOnly(new Date(at));
+    const tasks = known('tasks'), goals = known('goals'), habits = known('habits');
+    return {
+      ...next,
+      tasks: (next.tasks || []).map(task => (!tasks.has(task.id) && task.reminderAt && !task.reminderFiredAt && past(task.reminderAt) ? { ...task, reminderFiredAt: new Date(at).toISOString() } : task)),
+      goals: (next.goals || []).map(goal => (goals.has(goal.id) ? goal : { ...goal, reminderFiredMoments: [...new Set([...(goal.reminderFiredMoments || []), ...goalReminderMoments(goal).filter(past)])] })),
+      habits: (next.habits || []).map(habit => (habits.has(habit.id) ? habit : { ...habit, reminderFiredMoments: [...new Set([...(habit.reminderFiredMoments || []), ...(habit.reminders || []).filter(item => item?.enabled !== false && normalizeTime(item.time)).map(item => combineDateTime(today, item.time)).filter(past)])] })),
+    };
   }
 
   // Snooze choices (audit H-2): "tonight" is 19:00, or 21:00 once it is 19:00; later than that there is no tonight
@@ -1468,6 +1693,11 @@
     };
   }
 
+  // Colors reach style attributes (audit S-4): only #rgb and #rrggbb are accepted.
+  function safeColor(value, fallback) {
+    return typeof value === 'string' && /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(value) ? value : fallback;
+  }
+
   function normalizeTime(value) {
     if (typeof value !== 'string' || !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value)) return null;
     return value;
@@ -1523,7 +1753,8 @@
     const suppliedAttachments = Array.isArray(source.attachmentIds) ? source.attachmentIds : [];
     const attachmentIds = [...new Set(suppliedAttachments.filter(id => typeof id === 'string' && id.trim()).map(id => id.trim()))];
     if (!Array.isArray(source.attachmentIds) || suppliedAttachments.some(id => typeof id !== 'string' || !id.trim())) errors.push('attachmentIds');
-    if (!linkUrls.length && !attachmentIds.length) errors.push('source');
+    // A note needs only a title (redesign R10b, decided 2026-10-09); a resource still needs a link, image or file.
+    if (type === 'resource' && !linkUrls.length && !attachmentIds.length) errors.push('source');
     return { valid: !errors.length, errors, normalized: { ...source, type, title, linkUrls, attachmentIds } };
   }
 
@@ -1534,12 +1765,38 @@
     return project && project.areaId ? project.areaId : null;
   }
 
+  // R12a: the journal — one entry per day; the id is the day so two devices meet in one record.
+  const isJournalDate = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && dateOnly(parseDateOnly(value)) === value;
+  function journalEntryId(date) {
+    return `journal_${date}`;
+  }
+  function normalizeJournalEntry(item) {
+    return { ...item, text: typeof item.text === 'string' ? item.text : '', mood: Number.isInteger(item.mood) && item.mood >= 1 && item.mood <= 5 ? item.mood : null };
+  }
+  function journalEntryFor(state, date) {
+    return (state?.journal || []).find(item => item.date === date) || null;
+  }
+  // The read-only summary of a day in its journal entry (J2): tasks completed that day, and the habits planned that
+  // day (weekly-target habits left out) with how many were done.
+  function journalDaySummary(state, habitLogs, date) {
+    const completed = (state?.tasks || []).filter(task => task.isCompleted && localDateOf(task.completedAt) === date).length;
+    const due = (state?.habits || []).filter(habit => habit.status === 'active' && habit.frequencyType !== 'timesPerWeek' && habitScheduledOn(habit, date));
+    const habitsDone = due.filter(habit => habitStatusForDate(habit, habitLogs || [], date, date).status === 'done').length;
+    return { completed, habitsDone, habitsDue: due.length };
+  }
+  // When the evening journal notice appears (J6): a local time, or null when it is off; 20:00 when unset.
+  function journalReminderTime(settings) {
+    const value = settings?.journalReminderTime;
+    if (value === null) return null;
+    return normalizeTime(value) || '20:00';
+  }
+
   function collectionIsValid(state, key) {
     return Array.isArray(state[key]);
   }
 
   function invalidV3Collection(input) {
-    return ['tasks', 'projects', 'tags', 'areas', 'goals', 'habits', 'notes', 'resources', 'templates', 'savedViews']
+    return ['tasks', 'projects', 'tags', 'areas', 'goals', 'habits', 'notes', 'resources', 'templates', 'savedViews', 'journal']
       .find(key => Object.hasOwn(input, key) && !Array.isArray(input[key]));
   }
 
@@ -1622,7 +1879,7 @@
 
   function duplicateEntityId(state) {
     const seen = new Set();
-    for (const key of ['tasks', 'projects', 'tags', 'areas', 'goals', 'habits', 'notes', 'resources', 'templates', 'savedViews']) {
+    for (const key of ['tasks', 'projects', 'tags', 'areas', 'goals', 'habits', 'notes', 'resources', 'templates', 'savedViews', 'journal']) {
       for (const item of state[key] || []) {
         if (seen.has(item.id)) return item.id;
         seen.add(item.id);
@@ -1697,7 +1954,7 @@
   function validateStateV3(state, migrated = false) {
     if (!state || typeof state !== 'object' || state.version !== 3) return { ok: false, reason: 'unsupported-version' };
     // Older V3 recovery destinations can predate these optional collections.
-    state = { notes: [], resources: [], ...state };
+    state = { notes: [], resources: [], journal: [], ...state };
     const collections = ['tasks', 'projects', 'tags', 'areas', 'goals', 'habits', 'notes', 'resources', 'templates', 'savedViews'];
     for (const key of collections) {
       if (!collectionIsValid(state, key)) return { ok: false, reason: `invalid-${key}` };
@@ -1712,6 +1969,11 @@
     if (!objectIdsAreValid(state.habits)) return { ok: false, reason: 'invalid-habit' };
     if (!objectIdsAreValid(state.templates)) return { ok: false, reason: 'invalid-template' };
     if (!objectIdsAreValid(state.savedViews)) return { ok: false, reason: 'invalid-saved-view' };
+    // R12a: one journal entry per day, its id taken from the day.
+    if (!Array.isArray(state.journal) || state.journal.some(item => !item || typeof item !== 'object' || !isJournalDate(item.date) || item.id !== journalEntryId(item.date)
+      || typeof item.text !== 'string' || !(item.mood === null || Number.isInteger(item.mood) && item.mood >= 1 && item.mood <= 5)
+      || !isIsoTimestamp(item.createdAt) || !isIsoTimestamp(item.updatedAt))
+      || new Set(state.journal.map(item => item.date)).size !== state.journal.length) return { ok: false, reason: 'invalid-journal' };
     if (duplicateEntityId(state)) return { ok: false, reason: 'duplicate-id' };
     const malformedField = invalidExplicitV3Field(state);
     if (malformedField) return { ok: false, reason: malformedField };
@@ -1805,6 +2067,7 @@
     }
     state.goals = state.goals.map(goal => goal && ({ horizon: 'short', ...goal }));
     state.habits = state.habits.map(habit => habit && ({ routine: 'daily', ...habit }));
+    state.journal = Array.isArray(state.journal) ? state.journal.map(item => (item && typeof item === 'object' ? normalizeJournalEntry(item) : item)) : [];
     if (!Array.isArray(state.tasks) || !Array.isArray(state.projects)) return { ok: false, reason: 'invalid-state' };
     state.tasks = state.tasks.map(task => {
       const recurrence=normalizeRecurrenceV3(task.recurrence);
@@ -1884,7 +2147,19 @@
     deriveCalendarWeek,
     deriveCalendarMonthSummary,
     calendarTimeBlocks,
+    calendarDayItems,
+    habitDayState,
+    habitDayPercent,
+    habitWeekProgress,
     nextRecurrenceDate,
+    firstRecurrenceDate,
+    upcomingRecurrenceDates,
+    recurrenceDayShift,
+    journalEntryId,
+    journalEntryFor,
+    journalReminderTime,
+    journalDaySummary,
+    weeklyReviewStats,
     normalizeRecurrenceV3,
     shouldGenerateRecurrence,
     splitRecurrenceForFuture,
@@ -1893,6 +2168,9 @@
     weekStartFor,
     buildNextRecurringTask,
     isReminderDue,
+    taskReminderFired,
+    settleArrivedReminders,
+    safeColor,
     reminderInstant,
     notificationKey,
     notificationPlan,
@@ -1937,6 +2215,7 @@
     getHabitTargetStatus,
     getTimedTaskBlocks,
     computeGoalProgress,
+    goalTaskSet,
     goalProgressSummary,
     goalProgressHistory,
     isGoalOverdue,

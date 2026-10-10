@@ -36,9 +36,11 @@ function actualAddAttachments(state) {
   return { addAttachments: sandbox.addAttachments, saveCalls: () => saveCalls };
 }
 
-test('knowledge record needs a title/name and a link, image, or file', () => {
+// Redesign R10b (S3, decided 2026-10-09): a note needs only a name; a resource still needs a link, image or file.
+test('a knowledge record needs a name; a resource also needs a link, image, or file', () => {
   assert.equal(Core.validateKnowledgeRecord({ type: 'note', title: '', linkUrls: [], attachmentIds: [] }).valid, false);
-  assert.equal(Core.validateKnowledgeRecord({ type: 'note', title: 'Scratch', linkUrls: [], attachmentIds: [] }).valid, false);
+  assert.equal(Core.validateKnowledgeRecord({ type: 'note', title: 'Scratch', linkUrls: [], attachmentIds: [] }).valid, true);
+  assert.equal(Core.validateKnowledgeRecord({ type: 'resource', title: 'Scratch', linkUrls: [], attachmentIds: [] }).valid, false);
   assert.equal(Core.validateKnowledgeRecord({ type: 'resource', title: 'Guide', linkUrls: ['example.com'], attachmentIds: [] }).valid, true);
   assert.equal(Core.validateKnowledgeRecord({ type: 'note', title: 'Sketch', linkUrls: [], attachmentIds: ['image-1'] }).valid, true);
 });
@@ -73,7 +75,8 @@ test('knowledge attachment snapshots use the existing owner pipeline for notes a
   assert.deepEqual(Storage.attachmentOwners(Storage.knowledgeAttachmentSnapshot(resource)).map(owner => [owner.type, owner.item.id]), [['resource', 'r1']]);
 });
 
-test('Notes editor requires a Name plus a normalized link or an attachment', () => {
+// Redesign R10b: the note window needs only a Name; a typed link is normalized when the note is made.
+test('Notes window requires a Name and normalizes a typed link', () => {
   let adapter;
   runInNewContextWithI18n(fs.readFileSync(require.resolve('../js/knowledge.js'), 'utf8'), {
     window: { TodoDomainModules: { register: value => { adapter = value; } } }, requestAnimationFrame: fn => fn(), URL,
@@ -84,21 +87,26 @@ test('Notes editor requires a Name plus a normalized link or an attachment', () 
   };
   const context = {
     Core, state, knowledgeCollection: type => type === 'note' ? 'notes' : 'resources', attachmentOwner: () => null,
-    closePopover() {}, flushTextSave() {}, goalFocusTarget() {}, renderModal() {}, loadOwnerAttachments() {}, setModalState(value) { context.modalState = value; },
+    closePopover() {}, flushTextSave() {}, goalFocusTarget() {}, renderModal() {}, render() {}, loadOwnerAttachments() {}, setModalState(value) { context.modalState = value; },
     $: selector => inputs[selector], $$: () => [], getArea: () => null, nowIso: () => '2026-09-17T12:00:00Z', uid: () => 'n1', copyTemplate: value => structuredClone(value),
     saveState: () => true, closeModal() {}, navigate() {}, setToastMessage() {}, esc: value => String(value ?? ''), modalFrame: body => body, renderAttachmentsSection: () => '',
   };
   const action = name => adapter.handleAction(name, { target: { closest: () => ({ dataset: { ownerType: 'note' } }) } }, context);
 
   action('new-knowledge');
+  inputs['#knowledge-title'].value = '  ';
   action('save-knowledge');
-  assert.match(context.modalState.error, /URL, image, or attached file/);
+  assert.equal(context.modalState.error, 'Note needs a Name.');
+  inputs['#knowledge-title'].value = '  Scratch  ';
   inputs['#knowledge-link'].value = 'example.com';
   action('save-knowledge');
   assert.deepEqual(state.notes.map(note => ({ title: note.title, linkUrls: note.linkUrls })), [{ title: 'Scratch', linkUrls: ['https://example.com'] }]);
+  assert.equal(context.modalState.ownerId, 'n1', 'the window stays open on the new note');
 });
 
-test('new attachment-only Notes and Resources roll back when every upload fails', async () => {
+// Redesign R10b: a note needs only a name, so a note whose files fail to upload is kept and reports the failure; a new
+// resource whose only source is a file still rolls back.
+test('a new attachment-only Resource rolls back when every upload fails; a Note is kept and reports it', async () => {
   for (const type of ['note', 'resource']) {
     let adapter;
     runInNewContextWithI18n(fs.readFileSync(require.resolve('../js/knowledge.js'), 'utf8'), {
@@ -119,17 +127,26 @@ test('new attachment-only Notes and Resources roll back when every upload fails'
       attachmentOwner: ({ ownerType, ownerId }) => { const item = state[ownerType === 'note' ? 'notes' : 'resources'].find(entry => entry.id === ownerId); return item ? { type: ownerType, item } : null; },
       renderModal() {}, getArea: () => null, nowIso: () => '2026-09-17T12:00:00Z', uid: () => `${type}-1`, copyTemplate: value => structuredClone(value),
       $: selector => inputs[selector], $$: () => [], saveState: () => { saveCalls++; return true; }, addAttachments: actual.addAttachments,
-      closeModal() { context.closed = true; }, navigate() { context.navigated = true; }, setToastMessage() {},
+      closeModal() { context.closed = true; }, navigate() { context.navigated = true; }, render() {}, setToastMessage(message) { context.toast = message; },
     };
-    adapter.handleAction('save-knowledge', { target: { closest: () => ({ dataset: { ownerType: type } }) } }, context);
-    await new Promise(resolve => setTimeout(resolve, 0));
-    assert.equal(state[type === 'note' ? 'notes' : 'resources'].length, 0, type);
-    assert.equal(saveCalls, 0, type);
-    assert.equal(context.closed, undefined, type);
-    assert.match(context.modalState.error, /could not be stored/i, type);
-    assert.equal((await Attachments.listAll()).filter(record => record.ownerId === `${type}-1`).length, 0, type);
-    assert.equal(actual.saveCalls(), 0, type);
-    Attachments.put = originalPut;
+    try {
+      adapter.handleAction('save-knowledge', { target: { closest: () => ({ dataset: { ownerType: type } }) } }, context);
+      await new Promise(resolve => setTimeout(resolve, 0));
+      assert.equal(context.closed, undefined, type);
+      assert.equal((await Attachments.listAll()).filter(record => record.ownerId === `${type}-1`).length, 0, type);
+      if (type === 'resource') {
+        assert.equal(state.resources.length, 0);
+        assert.equal(saveCalls, 0);
+        assert.match(context.modalState.error, /could not be stored/i);
+        assert.equal(actual.saveCalls(), 0);
+      } else {
+        assert.deepEqual(state.notes.map(note => [note.title, note.attachmentIds.length]), [['Upload only', 0]]);
+        assert.equal(saveCalls, 1);
+        assert.equal(context.toast, 'Note created. Attachments are unavailable in this browser.');
+      }
+    } finally {
+      Attachments.put = originalPut;
+    }
   }
 });
 

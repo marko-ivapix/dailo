@@ -34,7 +34,8 @@ test('release metadata has one semantic version and is loaded before the app mod
   assert.ok(releaseScript < html.indexOf('src="js/core.js"'), 'release metadata loads before core');
   assert.match(html, /<title>Dailo<\/title>/);
   for (const file of ['index.html', 'js/app.js']) assert.doesNotMatch(read(file), /v1\.8 prototype|Prototype v1\.8/, `${file} has no hard-coded old version`);
-  assert.match(read('js/app.js'), /title="Dailo \$\{esc\(Release\.APP_VERSION\)\}"/);
+  // Redesign R10g retired the sidebar whose brand carried the version; Settings → Pomoć → O aplikaciji shows it.
+  assert.match(read('js/settings-ui.js'), /<strong>\$\{tr\('About'\)\}<\/strong><span>Dailo \$\{esc\(release\.APP_VERSION \|\| ''\)\}<\/span>/);
 });
 
 test('backup manifest records the release version and keeps the historical appVersion', async () => {

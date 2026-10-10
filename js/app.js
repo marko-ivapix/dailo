@@ -23,15 +23,6 @@
   const WEEKDAY_FMT = new Intl.DateTimeFormat(I18n.locale(), { weekday: 'long' });
   const SHORTCUT_DEFAULTS = { newTask:'N', search:'Ctrl/Cmd+F', today:'T', inbox:'I', upcoming:'U', calendar:'C', goals:'G', habits:'H', templates:'Shift+T' };
   const SHORTCUT_LABELS = {newTask:msg('New task'),search:msg('Search'),today:msg('Today'),inbox:msg('Inbox'),upcoming:msg('Upcoming'),calendar:msg('Calendar'),goals:msg('Goals'),habits:msg('Habits'),templates:msg('Templates')};
-  const MOBILE_MORE_ROUTES = [
-    ['upcoming', msg('Upcoming'), 'ph-calendar-dots'], ['anytime', msg('Anytime'), 'ph-infinity'],
-    ['projects', msg('Projects'), 'ph-folder'], ['areas', msg('Areas'), 'ph-squares-four'],
-    ['tags', msg('Tags'), 'ph-tag'], ['notes', msg('Notes'), 'ph-note'],
-    ['resources', msg('Resources'), 'ph-link'], ['cleaning', msg('Cleaning'), 'ph-broom'],
-    ['templates', msg('Templates'), 'ph-copy'], ['saved-views', msg('Saved Views'), 'ph-funnel'],
-    ['review', msg('Weekly review'), 'ph-clipboard-text'], ['completed', msg('Completed'), 'ph-check-circle'], ['archived', msg('Archived Projects'), 'ph-archive'],
-    ['search', msg('Search'), 'ph-magnifying-glass'], ['settings', msg('Settings'), 'ph-gear']
-  ];
   const INBOX_FILTERS = [['all', msg('All')], ['tasks', msg('Tasks')], ['goals', msg('Goals')], ['habits', msg('Habits')], ['notes', msg('Notes')], ['resources', msg('Resources')]];
   let shortcutError = '';
   const DATE_TIME_FMT = new Intl.DateTimeFormat(I18n.locale(), { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
@@ -69,11 +60,6 @@
   let suppressTaskSwipeClick = false;
   let modalReturnFocus = null;
   let popoverReturnFocus = null;
-  let goalPropertyEditor = null;
-  let habitPropertyEditor = null;
-  let createdGoalFocusId = null;
-  let mobileMoreReturnFocus = null;
-  let mobileMoreOpen = false;
   const knowledgeAttachmentCache = new Map();
   let syncMeta = null;
   let syncUi = { step: 'email', email: '', busy: false, error: '' };
@@ -86,11 +72,21 @@
     modalReturnFocus = active instanceof HTMLElement && active.isConnected ? active : null;
   }
 
-  function restoreModalReturnFocus(target, fallback = null) {
+  function restoreModalReturnFocus(target) {
     requestAnimationFrame(() => {
       if (modalState || $('#modal-root .modal') || popoverEl?.isConnected) return;
-      (target?.isConnected ? target : fallback?.isConnected ? fallback : null)?.focus();
+      if (target?.isConnected) target.focus();
     });
+  }
+
+  // R9c–R10d (K12): on Ciljevi, Beleške, Resursi, Oznake, Šabloni and Sačuvani prikazi the floating "+" adds what belongs
+  // there and its label says what;
+  // elsewhere it opens the menu.
+  const QUICK_ADD_DIRECT = Object.freeze({ '#goals': [msg('New goal'), () => openGoalModal()], '#notes': [msg('New note'), () => openKnowledgeWindow('note')], '#resources': [msg('New resource'), () => openKnowledgeWindow('resource')], '#tags': [msg('New tag'), () => openTagModal()], '#templates': [msg('New template'), () => callDomainHook('handleAction', 'new-template', { target: $('#mobile-quick-add-toggle') })], '#saved-views': [msg('New saved view'), () => callDomainHook('handleAction', 'new-saved-view', { target: $('#mobile-quick-add-toggle') })], '#cleaning': [msg('New recurring task'), () => callDomainHook('handleAction', 'new-cleaning-chore', { target: $('#mobile-quick-add-toggle') })], '#journal': [msg('Today’s entry'), () => callDomainHook('handleAction', 'open-journal', { target: $('#mobile-quick-add-toggle') })] });
+  const quickAddDirect = () => QUICK_ADD_DIRECT[location.hash] || null;
+  function syncQuickAddToggle() {
+    const toggle = $('#mobile-quick-add-toggle');
+    if (toggle && (quickAddDirect() || !toggle.hasAttribute('aria-expanded'))) setMobileQuickAddOpen(false);
   }
 
   function setMobileQuickAddOpen(open) {
@@ -98,62 +94,20 @@
     const toggle = $('#mobile-quick-add-toggle');
     const menu = $('#mobile-quick-add-menu');
     if (!root || !toggle || !menu) return;
+    const direct = !open && quickAddDirect();
     root.classList.toggle('is-open', open);
-    toggle.setAttribute('aria-expanded', String(open));
-    toggle.setAttribute('aria-label', open ? tr('Close quick add menu') : tr('Open quick add menu'));
+    if (direct) toggle.removeAttribute('aria-expanded');
+    else toggle.setAttribute('aria-expanded', String(open));
+    toggle.setAttribute('aria-label', direct ? tr(direct[0]) : open ? tr('Close quick add menu') : tr('Open quick add menu'));
     menu.hidden = !open;
-  }
-
-  function mobileMoreRouteActive(route, current = currentRoute()) {
-    const moduleRoute = { project: 'projects', area: 'areas', goal: 'goals', habit: 'habits', note: 'notes', resource: 'resources', 'saved-view': 'saved-views' }[current.type] || current.type;
-    return route === moduleRoute;
-  }
-
-  function renderMobileMoreSheet() {
-    const root = $('#mobile-more-sheet-root');
-    const trigger = $('#mobile-more-trigger');
-    if (!root || !trigger) return;
-    root.hidden = !mobileMoreOpen || Boolean(recovery);
-    trigger.setAttribute('aria-expanded', String(mobileMoreOpen));
-    if (!mobileMoreOpen || recovery || !state) { root.innerHTML = ''; return; }
-    const current = currentRoute();
-    root.innerHTML = `<div class="mobile-more-backdrop" data-action="close-mobile-more"><section id="mobile-more-sheet" class="mobile-more-sheet" role="dialog" aria-modal="true" aria-labelledby="mobile-more-title"><div class="mobile-more-header"><h2 id="mobile-more-title">${tr('More')}</h2><button class="btn-icon" type="button" data-action="close-mobile-more" aria-label="${tr('Close More')}"><i class="ph ph-x"></i></button></div><div class="mobile-more-list">${MOBILE_MORE_ROUTES.map(([route, label, icon]) => { const active = mobileMoreRouteActive(route, current); const action = route === 'search' ? ' data-action="open-search"' : ''; return `<button class="mobile-more-route${active ? ' is-selected' : ''}" type="button" data-mobile-more-route="${route}"${action}${active ? ' aria-current="page"' : ''}><i class="ph ${icon}" aria-hidden="true"></i><span>${tr(label)}</span>${active ? '<i class="ph ph-check mobile-more-check" aria-hidden="true"></i>' : ''}</button>`; }).join('')}</div></section></div>`;
-    requestAnimationFrame(() => root.querySelector('.mobile-more-route, [data-action="close-mobile-more"]')?.focus());
-  }
-
-  function openMobileMore(trigger = $('#mobile-more-trigger')) {
-    mobileMoreReturnFocus = trigger instanceof HTMLElement ? trigger : $('#mobile-more-trigger');
-    mobileMoreOpen = true;
-    renderMobileMoreSheet();
-  }
-
-  function closeMobileMore() {
-    if (!mobileMoreOpen) return;
-    mobileMoreOpen = false;
-    const returnFocus = mobileMoreReturnFocus;
-    mobileMoreReturnFocus = null;
-    renderMobileMoreSheet();
-    requestAnimationFrame(() => returnFocus?.isConnected && returnFocus.focus());
-  }
-
-  function trapMobileMoreFocus(event) {
-    const sheet = $('#mobile-more-sheet');
-    if (!sheet) return;
-    const focusable = [...sheet.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')].filter(element => element.offsetParent !== null);
-    if (!focusable.length) return;
-    const first = focusable[0];
-    const last = focusable[focusable.length - 1];
-    if (!sheet.contains(document.activeElement)) { event.preventDefault(); (event.shiftKey ? last : first).focus(); return; }
-    if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
-    else if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
   }
 
   // Goal panels retain a logical trigger because rendering replaces its node.
   function goalFocusTarget(element = document.activeElement) {
     if (!(element instanceof HTMLElement)) return null;
     const keys = ['action', 'goalProperty', 'goalId', 'milestoneId', 'habitProperty', 'habitId', 'areaId', 'ownerType', 'ownerId', 'date'];
-    const attrs = keys.filter(key => element.dataset[key] !== undefined).map(key => `[data-${key.replace(/[A-Z]/g, c => '-' + c.toLowerCase())}="${CSS.escape(element.dataset[key])}"]`).join('');
-    return { element, selector: attrs || (element.id ? '#' + CSS.escape(element.id) : '') };
+    const attrs = keys.filter(key => element.dataset[key] !== undefined).map(key => `[data-${key.replace(/[A-Z]/g, c => '-' + c.toLowerCase())}="${cssEscape(element.dataset[key])}"]`).join('');
+    return { element, selector: attrs || (element.id ? '#' + cssEscape(element.id) : '') };
   }
 
   function restoreGoalFocus(target) {
@@ -162,12 +116,12 @@
       const trigger = target.element?.isConnected ? target.element : target.selector && $(target.selector);
       const modal = $('#modal-root .modal');
       // A new decision may now be the highest overlay; never focus behind it.
-      const control = modal ? (modal.contains(trigger) ? trigger : [...modal.querySelectorAll('input, select, textarea')].find(el => el.offsetParent !== null) || modal.querySelector('.modal-footer button, button')) : trigger || $('#main [data-goal-property="title"]') || $('#main [data-habit-property="name"]') || $('#main');
+      const control = modal ? (modal.contains(trigger) ? trigger : [...modal.querySelectorAll('input, select, textarea')].find(el => el.offsetParent !== null) || modal.querySelector('.modal-footer button, button')) : trigger || $('#main');
       control?.focus();
     });
   }
-  let calendarReturnDate = null;
-  const calendarHabitQueues = new Map();
+  let calendarOpen = false;
+  let habitsOpen = false;
 
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -179,6 +133,9 @@
   function parseLocalDate(value) {
     return Core.parseDateOnly(value);
   }
+
+  // CSS.escape with a fallback for WebViews and jsdom that lack it (selectors for focus return and lookups).
+  const cssEscape = value => (globalThis.CSS?.escape ? globalThis.CSS.escape(value) : String(value).replace(/["\\\]#.:]/g, '\\$&'));
 
   function formatDate(value, mode = 'short') {
     const date = parseLocalDate(value);
@@ -218,14 +175,56 @@
     return Number.isNaN(date.getTime()) ? null : date.toISOString();
   }
 
+  // Redesign R11b (S15): the repeat editor's choices and the sentence for a rule. Weeks start on Monday.
+  const REPEAT_DAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
+  const REPEAT_SHORT_DAYS = [msg('Sun'), msg('Mon'), msg('Tue'), msg('Wed'), msg('Thu'), msg('Fri'), msg('Sat')];
+  const REPEAT_ON_DAYS = [msg('on Sundays'), msg('on Mondays'), msg('on Tuesdays'), msg('on Wednesdays'), msg('on Thursdays'), msg('on Fridays'), msg('on Saturdays')];
+  const REPEAT_NTH = [[1, msg('First')], [2, msg('Second')], [3, msg('Third')], [4, msg('Fourth')], ['last', msg('Last')]];
+  // Serbian ordinals agree with the weekday, so each pair is its own phrase.
+  const REPEAT_NTH_WEEKDAY = {
+    1: [msg('the first Sunday'), msg('the first Monday'), msg('the first Tuesday'), msg('the first Wednesday'), msg('the first Thursday'), msg('the first Friday'), msg('the first Saturday')],
+    2: [msg('the second Sunday'), msg('the second Monday'), msg('the second Tuesday'), msg('the second Wednesday'), msg('the second Thursday'), msg('the second Friday'), msg('the second Saturday')],
+    3: [msg('the third Sunday'), msg('the third Monday'), msg('the third Tuesday'), msg('the third Wednesday'), msg('the third Thursday'), msg('the third Friday'), msg('the third Saturday')],
+    4: [msg('the fourth Sunday'), msg('the fourth Monday'), msg('the fourth Tuesday'), msg('the fourth Wednesday'), msg('the fourth Thursday'), msg('the fourth Friday'), msg('the fourth Saturday')],
+    last: [msg('the last Sunday'), msg('the last Monday'), msg('the last Tuesday'), msg('the last Wednesday'), msg('the last Thursday'), msg('the last Friday'), msg('the last Saturday')],
+  };
+  const REPEAT_PRESETS = [[msg('Every day'), { frequency: 'daily', interval: 1 }], [msg('Every week'), { frequency: 'weekly', interval: 1 }], [msg('Every month'), { frequency: 'monthly', interval: 1 }], [msg('Every 3 months'), { frequency: 'monthly', interval: 3 }], [msg('Every year'), { frequency: 'yearly', interval: 1 }]];
+  const REPEAT_FREQUENCIES = [['daily', msg('Day by day')], ['weekly', msg('Weekly')], ['monthly', msg('Monthly')], ['yearly', msg('Yearly')]];
+  const REPEAT_DATE_FMT = new Intl.DateTimeFormat(I18n.locale(), { weekday: 'short', month: 'short', day: 'numeric' });
+
+  function repeatList(items) {
+    return items.length > 1 ? tr('{list} and {last}', { list: items.slice(0, -1).join(', '), last: items[items.length - 1] }) : items[0] || '';
+  }
+
   function recurrenceLabel(recurrence) {
     if (!recurrence) return tr('Does not repeat');
     const interval = Math.max(1, Number(recurrence.interval) || 1);
+    const cap = text => text.charAt(0).toUpperCase() + text.slice(1);
+    let text;
     // Interval 1 has its own wording: Serbian plural "one" also covers 21, 31 …
-    if (recurrence.frequency === 'daily') return interval === 1 ? tr('Every day') : trn(interval, 'Every {count} day', 'Every {count} days');
-    if (recurrence.frequency === 'weekly') return interval === 1 ? tr('Every week') : trn(interval, 'Every {count} week', 'Every {count} weeks');
-    return interval === 1 ? tr('Every month') : trn(interval, 'Every {count} month', 'Every {count} months');
+    if (recurrence.frequency === 'daily') text = interval === 1 ? tr('Every day') : trn(interval, 'Every {count} day', 'Every {count} days');
+    else if (recurrence.frequency === 'weekly' && recurrence.weekdays?.length) {
+      const days = REPEAT_DAY_ORDER.filter(day => recurrence.weekdays.includes(day));
+      const names = days.join() === '1,2,3,4,5' ? tr('on weekdays') : days.join() === '6,0' ? tr('on weekends') : repeatList(days.map(day => tr(REPEAT_ON_DAYS[day])));
+      text = interval === 1 ? cap(names) : trn(interval, 'Every {count} week, {days}', 'Every {count} weeks, {days}', { days: names });
+    } else if (recurrence.frequency === 'weekly') text = interval === 1 ? tr('Every week') : trn(interval, 'Every {count} week', 'Every {count} weeks');
+    else if (recurrence.frequency === 'monthly' && recurrence.monthMode === 'weekday') {
+      const which = tr(REPEAT_NTH_WEEKDAY[recurrence.weekOfMonth]?.[recurrence.weekday] || '');
+      text = interval === 1 ? cap(tr('{which} of every month', { which })) : trn(interval, 'Every {count} month, {which}', 'Every {count} months, {which}', { which });
+    } else if (recurrence.frequency === 'monthly' && recurrence.monthMode === 'day' && recurrence.monthDay === 'last') {
+      text = interval === 1 ? tr('Every month on the last day') : trn(interval, 'Every {count} month, on the last day', 'Every {count} months, on the last day');
+    } else if (recurrence.frequency === 'monthly' && recurrence.monthMode === 'day') {
+      text = interval === 1 ? tr('Every month on day {day}', { day: recurrence.monthDay }) : trn(interval, 'Every {count} month, on day {day}', 'Every {count} months, on day {day}', { day: recurrence.monthDay });
+    } else if (recurrence.frequency === 'yearly') text = interval === 1 ? tr('Every year') : trn(interval, 'Every {count} year', 'Every {count} years');
+    else text = interval === 1 ? tr('Every month') : trn(interval, 'Every {count} month', 'Every {count} months');
+    if (recurrence.endType === 'date' && recurrence.endDate) text += ` · ${tr('until {date}', { date: formatDate(recurrence.endDate) })}`;
+    else if (recurrence.endType === 'afterOccurrences' && recurrence.endAfterOccurrences) text += ` · ${trn(recurrence.endAfterOccurrences, '{count} time', '{count} times')}`;
+    // R11c (S14): a paused or ended repeat says so.
+    if (recurrence.status === 'paused') text += ` · ${tr('paused')}`;
+    else if (recurrence.status === 'ended') text += ` · ${tr('ended')}`;
+    return text;
   }
+
 
   function createEmptyState() {
     return {
@@ -240,10 +239,9 @@
       resources: [],
       templates: [],
       savedViews: [],
+      journal: [],
       settings: { ...Core.normalizeV16Settings({}), shortcuts: { ...SHORTCUT_DEFAULTS } },
       ui: {
-        sidebarCollapsed: false,
-        sidebarSections: {},
         suggestionsExpanded: false,
         todayCompletedExpanded: false,
         projectCompletedExpanded: {},
@@ -251,6 +249,7 @@
         completedPeriod: 0,
         inboxFilter: 'all',
         calendarView: 'week',
+        calendarDayMode: 'list',
         calendarVisibility: { tasks: true, habits: true, goals: true, milestones: true },
         habitTrackerMonth: Core.dateOnly().slice(0, 7),
       },
@@ -322,18 +321,19 @@
     const next = Core.migrateStateV16(migrated.state).state;
     next.settings = Core.normalizeV16Settings(next.settings);
     next.ui = next.ui || {};
-    next.ui.sidebarSections = next.ui.sidebarSections || {};
     next.settings.shortcuts = Object.fromEntries(Object.entries(SHORTCUT_DEFAULTS).map(([key,value])=>[key,Object.hasOwn(next.settings.shortcuts || {},key) ? Core.normalizeShortcut(next.settings.shortcuts[key]) : value]));
-    next.ui.sidebarCollapsed = Boolean(next.ui.sidebarCollapsed);
     next.ui.suggestionsExpanded = Boolean(next.ui.suggestionsExpanded);
     next.ui.todayCompletedExpanded = Boolean(next.ui.todayCompletedExpanded);
     next.ui.projectCompletedExpanded = next.ui.projectCompletedExpanded || {};
     next.ui.completedProjectFilter = next.ui.completedProjectFilter || '';
     next.ui.completedPeriod = Number(next.ui.completedPeriod) || 0;
     next.ui.inboxFilter = INBOX_FILTERS.some(([value]) => value === next.ui.inboxFilter) ? next.ui.inboxFilter : 'all';
-    next.ui.selectedTagId = next.ui.selectedTagId || '';
-    next.ui.areaTab = ['all', 'active', 'archived'].includes(next.ui.areaTab) ? next.ui.areaTab : 'all';
-    next.ui.calendarView = ['day', 'week', 'month'].includes(next.ui.calendarView) ? next.ui.calendarView : 'week';
+    // Redesign R7 (C1, C6): Nedelja, Mesec or Predstojeće; a stored V1.12 "day" view is the week on its Raspored.
+    if (next.ui.calendarView === 'day') next.ui.calendarDayMode = 'schedule';
+    next.ui.calendarView = ['week', 'month', 'upcoming'].includes(next.ui.calendarView) ? next.ui.calendarView : 'week';
+    next.ui.calendarDayMode = next.ui.calendarDayMode === 'schedule' ? 'schedule' : 'list';
+    next.ui.tasksView = next.ui.tasksView === 'projects' ? 'projects' : 'anytime';
+    next.ui.todayExpanded = Object.fromEntries(['overdue', 'today', 'habits'].map(key => [key, next.ui.todayExpanded?.[key] === true]));
     next.ui.calendarVisibility = Object.fromEntries(['tasks', 'habits', 'goals', 'milestones'].map(type => [type, next.ui.calendarVisibility?.[type] !== false]));
     const habitMonth = String(next.ui.habitTrackerMonth || '');
     next.ui.habitTrackerMonth = /^\d{4}-\d{2}$/.test(habitMonth) && Core.parseDateOnly(`${habitMonth}-01`) ? habitMonth : Core.dateOnly().slice(0, 7);
@@ -341,7 +341,7 @@
       ...tag,
       id: tag.id || uid('tag'),
       name: Core.normalizeTagName(tag.name),
-      color: tag.color || PROJECT_COLORS[i % PROJECT_COLORS.length],
+      color: Core.safeColor(tag.color, PROJECT_COLORS[i % PROJECT_COLORS.length]),
       createdAt: tag.createdAt || nowIso(),
       updatedAt: tag.updatedAt || nowIso(),
     }));
@@ -357,10 +357,11 @@
       attachmentIds: Array.isArray(t.attachmentIds) ? t.attachmentIds : [],
       subtasks: (t.subtasks || []).map((s, i) => ({ ...s, id: s.id || uid('sub'), title: s.title || '', isCompleted: Boolean(s.isCompleted), order: Number.isFinite(s.order) ? s.order : i })),
     }));
-    next.projects = next.projects.map((p, i) => ({ color: PROJECT_COLORS[i % PROJECT_COLORS.length], order: i, createdAt: nowIso(), updatedAt: nowIso(), isArchived: false, archivedAt: null, ...p }));
+    next.projects = next.projects.map((p, i) => ({ order: i, createdAt: nowIso(), updatedAt: nowIso(), isArchived: false, archivedAt: null, ...p, color: Core.safeColor(p.color, PROJECT_COLORS[i % PROJECT_COLORS.length]) }));
     next.areas = (next.areas || []).map((area, i) => ({
       name: '', color: PROJECT_COLORS[i % PROJECT_COLORS.length], icon: AREA_ICONS[0], status: 'active', isPinned: false,
       createdAt: nowIso(), updatedAt: nowIso(), ...area,
+      color: Core.safeColor(area.color, PROJECT_COLORS[i % PROJECT_COLORS.length]),
       name: Core.normalizeTagName(area.name),
       status: area.status === 'archived' ? 'archived' : 'active',
       isPinned: Boolean(area.isPinned),
@@ -624,16 +625,11 @@
       get modalState() { return modalState; },
       get undoHold() { return undoHold; },
       setModalState(value) { modalState = value; },
-      get goalPropertyEditor() { return goalPropertyEditor; },
-      set goalPropertyEditor(value) { goalPropertyEditor = value; },
-      get habitPropertyEditor() { return habitPropertyEditor; },
-      set habitPropertyEditor(value) { habitPropertyEditor = value; },
       get popoverEl() { return popoverEl; },
       getHabit, habitMetrics, habitDraft, openHabitModal, refreshHabitMetrics,
       setHabitLog, updateHabitStatus, snoozeHabit, syncHabitGoalLinks,
       areaDefaults: { color: PROJECT_COLORS[0], icon: AREA_ICONS[0] },
-      setCreatedGoalFocusId(value) { createdGoalFocusId = value; },
-      Core, getTask, getGoal, getProject, allProjects, sortedProjects, projectTasks, goalProgressLabel, goalStatusLabel, relativeDateLabel, formatReminder, recurrenceLabel, priorityLabel, priorityIcon, tagSummary, clampOrder, emptyState,
+      Core, getTask, getGoal, getProject, allProjects, sortedProjects, projectTasks, goalProgressLabel, goalStatusLabel, relativeDateLabel, formatReminder, recurrenceLabel, taskRecurrence, priorityLabel, priorityIcon, tagSummary, clampOrder, emptyState,
       render, restoreGoalFocus, captureGoalProgress, evaluateGoalProgressChanges,
       putGoalHistory, goalDraft, openGoalModal, openPopover, templateMenuEntry, syncGoalLinks,
       maybePromptGoalReached, updateGoalStatus, saveAndRender,
@@ -641,14 +637,19 @@
       pageHeader, modalFrame, renderMain, renderModal, currentRoute,
       knowledgeAttachmentCache, readOwnerAttachments, renderAttachmentRow,
       renderAttachmentsSection, loadOwnerAttachments, addAttachments,
-      closePopover, flushTextSave, goalFocusTarget, closeModal,
+      closePopover, flushTextSave, scheduleTextSave, goalFocusTarget, closeModal,
       openGoalHistory,
       nowIso, uid, copyTemplate, saveState, navigate, setToastMessage, requestDeleteEntity, openConfirm, setUndo,
-      calendarDate, calendarLogs, parseLocalDate, formatDate,
-      openCalendarDetail, navigateCalendar, openPlanPicker, calendarHabitAction, openCalendarValue, openCalendarGoalProgress,
-      templateTypes: TEMPLATE_TYPES, templateLabel, openTemplateEditorFromSource, saveTemplateRecord, duplicateTemplateRecord,
+      calendarDate, parseLocalDate, formatDate, navigateCalendar, openPlanPicker, listTasks, deadlineRow,
+      refreshSheet, openHabitDetails, openGoalDetails,
+      openHabitStartSheet(anchor) { openDateSheet(anchor, { type: 'habit' }, 'start'); },
+      calendarTaskRow(task) { return taskRow(task, 'calendar', { today: true }); },
+      templateTypes: TEMPLATE_TYPES, templateLabel, openTemplateEditorFromSource, saveTemplateRecord, duplicateTemplateRecord, useTemplate,
       captureModalReturnFocus,
       durationLabel,
+      todayDueLabel, openHabitValue,
+      looseTasks(completed) { return listTasks().filter(task => !task.projectId && !task.isInbox && Boolean(task.isCompleted) === completed); },
+      goalPercent(goal) { return Math.round(Core.computeGoalProgress(goal, state, state.habitMetrics || {}).percent); },
       syncView,
       reviewTaskRow(task, context, options = {}) {
         return taskRow(task, context, options);
@@ -662,22 +663,28 @@
       },
       openProjectModal, saveProjectModal, archiveProject, restoreProject, deleteProject,
       openQuickAdd, openGoalModal, openHabitModal,
-      renderAreaTaskRow(task, areaId) { return taskRow(task, `area:${areaId}`); },
+      renderAreaTaskRow(task, areaId) { return taskRow(task, `area:${areaId}`, { today: true }); },
+      repeatEditorState, repeatEditorHtml, repeatEditorUpdate, repeatEditorError, repeatEditorSetStart, repeatRuleFromSheet, repeatFocusSelector, readRepeatInputs,
+      renderChoreRow(task, options = {}) { return taskRow(task, 'cleaning', { today: true, metaText: options.metaText, sideHtml: options.sideHtml }); },
+      renderGoalListRow(goal) { return callDomainHook('renderRoute', { type: 'goal-list-row', goal }) || ''; },
+      renderHabitListRow(habit) { return callDomainHook('renderRoute', { type: 'habit-list-row', habit }) || ''; },
+      projectOverviewRow(project) { return projectOverviewRow(project, listTasks()); },
       renderGoalRow, renderHabitRow,
-      renderAreaKnowledge(areaId) { return callDomainHook('renderRoute', { type: 'area-knowledge', id: areaId }) || ''; },
       renderSavedViewItem(view, item, today) {
-        return view.type === 'tasks' ? taskRow(item, 'saved-view') : view.type === 'goals' ? renderGoalRow(item) : renderHabitRow(item, item.status === 'active' ? Core.habitStatusForDate(item, state.habitLogCache?.[item.id] || [], today, today) : null);
+        // R10d (S8): the rows of their screens — Today rows, Ciljevi rows and compact habit rows.
+        return view.type === 'tasks' ? taskRow(item, 'saved-view', { today: true }) : view.type === 'goals' ? callDomainHook('renderRoute', { type: 'goal-list-row', goal: item }) || '' : callDomainHook('renderRoute', { type: 'habit-list-row', habit: item }) || '';
       },
       saveSavedViewDraft(id, draft) {
         const existing = state.savedViews.find(view => view.id === id);
         const view = { ...draft, name: draft.name.trim(), id: existing?.id || uid('view'), createdAt: existing?.createdAt || nowIso(), updatedAt: nowIso() };
         if (existing) state.savedViews.splice(state.savedViews.indexOf(existing), 1, view); else state.savedViews.push(view);
-        saveState(); closeModal(); render();
+        saveState(); closeModal(); render(); setToastMessage(tr('View saved'));
       },
       duplicateSavedView(id) {
         const source = state.savedViews.find(view => view.id === id);
         if (!source) return;
-        const view = copyTemplate(source); view.id = uid('view'); view.name += ' copy'; view.createdAt = view.updatedAt = nowIso(); state.savedViews.push(view); saveAndRender();
+        const view = copyTemplate(source); view.id = uid('view'); view.name = tr('{name} (copy)', { name: source.name }); view.isPinned = false; view.createdAt = view.updatedAt = nowIso(); state.savedViews.push(view); saveAndRender();
+        setToastMessage(tr('View duplicated'));
       },
       toggleSavedViewPin(id) {
         const view = state.savedViews.find(item => item.id === id);
@@ -699,8 +706,7 @@
       saveShortcut,
       disableShortcut,
       resetShortcuts,
-      savePersonalization,
-      resetPersonalization
+      savePersonalization
     };
   }
 
@@ -714,7 +720,7 @@
 
   function currentRoute() {
     const hash = location.hash.replace(/^#/, '') || 'today';
-    if (['today', 'inbox', 'upcoming', 'calendar', 'anytime', 'tags', 'areas', 'notes', 'resources', 'goals', 'habits', 'templates', 'projects', 'cleaning', 'saved-views', 'archived', 'completed', 'review', 'settings'].includes(hash)) return { type: hash };
+    if (['today', 'inbox', 'tasks', 'more', 'upcoming', 'calendar', 'anytime', 'tags', 'areas', 'notes', 'resources', 'goals', 'habits', 'templates', 'projects', 'cleaning', 'saved-views', 'archived', 'completed', 'review', 'settings', 'journal'].includes(hash)) return { type: hash };
     for (const type of ['note', 'resource']) if (hash.startsWith(type + '/')) {
       const id = decodeURIComponent(hash.slice(type.length + 1));
       return attachmentOwner({ ownerType: type, ownerId: id }) ? { type, id } : { type: knowledgeCollection(type) };
@@ -724,6 +730,10 @@
       const id = decodeURIComponent(hash.slice('project/'.length));
       if (getProject(id)) return { type: 'project', id };
       return { type: 'today' };
+    }
+    if (hash.startsWith('tag/')) {
+      const id = decodeURIComponent(hash.slice('tag/'.length));
+      return getTag(id) ? { type: 'tag', id } : { type: 'tags' };
     }
     if (hash.startsWith('area/')) {
       const id = decodeURIComponent(hash.slice('area/'.length));
@@ -746,6 +756,15 @@
   function navigate(route) {
     closePopover();
     closeModal();
+    // Redesign R8c (S13): a habit's details open as a window over the current screen.
+    const habitRoute = /^#?habit\/(.+)$/.exec(route);
+    if (habitRoute) { openHabitDetails(decodeURIComponent(habitRoute[1])); return; }
+    // Redesign R9b (GO5): so does a goal.
+    const goalRoute = /^#?goal\/(.+)$/.exec(route);
+    if (goalRoute) { openGoalDetails(decodeURIComponent(goalRoute[1])); return; }
+    // Redesign R10b (S3): so do a note and a resource.
+    const knowledgeRoute = /^#?(note|resource)\/(.+)$/.exec(route);
+    if (knowledgeRoute) { openKnowledgeWindow(knowledgeRoute[1], decodeURIComponent(knowledgeRoute[2])); return; }
     const target = route.startsWith('#') ? route : `#${route}`;
     if (location.hash === target) render();
     else location.hash = target;
@@ -796,10 +815,34 @@
     return true;
   }
 
+  function inboxItem(type, id) {
+    const collection = type === 'note' ? 'notes' : type === 'resource' ? 'resources' : `${type}s`;
+    return (state[collection] || []).find(item => item.id === id) || null;
+  }
+
+  // Redesign R6 (I5, I6): "Razvrstano" only takes the item out of Inbox, with Undo.
   function removeInboxRecord(type, id) {
     if (!removeInboxRecordFromState(state, type, id, nowIso())) return;
-    saveAndRender();
-    setToastMessage(tr('Item removed from Inbox.'));
+    saveAndRender(); renderModal();
+    setUndo(msg('Sorted'), () => { const item = inboxItem(type, id); if (!item) return; item.isInbox = true; item.updatedAt = nowIso(); saveState(); render(); renderModal(); });
+  }
+
+  // Redesign R6 (I5): "Oblast…" sorts a note, resource, goal or habit into an area, with Undo.
+  function openInboxAreaSheet(anchor, type, id) {
+    const item = inboxItem(type, id);
+    if (!item) return;
+    const areas = sortedAreas().filter(area => area.status !== 'archived');
+    const options = areas.map(area => `<button class="popover-option sheet-option${item.areaId === area.id ? ' is-selected' : ''}" type="button" data-pop-action="inbox-set-area" data-inbox-type="${esc(type)}" data-inbox-id="${esc(id)}" data-area-id="${esc(area.id)}"><span class="sheet-option-label">${esc(area.name)}</span><span class="sheet-radio${item.areaId === area.id ? ' is-on' : ''}" aria-hidden="true"></span></button>`).join('');
+    openPopover(anchor, `<div class="popover-title">${tr('Area')}</div><p class="sheet-subtitle">${esc(item.title || item.name || '')}</p><div class="sheet-card">${options || `<div class="popover-empty">${tr('No areas yet.')}</div>`}</div><p class="sheet-note">${tr('A tap sorts the item into the area.')}</p>`, { type: 'inbox-area' });
+  }
+  function setInboxArea(type, id, areaId) {
+    const item = inboxItem(type, id);
+    const area = getArea(areaId);
+    if (!item || !area) return;
+    const previous = { areaId: item.areaId ?? null, isInbox: item.isInbox };
+    item.areaId = area.id; item.isInbox = false; item.updatedAt = nowIso();
+    closePopover(); saveState(); render(); renderModal();
+    setUndo(msg('Moved to area'), () => { const current = inboxItem(type, id); if (!current) return; Object.assign(current, previous, { updatedAt: nowIso() }); saveState(); render(); renderModal(); });
   }
 
   function inboxGroupForDate(value, today = Core.dateOnly()) {
@@ -818,14 +861,17 @@
     return msg('Earlier');
   }
 
+  // Redesign R6 (I5): a task is a Today row with Danas / Sutra / Kad stignem / Projekat…; another item has its
+  // icon, title and type with Otvori / Oblast… / Razvrstano.
   function renderInboxRecord(record) {
-    if (record.type === 'task') return taskRow(record.item, 'inbox', { draggable: true, inbox: true });
+    if (record.type === 'task') return taskRow(record.item, 'inbox', { today: true, inbox: true, draggable: true });
     const item = record.item;
     const label = { goal: msg('Goal'), habit: msg('Habit'), note: msg('Note'), resource: msg('Resource') }[record.type] || msg('Item');
-    const openLabel = { goal: msg('Open goal'), habit: msg('Open habit'), note: msg('Open note'), resource: msg('Open resource') }[record.type] || msg('Open item');
-    const title = item.title || item.name || tr(label);
-    return `<article class="inbox-mixed-row" data-inbox-type="${esc(record.type)}" data-inbox-id="${esc(item.id)}"><button class="inbox-mixed-open" type="button" data-route="${esc(record.type)}/${esc(item.id)}"><span class="inbox-mixed-icon"><i class="ph ${record.type === 'goal' ? 'ph-target' : record.type === 'habit' ? 'ph-repeat' : record.type === 'note' ? 'ph-note' : 'ph-link'}"></i></span><span><strong>${esc(title)}</strong><small>${esc(tr(label))} · ${tr('Needs organizing')}</small></span></button><span class="inbox-mixed-actions"><button class="quick-chip" type="button" data-action="inbox-remove" data-inbox-type="${esc(record.type)}" data-inbox-id="${esc(item.id)}">${tr('Remove')}</button><button class="btn-icon" type="button" data-route="${esc(record.type)}/${esc(item.id)}" aria-label="${esc(tr(openLabel))}"><i class="ph ph-arrow-up-right"></i></button></span></article>`;
+    const icon = record.type === 'goal' ? 'ph-target' : record.type === 'habit' ? 'ph-repeat' : record.type === 'note' ? 'ph-note' : 'ph-link';
+    const attrs = `data-inbox-type="${esc(record.type)}" data-inbox-id="${esc(item.id)}"`;
+    return `<article class="today-row inbox-item-row" ${attrs}><span class="inbox-item-icon" aria-hidden="true"><i class="ph ${icon}"></i></span><button class="today-row-main" type="button" data-route="${esc(record.type)}/${esc(item.id)}"><span class="task-title">${esc(item.title || item.name || tr(label))}</span><span class="task-meta">${tr(label)}</span></button><div class="quick-actions inbox-item-chips"><button class="quick-chip" type="button" data-route="${esc(record.type)}/${esc(item.id)}">${tr('Open details')}</button><button class="quick-chip" type="button" data-action="inbox-area" ${attrs}>${tr('Area…')}</button><button class="quick-chip" type="button" data-action="inbox-remove" ${attrs}>${tr('Sorted')}</button></div></article>`;
   }
+
 
   function projectTasks(projectId, completed = false) {
     return state.tasks
@@ -835,21 +881,53 @@
         : (a, b) => clampOrder(a.projectOrder) - clampOrder(b.projectOrder) || b.createdAt.localeCompare(a.createdAt));
   }
 
+  // Focus survives a re-render (audit A-2): the focused control in the main view or bottom navigation is
+  // found again by its id or data attributes. A route change names the page and moves focus to its heading.
+  const FOCUS_KEYS = ['action', 'route', 'taskId', 'projectId', 'goalId', 'habitId', 'areaId', 'tagId', 'ownerType', 'ownerId', 'date', 'goalProperty', 'habitProperty', 'milestoneId', 'section', 'filter', 'value'];
+  function focusDescriptor(element) {
+    const region = element instanceof HTMLElement && element !== document.body ? element.closest('#main, #mobile-bottom-nav') : null;
+    if (!region) return null;
+    // Rendering must never fail on focus bookkeeping, so a missing CSS.escape (old WebViews, jsdom) has a fallback.
+    const escape = value => (globalThis.CSS?.escape ? globalThis.CSS.escape(value) : String(value).replace(/["\\\]#.:]/g, '\\$&'));
+    if (element.id) return `#${escape(element.id)}`;
+    const attrs = FOCUS_KEYS.filter(key => element.dataset[key] !== undefined).map(key => `[data-${key.replace(/[A-Z]/g, c => '-' + c.toLowerCase())}="${escape(element.dataset[key])}"]`).join('');
+    // Searched within its own region: the same data attributes can appear in another part of the page.
+    return attrs ? `#${region.id} ${element.tagName.toLowerCase()}${attrs}` : null;
+  }
+  let renderedRoute = null;
   function render() {
+    const focused = focusDescriptor(document.activeElement);
+    renderView();
+    const route = location.hash || '#today';
+    const routeChanged = renderedRoute !== null && route !== renderedRoute;
+    renderedRoute = route;
+    announceRoute(routeChanged);
+    if (!routeChanged && focused && (!document.activeElement || document.activeElement === document.body)) $(focused)?.focus({ preventScroll: true });
+  }
+  function announceRoute(moveFocus) {
+    const heading = $('#main .page-title');
+    const name = heading?.textContent?.trim();
+    document.title = name ? `${name} · Dailo` : 'Dailo';
+    if (moveFocus && !modalState && heading) { heading.setAttribute('tabindex', '-1'); heading.focus({ preventScroll: true }); }
+  }
+
+  function renderView() {
     const app = $('#app');
     if (!app) return;
     if (recovery) {
-      app.classList.remove('is-collapsed');
-      $('#sidebar').innerHTML = '';
       $('#main').innerHTML = renderRecovery();
       renderMobileBottomNav();
       return;
     }
-    app.classList.toggle('is-collapsed', Boolean(state.ui.sidebarCollapsed));
-    renderSidebar();
     renderMain();
     renderMobileBottomNav();
-    renderMobileMoreSheet();
+  }
+
+  // Redesign R1 (G1, M4): six bottom items; every other route lights up the item it lives under.
+  const BOTTOM_NAV_PARENT = { anytime: 'tasks', projects: 'tasks', project: 'tasks', upcoming: 'calendar', habit: 'habits' };
+  function bottomNavRoute(route) {
+    if (['today', 'inbox', 'tasks', 'calendar', 'habits', 'more'].includes(route.type)) return route.type;
+    return BOTTOM_NAV_PARENT[route.type] || 'more';
   }
 
   function renderMobileBottomNav() {
@@ -858,7 +936,7 @@
     nav.hidden = Boolean(recovery);
     if (recovery || !state) return;
     const route = currentRoute();
-    const moduleRoute = { goal: 'goals', habit: 'habits' }[route.type] || route.type;
+    const moduleRoute = bottomNavRoute(route);
     nav.querySelectorAll('[data-route]').forEach(button => {
       const active = button.dataset.route === moduleRoute;
       button.classList.toggle('is-active', active);
@@ -868,64 +946,6 @@
     const badge = $('#mobile-inbox-badge');
     const count = activeInboxRecords('all').length;
     if (badge) { badge.textContent = count > 99 ? '99+' : String(count); badge.hidden = count === 0; }
-  }
-
-  function renderSidebar() {
-    const route = currentRoute();
-    const inboxCount = activeInboxRecords('all').length;
-    const collapsed = state.ui.sidebarCollapsed;
-    const projects = sortedProjects();
-    const pinnedAreas = sortedAreas().filter(area => area.status === 'active' && area.isPinned);
-    const moduleRoute = {project:'projects',area:'areas',note:'notes',resource:'resources',goal:'goals',habit:'habits','saved-view':'saved-views'}[route.type];
-    const link = (path,icon,label) => navItem(path,icon,label,route.type === path || moduleRoute === path || path.startsWith(route.type+'/') && route.id === path.split('/')[1]);
-    const group = (key,label,body) => `<section class="sidebar-section" data-sidebar-section="${key}"><button class="sidebar-section-title sidebar-section-toggle" type="button" data-action="toggle-sidebar-section" data-section="${key}" aria-expanded="${!state.ui.sidebarSections[key]}" aria-controls="sidebar-${key}" title="${label}"><span>${label}</span><i class="ph ${state.ui.sidebarSections[key]?'ph-caret-right':'ph-caret-down'}"></i></button><div class="sidebar-section-body" id="sidebar-${key}" ${state.ui.sidebarSections[key]?'hidden':''}>${body}</div></section>`;
-    $('#sidebar').innerHTML = `
-      <div class="sidebar-header">
-        <div class="brand" title="Dailo ${esc(Release.APP_VERSION)}">
-          <span class="brand-mark" aria-hidden="true"></span>
-          <span class="brand-name">Dailo</span>
-        </div>
-        <button class="btn-icon sidebar-collapse" type="button" data-action="toggle-sidebar" aria-label="${collapsed ? tr('Expand sidebar') : tr('Collapse sidebar')}" title="${collapsed ? tr('Expand sidebar') : tr('Collapse sidebar')}">
-          <i class="ph ph-sidebar-simple"></i>
-        </button>
-      </div>
-      <div class="sidebar-scroll">
-        <nav class="nav-group" aria-label="${tr('Task views')}">
-          ${navItem('today', 'ph-sun', tr('Today'), route.type === 'today', '', 'data-drop-plan="today"')}
-          ${navItem('inbox', 'ph-tray', tr('Inbox'), route.type === 'inbox', inboxCount || '')}
-          ${navItem('upcoming', 'ph-calendar-dots', tr('Upcoming'), route.type === 'upcoming')}
-          ${navItem('calendar', 'ph-calendar-blank', tr('Calendar'), route.type === 'calendar')}
-          <div class="task-context-drop tomorrow-drop-target" data-drop-plan="tomorrow" aria-label="${tr('Drop task to plan for tomorrow')}"><i class="ph ph-arrow-bend-down-right"></i><span>${tr('Tomorrow')}</span></div>
-        </nav>
-
-        ${group('work',tr('WORK'),`
-          ${link('projects','ph-folder',tr('Projects'))}
-          <div class="projects-list" data-drop-context="projects">
-            ${projects.map(project => `
-              <button class="project-item ${route.type === 'project' && route.id === project.id ? 'is-active' : ''}" type="button" data-route="project/${esc(project.id)}" data-project-id="${esc(project.id)}" data-drop-project-id="${esc(project.id)}" draggable="true" title="${esc(project.name)}">
-                <span class="project-dot" style="--project-color:${esc(project.color)}"></span>
-                <span class="project-name">${esc(project.name)}</span>
-              </button>`).join('')}
-          </div>
-          <button class="sidebar-action sidebar-new-project" type="button" data-action="new-project" title="${tr('New project')}">
-            <i class="ph ph-plus"></i><span>${tr('New project')}</span>
-          </button>
-          ${link('areas','ph-squares-four',tr('Areas'))}${link('notes','ph-note',tr('Notes'))}${link('resources','ph-link',tr('Resources'))}${link('tags','ph-tag',tr('Tags'))}${link('cleaning','ph-broom',tr('Cleaning'))}`)}
-        ${group('progress',tr('PROGRESS'),link('goals','ph-target',tr('Goals'))+link('habits','ph-repeat',tr('Habits'))+link('review','ph-clipboard-text',tr('Weekly review')))}
-        ${group('tools',tr('TOOLS'),link('templates','ph-copy',tr('Templates'))+link('saved-views','ph-funnel',tr('Saved Views')))}
-        ${group('pinned-areas',tr('PINNED AREAS'),`<div class="pinned-areas-list">${pinnedAreas.map(area => `<button class="sidebar-action pinned-area ${route.type === 'area' && route.id === area.id ? 'is-active' : ''}" type="button" data-route="area/${esc(area.id)}" title="${esc(area.name)}"><i class="ph ${esc(area.icon)}" style="color:${esc(area.color)}"></i><span>${esc(area.name)}</span></button>`).join('')}</div>`)}
-        ${group('pinned-views',tr('PINNED VIEWS'),state.savedViews.filter(v=>v.isPinned).map(v=>link('saved-view/'+esc(v.id),'ph-funnel',esc(v.name))).join(''))}
-        ${group('more',tr('MORE'),link('completed','ph-check-circle',tr('Completed'))+link('archived','ph-archive',tr('Archived Projects'))+link('settings','ph-gear',tr('Settings')))}
-
-        <div class="sidebar-footer">
-          <button class="sidebar-action" type="button" data-action="open-search" title="${tr('Search')}">
-            <i class="ph ph-magnifying-glass"></i><span>${tr('Search')}</span>
-          </button>
-          <button class="sidebar-action" type="button" data-action="more-menu" title="${tr('More')}">
-            <i class="ph ph-dots-three-outline"></i><span>${tr('More')}</span>
-          </button>
-        </div>
-      </div>`;
   }
 
   function navItem(route, icon, label, active, badge = '', attrs = '') {
@@ -946,40 +966,29 @@
     document.documentElement.style.setProperty('--control-height', comfortable ? '38px' : '32px');
     document.documentElement.style.setProperty('--task-min-height', comfortable ? '52px' : '44px');
     const route = currentRoute();
+    enterCalendarRoute(route);
+    enterHabitsRoute(route);
     const main = $('#main');
     const warning = storageWarningHtml();
     let content = callDomainHook('renderRoute', route);
     if (content === undefined) {
       if (route.type === 'today') content = renderToday();
+      else if (route.type === 'more') content = renderMoreScreen();
+      else if (route.type === 'tasks') content = renderTasksScreen();
       else if (route.type === 'inbox') content = renderInbox();
-      else if (route.type === 'upcoming') content = renderUpcoming();
       else if (route.type === 'anytime') content = renderAnytime();
       else if (route.type === 'tags') content = renderTags();
+      else if (route.type === 'tag') content = renderTag(route.id);
       else if (route.type === 'completed') content = renderCompleted();
       else content = renderToday();
     }
-    main.innerHTML = `${warning}<div class="content ${route.type === 'calendar' ? 'calendar-content' : ''}">${content}</div>`;
-    if (route.type === 'today') applyTodayDashboard(main);
-    if (createdGoalFocusId && route.type === 'goal' && route.id === createdGoalFocusId) {
-      createdGoalFocusId = null;
-      restoreGoalFocus(goalFocusTarget(main.querySelector('[data-goal-property="title"]')));
-    }
-  }
-
-  function applyTodayDashboard(main) {
-    const dashboard = state.settings.dashboard || {};
-    const content = main.querySelector('.content'); if (!content) return;
-    const cards = [...content.querySelectorAll(':scope > [data-dashboard-section]')];
-    const visible = new Set(state.settings.todayVisibleSections || ['focus', 'review', 'actions']);
-    cards.forEach(card => { card.hidden = !visible.has(card.dataset.dashboardSection); });
-    const pins = new Set(dashboard.pinnedSectionIds || []);
-    cards.forEach(card => card.classList.toggle('is-dashboard-pinned', pins.has(card.dataset.dashboardSection)));
-    const rank = new Map((dashboard.sectionOrder || []).map((id, index) => [id, index]));
-    const ordered = [...cards].sort((a, b) => Number(pins.has(b.dataset.dashboardSection)) - Number(pins.has(a.dataset.dashboardSection)) || (rank.get(a.dataset.dashboardSection) ?? 99) - (rank.get(b.dataset.dashboardSection) ?? 99));
-    // Keep the page title and Today date/context ahead of customizable cards.
-    const anchor = [...content.children].find(child => !child.matches('.page-header, [data-today-context], [data-dashboard-section]'));
-    for (const card of ordered) content.insertBefore(card, anchor || null);
-    content.classList.toggle('today-focus-view', dashboard.focusedMode === true);
+    main.innerHTML = `${warning}<div class="content ${route.type === 'calendar' && state.ui.calendarView !== 'upcoming' ? 'calendar-content' : ''}">${content}</div>`;
+    // An old #habit/<id> address shows the Habits screen with the details window on top (R8c).
+    if (route.type === 'habit') { history.replaceState(null, '', '#habits'); openHabitDetails(route.id); }
+    // An old #goal/<id> address shows Ciljevi with the goal window on top (R9b).
+    if (route.type === 'goal') { history.replaceState(null, '', '#goals'); openGoalDetails(route.id); }
+    if (['note', 'resource'].includes(route.type)) { history.replaceState(null, '', route.type === 'note' ? '#notes' : '#resources'); openKnowledgeWindow(route.type, route.id); }
+    syncQuickAddToggle(); // after the redirects above
   }
 
   function pageHeader(title, subtitle, options = {}) {
@@ -987,69 +996,42 @@
     const projectMenu = options.projectMenu ? `<button class="btn-icon" type="button" data-action="project-menu" data-project-id="${esc(options.projectMenu)}" aria-label="${tr('Project menu')}"><i class="ph ph-dots-three"></i></button>` : '';
     const actionHtml = options.actionHtml || '';
     return `<header class="page-header">
-      <div><h1 class="page-title">${esc(title)}</h1>${subtitle ? `<p class="page-subtitle">${esc(subtitle)}</p>` : ''}</div>
+      <div>${options.eyebrow ? `<p class="page-eyebrow">${esc(options.eyebrow)}</p>` : ''}<h1 class="page-title">${esc(title)}</h1>${subtitle ? `<p class="page-subtitle">${esc(subtitle)}</p>` : ''}</div>
       <div class="page-actions">
-        <button class="btn btn-secondary" type="button" data-action="open-search"><i class="ph ph-magnifying-glass"></i> ${tr('Search')}</button>
+        <button class="btn-icon page-search" type="button" data-action="open-search" aria-label="${tr('Search')}"><i class="ph ph-magnifying-glass" aria-hidden="true"></i></button>
         ${actionHtml}${projectMenu}${addButton}
       </div>
     </header>`;
-  }
-
-  function calendarLogs() {
-    return Object.values(state.habitLogCache || {}).flat();
   }
 
   function calendarDate() {
     return Core.parseDateOnly(state.ui.calendarDate) ? state.ui.calendarDate : Core.dateOnly();
   }
 
-  function openCalendarDetail(date) {
-    if (!Core.parseDateOnly(date)) return;
-    state.ui.calendarDate = date; saveState(); render();
-    calendarReturnDate = date;
-    modalReturnFocus = $(`[data-action="calendar-detail"][data-date="${date}"]`) || $('[data-action="calendar-add"]');
-    modalState = { type: 'calendar-day', date }; renderModal();
-    requestAnimationFrame(() => $('.calendar-day-detail [data-action="close-modal"]')?.focus());
+  // Redesign R7 (C1): with no "Danas" button, the Calendar starts on today whenever it is opened from another screen.
+  function enterCalendarRoute(route) {
+    const open = ['calendar', 'upcoming'].includes(route.type);
+    if (open && !calendarOpen) state.ui.calendarDate = Core.dateOnly();
+    calendarOpen = open;
   }
 
+  // Redesign R8a (H1, H4): the Habits screen opens on Dan, today and this month whenever it is opened from another screen.
+  function enterHabitsRoute(route) {
+    const open = route.type === 'habits';
+    if (open && !habitsOpen) Object.assign(state.ui, { habitsView: 'day', habitsDay: Core.dateOnly(), habitTrackerMonth: Core.dateOnly().slice(0, 7), habitChartDay: null });
+    habitsOpen = open;
+  }
+
+  // Arrows move a week, or a month; a month selects today when it holds today, otherwise its first day.
   function navigateCalendar(direction) {
-    const date = parseLocalDate(calendarDate());
-    state.ui.calendarDate = state.ui.calendarView === 'month' ? Core.dateOnly(new Date(date.getFullYear(), date.getMonth() + direction, 1)) : Core.addDays(calendarDate(), direction * (state.ui.calendarView === 'day' ? 1 : 7));
+    const date = calendarDate();
+    if (state.ui.calendarView === 'month') {
+      const current = parseLocalDate(date);
+      const first = Core.dateOnly(new Date(current.getFullYear(), current.getMonth() + direction, 1));
+      const today = Core.dateOnly();
+      state.ui.calendarDate = today.slice(0, 7) === first.slice(0, 7) ? today : first;
+    } else state.ui.calendarDate = Core.addDays(date, direction * 7);
     saveAndRender();
-  }
-
-  function calendarHabitAction(el, mode) {
-    const id = el.dataset.habitId; const date = el.dataset.date;
-    const increment = Number(el.dataset.value);
-    const key = JSON.stringify([id, date]);
-    const previous = calendarHabitQueues.get(key) || Promise.resolve();
-    // Read the refreshed total only when this accepted activation starts.
-    // A failed predecessor must release later activations, not poison them.
-    const operation = previous.catch(() => {}).then(async () => {
-      const existing = state.habitLogCache?.[id]?.find(log => log.date === date);
-      const value = mode === 'add' ? Number(existing?.value || 0) + increment : null;
-      await setHabitLog(id, date, mode === 'check' && existing?.status === 'done' ? 'missed' : 'done', value);
-      if (modalState?.type === 'calendar-day' && modalState.date === date) renderModal();
-    });
-    calendarHabitQueues.set(key, operation);
-    const release = () => { if (calendarHabitQueues.get(key) === operation) calendarHabitQueues.delete(key); };
-    operation.then(release, release);
-    return operation;
-  }
-
-  function openCalendarValue(habitId, date) {
-    if (date > Core.dateOnly()) return;
-    // Keep the Day Detail usable as the keyboard return point for its quick edit.
-    modalState = { type: 'calendar-value', habitId, date, previous: modalState, returnFocus: goalFocusTarget() }; renderModal();
-    requestAnimationFrame(() => $('#calendar-habit-value')?.focus());
-  }
-
-  function openCalendarGoalProgress(goalId) {
-    const goal = getGoal(goalId); if (!goal) return;
-    if (goal.progressMode !== 'manual') { navigate(`goal/${goalId}`); return; }
-    // This panel is launched from Day Detail too, so Esc should return there.
-    modalState = { type: 'calendar-progress', goalId, previous: modalState, returnFocus: goalFocusTarget() }; renderModal();
-    requestAnimationFrame(() => $('#goal-current-value')?.focus());
   }
 
   // Durations as "45 min", "2 h" or "1 h 30 min" (V1.12).
@@ -1061,95 +1043,74 @@
     return hours ? tr('{hours} h', { hours }) : tr('{minutes} min', { minutes: rest });
   }
 
-  // Today's planned load against the daily capacity, once a task planned for today has a duration (V1.12).
-  function todayCapacityItem() {
-    const capacity = Core.dailyCapacityMinutes(state.settings);
-    const load = Core.dayLoad(state.tasks, Core.dateOnly());
-    if (!capacity || !load.withDuration) return '';
-    const text = `${durationLabel(load.minutes)} / ${durationLabel(capacity)}`;
-    return load.minutes > capacity
-      ? `<span class="today-capacity is-over" data-today-capacity aria-label="${tr('Over capacity: {load} of {capacity}', { load: durationLabel(load.minutes), capacity: durationLabel(capacity) })}">${text}</span>`
-      : `<span class="today-capacity" data-today-capacity>${text}</span>`;
+  // Redesign R2 (T7): at most 3 late, 5 planned and 5 habit rows until the section is opened in place.
+  const TODAY_LIMITS = { overdue: 3, today: 5, habits: 5 };
+  function todayLimited(key, rows) {
+    const open = state.ui.todayExpanded?.[key] === true;
+    const max = TODAY_LIMITS[key];
+    const more = rows.length > max ? `<button class="today-more" type="button" data-action="today-expand" data-today-key="${key}" aria-expanded="${open}">${open ? tr('Show less') : tr('Show {count} more', { count: rows.length - max })}</button>` : '';
+    return (open ? rows : rows.slice(0, max)).join('') + more;
   }
 
+  // Redesign R2 (G6): an overdue date red, due today amber, later dates gray.
+  function todayDueLabel(date, today = Core.dateOnly()) {
+    if (!date) return '';
+    const cls = date < today ? ' is-overdue' : date === today ? ' is-today' : '';
+    const text = date === today ? tr('Due today') : date === Core.addDays(today, 1) ? tr('Due tomorrow') : tr('Due {date}', { date: formatDate(date) });
+    return `<span class="task-due${cls}">${esc(text)}</span>`;
+  }
+
+  // Redesign R2 (T2a): a goal or milestone deadline as a row with the target icon; it opens the goal.
+  function deadlineRow({ goal, milestone }, today = Core.dateOnly()) {
+    const meta = milestone ? tr('Milestone · {goal}', { goal: goal.title }) : tr('Goal · {percent}%', { percent: Math.round(Core.computeGoalProgress(goal, state, state.habitMetrics || {}).percent) });
+    return `<article class="today-row deadline-row" data-goal-id="${esc(goal.id)}"><span class="deadline-icon" aria-hidden="true"><i class="ph ph-target"></i></span><button class="today-row-main" type="button" data-route="goal/${esc(goal.id)}"><span class="task-title">${esc(milestone ? milestone.title : goal.title)}</span><span class="task-meta">${esc(meta)}</span></button><span class="task-side">${todayDueLabel(milestone ? milestone.date : goal.targetDate, today)}</span></article>`;
+  }
+
+  // Redesign R2 (T1–T7): the date above "Danas", notices while they apply, then Zakasnelo, Planirano danas,
+  // Navike and a folded Završeno. Focus, review, actions, the summary strip and capacity left Today (T2a).
   function renderToday() {
     const today = Core.dateOnly();
-    const derivedSections = Core.deriveTodayV3(state, Object.values(state.habitLogCache || {}).flat(), today);
-    const todayFocusFilter = state.settings.todayFocusFilter || 'all';
-    const sections = Core.filterTodayTasks(derivedSections, todayFocusFilter, today);
-    const total = sections.today.length;
-    const goalCount = sections.goals.length + sections.overdueGoals.length;
-    const overdueCount = sections.overdue.length + sections.overdueMilestones.length + sections.overdueGoals.length;
-    const contextCounts = [
-      total && trn(total, '{count} task planned', '{count} tasks planned'),
-      sections.habits.length && trn(sections.habits.length, '{count} routine', '{count} routines'),
-      goalCount && trn(goalCount, '{count} goal', '{count} goals'),
-      overdueCount && trn(overdueCount, '{count} overdue', '{count} overdue'),
-    ].filter(Boolean).join(' · ');
-    const openTodayCount = (() => {
-      const taskIds = new Set();
-      for (const entry of [...derivedSections.overdue, ...derivedSections.today, ...derivedSections.suggestions]) {
-        const task = entry.task || entry;
-        if (task && !task.isCompleted) taskIds.add(task.id);
-      }
-      return taskIds.size;
-    })();
-    const completedTodayCount = derivedSections.completed.length;
-    const plannedMinutes = derivedSections.today.reduce((sum, task) => sum + (task.durationMinutes || 0), 0);
-    let html = pageHeader(tr('Today'), '', { contextToday: true, add: false, actionHtml: `<button class="btn btn-secondary" type="button" data-action="dashboard-focus-toggle"><i class="ph ph-faders-horizontal"></i>${state.settings.dashboard?.focusedMode ? tr('Full Today') : tr('Focus View')}</button><button class="btn btn-secondary" type="button" data-action="open-focus"><i class="ph ph-crosshair"></i> ${tr('Focus')}</button>` });
-    if (state.settings.todayFocusStrip !== false) html += `<section class="today-focus-strip" data-today-focus-strip aria-label="${tr('Today focus')}"><div class="today-focus-strip-summary"><span class="today-context-date"><i class="ph ph-calendar-blank"></i>${esc(formatPageToday(today))}</span><span class="today-focus-strip-count" data-today-open-count>${trn(openTodayCount, '{count} open', '{count} open')}</span>${todayCapacityItem()}<span class="today-focus-strip-count" data-today-completed-count>${trn(completedTodayCount, '{count} completed', '{count} completed')}</span>${plannedMinutes ? `<span class="today-focus-strip-count">${tr('{minutes} min planned', { minutes: plannedMinutes })}</span>` : ''}</div><div class="today-focus-strip-controls"><label class="today-filter">${tr('Show')} <select class="filter-select" data-today-filter aria-label="${tr('Filter Today tasks')}">${[['all', msg('All')], ['open', msg('Open')], ['completed', msg('Completed')], ['important', msg('Important')], ['dueToday', msg('Due today')]].map(([value, label]) => `<option value="${value}"${todayFocusFilter === value ? ' selected' : ''}>${tr(label)}</option>`).join('')}</select></label><button class="btn btn-primary" type="button" data-action="quick-add" data-today="true"><i class="ph ph-plus"></i>${tr('Add task')}</button></div></section>`;
-    html += `<div class="today-context" data-today-context="true">${contextCounts ? `<span class="today-context-summary">${esc(contextCounts)}</span>` : ''}</div>`;
+    const sections = Core.deriveTodayV3({ ...state, tasks: listTasks() }, Object.values(state.habitLogCache || {}).flat(), today);
+    let html = pageHeader(tr('Today'), '', { add: false, eyebrow: formatPageToday(today) });
     if (globalThis.DailoPlatform?.isNative) html += transferNotice();
     html += backupReminderNotice();
     html += weeklyReviewNotice();
-    const focusIds = Core.selectFocusTasks(state.tasks, state.settings.focusTaskIds);
-    const focusTasks = focusIds.map(getTask);
-    const completedToday = state.tasks.filter(task => task.isCompleted && Core.localDateOf(String(task.completedAt || '')) === today);
-    const dashboardTools = id => `<span class="dashboard-tools"><button class="btn-icon" type="button" data-action="dashboard-move" data-dashboard-section="${id}" data-direction="up" aria-label="${tr('Move section up')}"><i class="ph ph-caret-up"></i></button><button class="btn-icon ${state.settings.dashboard?.pinnedSectionIds?.includes(id) ? 'is-active' : ''}" type="button" data-action="dashboard-pin" data-dashboard-section="${id}" aria-label="${tr('Pin section')}" aria-pressed="${state.settings.dashboard?.pinnedSectionIds?.includes(id) ? 'true' : 'false'}"><i class="ph ph-push-pin"></i></button><button class="btn-icon" type="button" data-action="dashboard-move" data-dashboard-section="${id}" data-direction="down" aria-label="${tr('Move section down')}"><i class="ph ph-caret-down"></i></button></span>`;
-    html += `<section class="section today-focus" data-today-focus data-dashboard-section="focus" aria-labelledby="today-focus-heading"><div class="section-header"><h2 class="section-label" id="today-focus-heading">${tr('Daily focus')}</h2><span class="section-count">${focusTasks.length} / 3</span>${dashboardTools('focus')}</div>${focusTasks.length ? `<div class="task-list">${focusTasks.map(task => taskRow(task, 'focus')).join('')}</div>` : `<p class="area-empty-copy">${tr('Choose up to three open tasks using the focus button or Task properties.')}</p>`}</section>`;
-    html += `<section class="section daily-review" data-daily-review data-dashboard-section="review" aria-labelledby="daily-review-heading"><div class="section-header"><h2 class="section-label" id="daily-review-heading">${tr('Daily review')}</h2>${dashboardTools('review')}</div><div class="daily-review-stats"><span data-daily-review-completed>${trn(completedToday.length, '{count} completed today', '{count} completed today')}</span><span data-daily-review-open>${trn(sections.today.length, '{count} unfinished planned task', '{count} unfinished planned tasks')}</span><span>${tr('{minutes} min planned remaining', { minutes: plannedMinutes })}</span></div></section>`;
-    html += `<section class="today-actions" data-today-actions="true" data-dashboard-section="actions" aria-labelledby="today-actions-heading"><div class="section-header"><h2 class="section-label" id="today-actions-heading">${tr('Daily actions')}</h2>${dashboardTools('actions')}</div><div class="today-actions-grid"><button class="today-action" type="button" data-route="inbox"><i class="ph ph-tray"></i><span>${tr('Inbox')}</span></button><button class="today-action" type="button" data-action="quick-add" data-today="true"><i class="ph ph-plus-circle"></i><span>${tr('Quick Add')}</span></button><button class="today-action" type="button" data-action="open-focus"><i class="ph ph-crosshair"></i><span>${tr('Focus')}</span></button><button class="today-action" type="button" data-route="calendar"><i class="ph ph-calendar"></i><span>${tr('Calendar')}</span></button><button class="today-action" type="button" data-action="add-starter-examples"><i class="ph ph-sparkle"></i><span>${tr('Populate workspace')}</span></button></div></section>`;
-
-    if (sections.overdue.length) {
-      html += `<section class="section today-section today-section--overdue" data-today-section="overdue-tasks"><div class="section-header"><h2 class="section-label danger">${tr('Overdue Tasks')}</h2><span class="section-count">${sections.overdue.length}</span></div><div class="task-list">${sections.overdue.map(t => taskRow(t, 'today', { overdue: true })).join('')}</div></section>`;
-    }
-
-    if (sections.today.length || sections.suggestions.length) {
-      html += `<section class="section today-section today-section--tasks" data-today-section="tasks"><div class="section-header"><h2 class="section-label">${tr('Tasks')}</h2><span class="section-count">${sections.today.length}</span></div>`;
-      if (sections.today.length) html += `<div class="task-list" data-list-context="today">${sections.today.map(t => taskRow(t, 'today', { draggable: true })).join('')}</div>`;
-      html += `<button class="inline-add" type="button" data-action="quick-add" data-today="true"><i class="ph ph-plus"></i> ${tr('Add task')}</button>`;
-      if (sections.suggestions.length) {
-        const open = state.ui.suggestionsExpanded;
-        html += `<div><button class="collapsible-trigger" type="button" data-action="toggle-suggestions" aria-expanded="${open}"><span class="left"><i class="ph ph-sparkle"></i> ${tr('Suggested for today')}</span><span>${sections.suggestions.length} <i class="ph ph-caret-${open ? 'up' : 'down'}"></i></span></button>`;
-        if (open) html += `<div class="task-list">${sections.suggestions.map(item => taskRow(item.task, 'suggestion', { suggestionReason: item.reason })).join('')}</div><button class="btn btn-ghost" type="button" data-action="add-all-suggestions"><i class="ph ph-plus-circle"></i> ${tr('Add all to Today')}</button>`;
-        html += `</div>`;
-      }
-      html += `</section>`;
-    }
-    if (sections.habits.length) html += `<section class="section today-section today-section--habits" data-today-section="habits"><div class="section-header"><h2 class="section-label">${tr('Habits')}</h2><span class="section-count">${sections.habits.length}</span></div><div class="habit-list">${sections.habits.map(item => renderHabitRow(item.habit, item.status)).join('')}</div></section>`;
-    if (sections.overdueMilestones.length) html += `<section class="section today-section today-section--overdue" data-today-section="overdue-milestones"><div class="section-header"><h2 class="section-label danger">${tr('Overdue Milestones')}</h2><span class="section-count">${sections.overdueMilestones.length}</span></div><div class="milestone-list">${sections.overdueMilestones.map(({ goal, milestone }) => `<div class="milestone-row"><button class="task-check" type="button" data-action="toggle-milestone" data-goal-id="${esc(goal.id)}" data-milestone-id="${esc(milestone.id)}" aria-label="${tr('Complete milestone')}"><i class="ph ph-circle"></i></button><button class="btn btn-ghost" type="button" data-route="goal/${esc(goal.id)}">${esc(milestone.title)} · ${esc(goal.title)}</button><small>${esc(relativeDateLabel(milestone.date))}</small></div>`).join('')}</div></section>`;
-    for (const [label, goals, danger] of [[msg('Overdue Goals'), sections.overdueGoals, true], [msg('Goals'), sections.goals, false]]) {
-      if (goals.length) html += `<section class="section today-section today-section--${danger ? 'overdue' : 'goals'}" data-today-section="${danger ? 'overdue-goals' : 'goals'}"><div class="section-header"><h2 class="section-label${danger ? ' danger' : ''}">${tr(label)}</h2><span class="section-count">${goals.length}</span></div><div class="goal-list">${goals.map(renderGoalRow).join('')}</div></section>`;
-    }
-    if (!sections.today.length && !sections.overdue.length && !sections.habits.length && !sections.overdueMilestones.length && !sections.overdueGoals.length && !sections.goals.length && !sections.completed.length && !sections.suggestions.length) html += emptyState(tr('Nothing planned for today.'), tr('Add a task when you are ready.'), tr('Add task'), 'quick-add', { today: true });
-
+    html += callDomainHook('renderRoute', { type: 'journal-notice' }) || '';
+    const section = (key, label, count, body, danger = false) => `<section class="section today-section today-section--${key}" data-today-section="${key}"><div class="section-header"><h2 class="section-label${danger ? ' danger' : ''}">${label}</h2><span class="section-count">${count}</span></div>${body}</section>`;
+    const overdueRows = [
+      ...sections.overdue.map(task => taskRow(task, 'today', { today: true })),
+      ...sections.overdueGoals.map(goal => deadlineRow({ goal }, today)),
+      ...sections.overdueMilestones.map(item => deadlineRow(item, today)),
+    ];
+    if (overdueRows.length) html += section('overdue', tr('Past due'), overdueRows.length, `<div class="task-list today-card">${todayLimited('overdue', overdueRows)}</div>`, true);
+    const plannedRows = [
+      ...sections.today.map(task => taskRow(task, 'today', { today: true, draggable: true })),
+      ...sections.goals.map(goal => deadlineRow({ goal }, today)),
+      ...sections.milestones.map(item => deadlineRow(item, today)),
+    ];
+    html += section('today', tr('Planned today'), plannedRows.length, `<div class="task-list today-card" data-list-context="today">${plannedRows.length ? todayLimited('today', plannedRows) : `<p class="today-empty">${tr('Nothing planned. “+” adds a task for today.')}</p>`}</div><button class="inline-add" type="button" data-action="quick-add" data-today="true"><i class="ph ph-plus"></i> ${tr('Add task')}</button>`);
+    // Done habits move to the bottom (T5).
+    const habits = [...sections.habits.filter(item => item.status.status !== 'done'), ...sections.habits.filter(item => item.status.status === 'done')];
+    if (habits.length) html += section('habits', tr('Habits'), `${habits.length - sections.habits.filter(item => item.status.status !== 'done').length}/${habits.length}`, `<div class="habit-list today-card">${todayLimited('habits', habits.map(item => renderHabitTodayRow(item.habit, item.status)))}</div>`);
     if (sections.completed.length) {
-      const open = state.ui.todayCompletedExpanded;
+      const open = state.ui.todayCompletedExpanded === true;
       html += `<section class="section today-section today-section--completed" data-today-section="completed"><button class="collapsible-trigger" type="button" data-action="toggle-today-completed" aria-expanded="${open}"><span class="left"><i class="ph ph-check-circle"></i> ${tr('Completed')}</span><span>${sections.completed.length} <i class="ph ph-caret-${open ? 'up' : 'down'}"></i></span></button>`;
-      if (open) html += `<div class="task-list">${sections.completed.map(t => taskRow(t, 'completed')).join('')}</div>`;
+      if (open) html += `<div class="task-list today-card">${sections.completed.map(task => taskRow(task, 'completed', { today: true })).join('')}</div>`;
       html += `</section>`;
     }
     return html;
   }
 
+  // Redesign R6 (I1–I6): the waiting count, "Razvrstaj redom", filters only for the types present, the capture groups.
   function renderInbox() {
-    const filter = INBOX_FILTERS.some(([value]) => value === state.ui.inboxFilter) ? state.ui.inboxFilter : 'all';
+    const all = activeInboxRecords('all');
+    const present = INBOX_FILTERS.filter(([value]) => value !== 'all' && activeInboxRecords(value).length);
+    const filter = present.some(([value]) => value === state.ui.inboxFilter) ? state.ui.inboxFilter : 'all';
     const records = activeInboxRecords(filter);
-    const counts = Object.fromEntries(INBOX_FILTERS.map(([value]) => [value, activeInboxRecords(value).length]));
-    let html = pageHeader(tr('Inbox'), trn(records.length, '{count} item waiting to be organized', '{count} items waiting to be organized'), {});
-    html += `<section class="inbox-toolbar" aria-label="${tr('Inbox filters')}"><div class="inbox-filter-tabs" role="tablist" aria-label="${tr('Filter Inbox')}">${INBOX_FILTERS.map(([value, label]) => `<button class="inbox-filter-tab ${filter === value ? 'is-active' : ''}" type="button" role="tab" aria-selected="${filter === value}" data-action="inbox-filter" data-inbox-filter="${value}">${tr(label)}<span class="inbox-filter-count">${counts[value]}</span></button>`).join('')}</div><p class="inbox-triage-hint"><i class="ph ph-sparkle"></i> ${tr('Process one item at a time: plan it, assign it or keep it in Anytime.')}</p></section>`;
-    const emptyTitle = { all: msg('Inbox zero.'), tasks: msg('No tasks in Inbox.'), goals: msg('No goals in Inbox.'), habits: msg('No habits in Inbox.'), notes: msg('No notes in Inbox.'), resources: msg('No resources in Inbox.') }[filter] || msg('Inbox zero.');
-    if (!records.length) return html + emptyState(tr(emptyTitle), filter === 'all' ? tr('Everything has been organized.') : tr('New items of this type will appear here when captured for Inbox.'), tr('Add task'), 'quick-add');
+    let html = pageHeader(tr('Inbox'), all.length ? trn(all.length, '{count} item waiting to be organized', '{count} items waiting to be organized') : tr('Nothing is waiting'), {});
+    if (!all.length) return html + `<div class="empty-state inbox-empty"><i class="ph ph-check-circle" aria-hidden="true"></i><h3>${tr('Inbox is empty')}</h3><p>${tr('Everything is sorted.')}</p></div>`;
+    html += `<button class="inbox-triage-button" type="button" data-action="inbox-triage"><i class="ph ph-stack" aria-hidden="true"></i><span><strong>${tr('Sort one by one')}</strong> · ${tr('one at a time')}</span><i class="ph ph-caret-right" aria-hidden="true"></i></button>`;
+    if (present.length > 1) html += `<div class="inbox-filter-tabs" role="tablist" aria-label="${tr('Filter Inbox')}">${[INBOX_FILTERS[0], ...present].map(([value, label]) => `<button class="inbox-filter-tab ${filter === value ? 'is-active' : ''}" type="button" role="tab" aria-selected="${filter === value}" data-action="inbox-filter" data-inbox-filter="${value}">${tr(label)}<span class="inbox-filter-count">${value === 'all' ? all.length : activeInboxRecords(value).length}</span></button>`).join('')}</div>`;
     const groups = new Map();
     for (const record of records) {
       const group = inboxGroupForDate(record.item.createdAt);
@@ -1160,8 +1121,144 @@
     for (const label of order) {
       const items = groups.get(label);
       if (!items?.length) continue;
-      html += `<section class="inbox-group" aria-labelledby="inbox-group-${label.replace(/ /g, '-').toLowerCase()}"><div class="inbox-group-label" id="inbox-group-${label.replace(/ /g, '-').toLowerCase()}"><strong>${tr(label)}</strong><span>${items.length}</span></div><div class="inbox-group-items">${items.map(renderInboxRecord).join('')}</div></section>`;
+      html += `<section class="inbox-group" aria-labelledby="inbox-group-${label.replace(/ /g, '-').toLowerCase()}"><div class="inbox-group-label" id="inbox-group-${label.replace(/ /g, '-').toLowerCase()}"><strong>${tr(label)}</strong><span>${items.length}</span></div><div class="inbox-group-items today-card" data-list-context="inbox">${items.map(renderInboxRecord).join('')}</div></section>`;
     }
+    return html;
+  }
+
+  // Redesign R6 (I2): "Razvrstaj redom" — one item at a time, in the current filter's order.
+  function openInboxTriage() {
+    const present = INBOX_FILTERS.filter(([value]) => value !== 'all' && activeInboxRecords(value).length);
+    const filter = present.some(([value]) => value === state.ui.inboxFilter) ? state.ui.inboxFilter : 'all';
+    captureModalReturnFocus();
+    modalState = { type: 'inbox-triage', queue: activeInboxRecords(filter).map(record => [record.type, record.item.id]), index: 0 };
+    renderModal();
+    requestAnimationFrame(() => $('#modal-root .inbox-triage-actions button')?.focus());
+  }
+  function inboxTriageOpen(type, id) {
+    const item = inboxItem(type, id);
+    return Boolean(item && item.isInbox === true && !item.isCompleted);
+  }
+  function renderInboxTriage() {
+    const queue = modalState.queue || [];
+    const open = queue.filter(([type, id]) => inboxTriageOpen(type, id));
+    const header = `<div class="modal-header"><h2 class="modal-title">${tr('Sorting')}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div>`;
+    if (!open.length) return modalFrame(`<div class="modal-inner">${header}<div class="empty-state inbox-empty"><i class="ph ph-check-circle" aria-hidden="true"></i><h3>${tr('Finished')}</h3><p>${activeInboxRecords('all').length ? tr('This list is sorted.') : tr('Inbox is empty.')}</p></div><div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-secondary" type="button" data-action="close-modal">${tr('Close')}</button></div></div></div>`, 'quick inbox-triage-modal');
+    if (modalState.index >= open.length) modalState.index = 0;
+    const [type, id] = open[modalState.index];
+    const item = inboxItem(type, id);
+    const label = { task: msg('Task'), goal: msg('Goal'), habit: msg('Habit'), note: msg('Note'), resource: msg('Resource') }[type];
+    const added = tr(inboxGroupForDate(item.createdAt)).toLocaleLowerCase(I18n.locale());
+    const attrs = `data-inbox-type="${esc(type)}" data-inbox-id="${esc(id)}"`;
+    const button = (action, text, extra = '', primary = false) => `<button class="btn ${primary ? 'btn-primary' : 'btn-secondary'}" type="button" data-action="${action}" ${extra}>${text}</button>`;
+    const actions = type === 'task'
+      ? ['inbox-today', 'inbox-tomorrow', 'inbox-anytime', 'inbox-project'].map((action, index) => button(action, [tr('Today'), tr('Tomorrow'), tr('Anytime'), tr('Project…')][index], `data-task-id="${esc(id)}"`)).join('')
+      : button('inbox-triage-open', tr('Open details'), attrs) + button('inbox-area', tr('Area…'), attrs) + button('inbox-remove', tr('Sorted'), attrs, true);
+    const due = type === 'task' && item.dueDate ? `<p class="inbox-triage-due">${todayDueLabel(item.dueDate)}</p>` : '';
+    return modalFrame(`<div class="modal-inner">${header}<div class="inbox-triage-card"><p class="inbox-triage-meta">${esc(tr('{type} · added {when}', { type: tr(label), when: added }))}</p><p class="inbox-triage-title">${esc(item.title || item.name || '')}</p>${due}</div><div class="inbox-triage-actions">${actions}</div><div class="inbox-triage-footer"><span>${esc(tr('{current} of {total}', { current: queue.length - open.length + 1, total: queue.length }))}</span><button class="btn btn-ghost" type="button" data-action="inbox-triage-skip">${tr('Skip')}</button></div></div>`, 'quick inbox-triage-modal');
+  }
+
+
+  // Redesign R1 (M4): "Još" lists every screen that is not in the bottom bar, in cards.
+  function moreRow(route, icon, label, value = '', sub = '') {
+    return `<button class="mobile-more-route more-row" type="button" data-route="${esc(route)}"><i class="ph ${icon}" aria-hidden="true"></i><span class="more-row-label">${esc(label)}${sub ? `<small>${esc(sub)}</small>` : ''}</span>${value !== '' ? `<span class="more-row-value">${esc(String(value))}</span>` : ''}<i class="ph ph-caret-right more-row-caret" aria-hidden="true"></i></button>`;
+  }
+  // R11d (S4): an open task whose repeat is active or paused, outside Inbox and archived projects or groups.
+  function isOpenRepeating(task) {
+    const rule = taskRecurrence(task);
+    return Boolean(rule && rule.status !== 'ended' && !task.isCompleted && !task.isInbox && !getProject(task.projectId)?.isArchived);
+  }
+  function renderMoreScreen() {
+    const card = (title, rows) => `<section class="more-group">${title ? `<h2 class="more-group-title">${title}</h2>` : ''}<div class="more-card">${rows.join('')}</div></section>`;
+    const pinned = [
+      ...sortedAreas().filter(area => area.status !== 'archived' && area.isPinned).map(area => moreRow(`area/${encodeURIComponent(area.id)}`, area.icon || 'ph-squares-four', area.name, '', tr('Area'))),
+      ...(state.savedViews || []).filter(view => view.isPinned).map(view => moreRow(`saved-view/${encodeURIComponent(view.id)}`, 'ph-funnel', view.name, '', tr('Saved view'))),
+    ];
+    const count = list => (list || []).length;
+    const sync = syncView();
+    const syncText = sync.configured && sync.signedIn ? (sync.lastSyncAt ? tr('Last synced {time}', { time: formatReminder(sync.lastSyncAt) }) : tr('Sync is on')) : tr('Data is on this device only');
+    let html = pageHeader(tr('More'), '', { add: false });
+    if (pinned.length) html += card(tr('Pinned'), pinned);
+    html += card(tr('Planning'), [
+      moreRow('goals', 'ph-target', tr('Goals'), count((state.goals || []).filter(goal => goal.status === 'active'))),
+      moreRow('areas', 'ph-squares-four', tr('Areas'), count((state.areas || []).filter(area => area.status !== 'archived'))),
+      moreRow('cleaning', 'ph-arrows-clockwise', tr('Recurring tasks'), count(state.tasks.filter(isOpenRepeating))),
+      moreRow('review', 'ph-clipboard-text', tr('Weekly review')),
+    ]);
+    html += card(tr('Library'), [
+      moreRow('notes', 'ph-note', tr('Notes'), count(state.notes)),
+      moreRow('journal', 'ph-book-open', tr('Journal'), count(state.journal)),
+      moreRow('resources', 'ph-link', tr('Resources'), count(state.resources)),
+      moreRow('tags', 'ph-tag', tr('Tags'), count(state.tags)),
+      moreRow('templates', 'ph-copy', tr('Templates'), count(state.templates)),
+      moreRow('saved-views', 'ph-funnel', tr('Saved Views'), count(state.savedViews)),
+    ]);
+    html += card(tr('Archives'), [
+      moreRow('completed', 'ph-check-circle', tr('Completed'), count(state.tasks.filter(task => task.isCompleted))),
+      moreRow('archived', 'ph-archive', tr('Archived Projects'), count(state.projects.filter(project => project.isArchived && !project.isCleaningRoom))),
+    ]);
+    html += card('', [moreRow('settings', 'ph-gear', tr('Settings'), '', syncText)]);
+    return html;
+  }
+
+  // Redesign R5 (S10): the tasks lists show, without the tasks of archived projects. Search keeps every task.
+  function listTasks() {
+    const archived = new Set((state.projects || []).filter(project => project.isArchived).map(project => project.id));
+    return (state.tasks || []).filter(task => !archived.has(task.projectId));
+  }
+
+  // Redesign R5 (Z6): a project row with its open count, the nearest due date and a bar of the done share.
+  function projectOverviewRow(project, tasks) {
+    const all = tasks.filter(task => task.projectId === project.id);
+    const open = all.filter(task => !task.isCompleted);
+    const percent = all.length ? Math.round((all.length - open.length) / all.length * 100) : 0;
+    const next = open.filter(task => task.dueDate).sort((a, b) => a.dueDate.localeCompare(b.dueDate))[0];
+    return `<button class="project-row" type="button" data-route="project/${esc(project.id)}"><span class="project-dot" style="--project-color:${esc(project.color)}" aria-hidden="true"></span><span class="project-row-main"><span class="task-title">${esc(project.name)}</span><span class="task-meta">${esc(trn(open.length, '{count} open', '{count} open'))}${next ? ` · ${todayDueLabel(next.dueDate)}` : ''}</span><span class="project-row-bar" aria-hidden="true"><i style="width:${percent}%;background:${esc(project.color)}"></i></span></span><i class="ph ph-caret-right" aria-hidden="true"></i></button>`;
+  }
+
+  // Redesign R1 + R5 (Z1–Z6): the summary, the suggestions, and "Kad stignem" by project or the projects by area.
+  function renderTasksScreen() {
+    const view = state.ui.tasksView === 'projects' ? 'projects' : 'anytime';
+    const tasks = listTasks();
+    // R11d (S4): groups of Redovne obaveze stay out of Zadaci → Projekti.
+    const projects = sortedProjects().filter(project => !project.isCleaningRoom);
+    const later = Core.deriveAnytime(tasks);
+    const open = tasks.filter(task => !task.isCompleted && !task.isInbox).length;
+    const summary = `${trn(open, '{count} open task', '{count} open tasks')} · ${trn(projects.length, '{count} project', '{count} projects')}`;
+    const tab = (key, label) => `<button class="btn ${view === key ? 'is-selected' : ''}" type="button" data-action="tasks-view" data-view="${key}" aria-pressed="${view === key}">${label}</button>`;
+    const group = (label, count, rows, color = '') => `<section class="section tasks-group"><div class="section-header"><h2 class="section-label tasks-group-label">${color ? `<span class="project-dot" style="--project-color:${esc(color)}" aria-hidden="true"></span>` : ''}${esc(label)}</h2><span class="section-count">${count}</span></div>${rows}</section>`;
+    let html = pageHeader(tr('Tasks'), summary, { add: false });
+    // Redesign R2 (T2a, Z2): the suggestions that left Today, folded, with "+ Danas" per row.
+    const suggestions = Core.deriveTodaySections(tasks, Core.dateOnly()).suggestions;
+    if (suggestions.length) {
+      const open = state.ui.suggestionsExpanded === true;
+      html += `<section class="tasks-suggestions" data-tasks-suggestions><button class="collapsible-trigger" type="button" data-action="toggle-suggestions" aria-expanded="${open}"><span class="left"><i class="ph ph-sparkle"></i> ${tr('Suggested for today')}</span><span>${suggestions.length} <i class="ph ph-caret-${open ? 'up' : 'down'}"></i></span></button>`;
+      if (open) html += `<div class="task-list today-card">${suggestions.map(item => taskRow(item.task, 'suggestion', { today: true, addToday: true, suggestionReason: item.reason })).join('')}</div><button class="btn btn-ghost" type="button" data-action="add-all-suggestions"><i class="ph ph-plus-circle"></i> ${tr('Add all to Today')}</button>`;
+      html += `</section>`;
+    }
+    html += `<div class="view-tabs tasks-view-switch" role="group" aria-label="${tr('Tasks')}">${tab('anytime', `${tr('Anytime')} · ${later.length}`)}${tab('projects', tr('Projects'))}</div>`;
+    if (view === 'projects') {
+      const loose = tasks.filter(task => !task.projectId && !task.isInbox && !task.isCompleted).length;
+      html += `<div class="more-card"><button class="project-row" type="button" data-route="project/none"><i class="ph ph-tray project-row-icon" aria-hidden="true"></i><span class="project-row-main"><span class="task-title">${tr('No project')}</span><span class="task-meta">${esc(trn(loose, '{count} open', '{count} open'))}</span></span><i class="ph ph-caret-right" aria-hidden="true"></i></button></div>`;
+      const areas = sortedAreas().filter(area => area.status !== 'archived');
+      for (const area of areas) {
+        const list = projects.filter(project => project.areaId === area.id);
+        if (list.length) html += group(area.name, list.length, `<div class="more-card">${list.map(project => projectOverviewRow(project, tasks)).join('')}</div>`);
+      }
+      const unassigned = projects.filter(project => !areas.some(area => area.id === project.areaId));
+      if (unassigned.length) html += group(tr('No area'), unassigned.length, `<div class="more-card">${unassigned.map(project => projectOverviewRow(project, tasks)).join('')}</div>`);
+      html += `<button class="inline-add" type="button" data-action="new-project"><i class="ph ph-plus"></i> ${tr('New project')}</button>`;
+      return html;
+    }
+    html += `<p class="tasks-note">${tr('Sorted tasks without a planned day, by project.')}</p>`;
+    if (!later.length) return html + emptyState(tr('Nothing waiting in Anytime.'), tr('Processed tasks without a planned date will appear here.'), tr('Add task'), 'quick-add', { anytime: true });
+    const loose = later.filter(task => !task.projectId);
+    if (loose.length) html += group(tr('No project'), loose.length, `<div class="task-list today-card">${loose.map(task => taskRow(task, 'anytime', { today: true })).join('')}</div>`);
+    for (const project of projects) {
+      const rows = later.filter(task => task.projectId === project.id);
+      if (rows.length) html += group(project.name, rows.length, `<div class="task-list today-card">${rows.map(task => taskRow(task, 'anytime', { today: true, hidePlace: true })).join('')}</div>`, project.color);
+    }
+    html += `<button class="inline-add" type="button" data-action="quick-add" data-anytime="true"><i class="ph ph-plus"></i> ${tr('Add task')}</button>`;
     return html;
   }
 
@@ -1174,21 +1271,37 @@
     return html;
   }
 
+  // Redesign R10c (S6): Oznake lists the tags with what uses them; a tag opens its own screen with its active tasks
+  // and, new, the notes and resources that carry it.
+  function tagLibrary(tagId) {
+    return [...(state.notes || []).map(item => ['note', item]), ...(state.resources || []).map(item => ['resource', item])]
+      .filter(([, item]) => (item.tagIds || []).includes(tagId))
+      .sort((a, b) => String(b[1].updatedAt || '').localeCompare(String(a[1].updatedAt || '')));
+  }
+
+  function libraryRow([type, item]) {
+    return `<div class="today-row area-library-row"><button class="today-row-main" type="button" data-route="${type}/${esc(item.id)}"><span class="task-title"><i class="ph ${type === 'note' ? 'ph-note' : 'ph-link'}" aria-hidden="true"></i> ${esc(item.title)}</span><span class="task-meta">${type === 'note' ? tr('Note') : tr('Resource')}</span></button></div>`;
+  }
+
+  function tagUsage(tag) {
+    const tasks = Core.tasksForTag(listTasks(), tag.id).length, library = tagLibrary(tag.id).length;
+    return [tasks ? trn(tasks, '{count} task', '{count} tasks') : '', library ? trn(library, '{count} in the library', '{count} in the library') : ''].filter(Boolean).join(' · ') || tr('Not in use');
+  }
+
   function renderTags() {
     const tags = [...(state.tags || [])].sort((a, b) => String(a.name).localeCompare(String(b.name)));
-    const selected = getTag(state.ui.selectedTagId) || tags[0] || null;
-    if (selected && state.ui.selectedTagId !== selected.id) state.ui.selectedTagId = selected.id;
-    let html = pageHeader(tr('Tags'), trn(tags.length, '{count} global tag', '{count} global tags'), { add: false, actionHtml: `<button class="btn btn-primary" type="button" data-action="new-tag"><i class="ph ph-plus"></i> ${tr('New tag')}</button>` });
+    const html = pageHeader(tr('Tags'), trn(tags.length, '{count} tag', '{count} tags'), { add: false });
     if (!tags.length) return html + emptyState(tr('No tags yet.'), tr('Create a global tag and reuse it across tasks.'), tr('New tag'), 'new-tag');
-    html += `<div class="tags-layout"><div class="tag-list">${tags.map(tag => {
-      const count = Core.tasksForTag(state.tasks, tag.id).length;
-      return `<div class="tag-row ${selected?.id === tag.id ? 'is-selected' : ''}" data-tag-id="${esc(tag.id)}"><button class="tag-select" type="button" data-action="select-tag" data-tag-id="${esc(tag.id)}"><span class="tag-dot" style="--tag-color:${esc(tag.color)}"></span><span class="tag-name">${esc(tag.name)}</span><span class="tag-count">${trn(count, '{count} task', '{count} tasks')}</span></button><button class="btn-icon" type="button" data-action="tag-menu" data-tag-id="${esc(tag.id)}" aria-label="${tr('Tag actions')}"><i class="ph ph-dots-three"></i></button></div>`;
-    }).join('')}</div>`;
-    if (selected) {
-      const tasks = Core.tasksForTag(state.tasks, selected.id);
-      html += `<section class="selected-tag-section"><div class="section-header"><div><h2 class="selected-tag-title"><span class="tag-dot" style="--tag-color:${esc(selected.color)}"></span>${esc(selected.name)}</h2><p class="page-subtitle">${trn(tasks.length, '{count} active task', '{count} active tasks')}</p></div></div>${tasks.length ? `<div class="task-list">${tasks.map(t => taskRow(t, 'tags')).join('')}</div>` : emptyState(tr('No active tasks with this tag.'), tr('Assign this tag from Quick Add or Task Detail.'))}</section>`;
-    }
-    html += '</div>';
+    return `${html}<div class="today-card tags-list">${tags.map(tag => `<button class="tag-list-row" type="button" data-route="tag/${esc(tag.id)}"><span class="tag-dot" style="--tag-color:${esc(tag.color)}" aria-hidden="true"></span><span class="tag-list-main"><span class="task-title">${esc(tag.name)}</span><span class="task-meta">${esc(tagUsage(tag))}</span></span><i class="ph ph-caret-right" aria-hidden="true"></i></button>`).join('')}<button class="inline-add" type="button" data-action="new-tag"><i class="ph ph-plus" aria-hidden="true"></i> ${tr('New tag')}</button></div>`;
+  }
+
+  function renderTag(tagId) {
+    const tag = getTag(tagId);
+    if (!tag) return renderTags();
+    const tasks = Core.tasksForTag(listTasks(), tag.id), library = tagLibrary(tag.id);
+    let html = pageHeader(tag.name, trn(tasks.length, '{count} active task', '{count} active tasks'), { add: false, actionHtml: `<button class="btn-icon" type="button" data-action="tag-menu" data-tag-id="${esc(tag.id)}" aria-label="${tr('Tag actions')}"><i class="ph ph-dots-three"></i></button>` });
+    html += tasks.length ? `<div class="task-list today-card">${tasks.map(task => taskRow(task, 'tags', { today: true })).join('')}</div>` : emptyState(tr('No active tasks with this tag.'), tr('Assign it with #tag in Quick Add or in the task window.'));
+    if (library.length) html += `<section class="section tag-library"><div class="section-header"><h2 class="section-label">${tr('In the library')} · ${library.length}</h2></div><div class="today-card">${library.map(libraryRow).join('')}</div></section>`;
     return html;
   }
 
@@ -1221,47 +1334,37 @@
     return callDomainHook('renderRoute', { type: 'habit-row', habit, todayStatus }) || '';
   }
 
-  function renderUpcoming() {
-    const today = Core.dateOnly();
-    const baseGroups = Core.deriveUpcomingV3(state, today);
-    const groupsByDate = new Map(baseGroups.map(group => [group.date, { ...group, items: [...group.items], goals: [...(group.goals || [])], habits: [], milestones: [] }]));
-    const ensureGroup = date => {
-      if (!groupsByDate.has(date)) groupsByDate.set(date, { date, items: [], goals: [], habits: [], milestones: [] });
-      return groupsByDate.get(date);
-    };
-    const habitLogs = Object.values(state.habitLogCache || {}).flat();
-    for (let offset = 1; offset <= 14; offset += 1) {
-      const date = Core.addDays(today, offset);
-      for (const habit of state.habits || []) {
-        if (habit.status === 'active' && Core.habitScheduledOn(habit, date)) ensureGroup(date).habits.push({ habit, status: Core.habitStatusForDate(habit, habitLogs, date, today) });
-      }
-    }
-    for (const goal of state.goals || []) {
-      if (goal.status !== 'active') continue;
-      for (const milestone of goal.milestones || []) {
-        if (milestone.date > today && milestone.date <= Core.addDays(today, 14) && !milestone.isCompleted) ensureGroup(milestone.date).milestones.push({ goal, milestone });
-      }
-    }
-    const groups = [...groupsByDate.values()].filter(group => group.items.length || group.goals.length || group.habits.length || group.milestones.length).sort((a, b) => a.date.localeCompare(b.date));
-    let html = pageHeader(tr('Upcoming'), tr('Planned work and upcoming deadlines'), {});
-    if (!groups.length) return html + emptyState(tr('Nothing scheduled.'), tr('Tasks you plan or set a due date for will appear here.'));
-    for (const group of groups) {
-      const d = parseLocalDate(group.date);
-      const rel = relativeDateLabel(group.date, today);
-      const dayName = [today, Core.addDays(today, 1)].includes(group.date) ? rel : WEEKDAY_FMT.format(d);
-      html += `<section class="upcoming-group"><div class="group-date"><strong>${esc(dayName)}</strong><span>${esc(formatDate(group.date))}</span></div>${group.items.length ? `<div class="task-list">${group.items.map(item => taskRow(item.task, 'upcoming', { upcomingReason: item.displayReason, upcoming: true })).join('')}</div>` : ''}${group.habits.length ? `<div class="upcoming-subgroup"><h2 class="section-label">${tr('Habits')}</h2><div class="habit-list">${group.habits.map(item => renderHabitRow(item.habit)).join('')}</div></div>` : ''}${group.goals.length ? `<div class="upcoming-subgroup"><h2 class="section-label">${tr('Goals')}</h2><div class="goal-list">${group.goals.map(renderGoalRow).join('')}</div></div>` : ''}${group.milestones.length ? `<div class="upcoming-subgroup"><h2 class="section-label">${tr('Milestones')}</h2><div class="milestone-list">${group.milestones.map(({ goal, milestone }) => `<div class="milestone-row"><button class="check-toggle" type="button" data-action="toggle-milestone" data-goal-id="${esc(goal.id)}" data-milestone-id="${esc(milestone.id)}" aria-label="${tr('Complete milestone')}"><i class="ph ph-circle"></i></button><span><strong>${esc(milestone.title)}</strong><small>${esc(goal.title)}</small></span></div>`).join('')}</div></div>` : ''}</section>`;
-    }
-    return html;
+  function renderHabitTodayRow(habit, todayStatus) {
+    return callDomainHook('renderRoute', { type: 'habit-today-row', habit, todayStatus }) || '';
   }
 
+  // Redesign R2 (H6): a numeric habit's value sheet for today; since R8a also for a past day of the Habits screen.
+  function openHabitValue(habitId, date = Core.dateOnly()) {
+    const habit = getHabit(habitId);
+    const today = Core.dateOnly();
+    if (!habit || !Core.parseDateOnly(date) || date > today || (date === today && habit.status !== 'active')) return;
+    const existing = state.habitLogCache?.[habitId]?.find(log => log.date === date);
+    // From the details window the sheet returns there when it closes (R8c).
+    const previous = modalState?.type === 'habit-details' ? modalState : null;
+    if (!previous) captureModalReturnFocus();
+    modalState = { type: 'habit-value', habitId, date, total: Number(existing?.value || 0) };
+    if (previous) modalState.previous = previous;
+    renderModal();
+    requestAnimationFrame(() => $('#habit-value-total')?.focus());
+  }
+
+  // Redesign R10e (S9, M6): project and period chips, groups by completion day with Today rows (the round check restores
+  // a task with Undo), and "Obriši završene zadatke" at the bottom.
   function renderCompleted() {
     const projectId = state.ui.completedProjectFilter || null;
     const periodDays = Number(state.ui.completedPeriod) || 0;
     const tasks = Core.filterCompleted(state.tasks, { projectId, periodDays }, nowIso());
-    let html = pageHeader(tr('Completed'), tr('A simple history of finished work'), { add: false });
-    const projectOptions = allProjects().map(project => `<option value="${esc(project.id)}" ${project.id === projectId ? 'selected' : ''}>${esc(project.name)}${project.isArchived ? ` (${tr('Archived')})` : ''}</option>`).join('');
-    html += `<div class="filter-bar"><label>${tr('Project')}<select id="completed-project-filter" class="filter-select"><option value="">${tr('All projects')}</option>${projectOptions}</select></label><label>${tr('Period')}<select id="completed-period-filter" class="filter-select"><option value="0" ${periodDays === 0 ? 'selected' : ''}>${tr('All time')}</option><option value="7" ${periodDays === 7 ? 'selected' : ''}>${tr('Last 7 days')}</option><option value="30" ${periodDays === 30 ? 'selected' : ''}>${tr('Last 30 days')}</option></select></label></div>`;
-    if (!tasks.length) return html + emptyState(tr('No completed tasks match these filters.'), tr('Try a different project or time period.'));
+    let html = pageHeader(tr('Completed tasks'), trn(tasks.length, '{count} task', '{count} tasks'), { add: false });
+    const project = allProjects().find(item => item.id === projectId);
+    const period = (days, label) => `<button class="quick-chip${periodDays === days ? ' is-selected' : ''}" type="button" data-action="completed-period" data-value="${days}" aria-pressed="${periodDays === days}">${label}</button>`;
+    html += `<div class="sheet-chips completed-chips"><button class="quick-chip${project ? ' is-selected' : ''}" type="button" data-action="completed-project">${esc(project?.name || tr('All projects'))} <i class="ph ph-caret-down" aria-hidden="true"></i></button>${period(0, tr('All time'))}${period(7, tr('7 days'))}${period(30, tr('30 days'))}</div>`;
+    const clear = state.tasks.some(task => task.isCompleted) ? `<div class="today-card completed-clear"><button class="completed-clear-row" type="button" data-action="clear-completed"><i class="ph ph-trash" aria-hidden="true"></i><span class="completed-clear-main"><span class="task-title">${tr('Clear completed tasks')}</span><span class="task-meta">${tr('Permanently delete all completed tasks and their attachments.')}</span></span></button></div>` : '';
+    if (!tasks.length) return html + emptyState(tr('No completed tasks match these filters.'), tr('Try a different project or time period.')) + clear;
     const groups = new Map();
     for (const task of tasks) {
       const date = Core.localDateOf(String(task.completedAt || '')) || 'unknown';
@@ -1270,9 +1373,16 @@
     }
     for (const [date, items] of groups) {
       const label = relativeDateLabel(date);
-      html += `<section class="upcoming-group"><div class="group-date"><strong>${esc(label)}</strong>${[tr('Today'), tr('Yesterday')].includes(label) ? `<span>${esc(formatDate(date))}</span>` : ''}</div><div class="task-list">${items.map(t => taskRow(t, 'completed')).join('')}</div></section>`;
+      const heading = [label, [tr('Today'), tr('Yesterday')].includes(label) ? formatDate(date) : '', items.length].filter(part => part !== '').join(' · ');
+      html += `<section class="section completed-group"><div class="section-header"><h2 class="section-label">${esc(heading)}</h2></div><div class="task-list today-card">${items.map(task => taskRow(task, 'completed', { today: true })).join('')}</div></section>`;
     }
-    return html;
+    return html + clear;
+  }
+
+  function openCompletedProjectSheet(anchor) {
+    const current = state.ui.completedProjectFilter || '';
+    const options = [['', tr('All projects')], ...allProjects().map(project => [project.id, project.isArchived ? tr('{name} (archived)', { name: project.name }) : project.name])];
+    openPopover(anchor, `<div class="popover-title">${tr('Project')}</div><div class="sheet-card" role="radiogroup" aria-label="${tr('Project')}">${options.map(([value, label]) => `<button class="popover-option sheet-option${current === value ? ' is-selected' : ''}" type="button" role="radio" aria-checked="${current === value}" data-pop-action="completed-set-project" data-value="${esc(value)}"><span class="sheet-option-label">${esc(label)}</span><span class="sheet-radio${current === value ? ' is-on' : ''}" aria-hidden="true"></span></button>`).join('')}</div>`, { type: 'completed-project' });
   }
 
   function emptyState(title, text, cta, action, data = {}) {
@@ -1298,7 +1408,7 @@
     const defaults = {
       projectId: context.projectId || null,
       areaId: context.areaId || null,
-      plannedDate: context.plannedDate || (context.today ? Core.dateOnly() : null),
+      plannedDate: context.plannedDate || context.day || (context.today ? Core.dateOnly() : null),
       explicitPlan: Boolean(context.plannedDate),
       processed: Boolean(context.anytime),
     };
@@ -1307,11 +1417,13 @@
       templateContext: context,
       defaults,
       draft: {
-        title: '', notes: '', projectId: defaults.projectId, areaId: defaults.areaId, plannedDate: defaults.plannedDate, parsedPlanDate: null, explicitPlan: defaults.explicitPlan,
-        dueDate: null, plannedTime: null, dueTime: null, explicitPlannedTime: false, reminderAt: null, reminderFiredAt: null, recurrence: null, tagIds: [], priority: 'none', subtasks: [], moreOpen: false,
+        title: context.title || '', notes: '', projectId: defaults.projectId, areaId: defaults.areaId, plannedDate: defaults.plannedDate, parsedPlanDate: null, explicitPlan: defaults.explicitPlan,
+        dueDate: null, plannedTime: null, dueTime: null, explicitPlannedTime: false, reminderAt: null, reminderFiredAt: null, recurrence: null, tagIds: [], priority: 'none', subtasks: [],
       },
       error: '',
     };
+    // R12b (J9): "+ Zadatak za sutra" comes back to the journal entry when Quick Add closes.
+    if (context.returnTo) modalState.returnTo = context.returnTo;
     renderModal();
     requestAnimationFrame(() => $('#quick-title')?.focus());
   }
@@ -1355,6 +1467,7 @@
     const toggle = $('[data-action="focus-toggle-timer"]');
     if (elapsed) elapsed.textContent = formatFocusElapsed(focusElapsedMs(timer));
     if (toggle) toggle.textContent = timer.isRunning ? tr('Pause') : tr('Resume');
+    $('#modal-root .focus-ring')?.classList.toggle('is-running', timer.isRunning);
   }
 
   function startFocusTimer() {
@@ -1466,14 +1579,14 @@
     };
   }
 
-  function openGoalModal(goalId = null, context = {}) {
+  // Redesign R9c (GO7): the window only creates; a goal is edited in its window (R9b).
+  function openGoalModal(context = {}) {
     const returnFocus = goalFocusTarget();
     captureModalReturnFocus();
     closePopover();
-    const goal = goalId ? getGoal(goalId) : null;
-    modalState = { type: 'goal', goalId, draft: goalDraft(goal, context.areaId), error: '', returnFocus };
+    modalState = { type: 'goal', draft: goalDraft(null, context.areaId), error: '', returnFocus };
     modalState.templateContext = context;
-    if (!goal && context.targetDate) modalState.draft.targetDate = context.targetDate;
+    if (context.targetDate) modalState.draft.targetDate = context.targetDate;
     renderModal(); requestAnimationFrame(() => $('#goal-title')?.focus());
   }
 
@@ -1490,6 +1603,32 @@
     renderModal(); requestAnimationFrame(() => $('#habit-name')?.focus());
   }
 
+  // Redesign R8c (S13): a habit's details open as a window over the current screen.
+  function openHabitDetails(habitId) {
+    if (!getHabit(habitId)) return;
+    closePopover();
+    if (modalState?.type !== 'habit-details') captureModalReturnFocus();
+    modalState = { type: 'habit-details', habitId, month: Core.dateOnly().slice(0, 7), draft: null };
+    renderModal();
+    requestAnimationFrame(() => $('#modal-root [data-action="close-modal"]')?.focus());
+  }
+
+  // Redesign R10b (S3): a note or a resource opens as a window like the task window; without an id it is a new one.
+  function openKnowledgeWindow(type, id = null) {
+    if (modalState?.type !== 'knowledge') captureModalReturnFocus();
+    callDomainHook('handleAction', 'open-knowledge', { ownerType: type, ownerId: id });
+  }
+
+  // Redesign R9b (GO5): a goal opens as a window like the task window.
+  function openGoalDetails(goalId) {
+    if (!getGoal(goalId)) return;
+    closePopover();
+    if (modalState?.type !== 'goal-details') captureModalReturnFocus();
+    modalState = { type: 'goal-details', goalId, showAllTasks: false };
+    renderModal();
+    requestAnimationFrame(() => $('#modal-root [data-action="close-modal"]')?.focus());
+  }
+
   function openConfirm(config) {
     captureModalReturnFocus();
     closePopover();
@@ -1499,22 +1638,26 @@
 
   function closeModal() {
     if (modalState?.type === 'focus') stopFocusTimer();
-    if (modalState?.previous?.type === 'goal' || (modalState?.previous && ['calendar-value', 'calendar-progress'].includes(modalState.type))) {
+    // R12b (J2): an entry emptied of text and mood leaves when its window closes.
+    if (modalState?.type === 'journal') callDomainHook('handleAction', 'journal-closing', null);
+    if (modalState?.type === 'habit-value' && modalState.previous) { modalState = modalState.previous; renderModal(); return; }
+    if (modalState?.previous?.type === 'goal') {
       const target = modalState.returnFocus; modalState = modalState.previous; renderModal(); restoreGoalFocus(target); return;
     }
+    // Source, reminders, links, milestone and history windows return to the goal window (R9b).
+    if (modalState?.returnTo) restoreGoalFocus(modalState.returnFocus);
+    if (modalState?.returnTo) { const back = modalState.returnTo; modalState = back; renderModal(); return; }
     if(modalState?.type==='recurrence-scope'){cancelRecurrenceScope();return;}
     if(modalState?.type==='template-picker'){modalState=modalState.previous;renderModal();return;}
     if(modalState?.onCancel){const cancel=modalState.onCancel;cancel();return;}
     if(flushTaskDraft(()=>closeModal()))return;
     const goalReturn = modalState?.returnFocus;
     const returnTarget = modalReturnFocus;
-    const returnDate = calendarReturnDate;
     modalReturnFocus = null;
-    calendarReturnDate = null;
     modalState = null;
     $('#modal-root').innerHTML = '';
     restoreGoalFocus(goalReturn);
-    if (returnTarget || returnDate) restoreModalReturnFocus(returnTarget, returnDate && $(`[data-action="calendar-detail"][data-date="${returnDate}"]`));
+    if (returnTarget) restoreModalReturnFocus(returnTarget);
   }
 
   function renderModal() {
@@ -1533,11 +1676,12 @@
     else if (modalState.type === 'template-picker') root.innerHTML = renderTemplatePicker();
     else if (modalState.type === 'recurrence-scope') root.innerHTML = renderRecurrenceScope();
     else if (modalState.type === 'sync-choice') root.innerHTML = renderSyncChoice();
-    if (['quick','project','habit','goal'].includes(modalState.type) && !modalState.taskId && !modalState.projectId && !modalState.habitId && !modalState.goalId) {
+    else if (modalState.type === 'inbox-triage') root.innerHTML = renderInboxTriage();
+    if (['project','habit','goal'].includes(modalState.type) && !modalState.taskId && !modalState.projectId && !modalState.habitId && !modalState.goalId) {
       $('.modal-inner',root)?.insertAdjacentHTML('afterbegin',`<button class="btn btn-ghost" type="button" data-action="from-template"><i class="ph ph-copy"></i> ${tr('From template')}</button>`);
     }
     if (['confirm','recurrence-scope'].includes(modalState?.type)) requestAnimationFrame(() => root.querySelector('.modal button, .modal [href], .modal input, .modal select, .modal textarea, .modal [tabindex]:not([tabindex="-1"])')?.focus());
-    if (['goal', 'goal-source', 'goal-links', 'goal-reminders', 'goal-history', 'milestone', 'habit-settings'].includes(modalState?.type)) requestAnimationFrame(() => ([...root.querySelectorAll('input, select, textarea')].find(el => el.offsetParent !== null) || root.querySelector('.modal-footer [data-action="close-modal"]'))?.focus());
+    if (['goal', 'goal-source', 'goal-links', 'goal-reminders', 'goal-history', 'milestone'].includes(modalState?.type)) requestAnimationFrame(() => ([...root.querySelectorAll('input, select, textarea')].find(el => el.offsetParent !== null) || root.querySelector('.modal-footer [data-action="close-modal"]'))?.focus());
   }
 
   function modalFrame(content, cls = '', dialogAttrs = '') {
@@ -1553,30 +1697,34 @@
     return `<div class="modal-backdrop${frameClass}" data-action="modal-backdrop"><section class="modal ${cls}" role="dialog" aria-modal="true" ${accessibleName}>${dialogContent}</section></div>`;
   }
 
+  // Redesign R10f (S12): a tall window with the title, one meta line, the ring, tickable subtasks, the notes and the
+  // footer (Sutra / Sledeći / Detalji, then "Završi zadatak").
   function renderFocusModal() {
+    const head = `<div class="modal-header task-window-header"><span class="task-window-kind">${tr('Focus')}</span><div class="task-window-actions"><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Exit focus mode')}"><i class="ph ph-x"></i></button></div></div>`;
     const task = getTask(modalState.taskId);
     if (!task || task.isCompleted) {
       const next = focusableTasks()[0];
       if (next) { modalState = { type: 'focus', taskId: next.id, timer: createFocusTimer() }; startFocusTimer(); return renderFocusModal(); }
-      return modalFrame(`<div class="modal-inner focus-modal"><div class="modal-header"><div><p class="focus-kicker">${tr('Focus mode')}</p><h2 class="modal-title">${tr('Nothing left to focus on')}</h2></div></div><div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-primary" type="button" data-action="close-modal">${tr('Exit')}</button></div></div></div>`, 'focus-modal');
+      return modalFrame(`<div class="modal-inner quick-sheet focus-window">${head}<h2 class="focus-title">${tr('Nothing left to focus on')}</h2><div class="quick-sheet-footer"><span></span><button class="btn btn-primary habit-window-save" type="button" data-action="close-modal">${tr('Exit')}</button></div></div>`, 'quick');
     }
     const today = Core.dateOnly();
     const project = getProject(task.projectId);
-    const metadata = [];
-    if (project) metadata.push(`<span><span class="project-dot" style="--project-color:${esc(project.color)}"></span>${esc(project.name)}</span>`);
-    if (task.dueDate) metadata.push(`<span class="${task.dueDate < today ? 'danger' : task.dueDate === today ? 'warning' : ''}">${esc(task.dueDate < today ? tr('Overdue · {date}', { date: relativeDateLabel(task.dueDate, today) }) : tr('Due {date}', { date: relativeDateLabel(task.dueDate, today) }))}</span>`);
-    if (task.plannedDate) metadata.push(`<span>${esc(tr('Planned {date}', { date: relativeDateLabel(task.plannedDate, today) }))}</span>`);
-    if (task.priority && task.priority !== 'none') metadata.push(`<span>${priorityIcon(task.priority)}${esc(tr('{priority} priority', { priority: priorityLabel(task.priority) }))}</span>`);
+    const meta = [
+      project?.name || '',
+      task.dueDate ? (task.dueDate < today ? tr('Overdue · {date}', { date: relativeDateLabel(task.dueDate, today) }) : tr('Due {date}', { date: relativeDateLabel(task.dueDate, today) })) : '',
+      task.plannedDate ? tr('Planned {date}', { date: relativeDateLabel(task.plannedDate, today) }) : '',
+      task.priority && task.priority !== 'none' ? tr('{priority} priority', { priority: priorityLabel(task.priority) }) : '',
+    ].filter(Boolean);
     const subtasks = [...(task.subtasks || [])].sort((a, b) => clampOrder(a.order) - clampOrder(b.order));
     const completed = subtasks.filter(subtask => subtask.isCompleted).length;
-    return modalFrame(`<div class="modal-inner focus-modal">
-      <div class="modal-header"><div><p class="focus-kicker">${tr('Focus mode')}</p><h2 class="modal-title">${esc(task.title)}</h2></div><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Exit focus mode')}"><i class="ph ph-x"></i></button></div>
-      ${metadata.length ? `<div class="focus-meta">${metadata.join('<span class="separator">·</span>')}</div>` : ''}
-      <div class="focus-timer" aria-live="off"><span class="focus-timer-label">${tr('Elapsed')}</span><strong id="focus-elapsed">${formatFocusElapsed(focusElapsedMs())}</strong><div class="focus-timer-actions"><button class="btn btn-secondary" type="button" data-action="focus-toggle-timer">${modalState.timer?.isRunning ? tr('Pause') : tr('Resume')}</button><button class="btn btn-ghost" type="button" data-action="focus-reset-timer">${tr('Reset')}</button></div></div>
-      ${task.notes ? `<p class="focus-notes">${esc(task.notes)}</p>` : ''}
-      ${subtasks.length ? `<section class="focus-subtasks"><div class="detail-heading"><span>${tr('Subtasks')}</span><span>${completed} / ${subtasks.length}</span></div><div class="subtask-list">${subtasks.map(subtask => `<div class="subtask-row ${subtask.isCompleted ? 'is-completed' : ''}"><span class="complete-control ${subtask.isCompleted ? 'is-completed' : ''}">${subtask.isCompleted ? '<i class="ph ph-check"></i>' : ''}</span><span class="subtask-title">${esc(subtask.title)}</span></div>`).join('')}</div></section>` : ''}
-      <div class="modal-footer"><button class="btn btn-ghost" type="button" data-action="close-modal">${tr('Exit')}</button><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="focus-next" data-task-id="${esc(task.id)}">${tr('Next task')}</button><button class="btn btn-secondary" type="button" data-action="focus-open-details" data-task-id="${esc(task.id)}">${tr('Open details')}</button><button class="btn btn-secondary" type="button" data-action="focus-tomorrow" data-task-id="${esc(task.id)}">${tr('Tomorrow')}</button><button class="btn btn-primary" type="button" data-action="focus-complete" data-task-id="${esc(task.id)}"><i class="ph ph-check"></i> ${tr('Complete task')}</button></div></div>
-    </div>`, 'focus-modal');
+    const running = Boolean(modalState.timer?.isRunning);
+    const id = esc(task.id);
+    let html = `${head}<h2 class="focus-title">${esc(task.title)}</h2>${meta.length ? `<p class="focus-meta-line">${esc(meta.join(' · '))}</p>` : ''}`;
+    html += `<div class="focus-ring${running ? ' is-running' : ''}" aria-live="off"><span class="focus-timer-label">${tr('Elapsed')}</span><strong id="focus-elapsed">${formatFocusElapsed(focusElapsedMs())}</strong></div><div class="focus-timer-actions"><button class="btn btn-secondary" type="button" data-action="focus-toggle-timer">${running ? tr('Pause') : tr('Resume')}</button><button class="btn btn-ghost" type="button" data-action="focus-reset-timer">${tr('Reset')}</button></div>`;
+    if (subtasks.length) html += `<h3 class="goal-details-label">${tr('Subtasks')} · ${completed}/${subtasks.length}</h3><div class="today-card focus-subtasks">${subtasks.map(subtask => `<button class="focus-subtask${subtask.isCompleted ? ' is-done' : ''}" type="button" data-action="toggle-subtask" data-task-id="${id}" data-subtask-id="${esc(subtask.id)}" aria-pressed="${Boolean(subtask.isCompleted)}"><span class="complete-control${subtask.isCompleted ? ' is-completed' : ''}" aria-hidden="true">${subtask.isCompleted ? '<i class="ph ph-check"></i>' : ''}</span><span class="subtask-title">${esc(subtask.title)}</span></button>`).join('')}</div>`;
+    if (task.notes) html += `<h3 class="goal-details-label">${tr('Notes')}</h3><p class="focus-notes">${esc(task.notes)}</p>`;
+    html += `<div class="quick-sheet-footer focus-footer"><div class="focus-footer-row"><button class="btn btn-secondary" type="button" data-action="focus-tomorrow" data-task-id="${id}">${tr('Tomorrow')}</button><button class="btn btn-secondary" type="button" data-action="focus-next" data-task-id="${id}">${tr('Next')}</button><button class="btn btn-secondary" type="button" data-action="focus-open-details" data-task-id="${id}">${tr('Details')}</button></div><button class="btn btn-primary habit-window-save" type="button" data-action="focus-complete" data-task-id="${id}"><i class="ph ph-check"></i> ${tr('Complete task')}</button></div>`;
+    return modalFrame(`<div class="modal-inner quick-sheet focus-window">${html}</div>`, 'quick');
   }
 
   const TEMPLATE_TYPES = ['task','project','habit','goal'];
@@ -1596,14 +1744,10 @@
       // Habit weeks before a week-start change keep their boundaries (M11).
       weekStartHistory: Core.recordWeekStartChange(state.settings, $('#preference-week-start')?.value, Core.dateOnly()),
       compactDensity: $('#preference-density')?.checked,
-      todayFocusFilter: $('#preference-today-filter')?.value,
       weekStartsOn: $('#preference-week-start')?.value,
-      todayVisibleSections: $$('[data-preference-today-section]:checked').map(input => input.value),
-      todayFocusStrip: $('#preference-focus-strip')?.checked,
     });
     saveAndRender();
   }
-  function resetPersonalization() { state.settings = { ...Core.resetV16Settings(state.settings), weekStartHistory: Core.recordWeekStartChange(state.settings, 'monday', Core.dateOnly()) }; saveAndRender(); }
   const copyTemplate = value => JSON.parse(JSON.stringify(value));
   const TYPE_LABELS = { task: msg('Task'), project: msg('Project'), habit: msg('Habit'), goal: msg('Goal'), note: msg('Note'), resource: msg('Resource'), area: msg('Area'), tag: msg('Tag'), template: msg('Template') };
   const templateLabel = type => (TYPE_LABELS[type] ? tr(TYPE_LABELS[type]) : type[0].toUpperCase() + type.slice(1));
@@ -1619,7 +1763,6 @@
     const record = { ...copyTemplate(draft), name: draft.name.trim(), id: id || uid('template'), createdAt: existing?.createdAt || nowIso(), updatedAt: nowIso() };
     if (existing) state.templates.splice(state.templates.indexOf(existing), 1, record); else state.templates.push(record);
     modalState.savedTemplateId = record.id;
-    state.ui.templateType = draft.type;
     if (saveState()) runScheduledTaskTemplates();
     closeModal(); render();
     return record;
@@ -1628,7 +1771,16 @@
   function duplicateTemplateRecord(id) {
     const source = state.templates.find(template => template.id === id);
     if (!source) return;
-    const record = copyTemplate(source); record.id = uid('template'); record.name += ' copy'; record.createdAt = record.updatedAt = nowIso(); state.templates.push(record); saveAndRender();
+    const record = copyTemplate(source); record.id = uid('template'); record.name = tr('{name} (copy)', { name: source.name }); record.createdAt = record.updatedAt = nowIso(); state.templates.push(record); saveAndRender();
+    setToastMessage(tr('Template duplicated'));
+  }
+
+  // "Upotrebi šablon" opens the usual new-item window, already filled; the user still saves it.
+  function useTemplate(id) {
+    const template = state.templates.find(item => item.id === id); if (!template) return;
+    if (template.type === 'task') { openQuickAdd(); applyQuickTemplate(template.id); renderModal(); return; }
+    if (template.type === 'project') openProjectModal(); else if (template.type === 'habit') openHabitModal(); else openGoalModal();
+    openTemplatePicker(); chooseTemplate(template.id);
   }
   function openTemplatePicker() {
     if(modalState.type==='quick')syncQuickDraftFromDom();
@@ -1653,7 +1805,7 @@
     if(template.type==='task') {
       if(context.projectId && getProject(context.projectId))item.projectId=context.projectId;
       if(item.projectId)item.areaId=null;
-      modalState.draft={...modalState.draft,...item,explicitPlan:true,parsedPlanDate:null,moreOpen:false};
+      modalState.draft={...modalState.draft,...item,explicitPlan:true,parsedPlanDate:null};
     } else if(template.type==='project')modalState.draft={...item};
     else if(template.type==='habit')modalState.draft=habitDraft(item);
     else modalState.draft=goalDraft(item);
@@ -1708,32 +1860,101 @@
     return items.length ? `<div class="quick-parse-preview" data-quick-preview role="group" aria-label="${tr('Recognized in title')}">${items.join('')}</div>` : '';
   }
 
+  // Redesign R4 (Q1, Q2, S7): Quick Add as a bottom sheet. The title, the Smart Quick Add preview, the date and
+  // place selectors, the template chip, "Više opcija" (saves and opens the task window) and "Dodaj zadatak".
   function renderQuickModal() {
     const d = modalState.draft;
-    const project = getProject(d.projectId);
-    const effectivePlan = d.explicitPlan ? d.plannedDate : (d.parsedPlanDate || d.plannedDate);
-    const assignedTags = (d.tagIds || []).map(getTag).filter(Boolean);
-    return modalFrame(`<div class="modal-inner">
-      <input id="quick-title" class="quick-title-input ${modalState.error ? 'is-error' : ''}" type="text" maxlength="500" autocomplete="off" placeholder="${tr('What needs to be done?')}" value="${esc(d.title)}" aria-label="${tr('Task title')}" />
+    const parsed = parseQuickAddTitle(d.title, !d.explicitPlan);
+    const plan = d.explicitPlan ? d.plannedDate : (parsed.plannedDate || d.plannedDate);
+    const time = d.explicitPlannedTime ? d.plannedTime : (d.plannedTime || parsed.plannedTime);
+    return modalFrame(`<div class="modal-inner quick-sheet">
+      <div class="modal-header"><h2 class="modal-title">${tr('New task')}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div>
+      <input id="quick-title" class="quick-title-input${modalState.error ? ' is-error' : ''}" type="text" maxlength="500" autocomplete="off" placeholder="${tr('What needs to be done?')}" value="${esc(d.title)}" aria-label="${tr('Task title')}" />
       ${modalState.error ? `<div class="validation">${esc(modalState.error)}</div>` : ''}
-      <div class="quick-parse-slot" data-quick-preview-slot aria-live="polite">${quickParsePreview(parseQuickAddTitle(d.title, !d.explicitPlan))}</div>
-      <div class="quick-properties">
-        <button class="property-chip" type="button" data-action="quick-project-picker"><i class="ph ph-folder-simple"></i>${project ? `<span class="project-dot" style="--project-color:${esc(project.color)}"></span>${esc(project.name)}` : tr('Project')}</button>
-        <button class="property-chip" type="button" data-action="quick-plan-picker"><i class="ph ph-calendar-check"></i>${effectivePlan ? esc(relativeDateLabel(effectivePlan)) : tr('Plan for')}</button>
-        <button class="property-chip" type="button" data-action="quick-due-picker"><i class="ph ph-flag"></i>${d.dueDate ? esc(tr('Due {date}', { date: relativeDateLabel(d.dueDate) })) : tr('Due date')}</button>
-        <button class="property-chip" type="button" data-action="quick-duration-picker"><i class="ph ph-timer"></i>${d.durationMinutes ? esc(durationLabel(d.durationMinutes)) : tr('Duration')}</button>
-        <button class="property-chip" type="button" data-action="quick-reminder-picker"><i class="ph ph-bell"></i>${d.reminderAt ? esc(formatReminder(d.reminderAt)) : tr('Reminder')}</button>
-        <button class="property-chip" type="button" data-action="quick-repeat-picker"><i class="ph ph-arrows-clockwise"></i>${d.recurrence ? esc(recurrenceLabel(d.recurrence)) : tr('Repeat')}</button>
-      </div>
-      <button class="btn btn-ghost quick-more" type="button" data-action="toggle-quick-more"><i class="ph ph-caret-${d.moreOpen ? 'up' : 'down'}"></i> ${tr('More')}</button>
-      ${d.moreOpen ? `<div class="quick-extra"><div><label class="field-label" for="quick-notes">${tr('Notes')}</label><textarea id="quick-notes" class="textarea" placeholder="${tr('Add notes...')}">${esc(d.notes)}</textarea></div><div class="quick-advanced-grid"><button class="property-row compact-property" type="button" data-action="quick-tags-picker"><span class="property-key">${tr('Tags')}</span><span class="property-value">${assignedTags.length ? assignedTags.map(t => `<span class="tag-inline"><span class="tag-dot" style="--tag-color:${esc(t.color)}"></span>${esc(t.name)}</span>`).join(' ') : tr('No tags')}</span></button><button class="property-row compact-property" type="button" data-action="quick-priority-picker"><span class="property-key">${tr('Priority')}</span><span class="property-value">${esc(priorityLabel(d.priority))}</span></button></div><div><div class="detail-heading"><span>${tr('Subtasks')}</span><span>${d.subtasks.length}</span></div><div class="subtask-list">${d.subtasks.map(s => quickDraftSubtaskRow(s)).join('')}</div><div class="add-subtask-input"><span></span><input id="quick-subtask" class="input" type="text" placeholder="${tr('Add subtask...')}" /></div></div></div>` : ''}
-      ${d.moreOpen ? `<div class="quick-advanced-grid"><label class="property-row" for="quick-planned-time"><span class="property-key">${tr('Planned time')}</span><input id="quick-planned-time" class="input task-time-input" type="time" value="${esc(d.plannedTime || '')}"></label><label class="property-row" for="quick-due-time"><span class="property-key">${tr('Due time')}</span><input id="quick-due-time" class="input task-time-input" type="time" value="${esc(d.dueTime || '')}"></label></div>` : ''}
-      <div class="modal-footer"><span class="shortcut-hint">${tr('↵ Add · ⇧↵ Add another')}</span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">${tr('Cancel')}</button><button class="btn btn-primary" type="button" data-action="create-task">${tr('Add task')}</button></div></div>
+      <div class="quick-parse-slot" data-quick-preview-slot aria-live="polite">${quickParsePreview(parsed)}</div>
+      <div class="quick-selectors"><button class="quick-selector" type="button" data-action="quick-plan-picker"><i class="ph ph-calendar-check" aria-hidden="true"></i><span data-quick-plan-label>${esc(quickPlanLabel(plan, time))}</span><i class="ph ph-caret-right" aria-hidden="true"></i></button><button class="quick-selector" type="button" data-action="quick-project-picker"><i class="ph ph-folder-simple" aria-hidden="true"></i><span data-quick-place-label>${esc(quickPlace(d, parsed).label)}</span><i class="ph ph-caret-right" aria-hidden="true"></i></button></div>
+      ${quickTemplateRow()}
+      <button class="quick-more-options" type="button" data-action="quick-more-options"><span>${tr('More options')}</span><span class="quick-more-meta">${tr('Due date, reminder, tags')}</span><i class="ph ph-caret-right" aria-hidden="true"></i></button>
+      <div class="quick-sheet-footer"><span class="shortcut-hint">${tr('↵ Add · ⇧↵ Add another')}</span><button class="btn btn-primary quick-add-button" type="button" data-action="create-task">${tr('Add task')}</button></div>
     </div>`, 'quick');
   }
 
-  function quickDraftSubtaskRow(subtask) {
-    return `<div class="subtask-row"><button class="complete-control ${subtask.isCompleted ? 'is-completed' : ''}" type="button" data-action="quick-toggle-subtask" data-subtask-id="${esc(subtask.id)}" aria-label="${subtask.isCompleted ? tr('Mark subtask incomplete') : tr('Complete subtask')}">${subtask.isCompleted ? '<i class="ph ph-check"></i>' : ''}</button><span class="subtask-title">${esc(subtask.title)}</span><button class="btn-icon" type="button" data-action="quick-delete-subtask" data-subtask-id="${esc(subtask.id)}" aria-label="${tr('Delete subtask')}"><i class="ph ph-x"></i></button></div>`;
+  function quickPlanLabel(plan, time) {
+    return plan ? `${relativeDateLabel(plan)}${time ? ` · ${time}` : ''}` : tr('No date');
+  }
+
+  // Where a Quick Add task goes: its project, "Bez projekta" (it skips Inbox) or Inbox. A picked place wins over a
+  // parsed +project; a task with a date and no project is never in Inbox.
+  function quickPlace(d, parsed = parseQuickAddTitle(d.title, !d.explicitPlan)) {
+    const projectId = d.placePicked ? (d.projectId || null) : (d.projectId || parsed.projectId || null);
+    const plan = d.explicitPlan ? d.plannedDate : (parsed.plannedDate || d.plannedDate);
+    const processed = d.processed ?? Boolean(modalState?.defaults?.processed);
+    const isInbox = !projectId && !processed && !plan;
+    return { projectId, isInbox, label: projectId ? (getProject(projectId)?.name || tr('No project')) : isInbox ? tr('Inbox') : tr('No project') };
+  }
+
+  // S7: the "Iz šablona" chip, shown only when task templates exist.
+  function quickTemplateRow() {
+    const templates = (state.templates || []).filter(template => template.type === 'task');
+    if (!templates.length) return '';
+    const chosen = modalState.quickTemplate && templates.find(template => template.id === modalState.quickTemplate.id);
+    if (!chosen) return `<div class="quick-template-row"><button class="quick-chip" type="button" data-action="quick-template"><i class="ph ph-copy" aria-hidden="true"></i>${tr('From template')}</button></div>`;
+    return `<div class="quick-template-row"><button class="quick-chip is-selected" type="button" data-action="quick-template"><i class="ph ph-copy" aria-hidden="true"></i>${esc(tr('Template: {name}', { name: chosen.name }))}</button><button class="quick-chip" type="button" data-action="quick-template-clear" aria-label="${tr('Remove template')}"><i class="ph ph-x" aria-hidden="true"></i></button></div><p class="quick-template-summary">${esc(quickTemplateSummary(chosen))}</p>`;
+  }
+
+  function quickTemplateSummary(template) {
+    const item = Core.instantiateTemplate(template, Core.dateOnly(), { state, makeId: () => 'preview', nowIso: nowIso() }).task;
+    return [item.plannedDate && relativeDateLabel(item.plannedDate), item.dueDate && tr('Due {date}', { date: relativeDateLabel(item.dueDate) }), item.subtasks.length && trn(item.subtasks.length, '{count} subtask', '{count} subtasks'), ...(item.tagIds || []).map(getTag).filter(Boolean).map(tag => `#${tag.name}`)].filter(Boolean).join(' · ') || item.title || template.name;
+  }
+
+  function openQuickTemplatePicker(anchor) {
+    const templates = (state.templates || []).filter(template => template.type === 'task');
+    const current = modalState?.quickTemplate?.id;
+    const html = `<div class="popover-title">${tr('Task template')}</div><div class="sheet-card">${templates.map(template => `<button class="popover-option sheet-option${template.id === current ? ' is-selected' : ''}" type="button" data-pop-action="quick-template-pick" data-template-id="${esc(template.id)}"><i class="ph ph-copy" aria-hidden="true"></i><span class="sheet-option-label">${esc(template.name)}<small>${esc(quickTemplateSummary(template))}</small></span><span class="sheet-radio${template.id === current ? ' is-on' : ''}" aria-hidden="true"></span></button>`).join('')}</div>`;
+    openPopover(anchor, html, { type: 'quick-template' });
+  }
+
+  // S7: a template fills what the draft does not have yet. A typed title, a picked date and a picked place win;
+  // the due date moves with the plan. ✕ restores what the template replaced.
+  const QUICK_TEMPLATE_FIELDS = ['plannedDate', 'plannedTime', 'dueDate', 'dueTime', 'subtasks', 'tagIds', 'priority', 'notes', 'durationMinutes', 'reminderAt', 'recurrence', 'goalIds', 'projectId', 'areaId'];
+  function applyQuickTemplate(id) {
+    const template = (state.templates || []).find(item => item.id === id && item.type === 'task');
+    if (!template || modalState?.type !== 'quick') return;
+    syncQuickDraftFromDom();
+    if (modalState.quickTemplate) clearQuickTemplate();
+    const d = modalState.draft;
+    const offset = Number.isInteger(template.data?.plannedOffsetDays) ? template.data.plannedOffsetDays : 0;
+    const context = d.explicitPlan && d.plannedDate ? Core.addDays(d.plannedDate, -offset) : (modalState.templateContext?.plannedDate || Core.dateOnly());
+    const out = Core.instantiateTemplate(template, context, { state, makeId: uid, nowIso: nowIso() });
+    const item = out.task;
+    const before = copyTemplate(Object.fromEntries([...QUICK_TEMPLATE_FIELDS, 'title'].map(key => [key, d[key] ?? null])));
+    if (!String(d.title || '').trim()) d.title = item.title || '';
+    if (!d.explicitPlan && item.plannedDate) { d.plannedDate = item.plannedDate; if (!d.plannedTime) d.plannedTime = item.plannedTime || null; }
+    if (!d.dueDate) { d.dueDate = item.dueDate || null; d.dueTime = d.dueTime || item.dueTime || null; }
+    if (!d.subtasks?.length) d.subtasks = item.subtasks || [];
+    d.tagIds = [...new Set([...(d.tagIds || []), ...(item.tagIds || [])])];
+    if (!d.priority || d.priority === 'none') d.priority = item.priority || 'none';
+    for (const key of ['notes', 'durationMinutes', 'reminderAt', 'recurrence']) if (!d[key]) d[key] = item[key] ?? d[key] ?? null;
+    d.goalIds = [...new Set([...(d.goalIds || []), ...(item.goalIds || [])])];
+    if (!d.placePicked && !d.projectId && item.projectId) { d.projectId = item.projectId; d.areaId = null; }
+    else if (!d.projectId && !d.areaId && item.areaId) d.areaId = item.areaId;
+    modalState.quickTemplate = { id, title: item.title || '', before };
+    modalState.templateInstance = out;
+  }
+  function clearQuickTemplate() {
+    const applied = modalState?.quickTemplate;
+    if (!applied) return;
+    syncQuickDraftFromDom();
+    const d = modalState.draft;
+    const title = d.title === applied.title ? applied.before.title : d.title;
+    for (const key of QUICK_TEMPLATE_FIELDS) {
+      if ((key === 'plannedDate' || key === 'plannedTime') && d.explicitPlan) continue;
+      if ((key === 'projectId' || key === 'areaId') && d.placePicked) continue;
+      d[key] = applied.before[key];
+    }
+    d.title = title || '';
+    modalState.quickTemplate = null;
+    modalState.templateInstance = null;
   }
 
   function priorityLabel(value) {
@@ -1899,8 +2120,9 @@
     requestDeleteEntity('attachment', attachmentId);
   }
 
+  // Redesign R10f (S11): a full-height window with the field on top; scope, ranking and grouping are unchanged.
   function renderSearchModal() {
-    return modalFrame(`<div class="modal-inner"><div class="search-box"><i class="ph ph-magnifying-glass"></i><input id="search-query" class="search-input" type="search" autocomplete="off" placeholder="${tr('Search tasks and projects...')}" value="${esc(modalState.query || '')}" /><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close Search')}"><i class="ph ph-x"></i></button></div><div id="search-results" class="search-results">${searchResultsHtml(modalState.query || '')}</div></div>`, 'search-modal');
+    return modalFrame(`<div class="modal-inner quick-sheet search-window"><div class="modal-header"><h2 class="modal-title">${tr('Search')}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close Search')}"><i class="ph ph-x"></i></button></div><label class="search-box"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input id="search-query" class="search-input" type="search" autocomplete="off" placeholder="${tr('Search tasks and projects...')}" value="${esc(modalState.query || '')}" aria-label="${tr('Search')}"></label><div id="search-results" class="search-results">${searchResultsHtml(modalState.query || '')}</div></div>`, 'quick');
   }
 
   // Search (M11, approved 2026-10-09): results are rebuilt after a short pause in typing, and at most this many
@@ -1925,10 +2147,10 @@
     if (!result.tasks.length && !result.projects.length) return `<div class="empty-state" style="border:0;padding:38px 12px"><h3>${tr('No results for “{query}”', { query: esc(query) })}</h3></div>`;
     let html = '';
     if (result.tasks.length) {
-      html += `<div class="search-section-title">${tr('Tasks')}</div>${result.tasks.slice(0, SEARCH_TASK_LIMIT).map(({ task }) => searchTaskResult(task)).join('')}${searchMoreNote(result.tasks.length, SEARCH_TASK_LIMIT)}`;
+      html += `<h3 class="search-section-title">${tr('Tasks')} · ${result.tasks.length}</h3><div class="today-card search-list">${result.tasks.slice(0, SEARCH_TASK_LIMIT).map(({ task }) => searchTaskResult(task)).join('')}</div>${searchMoreNote(result.tasks.length, SEARCH_TASK_LIMIT)}`;
     }
     if (result.projects.length) {
-      html += `<div class="search-section-title">${tr('Projects')}</div>${result.projects.slice(0, SEARCH_PROJECT_LIMIT).map(project => `<button class="search-result" type="button" data-route="project/${esc(project.id)}"><span class="search-result-icon"><span class="project-dot" style="--project-color:${esc(project.color)}"></span></span><span><span class="search-result-title">${esc(project.name)}</span><span class="search-result-meta">${tr('Project')}</span></span></button>`).join('')}${searchMoreNote(result.projects.length, SEARCH_PROJECT_LIMIT)}`;
+      html += `<h3 class="search-section-title">${tr('Projects')} · ${result.projects.length}</h3><div class="today-card search-list">${result.projects.slice(0, SEARCH_PROJECT_LIMIT).map(project => `<button class="search-result" type="button" data-route="project/${esc(project.id)}"><span class="search-result-icon"><span class="project-dot" style="--project-color:${esc(project.color)}"></span></span><span><span class="search-result-title">${esc(project.name)}</span><span class="search-result-meta">${tr('Project')}${project.isArchived ? ` · ${tr('archived')}` : ''}</span></span></button>`).join('')}</div>${searchMoreNote(result.projects.length, SEARCH_PROJECT_LIMIT)}`;
     }
     return html;
   }
@@ -1947,10 +2169,11 @@
     return `<button class="search-result" type="button" data-action="open-task" data-task-id="${esc(task.id)}"><span class="search-result-icon">${task.isCompleted ? '<i class="ph-fill ph-check-circle" style="color:var(--success)"></i>' : '<i class="ph ph-circle"></i>'}</span><span><span class="search-result-title">${esc(task.title)}</span><span class="search-result-meta">${esc(parts.join(' · ') || tr('Task'))}</span></span></button>`;
   }
 
+  // R10c: a sheet like the area window, with one big button.
   function renderTagModal() {
     const editing = Boolean(modalState.tagId);
     const d = modalState.draft;
-    return modalFrame(`<div class="modal-inner"><div class="modal-header"><div><h2 class="dialog-title">${editing ? tr('Edit tag') : tr('New tag')}</h2></div><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div><div class="form-stack"><label class="field-label" for="tag-name">${tr('Name')}</label><input id="tag-name" class="input ${modalState.error ? 'is-error' : ''}" type="text" maxlength="80" value="${esc(d.name)}" placeholder="${tr('Tag name')}" />${modalState.error ? `<div class="validation">${esc(modalState.error)}</div>` : ''}<div class="field-label">${tr('Color')}</div><div class="color-grid">${PROJECT_COLORS.map(c => `<button class="color-swatch ${c === d.color ? 'is-selected' : ''}" type="button" data-action="select-tag-color" data-color="${c}" style="--swatch:${c}" aria-label="${tr('Select color')}"></button>`).join('')}</div></div><div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">${tr('Cancel')}</button><button class="btn btn-primary" type="button" data-action="save-tag">${editing ? tr('Save') : tr('Create')}</button></div></div></div>`, 'small-modal');
+    return modalFrame(`<div class="modal-inner quick-sheet tag-window"><div class="modal-header"><h2 class="modal-title">${editing ? tr('Edit tag') : tr('New tag')}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div><input id="tag-name" class="quick-title-input${modalState.error ? ' is-error' : ''}" type="text" maxlength="80" autocomplete="off" placeholder="${tr('Tag name')}" value="${esc(d.name)}" aria-label="${tr('Tag name')}">${modalState.error ? `<div class="validation" role="alert">${esc(modalState.error)}</div>` : ''}<span class="habit-window-label">${tr('Color')}</span><div class="color-grid">${PROJECT_COLORS.map(c => `<button class="color-swatch${c === d.color ? ' is-selected' : ''}" type="button" data-action="select-tag-color" data-color="${c}" style="--swatch:${c}" aria-label="${tr('Select color')}" aria-pressed="${c === d.color}"></button>`).join('')}</div><div class="quick-sheet-footer"><span></span><button class="btn btn-primary habit-window-save" type="button" data-action="save-tag">${editing ? tr('Save changes') : tr('Create tag')}</button></div></div>`, 'quick');
   }
 
   function renderAreaLinkedModal() {
@@ -1972,39 +2195,201 @@
     return PROJECT_COLORS[state.projects.length % PROJECT_COLORS.length];
   }
 
+  // Redesign R3 (E8): projects grouped by area with "Oblast: …", a search field and "+ Novi projekat".
+  // A tap applies the choice (E3).
   function openProjectPicker(anchor, target) {
-    const currentId = target.type === 'quick' ? modalState?.draft.projectId : getTask(target.taskId)?.projectId;
+    const source = target.type === 'quick' ? modalState?.draft : getTask(target.taskId);
+    const currentId = source?.projectId || null;
+    const attrs = `data-target-type="${target.type}"${target.taskId ? ` data-task-id="${esc(target.taskId)}"` : ''}`;
     const projects = sortedProjects();
-    const html = `<div class="popover-title">${tr('Project')}</div><button class="popover-option ${!currentId ? 'is-selected' : ''}" type="button" data-pop-action="set-project" data-project-id="" data-target-type="${target.type}" ${target.taskId ? `data-task-id="${esc(target.taskId)}"` : ''}><i class="ph ph-minus-circle"></i>${tr('No project')}${!currentId ? '<i class="ph ph-check spacer"></i>' : ''}</button>${projects.map(p => `<button class="popover-option ${p.id === currentId ? 'is-selected' : ''}" type="button" data-pop-action="set-project" data-project-id="${esc(p.id)}" data-target-type="${target.type}" ${target.taskId ? `data-task-id="${esc(target.taskId)}"` : ''}><span class="project-dot" style="--project-color:${esc(p.color)}"></span>${esc(p.name)}${p.id === currentId ? '<i class="ph ph-check spacer"></i>' : ''}</button>`).join('')}<div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="inline-new-project" data-target-type="${target.type}" ${target.taskId ? `data-task-id="${esc(target.taskId)}"` : ''}><i class="ph ph-plus"></i>${tr('New project')}</button>`;
+    const activeAreas = sortedAreas().filter(area => area.status !== 'archived');
+    const ordered = [...activeAreas.flatMap(area => projects.filter(project => project.areaId === area.id)), ...projects.filter(project => !activeAreas.some(area => area.id === project.areaId))];
+    const option = project => {
+      const area = getArea(project.areaId);
+      return `<button class="popover-option sheet-option${project.id === currentId ? ' is-selected' : ''}" type="button" data-sheet-item data-search="${esc(project.name.toLowerCase())}" data-pop-action="set-project" data-project-id="${esc(project.id)}" ${attrs}><span class="project-dot" style="--project-color:${esc(project.color)}"></span><span class="sheet-option-label">${esc(project.name)}${area ? `<small>${esc(tr('Area: {area}', { area: area.name }))}</small>` : ''}</span><span class="sheet-radio${project.id === currentId ? ' is-on' : ''}" aria-hidden="true"></span></button>`;
+    };
+    // Redesign R4: in Quick Add the sheet asks where the task goes, with Inbox and "Bez projekta" on top.
+    const quick = target.type === 'quick';
+    const inbox = quick && !currentId && !(source?.processed ?? Boolean(modalState?.defaults?.processed));
+    const none = !currentId && !inbox;
+    const noneRow = `<button class="popover-option sheet-option${none ? ' is-selected' : ''}" type="button" ${quick ? 'data-pop-action="quick-place" data-place="none"' : `data-pop-action="set-project" data-project-id="" ${attrs}`}><span class="sheet-option-label">${tr('No project')}</span><span class="sheet-radio${none ? ' is-on' : ''}" aria-hidden="true"></span></button>`;
+    const inboxRow = quick ? `<button class="popover-option sheet-option${inbox ? ' is-selected' : ''}" type="button" data-pop-action="quick-place" data-place="inbox"><i class="ph ph-tray" aria-hidden="true"></i><span class="sheet-option-label">${tr('Inbox')}<small>${tr('Sort it later')}</small></span><span class="sheet-radio${inbox ? ' is-on' : ''}" aria-hidden="true"></span></button>` : '';
+    const html = `<div class="popover-title">${quick ? tr('Where does the task go') : tr('Project')}</div>${source?.title ? `<p class="sheet-subtitle">${esc(source.title)}</p>` : ''}<label class="sheet-search"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input class="input" type="search" data-sheet-search placeholder="${tr('Search projects')}" aria-label="${tr('Search projects')}"></label><div class="sheet-card">${inboxRow}${noneRow}${ordered.map(option).join('')}<button class="popover-option sheet-option sheet-add" type="button" data-pop-action="inline-new-project" ${attrs}><i class="ph ph-plus" aria-hidden="true"></i>${tr('New project')}</button></div><p class="sheet-note">${tr("The task takes its project's area. A tap applies the choice.")}</p>`;
     openPopover(anchor, html, { type: 'project', target });
   }
 
-  function openPlanPicker(anchor, target) {
-    const task = target.type === 'quick' ? modalState.draft : getTask(target.taskId);
+  // Redesign R3 (E4): one date sheet for Planirano and Rok, in the task window and in Quick Add.
+  let dateSheet = null, reminderSheet = null, tagSheet = null;
+  function nextMonday(today) {
+    const weekday = parseLocalDate(today).getDay();
+    return Core.addDays(today, ((8 - weekday) % 7) || 7);
+  }
+  function monthGrid(selected, view, today = Core.dateOnly()) {
+    const sundayFirst = Core.weekStartKey(state.settings.weekStartsOn) === 'sunday';
+    const first = new Date(view.y, view.m, 1, 12);
+    const count = new Date(view.y, view.m + 1, 0).getDate();
+    const lead = (first.getDay() - (sundayFirst ? 0 : 1) + 7) % 7;
+    const weekday = new Intl.DateTimeFormat(I18n.locale(), { weekday: 'short' });
+    const names = Array.from({ length: 7 }, (_, index) => weekday.format(new Date(2026, 0, 4 + index + (sundayFirst ? 0 : 1), 12)));
+    const title = new Intl.DateTimeFormat(I18n.locale(), { month: 'long', year: 'numeric' }).format(first);
+    let html = `<div class="sheet-calendar"><div class="sheet-calendar-head"><button class="btn-icon" type="button" data-pop-action="date-sheet-month" data-step="-1" aria-label="${tr('Previous month')}"><i class="ph ph-caret-left"></i></button><span class="sheet-calendar-title">${esc(title)}</span><button class="btn-icon" type="button" data-pop-action="date-sheet-month" data-step="1" aria-label="${tr('Next month')}"><i class="ph ph-caret-right"></i></button></div><div class="sheet-calendar-grid">${names.map(name => `<span class="sheet-calendar-weekday">${esc(name)}</span>`).join('')}${'<span></span>'.repeat(lead)}`;
+    for (let dayNumber = 1; dayNumber <= count; dayNumber += 1) {
+      const date = Core.dateOnly(new Date(view.y, view.m, dayNumber, 12));
+      html += `<button class="sheet-calendar-day${date === selected ? ' is-selected' : ''}${date === today ? ' is-today' : ''}" type="button" data-pop-action="date-sheet-pick" data-date="${date}" aria-pressed="${date === selected}" aria-label="${esc(formatDate(date, 'full'))}">${dayNumber}</button>`;
+    }
+    return `${html}</div></div>`;
+  }
+  function openDateSheet(anchor, target, kind) {
+    // R8b: a habit's "Početak" (target.type === 'habit', kind 'start') uses the same sheet on the habit window's draft.
+    const source = target.type === 'quick' || target.type === 'habit' ? modalState?.draft : getTask(target.taskId);
+    if (!source) return;
+    // In Quick Add the sheet starts from the effective plan: the parsed date until one is picked.
+    const plan = target.type === 'quick' && !source.explicitPlan ? (source.parsedPlanDate || source.plannedDate) : source.plannedDate;
+    const date = (kind === 'plan' ? plan : kind === 'start' ? source.startDate : source.dueDate) || null;
+    const base = parseLocalDate(date || Core.dateOnly());
+    const sheet = { target, kind, date, time: kind === 'start' ? null : (kind === 'plan' ? source.plannedTime : source.dueTime) || null, view: { y: base.getFullYear(), m: base.getMonth() } };
+    dateSheet = sheet;
+    openPopover(anchor, dateSheetHtml(), { type: 'date-sheet', target });
+    dateSheet = sheet; // openPopover closes the previous sheet first, which clears the sheet state
+  }
+  function dateSheetHtml() {
+    const { target, kind, date, time, view } = dateSheet;
+    const source = target.type === 'quick' || target.type === 'habit' ? modalState?.draft : getTask(target.taskId);
     const today = Core.dateOnly();
-    const html = `<div class="popover-title">${tr('Plan for')}</div>${dateOption(tr('Today'), today, task.plannedDate, 'set-plan', target)}${dateOption(tr('Tomorrow'), Core.addDays(today,1), task.plannedDate, 'set-plan', target)}<button class="popover-option" type="button" data-pop-action="show-custom-date" data-date-kind="plan" data-target-type="${target.type}" ${target.taskId ? `data-task-id="${esc(target.taskId)}"` : ''}><i class="ph ph-calendar-blank"></i>${tr('Pick a date...')}</button>${task.plannedDate ? `<div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="set-plan" data-date="" data-target-type="${target.type}" ${target.taskId ? `data-task-id="${esc(target.taskId)}"` : ''}><i class="ph ph-x"></i>${tr('Remove plan')}</button>` : ''}`;
-    openPopover(anchor, html, { type: 'plan', target });
+    const quick = [[tr('Today'), today], [tr('Tomorrow'), Core.addDays(today, 1)], [tr('Start of next week'), nextMonday(today)]];
+    const chips = `<div class="sheet-chips">${quick.map(([label, value]) => `<button class="quick-chip${date === value ? ' is-selected' : ''}" type="button" data-pop-action="date-sheet-pick" data-date="${value}" aria-pressed="${date === value}">${esc(label)}</button>`).join('')}</div>`;
+    if (kind === 'start') return `<div class="popover-title">${tr('Start')}</div><p class="sheet-subtitle">${esc(source?.name?.trim() || tr('New habit'))}</p>${chips}${monthGrid(date, view, today)}<div class="sheet-footer"><span></span><button class="btn btn-primary" type="button" data-pop-action="date-sheet-apply">${tr('Apply')}</button></div>`;
+    const otherDate = kind === 'plan' ? source?.dueDate : source?.plannedDate;
+    const otherTime = kind === 'plan' ? source?.dueTime : source?.plannedTime;
+    const other = otherDate ? `${relativeDateLabel(otherDate)}${otherTime ? ` · ${otherTime}` : ''}` : '';
+    const note = kind === 'plan' ? (other ? tr('The due date stays: {date}', { date: other }) : tr('No due date is set.')) : (other ? tr('The planned date stays: {date}', { date: other }) : tr('No planned date is set.'));
+    return `<div class="popover-title">${kind === 'plan' ? tr('Planned') : tr('Due date')}</div>${source?.title ? `<p class="sheet-subtitle">${esc(source.title)}</p>` : ''}${chips}${monthGrid(date, view, today)}<label class="sheet-field"><i class="ph ph-clock" aria-hidden="true"></i><span>${tr('Time')}</span><input id="date-sheet-time" class="input" type="time" value="${esc(time || '')}"></label><p class="sheet-note">${esc(note)}</p><div class="sheet-footer"><button class="btn btn-ghost" type="button" data-pop-action="date-sheet-clear">${tr('Remove date')}</button><button class="btn btn-primary" type="button" data-pop-action="date-sheet-apply">${tr('Apply')}</button></div>`;
+  }
+  function applyDateSheet(clear) {
+    if (!dateSheet) return;
+    const { target, kind } = dateSheet;
+    if (target.type === 'habit') { modalState.draft.startDate = dateSheet.date || Core.dateOnly(); closePopover(); renderModal(); return; }
+    const date = clear ? null : dateSheet.date;
+    const time = date ? Core.normalizeTime($('#date-sheet-time', popoverEl)?.value ?? dateSheet.time) : null;
+    if (target.type === 'quick') {
+      const draft = modalState.draft;
+      if (kind === 'plan') Object.assign(draft, { plannedDate: date, plannedTime: time, explicitPlan: true, parsedPlanDate: null, explicitPlannedTime: Boolean(time) });
+      else Object.assign(draft, { dueDate: date, dueTime: time });
+      closePopover(); renderModal(); return;
+    }
+    closePopover();
+    requestTaskEdit(target.taskId, kind === 'plan' ? { plannedDate: date, plannedTime: time, ...(date ? { isInbox: false } : {}) } : { dueDate: date, dueTime: time });
+  }
+
+  function openPlanPicker(anchor, target) {
+    openDateSheet(anchor, target, 'plan');
   }
 
   function openDuePicker(anchor, target) {
-    const task = target.type === 'quick' ? modalState.draft : getTask(target.taskId);
-    const today = Core.dateOnly();
-    const weekend = nextWeekend(today);
-    const html = `<div class="popover-title">${tr('Due date')}</div>${dateOption(tr('Today'), today, task.dueDate, 'set-due', target)}${dateOption(tr('Tomorrow'), Core.addDays(today,1), task.dueDate, 'set-due', target)}${dateOption(tr('This weekend'), weekend, task.dueDate, 'set-due', target)}<button class="popover-option" type="button" data-pop-action="show-custom-date" data-date-kind="due" data-target-type="${target.type}" ${target.taskId ? `data-task-id="${esc(target.taskId)}"` : ''}><i class="ph ph-calendar-blank"></i>${tr('Pick a date...')}</button>${task.dueDate ? `<div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="set-due" data-date="" data-target-type="${target.type}" ${target.taskId ? `data-task-id="${esc(target.taskId)}"` : ''}><i class="ph ph-x"></i>${tr('Clear due date')}</button>` : ''}`;
-    openPopover(anchor, html, { type: 'due', target });
+    openDateSheet(anchor, target, 'due');
   }
 
+  // Redesign R3 (E9): several tags at once, saved together with "Primeni".
   function openTagPicker(anchor, target) {
     const selected = target.type === 'quick' ? (modalState.draft.tagIds || []) : (getTask(target.taskId)?.tagIds || []);
-    const options = (state.tags || []).map(tag => `<button class="popover-option ${selected.includes(tag.id) ? 'is-selected' : ''}" type="button" data-pop-action="toggle-tag" data-tag-id="${esc(tag.id)}" data-target-type="${target.type}" ${target.taskId ? `data-task-id="${esc(target.taskId)}"` : ''}><span class="tag-dot" style="--tag-color:${esc(tag.color)}"></span>${esc(tag.name)}${selected.includes(tag.id) ? '<i class="ph ph-check spacer"></i>' : ''}</button>`).join('');
-    const html = `<div class="popover-title">${tr('Tags')}</div>${options || `<div class="popover-empty">${tr('No tags yet')}</div>`}<div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="inline-new-tag" data-target-type="${target.type}" ${target.taskId ? `data-task-id="${esc(target.taskId)}"` : ''}><i class="ph ph-plus"></i>${tr('New tag')}</button>`;
-    openPopover(anchor, html, { type: 'tag-picker' });
+    const sheet = { target, ids: new Set(selected) };
+    tagSheet = sheet;
+    openPopover(anchor, tagSheetHtml(), { type: 'tag-picker', target });
+    tagSheet = sheet;
+  }
+  function tagSheetHtml() {
+    const { target, ids } = tagSheet;
+    const attrs = `data-target-type="${target.type}"${target.taskId ? ` data-task-id="${esc(target.taskId)}"` : ''}`;
+    const source = target.type === 'quick' ? modalState?.draft : getTask(target.taskId);
+    const tags = [...(state.tags || [])].sort((a, b) => String(a.name).localeCompare(String(b.name)));
+    const options = tags.map(tag => { const on = ids.has(tag.id); return `<button class="popover-option sheet-option${on ? ' is-selected' : ''}" type="button" data-sheet-item data-search="${esc(String(tag.name).toLowerCase())}" data-pop-action="tag-sheet-toggle" data-tag-id="${esc(tag.id)}" aria-pressed="${on}"><span class="tag-dot" style="--tag-color:${esc(tag.color)}"></span><span class="sheet-option-label">${esc(tag.name)}</span><span class="sheet-check${on ? ' is-on' : ''}" aria-hidden="true">${on ? '<i class="ph ph-check"></i>' : ''}</span></button>`; }).join('');
+    return `<div class="popover-title">${tr('Tags')}</div>${source?.title ? `<p class="sheet-subtitle">${esc(source.title)}</p>` : ''}<label class="sheet-search"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input class="input" type="search" data-sheet-search placeholder="${tr('Search tags')}" aria-label="${tr('Search tags')}"></label><div class="sheet-card">${options || `<div class="popover-empty">${tr('No tags yet')}</div>`}<button class="popover-option sheet-option sheet-add" type="button" data-pop-action="inline-new-tag" ${attrs}><i class="ph ph-plus" aria-hidden="true"></i>${tr('New tag')}</button></div><div class="sheet-footer"><span></span><button class="btn btn-primary" type="button" data-pop-action="tag-sheet-apply">${tr('Apply')}</button></div>`;
+  }
+  function toggleTagSheet(button) {
+    if (!tagSheet) return;
+    const id = button.dataset.tagId;
+    const on = !tagSheet.ids.has(id);
+    if (on) tagSheet.ids.add(id); else tagSheet.ids.delete(id);
+    button.classList.toggle('is-selected', on);
+    button.setAttribute('aria-pressed', String(on));
+    const check = button.querySelector('.sheet-check');
+    if (check) { check.classList.toggle('is-on', on); check.innerHTML = on ? '<i class="ph ph-check"></i>' : ''; }
+  }
+  function applyTagSheet() {
+    if (!tagSheet) return;
+    const { target } = tagSheet;
+    const tagIds = [...tagSheet.ids].filter(id => getTag(id));
+    if (target.type === 'quick') { modalState.draft.tagIds = tagIds; closePopover(); renderModal(); return; }
+    closePopover();
+    requestTaskEdit(target.taskId, { tagIds });
   }
 
+  // Redesign R3 (E5): Bez, Nizak, Srednji, Visok with flags; a tap applies (E3).
   function openPriorityPicker(anchor, target) {
-    const current = target.type === 'quick' ? (modalState.draft.priority || 'none') : (getTask(target.taskId)?.priority || 'none');
-    const html = `<div class="popover-title">${tr('Priority')}</div>${['none','low','medium','high'].map(value => `<button class="popover-option ${current === value ? 'is-selected' : ''}" type="button" data-pop-action="set-priority" data-priority="${value}" data-target-type="${target.type}" ${target.taskId ? `data-task-id="${esc(target.taskId)}"` : ''}>${value === 'none' ? '<i class="ph ph-minus"></i>' : priorityIcon(value)}${esc(priorityLabel(value))}${current === value ? '<i class="ph ph-check spacer"></i>' : ''}</button>`).join('')}`;
+    const source = target.type === 'quick' ? modalState?.draft : getTask(target.taskId);
+    const current = source?.priority || 'none';
+    const attrs = `data-target-type="${target.type}"${target.taskId ? ` data-task-id="${esc(target.taskId)}"` : ''}`;
+    const label = value => (value === 'none' ? tr('No priority') : priorityLabel(value));
+    const html = `<div class="popover-title">${tr('Priority')}</div>${source?.title ? `<p class="sheet-subtitle">${esc(source.title)}</p>` : ''}<div class="sheet-card">${['none', 'low', 'medium', 'high'].map(value => `<button class="popover-option sheet-option${current === value ? ' is-selected' : ''}" type="button" data-pop-action="set-priority" data-priority="${value}" ${attrs}><i class="ph ph-flag task-flag task-flag--${value}" aria-hidden="true"></i><span class="sheet-option-label">${esc(label(value))}</span><span class="sheet-radio${current === value ? ' is-on' : ''}" aria-hidden="true"></span></button>`).join('')}</div><p class="sheet-note">${tr('Priority does not change the order.')}</p>`;
     openPopover(anchor, html, { type: 'priority-picker' });
+  }
+
+  // Redesign R3: the task's duration. A chip applies at once; another number applies with "Primeni".
+  function openTaskDurationPicker(anchor, taskId) {
+    const task = getTask(taskId);
+    if (!task) return;
+    const current = task.durationMinutes || null;
+    const chip = minutes => `<button class="quick-chip${current === minutes ? ' is-selected' : ''}" type="button" data-pop-action="set-task-duration" data-task-id="${esc(taskId)}" data-minutes="${minutes}" aria-pressed="${current === minutes}">${esc(durationLabel(minutes))}</button>`;
+    const html = `<div class="popover-title">${tr('Duration')}</div><p class="sheet-subtitle">${esc(task.title)}</p><div class="sheet-chips">${[15, 30, 45, 60, 90, 120].map(chip).join('')}</div><label class="sheet-field"><i class="ph ph-timer" aria-hidden="true"></i><span>${tr('Other duration (min)')}</span><input id="task-duration-custom" class="input" type="number" min="1" max="1440" step="1" value="${esc(current || '')}"></label><p class="sheet-note">${tr('A tap sets the duration at once. Durations show in the Calendar day view.')}</p><div class="sheet-footer">${current ? `<button class="btn btn-ghost" type="button" data-pop-action="set-task-duration" data-task-id="${esc(taskId)}" data-minutes="">${tr('Remove duration')}</button>` : '<span></span>'}<button class="btn btn-primary" type="button" data-pop-action="set-task-duration-custom" data-task-id="${esc(taskId)}">${tr('Apply')}</button></div>`;
+    openPopover(anchor, html, { type: 'task-duration', taskId });
+  }
+  function setTaskDuration(taskId, value) {
+    const minutes = Number(value);
+    closePopover();
+    requestTaskEdit(taskId, { durationMinutes: Number.isInteger(minutes) && minutes > 0 && minutes <= 1440 ? minutes : null });
+  }
+
+  // Redesign R5 (Z7): the project's area applies at once; its tasks follow the project's area.
+  function openProjectAreaSheet(anchor, projectId) {
+    const project = getProject(projectId);
+    if (!project) return;
+    const option = (areaId, label) => `<button class="popover-option sheet-option${(project.areaId || '') === areaId ? ' is-selected' : ''}" type="button" data-pop-action="set-project-area" data-project-id="${esc(projectId)}" data-area-id="${esc(areaId)}"><span class="sheet-option-label">${esc(label)}</span><span class="sheet-radio${(project.areaId || '') === areaId ? ' is-on' : ''}" aria-hidden="true"></span></button>`;
+    const areas = sortedAreas().filter(area => area.status !== 'archived' || area.id === project.areaId);
+    openPopover(anchor, `<div class="popover-title">${tr('Area')}</div><p class="sheet-subtitle">${esc(project.name)}</p><div class="sheet-card">${option('', tr('No area'))}${areas.map(area => option(area.id, area.name)).join('')}</div><p class="sheet-note">${tr("Tasks take their project's area.")}</p>`, { type: 'project-area', projectId });
+  }
+  function setProjectArea(projectId, areaId) {
+    const project = getProject(projectId);
+    if (!project) return;
+    project.areaId = (state.areas || []).some(area => area.id === areaId) ? areaId : null;
+    project.updatedAt = nowIso();
+    closePopover(); saveState(); render();
+  }
+
+  // Redesign R5 (Z7): the project's goals, chosen together with "Primeni"; a new link counts all its tasks.
+  let projectGoalSheet = null;
+  function openProjectGoalsSheet(anchor, projectId) {
+    const project = getProject(projectId);
+    if (!project) return;
+    const goals = (state.goals || []).filter(goal => goal.status !== 'archived');
+    const sheet = { projectId, ids: new Set(goals.filter(goal => (goal.projectLinks || []).some(link => link.projectId === projectId)).map(goal => goal.id)) };
+    const options = goals.map(goal => { const on = sheet.ids.has(goal.id); return `<button class="popover-option sheet-option${on ? ' is-selected' : ''}" type="button" data-pop-action="project-goal-toggle" data-goal-id="${esc(goal.id)}" aria-pressed="${on}"><i class="ph ph-target" aria-hidden="true"></i><span class="sheet-option-label">${esc(goal.title)}</span><span class="sheet-check${on ? ' is-on' : ''}" aria-hidden="true">${on ? '<i class="ph ph-check"></i>' : ''}</span></button>`; }).join('');
+    openPopover(anchor, `<div class="popover-title">${tr('Linked goals')}</div><p class="sheet-subtitle">${esc(project.name)}</p><div class="sheet-card">${options || `<div class="popover-empty">${tr('No Goals yet.')}</div>`}</div><div class="sheet-footer"><span></span><button class="btn btn-primary" type="button" data-pop-action="project-goals-apply">${tr('Apply')}</button></div>`, { type: 'project-goals', projectId });
+    projectGoalSheet = sheet;
+  }
+  function applyProjectGoals() {
+    const sheet = projectGoalSheet;
+    if (!sheet) return;
+    const before = captureGoalProgress();
+    for (const goal of (state.goals || []).filter(item => item.status !== 'archived')) {
+      const links = goal.projectLinks || [];
+      const linked = links.some(link => link.projectId === sheet.projectId);
+      const wanted = sheet.ids.has(goal.id);
+      if (linked === wanted) continue;
+      syncGoalLinks(goal, wanted ? [...links, { projectId: sheet.projectId, contributionMode: 'allTasks', selectedTaskIds: [] }] : links.filter(link => link.projectId !== sheet.projectId), goal.taskIds || [], goal.habitLinks || []);
+      goal.updatedAt = nowIso();
+      putGoalHistory(goal.id, wanted ? 'projectLinked' : 'projectUnlinked', { projectId: sheet.projectId });
+    }
+    closePopover(); saveState(); evaluateGoalProgressChanges(before); render();
   }
 
   function toggleTag(targetType, taskId, tagId) {
@@ -2026,21 +2411,22 @@
   function setPopoverContent(html) {
     if (!popoverEl) return;
     popoverEl.innerHTML = html;
+    decorateSheet(popoverEl);
     const title = popoverEl.querySelector('.popover-title');
     if (title) {
       title.id = title.id || `popover-title-${Date.now().toString(36)}`;
       popoverEl.setAttribute('role', 'dialog');
       popoverEl.setAttribute('aria-labelledby', title.id);
     }
-    requestAnimationFrame(() => popoverEl?.querySelector('input, select, textarea, button')?.focus());
+    requestAnimationFrame(() => (popoverEl && sheetInitialFocus(popoverEl))?.focus());
   }
 
   function popoverFocusTarget(anchor) {
     if (!(anchor instanceof HTMLElement)) return null;
     const keys = ['action', 'popAction', 'taskId', 'targetType', 'dateKind', 'areaId', 'goalId', 'habitId', 'tagId'];
     const attrs = keys.filter(key => anchor.dataset[key] !== undefined)
-      .map(key => `[data-${key.replace(/[A-Z]/g, c => '-' + c.toLowerCase())}="${CSS.escape(anchor.dataset[key])}"]`).join('');
-    return { element: anchor, selector: attrs || (anchor.id ? '#' + CSS.escape(anchor.id) : ''), modalScoped: Boolean(anchor.closest('.modal')) };
+      .map(key => `[data-${key.replace(/[A-Z]/g, c => '-' + c.toLowerCase())}="${cssEscape(anchor.dataset[key])}"]`).join('');
+    return { element: anchor, selector: attrs || (anchor.id ? '#' + cssEscape(anchor.id) : ''), modalScoped: Boolean(anchor.closest('.modal')) };
   }
 
   function inlineNewTag(button) {
@@ -2050,60 +2436,204 @@
     requestAnimationFrame(()=>$('#inline-tag-name',popoverEl)?.focus());
   }
 
+  // Redesign R3 (E6): quick choices from the planned time (or, without one, later today and tomorrow morning),
+  // the date and time, the sentence, the task's dates, "Ukloni podsetnik" and "Primeni".
   function openReminderPicker(anchor, target) {
     const task = target.type === 'quick' ? modalState.draft : getTask(target.taskId);
     if (!task) return;
-    const later = Core.laterToday(new Date()); // null late in the evening: the option is not offered (audit H-2)
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    tomorrow.setHours(9, 0, 0, 0);
-    const targetAttrs = `data-target-type="${target.type}" ${target.taskId ? `data-task-id="${esc(target.taskId)}"` : ''}`;
-    const html = `<div class="popover-title">${tr('Reminder')}</div>${later ? `<button class="popover-option" type="button" data-pop-action="set-reminder" data-reminder="${esc(later)}" ${targetAttrs}><i class="ph ph-clock"></i>${tr('Later today')}</button>` : ''}<button class="popover-option" type="button" data-pop-action="set-reminder" data-reminder="${esc(tomorrow.toISOString())}" ${targetAttrs}><i class="ph ph-sun-horizon"></i>${tr('Tomorrow morning')}</button><button class="popover-option" type="button" data-pop-action="show-custom-reminder" ${targetAttrs}><i class="ph ph-calendar-blank"></i>${tr('Custom date & time...')}</button>${task.reminderAt ? `<div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="set-reminder" data-reminder="" ${targetAttrs}><i class="ph ph-x"></i>${tr('Clear reminder')}</button>` : ''}`;
-    openPopover(anchor, html, { type: 'reminder', target });
+    const pad = value => String(value).padStart(2, '0');
+    const parts = instant => { const date = new Date(instant); return { date: Core.dateOnly(date), time: `${pad(date.getHours())}:${pad(date.getMinutes())}` }; };
+    let presets;
+    if (task.plannedDate && task.plannedTime) {
+      const base = new Date(`${task.plannedDate}T${task.plannedTime}:00`).getTime();
+      presets = [[tr('At the planned time'), parts(base)], [tr('15 min before'), parts(base - 15 * 60000)], [tr('1 h before'), parts(base - 3600000)], [tr('Day before at 9:00'), { date: Core.addDays(task.plannedDate, -1), time: '09:00' }]];
+    } else {
+      const later = Core.laterToday(new Date()); // null late in the evening: the option is not offered (audit H-2)
+      presets = [...(later ? [[tr('Later today'), parts(later)]] : []), [tr('Tomorrow morning'), { date: Core.addDays(Core.dateOnly(), 1), time: '09:00' }]];
+    }
+    const current = task.reminderAt ? parts(task.reminderAt) : null;
+    const sheet = { target, presets, date: current?.date || task.plannedDate || Core.dateOnly(), time: current?.time || task.plannedTime || '09:00' };
+    reminderSheet = sheet;
+    openPopover(anchor, reminderSheetHtml(), { type: 'reminder', target });
+    reminderSheet = sheet;
+  }
+  function reminderSheetHtml() {
+    const { target, presets, date, time } = reminderSheet;
+    const task = target.type === 'quick' ? modalState?.draft : getTask(target.taskId);
+    const when = (day, at) => (day ? `${relativeDateLabel(day)}${at ? ` · ${at}` : ''}` : '—');
+    const chips = presets.map(([label, value]) => `<button class="quick-chip${value.date === date && value.time === time ? ' is-selected' : ''}" type="button" data-pop-action="reminder-preset" data-date="${value.date}" data-time="${value.time}" aria-pressed="${value.date === date && value.time === time}">${esc(label)}</button>`).join('');
+    return `<div class="popover-title">${tr('Reminder')}</div>${task?.title ? `<p class="sheet-subtitle">${esc(task.title)}</p>` : ''}<div class="sheet-chips">${chips}</div>${task?.plannedDate && task?.plannedTime ? '' : `<p class="sheet-note">${tr('Quick choices for the planned time appear when the task has one.')}</p>`}<label class="sheet-field"><i class="ph ph-calendar-blank" aria-hidden="true"></i><span>${tr('Date')}</span><input id="reminder-date" class="input" type="date" value="${esc(date)}"></label><label class="sheet-field"><i class="ph ph-clock" aria-hidden="true"></i><span>${tr('Time')}</span><input id="reminder-time" class="input" type="time" value="${esc(time)}"></label><p class="sheet-summary" data-reminder-summary>${esc(tr('Remind me {date} at {time}', { date: relativeDateLabel(date), time }))}</p><h3 class="sheet-group-title">${tr('Task dates')}</h3><div class="sheet-card"><div class="sheet-option"><i class="ph ph-calendar-check" aria-hidden="true"></i><span class="sheet-option-label">${tr('Planned')}</span><span class="sheet-option-value">${esc(when(task?.plannedDate, task?.plannedTime))}</span></div><div class="sheet-option"><i class="ph ph-hourglass-medium" aria-hidden="true"></i><span class="sheet-option-label">${tr('Due date')}</span><span class="sheet-option-value">${esc(when(task?.dueDate, task?.dueTime))}</span></div></div><div class="sheet-footer">${task?.reminderAt ? `<button class="btn btn-ghost" type="button" data-pop-action="reminder-clear">${tr('Clear reminder')}</button>` : '<span></span>'}<button class="btn btn-primary" type="button" data-pop-action="reminder-apply">${tr('Apply')}</button></div>`;
+  }
+  function applyReminderSheet() {
+    if (!reminderSheet) return;
+    const date = $('#reminder-date', popoverEl)?.value || reminderSheet.date;
+    const time = Core.normalizeTime($('#reminder-time', popoverEl)?.value || reminderSheet.time);
+    const value = date && time ? fromLocalDateTimeValue(`${date}T${time}`) : null;
+    if (value) setReminder(reminderSheet.target.type, reminderSheet.target.taskId, value);
   }
 
+  // Redesign R11b (S15, E7): one repeat editor for the task window and drafts. It keeps every choice while
+  // the frequency changes and writes the R11a rule only on "Primeni".
+  let repeatSheet = null;
+  function repeatSource(target) {
+    return target.type === 'task' ? getTask(target.taskId) : modalState?.draft;
+  }
+  function repeatEditorState(target, source) {
+    const start = source.plannedDate || source.parsedPlanDate || source.dueDate || Core.dateOnly();
+    const date = parseLocalDate(start);
+    const rule = Core.normalizeRecurrenceV3(source.recurrence);
+    const nth = Math.ceil(date.getDate() / 7);
+    const sheet = {
+      target, start, frequency: rule?.frequency || 'weekly', interval: rule?.interval || 1,
+      weekdays: rule?.weekdays ? [...rule.weekdays] : [date.getDay()],
+      monthMode: rule?.monthMode || 'day', monthDay: rule?.monthDay ?? date.getDate(),
+      weekOfMonth: rule?.weekOfMonth ?? (nth > 4 ? 'last' : nth), weekday: rule?.weekday ?? date.getDay(),
+      endType: rule?.endType || 'never', endDate: rule?.endDate || Core.addDays(start, 90), endAfterOccurrences: rule?.endAfterOccurrences || 10,
+      occurrencesCreated: rule?.occurrencesCreated || 0, status: rule?.status || 'active', error: '',
+    };
+    sheet.initial = rule ? repeatRuleFromSheet(sheet) : null;
+    return sheet;
+  }
+  function repeatRuleFromSheet(sheet) {
+    const rule = { frequency: sheet.frequency, interval: sheet.interval };
+    if (sheet.frequency === 'weekly') rule.weekdays = [...sheet.weekdays];
+    if (sheet.frequency === 'monthly') Object.assign(rule, sheet.monthMode === 'weekday' ? { monthMode: 'weekday', weekOfMonth: sheet.weekOfMonth, weekday: sheet.weekday } : { monthMode: 'day', monthDay: sheet.monthDay });
+    return { ...rule, endType: sheet.endType, endDate: sheet.endType === 'date' ? sheet.endDate : null, endAfterOccurrences: sheet.endType === 'afterOccurrences' ? Number(sheet.endAfterOccurrences) : null };
+  }
+  function repeatPresetOn(sheet, index) {
+    const preset = REPEAT_PRESETS[index][1], date = parseLocalDate(sheet.start);
+    if (sheet.frequency !== preset.frequency || sheet.interval !== preset.interval) return false;
+    if (preset.frequency === 'weekly') return sheet.weekdays.length === 1 && sheet.weekdays[0] === date.getDay();
+    if (preset.frequency === 'monthly') return sheet.monthMode === 'day' && sheet.monthDay === date.getDate();
+    return true;
+  }
   function openRepeatPicker(anchor, target) {
-    const task = target.type === 'quick' ? modalState.draft : getTask(target.taskId);
-    if (!task) return;
-    const current = task.recurrence;
-    const attrs = `${target.taskId ? `data-task-id="${esc(target.taskId)}"` : ''} data-target-type="${target.type}"`;
-    const option = (label, frequency) => `<button class="popover-option ${current?.frequency === frequency && Number(current?.interval || 1) === 1 ? 'is-selected' : ''}" type="button" data-pop-action="set-repeat" data-frequency="${frequency || ''}" data-interval="1" ${attrs}>${tr(label)}${current?.frequency === frequency && Number(current?.interval || 1) === 1 ? '<i class="ph ph-check spacer"></i>' : ''}</button>`;
-    const operational=taskRecurrence(task);
-    const management=operational && target.type!=='quick' ? `<div class="popover-separator"></div><p class="popover-empty">${tr('Controls apply to this and pending recurrence. Skip affects the next generated occurrence, not already-created tasks.')}</p><button class="popover-option" data-pop-action="${operational.status==='paused'?'resume-recurrence':'pause-recurrence'}" ${attrs}>${operational.status==='paused'?tr('Resume recurrence'):tr('Pause recurrence')}</button><button class="popover-option" data-pop-action="skip-recurrence" ${attrs}>${operational.skipNext?tr('Skip next occurrence (scheduled)'):tr('Skip next occurrence')}</button><button class="popover-option" data-pop-action="end-recurrence" ${attrs}>${tr('End recurrence')}</button>`:'';
-    const html = `<div class="popover-title">${tr('Repeat')}</div>${option(msg('Does not repeat'), '')}${option(msg('Every day'), 'daily')}${option(msg('Every week'), 'weekly')}${option(msg('Every month'), 'monthly')}<div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="show-custom-repeat" ${attrs}><i class="ph ph-sliders-horizontal"></i>${current?tr('Edit recurrence / End on date / End after N occurrences'):tr('Custom interval...')}</button>${management}`;
-    openPopover(anchor, html, { type: 'repeat', target });
+    const source = repeatSource(target);
+    if (!source) return;
+    const sheet = repeatEditorState(target, source);
+    repeatSheet = sheet;
+    openPopover(anchor, repeatSheetHtml(), { type: 'repeat', target });
+    repeatSheet = sheet; // openPopover closes the previous sheet first, which clears the sheet state
   }
-
-  function showCustomReminder(button) {
-    if (!popoverEl) return;
-    const targetType = button.dataset.targetType;
-    const taskId = button.dataset.taskId || '';
-    const source = targetType === 'quick' ? modalState.draft : getTask(taskId);
-    const value = toLocalDateTimeValue(source?.reminderAt || new Date(Date.now() + 60 * 60 * 1000).toISOString());
-    setPopoverContent(`<div class="popover-title">${tr('Reminder')}</div><div class="popover-inline-form"><input id="custom-reminder-input" class="date-native" type="datetime-local" value="${esc(value)}" /><div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn btn-ghost" type="button" data-pop-action="custom-reminder-cancel">${tr('Cancel')}</button><button class="btn btn-primary" type="button" data-pop-action="custom-reminder-apply" data-target-type="${targetType}" ${taskId ? `data-task-id="${esc(taskId)}"` : ''}>${tr('Apply')}</button></div></div>`);
+  // R11e: the editor's body is shared by the task window's sheet and the "Nova redovna obaveza" window.
+  function repeatEditorHtml(s) {
+    const rule = repeatRuleFromSheet(s);
+    const pressed = on => `${on ? ' is-selected' : ''}" type="button"`;
+    const radio = (action, value, label, on, extra = '') => `<button class="popover-option sheet-option${on ? ' is-selected' : ''}" type="button" role="radio" aria-checked="${on}" data-pop-action="${action}" data-value="${value}"><span class="sheet-radio${on ? ' is-on' : ''}" aria-hidden="true"></span><span class="sheet-option-label">${label}</span>${extra}</button>`;
+    const dayButtons = (action, isOn) => `<div class="habit-weekdays">${REPEAT_DAY_ORDER.map(day => `<button class="habit-weekday${isOn(day) ? ' is-on' : ''}" type="button" data-pop-action="${action}" data-day="${day}" aria-pressed="${isOn(day)}">${tr(REPEAT_SHORT_DAYS[day])}</button>`).join('')}</div>`;
+    const chips = REPEAT_PRESETS.map(([label], index) => { const on = repeatPresetOn(s, index); return `<button class="quick-chip${pressed(on)} data-pop-action="repeat-preset" data-preset="${index}" aria-pressed="${on}">${tr(label)}</button>`; }).join('');
+    const segment = REPEAT_FREQUENCIES.map(([value, label]) => `<button class="btn${pressed(s.frequency === value)} data-pop-action="repeat-frequency" data-value="${value}" aria-pressed="${s.frequency === value}">${tr(label)}</button>`).join('');
+    const n = s.interval;
+    const unit = { daily: trn(n, 'day', 'days'), weekly: trn(n, 'week', 'weeks'), monthly: trn(n, 'month', 'months'), yearly: trn(n, 'year', 'years') }[s.frequency];
+    const stepper = `<div class="sheet-field habit-stepper-field"><span>${tr('Interval')}</span><span class="habit-stepper"><button class="btn-icon" type="button" data-pop-action="repeat-step" data-step="-1"${n <= 1 ? ' disabled' : ''} aria-label="${tr('Decrease')}"><i class="ph ph-minus"></i></button><span class="habit-stepper-value" aria-live="polite">${n}</span><button class="btn-icon" type="button" data-pop-action="repeat-step" data-step="1"${n >= 99 ? ' disabled' : ''} aria-label="${tr('Increase')}"><i class="ph ph-plus"></i></button><span class="repeat-unit">${esc(unit)}</span></span></div>`;
+    let extra = '';
+    if (s.frequency === 'weekly') extra = `<h3 class="sheet-group-title">${tr('Days')}</h3>${dayButtons('repeat-day', day => s.weekdays.includes(day))}`;
+    if (s.frequency === 'monthly') {
+      const which = tr(REPEAT_NTH_WEEKDAY[s.weekOfMonth][s.weekday]);
+      extra = `<div class="sheet-card" role="radiogroup" aria-label="${tr('Monthly')}">${radio('repeat-month-mode', 'day', tr('Day of the month'), s.monthMode === 'day', `<span class="sheet-option-value">${s.monthDay === 'last' ? tr('last') : `${s.monthDay}.`}</span>`)}${radio('repeat-month-mode', 'weekday', tr('Day of the week'), s.monthMode === 'weekday', `<span class="sheet-option-value">${esc(which)}</span>`)}</div>`;
+      if (s.monthMode === 'day') {
+        extra += `<div class="repeat-month-days">${Array.from({ length: 31 }, (_, index) => { const on = s.monthDay === index + 1; return `<button class="sheet-calendar-day${pressed(on)} data-pop-action="repeat-month-day" data-value="${index + 1}" aria-pressed="${on}">${index + 1}</button>`; }).join('')}<button class="quick-chip repeat-last-day${pressed(s.monthDay === 'last')} data-pop-action="repeat-month-day" data-value="last" aria-pressed="${s.monthDay === 'last'}">${tr('Last day')}</button></div>`;
+        if (typeof s.monthDay === 'number' && s.monthDay > 28) extra += `<p class="sheet-note">${tr('In shorter months it falls on the last day.')}</p>`;
+      } else {
+        extra += `<div class="sheet-chips">${REPEAT_NTH.map(([value, label]) => `<button class="quick-chip${pressed(s.weekOfMonth === value)} data-pop-action="repeat-nth" data-value="${value}" aria-pressed="${s.weekOfMonth === value}">${tr(label)}</button>`).join('')}</div>${dayButtons('repeat-nth-day', day => s.weekday === day)}`;
+      }
+    }
+    if (s.frequency === 'yearly') extra = `<p class="sheet-note">${esc(tr('The date is the day of the first time: {date}.', { date: formatDate(s.start) }))}</p>`;
+    const dates = Core.upcomingRecurrenceDates(s.start, { ...rule, occurrencesCreated: s.occurrencesCreated }, 3, Core.dateOnly());
+    const next = dates.length ? tr('Next times: {dates}', { dates: dates.map(value => REPEAT_DATE_FMT.format(parseLocalDate(value))).join(' · ') }) : tr('No more repeats.');
+    const end = `<h3 class="sheet-group-title">${tr('End')}</h3><div class="sheet-card" role="radiogroup" aria-label="${tr('End')}">${radio('repeat-end', 'never', tr('Never'), s.endType === 'never')}${radio('repeat-end', 'date', tr('On date'), s.endType === 'date')}${radio('repeat-end', 'afterOccurrences', tr('After a number of times'), s.endType === 'afterOccurrences')}</div>`
+      + (s.endType === 'date' ? `<label class="sheet-field"><i class="ph ph-calendar-blank" aria-hidden="true"></i><span>${tr('End date')}</span><input id="repeat-end-date" class="input" type="date" min="${esc(s.start)}" value="${esc(s.endDate)}"></label>` : '')
+      + (s.endType === 'afterOccurrences' ? `<label class="sheet-field"><i class="ph ph-hash" aria-hidden="true"></i><span>${tr('Number of times')}</span><input id="repeat-end-count" class="input" type="number" min="1" step="1" value="${esc(s.endAfterOccurrences)}"></label>` : '')
+      + (s.error ? `<p class="validation" role="alert">${esc(s.error)}</p>` : '');
+    return `<div class="sheet-chips">${chips}</div><div class="view-tabs habit-window-seg repeat-frequency" role="group" aria-label="${tr('Frequency')}">${segment}</div>${stepper}${extra}<p class="sheet-summary" data-repeat-summary>${esc(recurrenceLabel({ ...rule, status: s.status }))}</p><p class="sheet-note">${esc(next)}</p>${end}`;
   }
-
-  function showCustomRepeat(button) {
-    if (!popoverEl) return;
-    const targetType = button.dataset.targetType;
-    const taskId = button.dataset.taskId || '';
-    const source = targetType === 'quick' ? modalState.draft : getTask(taskId);
-    const current = source?.recurrence || { frequency: 'weekly', interval: 2 };
-    setPopoverContent(`<div class="popover-title">${tr('Custom repeat')}</div><div class="popover-inline-form"><label class="field-label" for="repeat-interval">${tr('Repeat every')}</label><div class="repeat-custom-row"><input id="repeat-interval" class="input" type="number" min="1" max="99" value="${Math.max(1, Number(current.interval) || 1)}" /><select id="repeat-frequency" class="input"><option value="daily" ${current.frequency === 'daily' ? 'selected' : ''}>${tr('days')}</option><option value="weekly" ${current.frequency === 'weekly' ? 'selected' : ''}>${tr('weeks')}</option><option value="monthly" ${current.frequency === 'monthly' ? 'selected' : ''}>${tr('months')}</option></select></div><div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn btn-ghost" type="button" data-pop-action="custom-repeat-cancel">${tr('Cancel')}</button><button class="btn btn-primary" type="button" data-pop-action="custom-repeat-apply" data-target-type="${targetType}" ${taskId ? `data-task-id="${esc(taskId)}"` : ''}>${tr('Apply')}</button></div></div>`);
-    $('.repeat-custom-row',popoverEl).insertAdjacentHTML('afterend',`<label class="field-label">${tr('End condition')}<select id="repeat-end-type" class="input"><option value="never" ${!current.endType || current.endType==='never'?'selected':''}>${tr('Never')}</option><option value="date" ${current.endType==='date'?'selected':''}>${tr('End on date')}</option><option value="afterOccurrences" ${current.endType==='afterOccurrences'?'selected':''}>${tr('End after N occurrences (including initial)')}</option></select></label><label class="field-label">${tr('End date')}<input id="repeat-end-date" class="input" type="date" value="${esc(current.endDate || '')}"></label><label class="field-label">${tr('Total occurrences')}<input id="repeat-end-count" class="input" type="number" min="1" step="1" value="${esc(current.endAfterOccurrences || '')}"></label><p class="validation" role="alert" id="repeat-error" hidden></p>`);
+  function repeatSheetHtml() {
+    const s = repeatSheet, source = repeatSource(s.target);
+    // R11c (S14): the controls of an active or paused repeat; each says what it did and offers Undo.
+    const operational = s.target.type === 'task' ? taskRecurrence(source) : null;
+    const attrs = `data-task-id="${esc(s.target.taskId)}" data-target-type="task"`;
+    const control = (action, label, note, danger = false) => `<button class="popover-option sheet-option${danger ? ' is-danger' : ''}" type="button" data-pop-action="${action}" ${attrs}><span class="sheet-option-label">${label}<small>${note}</small></span></button>`;
+    const paused = operational?.status === 'paused', skipping = Boolean(operational && taskRecurrence(recurrenceSkipTarget(source))?.skipNext);
+    const controls = operational && operational.status !== 'ended' ? `<h3 class="sheet-group-title">${tr('This repeat')}</h3><div class="sheet-card">${control('skip-recurrence', skipping ? tr('Skip is scheduled · cancel') : tr('Skip next occurrence'), skipping ? tr('The next task is made for the repeat after it.') : tr('When you complete this one, the next repeat is skipped.'))}${control(paused ? 'resume-recurrence' : 'pause-recurrence', paused ? tr('Resume recurrence') : tr('Pause recurrence'), paused ? tr('Completing makes the next task again.') : tr('While paused, completing makes no next one.'))}${control('end-recurrence', tr('End recurrence'), tr('This task stays; no more are made.'), true)}</div>` : '';
+    const clear = operational ? '<span></span>' : `<button class="btn btn-ghost" type="button" data-pop-action="repeat-clear">${tr('Does not repeat')}</button>`;
+    return `<div class="popover-title">${tr('Repeat')}</div>${source?.title ? `<p class="sheet-subtitle">${esc(source.title)}</p>` : ''}${repeatEditorHtml(s)}${controls}<div class="sheet-footer">${clear}<button class="btn btn-primary" type="button" data-pop-action="repeat-apply">${tr('Apply')}</button></div>`;
   }
-
-  function openDurationPicker(anchor) {
-    const current = modalState?.draft?.durationMinutes || null;
-    const option = minutes => `<button class="popover-option ${current === minutes ? 'is-selected' : ''}" type="button" data-pop-action="set-duration" data-minutes="${minutes}"><i class="ph ph-timer"></i>${esc(durationLabel(minutes))}</button>`;
-    const html = `<div class="popover-title">${tr('Duration')}</div>${[15, 30, 45, 60, 90, 120].map(option).join('')}${current ? `<div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="set-duration" data-minutes=""><i class="ph ph-x"></i>${tr('Remove duration')}</button>` : ''}`;
-    openPopover(anchor, html, { type: 'duration' });
+  function readRepeatInputs(s) {
+    const root = popoverEl || document;
+    const date = $('#repeat-end-date', root), count = $('#repeat-end-count', root);
+    if (date) s.endDate = date.value;
+    if (count) s.endAfterOccurrences = count.value;
   }
-
-  function setQuickDuration(value) {
-    const minutes = Number(value);
-    modalState.draft.durationMinutes = Number.isInteger(minutes) && minutes > 0 ? minutes : null;
-    closePopover(); renderModal();
+  // The editor's state changes, without rendering; false for an action that is not the editor's.
+  function repeatEditorUpdate(s, action, data) {
+    const date = parseLocalDate(s.start);
+    if (action === 'repeat-preset') {
+      const preset = REPEAT_PRESETS[Number(data.preset)]?.[1];
+      if (!preset) return true;
+      Object.assign(s, preset);
+      if (preset.frequency === 'weekly') s.weekdays = [date.getDay()];
+      if (preset.frequency === 'monthly') Object.assign(s, { monthMode: 'day', monthDay: date.getDate() });
+    } else if (action === 'repeat-frequency') Object.assign(s, { frequency: data.value, interval: 1 });
+    else if (action === 'repeat-step') s.interval = Math.min(99, Math.max(1, s.interval + Number(data.step)));
+    else if (action === 'repeat-day') {
+      const day = Number(data.day);
+      if (!s.weekdays.includes(day)) s.weekdays = [...s.weekdays, day].sort((a, b) => a - b);
+      else if (s.weekdays.length > 1) s.weekdays = s.weekdays.filter(item => item !== day);
+    } else if (action === 'repeat-month-mode') s.monthMode = data.value === 'weekday' ? 'weekday' : 'day';
+    else if (action === 'repeat-month-day') s.monthDay = data.value === 'last' ? 'last' : Number(data.value);
+    else if (action === 'repeat-nth') s.weekOfMonth = data.value === 'last' ? 'last' : Number(data.value);
+    else if (action === 'repeat-nth-day') s.weekday = Number(data.day);
+    else if (action === 'repeat-end') s.endType = data.value;
+    else return false;
+    if (['repeat-day', 'repeat-month-mode', 'repeat-month-day', 'repeat-nth', 'repeat-nth-day'].includes(action)) s.daysChosen = true;
+    return true;
+  }
+  // R11e: a new start (the new recurring-task window) moves the days the person has not chosen yet.
+  function repeatEditorSetStart(s, start) {
+    const date = parseLocalDate(start);
+    s.start = start;
+    if (s.daysChosen) return;
+    const nth = Math.ceil(date.getDate() / 7);
+    Object.assign(s, { weekdays: [date.getDay()], monthDay: date.getDate(), weekOfMonth: nth > 4 ? 'last' : nth, weekday: date.getDay() });
+  }
+  function repeatFocusSelector(action, data) {
+    const key = ['value', 'day', 'preset', 'step'].find(name => data[name] != null);
+    return `[data-pop-action="${action}"]${key ? `[data-${key}="${cssEscape(data[key])}"]` : ''}`;
+  }
+  function repeatEditorError(s) {
+    const endDate = Core.parseDateOnly(s.endDate);
+    const valid = s.endType === 'date' ? Boolean(endDate) && Core.dateOnly(endDate) === s.endDate
+      : s.endType === 'afterOccurrences' ? Number.isInteger(Number(s.endAfterOccurrences)) && Number(s.endAfterOccurrences) >= 1 : true;
+    return valid ? '' : tr('Choose a valid end date or number of times.');
+  }
+  function handleRepeatAction(action, button) {
+    const s = repeatSheet;
+    if (!s) return false;
+    readRepeatInputs(s);
+    s.error = '';
+    if (action === 'repeat-apply') { applyRepeatSheet(); return true; }
+    if (action === 'repeat-clear') {
+      if (s.target.type === 'task') closePopover(); else setRecurrence(s.target.type, null, null);
+      return true;
+    }
+    if (!repeatEditorUpdate(s, action, button.dataset)) return false;
+    refreshSheet(repeatSheetHtml(), repeatFocusSelector(action, button.dataset));
+    return true;
+  }
+  function applyRepeatSheet() {
+    const s = repeatSheet;
+    const error = repeatEditorError(s);
+    if (error) {
+      s.error = error;
+      refreshSheet(repeatSheetHtml(), s.endType === 'date' ? '#repeat-end-date' : '#repeat-end-count');
+      return;
+    }
+    const rule = repeatRuleFromSheet(s);
+    if (s.target.type !== 'task') { setRecurrence(s.target.type, null, rule); return; }
+    // An ended repeat starts again with "Primeni" (R11c); an unchanged active or paused one only closes.
+    if (s.status === 'ended') rule.status = 'active';
+    else if (JSON.stringify(rule) === JSON.stringify(s.initial)) { closePopover(); return; }
+    setRecurrence('task', s.target.taskId, rule);
   }
 
   function setReminder(targetType, taskId, value) {
@@ -2128,22 +2658,14 @@
     closePopover();requestTaskEdit(taskId,{recurrence:taskRecurrence(task)?recurrence:value?{...value,seriesId:value.seriesId || taskId}:null});
   }
 
-  function dateOption(label, date, current, action, target) {
-    return `<button class="popover-option ${date === current ? 'is-selected' : ''}" type="button" data-pop-action="${action}" data-date="${date}" data-target-type="${target.type}" ${target.taskId ? `data-task-id="${esc(target.taskId)}"` : ''}>${esc(label)}${date === current ? '<i class="ph ph-check spacer"></i>' : ''}</button>`;
-  }
 
-  function nextWeekend(today) {
-    const date = parseLocalDate(today);
-    const day = date.getDay();
-    const daysToSat = (6 - day + 7) % 7 || 7;
-    return Core.addDays(today, daysToSat);
-  }
 
   function openTaskMenu(anchor, taskId) {
     const task = getTask(taskId); if (!task) return;
     const today = Core.dateOnly();
     const todayAction = task.plannedDate === today ? '' : `<button class="popover-option" type="button" data-pop-action="task-add-today" data-task-id="${esc(taskId)}"><i class="ph ph-sun"></i>${tr('Add to Today')}</button>`;
-    const html = `${todayAction}<button class="popover-option" type="button" data-pop-action="task-move-tomorrow" data-task-id="${esc(taskId)}"><i class="ph ph-arrow-right"></i>${tr('Move to Tomorrow')}</button><button class="popover-option" type="button" data-pop-action="task-move-anytime" data-task-id="${esc(taskId)}"><i class="ph ph-infinity"></i>${tr('Move to Anytime')}</button><button class="popover-option" type="button" data-pop-action="task-open-plan" data-task-id="${esc(taskId)}"><i class="ph ph-calendar-check"></i>${tr('Plan for...')}</button><button class="popover-option" type="button" data-pop-action="task-open-due" data-task-id="${esc(taskId)}"><i class="ph ph-flag"></i>${tr('Change due date')}</button><button class="popover-option" type="button" data-pop-action="task-open-project" data-task-id="${esc(taskId)}"><i class="ph ph-folder-simple"></i>${tr('Move to project')}</button><button class="popover-option" type="button" data-pop-action="task-duplicate" data-task-id="${esc(taskId)}"><i class="ph ph-copy"></i>${tr('Duplicate')}</button><div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="task-delete" data-task-id="${esc(taskId)}" style="color:var(--danger)"><i class="ph ph-trash"></i>${tr('Delete')}</button>`;
+    const focus = task.isCompleted ? '' : `<button class="popover-option" type="button" data-pop-action="task-start-focus" data-task-id="${esc(taskId)}"><i class="ph ph-timer"></i>${tr('Start focus')}</button>`;
+    const html = `${focus}${todayAction}<button class="popover-option" type="button" data-pop-action="task-move-tomorrow" data-task-id="${esc(taskId)}"><i class="ph ph-arrow-right"></i>${tr('Move to Tomorrow')}</button><button class="popover-option" type="button" data-pop-action="task-move-anytime" data-task-id="${esc(taskId)}"><i class="ph ph-infinity"></i>${tr('Move to Anytime')}</button><button class="popover-option" type="button" data-pop-action="task-open-plan" data-task-id="${esc(taskId)}"><i class="ph ph-calendar-check"></i>${tr('Plan for...')}</button><button class="popover-option" type="button" data-pop-action="task-open-due" data-task-id="${esc(taskId)}"><i class="ph ph-flag"></i>${tr('Change due date')}</button><button class="popover-option" type="button" data-pop-action="task-open-project" data-task-id="${esc(taskId)}"><i class="ph ph-folder-simple"></i>${tr('Move to project')}</button><button class="popover-option" type="button" data-pop-action="task-duplicate" data-task-id="${esc(taskId)}"><i class="ph ph-copy"></i>${tr('Duplicate')}</button><div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="task-delete" data-task-id="${esc(taskId)}" style="color:var(--danger)"><i class="ph ph-trash"></i>${tr('Delete')}</button>`;
     openPopover(anchor, templateMenuEntry('task',taskId)+html, { type: 'task-menu', taskId });
   }
 
@@ -2153,17 +2675,36 @@
     openPopover(anchor, html, { type: 'tag-menu', tagId });
   }
 
-  function openMoreMenu(anchor) {
-    const route = currentRoute();
-    const html = `<button class="popover-option ${route.type === 'anytime' ? 'is-selected' : ''}" type="button" data-route="anytime"><i class="ph ph-infinity"></i>${tr('Anytime')}</button><button class="popover-option ${route.type === 'archived' ? 'is-selected' : ''}" type="button" data-action="more-route" data-more-route="archived"><i class="ph ph-archive"></i>${tr('Archived Projects')}</button><div class="popover-separator"></div><button class="popover-option ${route.type === 'completed' ? 'is-selected' : ''}" type="button" data-action="more-route" data-more-route="completed"><i class="ph ph-check-circle"></i>${tr('Completed')}</button><button class="popover-option ${route.type === 'settings' ? 'is-selected' : ''}" type="button" data-action="more-route" data-more-route="settings"><i class="ph ph-gear"></i>${tr('Settings')}</button>`;
-    openPopover(anchor, html, { type: 'more' });
+  // Redesign R3 (E2): every popover is a bottom sheet over a dimmed backdrop, with a grabber, its title and X.
+  function decorateSheet(el) {
+    const header = document.createElement('div');
+    header.className = 'sheet-header';
+    header.innerHTML = '<span class="sheet-grabber" aria-hidden="true"></span>';
+    const title = el.querySelector(':scope > .popover-title');
+    if (title) header.appendChild(title);
+    header.insertAdjacentHTML('beforeend', `<button class="btn-icon sheet-close" type="button" data-pop-action="close-sheet" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button>`);
+    el.prepend(header);
+  }
+
+  function sheetInitialFocus(el) {
+    return el.querySelector('[data-sheet-focus]') || el.querySelector('.popover-option.is-selected, .quick-chip.is-selected') || el.querySelector('.popover-option')
+      || [...el.querySelectorAll('button, input, select, textarea, [tabindex]:not([tabindex="-1"])')].find(node => !node.matches('.sheet-close, [data-sheet-search]')) || el.querySelector('.sheet-close');
+  }
+
+  // Replaces a sheet's content in place and keeps the focus on the control that was used.
+  function refreshSheet(html, focusSelector) {
+    if (!popoverEl) return;
+    popoverEl.innerHTML = html;
+    decorateSheet(popoverEl);
+    requestAnimationFrame(() => ((focusSelector && popoverEl?.querySelector(focusSelector)) || (popoverEl && sheetInitialFocus(popoverEl)))?.focus());
   }
 
   function openPopover(anchor, html, meta = {}) {
     closePopover();
-    const rect = anchor.getBoundingClientRect();
+    const backdrop = document.createElement('div');
+    backdrop.className = 'sheet-backdrop';
     const el = document.createElement('div');
-    el.className = 'popover';
+    el.className = 'popover popover--sheet';
     el.dataset.popoverType = meta.type || '';
     el.innerHTML = html;
     el.setAttribute('role', 'dialog');
@@ -2174,26 +2715,21 @@
     } else el.setAttribute('aria-label', tr('Menu'));
     popoverReturnFocus = popoverFocusTarget(anchor);
     el.returnFocus = popoverReturnFocus;
+    el.setAttribute('aria-modal', 'true');
+    decorateSheet(el);
+    el.backdrop = backdrop;
+    document.body.appendChild(backdrop);
     document.body.appendChild(el);
-    const width = el.offsetWidth || 300;
-    const height = el.offsetHeight || 260;
-    let left = Math.min(rect.left, window.innerWidth - width - 12);
-    left = Math.max(12, left);
-    let top = rect.bottom + 6;
-    if (top + height > window.innerHeight - 12) top = Math.max(12, rect.top - height - 6);
-    el.style.left = `${left}px`;
-    el.style.top = `${top}px`;
     popoverEl = el;
-    popoverEl.setAttribute('role', 'dialog');
-    if (title) popoverEl.setAttribute('aria-labelledby', title.id);
-    requestAnimationFrame(() => el.querySelector('button, input, select, textarea, [tabindex]:not([tabindex="-1"])')?.focus());
+    requestAnimationFrame(() => sheetInitialFocus(el)?.focus());
   }
 
   function closePopover() {
     const target = popoverEl?.goalReturnFocus;
     const returnFocus = popoverEl?.returnFocus || popoverReturnFocus;
-    if (popoverEl) popoverEl.remove();
+    if (popoverEl) { popoverEl.backdrop?.remove(); popoverEl.remove(); }
     popoverEl = null;
+    dateSheet = null; reminderSheet = null; tagSheet = null; projectGoalSheet = null; repeatSheet = null;
     popoverReturnFocus = null;
     restoreGoalFocus(target);
     if (!target && returnFocus) requestAnimationFrame(() => {
@@ -2219,14 +2755,6 @@
     else if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
   }
 
-  function showCustomDate(popButton) {
-    const kind = popButton.dataset.dateKind;
-    const targetType = popButton.dataset.targetType;
-    const taskId = popButton.dataset.taskId || '';
-    if (!popoverEl) return;
-    setPopoverContent(`<div class="popover-title">${kind === 'plan' ? tr('Plan for') : tr('Due date')}</div><div class="popover-inline-form"><input id="custom-date-input" class="date-native" type="date" /><div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn btn-ghost" type="button" data-pop-action="custom-date-cancel">${tr('Cancel')}</button><button class="btn btn-primary" type="button" data-pop-action="custom-date-apply" data-date-kind="${kind}" data-target-type="${targetType}" ${taskId ? `data-task-id="${esc(taskId)}"` : ''}>${tr('Apply')}</button></div></div>`);
-    requestAnimationFrame(() => $('#custom-date-input', popoverEl)?.focus());
-  }
 
   function inlineNewProject(button) {
     const targetType = button.dataset.targetType;
@@ -2251,7 +2779,9 @@
   }
   function taskRecurrence(task) {return task?.recurrenceBaseline?.recurrence || task?.recurrence;}
   function renderRecurrenceScope() {
-    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">${tr('Edit recurring task')}</h2><button class="btn-icon" data-action="close-modal" aria-label="${tr('Cancel')}"><i class="ph ph-x"></i></button></div><p class="dialog-copy">${tr('Apply these changes to this occurrence only, or this and pending future occurrences? Past and completed siblings stay unchanged.')}</p><div class="modal-footer"><button class="btn btn-secondary" data-action="recurrence-scope" data-scope="occurrence">${tr('This occurrence')}</button><button class="btn btn-primary" data-action="recurrence-scope" data-scope="future">${tr('This and future')}</button></div></div>`,'small-modal');
+    const task=getTask(modalState.taskId);
+    const option=(scope,label,note)=>`<button class="popover-option sheet-option" type="button" data-action="recurrence-scope" data-scope="${scope}"><span class="sheet-option-label">${label}<small>${note}</small></span><i class="ph ph-caret-right" aria-hidden="true"></i></button>`;
+    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">${tr('Apply the change')}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Cancel')}"><i class="ph ph-x"></i></button></div>${task?.title?`<p class="sheet-subtitle">${esc(task.title)}</p>`:''}<div class="sheet-card">${option('occurrence',tr('This occurrence'),tr('The next repeats stay as they were.'))}${option('future',tr('This and future'),tr('The change applies from this repeat on.'))}</div></div>`,'small-modal');
   }
   function cancelRecurrenceScope() {
     const pending=modalState;if(pending?.type!=='recurrence-scope')return;
@@ -2263,6 +2793,7 @@
     const pending=modalState;if(pending?.type!=='recurrence-scope')return;
     const task=getTask(pending.taskId);if(!task){cancelRecurrenceScope();return;}
     const changes=pending.changes;
+    const snapshot=snapshotTasks(state.tasks.filter(item=>item.id===task.id || taskRecurrence(task)?.seriesId && taskRecurrence(item)?.seriesId===taskRecurrence(task).seriesId));
     if(scope==='occurrence') {
       if(!task.recurrenceBaseline){task.recurrenceBaseline=copyTemplate(task);delete task.recurrenceBaseline.recurrenceBaseline;}
       const scoped=copyTemplate(changes);
@@ -2271,6 +2802,12 @@
     } else {
       const original=copyTemplate(task),oldSeries=taskRecurrence(task)?.seriesId;
       const effective=task.plannedDate || task.dueDate || Core.dateOnly();
+      // R11c (S14): "Ovo i buduća" moves the rule's day along from its old day (the baseline's when there is one).
+      const anchor=task.plannedDate?'plannedDate':'dueDate',ruleDay=(task.recurrenceBaseline || task)[anchor];
+      if(changes[anchor] && ruleDay) {
+        const shifted=Core.recurrenceDayShift(changes.recurrence?{...taskRecurrence(task),...changes.recurrence}:taskRecurrence(task),ruleDay,changes[anchor]);
+        if(Object.keys(shifted).length)changes.recurrence={...(changes.recurrence || {}),...shifted};
+      }
       const branch=Core.splitRecurrenceForFuture(task,changes,effective);
       const dayDelta=(before,after)=>Math.round((Date.parse(after+'T12:00:00Z')-Date.parse(before+'T12:00:00Z'))/86400000);
       for(const sibling of state.tasks) {
@@ -2294,6 +2831,12 @@
     modalState=pending.previous;
     if(modalState?.type==='task'){modalState.titleDraft=task.title;modalState.notesDraft=task.notes || '';}
     saveState();render();renderModal();
+    setUndo(scope==='occurrence'?msg('Saved · only this one'):msg('Saved · this and future ones'),()=>{
+      restoreTasks(snapshot);
+      const restored=getTask(pending.taskId);
+      if(modalState?.type==='task' && restored){modalState.titleDraft=restored.title;modalState.notesDraft=restored.notes || '';}
+      saveState();render();renderModal();
+    });
     pending.after?.();
   }
   function requestTaskEdit(taskId,changes,after=null) {
@@ -2302,11 +2845,14 @@
     changes={...taskDraftChanges(task),...changes};
     changes=Object.fromEntries(Object.entries(changes).filter(([key,value])=>JSON.stringify(key==='recurrence' && value?Core.normalizeRecurrenceV3({...task.recurrence,...value}):value)!==JSON.stringify(task[key])));
     if(!Object.keys(changes).length){after?.();return false;}
-    if(taskRecurrence(task)) {
+    // R11c (S14): only a change of a date, the reminder or the repeat asks "Samo ovo / Ovo i buduća".
+    if(taskRecurrence(task) && Object.keys(changes).some(key=>['plannedDate','plannedTime','dueDate','dueTime','reminderAt','recurrence'].includes(key))) {
       const focusSelector=document.activeElement?.id?`#${document.activeElement.id}`:'#detail-title';
       closePopover();modalState={type:'recurrence-scope',taskId,changes:copyTemplate(changes),previous:modalState,after,focusSelector};renderModal();return true;
     }
     Object.assign(task,copyTemplate(changes),{updatedAt:nowIso()});
+    // Other fields save at once; an occurrence changed with "Samo ovo" passes them on to the next one too.
+    if(task.recurrenceBaseline)for(const [key,value] of Object.entries(changes))if(!['todayOrder','projectOrder','inboxOrder','reminderFiredAt'].includes(key))task.recurrenceBaseline[key]=copyTemplate(value);
     if(modalState?.type==='task'){modalState.titleDraft=task.title;modalState.notesDraft=task.notes || '';}
     saveState();render();renderModal();after?.();return false;
   }
@@ -2330,10 +2876,11 @@
   }
   function manageRecurrence(taskId,action) {
     const task=getTask(taskId),rule=taskRecurrence(task);if(!rule)return;
-    const effective=task.plannedDate || task.dueDate || Core.dateOnly();
-    const pending=state.tasks.filter(sibling=>!sibling.isCompleted && taskRecurrence(sibling)?.seriesId===rule.seriesId && (sibling.id===taskId || (sibling.plannedDate || sibling.dueDate)>=effective && (sibling.plannedDate || sibling.dueDate)>=Core.dateOnly())).sort((a,b)=>(a.plannedDate || a.dueDate || '').localeCompare(b.plannedDate || b.dueDate || '') || a.id.localeCompare(b.id));
-    const update=action==='skip-recurrence'?{skipNext:true}:{status:action==='pause-recurrence'?'paused':action==='resume-recurrence'?'active':'ended'};
-    for(const item of action==='skip-recurrence'?[pending.find(s=>!s.recurrenceSuccessorId) || task]:[task,...pending.filter(s=>s.id!==taskId)]){
+    const pending=recurrencePendingSiblings(task,rule);
+    const skipTarget=pending.find(s=>!s.recurrenceSuccessorId) || task;
+    // R11c (S14): tapping "Preskoči sledeći put" again cancels the scheduled skip.
+    const update=action==='skip-recurrence'?{skipNext:!taskRecurrence(skipTarget)?.skipNext}:{status:action==='pause-recurrence'?'paused':action==='resume-recurrence'?'active':'ended'};
+    for(const item of action==='skip-recurrence'?[skipTarget]:[task,...pending.filter(s=>s.id!==taskId)]){
       if(item.recurrence)Object.assign(item.recurrence,update);
       if(item.recurrenceBaseline?.recurrence)Object.assign(item.recurrenceBaseline.recurrence,update);
       item.updatedAt=nowIso();
@@ -2341,10 +2888,39 @@
     if(action==='resume-recurrence' && task.isCompleted)generateRecurringSuccessor(task,nowIso());
     task.updatedAt=nowIso();closePopover();saveState();render();renderModal();
   }
+  function recurrencePendingSiblings(task,rule) {
+    const effective=task.plannedDate || task.dueDate || Core.dateOnly();
+    return state.tasks.filter(sibling=>!sibling.isCompleted && taskRecurrence(sibling)?.seriesId===rule.seriesId && (sibling.id===task.id || (sibling.plannedDate || sibling.dueDate)>=effective && (sibling.plannedDate || sibling.dueDate)>=Core.dateOnly())).sort((a,b)=>(a.plannedDate || a.dueDate || '').localeCompare(b.plannedDate || b.dueDate || '') || a.id.localeCompare(b.id));
+  }
+  // The series' earliest pending occurrence without a successor carries the skip (V1.3).
+  function recurrenceSkipTarget(task) {
+    const rule=taskRecurrence(task);
+    return rule ? recurrencePendingSiblings(task,rule).find(s=>!s.recurrenceSuccessorId) || task : null;
+  }
+  // Copies of the tasks an action may change, and of the ids that existed, for Undo.
+  function snapshotTasks(items) {
+    return { copies: items.map(item => copyTemplate(item)), ids: new Set(state.tasks.map(item => item.id)) };
+  }
+  function restoreTasks(snapshot) {
+    const copies = new Map(snapshot.copies.map(item => [item.id, item]));
+    const added = state.tasks.filter(item => !snapshot.ids.has(item.id)).map(item => item.id);
+    state.tasks = state.tasks.filter(item => snapshot.ids.has(item.id)).map(item => (copies.has(item.id) ? copyTemplate(copies.get(item.id)) : item));
+    added.forEach(removeCloneGoalLinks);
+  }
+  // R11c (S14): the repeat controls say what they did and offer "Poništi" for the whole series.
+  function controlRecurrence(taskId,action) {
+    const task=getTask(taskId),rule=taskRecurrence(task);if(!rule)return;
+    const snapshot=snapshotTasks(state.tasks.filter(item=>item.id===taskId || taskRecurrence(item)?.seriesId===rule.seriesId));
+    manageRecurrence(taskId,action);
+    const skipping=Boolean(taskRecurrence(recurrenceSkipTarget(getTask(taskId)))?.skipNext);
+    const message=action==='skip-recurrence'?(skipping?msg('The next repeat will be skipped'):msg('Skip cancelled')):action==='pause-recurrence'?msg('Repeat paused'):action==='resume-recurrence'?msg('Repeat resumed'):msg('Repeat ended');
+    setUndo(message,()=>{restoreTasks(snapshot);saveState();render();renderModal();});
+  }
 
   function setProject(targetType, taskId, projectId) {
     if (targetType === 'quick') {
       modalState.draft.projectId = projectId || null;
+      modalState.draft.placePicked = true;
       if (projectId) modalState.draft.areaId = null;
       if (projectId) modalState.draft.isInbox = false;
       closePopover();
@@ -2353,7 +2929,11 @@
     }
     const task = getTask(taskId);
     if (!task) return;
-    closePopover();requestTaskEdit(taskId,{projectId:projectId || null,areaId:null,...(projectId?{isInbox:false}:{})});
+    // Redesign R6 (I6): moving a task out of Inbox into a project can be undone.
+    const previous = { projectId: task.projectId ?? null, areaId: task.areaId ?? null, isInbox: task.isInbox };
+    closePopover();
+    const asked = requestTaskEdit(taskId,{projectId:projectId || null,areaId:null,...(projectId?{isInbox:false}:{})});
+    if (!asked && previous.isInbox && projectId) setUndo(msg('Task moved to project'), () => { const current = getTask(taskId); if (!current) return; Object.assign(current, previous, { updatedAt: nowIso() }); saveState(); render(); renderModal(); });
   }
 
   function setPlan(targetType, taskId, date) {
@@ -2375,7 +2955,7 @@
     closePopover();requestTaskEdit(taskId,{dueDate:date || null});
   }
 
-  function createTask(keepOpen = false) {
+  function createTask(keepOpen = false, openWindow = false) {
     if (!modalState || modalState.type !== 'quick') return;
     syncQuickDraftFromDom();
     const d = modalState.draft;
@@ -2386,9 +2966,8 @@
       modalState.error = tr('Task needs a title.');
       renderModal(); requestAnimationFrame(() => $('#quick-title')?.focus()); return;
     }
-    // Picker values win over parsed ones; a project wins over an Area.
-    const projectId = d.projectId || parsed.projectId || null;
-    const isInbox = modalState.defaults.processed ? false : !(projectId || resolvedPlan);
+    // Picker values win over parsed ones; a project wins over an Area; a picked place wins over +project (R4).
+    const { projectId, isInbox } = quickPlace(d, parsed);
     const task = {
       id: uid('task'), title, notes: d.notes || '', projectId, areaId: projectId ? null : (d.areaId || parsed.areaId || null), goalIds: [...(d.goalIds || [])], plannedTime: d.explicitPlannedTime ? d.plannedTime : (d.plannedTime || parsed.plannedTime || null), dueTime: d.dueTime || null, durationMinutes: d.durationMinutes || parsed.durationMinutes || null,
       plannedDate: resolvedPlan || null, dueDate: d.dueDate || parsed.dueDate || null,
@@ -2406,17 +2985,17 @@
     saveState();
     if (keepOpen) {
       const defaults = modalState.defaults;
-      modalState = { type: 'quick', defaults, draft: { title: '', notes: '', projectId: defaults.projectId, areaId: defaults.areaId, plannedDate: defaults.plannedDate, parsedPlanDate: null, explicitPlan: Boolean(defaults.explicitPlan), dueDate: null, plannedTime: null, dueTime: null, explicitPlannedTime: false, reminderAt: null, reminderFiredAt: null, recurrence: null, tagIds: [], priority: 'none', subtasks: [], moreOpen: false }, error: '' };
+      modalState = { type: 'quick', templateContext: modalState.templateContext, defaults, draft: { title: '', notes: '', projectId: defaults.projectId, areaId: defaults.areaId, plannedDate: defaults.plannedDate, parsedPlanDate: null, explicitPlan: Boolean(defaults.explicitPlan), dueDate: null, plannedTime: null, dueTime: null, explicitPlannedTime: false, reminderAt: null, reminderFiredAt: null, recurrence: null, tagIds: [], priority: 'none', subtasks: [] }, error: '' };
       render(); renderModal(); requestAnimationFrame(() => $('#quick-title')?.focus());
     } else {
       closeModal(); render();
+      if (openWindow) openTaskDetail(task.id);
     }
   }
 
   function syncQuickDraftFromDom() {
     if (modalState?.type !== 'quick') return;
     const title = $('#quick-title'); if (title) modalState.draft.title = title.value;
-    const notes = $('#quick-notes'); if (notes) modalState.draft.notes = notes.value;
   }
 
   function parseQuickAddTitle(rawTitle, parsePlan = true) {
@@ -2442,19 +3021,27 @@
     if (task.isCompleted) {
       task.isCompleted = false; task.completedAt = null;
       task.updatedAt = nowIso(); saveState(); render(); if (modalState?.type === 'task') renderModal();
+      setUndo(msg('Task restored'), () => {
+        const current = getTask(taskId); if (!current || current.isCompleted) return;
+        Object.assign(current, { isCompleted: true, completedAt: previous.completedAt, updatedAt: nowIso() });
+        saveState(); render();
+      });
       return;
     }
     const completedAt = nowIso();
     task.isCompleted = true; task.completedAt = completedAt; task.updatedAt = completedAt;
     const generatedId=taskRecurrence(task)?generateRecurringSuccessor(task,completedAt):null;
     saveState();
-    setUndo(msg('Task completed'), () => {
+    // R11c (S14): the message says when the next occurrence comes.
+    const next = generatedId ? getTask(generatedId) : null;
+    const nextDate = next?.plannedDate || next?.dueDate;
+    setUndo(nextDate ? tr('Task completed · next {date}', { date: REPEAT_DATE_FMT.format(parseLocalDate(nextDate)) }) : msg('Task completed'), () => {
       const current = getTask(taskId); if (!current) return;
       Object.assign(current,copyTemplate(previous),{updatedAt:nowIso()});
       if (generatedId) {state.tasks = state.tasks.filter(item => item.id !== generatedId);removeCloneGoalLinks(generatedId);}
-      saveState(); render();
+      saveState(); render(); if (modalState?.type === 'goal-details') renderModal();
     });
-    render(); if (['task', 'calendar-day'].includes(modalState?.type)) renderModal(); evaluateGoalProgressChanges(goalProgressBefore);
+    render(); if (['task', 'goal-details'].includes(modalState?.type)) renderModal(); evaluateGoalProgressChanges(goalProgressBefore);
   }
 
   async function duplicateTask(taskId, copyFiles = false) {
@@ -2632,7 +3219,6 @@
     }
     if (type === 'habit') snapshot.habitLogs = await TodoStorage.habitLogs.listByHabit(identity);
     if (type === 'goal') snapshot.goalHistory = await TodoStorage.goalHistory.listByGoal(identity);
-    snapshot.selectedTagId = state.ui.selectedTagId;
     validateDeleteSnapshot(snapshot);
     return snapshot;
   }
@@ -2699,12 +3285,6 @@
       if (effect.scalar) { if (!restore || current === effect.after) target[effect.field] = restore ? effect.before : effect.after; }
       else target[effect.field] = restore ? inverseArray(current || [], effect.before, effect.removed)
         : (current || []).filter(value => !effect.removed.some(removed => JSON.stringify(removed) === JSON.stringify(value)));
-    }
-    const selection = state.ui.selectedTagId;
-    rollback.push(() => { state.ui.selectedTagId = selection; });
-    if (snapshot.type === 'tag') {
-      if (!restore && selection === snapshot.identity) { snapshot.afterSelectedTagId = state.tags[0]?.id || ''; state.ui.selectedTagId = snapshot.afterSelectedTagId; }
-      if (restore && selection === snapshot.afterSelectedTagId) state.ui.selectedTagId = snapshot.selectedTagId;
     }
     return () => rollback.reverse().forEach(fn => fn());
   }
@@ -2906,7 +3486,7 @@
   }
 
   function undoDomain() {
-    return JSON.stringify(Object.fromEntries(['tasks','projects','tags','areas','goals','habits','notes','resources','templates','savedViews'].map(name => [name, state?.[name]])));
+    return JSON.stringify(Object.fromEntries(['tasks','projects','tags','areas','goals','habits','notes','resources','templates','savedViews','journal'].map(name => [name, state?.[name]])));
   }
 
   const deleteLifecycle = {
@@ -3045,7 +3625,7 @@
   }
 
   function addAllSuggestions() {
-    const sections = Core.deriveTodaySections(state.tasks, Core.dateOnly());
+    const sections = Core.deriveTodaySections(listTasks(), Core.dateOnly());
     let order = nextOrder('today');
     for (const { task } of sections.suggestions) {
       task.plannedDate = Core.dateOnly(); task.isInbox = false; task.todayOrder = order++; task.updatedAt = nowIso();
@@ -3088,15 +3668,17 @@
     if (modalState?.type !== 'tag') return;
     const name = Core.normalizeTagName(modalState.draft.name);
     const valid = Core.validateTagName(state.tags || [], name, modalState.tagId || null);
-    if (!valid.ok) { modalState.error = valid.reason === 'duplicate-tag' ? tr('A tag with this name already exists.') : tr('Tag needs a name.'); renderModal(); return; }
+    if (!valid.ok) { modalState.error = valid.reason === 'duplicate-tag' ? tr('A tag with this name already exists.') : tr('Tag needs a name.'); renderModal(); requestAnimationFrame(() => $('#tag-name')?.focus()); return; }
     if (modalState.tagId) {
       const tag = getTag(modalState.tagId); if (!tag) return;
       tag.name = name; tag.color = modalState.draft.color; tag.updatedAt = nowIso();
     } else {
       const tag = { id: uid('tag'), name, color: modalState.draft.color, createdAt: nowIso(), updatedAt: nowIso() };
-      state.tags.push(tag); state.ui.selectedTagId = tag.id;
+      state.tags.push(tag);
     }
+    const created = !modalState.tagId;
     saveState(); closeModal(); render();
+    if (created) setToastMessage(tr('Tag “{name}” created', { name })); // R10c: a new tag stays on the current screen
   }
 
   function deleteTag(tagId) {
@@ -3148,7 +3730,7 @@
   function openGoalHistory(goalId, trigger) {
     if (!getGoal(goalId)) return;
     closePopover();
-    modalState = { type: 'goal-history', goalId, events: null, error: '', returnFocus: goalFocusTarget(trigger) };
+    modalState = { type: 'goal-history', goalId, events: null, error: '', returnFocus: goalFocusTarget(trigger), returnTo: modalState?.type === 'goal-details' ? modalState : null };
     renderModal();
     TodoStorage.goalHistory.listByGoal(goalId).then(events => {
       if (modalState?.type !== 'goal-history' || modalState.goalId !== goalId) return;
@@ -3299,7 +3881,7 @@
       reportStorageFailure(rollbackError ? new AggregateError([error, rollbackError], msg('Habit check-in failed and rollback needs attention.')) : error);
       return null;
     }
-    evaluateGoalProgressChanges(before); await evaluateHabitBoundaries(); render(); return true;
+    evaluateGoalProgressChanges(before); await evaluateHabitBoundaries(); render(); if (modalState?.type === 'habit-details') renderModal(); return true;
   }
 
   async function evaluateHabitBoundaries() {
@@ -3383,9 +3965,10 @@
 
   function restoreProject(projectId) {
     const project = getProject(projectId); if (!project) return;
+    const previous = { isArchived: project.isArchived, archivedAt: project.archivedAt };
     project.isArchived = false; project.archivedAt = null; project.updatedAt = nowIso();
     saveState(); closePopover(); render();
-    setToastMessage(tr('Project restored'));
+    setUndo(msg('Project restored'), () => { const current = getProject(projectId); if (!current) return; Object.assign(current, previous, { updatedAt: nowIso() }); saveState(); render(); });
   }
 
   function deleteProject(projectId) {
@@ -3403,7 +3986,7 @@
 
   function editSubtask(taskId, subtaskId) {
     const task = getTask(taskId); const sub = task?.subtasks.find(s => s.id === subtaskId); if (!sub) return;
-    const row = document.querySelector(`[data-parent-task-id="${CSS.escape(taskId)}"][data-subtask-id="${CSS.escape(subtaskId)}"]`);
+    const row = document.querySelector(`[data-parent-task-id="${cssEscape(taskId)}"][data-subtask-id="${cssEscape(subtaskId)}"]`);
     const title = row?.querySelector('.subtask-title'); if (!title) return;
     const input = document.createElement('input');
     input.className = 'input'; input.style.minHeight = '34px'; input.value = sub.title;
@@ -3421,7 +4004,7 @@
     const title = String(value || '').trim(); if (!title) return;
     const task = getTask(taskId); if (!task) return;
     const orders = task.subtasks.map(s => s.order).filter(Number.isFinite);
-    if(taskRecurrence(task)){requestTaskEdit(taskId,{subtasks:[...task.subtasks,{id:uid('sub'),title,isCompleted:false,order:orders.length?Math.max(...orders)+1:0}]});return;}
+    if(taskRecurrence(task)){requestTaskEdit(taskId,{subtasks:[...task.subtasks,{id:uid('sub'),title,isCompleted:false,order:orders.length?Math.max(...orders)+1:0}]});requestAnimationFrame(() => $('#detail-subtask')?.focus());return;}
     task.subtasks.push({ id: uid('sub'), title, isCompleted: false, order: orders.length ? Math.max(...orders) + 1 : 0 });
     task.updatedAt = nowIso(); saveState(); renderModal(); render();
     requestAnimationFrame(() => $('#detail-subtask')?.focus());
@@ -3516,7 +4099,8 @@
     const previous = state;
     applyingSync = true;
     try {
-      state = normalizeState(Core.pruneDanglingReferences(result.state));
+      // Records new to this device do not replay their past reminders here (audit R-3).
+      state = normalizeState(Core.settleArrivedReminders(previous, Core.pruneDanglingReferences(result.state), nowIso()));
       if (!saveState()) { state = previous; throw new Error(msg('Changes could not be saved locally. Try again.')); }
     } finally { applyingSync = false; }
     if (result.habitLogDeletes.length) await TodoStorage.habitLogs.deleteMany(result.habitLogDeletes);
@@ -4103,14 +4687,15 @@
     clearTimeout(notificationTimer);
     notificationTimer = setTimeout(() => { reconcileNotifications().catch(console.error); }, delay);
   }
-  async function reconcileNotifications() {
+  // ask: false (the pause flush) never shows the system question while the app leaves the screen.
+  async function reconcileNotifications({ ask = true } = {}) {
     clearTimeout(notificationTimer); notificationTimer = null;
     const platform = globalThis.DailoPlatform;
     if (!platform?.isNative || !state || globalOperation || recovery) return;
     const items = Core.notificationPlan(state, nowIso(), { logs: state.habitLogCache || {} }).map(item => ({ ...item, body: notificationBody(item) }));
     let result = await platform.notifications.reconcile(items);
     // The system question is asked once, when there is first something to notify about; later from Settings.
-    if (result.status === 'permission' && result.permission === 'prompt' && items.length && !localStorage.getItem('dailoNotifyAsked')) {
+    if (ask && result.status === 'permission' && result.permission === 'prompt' && items.length && !localStorage.getItem('dailoNotifyAsked')) {
       try { localStorage.setItem('dailoNotifyAsked', nowIso()); } catch (_) { /* asked again next time */ }
       if (await platform.notifications.requestPermission() === 'granted') result = await platform.notifications.reconcile(items);
     }
@@ -4185,24 +4770,22 @@
       ...dueGoals.filter(({ goal, moment }) => !shown.has(Core.notificationKey('goal', goal.id, moment))).map(({ goal }) => goal.title),
       ...dueHabits.filter(({ habit, moment }) => !shown.has(Core.notificationKey('habit', habit.id, moment))).map(({ habit }) => habit.name),
     ];
+    // Fired markers are device-local and not an edit: no updatedAt bump, so nothing is pushed (audit R-3).
     for (const task of dueTasks) {
       task.reminderFiredAt = now;
-      task.updatedAt = now;
       if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
         try { new Notification(task.title, { body: task.dueDate ? tr('Due {date}', { date: relativeDateLabel(task.dueDate) }) : tr('Task reminder') }); } catch (_) { /* in-app reminder remains */ }
       }
     }
     for (const { goal, moment } of dueGoals) {
       goal.reminderFiredMoments = [...new Set([...(goal.reminderFiredMoments || []), moment])];
-      goal.updatedAt = now;
       if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
         try { new Notification(goal.title, { body: goal.targetDate ? tr('Goal target {date}', { date: relativeDateLabel(goal.targetDate) }) : tr('Goal reminder') }); } catch (_) { /* in-app reminder remains */ }
       }
     }
     for (const { habit, moment, snooze } of dueHabits) {
       habit.reminderFiredMoments = [...new Set([...(habit.reminderFiredMoments || []), moment])];
-      if (snooze) { habit.pendingSnoozeAt = null; habit.snoozedUntil = null; }
-      habit.updatedAt = now;
+      if (snooze) { habit.pendingSnoozeAt = null; habit.snoozedUntil = null; habit.updatedAt = now; }
       if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
         try { new Notification(habit.name, { body: tr('Habit reminder') }); } catch (_) { /* in-app reminder remains */ }
       }
@@ -4223,6 +4806,17 @@
       toastMessageTimer = null;
       renderToast();
     }, 3000);
+  }
+
+  // Redesign R5 (Z7, S10): the floating "+" adds a task for the screen it is on; null on an archived project.
+  function routeQuickAddContext() {
+    const route = currentRoute();
+    if (route.type === 'today') return { today: true };
+    if (route.type === 'project' && route.id === 'none') return { anytime: true };
+    if (route.type === 'project') return getProject(route.id)?.isArchived ? null : { projectId: route.id };
+    if (route.type === 'tasks' && state.ui.tasksView !== 'projects') return { anytime: true };
+    if (route.type === 'calendar' && state.ui.calendarView !== 'upcoming') return { day: calendarDate() }; // R7 (C8)
+    return {};
   }
 
   function showTaskProjectPicker(taskId, anchor) { openProjectPicker(anchor, { type: 'task', taskId }); }
@@ -4254,36 +4848,13 @@
     const mobileQuickAdd = event.target.closest('#mobile-quick-add');
     if (!mobileQuickAdd) setMobileQuickAddOpen(false);
 
-    const mobileMoreRoute = event.target.closest('[data-mobile-more-route]');
-    if (mobileMoreRoute) {
-      const route = mobileMoreRoute.dataset.mobileMoreRoute;
-      closeMobileMore();
-      if (route === 'search') openSearch();
-      else navigate(route);
-      return;
-    }
 
     const routeEl = event.target.closest('[data-route]');
     if (routeEl) { event.preventDefault(); navigate(routeEl.dataset.route); return; }
 
-    const areaTab = event.target.closest('[data-tab]');
-    if (areaTab) {
-      if (callDomainHook('handleAction', 'area-tab', event) !== undefined) return;
-      state.ui.areaTab = areaTab.dataset.tab; saveAndRender(); return;
-    }
-    const goalTab = event.target.closest('[data-goal-tab]');
-    if (goalTab && callDomainHook('handleAction', 'goal-tab', event) !== undefined) return;
-    const habitTab = event.target.closest('[data-habit-tab]');
-    if (habitTab && callDomainHook('handleAction', 'habit-tab', event) !== undefined) return;
-    const templateTab=event.target.closest('[data-template-type]');
-    if(templateTab){if(callDomainHook('handleAction','template-type',event)!==undefined)return;state.ui.templateType=templateTab.dataset.templateType;saveAndRender();return;}
 
     const pop = event.target.closest('[data-pop-action]');
     if (pop) { if (callDomainHook('handleAction', pop.dataset.popAction, event) === undefined) handlePopoverAction(pop); return; }
-    const goalProperty = event.target.closest('[data-goal-property]');
-    if (goalProperty && callDomainHook('handleAction', 'goal-property', event) !== undefined) return;
-    const habitProperty = event.target.closest('[data-habit-property]');
-    if (habitProperty && callDomainHook('handleAction', 'habit-property', event) !== undefined) return;
 
     const el = event.target.closest('[data-action]');
     if (!el) {
@@ -4291,13 +4862,7 @@
       return;
     }
     const action = el.dataset.action;
-    if (action === 'toggle-mobile-quick-add') { setMobileQuickAddOpen(el.getAttribute('aria-expanded') !== 'true'); return; }
-    if (action === 'open-mobile-more') { openMobileMore(el); return; }
-    if (action === 'close-mobile-more') {
-      if (el.classList.contains('mobile-more-backdrop') && event.target !== el) return;
-      closeMobileMore();
-      return;
-    }
+    if (action === 'toggle-mobile-quick-add') { const direct = quickAddDirect(); if (direct) { direct[1](); return; } setMobileQuickAddOpen(el.getAttribute('aria-expanded') !== 'true'); return; }
     if (el.closest('#mobile-quick-add-menu')) {
       setMobileQuickAddOpen(false);
       $('#mobile-quick-add-toggle')?.focus();
@@ -4305,16 +4870,11 @@
     if (callDomainHook('handleAction', action, event) !== undefined) return;
     if(action==='recurrence-scope'){applyRecurrenceScope(el.dataset.scope);return;}
     if(action==='from-template')openTemplatePicker();
-    else if (action === 'dashboard-focus-toggle') { state.settings.dashboard.focusedMode = !state.settings.dashboard.focusedMode; saveAndRender(); }
-    else if (action === 'dashboard-pin') { const pins = new Set(state.settings.dashboard.pinnedSectionIds || []), id = el.dataset.dashboardSection; if (pins.has(id)) pins.delete(id); else pins.add(id); state.settings.dashboard.pinnedSectionIds = [...pins]; saveAndRender(); }
-    else if (action === 'dashboard-move') { const ids = ['focus', 'review', 'actions'], pins = new Set(state.settings.dashboard.pinnedSectionIds || []); const order = [...new Set([...(state.settings.dashboard.sectionOrder || []), ...ids])].filter(id => ids.includes(id)).sort((a, b) => Number(pins.has(b)) - Number(pins.has(a))); const from = order.indexOf(el.dataset.dashboardSection), to = from + (el.dataset.direction === 'up' ? -1 : 1); if (from >= 0 && to >= 0 && to < order.length && pins.has(order[from]) === pins.has(order[to])) [order[from], order[to]] = [order[to], order[from]]; state.settings.dashboard.sectionOrder = order; saveAndRender(); }
-    else if(action==='toggle-sidebar-section'){const key=el.dataset.section;state.ui.sidebarSections[key]=!state.ui.sidebarSections[key];saveAndRender();}
     else if(action==='more-route'){closePopover();navigate(el.dataset.moreRoute);}
     else if(action==='choose-template')chooseTemplate(el.dataset.templateId);
     else if(action==='template-picker-back'){if(modalState.previous?.type==='goal')closeModal();else{modalState=modalState.previous;renderModal();}}
-    else if(action==='use-template'){const template=state.templates.find(t=>t.id===el.dataset.templateId);if(template){if(template.type==='task')openQuickAdd();else if(template.type==='project')openProjectModal();else if(template.type==='habit')openHabitModal();else openGoalModal();openTemplatePicker();chooseTemplate(template.id);}}
-    else if (action === 'toggle-sidebar') { state.ui.sidebarCollapsed = !state.ui.sidebarCollapsed; saveAndRender(); }
-    else if (action === 'quick-add') openQuickAdd({ projectId: el.dataset.projectId || null, areaId: el.dataset.areaId || null, today: el.dataset.today === 'true', anytime: el.dataset.anytime === 'true' });
+    else if(action==='use-template')useTemplate(el.dataset.templateId);
+    else if (action === 'quick-add') { const context = el.closest('#mobile-quick-add-menu') ? routeQuickAddContext() : { projectId: el.dataset.projectId || null, areaId: el.dataset.areaId || null, today: el.dataset.today === 'true', anytime: el.dataset.anytime === 'true' }; if (context) openQuickAdd(context); else setToastMessage(tr('Restore the project to add tasks.')); }
     else if (action === 'open-task') openTaskDetail(el.dataset.taskId);
     else if (action === 'toggle-focus-task') {
       const task = getTask(el.dataset.taskId); if (!task || task.isCompleted) return;
@@ -4334,24 +4894,29 @@
     else if (action === 'focus-next') focusNextTask(el.dataset.taskId);
     else if (action === 'toggle-complete') toggleComplete(el.dataset.taskId);
     else if (action === 'open-search') openSearch();
+    else if (action === 'tasks-view') { state.ui.tasksView = el.dataset.view === 'projects' ? 'projects' : 'anytime'; saveAndRender(); }
     else if (action === 'delete-draft-goal-milestone') deleteDraftGoalMilestone(el.dataset.milestoneId);
     else if (action === 'delete-milestone') deleteMilestone(el.dataset.goalId, el.dataset.milestoneId);
     else if (action === 'save-area-linked') saveAreaLinkedModal();
     else if (action === 'new-tag') openTagModal();
-    else if (action === 'select-tag') { state.ui.selectedTagId = el.dataset.tagId; saveAndRender(); }
     else if (action === 'tag-menu') openTagMenu(el, el.dataset.tagId);
-    else if (action === 'more-menu') openMoreMenu(el);
     else if (action === 'task-menu') openTaskMenu(el, el.dataset.taskId);
     else if (action === 'attachment-menu') openAttachmentMenu(el, el.dataset.attachmentId);
     else if (action === 'attachment-image-picker') $('#attachment-image-input')?.click();
     else if (action === 'toggle-suggestions') { state.ui.suggestionsExpanded = !state.ui.suggestionsExpanded; saveAndRender(); }
     else if (action === 'toggle-today-completed') { state.ui.todayCompletedExpanded = !state.ui.todayCompletedExpanded; saveAndRender(); }
+    else if (action === 'today-expand') { const key = el.dataset.todayKey; if (Object.hasOwn(TODAY_LIMITS, key)) { state.ui.todayExpanded = { ...state.ui.todayExpanded, [key]: !state.ui.todayExpanded?.[key] }; saveAndRender(); } }
     else if (action === 'add-all-suggestions') addAllSuggestions();
     else if (action === 'inbox-filter') { state.ui.inboxFilter = INBOX_FILTERS.some(([value]) => value === el.dataset.inboxFilter) ? el.dataset.inboxFilter : 'all'; saveAndRender(); }
     else if (action === 'inbox-remove') removeInboxRecord(el.dataset.inboxType, el.dataset.inboxId);
-    else if (action === 'inbox-today') addTaskToToday(el.dataset.taskId);
-    else if (action === 'inbox-tomorrow') moveTaskToTomorrow(el.dataset.taskId);
-    else if (action === 'inbox-anytime') moveTaskToAnytime(el.dataset.taskId);
+    else if (action === 'inbox-area') openInboxAreaSheet(el, el.dataset.inboxType, el.dataset.inboxId);
+    else if (action === 'inbox-project') openProjectPicker(el, { type: 'task', taskId: el.dataset.taskId });
+    else if (action === 'inbox-triage') openInboxTriage();
+    else if (action === 'inbox-triage-skip') { modalState.index += 1; renderModal(); }
+    else if (action === 'inbox-triage-open') { const route = `${el.dataset.inboxType}/${el.dataset.inboxId}`; closeModal(); navigate(route); }
+    else if (action === 'inbox-today') { addTaskToToday(el.dataset.taskId); if (modalState?.type === 'inbox-triage') renderModal(); }
+    else if (action === 'inbox-tomorrow') { moveTaskToTomorrow(el.dataset.taskId); if (modalState?.type === 'inbox-triage') renderModal(); }
+    else if (action === 'inbox-anytime') { moveTaskToAnytime(el.dataset.taskId); if (modalState?.type === 'inbox-triage') renderModal(); }
     else if (action === 'task-project-picker') showTaskProjectPicker(el.dataset.taskId, el);
     else if (action === 'task-plan-picker') showTaskPlanPicker(el.dataset.taskId, el);
     else if (action === 'task-due-picker') showTaskDuePicker(el.dataset.taskId, el);
@@ -4359,28 +4924,20 @@
     else if (action === 'task-repeat-picker') showTaskRepeatPicker(el.dataset.taskId, el);
     else if (action === 'task-tags-picker') openTagPicker(el, { type: 'task', taskId: el.dataset.taskId });
     else if (action === 'task-priority-picker') openPriorityPicker(el, { type: 'task', taskId: el.dataset.taskId });
+    else if (action === 'task-duration-picker') openTaskDurationPicker(el, el.dataset.taskId);
     else if (action === 'quick-project-picker') openProjectPicker(el, { type: 'quick' });
     else if (action === 'quick-plan-picker') openPlanPicker(el, { type: 'quick' });
     else if (action === 'quick-due-picker') openDuePicker(el, { type: 'quick' });
     else if (action === 'quick-reminder-picker') openReminderPicker(el, { type: 'quick' });
-    else if (action === 'quick-duration-picker') openDurationPicker(el);
     else if (action === 'quick-repeat-picker') openRepeatPicker(el, { type: 'quick' });
     else if (action === 'quick-tags-picker') openTagPicker(el, { type: 'quick' });
     else if (action === 'quick-priority-picker') openPriorityPicker(el, { type: 'quick' });
-    else if (action === 'toggle-quick-more') {
-      syncQuickDraftFromDom();
-      modalState.draft.moreOpen = !modalState.draft.moreOpen;
-      renderModal();
-      requestAnimationFrame(() => {
-        const target = modalState.draft.moreOpen ? ($('#quick-notes') || $('#quick-planned-time')) : $('[data-action="toggle-quick-more"]');
-        target?.focus();
-      });
-    }
+    else if (action === 'quick-template') openQuickTemplatePicker(el);
+    else if (action === 'quick-template-clear') { clearQuickTemplate(); renderModal(); requestAnimationFrame(() => $('[data-action="quick-template"]')?.focus()); }
+    else if (action === 'quick-more-options') createTask(false, true);
     else if (action === 'create-task') createTask(false);
     else if (action === 'close-modal') closeModal();
     else if (action === 'modal-backdrop' && event.target === el) closeModal();
-    else if (action === 'quick-toggle-subtask') { const s = modalState.draft.subtasks.find(x => x.id === el.dataset.subtaskId); if (s) { syncQuickDraftFromDom(); s.isCompleted = !s.isCompleted; renderModal(); } }
-    else if (action === 'quick-delete-subtask') { syncQuickDraftFromDom(); modalState.draft.subtasks = modalState.draft.subtasks.filter(x => x.id !== el.dataset.subtaskId); renderModal(); }
     else if (action === 'toggle-subtask') toggleSubtask(el.dataset.taskId, el.dataset.subtaskId);
     else if (action === 'delete-subtask') deleteSubtask(el.dataset.taskId, el.dataset.subtaskId);
     else if (action === 'edit-subtask') editSubtask(el.dataset.taskId, el.dataset.subtaskId);
@@ -4410,6 +4967,8 @@
     else if (action === 'import-backup') chooseImportBackup();
     else if (action === 'restore-backup') restoreImportedBackup();
     else if (action === 'clear-completed') clearCompleted();
+    else if (action === 'completed-project') openCompletedProjectSheet(el);
+    else if (action === 'completed-period') { state.ui.completedPeriod = [0, 7, 30].includes(Number(el.dataset.value)) ? Number(el.dataset.value) : 0; saveAndRender(); }
     else if (action === 'reset-app') resetApp();
     else if (action === 'retry-load') { startReady(); }
     else if (action === 'retry-save') { saveAndRender(); }
@@ -4424,31 +4983,51 @@
 
   function handlePopoverAction(button) {
     const action = button.dataset.popAction;
-    if (action === 'set-project') setProject(button.dataset.targetType, button.dataset.taskId, button.dataset.projectId);
+    if (action?.startsWith('repeat-') && handleRepeatAction(action, button)) return;
+    if (action === 'close-sheet') closePopover();
+    else if (action === 'quick-place' && modalState?.type === 'quick') { const inbox = button.dataset.place === 'inbox'; Object.assign(modalState.draft, { projectId: null, processed: !inbox, placePicked: true }); closePopover(); renderModal(); }
+    else if (action === 'quick-template-pick') { const id = button.dataset.templateId; closePopover(); applyQuickTemplate(id); renderModal(); requestAnimationFrame(() => $('#quick-title')?.focus()); }
+    else if (action === 'date-sheet-pick' && dateSheet) {
+      dateSheet.time = $('#date-sheet-time', popoverEl)?.value ?? dateSheet.time;
+      dateSheet.date = button.dataset.date;
+      const picked = parseLocalDate(dateSheet.date);
+      dateSheet.view = { y: picked.getFullYear(), m: picked.getMonth() };
+      refreshSheet(dateSheetHtml(), `.sheet-calendar-day[data-date="${dateSheet.date}"]`);
+    }
+    else if (action === 'date-sheet-month' && dateSheet) {
+      dateSheet.time = $('#date-sheet-time', popoverEl)?.value ?? dateSheet.time;
+      const month = new Date(dateSheet.view.y, dateSheet.view.m + Number(button.dataset.step || 0), 1);
+      dateSheet.view = { y: month.getFullYear(), m: month.getMonth() };
+      refreshSheet(dateSheetHtml(), `[data-pop-action="date-sheet-month"][data-step="${Number(button.dataset.step) < 0 ? -1 : 1}"]`);
+    }
+    else if (action === 'date-sheet-apply') applyDateSheet(false);
+    else if (action === 'date-sheet-clear') applyDateSheet(true);
+    else if (action === 'reminder-preset' && reminderSheet) { Object.assign(reminderSheet, { date: button.dataset.date, time: button.dataset.time }); refreshSheet(reminderSheetHtml(), `[data-pop-action="reminder-preset"][data-date="${button.dataset.date}"][data-time="${button.dataset.time}"]`); }
+    else if (action === 'reminder-apply') applyReminderSheet();
+    else if (action === 'reminder-clear' && reminderSheet) setReminder(reminderSheet.target.type, reminderSheet.target.taskId, '');
+    else if (action === 'tag-sheet-toggle') toggleTagSheet(button);
+    else if (action === 'tag-sheet-apply') applyTagSheet();
+    else if (action === 'set-task-duration') setTaskDuration(button.dataset.taskId, button.dataset.minutes);
+    else if (action === 'set-task-duration-custom') setTaskDuration(button.dataset.taskId, $('#task-duration-custom', popoverEl)?.value);
+    else if (action === 'task-start-focus') { const id = button.dataset.taskId; closePopover(); openFocusMode(id); }
+    else if (action === 'completed-set-project') { state.ui.completedProjectFilter = getProject(button.dataset.value) ? button.dataset.value : ''; closePopover(); saveAndRender(); }
+    else if (action === 'project-area') openProjectAreaSheet(button, button.dataset.projectId);
+    else if (action === 'set-project-area') setProjectArea(button.dataset.projectId, button.dataset.areaId);
+    else if (action === 'project-goals') openProjectGoalsSheet(button, button.dataset.projectId);
+    else if (action === 'project-goal-toggle' && projectGoalSheet) { const id = button.dataset.goalId; const on = !projectGoalSheet.ids.has(id); if (on) projectGoalSheet.ids.add(id); else projectGoalSheet.ids.delete(id); button.classList.toggle('is-selected', on); button.setAttribute('aria-pressed', String(on)); const check = button.querySelector('.sheet-check'); if (check) { check.classList.toggle('is-on', on); check.innerHTML = on ? '<i class="ph ph-check"></i>' : ''; } }
+    else if (action === 'project-goals-apply') applyProjectGoals();
+    else if (action === 'inbox-set-area') setInboxArea(button.dataset.inboxType, button.dataset.inboxId, button.dataset.areaId);
+    else if (action === 'set-project') setProject(button.dataset.targetType, button.dataset.taskId, button.dataset.projectId);
     else if (action === 'toggle-tag') toggleTag(button.dataset.targetType, button.dataset.taskId, button.dataset.tagId);
     else if (action === 'set-priority') setPriority(button.dataset.targetType, button.dataset.taskId, button.dataset.priority);
     else if (action === 'set-plan') setPlan(button.dataset.targetType, button.dataset.taskId, button.dataset.date);
     else if (action === 'set-due') setDue(button.dataset.targetType, button.dataset.taskId, button.dataset.date);
     else if (action === 'set-reminder') setReminder(button.dataset.targetType, button.dataset.taskId, button.dataset.reminder);
-    else if (action === 'set-duration') setQuickDuration(button.dataset.minutes);
-    else if (action === 'set-repeat') setRecurrence(button.dataset.targetType, button.dataset.taskId, button.dataset.frequency ? { frequency: button.dataset.frequency, interval: Number(button.dataset.interval) || 1 } : null);
-    else if (action === 'show-custom-reminder') showCustomReminder(button);
-    else if (action === 'show-custom-repeat') showCustomRepeat(button);
-    else if (action === 'custom-reminder-cancel' || action === 'custom-repeat-cancel') closePopover();
-    else if (action === 'custom-reminder-apply') { const value = fromLocalDateTimeValue($('#custom-reminder-input', popoverEl)?.value); if (value) setReminder(button.dataset.targetType, button.dataset.taskId, value); }
-    else if (['pause-recurrence','resume-recurrence','skip-recurrence','end-recurrence'].includes(action)) manageRecurrence(button.dataset.taskId,action);
-    else if (action === 'custom-repeat-apply') {
-      const interval=Number($('#repeat-interval',popoverEl)?.value),frequency=$('#repeat-frequency',popoverEl)?.value || 'weekly',endType=$('#repeat-end-type',popoverEl)?.value || 'never',endDate=$('#repeat-end-date',popoverEl)?.value || null,endAfterOccurrences=Number($('#repeat-end-count',popoverEl)?.value) || null;
-      if(!Number.isInteger(interval) || interval<1 || endType==='afterOccurrences' && (!Number.isInteger(endAfterOccurrences) || endAfterOccurrences<1) || endType==='date' && !endDate){const error=$('#repeat-error',popoverEl);error.hidden=false;error.textContent=tr('Provide a positive whole-number interval/count and a valid end date.');return;}
-      setRecurrence(button.dataset.targetType,button.dataset.taskId,{frequency,interval,endType,endDate,endAfterOccurrences});
-    }
-    else if (action === 'show-custom-date') showCustomDate(button);
-    else if (action === 'custom-date-cancel') closePopover();
-    else if (action === 'custom-date-apply') { const value = $('#custom-date-input', popoverEl)?.value; if (!value) return; if (button.dataset.dateKind === 'plan') setPlan(button.dataset.targetType, button.dataset.taskId, value); else setDue(button.dataset.targetType, button.dataset.taskId, value); }
+    else if (['pause-recurrence','resume-recurrence','skip-recurrence','end-recurrence'].includes(action)) controlRecurrence(button.dataset.taskId,action);
     else if (action === 'inline-new-tag') inlineNewTag(button);
     else if (action === 'inline-select-tag-color') { $$('.color-swatch', popoverEl).forEach(s => s.classList.toggle('is-selected', s === button)); const create = $('[data-pop-action="inline-tag-create"]', popoverEl); if (create) create.dataset.color = button.dataset.color; }
     else if (action === 'inline-tag-cancel') closePopover();
-    else if (action === 'inline-tag-create') { const name = Core.normalizeTagName($('#inline-tag-name',popoverEl)?.value); const valid=Core.validateTagName(state.tags||[],name); if(!valid.ok){const er=$('#inline-tag-error',popoverEl); if(er){er.hidden=false;er.textContent=valid.reason==='duplicate-tag'?tr('A tag with this name already exists.'):tr('Tag needs a name.');} return;} const tag={id:uid('tag'),name,color:button.dataset.color||PROJECT_COLORS[0],createdAt:nowIso(),updatedAt:nowIso()}; state.tags.push(tag); saveState(); toggleTag(button.dataset.targetType, button.dataset.taskId, tag.id); render(); }
+    else if (action === 'inline-tag-create') { const name = Core.normalizeTagName($('#inline-tag-name',popoverEl)?.value); const valid=Core.validateTagName(state.tags||[],name); if(!valid.ok){const er=$('#inline-tag-error',popoverEl); if(er){er.hidden=false;er.textContent=valid.reason==='duplicate-tag'?tr('A tag with this name already exists.'):tr('Tag needs a name.');} return;} const tag={id:uid('tag'),name,color:button.dataset.color||PROJECT_COLORS[0],createdAt:nowIso(),updatedAt:nowIso()}; state.tags.push(tag); saveState(); if (tagSheet) { tagSheet.ids.add(tag.id); refreshSheet(tagSheetHtml(), `[data-tag-id="${cssEscape(tag.id)}"]`); } else toggleTag(button.dataset.targetType, button.dataset.taskId, tag.id); render(); }
     else if (action === 'inline-new-project') inlineNewProject(button);
     else if (action === 'inline-select-color') { $$('.color-swatch', popoverEl).forEach(s => s.classList.toggle('is-selected', s === button)); const create = $('[data-pop-action="inline-project-create"]', popoverEl); if (create) create.dataset.color = button.dataset.color; }
     else if (action === 'inline-project-cancel') closePopover();
@@ -4463,13 +5042,13 @@
     else if (action === 'task-add-today') { closePopover(); addTaskToToday(button.dataset.taskId); }
     else if (action === 'task-move-tomorrow') { closePopover(); moveTaskToTomorrow(button.dataset.taskId); }
     else if (action === 'task-move-anytime') { closePopover(); moveTaskToAnytime(button.dataset.taskId); }
-    else if (action === 'task-open-plan') { const taskId=button.dataset.taskId; closePopover(); const anchor=document.querySelector(`[data-action="task-menu"][data-task-id="${CSS.escape(taskId)}"]`) || button; openPlanPicker(anchor,{type:'task',taskId}); }
+    else if (action === 'task-open-plan') { const taskId=button.dataset.taskId; closePopover(); const anchor=document.querySelector(`[data-action="task-menu"][data-task-id="${cssEscape(taskId)}"]`) || button; openPlanPicker(anchor,{type:'task',taskId}); }
     else if (action === 'task-duplicate') startDuplicate(button.dataset.taskId);
     else if (action === 'attachment-open') openAttachment(button.dataset.attachmentId, false);
     else if (action === 'attachment-download') openAttachment(button.dataset.attachmentId, true);
     else if (action === 'attachment-delete') deleteAttachment(button.dataset.attachmentId, { ownerType: button.dataset.ownerType, ownerId: button.dataset.ownerId });
-    else if (action === 'task-open-project') { const taskId = button.dataset.taskId; closePopover(); const anchor = document.querySelector(`[data-action="task-menu"][data-task-id="${CSS.escape(taskId)}"]`) || button; openProjectPicker(anchor, { type: 'task', taskId }); }
-    else if (action === 'task-open-due') { const taskId = button.dataset.taskId; closePopover(); const anchor = document.querySelector(`[data-action="task-menu"][data-task-id="${CSS.escape(taskId)}"]`) || button; openDuePicker(anchor, { type: 'task', taskId }); }
+    else if (action === 'task-open-project') { const taskId = button.dataset.taskId; closePopover(); const anchor = document.querySelector(`[data-action="task-menu"][data-task-id="${cssEscape(taskId)}"]`) || button; openProjectPicker(anchor, { type: 'task', taskId }); }
+    else if (action === 'task-open-due') { const taskId = button.dataset.taskId; closePopover(); const anchor = document.querySelector(`[data-action="task-menu"][data-task-id="${cssEscape(taskId)}"]`) || button; openDuePicker(anchor, { type: 'task', taskId }); }
     else if (action === 'task-delete') { const id = button.dataset.taskId; closePopover(); deleteTask(id); }
     else if (action === 'edit-tag') { const id = button.dataset.tagId; closePopover(); openTagModal(id); }
     else if (action === 'delete-tag') deleteTag(button.dataset.tagId);
@@ -4478,10 +5057,29 @@
 
   function handleInput(event) {
     if (globalOperation) return;
+    // Redesign R3 (E8, E9): the search field of a sheet filters its rows.
+    if (event.target.matches?.('[data-sheet-search]')) {
+      const query = event.target.value.trim().toLowerCase();
+      popoverEl?.querySelectorAll('[data-sheet-item]').forEach(item => { item.hidden = Boolean(query) && !String(item.dataset.search || '').includes(query); });
+      return;
+    }
+    if (reminderSheet && ['reminder-date', 'reminder-time'].includes(event.target.id)) {
+      if (event.target.value) reminderSheet[event.target.id === 'reminder-date' ? 'date' : 'time'] = event.target.value;
+      const summary = popoverEl?.querySelector('[data-reminder-summary]');
+      if (summary) summary.textContent = tr('Remind me {date} at {time}', { date: relativeDateLabel(reminderSheet.date), time: reminderSheet.time });
+      return;
+    }
     if (callDomainHook('handleInput', event) !== undefined) return;
     if (modalState?.type === 'quick') {
-      if (event.target.id === 'quick-title') { modalState.draft.title = event.target.value; modalState.error = ''; const parsed=parseQuickAddTitle(event.target.value, !modalState.draft.explicitPlan); const slot=document.querySelector('[data-quick-preview-slot]'); if(slot) slot.innerHTML=quickParsePreview(parsed); if (!modalState.draft.explicitPlan) { modalState.draft.parsedPlanDate=parsed.plannedDate; const b=document.querySelector('[data-action="quick-plan-picker"]'); if(b) b.innerHTML=`<i class="ph ph-calendar-check"></i>${parsed.plannedDate ? esc(relativeDateLabel(parsed.plannedDate)) : tr('Plan for')}`; } }
-      else if (event.target.id === 'quick-notes') modalState.draft.notes = event.target.value;
+      if (event.target.id === 'quick-title') {
+        const d = modalState.draft; d.title = event.target.value; modalState.error = '';
+        const parsed = parseQuickAddTitle(event.target.value, !d.explicitPlan);
+        const slot = document.querySelector('[data-quick-preview-slot]'); if (slot) slot.innerHTML = quickParsePreview(parsed);
+        if (!d.explicitPlan) d.parsedPlanDate = parsed.plannedDate;
+        // Redesign R4: the selectors follow the title without redrawing the field.
+        const planLabel = document.querySelector('[data-quick-plan-label]'); if (planLabel) planLabel.textContent = quickPlanLabel(d.explicitPlan ? d.plannedDate : (parsed.plannedDate || d.plannedDate), d.explicitPlannedTime ? d.plannedTime : (d.plannedTime || parsed.plannedTime));
+        const placeLabel = document.querySelector('[data-quick-place-label]'); if (placeLabel) placeLabel.textContent = quickPlace(modalState.draft, parsed).label;
+      }
     }
     if (modalState?.type === 'task') {
       const task = getTask(modalState.taskId);
@@ -4498,17 +5096,6 @@
 
   function handleChange(event) {
     if (globalOperation) return;
-    if (event.target.matches('[data-today-filter]')) {
-      state.settings.todayFocusFilter = ['all', 'open', 'completed', 'important', 'dueToday'].includes(event.target.value) ? event.target.value : 'all';
-      saveAndRender();
-      return;
-    }
-    if (modalState?.type === 'quick' && ['quick-planned-time', 'quick-due-time'].includes(event.target.id)) {
-      const planned = event.target.id === 'quick-planned-time';
-      modalState.draft[planned ? 'plannedTime' : 'dueTime'] = Core.normalizeTime(event.target.value);
-      if (planned) modalState.draft.explicitPlannedTime = true;
-      return;
-    }
     if (event.target.matches('[data-task-duration]')) {
       const value = Number(event.target.value);
       updateTask(event.target.dataset.taskId, { durationMinutes: Number.isInteger(value) && value > 0 ? value : null }, false);
@@ -4518,16 +5105,13 @@
     if (event.target.matches('[data-task-time]')) { updateTask(event.target.dataset.taskId, { [event.target.dataset.taskTime]: Core.normalizeTime(event.target.value) }, false); render(); return; }
     if (event.target.matches('[data-task-flag]')) { const task = getTask(event.target.dataset.taskId); const field = event.target.dataset.taskFlag; if (task && ['isImportant', 'isUrgent'].includes(field)) { task[field] = event.target.checked; task.updatedAt = nowIso(); saveState(); render(); } return; }
     if (['attachment-input', 'attachment-image-input'].includes(event.target.id)) { receiveAttachmentFiles(event.target.dataset, [...event.target.files]); event.target.value=''; return; }
+    // R10g (M5): the week start and density apply at once; the week-start history is kept (M11).
+    if (['preference-week-start', 'preference-density'].includes(event.target.id)) { savePersonalization(); return; }
+    // R12c (J6): when the evening journal notice appears, or off.
+    if (event.target.id === 'journal-reminder-time') { const value = event.target.value; if (value === 'off' || Core.normalizeTime(value) === value) { state.settings.journalReminderTime = value === 'off' ? null : value; saveAndRender(); } return; }
     if (event.target.id === 'daily-capacity') { const minutes = Number(event.target.value); if (Number.isInteger(minutes) && minutes >= 0 && minutes <= 1440) { state.settings.dailyCapacityMinutes = minutes; saveAndRender(); } return; }
     if (event.target.id === 'backup-reminder-days') { const days = Number(event.target.value); if (Number.isInteger(days) && days >= 0 && days <= 90) { state.settings.backupReminderDays = days; saveAndRender(); } return; }
     if (event.target.id === 'backup-import-input') { const file=event.target.files?.[0]; event.target.value=''; if(file) inspectImportBackup(file); return; }
-    if (event.target.id === 'completed-project-filter') {
-      state.ui.completedProjectFilter = event.target.value || '';
-      saveAndRender();
-    } else if (event.target.id === 'completed-period-filter') {
-      state.ui.completedPeriod = Number(event.target.value) || 0;
-      saveAndRender();
-    }
   }
 
   function handleBlur(event) {
@@ -4543,16 +5127,8 @@
 
   function handleKeydown(event) {
     if (globalOperation && !['Escape','Tab'].includes(event.key)) return;
-    if (mobileMoreOpen && event.key === 'Tab') { trapMobileMoreFocus(event); return; }
     const target = event.target;
-    if (handleAreaTabKeydown(event)) return;
     const typing = target && (target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"]') || target.isContentEditable);
-    if (goalPropertyEditor && !modalState && !popoverEl && (event.key === 'Escape' || (event.key === 'Enter' && typing && !event.isComposing))) {
-      if (callDomainHook('handleInput', event) !== undefined) return;
-    }
-    if (habitPropertyEditor && !modalState && !popoverEl && (event.key === 'Escape' || (event.key === 'Enter' && typing && !event.isComposing))) {
-      if (callDomainHook('handleInput', event) !== undefined) return;
-    }
     if (popoverEl && event.key === 'Tab') { trapPopoverFocus(event); return; }
 
     if (modalState && event.key === 'Tab') {
@@ -4569,7 +5145,6 @@
     }
 
     if (event.key === 'Escape') {
-      if (mobileMoreOpen) { event.preventDefault(); closeMobileMore(); return; }
       if ($('#mobile-quick-add-toggle')?.getAttribute('aria-expanded') === 'true') { event.preventDefault(); setMobileQuickAddOpen(false); $('#mobile-quick-add-toggle')?.focus(); return; }
       if (popoverEl) { event.preventDefault(); closePopover(); return; }
       if (modalState?.type === 'task' && typing) {
@@ -4584,12 +5159,12 @@
       if (modalState) { event.preventDefault(); closeModal(); return; }
     }
 
-    if (!typing && !modalState && !popoverEl && !mobileMoreOpen && !event.repeat && !event.isComposing) {
+    if (!typing && !modalState && !popoverEl && !event.repeat && !event.isComposing) {
       // Alt/Option can turn a letter into a glyph (for example Y → ¥).
       const physicalKey = /^Key[A-Z]$/.test(event.code || '') ? event.code.slice(3) : /^Digit[0-9]$/.test(event.code || '') ? event.code.slice(5) : event.key;
       const combination=Core.normalizeShortcut([event.ctrlKey || event.metaKey?'Ctrl/Cmd':null,event.altKey?'Alt':null,event.shiftKey?'Shift':null,physicalKey].filter(Boolean).join('+'));
       const command=Object.keys(SHORTCUT_DEFAULTS).find(key=>combination && state.settings.shortcuts[key]===combination);
-      if(command){event.preventDefault();if(command==='newTask')openQuickAdd();else if(command==='search')openSearch();else navigate(command);return;}
+      if(command){event.preventDefault();if(command==='newTask'){const direct=quickAddDirect();if(direct)direct[1]();else openQuickAdd();}else if(command==='search')openSearch();else navigate(command);return;}
       // Preserve the existing convenient Search alias, without bypassing suppression.
       if(state.settings.shortcuts.search !== null && event.key==='/' && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey){event.preventDefault();openSearch();return;}
     }
@@ -4599,27 +5174,10 @@
     }
     if (callDomainHook('handleInput', event) !== undefined) return;
 
-    if (modalState?.type === 'quick' && target?.id === 'quick-subtask' && event.key === 'Enter') {
-      event.preventDefault(); syncQuickDraftFromDom(); const title = target.value.trim(); if (!title) { target.blur(); return; }
-      modalState.draft.subtasks.push({ id: uid('sub'), title, isCompleted: false, order: modalState.draft.subtasks.length }); renderModal(); requestAnimationFrame(() => $('#quick-subtask')?.focus()); return;
-    }
 
     if (modalState?.type === 'task' && ['detail-title', 'detail-duration-minutes'].includes(target?.id) && event.key === 'Enter') { event.preventDefault(); target.blur(); return; }
     if (modalState?.type === 'task' && target?.id === 'detail-subtask' && event.key === 'Enter') { event.preventDefault(); addDetailSubtask(target.dataset.taskId, target.value); return; }
     if (['sync-email', 'sync-code'].includes(target?.id) && event.key === 'Enter' && !event.isComposing) { event.preventDefault(); if (target.id === 'sync-email') requestSyncCode(); else verifySyncCode(); return; }
-  }
-
-  function handleAreaTabKeydown(event) {
-    const areaTab = event.target?.closest?.('.area-tabs [role="tab"]');
-    if (!areaTab || !['ArrowRight', 'ArrowLeft'].includes(event.key)) return false;
-    const tabs = $$('.area-tabs [role="tab"]');
-    const index = tabs.indexOf(areaTab);
-    const next = tabs[(index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length];
-    event.preventDefault();
-    next?.focus();
-    next?.click();
-    requestAnimationFrame(() => $('.area-tabs [aria-selected="true"]')?.focus());
-    return true;
   }
 
   function handleDblKeyActivation(event) {
@@ -4717,8 +5275,6 @@
     if (dragState.type === 'subtask') {
       const target = event.target.closest('.subtask-row[draggable="true"]'); if (!target || target.dataset.parentTaskId !== dragState.parentId || target.dataset.subtaskId === dragState.id) return; event.preventDefault(); target.classList.add('is-drop-target'); return;
     }
-    const contextTarget = event.target.closest('[data-drop-plan], [data-drop-project-id]');
-    if (contextTarget) { event.preventDefault(); contextTarget.classList.add('is-drop-target'); return; }
     const target = event.target.closest('.task-row[draggable="true"]');
     if (!target || target.dataset.listContext !== dragState.context || target.dataset.taskId === dragState.id) return;
     event.preventDefault(); target.classList.add('is-drop-target');
@@ -4746,39 +5302,9 @@
     } else if (dragState.type === 'subtask') {
       const target = event.target.closest('.subtask-row[draggable="true"]'); if (target && target.dataset.parentTaskId === dragState.parentId) reorderSubtasks(dragState.parentId, dragState.id, target.dataset.subtaskId);
     } else {
-      const contextTarget = event.target.closest('[data-drop-plan], [data-drop-project-id]');
-      if (contextTarget) moveTaskByDrop(dragState.id, contextTarget);
-      else {
-        const target = event.target.closest('.task-row[draggable="true"]'); if (target && target.dataset.listContext === dragState.context) reorderTasks(dragState.context, dragState.id, target.dataset.taskId);
-      }
+      const target = event.target.closest('.task-row[draggable="true"]'); if (target && target.dataset.listContext === dragState.context) reorderTasks(dragState.context, dragState.id, target.dataset.taskId);
     }
     cleanupDrag();
-  }
-
-  function moveTaskByDrop(taskId, target) {
-    const task = getTask(taskId); if (!task || !target) return;
-    if(taskRecurrence(task)){
-      if(target.dataset.dropPlan==='today')requestTaskEdit(taskId,{plannedDate:Core.dateOnly(),isInbox:false,todayOrder:nextOrder('today')});
-      else if(target.dataset.dropPlan==='tomorrow')requestTaskEdit(taskId,{plannedDate:Core.addDays(Core.dateOnly(),1),isInbox:false,todayOrder:null});
-      else if(target.dataset.dropProjectId && getProject(target.dataset.dropProjectId))requestTaskEdit(taskId,{projectId:target.dataset.dropProjectId,areaId:null,isInbox:false,projectOrder:nextOrder(`project:${target.dataset.dropProjectId}`)});
-      return;
-    }
-    const prev = { plannedDate: task.plannedDate, isInbox: task.isInbox, todayOrder: task.todayOrder, projectId: task.projectId, areaId: task.areaId, projectOrder: task.projectOrder };
-    let message = '';
-    if (target.dataset.dropPlan === 'today') {
-      if (task.plannedDate === Core.dateOnly() && !task.isInbox) return;
-      task.plannedDate = Core.dateOnly(); task.isInbox = false; task.todayOrder = nextOrder('today'); message = msg('Task moved to Today');
-    } else if (target.dataset.dropPlan === 'tomorrow') {
-      const tomorrow = Core.addDays(Core.dateOnly(), 1);
-      if (task.plannedDate === tomorrow && !task.isInbox) return;
-      task.plannedDate = tomorrow; task.isInbox = false; task.todayOrder = null; message = msg('Task moved to Tomorrow');
-    } else if (target.dataset.dropProjectId) {
-      const projectId = target.dataset.dropProjectId;
-      if (!getProject(projectId) || (task.projectId === projectId && !task.isInbox)) return;
-      task.projectId = projectId; task.areaId = null; task.isInbox = false; task.projectOrder = nextOrder(`project:${projectId}`); message = msg('Task moved to project');
-    } else return;
-    task.updatedAt = nowIso(); saveState(); render();
-    setUndo(message, () => { const current = getTask(taskId); if (!current) return; Object.assign(current, prev, { updatedAt: nowIso() }); saveState(); render(); });
   }
 
   function handleDragEnd() { cleanupDrag(); }
@@ -4809,7 +5335,31 @@
     const [moved]=ids.splice(from,1); ids.splice(to,0,moved); ids.forEach((id,i)=>{ const s=task.subtasks.find(x=>x.id===id); if(s)s.order=i; }); task.updatedAt=nowIso(); saveState(); renderModal(); render();
   }
 
+  // Redesign R2 (T5): a long press on an element with data-long-press runs that action (the habit menu on
+  // Today), and the click that follows the press is swallowed. The menu is also reachable by a tap or keyboard.
+  let longPressTimer = null, longPressFired = false;
+  function handleLongPressStart(event) {
+    if (!event.isPrimary || event.button > 0) return;
+    const el = event.target.closest?.('[data-long-press]');
+    if (!el) return;
+    clearTimeout(longPressTimer); longPressFired = false;
+    longPressTimer = setTimeout(() => { longPressTimer = null; longPressFired = true; callDomainHook('handleAction', el.dataset.longPress, { target: el }); }, 500);
+  }
+  function cancelLongPress() {
+    clearTimeout(longPressTimer); longPressTimer = null;
+  }
+  function handleLongPressClick(event) {
+    if (!longPressFired) return;
+    longPressFired = false; event.preventDefault(); event.stopPropagation();
+  }
+
   function attachEvents() {
+    document.addEventListener('pointerdown', handleLongPressStart);
+    document.addEventListener('pointerup', cancelLongPress);
+    document.addEventListener('pointercancel', cancelLongPress);
+    document.addEventListener('pointermove', event => { if (longPressTimer && (Math.abs(event.movementX) > 4 || Math.abs(event.movementY) > 4)) cancelLongPress(); });
+    document.addEventListener('click', handleLongPressClick, true);
+    document.addEventListener('contextmenu', event => { if (event.target.closest?.('[data-long-press]')) event.preventDefault(); });
     document.addEventListener('pointerdown', handleTaskSwipeStart);
     document.addEventListener('pointermove', handleTaskSwipeMove, { passive: false });
     document.addEventListener('pointerup', finishTaskSwipe);
@@ -4889,7 +5439,8 @@
     const draftTask = modalState?.type === 'task' ? getTask(modalState.taskId) : null;
     if (reason === 'pagehide' || !draftTask || !taskRecurrence(draftTask)) flushTaskDraft();
     flushTextSave(); saveState();
-    if (globalThis.DailoPlatform?.isNative) writeDurableMirror();
+    // The app may be swiped away next: write the mirror and hand reminders to the phone now, not after the save timer.
+    if (globalThis.DailoPlatform?.isNative) { writeDurableMirror(); reconcileNotifications({ ask: false }).catch(console.error); }
   }
 
   // Back in the foreground: a new day, due reminders and a sync round, without waiting for the 30-second timer.
@@ -4911,7 +5462,7 @@
   // Android Back works like Escape: it closes the top sheet, menu, popover, inline editor or dialog and reports
   // whether anything closed; otherwise the platform goes to the previous screen or minimizes (audit P-3, M4).
   // A reset or restore that is already running is never interrupted.
-  const overlaySnapshot = () => [mobileMoreOpen, $('#mobile-quick-add-toggle')?.getAttribute('aria-expanded'), popoverEl, modalState, goalPropertyEditor, habitPropertyEditor, document.activeElement];
+  const overlaySnapshot = () => [$('#mobile-quick-add-toggle')?.getAttribute('aria-expanded'), popoverEl, modalState, document.activeElement];
   function handleBackButton() {
     if (globalOperation?.busy) return true;
     const before = overlaySnapshot();

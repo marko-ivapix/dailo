@@ -135,19 +135,19 @@ test('Habit rollback atomically preserves a competing log written between read a
   assert.equal(app.habit.updatedAt, 'before');
 });
 
-test('mobile More sheet suppresses global shortcuts behind its modal overlay', () => {
+test('an open popover suppresses global shortcuts behind it (the More sheet it covered left in redesign R1)', () => {
   let searches = 0;
   const ctx = {
-    globalOperation: null, mobileMoreOpen: true, modalState: null, popoverEl: null,
-    goalPropertyEditor: null, habitPropertyEditor: null,
+    globalOperation: null, modalState: null, popoverEl: { contains: () => false, querySelectorAll: () => [] },
     state: { settings: { shortcuts: { search: 'Ctrl/Cmd+K' } } },
     SHORTCUT_DEFAULTS: { search: 'Ctrl/Cmd+K' }, Core,
-    handleAreaTabKeydown: () => false, trapMobileMoreFocus() {}, trapPopoverFocus() {},
+    trapPopoverFocus() {},
     callDomainHook: () => undefined, openSearch: () => { searches++; }, openQuickAdd() {}, navigate() {},
     $: () => null,
   };
   vm.createContext(withI18n(ctx));
-  vm.runInContext(functionSource('function handleKeydown(', 'function handleAreaTabKeydown('), ctx);
+  // Redesign R10a: the area tabs and their arrow-key handler left; the function now ends before handleDblKeyActivation.
+  vm.runInContext(functionSource('function handleKeydown(', 'function handleDblKeyActivation('), ctx);
   const event = {
     key: 'k', code: 'KeyK', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false,
     repeat: false, isComposing: false, preventDefault() {},
