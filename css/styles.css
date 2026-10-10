@@ -2384,6 +2384,25 @@ a.btn { text-decoration: none; }
 .quick-add-button { flex: 1; max-width: 260px; min-height: 48px; margin-left: auto; }
 @media (pointer: coarse) { .quick-sheet-footer .shortcut-hint { display: none; } .quick-add-button { max-width: none; } }
 
+/* Redesign R5 — Zadaci and the project screen (Z1–Z7, S10). */
+.tasks-note { margin: 10px 4px 0; color: var(--ink-3); font-size: 13px; }
+.tasks-group { margin-top: 16px; }
+.tasks-group-label { display: inline-flex; align-items: center; gap: 8px; }
+.project-row { width: 100%; min-height: 56px; display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 8px 12px; border: 0; border-radius: var(--radius-sm); background: none; color: var(--ink-1); font: inherit; text-align: left; cursor: pointer; }
+.project-row + .project-row { border-top: 1px solid var(--line-1); border-radius: 0; }
+.project-row:hover { background: var(--graphite-800); }
+.project-row-icon { color: var(--ink-3); font-size: 18px; }
+.project-row-main { min-width: 0; display: grid; gap: 3px; }
+.project-row-main .task-meta { margin-top: 0; }
+.project-row-bar { display: block; height: 3px; margin-top: 3px; border-radius: 2px; background: var(--line-2); overflow: hidden; }
+.project-row-bar i { display: block; height: 100%; border-radius: 2px; }
+.screen-topbar { display: flex; align-items: center; justify-content: space-between; min-height: 44px; margin-bottom: 4px; }
+.screen-back { display: inline-flex; align-items: center; gap: 4px; padding: 8px 4px; border: 0; background: none; color: var(--blue-300); font: inherit; font-size: 15px; cursor: pointer; }
+.project-title { display: flex; align-items: center; gap: 10px; }
+.project-title .project-dot { width: 12px; height: 12px; }
+.project-archived-notice { margin-top: 12px; }
+.project-goal-link { display: inline-flex; align-items: center; gap: 6px; margin: 8px 0 4px; padding: 4px 0; border: 0; background: none; color: var(--blue-300); font: inherit; font-size: 14px; cursor: pointer; }
+
 /* Keep primary compact actions touchable after all density rules. */
 @media (max-width: 700px), (pointer: coarse) {
   .task-actions .btn-icon,

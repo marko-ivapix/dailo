@@ -63,7 +63,7 @@ test('Today counts overdue and planned work; suggestions moved to Zadaci', () =>
   const fn = name => { const start = source.indexOf(`  function ${name}(`); return source.slice(start, source.indexOf('\n  }\n', start) + 4); };
   const context = { state, Core, esc: String, formatDate: String, formatPageToday: String, pageHeader: () => '', backupReminderNotice: () => '', weeklyReviewNotice: () => '', renderHabitTodayRow: () => '', taskRow: task => `<t ${task.id}>` };
   vm.createContext(withI18n(context));
-  vm.runInContext(`const TODAY_LIMITS = { overdue: 3, today: 5, habits: 5 };\n${fn('todayLimited')}${fn('todayDueLabel')}${fn('deadlineRow')}${fn('renderToday')}`, context);
+  vm.runInContext(`const TODAY_LIMITS = { overdue: 3, today: 5, habits: 5 };\n${fn('todayLimited')}${fn('todayDueLabel')}${fn('deadlineRow')}${fn('listTasks')}${fn('renderToday')}`, context);
   const html = vm.runInContext('renderToday()', context);
   assert.match(html, /Past due<\/h2><span class="section-count">1<\/span><\/div><div class="task-list today-card"><t overdue>/);
   assert.match(html, /Planned today<\/h2><span class="section-count">1<\/span>/);

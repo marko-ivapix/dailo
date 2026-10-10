@@ -100,7 +100,11 @@ await new Promise(resolve => setTimeout(resolve, 50));
 const hasSuggestion = window.TodoCore.deriveTodaySections(window.TodoApp.state.tasks, window.TodoCore.dateOnly()).suggestions.length > 0;
 if (hasSuggestion !== Boolean(window.document.querySelector('#main [data-tasks-suggestions]'))) fail('the Zadaci suggestions card does not match the suggestions');
 window.document.querySelector('#main [data-action="tasks-view"][data-view="projects"]').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
-if (window.TodoApp.state.ui.tasksView !== 'projects' || !window.document.querySelector('#main .more-row[data-route^="project/"]')) fail('the Zadaci switch did not show the projects');
+if (window.TodoApp.state.ui.tasksView !== 'projects' || !window.document.querySelector('#main .project-row[data-route^="project/"]')) fail('the Zadaci switch did not show the projects');
+// Redesign R5: a project row opens the project screen with "‹ Zadaci".
+window.document.querySelector('#main .project-row[data-route^="project/"]:not([data-route="project/none"])').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+await new Promise(resolve => setTimeout(resolve, 50));
+if (!window.document.querySelector('#main .screen-back[data-route="tasks"]') || !window.document.querySelector('#main .project-title')) fail('the project screen has no "‹ Zadaci" or title');
 // Redesign R3: the task window's Planirano row opens the date sheet; Sutra and "Primeni" plan the task.
 window.location.hash = '#inbox';
 await new Promise(resolve => setTimeout(resolve, 50));
@@ -139,5 +143,5 @@ if (!found) fail('the task is missing after reopening');
 const errors = [...first.errors, ...second.errors];
 second.dom.window.close();
 if (errors.length) fail(`script errors: ${errors.join(' | ')}`);
-console.log(`smoke: OK — started, created "${title}", Back closed Quick Add, route change named the page and focused its heading, Još opened Ciljevi, focus survived a re-render, Today checked in a habit, the Zadaci switch showed the projects, the task window's date sheet planned a task, Quick Add filed a task under \"Bez projekta\", reopened and found it (tasks: ${second.window.TodoApp.state?.tasks?.length ?? 'n/a'})`);
+console.log(`smoke: OK — started, created "${title}", Back closed Quick Add, route change named the page and focused its heading, Još opened Ciljevi, focus survived a re-render, Today checked in a habit, the Zadaci switch showed the projects and opened one, the task window's date sheet planned a task, Quick Add filed a task under \"Bez projekta\", reopened and found it (tasks: ${second.window.TodoApp.state?.tasks?.length ?? 'n/a'})`);
 process.exit(0);

@@ -85,7 +85,7 @@ test('Today lists planned tasks in their order with counts instead of the Focus 
   const context = { state, Core, esc: String, formatDate: String, formatPageToday: String,
     pageHeader: () => '', backupReminderNotice: () => '', weeklyReviewNotice: () => '', renderHabitTodayRow: () => '', taskRow: (task, view) => `<article data-view="${view}">${task.id}</article>` };
   vm.createContext(withI18n(context));
-  vm.runInContext(`const TODAY_LIMITS = { overdue: 3, today: 5, habits: 5 };\n${fn('todayLimited')}${fn('todayDueLabel')}${fn('deadlineRow')}${fn('renderToday')}`, context);
+  vm.runInContext(`const TODAY_LIMITS = { overdue: 3, today: 5, habits: 5 };\n${fn('todayLimited')}${fn('todayDueLabel')}${fn('deadlineRow')}${fn('listTasks')}${fn('renderToday')}`, context);
   const html = vm.runInContext('renderToday()', context);
   assert.deepEqual([...html.matchAll(/<article data-view="today">(\w+)</g)].map(match => match[1]), ['d', 'c', 'b', 'a']);
   assert.match(html, /Planned today<\/h2><span class="section-count">4<\/span>/);

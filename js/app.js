@@ -601,6 +601,8 @@
       captureModalReturnFocus,
       durationLabel,
       todayDueLabel, openHabitValue,
+      looseTasks(completed) { return listTasks().filter(task => !task.projectId && !task.isInbox && Boolean(task.isCompleted) === completed); },
+      goalPercent(goal) { return Math.round(Core.computeGoalProgress(goal, state, state.habitMetrics || {}).percent); },
       syncView,
       reviewTaskRow(task, context, options = {}) {
         return taskRow(task, context, options);
@@ -1061,7 +1063,7 @@
   // Navike and a folded Završeno. Focus, review, actions, the summary strip and capacity left Today (T2a).
   function renderToday() {
     const today = Core.dateOnly();
-    const sections = Core.deriveTodayV3(state, Object.values(state.habitLogCache || {}).flat(), today);
+    const sections = Core.deriveTodayV3({ ...state, tasks: listTasks() }, Object.values(state.habitLogCache || {}).flat(), today);
     let html = pageHeader(tr('Today'), '', { add: false, eyebrow: formatPageToday(today) });
     if (globalThis.DailoPlatform?.isNative) html += transferNotice();
     html += backupReminderNotice();
@@ -1151,32 +1153,62 @@
     return html;
   }
 
-  // Redesign R1 (Z1, Z3; completed in R5): "Kad stignem" and the projects behind one switch.
+  // Redesign R5 (S10): the tasks lists show, without the tasks of archived projects. Search keeps every task.
+  function listTasks() {
+    const archived = new Set((state.projects || []).filter(project => project.isArchived).map(project => project.id));
+    return (state.tasks || []).filter(task => !archived.has(task.projectId));
+  }
+
+  // Redesign R5 (Z6): a project row with its open count, the nearest due date and a bar of the done share.
+  function projectOverviewRow(project, tasks) {
+    const all = tasks.filter(task => task.projectId === project.id);
+    const open = all.filter(task => !task.isCompleted);
+    const percent = all.length ? Math.round((all.length - open.length) / all.length * 100) : 0;
+    const next = open.filter(task => task.dueDate).sort((a, b) => a.dueDate.localeCompare(b.dueDate))[0];
+    return `<button class="project-row" type="button" data-route="project/${esc(project.id)}"><span class="project-dot" style="--project-color:${esc(project.color)}" aria-hidden="true"></span><span class="project-row-main"><span class="task-title">${esc(project.name)}</span><span class="task-meta">${esc(trn(open.length, '{count} open', '{count} open'))}${next ? ` · ${todayDueLabel(next.dueDate)}` : ''}</span><span class="project-row-bar" aria-hidden="true"><i style="width:${percent}%;background:${esc(project.color)}"></i></span></span><i class="ph ph-caret-right" aria-hidden="true"></i></button>`;
+  }
+
+  // Redesign R1 + R5 (Z1–Z6): the summary, the suggestions, and "Kad stignem" by project or the projects by area.
   function renderTasksScreen() {
     const view = state.ui.tasksView === 'projects' ? 'projects' : 'anytime';
+    const tasks = listTasks();
     const projects = sortedProjects();
-    const archived = new Set(state.projects.filter(project => project.isArchived).map(project => project.id));
-    const open = state.tasks.filter(task => !task.isCompleted && !archived.has(task.projectId)).length;
+    const later = Core.deriveAnytime(tasks);
+    const open = tasks.filter(task => !task.isCompleted && !task.isInbox).length;
     const summary = `${trn(open, '{count} open task', '{count} open tasks')} · ${trn(projects.length, '{count} project', '{count} projects')}`;
     const tab = (key, label) => `<button class="btn ${view === key ? 'is-selected' : ''}" type="button" data-action="tasks-view" data-view="${key}" aria-pressed="${view === key}">${label}</button>`;
+    const group = (label, count, rows, color = '') => `<section class="section tasks-group"><div class="section-header"><h2 class="section-label tasks-group-label">${color ? `<span class="project-dot" style="--project-color:${esc(color)}" aria-hidden="true"></span>` : ''}${esc(label)}</h2><span class="section-count">${count}</span></div>${rows}</section>`;
     let html = pageHeader(tr('Tasks'), summary, { add: false });
     // Redesign R2 (T2a, Z2): the suggestions that left Today, folded, with "+ Danas" per row.
-    const suggestions = Core.deriveTodaySections(state.tasks, Core.dateOnly()).suggestions;
+    const suggestions = Core.deriveTodaySections(tasks, Core.dateOnly()).suggestions;
     if (suggestions.length) {
       const open = state.ui.suggestionsExpanded === true;
       html += `<section class="tasks-suggestions" data-tasks-suggestions><button class="collapsible-trigger" type="button" data-action="toggle-suggestions" aria-expanded="${open}"><span class="left"><i class="ph ph-sparkle"></i> ${tr('Suggested for today')}</span><span>${suggestions.length} <i class="ph ph-caret-${open ? 'up' : 'down'}"></i></span></button>`;
       if (open) html += `<div class="task-list today-card">${suggestions.map(item => taskRow(item.task, 'suggestion', { today: true, addToday: true, suggestionReason: item.reason })).join('')}</div><button class="btn btn-ghost" type="button" data-action="add-all-suggestions"><i class="ph ph-plus-circle"></i> ${tr('Add all to Today')}</button>`;
       html += `</section>`;
     }
-    html += `<div class="view-tabs tasks-view-switch" role="group" aria-label="${tr('Tasks')}">${tab('anytime', tr('Anytime'))}${tab('projects', tr('Projects'))}</div>`;
+    html += `<div class="view-tabs tasks-view-switch" role="group" aria-label="${tr('Tasks')}">${tab('anytime', `${tr('Anytime')} · ${later.length}`)}${tab('projects', tr('Projects'))}</div>`;
     if (view === 'projects') {
-      html += `<div class="more-card">${projects.map(project => `<button class="mobile-more-route more-row" type="button" data-route="project/${esc(encodeURIComponent(project.id))}"><span class="project-dot" style="--project-color:${esc(project.color)}" aria-hidden="true"></span><span class="more-row-label">${esc(project.name)}</span><span class="more-row-value">${projectTasks(project.id, false).length}</span><i class="ph ph-caret-right more-row-caret" aria-hidden="true"></i></button>`).join('')}</div>`;
+      const loose = tasks.filter(task => !task.projectId && !task.isInbox && !task.isCompleted).length;
+      html += `<div class="more-card"><button class="project-row" type="button" data-route="project/none"><i class="ph ph-tray project-row-icon" aria-hidden="true"></i><span class="project-row-main"><span class="task-title">${tr('No project')}</span><span class="task-meta">${esc(trn(loose, '{count} open', '{count} open'))}</span></span><i class="ph ph-caret-right" aria-hidden="true"></i></button></div>`;
+      const areas = sortedAreas().filter(area => area.status !== 'archived');
+      for (const area of areas) {
+        const list = projects.filter(project => project.areaId === area.id);
+        if (list.length) html += group(area.name, list.length, `<div class="more-card">${list.map(project => projectOverviewRow(project, tasks)).join('')}</div>`);
+      }
+      const unassigned = projects.filter(project => !areas.some(area => area.id === project.areaId));
+      if (unassigned.length) html += group(tr('No area'), unassigned.length, `<div class="more-card">${unassigned.map(project => projectOverviewRow(project, tasks)).join('')}</div>`);
       html += `<button class="inline-add" type="button" data-action="new-project"><i class="ph ph-plus"></i> ${tr('New project')}</button>`;
       return html;
     }
-    const tasks = Core.deriveAnytime(state.tasks);
-    if (!tasks.length) return html + emptyState(tr('Nothing waiting in Anytime.'), tr('Processed tasks without a planned date will appear here.'), tr('Add task'), 'quick-add', { anytime: true });
-    html += `<div class="task-list">${tasks.map(task => taskRow(task, 'anytime')).join('')}</div>`;
+    html += `<p class="tasks-note">${tr('Sorted tasks without a planned day, by project.')}</p>`;
+    if (!later.length) return html + emptyState(tr('Nothing waiting in Anytime.'), tr('Processed tasks without a planned date will appear here.'), tr('Add task'), 'quick-add', { anytime: true });
+    const loose = later.filter(task => !task.projectId);
+    if (loose.length) html += group(tr('No project'), loose.length, `<div class="task-list today-card">${loose.map(task => taskRow(task, 'anytime', { today: true })).join('')}</div>`);
+    for (const project of projects) {
+      const rows = later.filter(task => task.projectId === project.id);
+      if (rows.length) html += group(project.name, rows.length, `<div class="task-list today-card">${rows.map(task => taskRow(task, 'anytime', { today: true, hidePlace: true })).join('')}</div>`, project.color);
+    }
     html += `<button class="inline-add" type="button" data-action="quick-add" data-anytime="true"><i class="ph ph-plus"></i> ${tr('Add task')}</button>`;
     return html;
   }
@@ -1254,7 +1286,7 @@
 
   function renderUpcoming() {
     const today = Core.dateOnly();
-    const baseGroups = Core.deriveUpcomingV3(state, today);
+    const baseGroups = Core.deriveUpcomingV3({ ...state, tasks: listTasks() }, today);
     const groupsByDate = new Map(baseGroups.map(group => [group.date, { ...group, items: [...group.items], goals: [...(group.goals || [])], habits: [], milestones: [] }]));
     const ensureGroup = date => {
       if (!groupsByDate.has(date)) groupsByDate.set(date, { date, items: [], goals: [], habits: [], milestones: [] });
@@ -2219,6 +2251,49 @@
     requestTaskEdit(taskId, { durationMinutes: Number.isInteger(minutes) && minutes > 0 && minutes <= 1440 ? minutes : null });
   }
 
+  // Redesign R5 (Z7): the project's area applies at once; its tasks follow the project's area.
+  function openProjectAreaSheet(anchor, projectId) {
+    const project = getProject(projectId);
+    if (!project) return;
+    const option = (areaId, label) => `<button class="popover-option sheet-option${(project.areaId || '') === areaId ? ' is-selected' : ''}" type="button" data-pop-action="set-project-area" data-project-id="${esc(projectId)}" data-area-id="${esc(areaId)}"><span class="sheet-option-label">${esc(label)}</span><span class="sheet-radio${(project.areaId || '') === areaId ? ' is-on' : ''}" aria-hidden="true"></span></button>`;
+    const areas = sortedAreas().filter(area => area.status !== 'archived' || area.id === project.areaId);
+    openPopover(anchor, `<div class="popover-title">${tr('Area')}</div><p class="sheet-subtitle">${esc(project.name)}</p><div class="sheet-card">${option('', tr('No area'))}${areas.map(area => option(area.id, area.name)).join('')}</div><p class="sheet-note">${tr("Tasks take their project's area.")}</p>`, { type: 'project-area', projectId });
+  }
+  function setProjectArea(projectId, areaId) {
+    const project = getProject(projectId);
+    if (!project) return;
+    project.areaId = (state.areas || []).some(area => area.id === areaId) ? areaId : null;
+    project.updatedAt = nowIso();
+    closePopover(); saveState(); render();
+  }
+
+  // Redesign R5 (Z7): the project's goals, chosen together with "Primeni"; a new link counts all its tasks.
+  let projectGoalSheet = null;
+  function openProjectGoalsSheet(anchor, projectId) {
+    const project = getProject(projectId);
+    if (!project) return;
+    const goals = (state.goals || []).filter(goal => goal.status !== 'archived');
+    const sheet = { projectId, ids: new Set(goals.filter(goal => (goal.projectLinks || []).some(link => link.projectId === projectId)).map(goal => goal.id)) };
+    const options = goals.map(goal => { const on = sheet.ids.has(goal.id); return `<button class="popover-option sheet-option${on ? ' is-selected' : ''}" type="button" data-pop-action="project-goal-toggle" data-goal-id="${esc(goal.id)}" aria-pressed="${on}"><i class="ph ph-target" aria-hidden="true"></i><span class="sheet-option-label">${esc(goal.title)}</span><span class="sheet-check${on ? ' is-on' : ''}" aria-hidden="true">${on ? '<i class="ph ph-check"></i>' : ''}</span></button>`; }).join('');
+    openPopover(anchor, `<div class="popover-title">${tr('Linked goals')}</div><p class="sheet-subtitle">${esc(project.name)}</p><div class="sheet-card">${options || `<div class="popover-empty">${tr('No Goals yet.')}</div>`}</div><div class="sheet-footer"><span></span><button class="btn btn-primary" type="button" data-pop-action="project-goals-apply">${tr('Apply')}</button></div>`, { type: 'project-goals', projectId });
+    projectGoalSheet = sheet;
+  }
+  function applyProjectGoals() {
+    const sheet = projectGoalSheet;
+    if (!sheet) return;
+    const before = captureGoalProgress();
+    for (const goal of (state.goals || []).filter(item => item.status !== 'archived')) {
+      const links = goal.projectLinks || [];
+      const linked = links.some(link => link.projectId === sheet.projectId);
+      const wanted = sheet.ids.has(goal.id);
+      if (linked === wanted) continue;
+      syncGoalLinks(goal, wanted ? [...links, { projectId: sheet.projectId, contributionMode: 'allTasks', selectedTaskIds: [] }] : links.filter(link => link.projectId !== sheet.projectId), goal.taskIds || [], goal.habitLinks || []);
+      goal.updatedAt = nowIso();
+      putGoalHistory(goal.id, wanted ? 'projectLinked' : 'projectUnlinked', { projectId: sheet.projectId });
+    }
+    closePopover(); saveState(); evaluateGoalProgressChanges(before); render();
+  }
+
   function toggleTag(targetType, taskId, tagId) {
     if (!getTag(tagId)) return;
     if (targetType === 'quick') {
@@ -2421,7 +2496,7 @@
     const returnFocus = popoverEl?.returnFocus || popoverReturnFocus;
     if (popoverEl) { popoverEl.backdrop?.remove(); popoverEl.remove(); }
     popoverEl = null;
-    dateSheet = null; reminderSheet = null; tagSheet = null;
+    dateSheet = null; reminderSheet = null; tagSheet = null; projectGoalSheet = null;
     popoverReturnFocus = null;
     restoreGoalFocus(target);
     if (!target && returnFocus) requestAnimationFrame(() => {
@@ -3265,7 +3340,7 @@
   }
 
   function addAllSuggestions() {
-    const sections = Core.deriveTodaySections(state.tasks, Core.dateOnly());
+    const sections = Core.deriveTodaySections(listTasks(), Core.dateOnly());
     let order = nextOrder('today');
     for (const { task } of sections.suggestions) {
       task.plannedDate = Core.dateOnly(); task.isInbox = false; task.todayOrder = order++; task.updatedAt = nowIso();
@@ -4445,6 +4520,16 @@
     }, 3000);
   }
 
+  // Redesign R5 (Z7, S10): the floating "+" adds a task for the screen it is on; null on an archived project.
+  function routeQuickAddContext() {
+    const route = currentRoute();
+    if (route.type === 'today') return { today: true };
+    if (route.type === 'project' && route.id === 'none') return { anytime: true };
+    if (route.type === 'project') return getProject(route.id)?.isArchived ? null : { projectId: route.id };
+    if (route.type === 'tasks' && state.ui.tasksView !== 'projects') return { anytime: true };
+    return {};
+  }
+
   function showTaskProjectPicker(taskId, anchor) { openProjectPicker(anchor, { type: 'task', taskId }); }
   function showTaskPlanPicker(taskId, anchor) { openPlanPicker(anchor, { type: 'task', taskId }); }
   function showTaskDuePicker(taskId, anchor) { openDuePicker(anchor, { type: 'task', taskId }); }
@@ -4517,7 +4602,7 @@
     else if(action==='template-picker-back'){if(modalState.previous?.type==='goal')closeModal();else{modalState=modalState.previous;renderModal();}}
     else if(action==='use-template'){const template=state.templates.find(t=>t.id===el.dataset.templateId);if(template){if(template.type==='task'){openQuickAdd();applyQuickTemplate(template.id);renderModal();}else{if(template.type==='project')openProjectModal();else if(template.type==='habit')openHabitModal();else openGoalModal();openTemplatePicker();chooseTemplate(template.id);}}}
     else if (action === 'toggle-sidebar') { state.ui.sidebarCollapsed = !state.ui.sidebarCollapsed; saveAndRender(); }
-    else if (action === 'quick-add') openQuickAdd({ projectId: el.dataset.projectId || null, areaId: el.dataset.areaId || null, today: el.dataset.today === 'true', anytime: el.dataset.anytime === 'true' });
+    else if (action === 'quick-add') { const context = el.closest('#mobile-quick-add-menu') ? routeQuickAddContext() : { projectId: el.dataset.projectId || null, areaId: el.dataset.areaId || null, today: el.dataset.today === 'true', anytime: el.dataset.anytime === 'true' }; if (context) openQuickAdd(context); else setToastMessage(tr('Restore the project to add tasks.')); }
     else if (action === 'open-task') openTaskDetail(el.dataset.taskId);
     else if (action === 'toggle-focus-task') {
       const task = getTask(el.dataset.taskId); if (!task || task.isCompleted) return;
@@ -4647,6 +4732,11 @@
     else if (action === 'set-task-duration') setTaskDuration(button.dataset.taskId, button.dataset.minutes);
     else if (action === 'set-task-duration-custom') setTaskDuration(button.dataset.taskId, $('#task-duration-custom', popoverEl)?.value);
     else if (action === 'task-start-focus') { const id = button.dataset.taskId; closePopover(); openFocusMode(id); }
+    else if (action === 'project-area') openProjectAreaSheet(button, button.dataset.projectId);
+    else if (action === 'set-project-area') setProjectArea(button.dataset.projectId, button.dataset.areaId);
+    else if (action === 'project-goals') openProjectGoalsSheet(button, button.dataset.projectId);
+    else if (action === 'project-goal-toggle' && projectGoalSheet) { const id = button.dataset.goalId; const on = !projectGoalSheet.ids.has(id); if (on) projectGoalSheet.ids.add(id); else projectGoalSheet.ids.delete(id); button.classList.toggle('is-selected', on); button.setAttribute('aria-pressed', String(on)); const check = button.querySelector('.sheet-check'); if (check) { check.classList.toggle('is-on', on); check.innerHTML = on ? '<i class="ph ph-check"></i>' : ''; } }
+    else if (action === 'project-goals-apply') applyProjectGoals();
     else if (action === 'set-project') setProject(button.dataset.targetType, button.dataset.taskId, button.dataset.projectId);
     else if (action === 'toggle-tag') toggleTag(button.dataset.targetType, button.dataset.taskId, button.dataset.tagId);
     else if (action === 'set-priority') setPriority(button.dataset.targetType, button.dataset.taskId, button.dataset.priority);

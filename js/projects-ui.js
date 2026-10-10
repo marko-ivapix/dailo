@@ -8,24 +8,46 @@
     return pageHeader(tr('Projects'), tr('Active projects'), { add: false, actionHtml: `<button class="btn btn-primary" data-action="new-project">${tr('New project')}</button>` }) + sortedProjects().map(project => `<button class="sidebar-action" data-route="project/${esc(project.id)}"><i class="ph ph-folder"></i><span>${esc(project.name)}</span></button>`).join('');
   }
 
+  // Redesign R5 (Z7, S10): "‹ Zadaci" and ⋯, the name with its color, area · counts, the linked goal, the open tasks
+  // in Today rows, "+ Dodaj zadatak" and the done tasks folded. An archived project is read-only until restored.
   function renderProject(ctx, projectId) {
-    const { state, getProject, projectTasks, pageHeader, emptyState, esc, renderProjectTaskRow } = ctx;
+    const { state, getProject, getArea, projectTasks, esc, renderProjectTaskRow } = ctx;
+    if (projectId === 'none') return renderLooseTasks(ctx);
     const project = getProject(projectId);
     if (!project) return '';
+    const archived = Boolean(project.isArchived);
+    const area = getArea(project.areaId);
     const openTasks = projectTasks(projectId, false);
     const completed = projectTasks(projectId, true);
-    const expanded = Boolean(state.ui.projectCompletedExpanded[projectId]);
-    let html = pageHeader(project.name, trn(openTasks.length, '{count} open task', '{count} open tasks'), { contextProjectId: projectId, projectMenu: projectId });
-    html += `<div style="display:flex;align-items:center;gap:8px;margin-top:-20px;margin-bottom:26px;color:var(--text-muted);font-size:12px"><span class="project-dot" style="--project-color:${esc(project.color)}"></span> ${tr('Project')}</div>`;
-    if (openTasks.length) html += `<div class="task-list" data-list-context="project:${esc(projectId)}">${openTasks.map(task => renderProjectTaskRow(task, projectId, { draggable: true })).join('')}</div>`;
-    else html += emptyState(tr('No open tasks.'), tr('Add a task to keep this project moving.'), tr('Add task'), 'quick-add', { projectId });
-    html += `<button class="inline-add" type="button" data-action="quick-add" data-project-id="${esc(projectId)}"><i class="ph ph-plus"></i> ${tr('Add task')}</button>`;
-    if (completed.length) {
-      html += `<section class="section"><button class="collapsible-trigger" type="button" data-action="toggle-project-completed" data-project-id="${esc(projectId)}" aria-expanded="${expanded}"><span class="left"><i class="ph ph-check-circle"></i> ${tr('Completed')}</span><span>${completed.length} <i class="ph ph-caret-${expanded ? 'up' : 'down'}"></i></span></button>`;
-      if (expanded) html += `<div class="task-list">${completed.map(task => renderProjectTaskRow(task, projectId, { completed: true })).join('')}</div>`;
-      html += '</section>';
-    }
+    const goal = (state.goals || []).find(item => item.status !== 'archived' && (item.projectLinks || []).some(link => link.projectId === projectId));
+    const summary = [area?.name, trn(openTasks.length, '{count} open', '{count} open'), completed.length ? trn(completed.length, '{count} done', '{count} done') : ''].filter(Boolean).join(' · ');
+    let html = `<div class="screen-topbar"><button class="screen-back" type="button" data-route="tasks"><i class="ph ph-caret-left" aria-hidden="true"></i>${tr('Tasks')}</button><button class="btn-icon" type="button" data-action="project-menu" data-project-id="${esc(projectId)}" aria-label="${tr('Project menu')}"><i class="ph ph-dots-three"></i></button></div>`;
+    html += `<h1 class="page-title project-title"><span class="project-dot" style="--project-color:${esc(project.color)}" aria-hidden="true"></span>${esc(project.name)}</h1><p class="page-subtitle">${esc(summary)}</p>`;
+    if (archived) html += `<section class="weekly-review-notice project-archived-notice" role="status"><i class="ph ph-archive weekly-review-notice-icon" aria-hidden="true"></i><div class="backup-reminder-copy"><strong>${tr('Archived project')}</strong><span>${tr('Its tasks stay out of every list until you restore it.')}</span></div><div class="backup-reminder-actions"><button class="btn btn-secondary" type="button" data-action="restore-project" data-project-id="${esc(projectId)}">${tr('Restore')}</button></div></section>`;
+    if (goal) html += `<button class="project-goal-link" type="button" data-route="goal/${esc(goal.id)}"><i class="ph ph-target" aria-hidden="true"></i>${esc(tr('Goal: {goal}', { goal: goal.title }))} · ${ctx.goalPercent(goal)}%</button>`;
+    if (openTasks.length) html += `<div class="task-list today-card" data-list-context="project:${esc(projectId)}">${openTasks.map(task => renderProjectTaskRow(task, projectId, { draggable: !archived, today: true, hidePlace: true })).join('')}</div>`;
+    if (!archived) html += `<button class="inline-add" type="button" data-action="quick-add" data-project-id="${esc(projectId)}"><i class="ph ph-plus"></i> ${tr('Add task')}</button>`;
+    html += completedSection(ctx, projectId, completed, task => renderProjectTaskRow(task, projectId, { completed: true, today: true, hidePlace: true }));
     return html;
+  }
+
+  function completedSection(ctx, key, completed, row) {
+    if (!completed.length) return '';
+    const expanded = Boolean(ctx.state.ui.projectCompletedExpanded?.[key]);
+    return `<section class="section"><button class="collapsible-trigger" type="button" data-action="toggle-project-completed" data-project-id="${ctx.esc(key)}" aria-expanded="${expanded}"><span class="left"><i class="ph ph-check-circle"></i> ${tr('Completed')}</span><span>${completed.length} <i class="ph ph-caret-${expanded ? 'up' : 'down'}"></i></span></button>${expanded ? `<div class="task-list today-card">${completed.map(row).join('')}</div>` : ''}</section>`;
+  }
+
+  // Redesign R5 (Z6): sorted tasks that belong to no project ("Bez projekta").
+  function renderLooseTasks(ctx) {
+    const { esc, taskRow } = ctx;
+    const open = ctx.looseTasks(false);
+    const completed = ctx.looseTasks(true);
+    let html = `<div class="screen-topbar"><button class="screen-back" type="button" data-route="tasks"><i class="ph ph-caret-left" aria-hidden="true"></i>${tr('Tasks')}</button></div>`;
+    html += `<h1 class="page-title project-title">${tr('No project')}</h1><p class="page-subtitle">${esc(trn(open.length, '{count} open', '{count} open'))}</p>`;
+    if (open.length) html += `<div class="task-list today-card">${open.map(task => taskRow(task, 'anytime', { today: true })).join('')}</div>`;
+    html += `<button class="inline-add" type="button" data-action="quick-add" data-anytime="true"><i class="ph ph-plus"></i> ${tr('Add task')}</button>`;
+    html += completedSection(ctx, 'none', completed, task => taskRow(task, 'completed', { today: true }));
+    return html + `<p class="tasks-note">${tr('Sorted tasks that belong to no project.')}</p>`;
   }
 
   function renderArchivedProjects(ctx) {
@@ -54,8 +76,9 @@
     const archiveAction = project.isArchived
       ? `<button class="popover-option" type="button" data-pop-action="restore-project" data-project-id="${esc(projectId)}"><i class="ph ph-arrow-counter-clockwise"></i>${tr('Restore project')}</button>`
       : `<button class="popover-option" type="button" data-pop-action="archive-project" data-project-id="${esc(projectId)}"><i class="ph ph-archive"></i>${tr('Archive project')}</button>`;
-    const html = `<button class="popover-option" type="button" data-pop-action="edit-project" data-project-id="${esc(projectId)}"><i class="ph ph-pencil-simple"></i>${tr('Rename / color')}</button>${archiveAction}<div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="delete-project" data-project-id="${esc(projectId)}" style="color:var(--danger)"><i class="ph ph-trash"></i>${tr('Delete project')}</button>`;
-    openPopover(anchor, templateMenuEntry('project', projectId) + html, { type: 'project-menu', projectId });
+    // Redesign R5 (Z7): Preimenuj i boja, Oblast, Povezani ciljevi, Sačuvaj kao šablon, Arhiviraj / Vrati, Obriši.
+    const html = `<div class="popover-title">${esc(project.name)}</div><button class="popover-option" type="button" data-pop-action="edit-project" data-project-id="${esc(projectId)}"><i class="ph ph-pencil-simple"></i>${tr('Rename / color')}</button><button class="popover-option" type="button" data-pop-action="project-area" data-project-id="${esc(projectId)}"><i class="ph ph-squares-four"></i>${tr('Area')}</button><button class="popover-option" type="button" data-pop-action="project-goals" data-project-id="${esc(projectId)}"><i class="ph ph-target"></i>${tr('Linked goals')}</button>${templateMenuEntry('project', projectId)}${archiveAction}<div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="delete-project" data-project-id="${esc(projectId)}" style="color:var(--danger)"><i class="ph ph-trash"></i>${tr('Delete project')}</button>`;
+    openPopover(anchor, html, { type: 'project-menu', projectId });
   }
 
   function handleAction(action, event, ctx) {

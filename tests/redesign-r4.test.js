@@ -165,8 +165,8 @@ test('typing updates the date and place labels without redrawing the field', () 
   assert.match(app, /const placeLabel = document\.querySelector\('\[data-quick-place-label\]'\); if \(placeLabel\) placeLabel\.textContent = quickPlace\(modalState\.draft, parsed\)\.label;/);
 });
 
-test('R4 is released as 2.0.0-alpha.9', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.9');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.9';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.9');
+test('R4 shipped as 2.0.0-alpha.9 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.(9|\d{2,})$|^2\.\d+\.\d+/);
+  assert.match(read('sw.js'), new RegExp(`const VERSION = '${Release.APP_VERSION.replace(/\./g, '\\.')}';`));
+  assert.equal(JSON.parse(read('package.json')).version, Release.APP_VERSION);
 });

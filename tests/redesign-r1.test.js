@@ -50,7 +50,8 @@ test('Z1/Z3: Zadaci has a summary and a Kad stignem / Projekti switch remembered
   const screen = fn('renderTasksScreen');
   assert.match(screen, /state\.ui\.tasksView === 'projects'/);
   assert.match(screen, /data-action="tasks-view" data-view="\$\{key\}"/);
-  assert.match(screen, /tab\('anytime', tr\('Anytime'\)\)\}\$\{tab\('projects', tr\('Projects'\)\)/);
+  // Redesign R5 (Z5): the Kad stignem tab shows its count.
+  assert.match(screen, /tab\('anytime', `\$\{tr\('Anytime'\)\} · \$\{later\.length\}`\)\}\$\{tab\('projects', tr\('Projects'\)\)/);
   assert.match(screen, /aria-pressed/);
   assert.match(screen, /data-action="new-project"/);
   assert.match(app, /action === 'tasks-view'\) \{ state\.ui\.tasksView = el\.dataset\.view === 'projects' \? 'projects' : 'anytime'; saveAndRender\(\); \}/);

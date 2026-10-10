@@ -32,7 +32,7 @@ function todayContext(state, extra = {}) {
     ...extra,
   };
   vm.createContext(withI18n(ctx));
-  vm.runInContext(`${constLine('TODAY_LIMITS')}${fn('todayLimited')}${fn('todayDueLabel')}${fn('deadlineRow')}`, ctx);
+  vm.runInContext(`${constLine('TODAY_LIMITS')}${fn('todayLimited')}${fn('todayDueLabel')}${fn('deadlineRow')}${fn('listTasks')}`, ctx);
   return ctx;
 }
 
@@ -288,7 +288,8 @@ test('a long press runs the element\'s long-press action once and swallows the c
 
 test('Z2 early: the suggestions card is at the top of Zadaci with "+ Danas" and "Dodaj sve u Danas"', () => {
   const screen = fn('renderTasksScreen');
-  assert.match(screen, /const suggestions = Core\.deriveTodaySections\(state\.tasks, Core\.dateOnly\(\)\)\.suggestions;/);
+  // Redesign R5 (S10): the suggestions come from listTasks (no archived projects).
+  assert.match(screen, /const suggestions = Core\.deriveTodaySections\(tasks, Core\.dateOnly\(\)\)\.suggestions;/);
   assert.match(screen, /<section class="tasks-suggestions" data-tasks-suggestions>/);
   assert.match(screen, /data-action="toggle-suggestions" aria-expanded="\$\{open\}"/);
   assert.match(screen, /taskRow\(item\.task, 'suggestion', \{ today: true, addToday: true, suggestionReason: item\.reason \}\)/);

@@ -7,7 +7,7 @@
   function renderTodayTaskRow(task, listContext, options, ctx) {
     const esc = ctx.esc;
     const project = ctx.getProject(task.projectId);
-    const place = project ? project.name : ctx.getArea?.(task.areaId)?.name;
+    const place = options.hidePlace ? '' : project ? project.name : ctx.getArea?.(task.areaId)?.name;
     const meta = [task.plannedTime, place].filter(Boolean).join(' · ');
     const flag = ['high', 'medium'].includes(task.priority) ? `<i class="ph ph-flag task-flag task-flag--${task.priority}" role="img" aria-label="${tr('{priority} priority', { priority: task.priority === 'high' ? tr('High') : tr('Medium') })}"></i>` : '';
     const due = task.isCompleted ? '' : ctx.todayDueLabel(task.dueDate, ctx.Core.dateOnly());
