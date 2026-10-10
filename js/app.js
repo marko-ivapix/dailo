@@ -647,6 +647,7 @@
       refreshSheet, openHabitDetails, openGoalDetails,
       openHabitStartSheet(anchor) { openDateSheet(anchor, { type: 'habit' }, 'start'); },
       calendarTaskRow(task) { return taskRow(task, 'calendar', { today: true }); },
+      taskRow,
       templateTypes: TEMPLATE_TYPES, templateLabel, openTemplateEditorFromSource, saveTemplateRecord, duplicateTemplateRecord, useTemplate,
       captureModalReturnFocus,
       durationLabel,
@@ -697,7 +698,8 @@
       shortcutLabels: SHORTCUT_LABELS,
       release: Release,
       environmentInfo() {
-        return { userAgent: navigator.userAgent || '', standalone: navigator.standalone === true || Boolean(window.matchMedia?.('(display-mode: standalone)').matches), persistence: storagePersistence.state };
+        // R17: inside the phone app Dailo is installed, so Pomoć does not show the Safari steps.
+        return { userAgent: navigator.userAgent || '', standalone: Boolean(globalThis.DailoPlatform?.isNative) || navigator.standalone === true || Boolean(window.matchMedia?.('(display-mode: standalone)').matches), persistence: storagePersistence.state };
       },
       storagePersistence: () => storagePersistence,
       shortcutError: () => shortcutError,
@@ -731,7 +733,8 @@
     if (hash.startsWith('saved-view/')) return {type:'saved-view',id:decodeURIComponent(hash.slice('saved-view/'.length))};
     if (hash.startsWith('project/')) {
       const id = decodeURIComponent(hash.slice('project/'.length));
-      if (getProject(id)) return { type: 'project', id };
+      // R17: "Bez projekta" (project/none) is a screen too.
+      if (id === 'none' || getProject(id)) return { type: 'project', id };
       return { type: 'today' };
     }
     if (hash.startsWith('tag/')) {
@@ -999,7 +1002,7 @@
     const projectMenu = options.projectMenu ? `<button class="btn-icon" type="button" data-action="project-menu" data-project-id="${esc(options.projectMenu)}" aria-label="${tr('Project menu')}"><i class="ph ph-dots-three"></i></button>` : '';
     const actionHtml = options.actionHtml || '';
     return `<header class="page-header">
-      <div>${options.eyebrow ? `<p class="page-eyebrow">${esc(options.eyebrow)}</p>` : ''}<h1 class="page-title">${esc(title)}</h1>${subtitle ? `<p class="page-subtitle">${esc(subtitle)}</p>` : ''}</div>
+      <div>${options.eyebrow ? `<p class="page-eyebrow">${esc(options.eyebrow)}</p>` : ''}<h1 class="page-title">${options.color ? `<span class="project-dot" style="--project-color:${esc(options.color)}" aria-hidden="true"></span>` : ''}${esc(title)}</h1>${subtitle ? `<p class="page-subtitle">${esc(subtitle)}</p>` : ''}</div>
       <div class="page-actions">
         <button class="btn-icon page-search" type="button" data-action="open-search" aria-label="${tr('Search')}"><i class="ph ph-magnifying-glass" aria-hidden="true"></i></button>
         ${actionHtml}${projectMenu}${addButton}
@@ -1220,7 +1223,7 @@
     const open = all.filter(task => !task.isCompleted);
     const percent = all.length ? Math.round((all.length - open.length) / all.length * 100) : 0;
     const next = open.filter(task => task.dueDate).sort((a, b) => a.dueDate.localeCompare(b.dueDate))[0];
-    return `<button class="project-row" type="button" data-route="project/${esc(project.id)}"><span class="project-dot" style="--project-color:${esc(project.color)}" aria-hidden="true"></span><span class="project-row-main"><span class="task-title">${esc(project.name)}</span><span class="task-meta">${esc(trn(open.length, '{count} open', '{count} open'))}${next ? ` · ${todayDueLabel(next.dueDate)}` : ''}</span><span class="project-row-bar" aria-hidden="true"><i style="width:${percent}%;background:${esc(project.color)}"></i></span></span><i class="ph ph-caret-right" aria-hidden="true"></i></button>`;
+    return `<button class="project-row" type="button" data-route="project/${esc(project.id)}"><span class="project-dot" style="--project-color:${esc(project.color)}" aria-hidden="true"></span><span class="project-row-main"><span class="task-title">${esc(project.name)}</span><span class="task-meta">${esc(trn(open.length, '{count} open', '{count} open'))}${next ? ` · ${todayDueLabel(next.dueDate)}` : ''}</span><span class="project-row-bar" aria-hidden="true"><i style="width:${percent}%;background:${esc(project.color)}"></i></span></span></button>`;
   }
 
   // Redesign R1 + R5 (Z1–Z6): the summary, the suggestions, and "Kad stignem" by project or the projects by area.
@@ -1246,7 +1249,7 @@
     html += `<div class="view-tabs tasks-view-switch" role="group" aria-label="${tr('Tasks')}">${tab('anytime', `${tr('Anytime')} · ${later.length}`)}${tab('projects', tr('Projects'))}</div>`;
     if (view === 'projects') {
       const loose = tasks.filter(task => !task.projectId && !task.isInbox && !task.isCompleted).length;
-      html += `<div class="more-card"><button class="project-row" type="button" data-route="project/none"><i class="ph ph-tray project-row-icon" aria-hidden="true"></i><span class="project-row-main"><span class="task-title">${tr('No project')}</span><span class="task-meta">${esc(trn(loose, '{count} open', '{count} open'))}</span></span><i class="ph ph-caret-right" aria-hidden="true"></i></button></div>`;
+      html += `<div class="more-card"><button class="project-row" type="button" data-route="project/none"><i class="ph ph-tray project-row-icon" aria-hidden="true"></i><span class="project-row-main"><span class="task-title">${tr('No project')}</span><span class="task-meta">${esc(trn(loose, '{count} open', '{count} open'))}</span></span></button></div>`;
       const areas = sortedAreas().filter(area => area.status !== 'archived');
       for (const area of areas) {
         const list = projects.filter(project => project.areaId === area.id);
@@ -1273,7 +1276,7 @@
     const tasks = Core.deriveAnytime(state.tasks);
     let html = pageHeader(tr('Anytime'), trn(tasks.length, '{count} active task without a plan date', '{count} active tasks without a plan date'), { contextAnytime: true });
     if (!tasks.length) return html + emptyState(tr('Nothing waiting in Anytime.'), tr('Processed tasks without a planned date will appear here.'), tr('Add task'), 'quick-add', { anytime: true });
-    html += `<div class="task-list">${tasks.map(t => taskRow(t, 'anytime')).join('')}</div>`;
+    html += `<div class="task-list today-card">${tasks.map(t => taskRow(t, 'anytime', { today: true })).join('')}</div>`;
     html += `<button class="inline-add" type="button" data-action="quick-add" data-anytime="true"><i class="ph ph-plus"></i> ${tr('Add task')}</button>`;
     return html;
   }
@@ -1299,7 +1302,7 @@
     const tags = [...(state.tags || [])].sort((a, b) => String(a.name).localeCompare(String(b.name)));
     const html = pageHeader(tr('Tags'), trn(tags.length, '{count} tag', '{count} tags'), { add: false });
     if (!tags.length) return html + emptyState(tr('No tags yet.'), tr('Create a global tag and reuse it across tasks.'), tr('New tag'), 'new-tag');
-    return `${html}<div class="today-card tags-list">${tags.map(tag => `<button class="tag-list-row" type="button" data-route="tag/${esc(tag.id)}"><span class="tag-dot" style="--tag-color:${esc(tag.color)}" aria-hidden="true"></span><span class="tag-list-main"><span class="task-title">${esc(tag.name)}</span><span class="task-meta">${esc(tagUsage(tag))}</span></span><i class="ph ph-caret-right" aria-hidden="true"></i></button>`).join('')}<button class="inline-add" type="button" data-action="new-tag"><i class="ph ph-plus" aria-hidden="true"></i> ${tr('New tag')}</button></div>`;
+    return `${html}<div class="today-card tags-list">${tags.map(tag => `<button class="tag-list-row" type="button" data-route="tag/${esc(tag.id)}"><span class="tag-dot" style="--tag-color:${esc(tag.color)}" aria-hidden="true"></span><span class="tag-list-main"><span class="task-title">${esc(tag.name)}</span><span class="task-meta">${esc(tagUsage(tag))}</span></span></button>`).join('')}<button class="inline-add" type="button" data-action="new-tag"><i class="ph ph-plus" aria-hidden="true"></i> ${tr('New tag')}</button></div>`;
   }
 
   function renderTag(tagId) {
@@ -1729,7 +1732,7 @@
     const id = esc(task.id);
     let html = `${head}<h2 class="focus-title">${esc(task.title)}</h2>${meta.length ? `<p class="focus-meta-line">${esc(meta.join(' · '))}</p>` : ''}`;
     html += `<div class="focus-ring${running ? ' is-running' : ''}" aria-live="off"><span class="focus-timer-label">${tr('Elapsed')}</span><strong id="focus-elapsed">${formatFocusElapsed(focusElapsedMs())}</strong></div><div class="focus-timer-actions"><button class="btn btn-secondary" type="button" data-action="focus-toggle-timer">${running ? tr('Pause') : tr('Resume')}</button><button class="btn btn-ghost" type="button" data-action="focus-reset-timer">${tr('Reset')}</button></div>`;
-    if (subtasks.length) html += `<h3 class="goal-details-label">${tr('Subtasks')} · ${completed}/${subtasks.length}</h3><div class="today-card focus-subtasks">${subtasks.map(subtask => `<button class="focus-subtask${subtask.isCompleted ? ' is-done' : ''}" type="button" data-action="toggle-subtask" data-task-id="${id}" data-subtask-id="${esc(subtask.id)}" aria-pressed="${Boolean(subtask.isCompleted)}"><span class="complete-control${subtask.isCompleted ? ' is-completed' : ''}" aria-hidden="true">${subtask.isCompleted ? '<i class="ph ph-check"></i>' : ''}</span><span class="subtask-title">${esc(subtask.title)}</span></button>`).join('')}</div>`;
+    if (subtasks.length) html += `<h3 class="goal-details-label">${tr('Subtasks')} · ${completed}/${subtasks.length}</h3><div class="today-card focus-subtasks">${subtasks.map(subtask => `<button class="focus-subtask${subtask.isCompleted ? ' is-done' : ''}" type="button" data-action="toggle-subtask" data-task-id="${id}" data-subtask-id="${esc(subtask.id)}" aria-pressed="${Boolean(subtask.isCompleted)}"><span class="subtask-title">${esc(subtask.title)}</span><span class="complete-control${subtask.isCompleted ? ' is-completed' : ''}" aria-hidden="true">${subtask.isCompleted ? '<i class="ph ph-check"></i>' : ''}</span></button>`).join('')}</div>`;
     if (task.notes) html += `<h3 class="goal-details-label">${tr('Notes')}</h3><p class="focus-notes">${esc(task.notes)}</p>`;
     html += `<div class="quick-sheet-footer focus-footer"><div class="focus-footer-row"><button class="btn btn-secondary" type="button" data-action="focus-tomorrow" data-task-id="${id}">${tr('Tomorrow')}</button><button class="btn btn-secondary" type="button" data-action="focus-next" data-task-id="${id}">${tr('Next')}</button><button class="btn btn-secondary" type="button" data-action="focus-open-details" data-task-id="${id}">${tr('Details')}</button></div><button class="btn btn-primary habit-window-save" type="button" data-action="focus-complete" data-task-id="${id}"><i class="ph ph-check"></i> ${tr('Complete task')}</button></div>`;
     return modalFrame(`<div class="modal-inner quick-sheet focus-window">${html}</div>`, 'quick');
@@ -2150,9 +2153,9 @@
   }
 
   function searchResultsHtml(query) {
-    if (!String(query).trim()) return `<div class="empty-state" style="border:0;padding:38px 12px"><h3>${tr('Search tasks and projects')}</h3><p>${tr('Type a task title, note or project name.')}</p></div>`;
+    if (!String(query).trim()) return `<div class="empty-state search-empty"><h3>${tr('Search tasks and projects')}</h3><p>${tr('Type a task title, note or project name.')}</p></div>`;
     const result = Core.searchItems(state.tasks, state.projects, query);
-    if (!result.tasks.length && !result.projects.length) return `<div class="empty-state" style="border:0;padding:38px 12px"><h3>${tr('No results for “{query}”', { query: esc(query) })}</h3></div>`;
+    if (!result.tasks.length && !result.projects.length) return `<div class="empty-state search-empty"><h3>${tr('No results for “{query}”', { query: esc(query) })}</h3></div>`;
     let html = '';
     if (result.tasks.length) {
       html += `<h3 class="search-section-title">${tr('Tasks')} · ${result.tasks.length}</h3><div class="today-card search-list">${result.tasks.slice(0, SEARCH_TASK_LIMIT).map(({ task }) => searchTaskResult(task)).join('')}</div>${searchMoreNote(result.tasks.length, SEARCH_TASK_LIMIT)}`;
@@ -2174,7 +2177,7 @@
     if (task.isCompleted && task.completedAt) parts.push(tr('Completed {date}', { date: relativeDateLabel(Core.localDateOf(String(task.completedAt))) }));
     else if (task.plannedDate === Core.dateOnly()) parts.push(tr('Today'));
     if (task.dueDate) parts.push(tr('Due {date}', { date: relativeDateLabel(task.dueDate) }));
-    return `<button class="search-result" type="button" data-action="open-task" data-task-id="${esc(task.id)}"><span class="search-result-icon">${task.isCompleted ? '<i class="ph-fill ph-check-circle" style="color:var(--success)"></i>' : '<i class="ph ph-circle"></i>'}</span><span><span class="search-result-title">${esc(task.title)}</span><span class="search-result-meta">${esc(parts.join(' · ') || tr('Task'))}</span></span></button>`;
+    return `<button class="search-result" type="button" data-action="open-task" data-task-id="${esc(task.id)}"><span class="search-result-text"><span class="search-result-title">${esc(task.title)}</span><span class="search-result-meta">${esc(parts.join(' · ') || tr('Task'))}</span></span>${task.isCompleted ? `<span class="search-result-done"><i class="ph-fill ph-check-circle" aria-label="${tr('Completed')}"></i></span>` : ''}</button>`;
   }
 
   // R10c: a sheet like the area window, with one big button.

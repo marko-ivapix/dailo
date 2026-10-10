@@ -62,7 +62,8 @@ test('S6: "Oznake" lists the tags by name with what uses them, and "+ Nova oznak
   const html = ctx.renderTags();
   assert.match(html, /^<header title="Tags" subtitle="2 tags"><\/header><div class="today-card tags-list">/);
   assert.deepEqual([...html.matchAll(/data-route="tag\/(\w+)"/g)].map(match => match[1]), ['t1', 't2'], 'by name');
-  assert.match(html, /<button class="tag-list-row" type="button" data-route="tag\/t1"><span class="tag-dot" style="--tag-color:#4f8cff" aria-hidden="true"><\/span><span class="tag-list-main"><span class="task-title">Errands<\/span><span class="task-meta">1 task · 1 in the library<\/span><\/span><i class="ph ph-caret-right" aria-hidden="true"><\/i><\/button>/);
+  // R17: list rows lost the "›" arrow.
+  assert.match(html, /<button class="tag-list-row" type="button" data-route="tag\/t1"><span class="tag-dot" style="--tag-color:#4f8cff" aria-hidden="true"><\/span><span class="tag-list-main"><span class="task-title">Errands<\/span><span class="task-meta">1 task · 1 in the library<\/span><\/span><\/button>/);
   assert.match(html, /data-route="tag\/t2">[\s\S]*?<span class="task-meta">Not in use<\/span>/);
   assert.match(html, /<button class="inline-add" type="button" data-action="new-tag"><i class="ph ph-plus" aria-hidden="true"><\/i> New tag<\/button><\/div>$/);
   assert.doesNotMatch(html, /tags-layout|select-tag|selected-tag/);

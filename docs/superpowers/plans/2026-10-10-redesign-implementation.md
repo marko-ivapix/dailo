@@ -39,6 +39,7 @@
 | R14c | **Milestone circles on the right** (the user's next follow-up): the "Etape" card of the goal window | GO5 (amended) | none |
 | R15 | **Još as tiles and the Nalog screen** (the user's request the same day): two-column tiles with the icon on top; "Nalog" next to "Podešavanja", opening `#account` with the account card moved out of Settings | M4, M5 (amended) | none |
 | R16 | **A habit's start in its details** (the user's request the same day): "Početak" in Detalji navike, saved at once, with "Početak meseca" in the start sheet | S13 (added) | none |
+| R17 | **Fixes from the design audit** (the user: "da, ispravi sve 1–12"): "Bez projekta" route, tile icons, the task title size, the install row in the phone app, the toast over "+", invisible touch buttons, the remaining left checks and right-side dates, the "›" arrows, the project header, empty states, the project window | T3, T5 (applied everywhere) | none |
 
 ## Test levels
 

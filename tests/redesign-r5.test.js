@@ -67,7 +67,8 @@ test('Z5: Kad stignem groups open unplanned tasks by project, "Bez projekta" fir
 test('Z6: Projekti has "Bez projekta", the projects grouped by area with counts, due dates and bars, and "+ Novi projekat"', () => {
   const ctx = screenContext({ tasksView: 'projects' });
   const html = ctx.renderTasksScreen();
-  assert.match(html, /<button class="project-row" type="button" data-route="project\/none"><i class="ph ph-tray project-row-icon" aria-hidden="true"><\/i><span class="project-row-main"><span class="task-title">No project<\/span><span class="task-meta">1 open<\/span><\/span><i class="ph ph-caret-right" aria-hidden="true"><\/i><\/button>/);
+  // R17: list rows lost the "›" arrow.
+  assert.match(html, /<button class="project-row" type="button" data-route="project\/none"><i class="ph ph-tray project-row-icon" aria-hidden="true"><\/i><span class="project-row-main"><span class="task-title">No project<\/span><span class="task-meta">1 open<\/span><\/span><\/button>/);
   assert.match(html, /<h2 class="section-label tasks-group-label">Kuća<\/h2><span class="section-count">1<\/span>/);
   assert.match(html, /<h2 class="section-label tasks-group-label">No area<\/h2><span class="section-count">1<\/span>/);
   assert.ok(html.indexOf('Selidba') < html.indexOf('Ostalo'));
@@ -95,15 +96,17 @@ function projectCtx(extra = {}) {
     looseTasks: done => tasks.filter(task => !task.projectId && !task.isInbox && Boolean(task.isCompleted) === done),
     renderProjectTaskRow: (task, id, options) => `<row ${task.id}${options?.draggable ? ' drag' : ''}${options?.today ? ' today' : ''}${options?.hidePlace ? ' noplace' : ''}${options?.completed ? ' done' : ''}>`,
     taskRow: (task, context, options) => `<row ${task.id} ${context}${options?.today ? ' today' : ''}>`,
-    goalPercent: () => 45, pageHeader: () => '', emptyState: () => '',
+    goalPercent: () => 45, emptyState: () => '',
+    // R17: the project screen uses the usual header (color dot, name, summary, search and ⋯).
+    pageHeader: (title, subtitle, options = {}) => `<header title="${title}" subtitle="${subtitle}" menu="${options.projectMenu || ''}" color="${options.color || ''}"></header>`,
     ...extra,
   };
 }
 
 test('Z7: the project screen has "‹ Zadaci", ⋯, the color, area · counts, the goal, the tasks, "+ Dodaj zadatak" and done folded', () => {
   const html = projectModule().renderRoute({ type: 'project', id: 'p1' }, projectCtx());
-  assert.match(html, /^<div class="screen-topbar"><button class="screen-back" type="button" data-route="tasks"><i class="ph ph-caret-left" aria-hidden="true"><\/i>Tasks<\/button><button class="btn-icon" type="button" data-action="project-menu" data-project-id="p1" aria-label="Project menu">/);
-  assert.match(html, /<h1 class="page-title project-title"><span class="project-dot" style="--project-color:#111111" aria-hidden="true"><\/span>Selidba<\/h1><p class="page-subtitle">Kuća · 2 open · 1 done<\/p>/);
+  // R17: "‹ Zadaci" above the usual header; the ⋯ and the color dot live in the header.
+  assert.match(html, /^<div class="screen-topbar"><button class="screen-back" type="button" data-route="tasks"><i class="ph ph-caret-left" aria-hidden="true"><\/i>Tasks<\/button><\/div><header title="Selidba" subtitle="Kuća · 2 open · 1 done" menu="p1" color="#111111"><\/header>/);
   assert.match(html, /<button class="project-goal-link" type="button" data-route="goal\/g1"><i class="ph ph-target" aria-hidden="true"><\/i>Goal: Novi stan · 45%<\/button>/);
   assert.match(html, /<div class="task-list today-card" data-list-context="project:p1"><row b drag today noplace><row c drag today noplace><\/div><button class="inline-add" type="button" data-action="quick-add" data-project-id="p1">/);
   assert.match(html, /data-action="toggle-project-completed" data-project-id="p1" aria-expanded="false"><span class="left"><i class="ph ph-check-circle"><\/i> Completed<\/span><span>1 /);
@@ -121,11 +124,11 @@ test('S10: an archived project opens read-only with "Arhiviran projekat" and "Vr
 
 test('"Bez projekta" lists sorted tasks without a project, adds outside Inbox and folds the done ones', () => {
   const html = projectModule().renderRoute({ type: 'project', id: 'none' }, projectCtx());
-  assert.match(html, /<h1 class="page-title project-title">No project<\/h1><p class="page-subtitle">1 open<\/p>/);
+  assert.match(html, /<header title="No project" subtitle="1 open" menu="" color=""><\/header>/); // R17
   assert.match(html, /<div class="task-list today-card"><row a anytime today><\/div><button class="inline-add" type="button" data-action="quick-add" data-anytime="true">/);
   assert.doesNotMatch(html, /<row e/, 'Inbox stays in Inbox');
   assert.match(html, /<p class="tasks-note">Sorted tasks that belong to no project\.<\/p>/);
-  assert.doesNotMatch(html, /data-action="project-menu"/);
+  assert.doesNotMatch(html, /menu="[^"]/);
 });
 
 test('S10: Today, Zadaci and Predstojeće read tasks through listTasks, which leaves archived projects out', () => {

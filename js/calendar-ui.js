@@ -125,7 +125,8 @@
       const label = offset === 1 ? tr('Tomorrow') : capitalized(weekday.format(ctx.parseLocalDate(date)));
       html += `<section class="calendar-upcoming-day" data-upcoming-date="${date}"><h2 class="section-label calendar-upcoming-label">${ctx.esc(label)} <span>· ${ctx.esc(ctx.formatDate(date))}</span></h2><div class="task-list today-card" data-list-context="calendar">${dayRows(ctx, items)}</div></section>`;
     }
-    return html || `<div class="empty-state calendar-upcoming-empty"><h3>${tr('Nothing in the coming days')}</h3></div>`;
+    // R17: the usual empty state.
+    return html || ctx.emptyState(tr('Nothing in the coming days'), tr('Planned tasks, due dates and deadlines of the next three weeks appear here.'));
   }
 
   function renderCalendar(ctx, routeView = null) {

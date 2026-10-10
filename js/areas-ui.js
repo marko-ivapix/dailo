@@ -36,7 +36,7 @@
     if (!all.length) return html + emptyState(tr('No areas yet.'), tr('Areas organize projects, standalone tasks, goals and habits.'), tr('New area'), 'new-area');
     const rows = active.map(area => {
       const meta = [areaSummaryLine(areaContents(ctx, area.id)), area.isPinned ? tr('pinned') : ''].filter(Boolean).join(' · ');
-      return `<button class="area-list-row" type="button" data-route="area/${esc(area.id)}">${areaIcon(ctx, area, 'area-list-icon')}<span class="area-list-main"><span class="task-title">${esc(area.name)}</span><span class="task-meta">${esc(meta)}</span></span><i class="ph ph-caret-right" aria-hidden="true"></i></button>`;
+      return `<button class="area-list-row" type="button" data-route="area/${esc(area.id)}">${areaIcon(ctx, area, 'area-list-icon')}<span class="area-list-main"><span class="task-title">${esc(area.name)}</span><span class="task-meta">${esc(meta)}</span></span></button>`;
     }).join('');
     const open = state.ui.areasArchivedOpen === true;
     const fold = archived.length ? `<section class="areas-fold"><button class="collapsible-trigger" type="button" data-action="areas-fold" aria-expanded="${open}"><span class="left"><i class="ph ph-caret-${open ? 'up' : 'down'}" aria-hidden="true"></i> ${tr('Archived areas')} · ${archived.length}</span></button>${open ? `<div class="today-card">${archived.map(area => `<div class="today-row goals-fold-row"><button class="today-row-main" type="button" data-route="area/${esc(area.id)}"><span class="task-title">${esc(area.name)}</span></button><button class="quick-chip" type="button" data-action="restore-area" data-area-id="${esc(area.id)}">${tr('Restore')}</button></div>`).join('')}</div>` : ''}</section>` : '';

@@ -131,7 +131,7 @@ test('H2, H6: Dan groups by routine, done habits last, with the frequency and st
   assert.match(html, /<span class="task-title">Meditate<\/span><span class="task-meta">Daily · streak 5 days<\/span>/);
   // R14b: the circle now closes the row, so the name button is followed directly by it (no count span in between).
   assert.match(html, /<span class="task-title">Gym<\/span><span class="task-meta">3 times\/week · 1 \/ 3 this week<\/span><\/button><button class="habit-check"/, 'the weekly count is in the line, not repeated on the right');
-  assert.match(html, /<span class="task-side habit-today-count">1\.5 \/ 2 l<\/span>/);
+  assert.match(html, /<span class="task-meta">[^<]* · 1\.5 \/ 2 l<\/span>/); // R17: the value joins the meta line
   assert.doesNotMatch(html, /habits-day-title/, 'today has no date line');
   const yesterday = Core.addDays(TODAY, -1);
   const past = render(screen({ habitsDay: yesterday }));

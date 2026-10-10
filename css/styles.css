@@ -2914,6 +2914,42 @@ a.btn { text-decoration: none; }
 .more-tiles .more-row-label { grid-area: label; align-self: end; font-size: 15px; font-weight: 500; }
 .more-tiles .more-row-label small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 400; }
 
+/* Redesign R17 — fixes from the design audit (2026-10-10). */
+/* 2, 3: the Još tile icon beats the old 20 px rule; the task title stays 22 px under the 16 px anti-zoom rule. */
+.more-tiles > .more-row > .more-row-icon { width: 36px; }
+#detail-title { font-size: 22px; }
+/* 5: the "+" moves up for a toast at every width. */
+.mobile-quick-add { transition: transform var(--motion-base) var(--ease-standard); }
+body:has(#toast-root .toast) .mobile-quick-add { transform: translateY(-64px); }
+/* 6: no invisible buttons on touch screens. */
+@media (pointer: coarse) {
+  .task-row--today .task-actions { display: none; }
+  .subtask-row .btn-icon { opacity: 1; }
+}
+/* 7: subtasks and focus subtasks put the round check on the right; search results too. */
+.subtask-row { display: flex; align-items: center; }
+.subtask-row > .subtask-title { flex: 1; min-width: 0; }
+.subtask-row > :not(.subtask-title) { flex: none; }
+.add-subtask-input { grid-template-columns: minmax(0, 1fr); }
+.focus-subtask { grid-template-columns: minmax(0, 1fr) auto; }
+.search-result-text { flex: 1; min-width: 0; display: grid; }
+.search-result-done { flex: none; display: inline-flex; color: var(--success); font-size: 20px; }
+.search-empty { border: 0; padding: 38px 12px; }
+/* 8: the date under the title in the new goal window; review rows put their line under the name. */
+.goal-draft-milestone { grid-template-columns: minmax(0, 1fr) auto; }
+.review-row { display: grid; justify-items: start; gap: 2px; }
+/* 9: list rows without the "›" column. */
+.area-list-row { grid-template-columns: auto minmax(0, 1fr); }
+.tag-list-row { grid-template-columns: auto minmax(0, 1fr); }
+.template-list-row { grid-template-columns: minmax(0, 1fr); }
+.view-list-row { grid-template-columns: auto minmax(0, 1fr) auto; }
+.project-row { grid-template-columns: 18px minmax(0, 1fr); }
+/* 10: the project's color dot in the usual header. */
+.page-title .project-dot { display: inline-block; width: 12px; height: 12px; margin-right: 10px; vertical-align: 0.1em; }
+/* 12: Novi projekat as a sheet like Nova oblast. */
+.project-window .quick-title-input { margin-bottom: 6px; }
+.project-window .habit-window-label { margin: 12px 2px 8px; }
+
 /* Keep primary compact actions touchable after all density rules. */
 @media (max-width: 700px), (pointer: coarse) {
   .task-actions .btn-icon,

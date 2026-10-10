@@ -39,6 +39,7 @@ function calendarContext(data = {}, ui = {}) {
   const ctx = {
     calls, state, Core, esc,
     route: { type: 'calendar' },
+    emptyState: (title, text) => `<div class="empty-state"><h3>${title}</h3><p>${text}</p></div>`, // R17: Predstojeće uses the usual empty state
     currentRoute: () => ctx.route,
     listTasks: () => state.tasks.filter(task => task.projectId !== 'archived'),
     calendarDate: () => state.ui.calendarDate,
@@ -189,7 +190,7 @@ test('C9: Predstojeće lists the next 21 days by day, "Sutra" first; #upcoming o
   const route = calendarContext(data, { calendarView: 'week' });
   route.route = { type: 'upcoming' };
   assert.match(adapter().renderRoute({ type: 'upcoming' }, route), /data-view="upcoming" aria-pressed="true"/, 'the old route opens Predstojeće');
-  assert.match(adapter().renderRoute({ type: 'calendar' }, calendarContext({}, { calendarView: 'upcoming' })), /<div class="empty-state calendar-upcoming-empty"><h3>Nothing in the coming days<\/h3><\/div>$/);
+  assert.match(adapter().renderRoute({ type: 'calendar' }, calendarContext({}, { calendarView: 'upcoming' })), /<div class="empty-state"><h3>Nothing in the coming days<\/h3><p>Planned tasks, due dates and deadlines of the next three weeks appear here\.<\/p><\/div>$/); // R17: the usual empty state
 });
 
 test('the switch, the day pick, Lista / Raspored and the arrows', () => {

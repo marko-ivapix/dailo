@@ -80,7 +80,8 @@ test('S1: "Oblasti" lists the active areas in one card with "+ Nova oblast"; no 
   const ctx = fixture();
   const html = moduleFor(areasUi).renderRoute({ type: 'areas' }, ctx);
   assert.match(html, /^<header title="Areas" subtitle="2 active areas" add="false"><\/header><div class="today-card areas-list">/);
-  assert.match(html, /<button class="area-list-row" type="button" data-route="area\/a1"><i class="ph ph-briefcase area-list-icon" style="color:#4f8cff" aria-hidden="true"><\/i><span class="area-list-main"><span class="task-title">Work<\/span><span class="task-meta">2 projects · 6 open · 1 goal · pinned<\/span><\/span><i class="ph ph-caret-right" aria-hidden="true"><\/i><\/button>/);
+  // R17: list rows lost the "›" arrow.
+  assert.match(html, /<button class="area-list-row" type="button" data-route="area\/a1"><i class="ph ph-briefcase area-list-icon" style="color:#4f8cff" aria-hidden="true"><\/i><span class="area-list-main"><span class="task-title">Work<\/span><span class="task-meta">2 projects · 6 open · 1 goal · pinned<\/span><\/span><\/button>/);
   assert.match(html, /data-route="area\/a2">[\s\S]*?<span class="task-meta">0 open<\/span>/, 'projects and goals only when there are any');
   assert.match(html, /<button class="inline-add" type="button" data-action="new-area"><i class="ph ph-plus" aria-hidden="true"><\/i> New area<\/button><\/div><section class="areas-fold"><button class="collapsible-trigger" type="button" data-action="areas-fold" aria-expanded="false"><span class="left"><i class="ph ph-caret-down" aria-hidden="true"><\/i> Archived areas · 1<\/span><\/button><\/section>$/);
   assert.doesNotMatch(html, /role="tab|data-tab=|area-menu|data-route="area\/a3"/);
