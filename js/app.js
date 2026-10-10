@@ -75,10 +75,10 @@
     modalReturnFocus = active instanceof HTMLElement && active.isConnected ? active : null;
   }
 
-  function restoreModalReturnFocus(target, fallback = null) {
+  function restoreModalReturnFocus(target) {
     requestAnimationFrame(() => {
       if (modalState || $('#modal-root .modal') || popoverEl?.isConnected) return;
-      (target?.isConnected ? target : fallback?.isConnected ? fallback : null)?.focus();
+      if (target?.isConnected) target.focus();
     });
   }
 
@@ -111,8 +111,7 @@
       control?.focus();
     });
   }
-  let calendarReturnDate = null;
-  const calendarHabitQueues = new Map();
+  let calendarOpen = false;
 
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -199,6 +198,7 @@
         completedPeriod: 0,
         inboxFilter: 'all',
         calendarView: 'week',
+        calendarDayMode: 'list',
         calendarVisibility: { tasks: true, habits: true, goals: true, milestones: true },
         habitTrackerMonth: Core.dateOnly().slice(0, 7),
       },
@@ -281,7 +281,10 @@
     next.ui.inboxFilter = INBOX_FILTERS.some(([value]) => value === next.ui.inboxFilter) ? next.ui.inboxFilter : 'all';
     next.ui.selectedTagId = next.ui.selectedTagId || '';
     next.ui.areaTab = ['all', 'active', 'archived'].includes(next.ui.areaTab) ? next.ui.areaTab : 'all';
-    next.ui.calendarView = ['day', 'week', 'month'].includes(next.ui.calendarView) ? next.ui.calendarView : 'week';
+    // Redesign R7 (C1, C6): Nedelja, Mesec or Predstojeće; a stored V1.12 "day" view is the week on its Raspored.
+    if (next.ui.calendarView === 'day') next.ui.calendarDayMode = 'schedule';
+    next.ui.calendarView = ['week', 'month', 'upcoming'].includes(next.ui.calendarView) ? next.ui.calendarView : 'week';
+    next.ui.calendarDayMode = next.ui.calendarDayMode === 'schedule' ? 'schedule' : 'list';
     next.ui.tasksView = next.ui.tasksView === 'projects' ? 'projects' : 'anytime';
     next.ui.todayExpanded = Object.fromEntries(['overdue', 'today', 'habits'].map(key => [key, next.ui.todayExpanded?.[key] === true]));
     next.ui.calendarVisibility = Object.fromEntries(['tasks', 'habits', 'goals', 'milestones'].map(type => [type, next.ui.calendarVisibility?.[type] !== false]));
@@ -595,8 +598,8 @@
       closePopover, flushTextSave, goalFocusTarget, closeModal,
       openGoalHistory,
       nowIso, uid, copyTemplate, saveState, navigate, setToastMessage, requestDeleteEntity, openConfirm, setUndo,
-      calendarDate, calendarLogs, parseLocalDate, formatDate,
-      openCalendarDetail, navigateCalendar, openPlanPicker, calendarHabitAction, openCalendarValue, openCalendarGoalProgress,
+      calendarDate, parseLocalDate, formatDate, navigateCalendar, openPlanPicker, listTasks, deadlineRow,
+      calendarTaskRow(task) { return taskRow(task, 'calendar', { today: true }); },
       templateTypes: TEMPLATE_TYPES, templateLabel, openTemplateEditorFromSource, saveTemplateRecord, duplicateTemplateRecord,
       captureModalReturnFocus,
       durationLabel,
@@ -963,6 +966,7 @@
     document.documentElement.style.setProperty('--control-height', comfortable ? '38px' : '32px');
     document.documentElement.style.setProperty('--task-min-height', comfortable ? '52px' : '44px');
     const route = currentRoute();
+    enterCalendarRoute(route);
     const main = $('#main');
     const warning = storageWarningHtml();
     let content = callDomainHook('renderRoute', route);
@@ -971,13 +975,12 @@
       else if (route.type === 'more') content = renderMoreScreen();
       else if (route.type === 'tasks') content = renderTasksScreen();
       else if (route.type === 'inbox') content = renderInbox();
-      else if (route.type === 'upcoming') content = renderUpcoming();
       else if (route.type === 'anytime') content = renderAnytime();
       else if (route.type === 'tags') content = renderTags();
       else if (route.type === 'completed') content = renderCompleted();
       else content = renderToday();
     }
-    main.innerHTML = `${warning}<div class="content ${route.type === 'calendar' ? 'calendar-content' : ''}">${content}</div>`;
+    main.innerHTML = `${warning}<div class="content ${route.type === 'calendar' && state.ui.calendarView !== 'upcoming' ? 'calendar-content' : ''}">${content}</div>`;
     if (createdGoalFocusId && route.type === 'goal' && route.id === createdGoalFocusId) {
       createdGoalFocusId = null;
       restoreGoalFocus(goalFocusTarget(main.querySelector('[data-goal-property="title"]')));
@@ -997,61 +1000,27 @@
     </header>`;
   }
 
-  function calendarLogs() {
-    return Object.values(state.habitLogCache || {}).flat();
-  }
-
   function calendarDate() {
     return Core.parseDateOnly(state.ui.calendarDate) ? state.ui.calendarDate : Core.dateOnly();
   }
 
-  function openCalendarDetail(date) {
-    if (!Core.parseDateOnly(date)) return;
-    state.ui.calendarDate = date; saveState(); render();
-    calendarReturnDate = date;
-    modalReturnFocus = $(`[data-action="calendar-detail"][data-date="${date}"]`) || $('[data-action="calendar-add"]');
-    modalState = { type: 'calendar-day', date }; renderModal();
-    requestAnimationFrame(() => $('.calendar-day-detail [data-action="close-modal"]')?.focus());
+  // Redesign R7 (C1): with no "Danas" button, the Calendar starts on today whenever it is opened from another screen.
+  function enterCalendarRoute(route) {
+    const open = ['calendar', 'upcoming'].includes(route.type);
+    if (open && !calendarOpen) state.ui.calendarDate = Core.dateOnly();
+    calendarOpen = open;
   }
 
+  // Arrows move a week, or a month; a month selects today when it holds today, otherwise its first day.
   function navigateCalendar(direction) {
-    const date = parseLocalDate(calendarDate());
-    state.ui.calendarDate = state.ui.calendarView === 'month' ? Core.dateOnly(new Date(date.getFullYear(), date.getMonth() + direction, 1)) : Core.addDays(calendarDate(), direction * (state.ui.calendarView === 'day' ? 1 : 7));
+    const date = calendarDate();
+    if (state.ui.calendarView === 'month') {
+      const current = parseLocalDate(date);
+      const first = Core.dateOnly(new Date(current.getFullYear(), current.getMonth() + direction, 1));
+      const today = Core.dateOnly();
+      state.ui.calendarDate = today.slice(0, 7) === first.slice(0, 7) ? today : first;
+    } else state.ui.calendarDate = Core.addDays(date, direction * 7);
     saveAndRender();
-  }
-
-  function calendarHabitAction(el, mode) {
-    const id = el.dataset.habitId; const date = el.dataset.date;
-    const increment = Number(el.dataset.value);
-    const key = JSON.stringify([id, date]);
-    const previous = calendarHabitQueues.get(key) || Promise.resolve();
-    // Read the refreshed total only when this accepted activation starts.
-    // A failed predecessor must release later activations, not poison them.
-    const operation = previous.catch(() => {}).then(async () => {
-      const existing = state.habitLogCache?.[id]?.find(log => log.date === date);
-      const value = mode === 'add' ? Number(existing?.value || 0) + increment : null;
-      await setHabitLog(id, date, mode === 'check' && existing?.status === 'done' ? 'missed' : 'done', value);
-      if (modalState?.type === 'calendar-day' && modalState.date === date) renderModal();
-    });
-    calendarHabitQueues.set(key, operation);
-    const release = () => { if (calendarHabitQueues.get(key) === operation) calendarHabitQueues.delete(key); };
-    operation.then(release, release);
-    return operation;
-  }
-
-  function openCalendarValue(habitId, date) {
-    if (date > Core.dateOnly()) return;
-    // Keep the Day Detail usable as the keyboard return point for its quick edit.
-    modalState = { type: 'calendar-value', habitId, date, previous: modalState, returnFocus: goalFocusTarget() }; renderModal();
-    requestAnimationFrame(() => $('#calendar-habit-value')?.focus());
-  }
-
-  function openCalendarGoalProgress(goalId) {
-    const goal = getGoal(goalId); if (!goal) return;
-    if (goal.progressMode !== 'manual') { navigate(`goal/${goalId}`); return; }
-    // This panel is launched from Day Detail too, so Esc should return there.
-    modalState = { type: 'calendar-progress', goalId, previous: modalState, returnFocus: goalFocusTarget() }; renderModal();
-    requestAnimationFrame(() => $('#goal-current-value')?.focus());
   }
 
   // Durations as "45 min", "2 h" or "1 h 30 min" (V1.12).
@@ -1198,7 +1167,6 @@
       moreRow('areas', 'ph-squares-four', tr('Areas'), count((state.areas || []).filter(area => area.status !== 'archived'))),
       moreRow('cleaning', 'ph-broom', tr('Cleaning')),
       moreRow('review', 'ph-clipboard-text', tr('Weekly review')),
-      moreRow('upcoming', 'ph-calendar-dots', tr('Upcoming')),
     ]);
     html += card(tr('Library'), [
       moreRow('notes', 'ph-note', tr('Notes'), count(state.notes)),
@@ -1346,39 +1314,6 @@
     requestAnimationFrame(() => $('#habit-value-total')?.focus());
   }
 
-  function renderUpcoming() {
-    const today = Core.dateOnly();
-    const baseGroups = Core.deriveUpcomingV3({ ...state, tasks: listTasks() }, today);
-    const groupsByDate = new Map(baseGroups.map(group => [group.date, { ...group, items: [...group.items], goals: [...(group.goals || [])], habits: [], milestones: [] }]));
-    const ensureGroup = date => {
-      if (!groupsByDate.has(date)) groupsByDate.set(date, { date, items: [], goals: [], habits: [], milestones: [] });
-      return groupsByDate.get(date);
-    };
-    const habitLogs = Object.values(state.habitLogCache || {}).flat();
-    for (let offset = 1; offset <= 14; offset += 1) {
-      const date = Core.addDays(today, offset);
-      for (const habit of state.habits || []) {
-        if (habit.status === 'active' && Core.habitScheduledOn(habit, date)) ensureGroup(date).habits.push({ habit, status: Core.habitStatusForDate(habit, habitLogs, date, today) });
-      }
-    }
-    for (const goal of state.goals || []) {
-      if (goal.status !== 'active') continue;
-      for (const milestone of goal.milestones || []) {
-        if (milestone.date > today && milestone.date <= Core.addDays(today, 14) && !milestone.isCompleted) ensureGroup(milestone.date).milestones.push({ goal, milestone });
-      }
-    }
-    const groups = [...groupsByDate.values()].filter(group => group.items.length || group.goals.length || group.habits.length || group.milestones.length).sort((a, b) => a.date.localeCompare(b.date));
-    let html = pageHeader(tr('Upcoming'), tr('Planned work and upcoming deadlines'), {});
-    if (!groups.length) return html + emptyState(tr('Nothing scheduled.'), tr('Tasks you plan or set a due date for will appear here.'));
-    for (const group of groups) {
-      const d = parseLocalDate(group.date);
-      const rel = relativeDateLabel(group.date, today);
-      const dayName = [today, Core.addDays(today, 1)].includes(group.date) ? rel : WEEKDAY_FMT.format(d);
-      html += `<section class="upcoming-group"><div class="group-date"><strong>${esc(dayName)}</strong><span>${esc(formatDate(group.date))}</span></div>${group.items.length ? `<div class="task-list">${group.items.map(item => taskRow(item.task, 'upcoming', { upcomingReason: item.displayReason, upcoming: true })).join('')}</div>` : ''}${group.habits.length ? `<div class="upcoming-subgroup"><h2 class="section-label">${tr('Habits')}</h2><div class="habit-list">${group.habits.map(item => renderHabitRow(item.habit)).join('')}</div></div>` : ''}${group.goals.length ? `<div class="upcoming-subgroup"><h2 class="section-label">${tr('Goals')}</h2><div class="goal-list">${group.goals.map(renderGoalRow).join('')}</div></div>` : ''}${group.milestones.length ? `<div class="upcoming-subgroup"><h2 class="section-label">${tr('Milestones')}</h2><div class="milestone-list">${group.milestones.map(({ goal, milestone }) => `<div class="milestone-row"><button class="check-toggle" type="button" data-action="toggle-milestone" data-goal-id="${esc(goal.id)}" data-milestone-id="${esc(milestone.id)}" aria-label="${tr('Complete milestone')}"><i class="ph ph-circle"></i></button><span><strong>${esc(milestone.title)}</strong><small>${esc(goal.title)}</small></span></div>`).join('')}</div></div>` : ''}</section>`;
-    }
-    return html;
-  }
-
   function renderCompleted() {
     const projectId = state.ui.completedProjectFilter || null;
     const periodDays = Number(state.ui.completedPeriod) || 0;
@@ -1423,7 +1358,7 @@
     const defaults = {
       projectId: context.projectId || null,
       areaId: context.areaId || null,
-      plannedDate: context.plannedDate || (context.today ? Core.dateOnly() : null),
+      plannedDate: context.plannedDate || context.day || (context.today ? Core.dateOnly() : null),
       explicitPlan: Boolean(context.plannedDate),
       processed: Boolean(context.anytime),
     };
@@ -1624,7 +1559,7 @@
 
   function closeModal() {
     if (modalState?.type === 'focus') stopFocusTimer();
-    if (modalState?.previous?.type === 'goal' || (modalState?.previous && ['calendar-value', 'calendar-progress'].includes(modalState.type))) {
+    if (modalState?.previous?.type === 'goal') {
       const target = modalState.returnFocus; modalState = modalState.previous; renderModal(); restoreGoalFocus(target); return;
     }
     if(modalState?.type==='recurrence-scope'){cancelRecurrenceScope();return;}
@@ -1633,13 +1568,11 @@
     if(flushTaskDraft(()=>closeModal()))return;
     const goalReturn = modalState?.returnFocus;
     const returnTarget = modalReturnFocus;
-    const returnDate = calendarReturnDate;
     modalReturnFocus = null;
-    calendarReturnDate = null;
     modalState = null;
     $('#modal-root').innerHTML = '';
     restoreGoalFocus(goalReturn);
-    if (returnTarget || returnDate) restoreModalReturnFocus(returnTarget, returnDate && $(`[data-action="calendar-detail"][data-date="${returnDate}"]`));
+    if (returnTarget) restoreModalReturnFocus(returnTarget);
   }
 
   function renderModal() {
@@ -2816,7 +2749,7 @@
       if (generatedId) {state.tasks = state.tasks.filter(item => item.id !== generatedId);removeCloneGoalLinks(generatedId);}
       saveState(); render();
     });
-    render(); if (['task', 'calendar-day'].includes(modalState?.type)) renderModal(); evaluateGoalProgressChanges(goalProgressBefore);
+    render(); if (modalState?.type === 'task') renderModal(); evaluateGoalProgressChanges(goalProgressBefore);
   }
 
   async function duplicateTask(taskId, copyFiles = false) {
@@ -4594,6 +4527,7 @@
     if (route.type === 'project' && route.id === 'none') return { anytime: true };
     if (route.type === 'project') return getProject(route.id)?.isArchived ? null : { projectId: route.id };
     if (route.type === 'tasks' && state.ui.tasksView !== 'projects') return { anytime: true };
+    if (route.type === 'calendar' && state.ui.calendarView !== 'upcoming') return { day: calendarDate() }; // R7 (C8)
     return {};
   }
 

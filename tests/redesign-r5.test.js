@@ -132,7 +132,8 @@ test('S10: Today, Zadaci and Predstojeće read tasks through listTasks, which le
   const ctx = screenContext();
   assert.deepEqual(Array.from(ctx.listTasks(), task => task.id), ['a', 'b', 'c', 'e', 'f']);
   assert.match(fn('renderToday'), /Core\.deriveTodayV3\(\{ \.\.\.state, tasks: listTasks\(\) \}/);
-  assert.match(fn('renderUpcoming'), /Core\.deriveUpcomingV3\(\{ \.\.\.state, tasks: listTasks\(\) \}, today\)/);
+  // R7 (C9): Predstojeće is now the Calendar's view; the calendar module reads ctx.listTasks().
+  assert.match(read('js/calendar-ui.js'), /return \{ \.\.\.ctx\.state, tasks: ctx\.listTasks\(\) \};/);
   assert.match(fn('addAllSuggestions'), /Core\.deriveTodaySections\(listTasks\(\), Core\.dateOnly\(\)\)/);
 });
 

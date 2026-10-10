@@ -4,89 +4,143 @@
   const { tr, trn, msg } = I18n;
 
   // UI only: Calendar state and operations are supplied by app.js per call.
+  // Redesign R7 (C1–C9): Nedelja, Mesec and Predstojeće; a selected day with "Lista / Raspored". No habits (C2),
+  // no filter (C7), no Day Detail window; the tasks come through ctx.listTasks(), so archived projects stay out (S10).
+  const VIEWS = ['week', 'month', 'upcoming'];
+  const UPCOMING_DAYS = 21;
+  const WEEKDAYS = [msg('Sun'), msg('Mon'), msg('Tue'), msg('Wed'), msg('Thu'), msg('Fri'), msg('Sat')];
+
   function minutesLabel(minutes) {
     const value = Math.max(0, Math.floor(Number(minutes) || 0));
     return `${String(Math.floor(value / 60) % 24).padStart(2, '0')}:${String(value % 60).padStart(2, '0')}`;
   }
 
-  function calendarItem(ctx, entry, detail = false, date = ctx.calendarDate(), block = null) {
-    const { task, habit, goal, milestone } = entry;
-    const id = task?.id || habit?.id || milestone?.id || goal?.id;
-    const title = task?.title || habit?.name || milestone?.title || goal?.title;
-    const completed = task ? task.isCompleted : milestone ? milestone.isCompleted : goal?.status === 'completed';
-    const open = task ? `data-action="open-task" data-task-id="${ctx.esc(id)}"` : `data-route="${habit ? 'habit' : 'goal'}/${ctx.esc(habit ? id : goal.id)}"`;
-    const habitStatusLabels = { done: msg('Done'), skipped: msg('Skipped'), missed: msg('Missed'), pending: msg('Pending'), unscheduled: msg('Unscheduled') };
-    const metadata = task ? [block ? `${minutesLabel(block.startMinutes)}–${minutesLabel(block.endMinutes)}` : '', entry.kind.includes('planned') ? (task.plannedTime ? tr('Plan · {time}', { time: task.plannedTime }) : tr('Plan')) : '', entry.kind.includes('due') ? (task.dueTime ? tr('Due · {time}', { time: task.dueTime }) : tr('Due')) : '', block?.conflict ? tr('Time conflict') : '', task.isCompleted ? tr('Completed') : ''].filter(Boolean)
-      : habit ? [tr('Scheduled'), habit.trackingType === 'numeric' ? `${entry.status.value || 0} / ${habit.targetValue} ${habit.unit || ''}` : (habitStatusLabels[entry.status.status] ? tr(habitStatusLabels[entry.status.status]) : entry.status.status)]
-      : milestone ? [tr('Milestone'), goal.title, milestone.isCompleted ? tr('Completed') : tr('Open')] : [tr('Goal target'), ctx.goalProgressLabel(goal), ctx.goalStatusLabel(goal)];
-    let actions = '';
-    if (detail && task) actions = `<button class="quick-chip" type="button" data-action="toggle-complete" data-task-id="${ctx.esc(id)}">${task.isCompleted ? tr('Reopen') : tr('Complete task')}</button><button class="quick-chip" type="button" data-action="calendar-task-move" data-task-id="${ctx.esc(id)}">${tr('Move')}</button>`;
-    if (detail && habit) {
-      const disabled = date > ctx.Core.dateOnly() ? 'disabled' : '';
-      actions = habit.trackingType === 'numeric' ? (habit.quickValues || []).map(value => `<button class="quick-chip" type="button" data-action="calendar-habit-add" data-habit-id="${ctx.esc(id)}" data-date="${date}" data-value="${value}" ${disabled}>+${value}</button>`).join('') + `<button class="quick-chip" type="button" data-action="calendar-habit-edit" data-habit-id="${ctx.esc(id)}" data-date="${date}" ${disabled}>${tr('Edit value')}</button>` : `<button class="quick-chip" type="button" data-action="calendar-habit-checkin" data-habit-id="${ctx.esc(id)}" data-date="${date}" ${disabled}>${entry.status.status === 'done' ? tr('Undo check-in') : tr('Check in')}</button>`;
+  function capitalized(text) {
+    return text.charAt(0).toLocaleUpperCase(I18n.locale()) + text.slice(1);
+  }
+
+  function listed(ctx) {
+    return { ...ctx.state, tasks: ctx.listTasks() };
+  }
+
+  function viewSwitch(view) {
+    const labels = { week: tr('Week'), month: tr('Month'), upcoming: tr('Upcoming') };
+    return `<div class="view-tabs calendar-view-switch" role="group" aria-label="${tr('Calendar view')}">${VIEWS.map(mode => `<button class="btn${view === mode ? ' is-selected' : ''}" type="button" data-action="calendar-view" data-view="${mode}" aria-pressed="${view === mode}">${labels[mode]}</button>`).join('')}</div>`;
+  }
+
+  function periodBar(ctx, label, unit) {
+    const previous = unit === 'month' ? tr('Previous month') : tr('Previous week');
+    const next = unit === 'month' ? tr('Next month') : tr('Next week');
+    return `<div class="calendar-period-bar"><h2 class="calendar-period">${ctx.esc(label)}</h2><span class="calendar-arrows"><button class="btn-icon" type="button" data-action="calendar-prev" aria-label="${previous}"><i class="ph ph-caret-left"></i></button><button class="btn-icon" type="button" data-action="calendar-next" aria-label="${next}"><i class="ph ph-caret-right"></i></button></span></div>`;
+  }
+
+  // The day button speaks its date and count, since the dot is only visual (C5).
+  function dayLabel(ctx, date, items) {
+    return ctx.esc(items.count ? `${ctx.formatDate(date, 'full')}, ${trn(items.count, '{count} planned', '{count} planned')}` : ctx.formatDate(date, 'full'));
+  }
+
+  function dot(items) {
+    return `<i class="calendar-dot${items.count ? '' : ' is-empty'}" aria-hidden="true"></i>`;
+  }
+
+  // Wide screens show each week day as a column of cards; a task card drags to another day (C3).
+  function cards(ctx, items) {
+    const task = item => `<button class="calendar-card" type="button" draggable="true" data-calendar-drag="task" data-calendar-item-id="${ctx.esc(item.id)}" data-action="open-task" data-task-id="${ctx.esc(item.id)}">${item.plannedTime && items.timed.includes(item) ? `<b>${ctx.esc(item.plannedTime)}${item.durationMinutes ? ` · ${ctx.esc(ctx.durationLabel(item.durationMinutes))}` : ''}</b>` : ''}${ctx.esc(item.title)}</button>`;
+    const deadline = ({ goal, milestone }) => `<button class="calendar-card is-deadline" type="button" data-route="goal/${ctx.esc(goal.id)}"><i class="ph ph-target" aria-hidden="true"></i>${ctx.esc(milestone ? milestone.title : goal.title)}</button>`;
+    return `<div class="calendar-cards">${[...items.timed.map(task), ...items.deadlines.map(deadline), ...items.untimed.map(task)].join('')}</div>`;
+  }
+
+  function renderWeek(ctx, selected) {
+    const { state, Core } = ctx;
+    const source = listed(ctx);
+    const today = Core.dateOnly();
+    const weekStart = Core.weekStartFor(selected, Core.weekStartKey(state.settings.weekStartsOn)); // the Calendar follows the current week start
+    const days = Array.from({ length: 7 }, (_, index) => Core.addDays(weekStart, index));
+    const first = ctx.parseLocalDate(days[0]);
+    const last = ctx.parseLocalDate(days[6]);
+    const format = new Intl.DateTimeFormat(I18n.locale(), { day: 'numeric', month: 'short', year: 'numeric' });
+    const label = typeof format.formatRange === 'function' ? format.formatRange(first, last) : `${ctx.formatDate(days[0])} – ${ctx.formatDate(days[6])}`;
+    const weekday = new Intl.DateTimeFormat(I18n.locale(), { weekday: 'short' });
+    const strip = days.map(date => {
+      const items = Core.calendarDayItems(source, date);
+      const classes = `${date === today ? ' is-today' : ''}${date === selected ? ' is-selected' : ''}`;
+      return `<section class="calendar-strip-day${classes}" data-calendar-date="${date}"><button class="calendar-strip-heading" type="button" data-action="calendar-pick" data-date="${date}" aria-pressed="${date === selected}" aria-label="${dayLabel(ctx, date, items)}"><span class="calendar-strip-weekday">${ctx.esc(capitalized(weekday.format(ctx.parseLocalDate(date))))}</span><strong>${ctx.parseLocalDate(date).getDate()}</strong>${dot(items)}</button>${cards(ctx, items)}</section>`;
+    }).join('');
+    return `${periodBar(ctx, label, 'week')}<div class="calendar-strip">${strip}</div>`;
+  }
+
+  function renderMonth(ctx, selected) {
+    const { state, Core } = ctx;
+    const source = listed(ctx);
+    const today = Core.dateOnly();
+    const first = ctx.parseLocalDate(`${selected.slice(0, 7)}-01`);
+    const length = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
+    const firstWeekday = Core.weekStartKey(state.settings.weekStartsOn) === 'sunday' ? 0 : 1;
+    const offset = (first.getDay() - firstWeekday + 7) % 7;
+    const label = capitalized(new Intl.DateTimeFormat(I18n.locale(), { month: 'long', year: 'numeric' }).format(first));
+    const names = Array.from({ length: 7 }, (_, index) => `<span class="calendar-grid-weekday">${tr(WEEKDAYS[(firstWeekday + index) % 7])}</span>`).join('');
+    const blanks = '<span class="calendar-grid-blank" aria-hidden="true"></span>'.repeat(offset);
+    const cells = Array.from({ length }, (_, index) => {
+      const date = Core.addDays(Core.dateOnly(first), index);
+      const items = Core.calendarDayItems(source, date);
+      const classes = `${date === today ? ' is-today' : ''}${date === selected ? ' is-selected' : ''}`;
+      return `<button class="calendar-month-cell${classes}" type="button" data-action="calendar-pick" data-date="${date}" aria-pressed="${date === selected}" aria-label="${dayLabel(ctx, date, items)}"><span>${index + 1}</span>${dot(items)}</button>`;
+    }).join('');
+    return `${periodBar(ctx, label, 'month')}<div class="calendar-month-grid">${names}${blanks}${cells}</div>`;
+  }
+
+  // The Today rows (C4): timed tasks by time, then the deadlines with the target icon, then the untimed tasks.
+  function dayRows(ctx, items) {
+    return [...items.timed.map(task => ctx.calendarTaskRow(task)), ...items.deadlines.map(item => ctx.deadlineRow(item)), ...items.untimed.map(task => ctx.calendarTaskRow(task))].join('');
+  }
+
+  function emptyDay() {
+    return `<p class="today-empty">${tr('No tasks for this day. “+” adds a task for this day.')}</p>`;
+  }
+
+  function renderDayPanel(ctx, date) {
+    const mode = ctx.state.ui.calendarDayMode === 'schedule' ? 'schedule' : 'list';
+    const labels = { list: tr('List'), schedule: tr('Schedule') };
+    const head = `<div class="calendar-day-head"><h2 class="calendar-day-title">${ctx.esc(ctx.formatDate(date, 'full'))}</h2><div class="view-tabs calendar-day-mode" role="group" aria-label="${tr('Day view')}">${['list', 'schedule'].map(key => `<button class="btn${mode === key ? ' is-selected' : ''}" type="button" data-action="calendar-day-mode" data-mode="${key}" aria-pressed="${mode === key}">${labels[key]}</button>`).join('')}</div></div>`;
+    let body;
+    if (mode === 'schedule') body = renderDayView(ctx, date);
+    else {
+      const items = ctx.Core.calendarDayItems(listed(ctx), date);
+      body = items.count ? `<div class="task-list today-card" data-list-context="calendar">${dayRows(ctx, items)}</div>` : `<div class="today-card">${emptyDay()}</div>`;
     }
-    if (detail && goal && !milestone) actions = `<button class="quick-chip" type="button" data-action="calendar-goal-progress" data-goal-id="${ctx.esc(id)}">${tr('Update progress')}</button>`;
-    if (detail && milestone) actions = `<button class="quick-chip" type="button" data-action="toggle-milestone" data-goal-id="${ctx.esc(goal.id)}" data-milestone-id="${ctx.esc(id)}">${milestone.isCompleted ? tr('Reopen') : tr('Complete milestone')}</button>`;
-    return `<article class="calendar-item calendar-${entry.type} ${block ? 'calendar-timed-block' : ''} ${block?.conflict ? 'has-conflict' : ''} ${completed ? 'is-completed' : ''} ${detail ? 'calendar-item--detail' : ''}" data-calendar-item-id="${ctx.esc(id)}" data-calendar-type="${entry.type}" ${block ? `data-calendar-time="${minutesLabel(block.startMinutes)}"` : ''} ${!detail && task ? 'draggable="true" data-calendar-drag="task"' : ''}><button class="calendar-item-open" type="button" ${open}><span class="calendar-item-type">${entry.type === 'task' ? tr('Task') : entry.type === 'habit' ? tr('Habit') : entry.type === 'milestone' ? tr('Milestone') : tr('Goal')}</span><strong>${ctx.esc(title)}</strong><span class="calendar-item-meta">${metadata.map(value => `<span>${ctx.esc(value)}</span>`).join('')}</span></button>${detail ? `<div class="calendar-quick-actions">${actions}<button class="quick-chip" type="button" ${open}>${task ? tr('Open task') : habit ? tr('Open habit') : tr('Open goal')}</button></div>` : ''}</article>`;
+    return `<section class="calendar-day-panel" data-calendar-day="${date}">${head}${body}</section>`;
   }
 
-  function timedEntries(ctx, day) {
-    const blocksByTaskId = new Map(ctx.Core.getTimedTaskBlocks(day.tasks.map(entry => entry.task), day.date).map(block => [block.taskId, block]));
-    const timeBlocks = ctx.Core.calendarTimeBlocks(ctx.state, day.date);
-    const blockedIds = new Set(timeBlocks.map(entry => entry.task.id));
-    const planned = timeBlocks.map(entry => calendarItem(ctx, entry, false, day.date, blocksByTaskId.get(entry.task.id)));
-    const other = day.timed.filter(entry => entry.type !== 'task' || !blockedIds.has(entry.task.id)).map(entry => calendarItem(ctx, entry, false, day.date));
-    return planned.concat(other).join('');
-  }
-
-  function calendarCounts(counts) {
-    const labels = {
-      tasks: count => trn(count, '{count} task', '{count} tasks', { count: `<b>${count}</b>` }),
-      habits: count => trn(count, '{count} habit', '{count} habits', { count: `<b>${count}</b>` }),
-      goals: count => trn(count, '{count} goal', '{count} goals', { count: `<b>${count}</b>` }),
-      milestones: count => trn(count, '{count} milestone', '{count} milestones', { count: `<b>${count}</b>` }),
-    };
-    return Object.entries(counts).filter(([, count]) => count).map(([type, count]) => `<span class="calendar-count calendar-count--${type}">${labels[type](count)}</span>`).join('');
-  }
-
-  function calendarCountTotal(counts) {
-    return Object.values(counts).reduce((total, count) => total + count, 0);
-  }
-
-  function renderCalendar(ctx) {
-    const { state, Core, calendarDate, calendarLogs, parseLocalDate, formatDate, pageHeader, esc } = ctx;
-    const date = calendarDate(); const view = ['day', 'month'].includes(state.ui.calendarView) ? state.ui.calendarView : 'week';
-    const visibility = { tasks: true, habits: true, goals: true, milestones: true, ...(state.ui.calendarVisibility || {}) };
-    const weekStart = Core.weekStartFor(date, Core.weekStartKey(state.settings.weekStartsOn)); // the Calendar follows the current week start
-    const month = date.slice(0, 7);
-    const period = view === 'month' ? new Intl.DateTimeFormat(I18n.locale(), { month: 'long', year: 'numeric' }).format(parseLocalDate(`${month}-01`))
-      : view === 'day' ? new Intl.DateTimeFormat(I18n.locale(), { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(parseLocalDate(date))
-      : `${formatDate(weekStart)} – ${formatDate(Core.addDays(weekStart, 6))}, ${parseLocalDate(date).getFullYear()}`;
-    const typeLabels = { tasks: tr('Tasks'), habits: tr('Habits'), goals: tr('Goals'), milestones: tr('Milestones') };
-    let html = pageHeader(tr('Calendar'), tr('Plan tasks, goals and habits by date.'), { add: false, actionHtml: `<button class="btn btn-primary" type="button" data-action="calendar-add" data-date="${date}"><i class="ph ph-plus"></i> ${tr('Add')}</button>` });
-    html += `<div class="calendar-toolbar"><div class="calendar-navigation"><button class="btn-icon" type="button" data-action="calendar-prev" aria-label="${view === 'month' ? tr('Previous month') : view === 'day' ? tr('Previous day') : tr('Previous week')}"><i class="ph ph-caret-left"></i></button><h2 class="calendar-period">${esc(period)}</h2><button class="btn-icon" type="button" data-action="calendar-next" aria-label="${view === 'month' ? tr('Next month') : view === 'day' ? tr('Next day') : tr('Next week')}"><i class="ph ph-caret-right"></i></button><button class="btn btn-ghost" type="button" data-action="calendar-today">${tr('Today')}</button></div><div class="list-tabs" aria-label="${tr('Calendar view')}">${['day', 'week', 'month'].map(mode => `<button class="btn btn-ghost ${view === mode ? 'is-active' : ''}" type="button" data-action="calendar-view" data-view="${mode}" aria-pressed="${view === mode}">${{ day: tr('Day'), week: tr('Week'), month: tr('Month') }[mode]}</button>`).join('')}</div></div><div class="calendar-visibility" aria-label="${tr('Show calendar types')}"><span>${tr('Show')}</span>${Object.entries(visibility).map(([type, visible]) => `<label><input type="checkbox" data-calendar-visibility="${type}" ${visible ? 'checked' : ''}>${esc(typeLabels[type] || type)}</label>`).join('')}</div>`;
-    if (view === 'day') html += renderDayView(ctx, date, visibility);
-    else if (view === 'week') {
-      const days = Core.deriveCalendarWeek(state, calendarLogs(), weekStart);
-      const counts = days.reduce((summary, day) => { for (const entry of [...day.allDay, ...day.timed]) summary[entry.type === 'task' ? 'tasks' : `${entry.type}s`] += 1; return summary; }, { tasks: 0, habits: 0, goals: 0, milestones: 0 });
-      html += `<div class="calendar-summary v17-sticky-context"><strong>${trn(calendarCountTotal(counts), '{count} planned in this view', '{count} planned in this view')}</strong><div>${calendarCounts(counts)}</div><span class="calendar-legend"><i class="calendar-legend-dot calendar-legend-dot--tasks"></i> ${tr('Tasks')} <i class="calendar-legend-dot calendar-legend-dot--habits"></i> ${tr('Habits')} <i class="calendar-legend-dot calendar-legend-dot--goals"></i> ${tr('Goals')} <i class="calendar-legend-dot calendar-legend-dot--milestones"></i> ${tr('Milestones')}</span></div>`;
-      html += `<div class="calendar-scroll"><div class="calendar-week">${days.map(day => { const count = day.allDay.length + day.timed.length; return `<section class="calendar-day ${day.date === Core.dateOnly() ? 'is-today' : ''} ${day.date === date ? 'is-selected' : ''}" data-calendar-date="${day.date}"><button class="calendar-day-heading" type="button" data-action="calendar-detail" data-date="${day.date}"><span>${new Intl.DateTimeFormat(I18n.locale(), { weekday: 'short' }).format(parseLocalDate(day.date))}</span><strong>${parseLocalDate(day.date).getDate()}</strong><em>${count ? trn(count, '{count} planned', '{count} planned') : tr('Free')}</em></button><div class="calendar-region-label">${tr('All day')}</div><div class="calendar-all-day">${day.allDay.map(entry => calendarItem(ctx, entry, false, day.date)).join('')}</div><div class="calendar-region-label">${tr('Timed')}</div><div class="calendar-timed">${timedEntries(ctx, day)}</div></section>`; }).join('')}</div></div>`;
-    } else {
-      const days = Core.deriveCalendarMonthSummary(state, calendarLogs(), month);
-      const counts = days.reduce((summary, day) => { for (const [type, count] of Object.entries(day.counts)) summary[type] += count; return summary; }, { tasks: 0, habits: 0, goals: 0, milestones: 0 });
-      html += `<div class="calendar-summary v17-sticky-context"><strong>${trn(calendarCountTotal(counts), '{count} planned this month', '{count} planned this month')}</strong><div>${calendarCounts(counts)}</div><span class="calendar-legend"><i class="calendar-legend-dot calendar-legend-dot--tasks"></i> ${tr('Tasks')} <i class="calendar-legend-dot calendar-legend-dot--habits"></i> ${tr('Habits')} <i class="calendar-legend-dot calendar-legend-dot--goals"></i> ${tr('Goals')} <i class="calendar-legend-dot calendar-legend-dot--milestones"></i> ${tr('Milestones')}</span></div>`;
-      const startDay = parseLocalDate(days[0].date).getDay(); const firstWeekday = Core.weekStartKey(state.settings.weekStartsOn) === 'sunday' ? 0 : 1;
-      const offset = (startDay - firstWeekday + 7) % 7;
-      html += `<div class="calendar-month">${Array.from({ length: 7 }, (_, i) => `<div class="calendar-weekday">${tr([msg('Sun'), msg('Mon'), msg('Tue'), msg('Wed'), msg('Thu'), msg('Fri'), msg('Sat')][(firstWeekday + i) % 7])}</div>`).join('')}${Array.from({ length: offset }, () => '<div class="calendar-month-blank" aria-hidden="true"></div>').join('')}${days.map(day => { const total = calendarCountTotal(day.counts); return `<button class="calendar-month-day ${day.date === Core.dateOnly() ? 'is-today' : ''} ${day.date === date ? 'is-selected' : ''}" type="button" data-calendar-date="${day.date}" data-action="calendar-detail" data-date="${day.date}"><strong>${parseLocalDate(day.date).getDate()}</strong>${total ? `<span class="calendar-month-total">${trn(total, '{count} planned', '{count} planned')}</span><span class="calendar-counts">${calendarCounts(day.counts)}</span>` : ''}</button>`; }).join('')}</div>`;
+  // Predstojeće (C9): the next 21 days from tomorrow, grouped by day; it replaced the separate Upcoming screen.
+  function renderUpcomingDays(ctx) {
+    const { Core } = ctx;
+    const source = listed(ctx);
+    const today = Core.dateOnly();
+    const weekday = new Intl.DateTimeFormat(I18n.locale(), { weekday: 'long' });
+    let html = '';
+    for (let offset = 1; offset <= UPCOMING_DAYS; offset += 1) {
+      const date = Core.addDays(today, offset);
+      const items = Core.calendarDayItems(source, date);
+      if (!items.count) continue;
+      const label = offset === 1 ? tr('Tomorrow') : capitalized(weekday.format(ctx.parseLocalDate(date)));
+      html += `<section class="calendar-upcoming-day" data-upcoming-date="${date}"><h2 class="section-label calendar-upcoming-label">${ctx.esc(label)} <span>· ${ctx.esc(ctx.formatDate(date))}</span></h2><div class="task-list today-card" data-list-context="calendar">${dayRows(ctx, items)}</div></section>`;
     }
-    return html;
+    return html || `<div class="empty-state calendar-upcoming-empty"><h3>${tr('Nothing in the coming days')}</h3></div>`;
   }
 
-  // Day view (V1.12): capacity, tasks without a time and an hour grid. Rows and the unscheduled list reuse the calendar drag
-  // (data-calendar-drag / data-calendar-time) and the task time input handler (data-task-time).
-  function renderDayView(ctx, date, visibility) {
+  function renderCalendar(ctx, routeView = null) {
+    const view = routeView || (VIEWS.includes(ctx.state.ui.calendarView) ? ctx.state.ui.calendarView : 'week');
+    const html = ctx.pageHeader(tr('Calendar'), '', { add: false }) + viewSwitch(view);
+    if (view === 'upcoming') return html + renderUpcomingDays(ctx);
+    const date = ctx.calendarDate();
+    return html + (view === 'month' ? renderMonth(ctx, date) : renderWeek(ctx, date)) + renderDayPanel(ctx, date);
+  }
+
+  // Raspored (C6), the V1.12 day view: capacity, tasks without a time and an hour grid. Rows and the unscheduled
+  // list reuse the calendar drag (data-calendar-drag / data-calendar-time) and the time input handler (data-task-time).
+  function renderDayView(ctx, date) {
     const { state, Core, esc } = ctx;
-    const tasks = visibility.tasks === false ? [] : state.tasks || [];
+    const tasks = ctx.listTasks();
     const schedule = Core.daySchedule(tasks, date);
     const load = Core.dayLoad(tasks, date);
     const capacity = Core.dailyCapacityMinutes(state.settings);
@@ -96,9 +150,7 @@
       const percent = Math.min(100, Math.round(load.minutes / capacity * 100));
       html += `<div class="day-capacity${over ? ' is-over' : ''}" data-day-capacity role="status"><span>${esc(tr('Planned {planned} of {capacity}', { planned: ctx.durationLabel(load.minutes), capacity: ctx.durationLabel(capacity) }))}</span><span class="day-capacity-bar" aria-hidden="true"><span style="width:${percent}%"></span></span>${over ? `<strong>${esc(tr('Over capacity by {over}', { over: ctx.durationLabel(load.minutes - capacity) }))}</strong>` : ''}</div>`;
     }
-    if (!schedule.blocks.length && !schedule.unscheduled.length) {
-      return `${html}<p class="area-empty-copy">${tr('No tasks planned for this day.')}</p><button class="btn btn-secondary" type="button" data-action="calendar-new-task" data-date="${esc(date)}"><i class="ph ph-plus"></i> ${tr('Add task')}</button></div>`;
-    }
+    if (!schedule.blocks.length && !schedule.unscheduled.length) return `${html}${emptyDay()}</div>`;
     if (schedule.unscheduled.length) {
       html += `<section class="section day-unscheduled" data-calendar-date="${esc(date)}"><div class="section-header"><h2 class="section-label">${tr('No time yet')}</h2><span class="section-count">${schedule.unscheduled.length}</span></div>${schedule.unscheduled.map(task => `<div class="day-unscheduled-item" draggable="true" data-calendar-drag="task" data-calendar-item-id="${esc(task.id)}"><button class="day-unscheduled-title" type="button" data-action="open-task" data-task-id="${esc(task.id)}">${esc(task.title)}</button><input class="input task-time-input" type="time" data-task-time="plannedTime" data-task-id="${esc(task.id)}" aria-label="${esc(tr('Time for {title}', { title: task.title }))}"></div>`).join('')}</section>`;
     }
@@ -114,68 +166,25 @@
     return `${html}<div class="day-grid" data-calendar-date="${esc(date)}"><div class="day-grid-rows">${rows}</div><div class="day-grid-blocks">${blocks}</div></div></div>`;
   }
 
-  function renderCalendarDetail(ctx) {
-    const { modalState, state, Core, calendarLogs, formatDate, esc, modalFrame } = ctx;
-    const date = modalState.date; const day = Core.deriveCalendarDay(state, calendarLogs(), date);
-    const allDay = day.allDay.map(entry => calendarItem(ctx, entry, true, date)).join('');
-    const blocksByTaskId = new Map(Core.getTimedTaskBlocks(day.tasks.map(entry => entry.task), date).map(block => [block.taskId, block]));
-    const timeBlocks = Core.calendarTimeBlocks(state, date);
-    const blockedIds = new Set(timeBlocks.map(entry => entry.task.id));
-    const timed = timeBlocks.map(entry => calendarItem(ctx, entry, true, date, blocksByTaskId.get(entry.task.id))).concat(day.timed.filter(entry => entry.type !== 'task' || !blockedIds.has(entry.task.id)).map(entry => calendarItem(ctx, entry, true, date))).join('');
-    const conflicts = [...blocksByTaskId.values()].filter(block => block.conflict).map(block => `${minutesLabel(block.startMinutes)}–${minutesLabel(block.endMinutes)}`).filter((value, index, values) => values.indexOf(value) === index);
-    const counts = { tasks: day.tasks.length, habits: day.habits.length, goals: day.goals.length, milestones: day.milestones.length };
-    const total = calendarCountTotal(counts);
-    return modalFrame(`<div class="modal-inner calendar-day-detail v17-day-detail" data-detail-date="${date}"><div class="modal-header"><h2 class="modal-title">${tr('Day detail')} · ${date}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div><p class="page-subtitle">${esc(formatDate(date, 'full'))}</p>${total ? `<div class="calendar-detail-summary v17-sticky-context"><strong>${trn(total, '{count} planned', '{count} planned')}</strong><span>${calendarCounts(counts)}</span></div>` : ''}${conflicts.length ? `<p class="calendar-conflict-note" role="status"><i class="ph ph-warning"></i> ${tr('Time overlap: {times}', { times: esc(conflicts.join(', ')) })}</p>` : ''}<div class="calendar-detail-items">${timed ? `<section class="calendar-detail-section"><h3>${tr('Timed plan')} · ${day.timed.length}</h3>${timed}</section>` : ''}${allDay ? `<section class="calendar-detail-section"><h3>${tr('All day')} · ${day.allDay.length}</h3>${allDay}</section>` : ''}${!allDay && !timed ? `<p class="area-empty-copy v17-empty-state">${tr('No visible items for this date.')}</p>` : ''}</div><div class="calendar-creation">${['task', 'goal', 'habit'].map(type => `<button class="btn btn-secondary" type="button" data-action="calendar-new-${type}" data-date="${date}"><i class="ph ph-plus"></i> ${type === 'task' ? tr('Task') : type === 'goal' ? tr('Goal') : tr('Habit')}</button>`).join('')}</div></div>`);
-  }
-
-  function renderCalendarValue(ctx) {
-    const { modalState, state, getHabit, esc, modalFrame } = ctx;
-    const { habitId, date } = modalState;
-    const value = state.habitLogCache?.[habitId]?.find(log => log.date === date)?.value || 0;
-    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">${tr('Edit value')} · ${esc(getHabit(habitId)?.name)}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div><label class="field-label">${date}<input class="input" id="calendar-habit-value" type="number" min="0" step="any" value="${value}"></label><button class="btn btn-primary" type="button" data-action="calendar-save-habit-value" data-habit-id="${esc(habitId)}" data-date="${date}">${tr('Save value')}</button></div>`);
-  }
-
-  function renderCalendarGoalProgress(ctx) {
-    const { modalState, getGoal, esc, modalFrame } = ctx;
-    const goal = getGoal(modalState.goalId);
-    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">${tr('Update progress')} · ${esc(goal.title)}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div><label class="field-label">${goal.progressType === 'numeric' ? tr('Current value') : tr('Progress percentage')}<input id="goal-current-value" class="input" type="number" value="${goal.currentValue}"></label><button class="btn btn-primary" type="button" data-action="save-goal-progress" data-goal-id="${esc(goal.id)}">${tr('Update progress')}</button></div>`);
-  }
-
   window.TodoDomainModules?.register({
     name: 'calendar',
     renderRoute(route, ctx) {
       if (route.type === 'calendar') return renderCalendar(ctx);
-      if (route.type !== 'modal') return undefined;
-      if (route.modalType === 'calendar-day') return renderCalendarDetail(ctx);
-      if (route.modalType === 'calendar-value') return renderCalendarValue(ctx);
-      if (route.modalType === 'calendar-progress') return renderCalendarGoalProgress(ctx);
+      if (route.type === 'upcoming') return renderCalendar(ctx, 'upcoming'); // the old route (sidebar, U, Weekly review)
+      return undefined;
     },
     handleAction(action, event, ctx) {
       const element = event?.target?.closest?.('[data-action]');
       if (!element) return false;
-      if (action === 'calendar-view') { ctx.state.ui.calendarView = ['day', 'month'].includes(element.dataset.view) ? element.dataset.view : 'week'; ctx.saveAndRender(); }
-      else if (action === 'calendar-prev') ctx.navigateCalendar(-1);
+      if (action === 'calendar-view') {
+        ctx.state.ui.calendarView = VIEWS.includes(element.dataset.view) ? element.dataset.view : 'week';
+        if (ctx.currentRoute().type === 'upcoming') { ctx.saveState(); ctx.navigate('calendar'); } else ctx.saveAndRender();
+      } else if (action === 'calendar-prev') ctx.navigateCalendar(-1);
       else if (action === 'calendar-next') ctx.navigateCalendar(1);
-      else if (action === 'calendar-today') { ctx.state.ui.calendarDate = ctx.Core.dateOnly(); ctx.saveAndRender(); }
-      else if (action === 'calendar-detail' || action === 'calendar-add') ctx.openCalendarDetail(element.dataset.date);
-      else if (action === 'calendar-new-task') ctx.openQuickAdd({ plannedDate: element.dataset.date });
-      else if (action === 'calendar-new-goal') ctx.openGoalModal(null, { targetDate: element.dataset.date });
-      else if (action === 'calendar-new-habit') ctx.openHabitModal(null, { startDate: element.dataset.date });
-      else if (action === 'calendar-task-move') ctx.openPlanPicker(element, { type: 'task', taskId: element.dataset.taskId });
-      else if (action === 'calendar-habit-checkin') ctx.calendarHabitAction(element, 'check').catch(console.error);
-      else if (action === 'calendar-habit-add') ctx.calendarHabitAction(element, 'add').catch(console.error);
-      else if (action === 'calendar-habit-edit') ctx.openCalendarValue(element.dataset.habitId, element.dataset.date);
-      else if (action === 'calendar-save-habit-value') {
-        const date = element.dataset.date;
-        ctx.setHabitLog(element.dataset.habitId, date, 'done', Number(ctx.$('#calendar-habit-value')?.value || 0)).then(saved => { if (saved && ctx.modalState?.type === 'calendar-value') ctx.openCalendarDetail(date); }).catch(console.error);
-      } else if (action === 'calendar-goal-progress') ctx.openCalendarGoalProgress(element.dataset.goalId);
+      else if (action === 'calendar-pick') {
+        if (ctx.Core.parseDateOnly(element.dataset.date)) { ctx.state.ui.calendarDate = element.dataset.date; ctx.saveAndRender(); }
+      } else if (action === 'calendar-day-mode') { ctx.state.ui.calendarDayMode = element.dataset.mode === 'schedule' ? 'schedule' : 'list'; ctx.saveAndRender(); }
       else return false;
-      return true;
-    },
-    handleInput(event, ctx) {
-      if (!event.target.matches('[data-calendar-visibility]')) return false;
-      ctx.state.ui.calendarVisibility = { tasks: true, habits: true, goals: true, milestones: true, ...(ctx.state.ui.calendarVisibility || {}), [event.target.dataset.calendarVisibility]: event.target.checked };
-      ctx.saveAndRender();
       return true;
     }
   });

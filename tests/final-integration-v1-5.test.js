@@ -30,20 +30,22 @@ test('Today no longer applies the dashboard layout; its stored settings stay val
   assert.ok(dashboard && typeof dashboard === 'object');
 });
 
-test('Calendar Week and Day Detail honor hidden Tasks and retain combined planned/due metadata', () => {
+// Redesign R7 (C2, C7): the Calendar has no type filter and no Day Detail window any more, so a stored hidden-Tasks
+// choice can no longer hide them. A timed task still shows its time in the week card and its block in Raspored.
+test('Calendar ignores the old type filter and keeps the planned time and duration', () => {
   const source = fs.readFileSync(require.resolve('../js/calendar-ui.js'), 'utf8');
-  const ctx = { state: state(), Core, calendarDate: () => '2026-09-17', calendarLogs: () => [], parseLocalDate: value => new Date(`${value}T12:00:00`), formatDate: String, esc: String, pageHeader: () => '', modalFrame: value => value, modalState: { date: '2026-09-17' } };
+  let adapter;
+  vm.runInNewContext(source, withI18n({ window: { TodoDomainModules: { register: value => { adapter = value; } } } }));
+  const ctx = { state: state(), Core, calendarDate: () => '2026-09-17', parseLocalDate: Core.parseDateOnly, formatDate: String, esc: String, pageHeader: () => '', durationLabel: minutes => `${minutes} min`, calendarTaskRow: task => task.title, deadlineRow: () => '' };
   ctx.state.tasks = [{ id: 'timed', title: 'Visible timed Task', plannedDate: '2026-09-17', dueDate: '2026-09-17', plannedTime: '09:00', dueTime: '11:00', durationMinutes: 45 }];
-  const sandbox = { ctx }; vm.createContext(withI18n(sandbox));
-  vm.runInContext(functions(source, ['minutesLabel', 'calendarItem', 'timedEntries', 'calendarCounts', 'calendarCountTotal', 'renderCalendar', 'renderCalendarDetail']), sandbox);
-  for (const render of ['renderCalendar', 'renderCalendarDetail']) {
-    ctx.state.ui.calendarVisibility = { tasks: false };
-    const hidden = vm.runInContext(`${render}(ctx)`, sandbox);
-    assert.doesNotMatch(hidden, /Visible timed Task|calendar-timed-block|Time overlap/);
-    ctx.state.ui.calendarVisibility.tasks = true;
-    const shown = vm.runInContext(`${render}(ctx)`, sandbox);
-    assert.match(shown, /09:00–09:45/); assert.match(shown, /Plan · 09:00/); assert.match(shown, /Due · 11:00/);
-  }
+  ctx.listTasks = () => ctx.state.tasks;
+  ctx.state.ui.calendarVisibility = { tasks: false };
+  ctx.state.ui.calendarView = 'week';
+  ctx.state.ui.calendarDayMode = 'list';
+  const week = adapter.renderRoute({ type: 'calendar' }, ctx);
+  assert.match(week, /<b>09:00 · 45 min<\/b>Visible timed Task/);
+  ctx.state.ui.calendarDayMode = 'schedule';
+  assert.match(adapter.renderRoute({ type: 'calendar' }, ctx), /<strong>Visible timed Task<\/strong><span>09:00–09:45<\/span>/);
 });
 
 function scheduler() {

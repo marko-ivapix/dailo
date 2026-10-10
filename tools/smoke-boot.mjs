@@ -150,6 +150,23 @@ await new Promise(resolve => setTimeout(resolve, 50));
 const sortedTask = window.TodoApp.state.tasks.find(task => task.id === triaged);
 if (sortedTask?.plannedDate !== window.TodoCore.dateOnly() || sortedTask.isInbox) fail('Danas in "Razvrstaj redom" did not plan the task for today');
 window.TodoApp.handleBackButton();
+// Redesign R7: Kalendar opens on today with a dot; a picked day lists its task in Lista, and Raspored shows the day view.
+window.location.hash = '#calendar';
+await new Promise(resolve => setTimeout(resolve, 50));
+const todayStrip = window.document.querySelector(`#main .calendar-strip-day.is-selected[data-calendar-date="${window.TodoCore.dateOnly()}"]`);
+if (!todayStrip || todayStrip.querySelector('.calendar-dot.is-empty')) fail('the Calendar did not open on today with a dot');
+let tomorrowHeading = window.document.querySelector(`#main .calendar-strip-heading[data-date="${tomorrow}"]`);
+if (!tomorrowHeading) {
+  window.document.querySelector('#main [data-action="calendar-next"]').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  await new Promise(resolve => setTimeout(resolve, 50));
+  tomorrowHeading = window.document.querySelector(`#main .calendar-strip-heading[data-date="${tomorrow}"]`);
+}
+tomorrowHeading?.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+await new Promise(resolve => setTimeout(resolve, 50));
+if (!window.document.querySelector(`#main .calendar-day-panel[data-calendar-day="${tomorrow}"] [data-task-id="${created.id}"]`)) fail('the picked day does not list its task');
+window.document.querySelector('#main [data-action="calendar-day-mode"][data-mode="schedule"]').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+await new Promise(resolve => setTimeout(resolve, 50));
+if (!window.document.querySelector('#main .calendar-day-panel .day-view')) fail('Raspored did not show the day view');
 window.dispatchEvent(new window.Event('pagehide'));
 const saved = keep(window);
 first.dom.window.close();
@@ -160,5 +177,5 @@ if (!found) fail('the task is missing after reopening');
 const errors = [...first.errors, ...second.errors];
 second.dom.window.close();
 if (errors.length) fail(`script errors: ${errors.join(' | ')}`);
-console.log(`smoke: OK — started, created "${title}", Back closed Quick Add, route change named the page and focused its heading, Još opened Ciljevi, focus survived a re-render, Today checked in a habit, the Zadaci switch showed the projects and opened one, the task window's date sheet planned a task, Quick Add filed a task under \"Bez projekta\", \"Razvrstaj redom\" planned an Inbox task for today, reopened and found it (tasks: ${second.window.TodoApp.state?.tasks?.length ?? 'n/a'})`);
+console.log(`smoke: OK — started, created "${title}", Back closed Quick Add, route change named the page and focused its heading, Još opened Ciljevi, focus survived a re-render, Today checked in a habit, the Zadaci switch showed the projects and opened one, the task window's date sheet planned a task, Quick Add filed a task under \"Bez projekta\", \"Razvrstaj redom\" planned an Inbox task for today, the Calendar listed a picked day and its Raspored, reopened and found it (tasks: ${second.window.TodoApp.state?.tasks?.length ?? 'n/a'})`);
 process.exit(0);

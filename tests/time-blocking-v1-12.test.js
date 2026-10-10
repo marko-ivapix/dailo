@@ -62,12 +62,13 @@ function calendarAdapter() {
   return adapter;
 }
 
+// Redesign R7 (C6): the V1.12 "Dan" view is now the selected day's "Raspored" under the week or the month.
 function renderDay(tasks, settings = {}) {
-  const state = { tasks, habits: [], goals: [], settings: { weekStartsOn: 1, ...settings }, ui: { calendarView: 'day', calendarDate: DAY, calendarVisibility: { tasks: true, habits: true, goals: true, milestones: true } } };
+  const state = { tasks, habits: [], goals: [], settings: { weekStartsOn: 1, ...settings }, ui: { calendarView: 'week', calendarDayMode: 'schedule', calendarDate: DAY } };
   const ctx = {
-    state, Core, calendarDate: () => DAY, calendarLogs: () => [], parseLocalDate: value => { const [y, m, d] = value.split('-').map(Number); return new Date(y, m - 1, d); },
+    state, Core, calendarDate: () => DAY, listTasks: () => state.tasks, parseLocalDate: value => { const [y, m, d] = value.split('-').map(Number); return new Date(y, m - 1, d); },
     formatDate: value => `F:${value}`, pageHeader: title => `<h1>${title}</h1>`, esc: value => String(value), durationLabel: minutes => `${minutes}m`,
-    goalProgressLabel: () => '', goalStatusLabel: () => '',
+    calendarTaskRow: item => `<row ${item.id}>`, deadlineRow: () => '',
   };
   return calendarAdapter().renderRoute({ type: 'calendar' }, ctx);
 }
@@ -80,8 +81,8 @@ test('the calendar day view shows capacity, tasks without a time and an hour gri
     task('d', { plannedTime: '16:00', durationMinutes: 30, isCompleted: true }),
     task('u1', { title: 'Bez vremena jedan' }),
   ]);
-  assert.match(html, /data-action="calendar-view" data-view="day" aria-pressed="true"/);
-  assert.match(html, /data-action="calendar-prev" aria-label="Previous day"/);
+  assert.match(html, /data-action="calendar-day-mode" data-mode="schedule" aria-pressed="true"/);
+  assert.match(html, /data-action="calendar-prev" aria-label="Previous week"/);
   assert.match(html, /<div class="day-capacity" data-day-capacity role="status"><span>Planned 120m of 360m<\/span>/);
   assert.match(html, /<div class="day-unscheduled-item" draggable="true" data-calendar-drag="task" data-calendar-item-id="u1">/);
   assert.match(html, /<input class="input task-time-input" type="time" data-task-time="plannedTime" data-task-id="u1" aria-label="Time for Bez vremena jedan">/);
@@ -95,33 +96,35 @@ test('the calendar day view shows capacity, tasks without a time and an hour gri
   assert.match(html, /class="day-grid-block is-completed"[^>]*data-task-id="d"/);
 });
 
-test('an over-full day warns, an empty day offers to add a task, and capacity can be off', () => {
+test('an over-full day warns, an empty day points to "+", and capacity can be off', () => {
   const over = renderDay([task('a', { durationMinutes: 300 }), task('b', { durationMinutes: 120 })]);
   assert.match(over, /<div class="day-capacity is-over" data-day-capacity role="status"><span>Planned 420m of 360m<\/span>[\s\S]*Over capacity by 60m/);
   const empty = renderDay([]);
-  assert.match(empty, /No tasks planned for this day\./);
-  assert.match(empty, /data-action="calendar-new-task" data-date="2026-10-09"/);
+  // R7 (C8): the floating "+" adds for the selected day, so the empty day has no button of its own.
+  assert.match(empty, /No tasks for this day\. “\+” adds a task for this day\./);
+  assert.doesNotMatch(empty, /calendar-new-task/);
   assert.doesNotMatch(empty, /data-day-capacity/);
   assert.doesNotMatch(renderDay([task('a', { durationMinutes: 60 })], { dailyCapacityMinutes: 0 }), /data-day-capacity/);
 });
 
-test('the day view is a stored calendar view and moves by one day', () => {
+// Redesign R7 (C6): a stored "day" view opens the week with its Raspored; the arrows move by week.
+test('a stored day view becomes the week on Raspored; the arrows move by week', () => {
   const app = read('js/app.js');
-  assert.match(app, /next\.ui\.calendarView = \['day', 'week', 'month'\]\.includes\(next\.ui\.calendarView\) \? next\.ui\.calendarView : 'week';/);
+  assert.match(app, /if \(next\.ui\.calendarView === 'day'\) next\.ui\.calendarDayMode = 'schedule';\n {4}next\.ui\.calendarView = \['week', 'month', 'upcoming'\]\.includes\(next\.ui\.calendarView\) \? next\.ui\.calendarView : 'week';/);
   const start = app.indexOf('  function navigateCalendar(');
   const navigate = app.slice(start, app.indexOf('\n  function ', start + 1));
-  const context = { Core, state: { ui: { calendarView: 'day', calendarDate: DAY } }, calendarDate: () => context.state.ui.calendarDate, parseLocalDate: value => new Date(`${value}T00:00:00`), saveAndRender() {} };
+  const context = { Core, state: { ui: { calendarView: 'week', calendarDate: DAY } }, calendarDate: () => context.state.ui.calendarDate, parseLocalDate: value => new Date(`${value}T00:00:00`), saveAndRender() {} };
   vm.createContext(context);
   vm.runInContext(navigate, context);
   vm.runInContext('navigateCalendar(1)', context);
-  assert.equal(context.state.ui.calendarDate, '2026-10-10');
+  assert.equal(context.state.ui.calendarDate, '2026-10-16');
   const adapter = calendarAdapter();
-  const ctx = { state: { ui: { calendarView: 'week' } }, saveAndRender() {} };
+  const ctx = { state: { ui: { calendarView: 'week' } }, currentRoute: () => ({ type: 'calendar' }), saveAndRender() {} };
   adapter.handleAction('calendar-view', { target: { closest: () => ({ dataset: { view: 'day' } }) } }, ctx);
-  assert.equal(ctx.state.ui.calendarView, 'day');
+  assert.equal(ctx.state.ui.calendarView, 'week');
 });
 
-// Redesign R2 (T2a): capacity left Today and stays only in Calendar → Dan; durations still format the same.
+// Redesign R2 (T2a): capacity left Today and stays only in the Calendar's Raspored (R7); durations format the same.
 test('capacity is shown only in the Calendar day view; durations format as before', () => {
   const app = read('js/app.js');
   const slice = (from, to) => app.slice(app.indexOf(from), app.indexOf(to));

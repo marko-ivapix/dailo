@@ -9,7 +9,7 @@
   const tr = (text, params) => (root.TodoI18n ? root.TodoI18n.tr(text, params) : String(text).replace(/\{(\w+)\}/g, (match, key) => (params && key in params ? String(params[key]) : match)));
 
   // Single source for the release version. sw.js repeats it in its cache name; tests keep them equal.
-  const APP_VERSION = '2.0.0-alpha.11';
+  const APP_VERSION = '2.0.0-alpha.12';
   // Beta problem reports go to this address by e-mail. Empty hides the report link.
   const REPORT_EMAIL = 'marko.radicevic@ivapix.cloud';
   // The tester guide is not packaged in the native app; the app opens this online copy instead.

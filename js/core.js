@@ -353,6 +353,23 @@
     });
   }
 
+  // Redesign R7 (C2, C4, C9): what a calendar day lists. Open tasks sit on their plan day, or on their due day when
+  // they have none; timed ones by time, the rest by title. Goal targets and open milestones of active goals come
+  // as deadlines. Habits stay on the Habits screen. The caller passes the listed tasks (no archived projects).
+  function calendarDayItems(state, date) {
+    const byTitle = (a, b) => String(a.title).localeCompare(String(b.title));
+    const tasks = (state?.tasks || []).filter(task => task && !task.isCompleted && (task.plannedDate ? task.plannedDate === date : task.dueDate === date));
+    const timed = tasks.filter(task => task.plannedDate === date && normalizeTime(task.plannedTime))
+      .sort((a, b) => a.plannedTime.localeCompare(b.plannedTime) || byTitle(a, b));
+    const untimed = tasks.filter(task => !timed.includes(task)).sort(byTitle);
+    const goals = (state?.goals || []).filter(goal => goal?.status === 'active');
+    const deadlines = [
+      ...goals.filter(goal => goal.targetDate === date).map(goal => ({ goal })),
+      ...goals.flatMap(goal => (goal.milestones || []).filter(milestone => milestone?.date === date && !milestone.isCompleted).map(milestone => ({ goal, milestone }))),
+    ];
+    return { date, timed, untimed, deadlines, count: timed.length + untimed.length + deadlines.length };
+  }
+
   function calendarTimeBlocks(state, date) {
     if (!parseDateOnly(date) || state?.ui?.calendarVisibility?.tasks === false) return [];
     return (state?.tasks || []).flatMap(task => {
@@ -1918,6 +1935,7 @@
     deriveCalendarWeek,
     deriveCalendarMonthSummary,
     calendarTimeBlocks,
+    calendarDayItems,
     nextRecurrenceDate,
     normalizeRecurrenceV3,
     shouldGenerateRecurrence,

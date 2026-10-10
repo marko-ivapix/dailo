@@ -29,9 +29,11 @@ test('M4: Još is a screen with Zakačeno, Planiranje, Biblioteka, Arhiva and Po
   assert.match(routes, /'more'/);
   const more = fn('renderMoreScreen');
   for (const label of ['Pinned', 'Planning', 'Library', 'Archives']) assert.match(more, new RegExp(`tr\\('${label}'\\)`), label);
-  for (const route of ['goals', 'areas', 'cleaning', 'review', 'upcoming', 'notes', 'resources', 'tags', 'templates', 'saved-views', 'completed', 'archived', 'settings']) {
+  // R7 (C9): Predstojeće moved into the Calendar, so "Još" no longer lists it.
+  for (const route of ['goals', 'areas', 'cleaning', 'review', 'notes', 'resources', 'tags', 'templates', 'saved-views', 'completed', 'archived', 'settings']) {
     assert.match(more, new RegExp(`'${route}'`), route);
   }
+  assert.doesNotMatch(more, /'upcoming'/);
   assert.match(more, /isPinned/, 'pinned areas and saved views');
   assert.match(fn('renderMain'), /route\.type === 'more'\) content = renderMoreScreen\(\)/);
   assert.match(fn('renderMain'), /route\.type === 'tasks'\) content = renderTasksScreen\(\)/);

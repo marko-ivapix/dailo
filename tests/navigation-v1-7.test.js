@@ -8,9 +8,9 @@ const css = fs.readFileSync(require.resolve('../css/styles.css'), 'utf8');
 const calendar = fs.readFileSync(require.resolve('../js/calendar-ui.js'), 'utf8');
 
 // Redesign R1 (G1, M4): six bottom destinations; "Još" is a screen instead of a sheet. Anytime and Projects live
-// under Zadaci, and Search is the magnifier in every page header.
+// under Zadaci, and Search is the magnifier in every page header. R7 (C9): Upcoming is the Calendar's Predstojeće.
 const moreRoutes = [
-  ['upcoming', 'Upcoming'], ['areas', 'Areas'], ['tags', 'Tags'], ['notes', 'Notes'], ['resources', 'Resources'],
+  ['areas', 'Areas'], ['tags', 'Tags'], ['notes', 'Notes'], ['resources', 'Resources'],
   ['cleaning', 'Cleaning'], ['templates', 'Templates'], ['saved-views', 'Saved Views'],
   ['completed', 'Completed'], ['archived', 'Archived Projects'], ['goals', 'Goals'], ['review', 'Weekly review'],
   ['settings', 'Settings']
@@ -34,12 +34,14 @@ test('the Još screen and Zadaci reach every secondary route', () => {
   assert.match(app, /data-action="open-search"/);
 });
 
+// Redesign R7 (C1, C3): the week is a strip of seven days that fits a phone without scrolling; the columns of
+// cards appear only from 1024 px.
 test('Calendar Week keeps visible day context on narrow viewports', () => {
-  assert.match(calendar, /class="calendar-scroll"/);
-  assert.match(calendar, /class="calendar-week"/);
-  assert.match(css, /@media \(max-width: 700px\)[\s\S]*?\.calendar-scroll[\s\S]*?overflow-x:\s*auto/);
-  assert.match(css, /@media \(max-width: 700px\)[\s\S]*?\.calendar-week[\s\S]*?min-width/);
-  assert.match(css, /@media \(max-width: 700px\)[\s\S]*?\.calendar-day-heading/);
+  assert.match(calendar, /class="calendar-strip"/);
+  assert.match(calendar, /class="calendar-strip-day\$\{classes\}"/);
+  assert.match(css, /\.calendar-strip, \.calendar-month-grid \{ display: grid; grid-template-columns: repeat\(7, minmax\(0, 1fr\)\); \}/);
+  assert.match(css, /@media \(min-width: 1024px\) \{[\s\S]*?\.calendar-cards \{ display: grid;/);
+  assert.match(app, /route\.type === 'upcoming'\) content|BOTTOM_NAV_PARENT = \{[^}]*upcoming: 'calendar'/);
 });
 
 test('stale-data notice covers both external writes and canonical removal', () => {
