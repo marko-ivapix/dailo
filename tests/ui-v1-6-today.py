@@ -30,9 +30,9 @@ def test_mobile_navigation_and_touch_targets_are_wired():
     html = read('index.html')
     app = read('js/app.js')
     styles = read('css/styles.css')
-    assert 'id="mobile-more-trigger"' in html
-    assert 'data-action="open-mobile-more"' in html
-    assert 'data-mobile-more-route' in app
+    # Redesign R1: "Još" is a bottom-bar route to a screen instead of a sheet.
+    assert 'data-route="more"' in html
+    assert 'function renderMoreScreen(' in app
     assert 'aria-modal="true"' in app
     assert 'min-height: 44px' in styles
 
@@ -40,9 +40,9 @@ def test_mobile_navigation_and_touch_targets_are_wired():
 def test_mobile_navigation_exposes_all_secondary_routes():
     html = read('index.html')
     app = read('js/app.js')
-    assert 'id="mobile-more-trigger"' in html
+    assert 'data-route="more"' in html
     for route in ('upcoming', 'projects', 'areas', 'notes', 'resources', 'templates', 'saved-views', 'settings'):
-        assert f"['{route}'" in app or f'"{route}"' in app
+        assert f"'{route}'" in app or f'"{route}"' in app
 
 
 def test_compact_touch_layout_keeps_primary_actions_at_44px():

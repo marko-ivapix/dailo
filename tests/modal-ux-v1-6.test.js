@@ -42,14 +42,11 @@ test('Quick Add stays visible on desktop and keeps the same floating menu compos
 });
 
 test('mobile navigation provides the primary destinations at the bottom', () => {
+  // Redesign R1 (G1): the bar is shown at every width and Zadaci replaces Ciljevi.
   assert.match(html, /id="mobile-bottom-nav" class="mobile-bottom-nav"/);
-  for (const route of ['today', 'inbox', 'calendar', 'goals', 'habits']) assert.match(html, new RegExp(`data-route="${route}"`));
-  assert.match(css, /\.mobile-bottom-nav \{ display: none; \}/);
-  assert.match(css, /@media \(max-width: 1023px\) \{[\s\S]*?\.mobile-bottom-nav \{[\s\S]*?position: fixed;[\s\S]*?display: grid;/);
+  for (const route of ['today', 'inbox', 'tasks', 'calendar', 'habits', 'more']) assert.match(html, new RegExp(`data-route="${route}"`));
+  assert.match(css, /\n\.mobile-bottom-nav \{[\s\S]*?position: fixed;[\s\S]*?display: grid;/);
   assert.match(app, /function renderMobileBottomNav\(\)/);
-  const hiddenRule = css.indexOf('.mobile-bottom-nav { display: none; }');
-  const responsiveRule = css.indexOf('.mobile-bottom-nav {', hiddenRule + 1);
-  assert.ok(hiddenRule >= 0 && responsiveRule > hiddenRule, 'desktop hide rule must precede responsive display rule');
   assert.match(css, /\.main \{ padding-bottom: calc\(88px \+ env\(safe-area-inset-bottom\)\); \}/);
   assert.match(css, /\.mobile-quick-add \{ bottom: calc\(74px \+ env\(safe-area-inset-bottom\)\); \}/);
 });

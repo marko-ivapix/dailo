@@ -103,10 +103,9 @@ test('the bottom bar is opaque graphite with a 2px accent indicator on the activ
   assert.match(rule(v18, '.mobile-bottom-nav-item.is-active'), /background:\s*transparent/);
 });
 
-test('the More sheet reads as a bottom sheet with a grabber and full-height route rows', () => {
-  assert.match(rule(v18, '.mobile-more-sheet::before'), /width:\s*32px/);
+test('Još keeps full-height route rows (the bottom sheet became a screen in redesign R1)', () => {
   assert.match(rule(v18, '.mobile-more-route'), /min-height:\s*46px/);
-  assert.match(rule(v18, '.mobile-more-backdrop'), /padding:\s*12px 0 0/);
+  assert.doesNotMatch(css, /\.mobile-more-sheet|\.mobile-more-backdrop/);
 });
 
 test('Quick Add keeps its 44px floating composition as a rounded-square primary control', () => {

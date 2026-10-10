@@ -23,15 +23,6 @@
   const WEEKDAY_FMT = new Intl.DateTimeFormat(I18n.locale(), { weekday: 'long' });
   const SHORTCUT_DEFAULTS = { newTask:'N', search:'Ctrl/Cmd+F', today:'T', inbox:'I', upcoming:'U', calendar:'C', goals:'G', habits:'H', templates:'Shift+T' };
   const SHORTCUT_LABELS = {newTask:msg('New task'),search:msg('Search'),today:msg('Today'),inbox:msg('Inbox'),upcoming:msg('Upcoming'),calendar:msg('Calendar'),goals:msg('Goals'),habits:msg('Habits'),templates:msg('Templates')};
-  const MOBILE_MORE_ROUTES = [
-    ['upcoming', msg('Upcoming'), 'ph-calendar-dots'], ['anytime', msg('Anytime'), 'ph-infinity'],
-    ['projects', msg('Projects'), 'ph-folder'], ['areas', msg('Areas'), 'ph-squares-four'],
-    ['tags', msg('Tags'), 'ph-tag'], ['notes', msg('Notes'), 'ph-note'],
-    ['resources', msg('Resources'), 'ph-link'], ['cleaning', msg('Cleaning'), 'ph-broom'],
-    ['templates', msg('Templates'), 'ph-copy'], ['saved-views', msg('Saved Views'), 'ph-funnel'],
-    ['review', msg('Weekly review'), 'ph-clipboard-text'], ['completed', msg('Completed'), 'ph-check-circle'], ['archived', msg('Archived Projects'), 'ph-archive'],
-    ['search', msg('Search'), 'ph-magnifying-glass'], ['settings', msg('Settings'), 'ph-gear']
-  ];
   const INBOX_FILTERS = [['all', msg('All')], ['tasks', msg('Tasks')], ['goals', msg('Goals')], ['habits', msg('Habits')], ['notes', msg('Notes')], ['resources', msg('Resources')]];
   let shortcutError = '';
   const DATE_TIME_FMT = new Intl.DateTimeFormat(I18n.locale(), { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
@@ -72,8 +63,6 @@
   let goalPropertyEditor = null;
   let habitPropertyEditor = null;
   let createdGoalFocusId = null;
-  let mobileMoreReturnFocus = null;
-  let mobileMoreOpen = false;
   const knowledgeAttachmentCache = new Map();
   let syncMeta = null;
   let syncUi = { step: 'email', email: '', busy: false, error: '' };
@@ -102,50 +91,6 @@
     toggle.setAttribute('aria-expanded', String(open));
     toggle.setAttribute('aria-label', open ? tr('Close quick add menu') : tr('Open quick add menu'));
     menu.hidden = !open;
-  }
-
-  function mobileMoreRouteActive(route, current = currentRoute()) {
-    const moduleRoute = { project: 'projects', area: 'areas', goal: 'goals', habit: 'habits', note: 'notes', resource: 'resources', 'saved-view': 'saved-views' }[current.type] || current.type;
-    return route === moduleRoute;
-  }
-
-  function renderMobileMoreSheet() {
-    const root = $('#mobile-more-sheet-root');
-    const trigger = $('#mobile-more-trigger');
-    if (!root || !trigger) return;
-    root.hidden = !mobileMoreOpen || Boolean(recovery);
-    trigger.setAttribute('aria-expanded', String(mobileMoreOpen));
-    if (!mobileMoreOpen || recovery || !state) { root.innerHTML = ''; return; }
-    const current = currentRoute();
-    root.innerHTML = `<div class="mobile-more-backdrop" data-action="close-mobile-more"><section id="mobile-more-sheet" class="mobile-more-sheet" role="dialog" aria-modal="true" aria-labelledby="mobile-more-title"><div class="mobile-more-header"><h2 id="mobile-more-title">${tr('More')}</h2><button class="btn-icon" type="button" data-action="close-mobile-more" aria-label="${tr('Close More')}"><i class="ph ph-x"></i></button></div><div class="mobile-more-list">${MOBILE_MORE_ROUTES.map(([route, label, icon]) => { const active = mobileMoreRouteActive(route, current); const action = route === 'search' ? ' data-action="open-search"' : ''; return `<button class="mobile-more-route${active ? ' is-selected' : ''}" type="button" data-mobile-more-route="${route}"${action}${active ? ' aria-current="page"' : ''}><i class="ph ${icon}" aria-hidden="true"></i><span>${tr(label)}</span>${active ? '<i class="ph ph-check mobile-more-check" aria-hidden="true"></i>' : ''}</button>`; }).join('')}</div></section></div>`;
-    requestAnimationFrame(() => root.querySelector('.mobile-more-route, [data-action="close-mobile-more"]')?.focus());
-  }
-
-  function openMobileMore(trigger = $('#mobile-more-trigger')) {
-    mobileMoreReturnFocus = trigger instanceof HTMLElement ? trigger : $('#mobile-more-trigger');
-    mobileMoreOpen = true;
-    renderMobileMoreSheet();
-  }
-
-  function closeMobileMore() {
-    if (!mobileMoreOpen) return;
-    mobileMoreOpen = false;
-    const returnFocus = mobileMoreReturnFocus;
-    mobileMoreReturnFocus = null;
-    renderMobileMoreSheet();
-    requestAnimationFrame(() => returnFocus?.isConnected && returnFocus.focus());
-  }
-
-  function trapMobileMoreFocus(event) {
-    const sheet = $('#mobile-more-sheet');
-    if (!sheet) return;
-    const focusable = [...sheet.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')].filter(element => element.offsetParent !== null);
-    if (!focusable.length) return;
-    const first = focusable[0];
-    const last = focusable[focusable.length - 1];
-    if (!sheet.contains(document.activeElement)) { event.preventDefault(); (event.shiftKey ? last : first).focus(); return; }
-    if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
-    else if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
   }
 
   // Goal panels retain a logical trigger because rendering replaces its node.
@@ -334,6 +279,7 @@
     next.ui.selectedTagId = next.ui.selectedTagId || '';
     next.ui.areaTab = ['all', 'active', 'archived'].includes(next.ui.areaTab) ? next.ui.areaTab : 'all';
     next.ui.calendarView = ['day', 'week', 'month'].includes(next.ui.calendarView) ? next.ui.calendarView : 'week';
+    next.ui.tasksView = next.ui.tasksView === 'projects' ? 'projects' : 'anytime';
     next.ui.calendarVisibility = Object.fromEntries(['tasks', 'habits', 'goals', 'milestones'].map(type => [type, next.ui.calendarVisibility?.[type] !== false]));
     const habitMonth = String(next.ui.habitTrackerMonth || '');
     next.ui.habitTrackerMonth = /^\d{4}-\d{2}$/.test(habitMonth) && Core.parseDateOnly(`${habitMonth}-01`) ? habitMonth : Core.dateOnly().slice(0, 7);
@@ -715,7 +661,7 @@
 
   function currentRoute() {
     const hash = location.hash.replace(/^#/, '') || 'today';
-    if (['today', 'inbox', 'upcoming', 'calendar', 'anytime', 'tags', 'areas', 'notes', 'resources', 'goals', 'habits', 'templates', 'projects', 'cleaning', 'saved-views', 'archived', 'completed', 'review', 'settings'].includes(hash)) return { type: hash };
+    if (['today', 'inbox', 'tasks', 'more', 'upcoming', 'calendar', 'anytime', 'tags', 'areas', 'notes', 'resources', 'goals', 'habits', 'templates', 'projects', 'cleaning', 'saved-views', 'archived', 'completed', 'review', 'settings'].includes(hash)) return { type: hash };
     for (const type of ['note', 'resource']) if (hash.startsWith(type + '/')) {
       const id = decodeURIComponent(hash.slice(type.length + 1));
       return attachmentOwner({ ownerType: type, ownerId: id }) ? { type, id } : { type: knowledgeCollection(type) };
@@ -840,12 +786,14 @@
   // found again by its id or data attributes. A route change names the page and moves focus to its heading.
   const FOCUS_KEYS = ['action', 'route', 'taskId', 'projectId', 'goalId', 'habitId', 'areaId', 'tagId', 'ownerType', 'ownerId', 'date', 'goalProperty', 'habitProperty', 'milestoneId', 'section', 'filter', 'value'];
   function focusDescriptor(element) {
-    if (!(element instanceof HTMLElement) || element === document.body || !element.closest('#sidebar, #main, #mobile-bottom-nav')) return null;
+    const region = element instanceof HTMLElement && element !== document.body ? element.closest('#sidebar, #main, #mobile-bottom-nav') : null;
+    if (!region) return null;
     // Rendering must never fail on focus bookkeeping, so a missing CSS.escape (old WebViews, jsdom) has a fallback.
     const escape = value => (globalThis.CSS?.escape ? globalThis.CSS.escape(value) : String(value).replace(/["\\\]#.:]/g, '\\$&'));
     if (element.id) return `#${escape(element.id)}`;
     const attrs = FOCUS_KEYS.filter(key => element.dataset[key] !== undefined).map(key => `[data-${key.replace(/[A-Z]/g, c => '-' + c.toLowerCase())}="${escape(element.dataset[key])}"]`).join('');
-    return attrs ? `${element.tagName.toLowerCase()}${attrs}` : null;
+    // Searched within its own region: the same data attributes can appear in another part of the page.
+    return attrs ? `#${region.id} ${element.tagName.toLowerCase()}${attrs}` : null;
   }
   let renderedRoute = null;
   function render() {
@@ -878,7 +826,13 @@
     renderSidebar();
     renderMain();
     renderMobileBottomNav();
-    renderMobileMoreSheet();
+  }
+
+  // Redesign R1 (G1, M4): six bottom items; every other route lights up the item it lives under.
+  const BOTTOM_NAV_PARENT = { anytime: 'tasks', projects: 'tasks', project: 'tasks', upcoming: 'calendar', habit: 'habits' };
+  function bottomNavRoute(route) {
+    if (['today', 'inbox', 'tasks', 'calendar', 'habits', 'more'].includes(route.type)) return route.type;
+    return BOTTOM_NAV_PARENT[route.type] || 'more';
   }
 
   function renderMobileBottomNav() {
@@ -887,7 +841,7 @@
     nav.hidden = Boolean(recovery);
     if (recovery || !state) return;
     const route = currentRoute();
-    const moduleRoute = { goal: 'goals', habit: 'habits' }[route.type] || route.type;
+    const moduleRoute = bottomNavRoute(route);
     nav.querySelectorAll('[data-route]').forEach(button => {
       const active = button.dataset.route === moduleRoute;
       button.classList.toggle('is-active', active);
@@ -980,6 +934,8 @@
     let content = callDomainHook('renderRoute', route);
     if (content === undefined) {
       if (route.type === 'today') content = renderToday();
+      else if (route.type === 'more') content = renderMoreScreen();
+      else if (route.type === 'tasks') content = renderTasksScreen();
       else if (route.type === 'inbox') content = renderInbox();
       else if (route.type === 'upcoming') content = renderUpcoming();
       else if (route.type === 'anytime') content = renderAnytime();
@@ -1018,7 +974,7 @@
     return `<header class="page-header">
       <div><h1 class="page-title">${esc(title)}</h1>${subtitle ? `<p class="page-subtitle">${esc(subtitle)}</p>` : ''}</div>
       <div class="page-actions">
-        <button class="btn btn-secondary" type="button" data-action="open-search"><i class="ph ph-magnifying-glass"></i> ${tr('Search')}</button>
+        <button class="btn-icon page-search" type="button" data-action="open-search" aria-label="${tr('Search')}"><i class="ph ph-magnifying-glass" aria-hidden="true"></i></button>
         ${actionHtml}${projectMenu}${addButton}
       </div>
     </header>`;
@@ -1191,6 +1147,65 @@
       if (!items?.length) continue;
       html += `<section class="inbox-group" aria-labelledby="inbox-group-${label.replace(/ /g, '-').toLowerCase()}"><div class="inbox-group-label" id="inbox-group-${label.replace(/ /g, '-').toLowerCase()}"><strong>${tr(label)}</strong><span>${items.length}</span></div><div class="inbox-group-items">${items.map(renderInboxRecord).join('')}</div></section>`;
     }
+    return html;
+  }
+
+  // Redesign R1 (M4): "Još" lists every screen that is not in the bottom bar, in cards.
+  function moreRow(route, icon, label, value = '', sub = '') {
+    return `<button class="mobile-more-route more-row" type="button" data-route="${esc(route)}"><i class="ph ${icon}" aria-hidden="true"></i><span class="more-row-label">${esc(label)}${sub ? `<small>${esc(sub)}</small>` : ''}</span>${value !== '' ? `<span class="more-row-value">${esc(String(value))}</span>` : ''}<i class="ph ph-caret-right more-row-caret" aria-hidden="true"></i></button>`;
+  }
+  function renderMoreScreen() {
+    const card = (title, rows) => `<section class="more-group">${title ? `<h2 class="more-group-title">${title}</h2>` : ''}<div class="more-card">${rows.join('')}</div></section>`;
+    const pinned = [
+      ...sortedAreas().filter(area => area.status !== 'archived' && area.isPinned).map(area => moreRow(`area/${encodeURIComponent(area.id)}`, area.icon || 'ph-squares-four', area.name, '', tr('Area'))),
+      ...(state.savedViews || []).filter(view => view.isPinned).map(view => moreRow(`saved-view/${encodeURIComponent(view.id)}`, 'ph-funnel', view.name, '', tr('Saved view'))),
+    ];
+    const count = list => (list || []).length;
+    const sync = syncView();
+    const syncText = sync.configured && sync.signedIn ? (sync.lastSyncAt ? tr('Last synced {time}', { time: formatReminder(sync.lastSyncAt) }) : tr('Sync is on')) : tr('Data is on this device only');
+    let html = pageHeader(tr('More'), '', { add: false });
+    if (pinned.length) html += card(tr('Pinned'), pinned);
+    html += card(tr('Planning'), [
+      moreRow('goals', 'ph-target', tr('Goals'), count((state.goals || []).filter(goal => goal.status === 'active'))),
+      moreRow('areas', 'ph-squares-four', tr('Areas'), count((state.areas || []).filter(area => area.status !== 'archived'))),
+      moreRow('cleaning', 'ph-broom', tr('Cleaning')),
+      moreRow('review', 'ph-clipboard-text', tr('Weekly review')),
+      moreRow('upcoming', 'ph-calendar-dots', tr('Upcoming')),
+    ]);
+    html += card(tr('Library'), [
+      moreRow('notes', 'ph-note', tr('Notes'), count(state.notes)),
+      moreRow('resources', 'ph-link', tr('Resources'), count(state.resources)),
+      moreRow('tags', 'ph-tag', tr('Tags'), count(state.tags)),
+      moreRow('templates', 'ph-copy', tr('Templates'), count(state.templates)),
+      moreRow('saved-views', 'ph-funnel', tr('Saved Views'), count(state.savedViews)),
+    ]);
+    html += card(tr('Archives'), [
+      moreRow('completed', 'ph-check-circle', tr('Completed'), count(state.tasks.filter(task => task.isCompleted))),
+      moreRow('archived', 'ph-archive', tr('Archived Projects'), count(state.projects.filter(project => project.isArchived))),
+    ]);
+    html += card('', [moreRow('settings', 'ph-gear', tr('Settings'), '', syncText)]);
+    return html;
+  }
+
+  // Redesign R1 (Z1, Z3; completed in R5): "Kad stignem" and the projects behind one switch.
+  function renderTasksScreen() {
+    const view = state.ui.tasksView === 'projects' ? 'projects' : 'anytime';
+    const projects = sortedProjects();
+    const archived = new Set(state.projects.filter(project => project.isArchived).map(project => project.id));
+    const open = state.tasks.filter(task => !task.isCompleted && !archived.has(task.projectId)).length;
+    const summary = `${trn(open, '{count} open task', '{count} open tasks')} · ${trn(projects.length, '{count} project', '{count} projects')}`;
+    const tab = (key, label) => `<button class="btn ${view === key ? 'is-selected' : ''}" type="button" data-action="tasks-view" data-view="${key}" aria-pressed="${view === key}">${label}</button>`;
+    let html = pageHeader(tr('Tasks'), summary, { add: false });
+    html += `<div class="view-tabs tasks-view-switch" role="group" aria-label="${tr('Tasks')}">${tab('anytime', tr('Anytime'))}${tab('projects', tr('Projects'))}</div>`;
+    if (view === 'projects') {
+      html += `<div class="more-card">${projects.map(project => `<button class="mobile-more-route more-row" type="button" data-route="project/${esc(encodeURIComponent(project.id))}"><span class="project-dot" style="--project-color:${esc(project.color)}" aria-hidden="true"></span><span class="more-row-label">${esc(project.name)}</span><span class="more-row-value">${projectTasks(project.id, false).length}</span><i class="ph ph-caret-right more-row-caret" aria-hidden="true"></i></button>`).join('')}</div>`;
+      html += `<button class="inline-add" type="button" data-action="new-project"><i class="ph ph-plus"></i> ${tr('New project')}</button>`;
+      return html;
+    }
+    const tasks = Core.deriveAnytime(state.tasks);
+    if (!tasks.length) return html + emptyState(tr('Nothing waiting in Anytime.'), tr('Processed tasks without a planned date will appear here.'), tr('Add task'), 'quick-add', { anytime: true });
+    html += `<div class="task-list">${tasks.map(task => taskRow(task, 'anytime')).join('')}</div>`;
+    html += `<button class="inline-add" type="button" data-action="quick-add" data-anytime="true"><i class="ph ph-plus"></i> ${tr('Add task')}</button>`;
     return html;
   }
 
@@ -4282,14 +4297,6 @@
     const mobileQuickAdd = event.target.closest('#mobile-quick-add');
     if (!mobileQuickAdd) setMobileQuickAddOpen(false);
 
-    const mobileMoreRoute = event.target.closest('[data-mobile-more-route]');
-    if (mobileMoreRoute) {
-      const route = mobileMoreRoute.dataset.mobileMoreRoute;
-      closeMobileMore();
-      if (route === 'search') openSearch();
-      else navigate(route);
-      return;
-    }
 
     const routeEl = event.target.closest('[data-route]');
     if (routeEl) { event.preventDefault(); navigate(routeEl.dataset.route); return; }
@@ -4320,12 +4327,6 @@
     }
     const action = el.dataset.action;
     if (action === 'toggle-mobile-quick-add') { setMobileQuickAddOpen(el.getAttribute('aria-expanded') !== 'true'); return; }
-    if (action === 'open-mobile-more') { openMobileMore(el); return; }
-    if (action === 'close-mobile-more') {
-      if (el.classList.contains('mobile-more-backdrop') && event.target !== el) return;
-      closeMobileMore();
-      return;
-    }
     if (el.closest('#mobile-quick-add-menu')) {
       setMobileQuickAddOpen(false);
       $('#mobile-quick-add-toggle')?.focus();
@@ -4362,6 +4363,7 @@
     else if (action === 'focus-next') focusNextTask(el.dataset.taskId);
     else if (action === 'toggle-complete') toggleComplete(el.dataset.taskId);
     else if (action === 'open-search') openSearch();
+    else if (action === 'tasks-view') { state.ui.tasksView = el.dataset.view === 'projects' ? 'projects' : 'anytime'; saveAndRender(); }
     else if (action === 'delete-draft-goal-milestone') deleteDraftGoalMilestone(el.dataset.milestoneId);
     else if (action === 'delete-milestone') deleteMilestone(el.dataset.goalId, el.dataset.milestoneId);
     else if (action === 'save-area-linked') saveAreaLinkedModal();
@@ -4571,7 +4573,6 @@
 
   function handleKeydown(event) {
     if (globalOperation && !['Escape','Tab'].includes(event.key)) return;
-    if (mobileMoreOpen && event.key === 'Tab') { trapMobileMoreFocus(event); return; }
     const target = event.target;
     if (handleAreaTabKeydown(event)) return;
     const typing = target && (target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"]') || target.isContentEditable);
@@ -4597,7 +4598,6 @@
     }
 
     if (event.key === 'Escape') {
-      if (mobileMoreOpen) { event.preventDefault(); closeMobileMore(); return; }
       if ($('#mobile-quick-add-toggle')?.getAttribute('aria-expanded') === 'true') { event.preventDefault(); setMobileQuickAddOpen(false); $('#mobile-quick-add-toggle')?.focus(); return; }
       if (popoverEl) { event.preventDefault(); closePopover(); return; }
       if (modalState?.type === 'task' && typing) {
@@ -4612,7 +4612,7 @@
       if (modalState) { event.preventDefault(); closeModal(); return; }
     }
 
-    if (!typing && !modalState && !popoverEl && !mobileMoreOpen && !event.repeat && !event.isComposing) {
+    if (!typing && !modalState && !popoverEl && !event.repeat && !event.isComposing) {
       // Alt/Option can turn a letter into a glyph (for example Y → ¥).
       const physicalKey = /^Key[A-Z]$/.test(event.code || '') ? event.code.slice(3) : /^Digit[0-9]$/.test(event.code || '') ? event.code.slice(5) : event.key;
       const combination=Core.normalizeShortcut([event.ctrlKey || event.metaKey?'Ctrl/Cmd':null,event.altKey?'Alt':null,event.shiftKey?'Shift':null,physicalKey].filter(Boolean).join('+'));
@@ -4939,7 +4939,7 @@
   // Android Back works like Escape: it closes the top sheet, menu, popover, inline editor or dialog and reports
   // whether anything closed; otherwise the platform goes to the previous screen or minimizes (audit P-3, M4).
   // A reset or restore that is already running is never interrupted.
-  const overlaySnapshot = () => [mobileMoreOpen, $('#mobile-quick-add-toggle')?.getAttribute('aria-expanded'), popoverEl, modalState, goalPropertyEditor, habitPropertyEditor, document.activeElement];
+  const overlaySnapshot = () => [$('#mobile-quick-add-toggle')?.getAttribute('aria-expanded'), popoverEl, modalState, goalPropertyEditor, habitPropertyEditor, document.activeElement];
   function handleBackButton() {
     if (globalOperation?.busy) return true;
     const before = overlaySnapshot();

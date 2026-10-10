@@ -171,9 +171,9 @@ test('A-2: the focused control is found again by id or data attributes', () => {
   const ctx = { CSS: { escape: value => String(value) }, HTMLElement: class {}, document: { body: {} } };
   vm.createContext(ctx);
   vm.runInContext(`${app.match(/  const FOCUS_KEYS = [^\n]+\n/)[0]}${fn(app, 'focusDescriptor')}`, ctx);
-  const element = (fields) => Object.assign(Object.create(ctx.HTMLElement.prototype), { id: '', dataset: {}, tagName: 'BUTTON', closest: () => true }, fields);
+  const element = (fields) => Object.assign(Object.create(ctx.HTMLElement.prototype), { id: '', dataset: {}, tagName: 'BUTTON', closest: () => ({ id: 'main' }) }, fields);
   assert.equal(ctx.focusDescriptor(element({ id: 'quick-title' })), '#quick-title');
-  assert.equal(ctx.focusDescriptor(element({ dataset: { action: 'toggle-task', taskId: 't1' } })), 'button[data-action="toggle-task"][data-task-id="t1"]');
+  assert.equal(ctx.focusDescriptor(element({ dataset: { action: 'toggle-task', taskId: 't1' } })), '#main button[data-action="toggle-task"][data-task-id="t1"]', 'searched within its own region');
   assert.equal(ctx.focusDescriptor(element({ dataset: {} })), null, 'nothing stable to find it by');
   assert.equal(ctx.focusDescriptor(element({ id: 'x', closest: () => null })), null, 'only the re-rendered regions');
   assert.equal(ctx.focusDescriptor(ctx.document.body), null);
@@ -190,8 +190,8 @@ test('A-2: render restores lost focus, names the page and moves focus to the hea
   assert.match(announce, /if \(moveFocus && !modalState/);
 });
 
-test('M12 is released as 2.0.0-alpha.4', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.4');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.4';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.4');
+test('M12 shipped as 2.0.0-alpha.4 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.([4-9]|\d{2,})$|^2\.\d+\.\d+/);
+  assert.match(read('sw.js'), new RegExp(`const VERSION = '${Release.APP_VERSION.replace(/\./g, '\\.')}';`));
+  assert.equal(JSON.parse(read('package.json')).version, Release.APP_VERSION);
 });
