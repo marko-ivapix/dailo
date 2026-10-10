@@ -34,7 +34,7 @@ function renderSettings({ installed = false, sync = { configured: false } } = {}
 }
 const groups = html => [...html.matchAll(/<section class="settings-card[^"]*"[^>]*>\s*<h2>([^<]+)<\/h2>([\s\S]*?)<\/section>/g)].map(match => [match[1], [...match[2].matchAll(/<strong>([^<]+)<\/strong>/g)].map(row => row[1])]);
 
-test('M5: Settings has Opšte, Podaci, Pomoć and Računar in that order (and Nalog first when sync is set up)', () => {
+test('M5: Settings has Opšte, Podaci, Pomoć and Računar in that order (R15: Nalog has its own screen)', () => {
   const html = renderSettings();
   assert.match(html, /^<header title="Settings" subtitle=""><\/header>/);
   assert.deepEqual(groups(html), [
@@ -49,9 +49,10 @@ test('M5: Settings has Opšte, Podaci, Pomoć and Računar in that order (and Na
   assert.match(html, /<strong>Restore from backup<\/strong><span>Validate a ZIP first, then replace current data only after you confirm\.<\/span><\/div><div><button class="btn btn-secondary" type="button" data-action="import-backup">/);
   assert.match(html, /<section class="settings-card" data-settings-about>\s*<h2>Help<\/h2>[\s\S]*data-beta-guide[\s\S]*data-report-problem[\s\S]*data-install-status="browser"[\s\S]*data-privacy-note[\s\S]*<strong>About<\/strong><span>Dailo 2\.0\.0-alpha\.25<\/span>/);
   assert.match(html, /<section class="settings-card settings-desktop" data-settings-desktop>\s*<h2>Computer<\/h2>/);
+  // R15 (M5 amended): Nalog moved to its own screen in Još, so Settings has the same groups with sync set up.
   const synced = renderSettings({ sync: { configured: true, signedIn: false, step: 'email', email: '', busy: false, error: '' } });
-  assert.deepEqual(groups(synced).map(group => group[0]), ['Account', 'General', 'Data', 'Help', 'Computer']);
-  assert.match(synced, /<section class="settings-card" data-settings-sync>\s*<h2>Account<\/h2>/);
+  assert.deepEqual(groups(synced).map(group => group[0]), ['General', 'Data', 'Help', 'Computer']);
+  assert.doesNotMatch(synced, /data-settings-sync/);
 });
 
 test('M5, M6: the install row only while not installed; no theme, personalization buttons or clear row', () => {

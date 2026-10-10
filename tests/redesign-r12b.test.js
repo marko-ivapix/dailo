@@ -172,7 +172,7 @@ test('J9: "+ Zadatak za sutra" takes the selection or a "Sutra:" line, plans the
 
 test('J1: Još → Biblioteka, the route, the direct "+", the closing hook, and the module is loaded and precached', () => {
   assert.match(app, /moreRow\('notes', 'ph-note', tr\('Notes'\), count\(state\.notes\)\),\n      moreRow\('journal', 'ph-book-open', tr\('Journal'\), count\(state\.journal\)\),/);
-  assert.match(app, /'review', 'settings', 'journal'\]\.includes\(hash\)/);
+  assert.match(app, /'review', 'settings', 'journal'(, 'account')?\]\.includes\(hash\)/); // R15 added 'account'
   assert.match(app, /'#journal': \[msg\('Today’s entry'\), \(\) => callDomainHook\('handleAction', 'open-journal', \{ target: \$\('#mobile-quick-add-toggle'\) \}\)\]/);
   assert.match(app, /if \(modalState\?\.type === 'journal'\) callDomainHook\('handleAction', 'journal-closing', null\);/);
   const html = read('index.html');

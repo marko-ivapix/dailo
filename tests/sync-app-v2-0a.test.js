@@ -17,15 +17,17 @@ const baseState = (fields = {}) => ({
   settings: { weekStartsOn: 1, compactDensity: true, backupStatus: {} }, ui: {}, ...fields,
 });
 
-function renderSettings(syncView) {
+// R15: the sync card moved from Settings to the Nalog screen (route 'account'); Settings keeps the privacy line.
+function renderSettings(syncView, type = 'settings') {
   let adapter;
   runInNewContextWithI18n(read('js/settings-ui.js'), { window: { TodoDomainModules: { register: value => { adapter = value; } } } });
-  return adapter.renderRoute({ type: 'settings' }, {
+  return adapter.renderRoute({ type }, {
     state: { settings: { shortcuts: {}, compactDensity: true, todayFocusFilter: 'all', todayVisibleSections: [] } },
     pageHeader: () => '', shortcutLabels: {}, shortcutError: () => '', notificationButtonLabel: () => 'Enable', esc,
     release: Release, environmentInfo: () => ({}), ...(syncView ? { syncView } : {}),
   });
 }
+const renderAccount = syncView => renderSettings(syncView, 'account');
 
 test('the sync scripts load after the backup module and before the app, and are precached', () => {
   const html = read('index.html');
@@ -57,37 +59,39 @@ test('sync is off until the project URL and public key are supplied, and never t
   assert.equal(Sync.isConfigured({ url: 'http://abcd1234.supabase.co', anonKey: 'x'.repeat(40) }), false);
 });
 
-test('Settings shows the sync card only when sync is configured: e-mail, then code, then the account', () => {
+test('Nalog shows the sync card only when sync is configured: e-mail, then code, then the account (R15)', () => {
   const off = renderSettings();
   assert.doesNotMatch(off, /data-settings-sync/);
+  assert.doesNotMatch(renderAccount(), /data-settings-sync/);
   assert.match(off, /<span data-privacy-note>Your data stays only on this device\. Dailo has no server or account\.<\/span>/);
-  assert.doesNotMatch(renderSettings(() => ({ configured: false })), /data-settings-sync/);
+  assert.doesNotMatch(renderAccount(() => ({ configured: false })), /data-settings-sync/);
 
   const view = fields => () => ({ configured: true, signedIn: false, step: 'email', email: '', busy: false, error: '', running: false, lastSyncAt: null, lastError: '', ...fields });
-  const email = renderSettings(view({ email: 'ana@example.com', error: 'Enter a valid e-mail address.' }));
-  // Redesign R10g (M5): the sync card is the "Nalog" group.
+  const email = renderAccount(view({ email: 'ana@example.com', error: 'Enter a valid e-mail address.' }));
+  // Redesign R10g (M5): the sync card is the "Nalog" group; R15 moved it to the Nalog screen.
+  assert.doesNotMatch(renderSettings(view({ email: 'ana@example.com' })), /data-settings-sync/);
   assert.match(email, /<section class="settings-card" data-settings-sync>\s*<h2>Account<\/h2>/);
   assert.match(email, /<input class="input" id="sync-email" type="email" inputmode="email" autocomplete="email" value="ana@example\.com" \/>/);
   assert.match(email, /data-action="sync-request-code">Send code<\/button>/);
   assert.match(email, /<p class="validation" role="alert">Enter a valid e-mail address\.<\/p>/);
-  assert.match(email, /<span data-privacy-note>Your data stays only on this device until you sign in to sync\.<\/span>/);
+  assert.match(renderSettings(view({ email: 'ana@example.com' })), /<span data-privacy-note>Your data stays only on this device until you sign in to sync\.<\/span>/);
 
-  const code = renderSettings(view({ step: 'code', email: 'ana@example.com', busy: true }));
+  const code = renderAccount(view({ step: 'code', email: 'ana@example.com', busy: true }));
   assert.match(code, /<input class="input" id="sync-code" inputmode="numeric" autocomplete="one-time-code" maxlength="10" \/>/);
   assert.match(code, /A code was sent to ana@example\.com\./);
   assert.match(code, /data-action="sync-verify-code" disabled>Confirm<\/button>/);
   assert.match(code, /data-action="sync-request-code" disabled>Send a new code<\/button>/);
   assert.match(code, /data-action="sync-change-email">Change e-mail<\/button>/);
 
-  const signedIn = renderSettings(view({ signedIn: true, email: 'ana@example.com', lastSyncAt: '2026-10-08T10:00:00.000Z', lastError: 'Network unavailable: offline' }));
+  const signedIn = renderAccount(view({ signedIn: true, email: 'ana@example.com', lastSyncAt: '2026-10-08T10:00:00.000Z', lastError: 'Network unavailable: offline' }));
   assert.match(signedIn, /<strong>Account<\/strong><span>ana@example\.com<\/span>/);
   assert.match(signedIn, /<span data-sync-status><time datetime="2026-10-08T10:00:00\.000Z">/);
   assert.match(signedIn, /<span class="validation" role="alert">Network unavailable: offline<\/span>/);
   for (const action of ['sync-now', 'sync-sign-out', 'sync-delete-account']) assert.match(signedIn, new RegExp(`data-action="${action}"`));
   assert.match(signedIn, /Attachments stay on the device where they were added\./);
-  assert.match(signedIn, /<span data-privacy-note>Your data is on this device and in your sync account on a server in the EU\. Attachments stay only on this device\.<\/span>/);
-  assert.match(renderSettings(view({ signedIn: true, email: 'ana@example.com', running: true })), /<span data-sync-status>Syncing…<\/span>[\s\S]*data-action="sync-now" disabled>/);
-  assert.match(renderSettings(view({ signedIn: true, email: 'ana@example.com' })), /<span data-sync-status>Never<\/span>/);
+  assert.match(renderSettings(view({ signedIn: true, email: 'ana@example.com' })), /<span data-privacy-note>Your data is on this device and in your sync account on a server in the EU\. Attachments stay only on this device\.<\/span>/);
+  assert.match(renderAccount(view({ signedIn: true, email: 'ana@example.com', running: true })), /<span data-sync-status>Syncing…<\/span>[\s\S]*data-action="sync-now" disabled>/);
+  assert.match(renderAccount(view({ signedIn: true, email: 'ana@example.com' })), /<span data-sync-status>Never<\/span>/);
 });
 
 // Runs the app's sync block (from its marker to completeWeeklyReview; R14 removed the weekly review prompt) against the fake server.

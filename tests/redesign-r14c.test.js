@@ -33,8 +33,7 @@ test('GO5: the milestone row is a flex line with a 44 px circle box', () => {
   assert.match(rule('.goal-milestone-row > .habit-check'), /flex: none; width: 44px; height: 44px;/);
 });
 
-test('R14c is released as 2.0.0-alpha.37', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.37');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.37';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.37');
+test('R14c shipped as 2.0.0-alpha.37 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 99) >= 37);
 });

@@ -4,6 +4,13 @@
   const I18n = window.TodoI18n;
   const { tr, trn, trMessage, msg } = I18n;
 
+  // A stored time as a readable date and hour, or "Nikad" (Settings → Podaci and the Nalog screen).
+  function statusTimeHtml(esc, value) {
+    return value && !Number.isNaN(Date.parse(value))
+      ? `<time datetime="${esc(value)}">${esc(new Date(value).toLocaleString(I18n.locale(), { dateStyle: 'medium', timeStyle: 'short' }))}</time>`
+      : tr('Never');
+  }
+
   // The browser shows reminders only while Dailo is open; the app schedules phone notifications (audit M6).
   function reminderRows(native, notificationButtonLabel) {
     const row = (title, text, action, label) => `<div class="settings-row"><div class="settings-label"><strong>${title}</strong><span>${text}</span></div><button class="btn btn-secondary" type="button" data-action="${action}">${label}</button></div>`;
@@ -23,9 +30,7 @@
   function renderSettings(ctx) {
     const { state, pageHeader, shortcutError, notificationButtonLabel, esc } = ctx;
     const backupStatus = state.settings.backupStatus || {};
-    const statusTime = value => (value && !Number.isNaN(Date.parse(value))
-      ? `<time datetime="${esc(value)}">${esc(new Date(value).toLocaleString(I18n.locale(), { dateStyle: 'medium', timeStyle: 'short' }))}</time>`
-      : tr('Never'));
+    const statusTime = value => statusTimeHtml(esc, value);
     // Status sentences are stored in English; "Prefix: detail" failures translate their prefix.
     const persistence = ctx.storagePersistence?.() || { state: 'unknown' };
     const persistenceText = {
@@ -52,28 +57,12 @@
     const capacityOptions = [...new Set([0, 120, 240, 300, 360, 420, 480, 600, 720, capacity])].sort((a, b) => a - b)
       .map(minutes => `<option value="${minutes}"${minutes === capacity ? ' selected' : ''}>${minutes ? tr('{hours} h', { hours: new Intl.NumberFormat(I18n.locale(), { maximumFractionDigits: 1 }).format(minutes / 60) }) : tr('Off')}</option>`).join('');
     const sync = ctx.syncView?.() || { configured: false };
-    const busy = sync.busy ? ' disabled' : '';
-    const syncError = sync.error ? `<p class="validation" role="alert">${esc(trMessage(sync.error))}</p>` : '';
-    const syncCard = !sync.configured ? '' : `
-      <section class="settings-card" data-settings-sync>
-        <h2>${tr('Account')}</h2>
-        ${sync.signedIn ? `<div class="settings-row"><div class="settings-label"><strong>${tr('Account')}</strong><span>${esc(sync.email)}</span></div></div>
-        <div class="settings-row"><div class="settings-label"><strong>${tr('Last sync')}</strong><span data-sync-status>${sync.running ? tr('Syncing…') : statusTime(sync.lastSyncAt)}${sync.lastError ? `<br><span class="validation" role="alert">${esc(trMessage(sync.lastError))}</span>` : ''}</span></div><button class="btn btn-secondary" type="button" data-action="sync-now"${sync.running ? ' disabled' : ''}><i class="ph ph-arrows-clockwise"></i> ${tr('Sync now')}</button></div>
-        <p class="area-empty-copy">${tr('Tasks, projects, goals, habits, notes and settings sync between your devices. Attachments stay on the device where they were added.')}</p>
-        <div class="sync-actions"><button class="btn btn-secondary" type="button" data-action="sync-sign-out">${tr('Sign out')}</button><button class="btn btn-ghost" type="button" data-action="sync-delete-account" style="color:var(--danger)">${tr('Delete account')}</button></div>`
-        : sync.step === 'code' ? `<div class="settings-row"><label class="settings-label" for="sync-code"><strong>${tr('Code from the e-mail')}</strong><span>${tr('A code was sent to {email}. It is valid for a short time.', { email: esc(sync.email) })}</span></label><input class="input" id="sync-code" inputmode="numeric" autocomplete="one-time-code" maxlength="10" /></div>
-        ${syncError}
-        <div class="sync-actions"><button class="btn btn-secondary" type="button" data-action="sync-verify-code"${busy}>${tr('Confirm')}</button><button class="btn btn-ghost" type="button" data-action="sync-request-code"${busy}>${tr('Send a new code')}</button><button class="btn btn-ghost" type="button" data-action="sync-change-email">${tr('Change e-mail')}</button></div>`
-        : `<div class="settings-row"><label class="settings-label" for="sync-email"><strong>${tr('Sign in')}</strong><span>${tr('Optional. Enter your e-mail address to get a sign-in code. No password is needed. Without signing in, everything stays only on this device.')}</span></label><input class="input" id="sync-email" type="email" inputmode="email" autocomplete="email" value="${esc(sync.email)}" /></div>
-        ${syncError}
-        <div class="sync-actions"><button class="btn btn-secondary" type="button" data-action="sync-request-code"${busy}>${tr('Send code')}</button></div>`}
-      </section>`;
     const privacy = !sync.configured ? tr('Your data stays only on this device. Dailo has no server or account.')
       : sync.signedIn ? tr('Your data is on this device and in your sync account on a server in the EU. Attachments stay only on this device.')
         : tr('Your data stays only on this device until you sign in to sync.');
-    // Redesign R10g (M5, M6): Nalog, Opšte, Podaci, Pomoć and Računar (desktop only); a choice applies at once.
+    // Redesign R10g (M5, M6): Opšte, Podaci, Pomoć and Računar (desktop only); a choice applies at once. R15 moved Nalog
+    // to its own screen (renderAccount).
     return `${pageHeader(tr('Settings'), '', { add: false })}
-${syncCard}
       <section class="settings-card" data-settings-general>
         <h2>${tr('General')}</h2>
         <div class="settings-row"><label class="settings-label" for="preference-week-start"><strong>${tr('Week starts on')}</strong><span>${tr('Used by weekly views and habit periods.')}</span></label><select class="input" id="preference-week-start"><option value="monday"${!sundayFirst ? ' selected' : ''}>${tr('Monday')}</option><option value="sunday"${sundayFirst ? ' selected' : ''}>${tr('Sunday')}</option></select></div>
@@ -109,10 +98,42 @@ ${syncCard}
       </section>`;
   }
 
+  // R15 (M5 amended): the Nalog screen, opened from its tile in Još. With sync set up it holds the sign-in, the last
+  // sync and the account actions that used to sit in Podešavanja; without it, it says the data stays on this device.
+  function renderAccount(ctx) {
+    const { pageHeader, esc } = ctx;
+    const sync = ctx.syncView?.() || { configured: false };
+    const statusTime = value => statusTimeHtml(esc, value);
+    const busy = sync.busy ? ' disabled' : '';
+    const syncError = sync.error ? `<p class="validation" role="alert">${esc(trMessage(sync.error))}</p>` : '';
+    const subtitle = sync.configured && sync.signedIn ? sync.email : sync.configured ? '' : tr('Data is on this device only');
+    const card = !sync.configured ? `
+      <section class="settings-card" data-account-local>
+        <h2>${tr('This device')}</h2>
+        <p class="area-empty-copy">${tr('Sync is not set up yet, so there is no account to sign in to.')} ${tr('Everything stays only on this device. Backups are in Settings → Data.')}</p>
+        <div class="sync-actions"><button class="btn btn-secondary" type="button" data-route="settings">${tr('Settings')}</button></div>
+      </section>` : `
+      <section class="settings-card" data-settings-sync>
+        <h2>${tr('Account')}</h2>
+        ${sync.signedIn ? `<div class="settings-row"><div class="settings-label"><strong>${tr('Account')}</strong><span>${esc(sync.email)}</span></div></div>
+        <div class="settings-row"><div class="settings-label"><strong>${tr('Last sync')}</strong><span data-sync-status>${sync.running ? tr('Syncing…') : statusTime(sync.lastSyncAt)}${sync.lastError ? `<br><span class="validation" role="alert">${esc(trMessage(sync.lastError))}</span>` : ''}</span></div><button class="btn btn-secondary" type="button" data-action="sync-now"${sync.running ? ' disabled' : ''}><i class="ph ph-arrows-clockwise"></i> ${tr('Sync now')}</button></div>
+        <p class="area-empty-copy">${tr('Tasks, projects, goals, habits, notes and settings sync between your devices. Attachments stay on the device where they were added.')}</p>
+        <div class="sync-actions"><button class="btn btn-secondary" type="button" data-action="sync-sign-out">${tr('Sign out')}</button><button class="btn btn-ghost" type="button" data-action="sync-delete-account" style="color:var(--danger)">${tr('Delete account')}</button></div>`
+        : sync.step === 'code' ? `<div class="settings-row"><label class="settings-label" for="sync-code"><strong>${tr('Code from the e-mail')}</strong><span>${tr('A code was sent to {email}. It is valid for a short time.', { email: esc(sync.email) })}</span></label><input class="input" id="sync-code" inputmode="numeric" autocomplete="one-time-code" maxlength="10" /></div>
+        ${syncError}
+        <div class="sync-actions"><button class="btn btn-secondary" type="button" data-action="sync-verify-code"${busy}>${tr('Confirm')}</button><button class="btn btn-ghost" type="button" data-action="sync-request-code"${busy}>${tr('Send a new code')}</button><button class="btn btn-ghost" type="button" data-action="sync-change-email">${tr('Change e-mail')}</button></div>`
+        : `<div class="settings-row"><label class="settings-label" for="sync-email"><strong>${tr('Sign in')}</strong><span>${tr('Optional. Enter your e-mail address to get a sign-in code. No password is needed. Without signing in, everything stays only on this device.')}</span></label><input class="input" id="sync-email" type="email" inputmode="email" autocomplete="email" value="${esc(sync.email)}" /></div>
+        ${syncError}
+        <div class="sync-actions"><button class="btn btn-secondary" type="button" data-action="sync-request-code"${busy}>${tr('Send code')}</button></div>`}
+      </section>`;
+    return `${pageHeader(tr('Account'), subtitle, { add: false })}${card}`;
+  }
+
   window.TodoDomainModules?.register({
     name: 'settings',
     renderRoute(route, ctx) {
       if (route.type === 'settings') return renderSettings(ctx);
+      if (route.type === 'account') return renderAccount(ctx);
     },
     handleAction(action, event, ctx) {
       const element = event?.target.closest('[data-action]');
