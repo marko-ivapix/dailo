@@ -2733,6 +2733,25 @@ a.btn { text-decoration: none; }
 .archived-project-item { grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; }
 .archived-project-item .project-dot { margin-left: 4px; }
 
+/* Redesign R10f — Pretraga and Fokus (S11, S12). */
+.search-window .search-box { display: flex; align-items: center; gap: 10px; margin: 2px 0 10px; padding: 0 12px; border: 1px solid var(--line-1); border-radius: var(--radius-md); background: var(--graphite-850); }
+.search-window .search-input { flex: 1; min-width: 0; border: 0; background: none; }
+.search-window .search-section-title { margin: 14px 2px 6px; color: var(--ink-3); font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+.search-list { padding: 2px 0; }
+.search-list > .search-result + .search-result { border-top: 1px solid var(--line-1); }
+.focus-title { margin: 6px 2px 2px; color: var(--ink-1); font-size: 22px; font-weight: 600; overflow-wrap: anywhere; }
+.focus-meta-line { margin: 0 2px 16px; color: var(--ink-3); font-size: 13px; }
+.focus-ring { display: grid; place-items: center; align-content: center; gap: 2px; width: 180px; height: 180px; margin: 4px auto 10px; border: 6px solid var(--line-1); border-radius: 50%; }
+.focus-ring.is-running { border-color: var(--success); }
+.focus-ring strong { color: var(--ink-1); font-size: 40px; font-variant-numeric: tabular-nums; }
+.focus-window .focus-timer-actions { display: flex; justify-content: center; gap: 10px; margin-bottom: 8px; }
+.focus-subtask { width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 10px; padding: 10px; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.focus-subtasks > .focus-subtask + .focus-subtask { border-top: 1px solid var(--line-1); }
+.focus-subtask.is-done .subtask-title { color: var(--ink-3); text-decoration: line-through; }
+.focus-subtask:focus-visible { outline: none; box-shadow: var(--focus-ring-inset); }
+.focus-footer { display: grid; gap: 8px; }
+.focus-footer-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+
 /* Keep primary compact actions touchable after all density rules. */
 @media (max-width: 700px), (pointer: coarse) {
   .task-actions .btn-icon,

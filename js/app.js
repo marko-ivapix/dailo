@@ -1479,6 +1479,7 @@
     const toggle = $('[data-action="focus-toggle-timer"]');
     if (elapsed) elapsed.textContent = formatFocusElapsed(focusElapsedMs(timer));
     if (toggle) toggle.textContent = timer.isRunning ? tr('Pause') : tr('Resume');
+    $('#modal-root .focus-ring')?.classList.toggle('is-running', timer.isRunning);
   }
 
   function startFocusTimer() {
@@ -1706,30 +1707,34 @@
     return `<div class="modal-backdrop${frameClass}" data-action="modal-backdrop"><section class="modal ${cls}" role="dialog" aria-modal="true" ${accessibleName}>${dialogContent}</section></div>`;
   }
 
+  // Redesign R10f (S12): a tall window with the title, one meta line, the ring, tickable subtasks, the notes and the
+  // footer (Sutra / Sledeći / Detalji, then "Završi zadatak").
   function renderFocusModal() {
+    const head = `<div class="modal-header task-window-header"><span class="task-window-kind">${tr('Focus')}</span><div class="task-window-actions"><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Exit focus mode')}"><i class="ph ph-x"></i></button></div></div>`;
     const task = getTask(modalState.taskId);
     if (!task || task.isCompleted) {
       const next = focusableTasks()[0];
       if (next) { modalState = { type: 'focus', taskId: next.id, timer: createFocusTimer() }; startFocusTimer(); return renderFocusModal(); }
-      return modalFrame(`<div class="modal-inner focus-modal"><div class="modal-header"><div><p class="focus-kicker">${tr('Focus mode')}</p><h2 class="modal-title">${tr('Nothing left to focus on')}</h2></div></div><div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-primary" type="button" data-action="close-modal">${tr('Exit')}</button></div></div></div>`, 'focus-modal');
+      return modalFrame(`<div class="modal-inner quick-sheet focus-window">${head}<h2 class="focus-title">${tr('Nothing left to focus on')}</h2><div class="quick-sheet-footer"><span></span><button class="btn btn-primary habit-window-save" type="button" data-action="close-modal">${tr('Exit')}</button></div></div>`, 'quick');
     }
     const today = Core.dateOnly();
     const project = getProject(task.projectId);
-    const metadata = [];
-    if (project) metadata.push(`<span><span class="project-dot" style="--project-color:${esc(project.color)}"></span>${esc(project.name)}</span>`);
-    if (task.dueDate) metadata.push(`<span class="${task.dueDate < today ? 'danger' : task.dueDate === today ? 'warning' : ''}">${esc(task.dueDate < today ? tr('Overdue · {date}', { date: relativeDateLabel(task.dueDate, today) }) : tr('Due {date}', { date: relativeDateLabel(task.dueDate, today) }))}</span>`);
-    if (task.plannedDate) metadata.push(`<span>${esc(tr('Planned {date}', { date: relativeDateLabel(task.plannedDate, today) }))}</span>`);
-    if (task.priority && task.priority !== 'none') metadata.push(`<span>${priorityIcon(task.priority)}${esc(tr('{priority} priority', { priority: priorityLabel(task.priority) }))}</span>`);
+    const meta = [
+      project?.name || '',
+      task.dueDate ? (task.dueDate < today ? tr('Overdue · {date}', { date: relativeDateLabel(task.dueDate, today) }) : tr('Due {date}', { date: relativeDateLabel(task.dueDate, today) })) : '',
+      task.plannedDate ? tr('Planned {date}', { date: relativeDateLabel(task.plannedDate, today) }) : '',
+      task.priority && task.priority !== 'none' ? tr('{priority} priority', { priority: priorityLabel(task.priority) }) : '',
+    ].filter(Boolean);
     const subtasks = [...(task.subtasks || [])].sort((a, b) => clampOrder(a.order) - clampOrder(b.order));
     const completed = subtasks.filter(subtask => subtask.isCompleted).length;
-    return modalFrame(`<div class="modal-inner focus-modal">
-      <div class="modal-header"><div><p class="focus-kicker">${tr('Focus mode')}</p><h2 class="modal-title">${esc(task.title)}</h2></div><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Exit focus mode')}"><i class="ph ph-x"></i></button></div>
-      ${metadata.length ? `<div class="focus-meta">${metadata.join('<span class="separator">·</span>')}</div>` : ''}
-      <div class="focus-timer" aria-live="off"><span class="focus-timer-label">${tr('Elapsed')}</span><strong id="focus-elapsed">${formatFocusElapsed(focusElapsedMs())}</strong><div class="focus-timer-actions"><button class="btn btn-secondary" type="button" data-action="focus-toggle-timer">${modalState.timer?.isRunning ? tr('Pause') : tr('Resume')}</button><button class="btn btn-ghost" type="button" data-action="focus-reset-timer">${tr('Reset')}</button></div></div>
-      ${task.notes ? `<p class="focus-notes">${esc(task.notes)}</p>` : ''}
-      ${subtasks.length ? `<section class="focus-subtasks"><div class="detail-heading"><span>${tr('Subtasks')}</span><span>${completed} / ${subtasks.length}</span></div><div class="subtask-list">${subtasks.map(subtask => `<div class="subtask-row ${subtask.isCompleted ? 'is-completed' : ''}"><span class="complete-control ${subtask.isCompleted ? 'is-completed' : ''}">${subtask.isCompleted ? '<i class="ph ph-check"></i>' : ''}</span><span class="subtask-title">${esc(subtask.title)}</span></div>`).join('')}</div></section>` : ''}
-      <div class="modal-footer"><button class="btn btn-ghost" type="button" data-action="close-modal">${tr('Exit')}</button><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="focus-next" data-task-id="${esc(task.id)}">${tr('Next task')}</button><button class="btn btn-secondary" type="button" data-action="focus-open-details" data-task-id="${esc(task.id)}">${tr('Open details')}</button><button class="btn btn-secondary" type="button" data-action="focus-tomorrow" data-task-id="${esc(task.id)}">${tr('Tomorrow')}</button><button class="btn btn-primary" type="button" data-action="focus-complete" data-task-id="${esc(task.id)}"><i class="ph ph-check"></i> ${tr('Complete task')}</button></div></div>
-    </div>`, 'focus-modal');
+    const running = Boolean(modalState.timer?.isRunning);
+    const id = esc(task.id);
+    let html = `${head}<h2 class="focus-title">${esc(task.title)}</h2>${meta.length ? `<p class="focus-meta-line">${esc(meta.join(' · '))}</p>` : ''}`;
+    html += `<div class="focus-ring${running ? ' is-running' : ''}" aria-live="off"><span class="focus-timer-label">${tr('Elapsed')}</span><strong id="focus-elapsed">${formatFocusElapsed(focusElapsedMs())}</strong></div><div class="focus-timer-actions"><button class="btn btn-secondary" type="button" data-action="focus-toggle-timer">${running ? tr('Pause') : tr('Resume')}</button><button class="btn btn-ghost" type="button" data-action="focus-reset-timer">${tr('Reset')}</button></div>`;
+    if (subtasks.length) html += `<h3 class="goal-details-label">${tr('Subtasks')} · ${completed}/${subtasks.length}</h3><div class="today-card focus-subtasks">${subtasks.map(subtask => `<button class="focus-subtask${subtask.isCompleted ? ' is-done' : ''}" type="button" data-action="toggle-subtask" data-task-id="${id}" data-subtask-id="${esc(subtask.id)}" aria-pressed="${Boolean(subtask.isCompleted)}"><span class="complete-control${subtask.isCompleted ? ' is-completed' : ''}" aria-hidden="true">${subtask.isCompleted ? '<i class="ph ph-check"></i>' : ''}</span><span class="subtask-title">${esc(subtask.title)}</span></button>`).join('')}</div>`;
+    if (task.notes) html += `<h3 class="goal-details-label">${tr('Notes')}</h3><p class="focus-notes">${esc(task.notes)}</p>`;
+    html += `<div class="quick-sheet-footer focus-footer"><div class="focus-footer-row"><button class="btn btn-secondary" type="button" data-action="focus-tomorrow" data-task-id="${id}">${tr('Tomorrow')}</button><button class="btn btn-secondary" type="button" data-action="focus-next" data-task-id="${id}">${tr('Next')}</button><button class="btn btn-secondary" type="button" data-action="focus-open-details" data-task-id="${id}">${tr('Details')}</button></div><button class="btn btn-primary habit-window-save" type="button" data-action="focus-complete" data-task-id="${id}"><i class="ph ph-check"></i> ${tr('Complete task')}</button></div>`;
+    return modalFrame(`<div class="modal-inner quick-sheet focus-window">${html}</div>`, 'quick');
   }
 
   const TEMPLATE_TYPES = ['task','project','habit','goal'];
@@ -2126,8 +2131,9 @@
     requestDeleteEntity('attachment', attachmentId);
   }
 
+  // Redesign R10f (S11): a full-height window with the field on top; scope, ranking and grouping are unchanged.
   function renderSearchModal() {
-    return modalFrame(`<div class="modal-inner"><div class="search-box"><i class="ph ph-magnifying-glass"></i><input id="search-query" class="search-input" type="search" autocomplete="off" placeholder="${tr('Search tasks and projects...')}" value="${esc(modalState.query || '')}" /><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close Search')}"><i class="ph ph-x"></i></button></div><div id="search-results" class="search-results">${searchResultsHtml(modalState.query || '')}</div></div>`, 'search-modal');
+    return modalFrame(`<div class="modal-inner quick-sheet search-window"><div class="modal-header"><h2 class="modal-title">${tr('Search')}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close Search')}"><i class="ph ph-x"></i></button></div><label class="search-box"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input id="search-query" class="search-input" type="search" autocomplete="off" placeholder="${tr('Search tasks and projects...')}" value="${esc(modalState.query || '')}" aria-label="${tr('Search')}"></label><div id="search-results" class="search-results">${searchResultsHtml(modalState.query || '')}</div></div>`, 'quick');
   }
 
   // Search (M11, approved 2026-10-09): results are rebuilt after a short pause in typing, and at most this many
@@ -2152,10 +2158,10 @@
     if (!result.tasks.length && !result.projects.length) return `<div class="empty-state" style="border:0;padding:38px 12px"><h3>${tr('No results for “{query}”', { query: esc(query) })}</h3></div>`;
     let html = '';
     if (result.tasks.length) {
-      html += `<div class="search-section-title">${tr('Tasks')}</div>${result.tasks.slice(0, SEARCH_TASK_LIMIT).map(({ task }) => searchTaskResult(task)).join('')}${searchMoreNote(result.tasks.length, SEARCH_TASK_LIMIT)}`;
+      html += `<h3 class="search-section-title">${tr('Tasks')} · ${result.tasks.length}</h3><div class="today-card search-list">${result.tasks.slice(0, SEARCH_TASK_LIMIT).map(({ task }) => searchTaskResult(task)).join('')}</div>${searchMoreNote(result.tasks.length, SEARCH_TASK_LIMIT)}`;
     }
     if (result.projects.length) {
-      html += `<div class="search-section-title">${tr('Projects')}</div>${result.projects.slice(0, SEARCH_PROJECT_LIMIT).map(project => `<button class="search-result" type="button" data-route="project/${esc(project.id)}"><span class="search-result-icon"><span class="project-dot" style="--project-color:${esc(project.color)}"></span></span><span><span class="search-result-title">${esc(project.name)}</span><span class="search-result-meta">${tr('Project')}</span></span></button>`).join('')}${searchMoreNote(result.projects.length, SEARCH_PROJECT_LIMIT)}`;
+      html += `<h3 class="search-section-title">${tr('Projects')} · ${result.projects.length}</h3><div class="today-card search-list">${result.projects.slice(0, SEARCH_PROJECT_LIMIT).map(project => `<button class="search-result" type="button" data-route="project/${esc(project.id)}"><span class="search-result-icon"><span class="project-dot" style="--project-color:${esc(project.color)}"></span></span><span><span class="search-result-title">${esc(project.name)}</span><span class="search-result-meta">${tr('Project')}${project.isArchived ? ` · ${tr('archived')}` : ''}</span></span></button>`).join('')}</div>${searchMoreNote(result.projects.length, SEARCH_PROJECT_LIMIT)}`;
     }
     return html;
   }
