@@ -561,6 +561,7 @@
     "Search projects": "Pretraži projekte",
     "The task takes its project's area. A tap applies the choice.": "Zadatak dobija oblast svog projekta. Dodir odmah primenjuje izbor.",
     "Start of next week": "Sledeće nedelje",
+    "Start of the month": "Početak meseca",
     "The due date stays: {date}": "Rok ostaje isti: {date}",
     "No due date is set.": "Rok nije postavljen.",
     "The planned date stays: {date}": "Planirano ostaje isto: {date}",

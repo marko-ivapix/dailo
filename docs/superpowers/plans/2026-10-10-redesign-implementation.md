@@ -38,6 +38,7 @@
 | R14b | **Habit circles on the right** (the user's follow-up the same day): Today, the Navike Dan view and the habit details row | T5 (amended) | none |
 | R14c | **Milestone circles on the right** (the user's next follow-up): the "Etape" card of the goal window | GO5 (amended) | none |
 | R15 | **Još as tiles and the Nalog screen** (the user's request the same day): two-column tiles with the icon on top; "Nalog" next to "Podešavanja", opening `#account` with the account card moved out of Settings | M4, M5 (amended) | none |
+| R16 | **A habit's start in its details** (the user's request the same day): "Početak" in Detalji navike, saved at once, with "Početak meseca" in the start sheet | S13 (added) | none |
 
 ## Test levels
 

@@ -2264,7 +2264,11 @@
     const { target, kind, date, time, view } = dateSheet;
     const source = target.type === 'quick' || target.type === 'habit' ? modalState?.draft : getTask(target.taskId);
     const today = Core.dateOnly();
-    const quick = [[tr('Today'), today], [tr('Tomorrow'), Core.addDays(today, 1)], [tr('Start of next week'), nextMonday(today)]];
+    // R16: a habit's start offers the 1st of this month (unless that is today), so it is planned on every day of the month.
+    const monthStart = `${today.slice(0, 8)}01`;
+    const quick = kind === 'start'
+      ? [...(monthStart < today ? [[tr('Start of the month'), monthStart]] : []), [tr('Today'), today], [tr('Tomorrow'), Core.addDays(today, 1)]]
+      : [[tr('Today'), today], [tr('Tomorrow'), Core.addDays(today, 1)], [tr('Start of next week'), nextMonday(today)]];
     const chips = `<div class="sheet-chips">${quick.map(([label, value]) => `<button class="quick-chip${date === value ? ' is-selected' : ''}" type="button" data-pop-action="date-sheet-pick" data-date="${value}" aria-pressed="${date === value}">${esc(label)}</button>`).join('')}</div>`;
     if (kind === 'start') return `<div class="popover-title">${tr('Start')}</div><p class="sheet-subtitle">${esc(source?.name?.trim() || tr('New habit'))}</p>${chips}${monthGrid(date, view, today)}<div class="sheet-footer"><span></span><button class="btn btn-primary" type="button" data-pop-action="date-sheet-apply">${tr('Apply')}</button></div>`;
     const otherDate = kind === 'plan' ? source?.dueDate : source?.plannedDate;
@@ -2276,7 +2280,12 @@
   function applyDateSheet(clear) {
     if (!dateSheet) return;
     const { target, kind } = dateSheet;
-    if (target.type === 'habit') { modalState.draft.startDate = dateSheet.date || Core.dateOnly(); closePopover(); renderModal(); return; }
+    if (target.type === 'habit') {
+      modalState.draft.startDate = dateSheet.date || Core.dateOnly(); closePopover();
+      // R16: in the habit details window the new start saves at once, like the other rows there.
+      if (modalState.type === 'habit-details') callDomainHook('handleAction', 'habit-details-commit', null); else renderModal();
+      return;
+    }
     const date = clear ? null : dateSheet.date;
     const time = date ? Core.normalizeTime($('#date-sheet-time', popoverEl)?.value ?? dateSheet.time) : null;
     if (target.type === 'quick') {

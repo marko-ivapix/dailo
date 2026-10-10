@@ -142,7 +142,8 @@ test('S13: "Podešavanja" lists the settings rows with their values', () => {
     ['habit-details-name', 'Name', 'Water'], ['habit-draft-area', 'Area', 'Zdravlje'], ['habit-details-routine', 'Routine', 'Morning'],
     ['habit-details-tracking', 'Tracking', 'Numeric · 2 l'], ['habit-draft-quick', 'Quick values', '+0.25  +0.5  +1'], ['habit-draft-frequency', 'Frequency', 'Daily'],
     ['habit-draft-reminders', 'Reminders', '08:00'], ['habit-draft-targets', 'Minimum and ideal', 'Minimum 1.5 · ideal 1.5'], ['habit-details-grace', 'Grace days', '2 days'],
-    ['habit-details-continuation', 'Continuation', 'Ask each period'], ['habit-draft-end', 'End', 'Until D:2026-12-31'], ['habit-draft-goals', 'Linked goals', 'Maraton'],
+    // R16: "Početak" sits before "Kraj".
+    ['habit-details-continuation', 'Continuation', 'Ask each period'], ['habit-draft-start', 'Start', 'R:2026-01-01'], ['habit-draft-end', 'End', 'Until D:2026-12-31'], ['habit-draft-goals', 'Linked goals', 'Maraton'],
   ]);
   assert.match(html, /<h3 class="habit-details-label">Settings<\/h3><div class="habit-window-card">/);
   const plainHabit = render(detailsCtx({ trackingType: 'checkbox', graceDays: 0, minimumTarget: null, reminders: [], goalIds: [], areaId: null }));

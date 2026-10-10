@@ -335,7 +335,7 @@
     const targets = targetsLabel(ctx, d);
     const goals = (state.goals || []).filter(goal => (d.goalIds || []).includes(goal.id)).map(goal => goal.title).join(', ');
     const open = d.moreOpen === true;
-    const more = open ? `<div class="habit-window-card">${habitWindowRow(ctx, 'habit-draft-start', 'ph-calendar-blank', tr('Start'), !d.startDate || d.startDate === Core.dateOnly() ? tr('Today') : ctx.relativeDateLabel(d.startDate))}${habitWindowRow(ctx, 'habit-draft-end', 'ph-flag-checkered', tr('End'), habitEndLabel(ctx, d))}${numeric || weekly ? habitWindowRow(ctx, 'habit-draft-targets', 'ph-gauge', tr('Minimum and ideal'), targets, tr('Same as the target')) : ''}${numeric ? habitWindowRow(ctx, 'habit-draft-quick', 'ph-lightning', tr('Quick values'), draftQuickValues(d).map(value => `+${plainNumber(value)}`).join('  ')) : ''}${habitWindowRow(ctx, 'habit-draft-goals', 'ph-target', tr('Linked goals'), goals, tr('None'))}</div><p class="sheet-note">${tr('“Continuation” and “Grace days” are in the habit details.')}</p>` : '';
+    const more = open ? `<div class="habit-window-card">${habitWindowRow(ctx, 'habit-draft-start', 'ph-calendar-blank', tr('Start'), startLabel(ctx, d))}${habitWindowRow(ctx, 'habit-draft-end', 'ph-flag-checkered', tr('End'), habitEndLabel(ctx, d))}${numeric || weekly ? habitWindowRow(ctx, 'habit-draft-targets', 'ph-gauge', tr('Minimum and ideal'), targets, tr('Same as the target')) : ''}${numeric ? habitWindowRow(ctx, 'habit-draft-quick', 'ph-lightning', tr('Quick values'), draftQuickValues(d).map(value => `+${plainNumber(value)}`).join('  ')) : ''}${habitWindowRow(ctx, 'habit-draft-goals', 'ph-target', tr('Linked goals'), goals, tr('None'))}</div><p class="sheet-note">${tr('“Continuation” and “Grace days” are in the habit details.')}</p>` : '';
     const tracking = `${habitSegment('habit-draft-tracking', tr('Tracking'), [['checkbox', tr('Checkbox')], ['numeric', tr('Numeric')]], numeric ? 'numeric' : 'checkbox')}${numeric ? `<div class="habit-window-target"><label for="habit-target-value">${tr('Target')}</label><input id="habit-target-value" class="input" type="number" min="0" step="any" value="${esc(d.targetValue)}"><input id="habit-unit" class="input" maxlength="20" value="${esc(d.unit)}" placeholder="${tr('unit')}" aria-label="${tr('Unit')}"><span>${tr('per day')}</span></div>` : ''}`;
     const card = `<div class="habit-window-card">${habitWindowRow(ctx, 'habit-draft-area', 'ph-squares-four', tr('Area'), area, tr('No area (optional)'))}<div class="habit-window-block"><span class="habit-window-label"><i class="ph ph-clock" aria-hidden="true"></i>${tr('Routine')}</span>${habitSegment('habit-draft-routine', tr('Routine'), [['morning', tr('Morning')], ['daily', tr('Daytime')], ['night', tr('Night')]], ROUTINE_ORDER.includes(d.routine) ? d.routine : 'daily')}</div><div class="habit-window-block"><span class="habit-window-label"><i class="ph ph-check-square" aria-hidden="true"></i>${tr('Tracking')}</span>${tracking}</div>${habitWindowRow(ctx, 'habit-draft-frequency', 'ph-repeat', tr('Frequency'), habitFrequencyLabel(ctx, d))}${habitWindowRow(ctx, 'habit-draft-reminders', 'ph-bell', tr('Reminder'), activeReminderTimes(ctx, d).join(', '))}</div>`;
     return modalFrame(`<div class="modal-inner quick-sheet habit-window"><div class="modal-header"><h2 class="modal-title">${editing ? tr('Edit habit') : tr('New habit')}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div><input id="habit-name" class="quick-title-input${error ? ' is-error' : ''}" type="text" maxlength="120" autocomplete="off" placeholder="${tr('What do you want to practice?')}" value="${esc(d.name)}" aria-label="${tr('Habit name')}">${error ? `<div class="validation" role="alert">${esc(error)}</div>` : ''}${card}<button class="habit-window-more" type="button" data-action="toggle-habit-more" aria-expanded="${open}"><strong>${tr('More settings')}</strong><span>${open ? tr('Hide') : tr('Start, end, goals')} <i class="ph ph-caret-${open ? 'up' : 'down'}" aria-hidden="true"></i></span></button>${more}<div class="quick-sheet-footer"><span></span><button class="btn btn-primary habit-window-save" type="button" data-action="save-habit">${editing ? tr('Save changes') : tr('Create habit')}</button></div></div>`, 'quick');
@@ -425,6 +425,7 @@
       numeric || weekly ? row('habit-draft-targets', 'ph-gauge', tr('Minimum and ideal'), targets, tr('Same as the target')) : '',
       row('habit-details-grace', 'ph-shield-check', tr('Grace days'), grace ? trn(grace, '{count} day', '{count} days') : tr('No grace days')),
       row('habit-details-continuation', 'ph-arrows-clockwise', tr('Continuation'), tr(CONTINUATION_LABELS[habit.continuation] || CONTINUATION_LABELS.automatic)),
+      row('habit-draft-start', 'ph-calendar-blank', tr('Start'), startLabel(ctx, habit)),
       row('habit-draft-end', 'ph-flag-checkered', tr('End'), habitEndLabel(ctx, habit)),
       row('habit-draft-goals', 'ph-target', tr('Linked goals'), goals, tr('None')),
     ].join('');
@@ -474,6 +475,11 @@
   function readTrackingInputs(ctx) {
     sheet.target = ctx.$('#habit-tracking-target')?.value ?? sheet.target;
     sheet.unit = ctx.$('#habit-tracking-unit')?.value ?? sheet.unit;
+  }
+
+  // "Početak": today or the chosen start; the habit is planned from that day on (R16 shows it in the details window too).
+  function startLabel(ctx, item) {
+    return !item.startDate || item.startDate === ctx.Core.dateOnly() ? tr('Today') : ctx.relativeDateLabel(item.startDate);
   }
 
   // The details' own sheets (name, routine, tracking, grace days, continuation); true when handled.
@@ -643,7 +649,7 @@
 
   // The window's own actions and its sheets; true when handled. In the details window (R8c) an opener starts from a
   // fresh draft of the habit, and a change to the draft saves at once.
-  const DETAIL_OPENERS = new Set(['habit-details-name', 'habit-draft-area', 'habit-details-routine', 'habit-details-tracking', 'habit-draft-quick', 'habit-draft-frequency', 'habit-draft-reminders', 'habit-draft-targets', 'habit-details-grace', 'habit-details-continuation', 'habit-draft-end', 'habit-draft-goals']);
+  const DETAIL_OPENERS = new Set(['habit-details-name', 'habit-draft-start', 'habit-draft-area', 'habit-details-routine', 'habit-details-tracking', 'habit-draft-quick', 'habit-draft-frequency', 'habit-draft-reminders', 'habit-draft-targets', 'habit-details-grace', 'habit-details-continuation', 'habit-draft-end', 'habit-draft-goals']);
   function handleHabitWindowAction(action, el, ctx) {
     const details = ctx.modalState?.type === 'habit-details';
     if (details && DETAIL_OPENERS.has(action)) {
@@ -920,6 +926,8 @@
     const { $, state, Core, getHabit, habitMetrics, openHabitModal, renderModal, setHabitLog, nowIso, saveState, closeModal, refreshHabitMetrics, render, updateHabitStatus, closePopover, snoozeHabit, requestDeleteEntity, saveAndRender } = ctx;
     if (action === 'read-habit-draft') { readHabitDraft(ctx); return true; }
     if (action === 'add-starter-examples') { addStarterExamples(ctx); return true; }
+    // R16: the shared date sheet (app.js) applied a new start to the details draft; it saves like every details row.
+    if (action === 'habit-details-commit') { if (ctx.modalState?.type === 'habit-details' && ctx.modalState.draft) commitHabitDetails(ctx); return true; }
     const el = event?.target.closest('[data-action], [data-pop-action]');
     if (!el) return false;
     if (handleHabitWindowAction(action, el, ctx)) return true;
