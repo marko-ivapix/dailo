@@ -2721,6 +2721,18 @@ a.btn { text-decoration: none; }
 .view-window .quick-title-input { margin-bottom: 2px; }
 .view-pin-toggle { display: inline-flex; align-items: center; gap: 10px; margin-top: 12px; padding: 6px 4px; border: 0; background: none; color: var(--ink-1); font: inherit; cursor: pointer; }
 
+/* Redesign R10e — Završeni zadaci and Arhivirani projekti (S9, S10). */
+.completed-chips { margin: -4px 0 4px; }
+.completed-group { margin-top: 14px; }
+.completed-clear { margin-top: 20px; }
+.completed-clear-row { width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 12px; padding: 12px; border: 0; background: none; color: var(--danger); font: inherit; text-align: left; cursor: pointer; }
+.completed-clear-row .task-title { color: var(--danger); }
+.completed-clear-main { display: grid; gap: 2px; }
+.completed-clear-row:focus-visible { outline: none; box-shadow: var(--focus-ring-inset); }
+.archived-list { margin-top: 4px; }
+.archived-project-item { grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; }
+.archived-project-item .project-dot { margin-left: 4px; }
+
 /* Keep primary compact actions touchable after all density rules. */
 @media (max-width: 700px), (pointer: coarse) {
   .task-actions .btn-icon,

@@ -1367,14 +1367,18 @@
     requestAnimationFrame(() => $('#habit-value-total')?.focus());
   }
 
+  // Redesign R10e (S9, M6): project and period chips, groups by completion day with Today rows (the round check restores
+  // a task with Undo), and "Obriši završene zadatke" at the bottom.
   function renderCompleted() {
     const projectId = state.ui.completedProjectFilter || null;
     const periodDays = Number(state.ui.completedPeriod) || 0;
     const tasks = Core.filterCompleted(state.tasks, { projectId, periodDays }, nowIso());
-    let html = pageHeader(tr('Completed'), tr('A simple history of finished work'), { add: false });
-    const projectOptions = allProjects().map(project => `<option value="${esc(project.id)}" ${project.id === projectId ? 'selected' : ''}>${esc(project.name)}${project.isArchived ? ` (${tr('Archived')})` : ''}</option>`).join('');
-    html += `<div class="filter-bar"><label>${tr('Project')}<select id="completed-project-filter" class="filter-select"><option value="">${tr('All projects')}</option>${projectOptions}</select></label><label>${tr('Period')}<select id="completed-period-filter" class="filter-select"><option value="0" ${periodDays === 0 ? 'selected' : ''}>${tr('All time')}</option><option value="7" ${periodDays === 7 ? 'selected' : ''}>${tr('Last 7 days')}</option><option value="30" ${periodDays === 30 ? 'selected' : ''}>${tr('Last 30 days')}</option></select></label></div>`;
-    if (!tasks.length) return html + emptyState(tr('No completed tasks match these filters.'), tr('Try a different project or time period.'));
+    let html = pageHeader(tr('Completed tasks'), trn(tasks.length, '{count} task', '{count} tasks'), { add: false });
+    const project = allProjects().find(item => item.id === projectId);
+    const period = (days, label) => `<button class="quick-chip${periodDays === days ? ' is-selected' : ''}" type="button" data-action="completed-period" data-value="${days}" aria-pressed="${periodDays === days}">${label}</button>`;
+    html += `<div class="sheet-chips completed-chips"><button class="quick-chip${project ? ' is-selected' : ''}" type="button" data-action="completed-project">${esc(project?.name || tr('All projects'))} <i class="ph ph-caret-down" aria-hidden="true"></i></button>${period(0, tr('All time'))}${period(7, tr('7 days'))}${period(30, tr('30 days'))}</div>`;
+    const clear = state.tasks.some(task => task.isCompleted) ? `<div class="today-card completed-clear"><button class="completed-clear-row" type="button" data-action="clear-completed"><i class="ph ph-trash" aria-hidden="true"></i><span class="completed-clear-main"><span class="task-title">${tr('Clear completed tasks')}</span><span class="task-meta">${tr('Permanently delete all completed tasks and their attachments.')}</span></span></button></div>` : '';
+    if (!tasks.length) return html + emptyState(tr('No completed tasks match these filters.'), tr('Try a different project or time period.')) + clear;
     const groups = new Map();
     for (const task of tasks) {
       const date = Core.localDateOf(String(task.completedAt || '')) || 'unknown';
@@ -1383,9 +1387,16 @@
     }
     for (const [date, items] of groups) {
       const label = relativeDateLabel(date);
-      html += `<section class="upcoming-group"><div class="group-date"><strong>${esc(label)}</strong>${[tr('Today'), tr('Yesterday')].includes(label) ? `<span>${esc(formatDate(date))}</span>` : ''}</div><div class="task-list">${items.map(t => taskRow(t, 'completed')).join('')}</div></section>`;
+      const heading = [label, [tr('Today'), tr('Yesterday')].includes(label) ? formatDate(date) : '', items.length].filter(part => part !== '').join(' · ');
+      html += `<section class="section completed-group"><div class="section-header"><h2 class="section-label">${esc(heading)}</h2></div><div class="task-list today-card">${items.map(task => taskRow(task, 'completed', { today: true })).join('')}</div></section>`;
     }
-    return html;
+    return html + clear;
+  }
+
+  function openCompletedProjectSheet(anchor) {
+    const current = state.ui.completedProjectFilter || '';
+    const options = [['', tr('All projects')], ...allProjects().map(project => [project.id, project.isArchived ? tr('{name} (archived)', { name: project.name }) : project.name])];
+    openPopover(anchor, `<div class="popover-title">${tr('Project')}</div><div class="sheet-card" role="radiogroup" aria-label="${tr('Project')}">${options.map(([value, label]) => `<button class="popover-option sheet-option${current === value ? ' is-selected' : ''}" type="button" role="radio" aria-checked="${current === value}" data-pop-action="completed-set-project" data-value="${esc(value)}"><span class="sheet-option-label">${esc(label)}</span><span class="sheet-radio${current === value ? ' is-on' : ''}" aria-hidden="true"></span></button>`).join('')}</div>`, { type: 'completed-project' });
   }
 
   function emptyState(title, text, cta, action, data = {}) {
@@ -2833,6 +2844,11 @@
     if (task.isCompleted) {
       task.isCompleted = false; task.completedAt = null;
       task.updatedAt = nowIso(); saveState(); render(); if (modalState?.type === 'task') renderModal();
+      setUndo(msg('Task restored'), () => {
+        const current = getTask(taskId); if (!current || current.isCompleted) return;
+        Object.assign(current, { isCompleted: true, completedAt: previous.completedAt, updatedAt: nowIso() });
+        saveState(); render();
+      });
       return;
     }
     const completedAt = nowIso();
@@ -3769,9 +3785,10 @@
 
   function restoreProject(projectId) {
     const project = getProject(projectId); if (!project) return;
+    const previous = { isArchived: project.isArchived, archivedAt: project.archivedAt };
     project.isArchived = false; project.archivedAt = null; project.updatedAt = nowIso();
     saveState(); closePopover(); render();
-    setToastMessage(tr('Project restored'));
+    setUndo(msg('Project restored'), () => { const current = getProject(projectId); if (!current) return; Object.assign(current, previous, { updatedAt: nowIso() }); saveState(); render(); });
   }
 
   function deleteProject(projectId) {
@@ -4773,6 +4790,8 @@
     else if (action === 'import-backup') chooseImportBackup();
     else if (action === 'restore-backup') restoreImportedBackup();
     else if (action === 'clear-completed') clearCompleted();
+    else if (action === 'completed-project') openCompletedProjectSheet(el);
+    else if (action === 'completed-period') { state.ui.completedPeriod = [0, 7, 30].includes(Number(el.dataset.value)) ? Number(el.dataset.value) : 0; saveAndRender(); }
     else if (action === 'reset-app') resetApp();
     else if (action === 'retry-load') { startReady(); }
     else if (action === 'retry-save') { saveAndRender(); }
@@ -4813,6 +4832,7 @@
     else if (action === 'set-task-duration') setTaskDuration(button.dataset.taskId, button.dataset.minutes);
     else if (action === 'set-task-duration-custom') setTaskDuration(button.dataset.taskId, $('#task-duration-custom', popoverEl)?.value);
     else if (action === 'task-start-focus') { const id = button.dataset.taskId; closePopover(); openFocusMode(id); }
+    else if (action === 'completed-set-project') { state.ui.completedProjectFilter = getProject(button.dataset.value) ? button.dataset.value : ''; closePopover(); saveAndRender(); }
     else if (action === 'project-area') openProjectAreaSheet(button, button.dataset.projectId);
     else if (action === 'set-project-area') setProjectArea(button.dataset.projectId, button.dataset.areaId);
     else if (action === 'project-goals') openProjectGoalsSheet(button, button.dataset.projectId);
@@ -4918,13 +4938,6 @@
     if (event.target.id === 'daily-capacity') { const minutes = Number(event.target.value); if (Number.isInteger(minutes) && minutes >= 0 && minutes <= 1440) { state.settings.dailyCapacityMinutes = minutes; saveAndRender(); } return; }
     if (event.target.id === 'backup-reminder-days') { const days = Number(event.target.value); if (Number.isInteger(days) && days >= 0 && days <= 90) { state.settings.backupReminderDays = days; saveAndRender(); } return; }
     if (event.target.id === 'backup-import-input') { const file=event.target.files?.[0]; event.target.value=''; if(file) inspectImportBackup(file); return; }
-    if (event.target.id === 'completed-project-filter') {
-      state.ui.completedProjectFilter = event.target.value || '';
-      saveAndRender();
-    } else if (event.target.id === 'completed-period-filter') {
-      state.ui.completedPeriod = Number(event.target.value) || 0;
-      saveAndRender();
-    }
   }
 
   function handleBlur(event) {

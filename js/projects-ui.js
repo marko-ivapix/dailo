@@ -50,16 +50,16 @@
     return html + `<p class="tasks-note">${tr('Sorted tasks that belong to no project.')}</p>`;
   }
 
+  // Redesign R10e (S10): one card; a row opens the read-only project and "Vrati" restores it (with Undo).
   function renderArchivedProjects(ctx) {
-    const { allProjects, projectTasks, pageHeader, emptyState, esc } = ctx;
+    const { allProjects, projectTasks, pageHeader, emptyState, esc, getArea } = ctx;
     const projects = allProjects().filter(project => project.isArchived);
-    let html = pageHeader(tr('Archived Projects'), trn(projects.length, '{count} archived project', '{count} archived projects'), { add: false });
-    if (!projects.length) return html + emptyState(tr('No archived projects.'), tr('Archived projects stay available here until you restore them.'));
-    html += `<div class="archived-project-list">${projects.map(project => {
-      const openCount = projectTasks(project.id, false).length;
-      return `<div class="archived-project-row"><div class="archived-project-main"><span class="project-dot" style="--project-color:${esc(project.color)}"></span><span><strong>${esc(project.name)}</strong><small>${trn(openCount, '{count} open task', '{count} open tasks')}</small></span></div><div class="archived-project-actions"><button class="btn btn-ghost" type="button" data-route="project/${esc(project.id)}">${tr('View')}</button><button class="btn btn-secondary" type="button" data-action="restore-project" data-project-id="${esc(project.id)}">${tr('Restore')}</button></div></div>`;
+    const html = pageHeader(tr('Archived Projects'), trn(projects.length, '{count} archived project', '{count} archived projects'), { add: false });
+    if (!projects.length) return html + emptyState(tr('No archived projects.'), tr('Archived projects stay here until you restore them.'));
+    return `${html}<div class="today-card archived-list">${projects.map(project => {
+      const meta = [getArea(project.areaId)?.name, trn(projectTasks(project.id, false).length, '{count} open', '{count} open')].filter(Boolean).join(' · ');
+      return `<div class="today-row archived-project-item"><span class="project-dot" style="--project-color:${esc(project.color)}" aria-hidden="true"></span><button class="today-row-main" type="button" data-route="project/${esc(project.id)}"><span class="task-title">${esc(project.name)}</span><span class="task-meta">${esc(meta)}</span></button><button class="quick-chip" type="button" data-action="restore-project" data-project-id="${esc(project.id)}">${tr('Restore')}</button></div>`;
     }).join('')}</div>`;
-    return html;
   }
 
   function renderProjectModal(ctx) {
