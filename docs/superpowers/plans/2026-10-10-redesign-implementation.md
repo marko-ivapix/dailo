@@ -35,6 +35,7 @@
 | R12 | **Journal:** collection, screen, evening notice, reminder time, mood strip, weekly-review row, "+ Zadatak za sutra" | J1–J9 | **journal collection** (own spec). Ships as R12a (the collection and setting in Core, backups and sync), R12b (the Dnevnik screen and the entry window) and R12c (the evening notice and the reminder setting); the weekly-review row (J8) comes with R13. |
 | R13 | **Weekly review:** one screen with the "Poslednjih 7 dana" chart and the journal row | S5, J8 | none |
 | R14 | **The first phone review (2026-10-10):** search button in one header row, no weekly review notice on Today, due date under the title and the checkbox on the right, the "+" menu over a scrim, Inbox chips as pills, the task window opening without the keyboard and a bordered title field | T1, T3, T6, G2 (amended) | none |
+| R14b | **Habit circles on the right** (the user's follow-up the same day): Today, the Navike Dan view and the habit details row | T5 (amended) | none |
 
 ## Test levels
 

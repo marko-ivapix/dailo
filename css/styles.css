@@ -2894,6 +2894,12 @@ a.btn { text-decoration: none; }
 }
 @keyframes quick-add-option-in { from { opacity: 0; transform: translateY(8px) scale(.96); } }
 
+/* Redesign R14b — habit circles on the right (T5 amended 2026-10-10). */
+.habit-today-row { display: flex; align-items: center; }
+.habit-today-row > .today-row-main { flex: 1; min-width: 0; }
+.habit-today-row > :not(.today-row-main) { flex: none; }
+.habit-today-row > .habit-check { width: 44px; height: 44px; }
+
 /* Keep primary compact actions touchable after all density rules. */
 @media (max-width: 700px), (pointer: coarse) {
   .task-actions .btn-icon,

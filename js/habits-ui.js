@@ -89,7 +89,9 @@
       : `<button class="habit-check" type="button" data-action="habit-today-toggle" data-habit-id="${esc(habit.id)}"${dateAttr} data-long-press="habit-today-menu" aria-pressed="${status === 'done'}" aria-label="${esc(habit.name)}">`;
     const meta = options.meta ? `<span class="task-meta">${esc(options.meta)}</span>` : '';
     const count = right && !(options.count === false && !numeric) ? `<span class="task-side habit-today-count">${esc(right)}</span>` : '';
-    return `<article class="today-row habit-today-row${status === 'done' ? ' is-done' : ''}${status === 'skipped' ? ' is-skipped' : ''}" data-habit-id="${esc(habit.id)}">${check}${habitCircle(status, fraction)}</button><button class="today-row-main" type="button" data-action="habit-today-menu" data-habit-id="${esc(habit.id)}"${dateAttr} aria-haspopup="dialog"><span class="task-title">${esc(habit.name)}</span>${meta}</button>${count}</article>`;
+    // R14b (T5 amended): like a task row, the name comes first and the circle closes the row on the right.
+    const main = `<button class="today-row-main" type="button" data-action="habit-today-menu" data-habit-id="${esc(habit.id)}"${dateAttr} aria-haspopup="dialog"><span class="task-title">${esc(habit.name)}</span>${meta}</button>`;
+    return `<article class="today-row habit-today-row${status === 'done' ? ' is-done' : ''}${status === 'skipped' ? ' is-skipped' : ''}" data-habit-id="${esc(habit.id)}">${main}${count}${check}${habitCircle(status, fraction)}</button></article>`;
   }
 
   function openTodayHabitMenu(ctx, anchor, habitId, date = ctx.Core.dateOnly()) {
