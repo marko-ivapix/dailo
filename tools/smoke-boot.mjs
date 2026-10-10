@@ -167,6 +167,19 @@ if (!window.document.querySelector(`#main .calendar-day-panel[data-calendar-day=
 window.document.querySelector('#main [data-action="calendar-day-mode"][data-mode="schedule"]').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
 await new Promise(resolve => setTimeout(resolve, 50));
 if (!window.document.querySelector('#main .calendar-day-panel .day-view')) fail('Raspored did not show the day view');
+// Redesign R8a: Navike opens on today in Dan; a past ring opens that day; Nedelja shows the table.
+window.location.hash = '#habits';
+await new Promise(resolve => setTimeout(resolve, 50));
+if (!window.document.querySelector('#main .habit-ring.is-today.is-selected')) fail('Navike did not open on today');
+const pastRing = [...window.document.querySelectorAll('#main .habit-ring:not(.is-today):not([disabled])')].at(-1);
+if (pastRing) {
+  pastRing.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  await new Promise(resolve => setTimeout(resolve, 50));
+  if (!window.document.querySelector('#main .habits-day-title') || !window.document.querySelector('#main .habit-ring.is-selected:not(.is-today)')) fail('a past ring did not open that day');
+}
+window.document.querySelector('#main [data-action="habits-view"][data-view="week"]').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+await new Promise(resolve => setTimeout(resolve, 50));
+if (!window.document.querySelector('#main .habits-week-table .habit-cell') || !window.document.querySelector('#main .habits-chart-svg')) fail('Nedelja shows no table or the chart is missing');
 window.dispatchEvent(new window.Event('pagehide'));
 const saved = keep(window);
 first.dom.window.close();
@@ -177,5 +190,5 @@ if (!found) fail('the task is missing after reopening');
 const errors = [...first.errors, ...second.errors];
 second.dom.window.close();
 if (errors.length) fail(`script errors: ${errors.join(' | ')}`);
-console.log(`smoke: OK — started, created "${title}", Back closed Quick Add, route change named the page and focused its heading, Još opened Ciljevi, focus survived a re-render, Today checked in a habit, the Zadaci switch showed the projects and opened one, the task window's date sheet planned a task, Quick Add filed a task under \"Bez projekta\", \"Razvrstaj redom\" planned an Inbox task for today, the Calendar listed a picked day and its Raspored, reopened and found it (tasks: ${second.window.TodoApp.state?.tasks?.length ?? 'n/a'})`);
+console.log(`smoke: OK — started, created "${title}", Back closed Quick Add, route change named the page and focused its heading, Još opened Ciljevi, focus survived a re-render, Today checked in a habit, the Zadaci switch showed the projects and opened one, the task window's date sheet planned a task, Quick Add filed a task under \"Bez projekta\", \"Razvrstaj redom\" planned an Inbox task for today, the Calendar listed a picked day and its Raspored, Navike opened a past day and Nedelja, reopened and found it (tasks: ${second.window.TodoApp.state?.tasks?.length ?? 'n/a'})`);
 process.exit(0);

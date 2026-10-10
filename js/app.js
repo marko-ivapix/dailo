@@ -112,6 +112,7 @@
     });
   }
   let calendarOpen = false;
+  let habitsOpen = false;
 
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -967,6 +968,7 @@
     document.documentElement.style.setProperty('--task-min-height', comfortable ? '52px' : '44px');
     const route = currentRoute();
     enterCalendarRoute(route);
+    enterHabitsRoute(route);
     const main = $('#main');
     const warning = storageWarningHtml();
     let content = callDomainHook('renderRoute', route);
@@ -1009,6 +1011,13 @@
     const open = ['calendar', 'upcoming'].includes(route.type);
     if (open && !calendarOpen) state.ui.calendarDate = Core.dateOnly();
     calendarOpen = open;
+  }
+
+  // Redesign R8a (H1, H4): the Habits screen opens on Dan, today and this month whenever it is opened from another screen.
+  function enterHabitsRoute(route) {
+    const open = route.type === 'habits';
+    if (open && !habitsOpen) Object.assign(state.ui, { habitsView: 'day', habitsDay: Core.dateOnly(), habitTrackerMonth: Core.dateOnly().slice(0, 7), habitChartDay: null });
+    habitsOpen = open;
   }
 
   // Arrows move a week, or a month; a month selects today when it holds today, otherwise its first day.
@@ -1303,13 +1312,14 @@
     return callDomainHook('renderRoute', { type: 'habit-today-row', habit, todayStatus }) || '';
   }
 
-  // Redesign R2 (H6): a numeric habit's value sheet for today.
-  function openHabitValue(habitId) {
+  // Redesign R2 (H6): a numeric habit's value sheet for today; since R8a also for a past day of the Habits screen.
+  function openHabitValue(habitId, date = Core.dateOnly()) {
     const habit = getHabit(habitId);
-    if (!habit || habit.status !== 'active') return;
-    const existing = state.habitLogCache?.[habitId]?.find(log => log.date === Core.dateOnly());
+    const today = Core.dateOnly();
+    if (!habit || !Core.parseDateOnly(date) || date > today || (date === today && habit.status !== 'active')) return;
+    const existing = state.habitLogCache?.[habitId]?.find(log => log.date === date);
     captureModalReturnFocus();
-    modalState = { type: 'habit-value', habitId, date: Core.dateOnly(), total: Number(existing?.value || 0) };
+    modalState = { type: 'habit-value', habitId, date, total: Number(existing?.value || 0) };
     renderModal();
     requestAnimationFrame(() => $('#habit-value-total')?.focus());
   }
@@ -4571,8 +4581,6 @@
     }
     const goalTab = event.target.closest('[data-goal-tab]');
     if (goalTab && callDomainHook('handleAction', 'goal-tab', event) !== undefined) return;
-    const habitTab = event.target.closest('[data-habit-tab]');
-    if (habitTab && callDomainHook('handleAction', 'habit-tab', event) !== undefined) return;
     const templateTab=event.target.closest('[data-template-type]');
     if(templateTab){if(callDomainHook('handleAction','template-type',event)!==undefined)return;state.ui.templateType=templateTab.dataset.templateType;saveAndRender();return;}
 

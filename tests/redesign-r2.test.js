@@ -259,7 +259,9 @@ test('H6: the value sheet has the quick values, the total and "Primeni"', async 
   module.handleAction('habit-value-apply', { target: { closest: () => ({ dataset: {} }) } }, ctx);
   await new Promise(resolve => setImmediate(resolve));
   assert.deepEqual(ctx.calls.slice(-2), [['log', 'h2', TODAY, 'done', 1.75], ['closeModal']]);
-  assert.match(fn('openHabitValue'), /modalState = \{ type: 'habit-value', habitId, date: Core\.dateOnly\(\), total: Number\(existing\?\.value \|\| 0\) \}/);
+  // R8a: the sheet takes the day (today by default) so the Habits screen can fix a past day.
+  assert.match(fn('openHabitValue'), /modalState = \{ type: 'habit-value', habitId, date, total: Number\(existing\?\.value \|\| 0\) \}/);
+  assert.match(fn('openHabitValue'), /function openHabitValue\(habitId, date = Core\.dateOnly\(\)\)/);
 });
 
 test('a long press runs the element\'s long-press action once and swallows the click that follows', () => {

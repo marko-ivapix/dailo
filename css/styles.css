@@ -2468,6 +2468,79 @@ a.btn { text-decoration: none; }
   .calendar-card.is-dragging { opacity: .5; }
 }
 
+/* Redesign R8a — the Habits screen (H1–H7): week rings, Dan / Nedelja, Napredak, folds. */
+.habit-rings { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; margin: 4px 0 12px; padding: 8px 4px; border: 1px solid var(--line-1); border-radius: var(--radius-md); background: var(--graphite-850); }
+.habit-ring { display: grid; justify-items: center; gap: 2px; padding: 4px 0; border: 0; border-radius: var(--radius-md); background: none; color: var(--ink-3); font: inherit; font-size: 12px; cursor: pointer; touch-action: manipulation; }
+.habit-ring:disabled { cursor: default; }
+.habit-ring.is-today .habit-ring-weekday, .habit-ring.is-today .habit-ring-date { color: var(--blue-300); font-weight: 600; }
+.habit-ring.is-selected { background: var(--graphite-800); }
+.habit-ring:focus-visible { outline: none; box-shadow: var(--focus-ring-inset); }
+.habit-ring-svg { width: 40px; height: 40px; }
+.habit-ring-track { fill: none; stroke: var(--line-2); stroke-width: 4; }
+.habit-ring-arc { fill: none; stroke: var(--success); stroke-width: 4; stroke-linecap: round; }
+.habit-ring-check { fill: none; stroke: var(--success); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.habit-ring-svg text { fill: var(--ink-1); font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.habit-ring-pc { fill: var(--ink-3); font-size: 8px; font-weight: 500; }
+.habit-ring-svg .habit-ring-none { fill: var(--ink-4); font-weight: 400; }
+.habit-ring-date { color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.habits-view-switch { display: flex; width: 100%; }
+.habits-view-switch .btn { flex: 1; }
+.habits-day-title { margin: 14px 2px 0; color: var(--ink-1); font-size: 15px; font-weight: 600; }
+.habits-day-title::first-letter { text-transform: uppercase; }
+.habits-routine { margin-top: 16px; }
+.habits-routine .section-label i { color: var(--ink-3); }
+.habit-today-row .task-meta { color: var(--ink-3); font-size: 12px; }
+.habits-week-title { margin: 14px 2px 8px; }
+.habits-week-scroll { overflow-x: auto; }
+.habits-week-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.habits-week-table th { padding: 4px 2px; color: var(--ink-3); font-weight: 500; text-align: center; }
+.habits-week-table thead th.is-today { color: var(--ink-1); font-weight: 700; }
+.habits-week-group th { padding: 10px 2px 2px; color: var(--ink-3); font-size: 11px; font-weight: 600; letter-spacing: .06em; text-align: left; text-transform: uppercase; }
+.habits-week-table .habits-week-name { max-width: 110px; overflow: hidden; color: var(--ink-1); font-size: 13px; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
+.habits-week-table td { padding: 3px 2px; text-align: center; }
+.habit-cell { display: inline-grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 2px solid var(--line-2); border-radius: 50%; background: none; cursor: pointer; touch-action: manipulation; }
+.habit-cell.is-today { border-color: var(--line-3); }
+.habit-cell.is-done { border-color: var(--success); background: var(--success); }
+.habit-cell.is-missed { border-color: #6A3B3E; }
+.habit-cell.is-skipped { border-style: dashed; border-color: var(--ink-3); }
+.habit-cell.is-unscheduled { width: 14px; height: 2px; border: 0; border-radius: 1px; background: var(--line-2); cursor: default; }
+.habit-cell.is-future { opacity: .35; cursor: default; }
+.habit-cell:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.habit-cell-tick { width: 16px; height: 16px; fill: none; stroke: var(--graphite-900); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.habits-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 10px 2px 0; color: var(--ink-3); font-size: 12px; }
+.habits-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.habit-cell-swatch { display: inline-block; width: 12px; height: 12px; border: 2px solid transparent; border-radius: 50%; }
+.habit-cell-swatch.is-done { background: var(--success); }
+.habit-cell-swatch.is-missed { border-color: #6A3B3E; }
+.habit-cell-swatch.is-skipped { border: 2px dashed var(--ink-3); }
+.habit-cell-swatch.is-unscheduled { height: 2px; border: 0; border-radius: 1px; background: var(--line-2); }
+.habits-progress { margin-top: 20px; }
+.habits-bars { padding: 6px 14px 10px; }
+.habits-bars-title { margin: 4px 0 6px; color: var(--ink-3); font-size: 12px; }
+.habits-bar { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 8px; align-items: center; padding: 6px 0; font-size: 13px; }
+.habits-bar-name { overflow: hidden; color: var(--ink-1); text-overflow: ellipsis; white-space: nowrap; }
+.habits-bar-count { color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.habits-bar-check { width: 14px; height: 14px; fill: none; stroke: var(--success); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; vertical-align: -2px; }
+.habits-bar-track { grid-column: 1 / -1; display: block; height: 4px; overflow: hidden; border-radius: 2px; background: var(--line-1); }
+.habits-bar-track i { display: block; height: 100%; border-radius: 2px; background: var(--success); }
+.habits-chart { margin-top: 10px; padding: 10px 12px; }
+.habits-chart-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+.habits-chart-head strong { color: var(--ink-1); font-size: 18px; }
+.habits-chart-head span { color: var(--ink-3); font-size: 13px; }
+.habits-chart-month { display: inline-flex; align-items: center; gap: 4px; }
+.habits-chart-svg { display: block; width: 100%; height: auto; }
+.habits-chart-grid { stroke: var(--line-1); }
+.habits-chart-axis { fill: var(--ink-3); font-size: 9px; }
+.habits-chart-line { fill: none; stroke: var(--success); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.habits-chart-dot { fill: var(--success); stroke: var(--graphite-850); stroke-width: 2; }
+.habits-chart-today, .habits-chart-pick { fill: var(--ink-1); font-size: 10px; font-weight: 600; }
+.habits-chart-cross { stroke: var(--ink-4); }
+.habits-chart-hit { fill: transparent; cursor: pointer; }
+.habits-fold { margin-top: 14px; }
+.habits-fold .today-card { margin-top: 8px; }
+.habits-fold-row { grid-template-columns: minmax(0, 1fr) auto; }
+.habits-fold-row .task-title { color: var(--ink-2); }
+
 /* Keep primary compact actions touchable after all density rules. */
 @media (max-width: 700px), (pointer: coarse) {
   .task-actions .btn-icon,

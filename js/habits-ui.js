@@ -7,11 +7,7 @@
   // Routine labels are translation keys; the daily routine reads "Daytime" so it never shares a
   // key with the "Daily" frequency.
   const ROUTINES = Object.freeze({ morning: msg('Morning'), daily: msg('Daytime'), night: msg('Night') });
-  const ROUTINE_DETAILS = Object.freeze({
-    morning: { icon: 'ph-sun', copy: msg('Start-of-day practices.') },
-    daily: { icon: 'ph-check-square', copy: msg('Flexible routines to complete during the day.') },
-    night: { icon: 'ph-moon', copy: msg('Wind-down practices for the end of the day.') }
-  });
+  const ROUTINE_ICONS = Object.freeze({ morning: 'ph-sun', daily: 'ph-sun-horizon', night: 'ph-moon' });
   // Persisted habit and day statuses stay English enums; only their display is translated.
   const STATUS_LABELS = Object.freeze({ active: msg('Active'), paused: msg('Paused'), archived: msg('Archived'), done: msg('Done'), missed: msg('Missed'), skipped: msg('Skipped'), pending: msg('Pending'), unscheduled: msg('Unscheduled') });
   const statusLabel = status => (Object.prototype.hasOwnProperty.call(STATUS_LABELS, status) ? tr(STATUS_LABELS[status]) : status);
@@ -153,8 +149,12 @@
     return `<svg class="habit-circle" viewBox="0 0 28 28" aria-hidden="true"><circle class="habit-circle-track" cx="14" cy="14" r="11"/>${arc}</svg>`;
   }
 
-  function renderHabitTodayRow(ctx, habit, todayStatus = {}) {
+  // Redesign R8a (H2): the Habits screen's Dan reuses this row for any day (`options.date`), with a line under the
+  // name (`options.meta`); `options.count: false` leaves out the weekly count when the line already has it.
+  function renderHabitTodayRow(ctx, habit, todayStatus = {}, options = {}) {
     const { esc, habitMetrics } = ctx;
+    const date = options.date && options.date !== ctx.Core.dateOnly() ? options.date : null;
+    const dateAttr = date ? ` data-date="${esc(date)}"` : '';
     const status = todayStatus?.status || 'pending';
     const numeric = habit.trackingType === 'numeric';
     let fraction = 0; let right = '';
@@ -168,19 +168,23 @@
       right = tr('{count}/{target} weekly', { count: metrics.currentPeriodCount, target: metrics.currentPeriodTarget });
     }
     const check = numeric
-      ? `<button class="habit-check" type="button" data-action="habit-today-toggle" data-habit-id="${esc(habit.id)}" data-long-press="habit-today-menu" aria-label="${esc(tr('Enter value: {habit}', { habit: habit.name }))}">`
-      : `<button class="habit-check" type="button" data-action="habit-today-toggle" data-habit-id="${esc(habit.id)}" data-long-press="habit-today-menu" aria-pressed="${status === 'done'}" aria-label="${esc(habit.name)}">`;
-    return `<article class="today-row habit-today-row${status === 'done' ? ' is-done' : ''}${status === 'skipped' ? ' is-skipped' : ''}" data-habit-id="${esc(habit.id)}">${check}${habitCircle(status, fraction)}</button><button class="today-row-main" type="button" data-action="habit-today-menu" data-habit-id="${esc(habit.id)}" aria-haspopup="dialog"><span class="task-title">${esc(habit.name)}</span></button>${right ? `<span class="task-side habit-today-count">${esc(right)}</span>` : ''}</article>`;
+      ? `<button class="habit-check" type="button" data-action="habit-today-toggle" data-habit-id="${esc(habit.id)}"${dateAttr} data-long-press="habit-today-menu" aria-label="${esc(tr('Enter value: {habit}', { habit: habit.name }))}">`
+      : `<button class="habit-check" type="button" data-action="habit-today-toggle" data-habit-id="${esc(habit.id)}"${dateAttr} data-long-press="habit-today-menu" aria-pressed="${status === 'done'}" aria-label="${esc(habit.name)}">`;
+    const meta = options.meta ? `<span class="task-meta">${esc(options.meta)}</span>` : '';
+    const count = right && !(options.count === false && !numeric) ? `<span class="task-side habit-today-count">${esc(right)}</span>` : '';
+    return `<article class="today-row habit-today-row${status === 'done' ? ' is-done' : ''}${status === 'skipped' ? ' is-skipped' : ''}" data-habit-id="${esc(habit.id)}">${check}${habitCircle(status, fraction)}</button><button class="today-row-main" type="button" data-action="habit-today-menu" data-habit-id="${esc(habit.id)}"${dateAttr} aria-haspopup="dialog"><span class="task-title">${esc(habit.name)}</span>${meta}</button>${count}</article>`;
   }
 
-  function openTodayHabitMenu(ctx, anchor, habitId) {
+  function openTodayHabitMenu(ctx, anchor, habitId, date = ctx.Core.dateOnly()) {
     const { getHabit, esc, openPopover, state, Core } = ctx;
     const habit = getHabit(habitId); if (!habit) return;
-    const skipped = state.habitLogCache?.[habitId]?.find(log => log.date === Core.dateOnly())?.status === 'skipped';
-    const value = habit.trackingType === 'numeric' ? `<button class="popover-option" type="button" data-pop-action="habit-today-value" data-habit-id="${esc(habitId)}"><i class="ph ph-pencil-simple"></i>${tr('Enter value')}</button>` : '';
-    const skip = habit.trackingType === 'numeric' ? '' : `<button class="popover-option" type="button" data-pop-action="habit-today-skip" data-habit-id="${esc(habitId)}"><i class="ph ph-arrow-bend-up-right"></i>${skipped ? tr('Undo skip') : tr('Skip today')}</button>`;
+    const other = date !== Core.dateOnly();
+    const dateAttr = other ? ` data-date="${esc(date)}"` : '';
+    const skipped = state.habitLogCache?.[habitId]?.find(log => log.date === date)?.status === 'skipped';
+    const value = habit.trackingType === 'numeric' ? `<button class="popover-option" type="button" data-pop-action="habit-today-value" data-habit-id="${esc(habitId)}"${dateAttr}><i class="ph ph-pencil-simple"></i>${tr('Enter value')}</button>` : '';
+    const skip = habit.trackingType === 'numeric' ? '' : `<button class="popover-option" type="button" data-pop-action="habit-today-skip" data-habit-id="${esc(habitId)}"${dateAttr}><i class="ph ph-arrow-bend-up-right"></i>${skipped ? tr('Undo skip') : other ? tr('Skip') : tr('Skip today')}</button>`;
     const details = `<button class="popover-option" type="button" data-pop-action="habit-today-details" data-habit-id="${esc(habitId)}"><i class="ph ph-chart-line-up"></i>${tr('Habit details')}</button>`;
-    openPopover(anchor, `<div class="popover-title">${esc(habit.name)}</div>${value}${skip}${details}`, { type: 'habit-today-menu', habitId });
+    openPopover(anchor, `<div class="popover-title">${esc(habit.name)}</div>${other ? `<p class="sheet-subtitle">${esc(ctx.formatDate(date, 'full'))}</p>` : ''}${value}${skip}${details}`, { type: 'habit-today-menu', habitId });
   }
 
   // H6: the value sheet with the quick values, the day's total and "Primeni".
@@ -190,28 +194,8 @@
     if (!habit) return '';
     const unit = habit.unit ? ` ${esc(habit.unit)}` : '';
     const chips = (habit.quickValues || []).map(value => `<button class="quick-chip" type="button" data-action="habit-value-add" data-value="${esc(value)}">+${esc(number(value))}${unit}</button>`).join('');
-    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">${esc(habit.name)}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div><p class="habit-value-summary"><strong class="habit-value-total">${esc(number(modalState.total))}</strong> / ${esc(number(habit.targetValue))}${unit}</p>${chips ? `<div class="quick-actions">${chips}</div>` : ''}<label class="field-label" for="habit-value-total">${tr('Total for the day')}</label><input id="habit-value-total" class="input" type="number" min="0" step="any" value="${esc(modalState.total)}"><div class="modal-footer"><div class="modal-footer-actions"><button class="btn btn-primary" type="button" data-action="habit-value-apply">${tr('Apply')}</button></div></div></div>`, 'habit-value-modal');
-  }
-
-  function renderHabitSection(ctx, label, habits, group = {}) {
-    const icon = group.icon ? `<i class="ph ${group.icon}" aria-hidden="true"></i>` : '';
-    const copy = group.copy ? `<p>${ctx.esc(group.copy)}</p>` : '';
-    const groupClass = group.className ? ` ${group.className}` : '';
-    return `<section class="section habit-group${groupClass}"><div class="section-header habit-group-header"><div class="habit-group-heading">${icon}<div><h2 class="section-label">${ctx.esc(label)}</h2>${copy}</div></div><span class="section-count">${habits.length}</span></div>${habits.length ? `<div class="habit-list">${habits.map(habit => renderHabitRow(ctx, habit)).join('')}</div>` : `<p class="area-empty-copy">${tr('No active habits in this routine.')}</p>`}</section>`;
-  }
-
-  function trackerDates(ctx) {
-    const today = ctx.Core.dateOnly();
-    const monthKey = /^\d{4}-\d{2}$/.test(ctx.state.ui.habitTrackerMonth || '') ? ctx.state.ui.habitTrackerMonth : today.slice(0, 7);
-    const current = new Date(`${monthKey}-01T12:00:00`); const year = current.getFullYear(); const month = current.getMonth();
-    const monthName = current.toLocaleDateString(I18n.locale(), { month: 'long', year: 'numeric' });
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    return Array.from({ length: 31 }, (_, index) => {
-      const day = index + 1; const valid = day <= daysInMonth;
-      const date = valid ? `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}` : null;
-      const parsed = valid ? new Date(`${date}T12:00:00`) : null;
-      return { date, day, valid, future: Boolean(date && date > today), weekday: parsed ? parsed.toLocaleDateString(I18n.locale(), { weekday: 'short' }).slice(0, 2) : '', week: Math.floor(index / 7) + 1, monthName };
-    });
+    const day = modalState.date && modalState.date !== ctx.Core.dateOnly() ? `<p class="sheet-subtitle">${esc(ctx.formatDate(modalState.date, 'full'))}</p>` : '';
+    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">${esc(habit.name)}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div>${day}<p class="habit-value-summary"><strong class="habit-value-total">${esc(number(modalState.total))}</strong> / ${esc(number(habit.targetValue))}${unit}</p>${chips ? `<div class="quick-actions">${chips}</div>` : ''}<label class="field-label" for="habit-value-total">${tr('Total for the day')}</label><input id="habit-value-total" class="input" type="number" min="0" step="any" value="${esc(modalState.total)}"><div class="modal-footer"><div class="modal-footer-actions"><button class="btn btn-primary" type="button" data-action="habit-value-apply">${tr('Apply')}</button></div></div></div>`, 'habit-value-modal');
   }
 
   function shiftMonth(monthKey, amount) {
@@ -220,68 +204,171 @@
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
   }
 
-  function trackerCompletion(ctx, habit, dates) {
-    const logs = ctx.state.habitLogCache?.[habit.id] || [];
+  // Redesign R8a (H1–H7): the Habits screen. The rings, Dan, Nedelja and the bars cover this habit week
+  // (Core.habitWeekRule); the chart covers one calendar month (`ui.habitTrackerMonth`).
+  const ROUTINE_ORDER = ['morning', 'daily', 'night'];
+  const routineOf = habit => (ROUTINE_ORDER.includes(habit.routine) ? habit.routine : 'daily');
+  const CELL_LABELS = Object.freeze({ done: msg('Done'), missed: msg('Missed'), skipped: msg('Skipped'), open: msg('Not checked in'), unscheduled: msg('Not scheduled'), future: msg('Future') });
+
+  function habitsWeek(ctx) {
     const today = ctx.Core.dateOnly();
-    return ctx.Core.habitCompletionForDates(habit, logs, dates.filter(entry => entry.valid && entry.date).map(entry => entry.date), today, ctx.Core.habitWeekRule(ctx.state.settings));
+    const rule = ctx.Core.habitWeekRule(ctx.state.settings);
+    const start = ctx.Core.habitPeriodKey({ frequencyType: 'timesPerWeek' }, today, rule);
+    return { today, rule, start, days: Array.from({ length: 7 }, (_, index) => ctx.Core.addDays(start, index)) };
   }
 
-  function renderHabitDashboard(ctx, habits) {
-    const { Core, esc, habitMetrics } = ctx;
-    const dates = trackerDates(ctx); const today = Core.dateOnly();
-    const active = habits.filter(habit => habit.status === 'active');
-    const todayDone = active.filter(habit => {
-      const status = Core.habitStatusForDate(habit, ctx.state.habitLogCache?.[habit.id] || [], today, today);
-      return status.status === 'done';
-    }).length;
-    const completions = active.map(habit => trackerCompletion(ctx, habit, dates));
-    const average = completions.length ? Math.round(completions.reduce((sum, value) => sum + value, 0) / completions.length) : 0;
-    const monthDone = active.reduce((total, habit) => total + dates.filter(entry => entry.valid && !entry.future).reduce((count, entry) => { const status = Core.habitStatusForDate(habit, ctx.state.habitLogCache?.[habit.id] || [], entry.date, today); return count + (status.status === 'done' ? 1 : 0); }, 0), 0);
-    const bestStreak = active.reduce((best, habit) => Math.max(best, Number(habitMetrics(habit).currentStreak || 0)), 0);
-    const weeks = Array.from({ length: 5 }, (_, week) => {
-      const slice = dates.slice(week * 7, week * 7 + 7);
-      const values = active.map(habit => trackerCompletion(ctx, habit, slice));
-      return values.length ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length) : 0;
-    });
-    const weekBar = weeks.map((value, index) => `<div class="habit-trend-bar-wrap"><span class="habit-trend-value">${value}%</span><span class="habit-trend-bar" style="--habit-bar-height:${Math.max(6, value)}%" aria-label="${tr('Week {number}: {percent}%', { number: index + 1, percent: value })}"></span><small>${tr('W{number}', { number: index + 1 })}</small></div>`).join('');
-    const weeksHead = Array.from({ length: 5 }, (_, index) => `<span style="grid-column:${2 + index * 7} / span ${index === 4 ? 3 : 7}">${tr('Week {number}', { number: index + 1 })}</span>`).join('');
-    const daysHead = dates.map(entry => `<span class="${entry.valid ? '' : 'is-outside-month'}" title="${esc(entry.date || tr('Outside this month'))}">${entry.valid ? entry.weekday : '—'}<b>${entry.day}</b></span>`).join('');
-    const rows = active.map(habit => {
-      const logs = ctx.state.habitLogCache?.[habit.id] || [];
-      const cells = dates.map(entry => {
-        const status = entry.valid ? Core.habitStatusForDate(habit, logs, entry.date, today) : { status: 'outside-month', percent: 0 };
-        const percent = Math.round(Number(status.percent || (status.status === 'done' ? 100 : 0)));
-        const canToggle = Boolean(entry.valid && !entry.future && habit.status === 'active');
-        const nextStatus = status.status === 'done' ? 'missed' : 'done';
-        const label = entry.valid ? `${habit.name} ${entry.date}: ${statusLabel(status.status)}` : tr('{name}: outside this month', { name: habit.name });
-        return `<button class="habit-day-cell is-${esc(status.status)}${entry.future ? ' is-future' : ''}" type="button" ${canToggle ? `data-action="habit-grid-toggle" data-habit-id="${esc(habit.id)}" data-habit-date="${esc(entry.date)}"` : 'disabled'} style="--habit-cell-fill:${Math.max(0, Math.min(100, percent))}%" title="${esc(label)}" aria-label="${esc(label)}" aria-pressed="${status.status === 'done'}"></button>`;
-      }).join('');
-      return `<div class="habit-tracker-row"><button class="habit-tracker-name" type="button" data-route="habit/${esc(habit.id)}"><i class="ph ${ROUTINE_DETAILS[habit.routine || 'daily'].icon}"></i><span><strong>${esc(habit.name)}</strong><small>${esc(routineLabel(habit.routine))}</small></span></button><div class="habit-tracker-cells">${cells}</div><strong class="habit-tracker-percent">${trackerCompletion(ctx, habit, dates)}%</strong></div>`;
+  function ringSvg(percent) {
+    const track = '<circle class="habit-ring-track" cx="22" cy="22" r="18"/>';
+    if (percent === null) return `<svg class="habit-ring-svg" viewBox="0 0 44 44" aria-hidden="true">${track}<text class="habit-ring-none" x="22" y="26" text-anchor="middle">–</text></svg>`;
+    const arc = percent > 0 ? `<circle class="habit-ring-arc" cx="22" cy="22" r="18" stroke-dasharray="${(percent / 100 * 113.1).toFixed(1)} 113.1" transform="rotate(-90 22 22)"/>` : '';
+    const inside = percent === 100 ? '<path class="habit-ring-check" d="M17.5 22.3l3 3 6-6.3"/>' : `<text x="22" y="26" text-anchor="middle">${percent}<tspan class="habit-ring-pc">%</tspan></text>`;
+    return `<svg class="habit-ring-svg" viewBox="0 0 44 44" aria-hidden="true">${track}${arc}${inside}</svg>`;
+  }
+
+  // H4: this week's rings; a tap opens that day in Dan, future days are inactive.
+  function habitRings(ctx, active, week, selected) {
+    const { Core, esc, state } = ctx;
+    const weekday = new Intl.DateTimeFormat(I18n.locale(), { weekday: 'short' });
+    const rings = week.days.map(date => {
+      const future = date > week.today;
+      const share = future ? { percent: null } : Core.habitDayPercent(active, state.habitLogCache || {}, date, week.today, week.rule);
+      const isSelected = date === selected;
+      const label = `${ctx.formatDate(date, 'full')}, ${share.percent === null ? tr('no data') : `${share.percent}%`}`;
+      const name = weekday.format(ctx.Core.parseDateOnly(date));
+      return `<button class="habit-ring${date === week.today ? ' is-today' : ''}${isSelected ? ' is-selected' : ''}" type="button" data-action="habits-ring" data-date="${date}"${future ? ' disabled' : ''} aria-label="${esc(label)}"${isSelected ? ' aria-current="date"' : ''}><span class="habit-ring-weekday">${esc(name.charAt(0).toLocaleUpperCase(I18n.locale()) + name.slice(1))}</span>${ringSvg(share.percent)}<span class="habit-ring-date">${Number(date.slice(8))}</span></button>`;
     }).join('');
-    const breakdown = active.map(habit => `<div class="habit-analysis-bar"><span>${esc(habit.name)}</span><div><i style="--habit-bar-width:${trackerCompletion(ctx, habit, dates)}%"></i></div><strong>${trackerCompletion(ctx, habit, dates)}%</strong></div>`).join('');
-    const monthKey = dates[0].date?.slice(0, 7) || ctx.state.ui.habitTrackerMonth;
-    const currentMonth = today.slice(0, 7);
-    const focusCount = monthKey === currentMonth ? `${todayDone}/${active.length}` : `${monthDone}`;
-    const focusLabel = monthKey === currentMonth ? tr('today') : trn(monthDone, 'month check-in', 'month check-ins');
-    const checkedLabel = monthKey === currentMonth ? tr('Checked today') : tr('Month check-ins');
-    return `<section class="habit-dashboard"><div class="habit-dashboard-head"><div><h2>${tr('Consistency')}</h2><p>${esc(dates[0].monthName)} · ${monthKey === currentMonth ? tr('click any past day to update it') : monthKey < currentMonth ? tr('historical month · click any day to update it') : tr('future month · check-ins unlock as days arrive')}</p></div><div class="habit-dashboard-head-actions"><div class="habit-month-navigation" aria-label="${tr('Habit tracker month')}"><button class="btn-icon" type="button" data-action="habit-month-shift" data-month-shift="-1" aria-label="${tr('Previous month')}"><i class="ph ph-caret-left"></i></button><strong>${esc(dates[0].monthName)}</strong><button class="btn-icon" type="button" data-action="habit-month-shift" data-month-shift="1" aria-label="${tr('Next month')}"><i class="ph ph-caret-right"></i></button>${monthKey !== currentMonth ? `<button class="btn btn-ghost" type="button" data-action="habit-month-today">${tr('Today')}</button>` : ''}</div><div class="habit-dashboard-summary"><span><strong>${focusCount}</strong> ${focusLabel}</span><span><strong>${average}%</strong> ${tr('month average')}</span><span><strong>${bestStreak}</strong> ${trn(bestStreak, 'day streak', 'day streak')}</span></div></div></div><div class="habit-dashboard-legend" aria-label="${tr('Habit tracker legend')}"><span><i class="habit-legend-swatch is-done"></i> ${tr('Done')}</span><span><i class="habit-legend-swatch is-missed"></i> ${tr('Missed')}</span><span><i class="habit-legend-swatch is-skipped"></i> ${tr('Skipped')}</span><span><i class="habit-legend-swatch is-future"></i> ${tr('Future')}</span></div><div class="habit-dashboard-body"><div class="habit-tracker-scroll"><div class="habit-tracker-canvas"><div class="habit-tracker-weekbar"><span></span>${weeksHead}<span></span></div><div class="habit-tracker-daybar"><span>${tr('Habit')}</span>${daysHead}<span>%</span></div>${rows}</div></div><aside class="habit-analysis"><div class="habit-analysis-head"><h3>${tr('Analysis')}</h3><span>${esc(dates[0].monthName)}</span></div><div class="habit-trend" aria-label="${tr('Weekly habit completion')}">${weekBar}</div><dl class="habit-analysis-list"><div><dt>${tr('Active habits')}</dt><dd>${active.length}</dd></div><div><dt>${checkedLabel}</dt><dd>${monthKey === currentMonth ? todayDone : monthDone}</dd></div><div><dt>${tr('Best current streak')}</dt><dd>${trn(bestStreak, '{count} day', '{count} days')}</dd></div></dl><div class="habit-analysis-breakdown">${breakdown}</div></aside></div></section>`;
+    return `<div class="habit-rings" role="group" aria-label="${tr('This week, done of planned')}">${rings}</div>`;
+  }
+
+  function dayMeta(ctx, habit, day, date, today) {
+    const frequency = habitFrequencyLabel(ctx, habit);
+    const lower = text => text.toLocaleLowerCase(I18n.locale());
+    if (day.state === 'skipped') return `${frequency} · ${lower(tr('Skipped'))}`;
+    const metrics = ctx.habitMetrics(habit);
+    if (habit.frequencyType === 'timesPerWeek') return `${frequency} · ${tr('{count} / {target} this week', { count: metrics.currentPeriodCount || 0, target: metrics.currentPeriodTarget || habit.timesPerWeek || 1 })}`;
+    if (date !== today) return day.state === 'missed' ? `${frequency} · ${lower(tr('Missed'))}` : frequency;
+    return `${frequency} · ${trn(metrics.currentStreak || 0, 'streak {count} day', 'streak {count} days')}`;
+  }
+
+  // H2: the selected day's habits by routine, the done ones last in each group.
+  function renderHabitsDay(ctx, active, week, date) {
+    const { Core, esc, state } = ctx;
+    let html = date !== week.today ? `<h2 class="habits-day-title">${esc(ctx.formatDate(date, 'full'))}</h2>` : '';
+    let shown = 0;
+    for (const routine of ROUTINE_ORDER) {
+      const entries = active.filter(habit => routineOf(habit) === routine)
+        .map(habit => ({ habit, day: Core.habitDayState(habit, state.habitLogCache?.[habit.id] || [], date, week.today, week.rule) }))
+        .filter(entry => !['unscheduled', 'future'].includes(entry.day.state));
+      if (!entries.length) continue;
+      shown += entries.length;
+      const sorted = [...entries.filter(entry => entry.day.state !== 'done'), ...entries.filter(entry => entry.day.state === 'done')];
+      const rows = sorted.map(({ habit, day }) => renderHabitTodayRow(ctx, habit, { status: day.state === 'done' ? 'done' : day.state === 'skipped' ? 'skipped' : 'pending', value: day.value }, { date, meta: dayMeta(ctx, habit, day, date, week.today), count: false })).join('');
+      html += `<section class="section habits-routine habits-routine--${routine}"><div class="section-header"><h2 class="section-label"><i class="ph ${ROUTINE_ICONS[routine]}" aria-hidden="true"></i> ${esc(routineLabel(routine))}</h2><span class="section-count">${entries.length}</span></div><div class="habit-list today-card">${rows}</div></section>`;
+    }
+    return shown ? html : `${html}<p class="today-empty">${tr('No habits planned for this day.')}</p>`;
+  }
+
+  const TICK = '<svg class="habit-cell-tick" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+
+  // H3: the week as a table; a cell records a day like a tap in Dan.
+  function renderHabitsWeek(ctx, active, week) {
+    const { Core, esc, state } = ctx;
+    const range = new Intl.DateTimeFormat(I18n.locale(), { day: 'numeric', month: 'long' });
+    const first = Core.parseDateOnly(week.days[0]); const last = Core.parseDateOnly(week.days[6]);
+    const title = typeof range.formatRange === 'function' ? range.formatRange(first, last) : `${ctx.formatDate(week.days[0])} – ${ctx.formatDate(week.days[6])}`;
+    const weekday = new Intl.DateTimeFormat(I18n.locale(), { weekday: 'short' });
+    const head = week.days.map(date => `<th scope="col"${date === week.today ? ' class="is-today"' : ''}>${esc(weekday.format(Core.parseDateOnly(date)))}<br>${Number(date.slice(8))}</th>`).join('');
+    let body = '';
+    for (const routine of ROUTINE_ORDER) {
+      const habits = active.filter(habit => routineOf(habit) === routine);
+      if (!habits.length) continue;
+      body += `<tr class="habits-week-group"><th scope="rowgroup" colspan="8">${esc(routineLabel(routine))}</th></tr>`;
+      body += habits.map(habit => `<tr><th scope="row" class="habits-week-name">${esc(habit.name)}</th>${week.days.map(date => {
+        const day = Core.habitDayState(habit, state.habitLogCache?.[habit.id] || [], date, week.today, week.rule);
+        const inactive = ['unscheduled', 'future'].includes(day.state);
+        const label = `${habit.name}, ${ctx.formatDate(date, 'full')}: ${tr(CELL_LABELS[day.state])}`;
+        const pressed = habit.trackingType === 'numeric' ? '' : ` aria-pressed="${day.state === 'done'}"`;
+        return `<td><button class="habit-cell is-${day.state}${date === week.today ? ' is-today' : ''}" type="button" data-action="habit-today-toggle" data-habit-id="${esc(habit.id)}" data-date="${date}"${inactive ? ' disabled' : ''} aria-label="${esc(label)}"${pressed}>${day.state === 'done' ? TICK : ''}</button></td>`;
+      }).join('')}</tr>`).join('');
+    }
+    const legend = ['done', 'missed', 'skipped', 'unscheduled'].map(key => `<span><i class="habit-cell-swatch is-${key}" aria-hidden="true"></i>${tr(CELL_LABELS[key])}</span>`).join('');
+    return `<h2 class="section-label habits-week-title">${esc(title)}</h2><div class="habits-week-scroll"><table class="habits-week-table"><thead><tr><th scope="col"><span class="sr-only">${tr('Habit')}</span></th>${head}</tr></thead><tbody>${body}</tbody></table></div><div class="habits-legend">${legend}</div>`;
+  }
+
+  // H7: each active habit's week, done days against the week's plan.
+  function habitBars(ctx, active, week) {
+    const { Core, esc, state } = ctx;
+    return active.map(habit => {
+      const { done, planned } = Core.habitWeekProgress(habit, state.habitLogCache?.[habit.id] || [], week.start, week.today, week.rule);
+      const percent = planned ? Math.min(100, Math.round(done / planned * 100)) : 0;
+      const count = percent === 100 ? '<svg class="habits-bar-check" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>' : `${done}/${planned}`;
+      return `<div class="habits-bar"><span class="habits-bar-name">${esc(habit.name)}</span><span class="habits-bar-count">${count}</span><span class="habits-bar-track" role="img" aria-label="${esc(tr('{name}: {done} of {planned}', { name: habit.name, done, planned }))}"><i style="width:${percent}%"></i></span></div>`;
+    }).join('');
+  }
+
+  // H4: the daily share for one calendar month; only today is labelled, a tap shows any day's value.
+  function habitChart(ctx, active, week) {
+    const { Core, esc, state } = ctx;
+    const current = week.today.slice(0, 7);
+    const month = /^\d{4}-\d{2}$/.test(state.ui.habitTrackerMonth || '') && state.ui.habitTrackerMonth <= current ? state.ui.habitTrackerMonth : current;
+    const first = Core.parseDateOnly(`${month}-01`);
+    const length = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
+    const dates = Array.from({ length }, (_, index) => Core.addDays(`${month}-01`, index));
+    const values = dates.filter(date => date <= week.today).map(date => Core.habitDayPercent(active, state.habitLogCache || {}, date, week.today, week.rule).percent);
+    const numbers = values.filter(value => value !== null);
+    const average = numbers.length ? Math.round(numbers.reduce((sum, value) => sum + value, 0) / numbers.length) : null;
+    const W = 320, H = 150, L = 30, R = 10, T = 10, B = 22;
+    const x = index => L + index * (W - L - R) / Math.max(1, length - 1);
+    const y = value => T + (100 - value) / 100 * (H - T - B);
+    const label = capitalized(new Intl.DateTimeFormat(I18n.locale(), { month: 'long', year: 'numeric' }).format(first));
+    const earliest = active.map(habit => String(habit.startDate || habit.createdAt || week.today).slice(0, 7)).sort()[0] || current;
+    const grid = [0, 50, 100].map(value => `<line class="habits-chart-grid" x1="${L}" x2="${W - R}" y1="${y(value)}" y2="${y(value)}"/><text class="habits-chart-axis" x="${L - 6}" y="${y(value) + 3}" text-anchor="end">${value}%</text>`).join('');
+    const ticks = [0, 7, 14, 21, length - 1].map(index => `<text class="habits-chart-axis" x="${x(index).toFixed(1)}" y="${H - 6}" text-anchor="${index === length - 1 ? 'end' : index ? 'middle' : 'start'}">${esc(ctx.formatDate(dates[index]))}</text>`).join('');
+    const points = values.map((value, index) => (value === null ? null : `${x(index).toFixed(1)},${y(value).toFixed(1)}`)).filter(Boolean).join(' ');
+    const line = points ? `<polyline class="habits-chart-line" points="${points}"/>` : '';
+    const marker = (index, cls, text) => `<circle class="habits-chart-dot" cx="${x(index).toFixed(1)}" cy="${y(values[index]).toFixed(1)}" r="4.5"/><text class="${cls}" x="${Math.min(W - R, x(index) + 8).toFixed(1)}" y="${Math.max(T + 8, y(values[index]) - 10).toFixed(1)}" text-anchor="${x(index) > W - 80 ? 'end' : 'start'}">${esc(text)}</text>`;
+    const todayIndex = dates.indexOf(week.today);
+    const today = todayIndex >= 0 && values[todayIndex] !== null ? marker(todayIndex, 'habits-chart-today', tr('today {percent}%', { percent: values[todayIndex] })) : '';
+    const pickIndex = dates.indexOf(state.ui.habitChartDay);
+    const pick = pickIndex >= 0 && pickIndex < values.length && values[pickIndex] !== null ? `<line class="habits-chart-cross" x1="${x(pickIndex).toFixed(1)}" x2="${x(pickIndex).toFixed(1)}" y1="${T}" y2="${y(0)}"/>${marker(pickIndex, 'habits-chart-pick', `${ctx.formatDate(dates[pickIndex])}: ${values[pickIndex]}%`)}` : '';
+    const step = (W - L - R) / Math.max(1, length - 1);
+    const hits = values.map((value, index) => `<rect class="habits-chart-hit" x="${Math.max(0, x(index) - step / 2).toFixed(1)}" y="0" width="${step.toFixed(1)}" height="${H}" data-action="habit-chart-day" data-date="${dates[index]}"/>`).join('');
+    const table = `<table class="sr-only"><caption>${esc(label)}</caption>${values.map((value, index) => `<tr><th scope="row">${esc(ctx.formatDate(dates[index]))}</th><td>${value === null ? tr('no data') : `${value}%`}</td></tr>`).join('')}</table>`;
+    return `<div class="today-card habits-chart"><div class="habits-chart-head"><div><strong>${average === null ? '–' : `${average}%`}</strong> <span>${tr('average')}</span></div><div class="habits-chart-month"><button class="btn-icon" type="button" data-action="habit-chart-month" data-shift="-1" aria-label="${tr('Previous month')}"${month <= earliest ? ' disabled' : ''}><i class="ph ph-caret-left"></i></button><span>${esc(label)}</span><button class="btn-icon" type="button" data-action="habit-chart-month" data-shift="1" aria-label="${tr('Next month')}"${month >= current ? ' disabled' : ''}><i class="ph ph-caret-right"></i></button></div></div><svg class="habits-chart-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(tr('Share of habits done per day, {month}', { month: label }))}">${grid}${ticks}${line}${pick}${today}${hits}</svg>${table}</div>`;
+  }
+
+  function capitalized(text) {
+    return text.charAt(0).toLocaleUpperCase(I18n.locale()) + text.slice(1);
+  }
+
+  // H5: paused and archived habits fold at the bottom.
+  function habitFold(ctx, key, label, habits, action, actionLabel) {
+    if (!habits.length) return '';
+    const { esc, state } = ctx;
+    const open = state.ui[key === 'paused' ? 'habitsPausedOpen' : 'habitsArchivedOpen'] === true;
+    const rows = open ? `<div class="today-card">${habits.map(habit => `<div class="today-row habits-fold-row"><button class="today-row-main" type="button" data-route="habit/${esc(habit.id)}"><span class="task-title">${esc(habit.name)}</span><span class="task-meta">${esc(habitFrequencyLabel(ctx, habit))}</span></button><button class="quick-chip" type="button" data-action="${action}" data-habit-id="${esc(habit.id)}">${actionLabel}</button></div>`).join('')}</div>` : '';
+    return `<section class="habits-fold"><button class="collapsible-trigger" type="button" data-action="habits-fold" data-fold="${key}" aria-expanded="${open}"><span class="left"><i class="ph ph-caret-${open ? 'up' : 'down'}" aria-hidden="true"></i> ${label} · ${habits.length}</span></button>${rows}</section>`;
   }
 
   function renderHabits(ctx) {
-    const { state, pageHeader, emptyState } = ctx;
-    const tab = state.ui.habitTab || 'active';
-    const habits = (state.habits || []).filter(habit => tab === 'all' || (tab === 'archived' ? habit.status === 'archived' : habit.status !== 'archived'));
-    let html = pageHeader(tr('Habits'), trn(habits.filter(habit => habit.status === 'active').length, '{count} active habit', '{count} active habits'), { add: false, actionHtml: `<button class="btn btn-primary" type="button" data-action="new-habit"><i class="ph ph-plus"></i> ${tr('New habit')}</button>` });
-    html += `<div class="area-tabs"><button type="button" data-habit-tab="active" class="${tab === 'active' ? 'is-active' : ''}">${tr('Active')}</button><button type="button" data-habit-tab="all" class="${tab === 'all' ? 'is-active' : ''}">${tr('All')}</button><button type="button" data-habit-tab="archived" class="${tab === 'archived' ? 'is-active' : ''}">${tr('Archived')}</button></div>`;
+    const { state, pageHeader, emptyState, Core } = ctx;
+    const habits = state.habits || [];
+    const active = ROUTINE_ORDER.flatMap(routine => habits.filter(habit => habit.status === 'active' && routineOf(habit) === routine));
+    const week = habitsWeek(ctx);
+    const todayShare = Core.habitDayPercent(active, state.habitLogCache || {}, week.today, week.today, week.rule);
+    let html = pageHeader(tr('Habits'), active.length ? tr('{done} of {total} today', { done: todayShare.done, total: todayShare.planned }) : '', { add: false });
     if (!habits.length) return html + emptyState(tr('No habits yet.'), tr('Track a repeatable behavior without turning it into a task.'), tr('New habit'), 'new-habit');
-    if (tab !== 'active') return html + `<div class="habit-list">${habits.map(habit => renderHabitRow(ctx, habit)).join('')}</div>`;
-    const activeHabits = habits.filter(habit => habit.status === 'active');
-    if (activeHabits.length) html += renderHabitDashboard(ctx, activeHabits);
-    for (const [routine, label] of Object.entries(ROUTINES)) {
-      html += renderHabitSection(ctx, tr(label), habits.filter(habit => habit.status === 'active' && (habit.routine || 'daily') === routine), { ...ROUTINE_DETAILS[routine], copy: tr(ROUTINE_DETAILS[routine].copy), className: `habit-group--${routine}` });
-    }
-    const paused = habits.filter(habit => habit.status === 'paused');
-    return html + (paused.length ? renderHabitSection(ctx, tr('Paused'), paused, { icon: 'ph-pause', copy: tr('Paused habits keep their history and settings.'), className: 'habit-group--paused' }) : '');
+    if (active.length) {
+      const view = state.ui.habitsView === 'week' ? 'week' : 'day';
+      const day = Core.parseDateOnly(state.ui.habitsDay) && state.ui.habitsDay <= week.today ? state.ui.habitsDay : week.today;
+      html += habitRings(ctx, active, week, view === 'day' ? day : null);
+      html += `<div class="view-tabs habits-view-switch" role="group" aria-label="${tr('Habit view')}">${[['day', tr('Day')], ['week', tr('Week')]].map(([key, label]) => `<button class="btn${view === key ? ' is-selected' : ''}" type="button" data-action="habits-view" data-view="${key}" aria-pressed="${view === key}">${label}</button>`).join('')}</div>`;
+      html += view === 'day' ? renderHabitsDay(ctx, active, week, day) : renderHabitsWeek(ctx, active, week);
+      html += `<section class="section habits-progress"><div class="section-header"><h2 class="section-label">${tr('Progress')}</h2></div><div class="today-card habits-bars"><p class="habits-bars-title">${tr('By habit · this week')}</p>${habitBars(ctx, active, week)}</div>${habitChart(ctx, active, week)}</section>`;
+    } else html += `<p class="today-empty">${tr('No active habits.')}</p>`;
+    html += habitFold(ctx, 'paused', tr('Paused habits'), habits.filter(habit => habit.status === 'paused'), 'resume-habit', tr('Resume'));
+    html += habitFold(ctx, 'archived', tr('Archived habits'), habits.filter(habit => habit.status === 'archived'), 'restore-habit', tr('Restore'));
+    return html;
   }
 
   function heatmapHtml(ctx, habit, logs) {
@@ -601,23 +688,34 @@
     const { $, state, Core, getHabit, habitMetrics, openHabitModal, renderModal, setHabitLog, nowIso, saveState, closeModal, refreshHabitMetrics, render, updateHabitStatus, closePopover, snoozeHabit, requestDeleteEntity, saveAndRender } = ctx;
     if (action === 'read-habit-draft') { readHabitDraft(ctx); return true; }
     if (action === 'add-starter-examples') { addStarterExamples(ctx); return true; }
-    if (action === 'habit-tab') { state.ui.habitTab = event.target.closest('[data-habit-tab]').dataset.habitTab; saveAndRender(); return true; }
-    if (action === 'habit-month-shift') { const monthShift = event.target.closest('[data-month-shift]')?.dataset.monthShift || 0; state.ui.habitTrackerMonth = shiftMonth(state.ui.habitTrackerMonth || Core.dateOnly().slice(0, 7), Number(monthShift)); saveAndRender(); return true; }
-    if (action === 'habit-month-today') { state.ui.habitTrackerMonth = Core.dateOnly().slice(0, 7); saveAndRender(); return true; }
     if (action === 'habit-property') { openHabitProperty(ctx, event.target.closest('[data-habit-property]')); return true; }
     const el = event?.target.closest('[data-action], [data-pop-action]');
     if (!el) return false;
     const today = Core.dateOnly();
-    const todayLog = id => state.habitLogCache?.[id]?.find(log => log.date === today);
+    // Redesign R8a: the row and cell actions take the day from data-date (Dan and Nedelja), else today.
+    const date = Core.parseDateOnly(el.dataset.date) ? el.dataset.date : today;
+    const dayLog = id => state.habitLogCache?.[id]?.find(log => log.date === date);
     if (action === 'habit-today-toggle') {
-      const habit = getHabit(el.dataset.habitId); if (!habit) return true;
-      if (habit.trackingType === 'numeric') ctx.openHabitValue(habit.id);
-      else setHabitLog(habit.id, today, todayLog(habit.id)?.status === 'done' ? 'missed' : 'done');
+      const habit = getHabit(el.dataset.habitId); if (!habit || date > today) return true;
+      if (habit.trackingType === 'numeric') ctx.openHabitValue(habit.id, date);
+      else setHabitLog(habit.id, date, dayLog(habit.id)?.status === 'done' ? 'missed' : 'done');
       return true;
     }
-    if (action === 'habit-today-menu') { openTodayHabitMenu(ctx, el, el.dataset.habitId); return true; }
-    if (action === 'habit-today-skip') { closePopover(); setHabitLog(el.dataset.habitId, today, todayLog(el.dataset.habitId)?.status === 'skipped' ? 'missed' : 'skipped'); return true; }
-    if (action === 'habit-today-value') { closePopover(); ctx.openHabitValue(el.dataset.habitId); return true; }
+    if (action === 'habit-today-menu') { openTodayHabitMenu(ctx, el, el.dataset.habitId, date); return true; }
+    if (action === 'habit-today-skip') { closePopover(); setHabitLog(el.dataset.habitId, date, dayLog(el.dataset.habitId)?.status === 'skipped' ? 'missed' : 'skipped'); return true; }
+    if (action === 'habit-today-value') { closePopover(); ctx.openHabitValue(el.dataset.habitId, date); return true; }
+    if (action === 'habits-view') { state.ui.habitsView = el.dataset.view === 'week' ? 'week' : 'day'; if (state.ui.habitsView === 'day') state.ui.habitsDay = today; saveAndRender(); return true; }
+    if (action === 'habits-ring') {
+      if (Core.parseDateOnly(el.dataset.date) && el.dataset.date <= today) { state.ui.habitsDay = el.dataset.date; state.ui.habitsView = 'day'; saveAndRender(); }
+      return true;
+    }
+    if (action === 'habit-chart-day') { state.ui.habitChartDay = state.ui.habitChartDay === el.dataset.date ? null : el.dataset.date; saveAndRender(); return true; }
+    if (action === 'habit-chart-month') {
+      const month = shiftMonth(/^\d{4}-\d{2}$/.test(state.ui.habitTrackerMonth || '') ? state.ui.habitTrackerMonth : today.slice(0, 7), Number(el.dataset.shift) || 0);
+      state.ui.habitTrackerMonth = month > today.slice(0, 7) ? today.slice(0, 7) : month;
+      state.ui.habitChartDay = null; saveAndRender(); return true;
+    }
+    if (action === 'habits-fold') { const key = el.dataset.fold === 'archived' ? 'habitsArchivedOpen' : 'habitsPausedOpen'; state.ui[key] = !state.ui[key]; saveAndRender(); return true; }
     if (action === 'habit-today-details') { closePopover(); ctx.navigate(`habit/${el.dataset.habitId}`); return true; }
     if (action === 'habit-value-add') {
       const total = Number(ctx.modalState?.total || 0) + Number(el.dataset.value || 0);
@@ -639,7 +737,6 @@
     else if (action === 'save-habit') saveHabitModal(ctx);
     else if (action === 'toggle-habit-more') { readHabitDraft(ctx); ctx.modalState.draft.moreOpen = !ctx.modalState.draft.moreOpen; renderModal(); requestAnimationFrame(() => $('[data-action="toggle-habit-more"]')?.focus()); }
     else if (action === 'habit-checkin') { const habit = getHabit(el.dataset.habitId); const existing = state.habitLogCache?.[habit?.id]?.find(log => log.date === Core.dateOnly()); setHabitLog(el.dataset.habitId, Core.dateOnly(), existing?.status === 'done' ? 'missed' : 'done'); }
-    else if (action === 'habit-grid-toggle') { const habit = getHabit(el.dataset.habitId); const date = el.dataset.habitDate; if (!habit || !date || date > Core.dateOnly() || habit.status !== 'active') return true; const existing = state.habitLogCache?.[habit.id]?.find(log => log.date === date); const done = existing?.status !== 'done'; const value = habit.trackingType === 'numeric' ? (done ? Number(habit.targetValue || 1) : 0) : null; setHabitLog(habit.id, date, done ? 'done' : 'missed', value, { allowHistoricalBackfill: true }); }
     else if (action === 'habit-skip') setHabitLog(el.dataset.habitId, Core.dateOnly(), 'skipped');
     else if (action === 'habit-quick-add') { const habit = getHabit(el.dataset.habitId); const existing = state.habitLogCache?.[habit?.id]?.find(log => log.date === Core.dateOnly()); setHabitLog(el.dataset.habitId, Core.dateOnly(), 'done', Number(existing?.value || 0) + Number(el.dataset.value || 0)); }
     else if (action === 'save-habit-total') setHabitLog(el.dataset.habitId, Core.dateOnly(), 'done', Number($('#habit-direct-total')?.value || 0));

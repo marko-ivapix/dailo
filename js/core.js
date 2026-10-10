@@ -1092,6 +1092,50 @@
     return { status: date < today ? 'missed' : 'pending', value: null, percent: 0 };
   }
 
+  // Redesign R8a (H2–H4, H7): one habit on one day for the Habits screen. 'future' and 'unscheduled' days are
+  // inactive; 'open' is today, or a weekly-target day without a check-in (such a habit never misses one day).
+  // `planned` says whether the day counts in that day's share: a weekly-target habit counts when it is checked
+  // in, or today while its week's target is still open. Skipped days never count.
+  function habitDayState(habit, logs, date, today = dateOnly(), weekRule = 'monday') {
+    if (!parseDateOnly(date) || date > today) return { state: 'future', planned: false, value: null };
+    const status = habitStatusForDate(habit, logs, date, today);
+    if (status.status === 'unscheduled') return { state: 'unscheduled', planned: false, value: null };
+    if (status.status === 'skipped') return { state: 'skipped', planned: false, value: status.value };
+    if (status.status === 'done') return { state: 'done', planned: true, value: status.value };
+    if (habit?.frequencyType === 'timesPerWeek') {
+      const week = habitPeriodKey(habit, date, weekRule);
+      const done = new Set((logs || []).filter(log => log && log.date <= today && (!habit.id || log.habitId === habit.id) && habitPeriodKey(habit, log.date, weekRule) === week && habitStatusForDate(habit, logs, log.date, today).status === 'done').map(log => log.date)).size;
+      return { state: 'open', planned: date === today && done < habitTargetFor(habit, week), value: status.value };
+    }
+    return { state: date === today ? 'open' : 'missed', planned: true, value: status.value };
+  }
+
+  // The share of a day's planned habits that are done; percent is null when nothing was planned that day.
+  function habitDayPercent(habits, logsByHabit, date, today = dateOnly(), weekRule = 'monday') {
+    let done = 0; let planned = 0;
+    for (const habit of habits || []) {
+      const day = habitDayState(habit, logsByHabit?.[habit.id] || [], date, today, weekRule);
+      if (!day.planned) continue;
+      planned += 1;
+      if (day.state === 'done') done += 1;
+    }
+    return { done, planned, percent: planned ? Math.round(done / planned * 100) : null };
+  }
+
+  // A habit's week (H7): the done days against the plan, which is the weekly target or the scheduled days of the
+  // whole week without the skipped ones, so the bar fills during the week.
+  function habitWeekProgress(habit, logs, weekStart, today = dateOnly(), weekRule = 'monday') {
+    let done = 0; let scheduled = 0;
+    for (let index = 0; index < 7; index += 1) {
+      const date = addDays(weekStart, index);
+      const status = date <= today ? habitStatusForDate(habit, logs, date, today).status : null;
+      if (status === 'done') done += 1;
+      if (status !== 'skipped' && habitScheduledOn(habit, date, { historical: true })) scheduled += 1;
+    }
+    const planned = habit?.frequencyType === 'timesPerWeek' ? habitTargetFor(habit, habitPeriodKey(habit, weekStart, weekRule)) : scheduled;
+    return { done, planned };
+  }
+
   function habitCompletionForDates(habit, logs, dates, today = dateOnly(), weekStartsOn = 'monday') {
     const recordedDates = new Set((logs || []).filter(log => log && log.date <= today && (!habit?.id || log.habitId === habit.id)).map(log => log.date));
     const eligible = [...new Set((dates || []).filter(date => typeof date === 'string' && date && date <= today && (habitScheduledOn(habit, date, { historical: true }) || recordedDates.has(date))))];
@@ -1936,6 +1980,9 @@
     deriveCalendarMonthSummary,
     calendarTimeBlocks,
     calendarDayItems,
+    habitDayState,
+    habitDayPercent,
+    habitWeekProgress,
     nextRecurrenceDate,
     normalizeRecurrenceV3,
     shouldGenerateRecurrence,

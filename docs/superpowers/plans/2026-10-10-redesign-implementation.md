@@ -28,7 +28,7 @@
 | R5 | **Zadaci:** suggestions card, Kad stignem grouped by project, Projekti grouped by area with counts and bars, the project screen | Z1–Z7, S10 (read-only archive) | none |
 | R6 | **Inbox:** summary, type filters with counts, groups by capture time, quick buttons ("Razvrstano", "Oblast…"), "Razvrstaj redom" | I1–I6 | none |
 | R7 | **Calendar:** Nedelja / Mesec / Predstojeće, day dots, the day list, "Lista / Raspored", "+" for the selected day; Upcoming moves here | C1–C9 | none |
-| R8 | **Habits:** Dan / Nedelja, week rings, Napredak, numeric value sheet; the new habit window and frequency sheet; habit details | H1–H7, N1–N6, S13 | none |
+| R8 | **Habits:** Dan / Nedelja, week rings, Napredak, numeric value sheet; the new habit window and frequency sheet; habit details. Ships as R8a (the screen), R8b (the new habit window and the frequency sheet) and R8c (the habit details window). | H1–H7, N1–N6, S13 | none |
 | R9 | **Goals:** list with summary and Horizont / Rok, goal rows, folded finished and paused goals, the goal window, the new goal window | GO1–GO7 | none |
 | R10 | **Smaller screens and settings:** Oblasti, one area, Beleške and Resursi, Oznake, Šabloni, Sačuvani prikazi, Završeni zadaci, Arhivirani projekti, Search window, Focus; Settings groups and removals | S1–S3, S6–S12, M5, M6 | none |
 | R11 | **Repeat editor and "Redovne obaveze":** the extended recurrence rule (weekdays, day of month or last day, nth weekday, yearly, end), the shared editor, the "only this / this and future" question only for date and repeat changes, recurring tasks screen | S4, S14, S15, E7 | **recurrence rule** (own spec) |

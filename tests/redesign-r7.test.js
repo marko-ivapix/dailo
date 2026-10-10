@@ -308,8 +308,9 @@ test('Serbian labels for the calendar', () => {
   }
 });
 
-test('R7 is released as 2.0.0-alpha.12', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.12');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.12';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.12');
+test('R7 shipped as 2.0.0-alpha.12 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 99) >= 12);
+  assert.match(read('sw.js'), new RegExp(`const VERSION = '${Release.APP_VERSION.replace(/\./g, '\\.')}';`));
+  assert.equal(JSON.parse(read('package.json')).version, Release.APP_VERSION);
 });
