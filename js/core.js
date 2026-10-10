@@ -81,7 +81,7 @@
     if (type === 'task') {
       data = pick(['title','notes','projectId','areaId','goalIds','tagIds','priority','plannedTime','dueTime','durationMinutes']);
       const rule = normalizeRecurrenceV3(entity.recurrence);
-      data.recurrence = rule ? {frequency:rule.frequency,interval:rule.interval,endType:rule.endType,endAfterOccurrences:rule.endAfterOccurrences,endOffsetDays:templateOffset(rule.endDate,contextDate)} : null;
+      data.recurrence = rule ? {frequency:rule.frequency,interval:rule.interval,...Object.fromEntries(RECURRENCE_EXTRA_KEYS.filter(key => rule[key] !== undefined).map(key => [key, templateCopy(rule[key])])),endType:rule.endType,endAfterOccurrences:rule.endAfterOccurrences,endOffsetDays:templateOffset(rule.endDate,contextDate)} : null;
       data.plannedOffsetDays = templateOffset(entity.plannedDate, contextDate);
       data.dueOffsetDays = templateOffset(entity.dueDate, contextDate);
       data.subtasks = (entity.subtasks || []).map((s, order) => ({ title:s.title, order, isCompleted:false, completedAt:null }));
@@ -386,12 +386,26 @@
     return tasks.filter(task => !task.isCompleted && !task.isInbox && !task.plannedDate);
   }
 
+  // R11a: weekly on chosen weekdays, monthly by day or nth weekday, and yearly. A field that does
+  // not fit its frequency is dropped, so the rule falls back to the plain interval.
+  const RECURRENCE_EXTRA_KEYS = ['weekdays', 'monthMode', 'monthDay', 'weekOfMonth', 'weekday'];
+  const isWeekday = value => Number.isInteger(value) && value >= 0 && value <= 6;
+  function recurrenceExtras(recurrence, frequency) {
+    if (frequency === 'weekly' && Array.isArray(recurrence.weekdays) && recurrence.weekdays.length && recurrence.weekdays.every(isWeekday)) {
+      return { weekdays: [...new Set(recurrence.weekdays)].sort((a, b) => a - b) };
+    }
+    if (frequency !== 'monthly') return {};
+    const { monthMode, monthDay, weekOfMonth, weekday } = recurrence;
+    if (monthMode === 'day' && (monthDay === 'last' || Number.isInteger(monthDay) && monthDay >= 1 && monthDay <= 31)) return { monthMode, monthDay };
+    if (monthMode === 'weekday' && (weekOfMonth === 'last' || Number.isInteger(weekOfMonth) && weekOfMonth >= 1 && weekOfMonth <= 4) && isWeekday(weekday)) return { monthMode, weekOfMonth, weekday };
+    return {};
+  }
   function normalizeRecurrence(recurrence) {
     if (!recurrence || typeof recurrence !== 'object') return null;
-    const frequency = ['daily', 'weekly', 'monthly'].includes(recurrence.frequency) ? recurrence.frequency : null;
+    const frequency = ['daily', 'weekly', 'monthly', 'yearly'].includes(recurrence.frequency) ? recurrence.frequency : null;
     if (!frequency) return null;
     const interval = Math.max(1, Math.floor(Number(recurrence.interval) || 1));
-    return { frequency, interval };
+    return { frequency, interval, ...recurrenceExtras(recurrence, frequency) };
   }
 
   function normalizeRecurrenceV3(value) {
@@ -427,21 +441,75 @@
     return clone;
   }
 
+  const lastDayOfMonth = (year, month) => new Date(year, month + 1, 0).getDate();
+  // The rule's day in a month: the chosen day (clamped) or the nth / last weekday; a rule without a
+  // month mode keeps the given day, clamped to shorter months.
+  function recurrenceDayInMonth(year, month, rule, fallbackDay) {
+    const last = lastDayOfMonth(year, month);
+    if (rule.monthMode === 'day') return rule.monthDay === 'last' ? last : Math.min(rule.monthDay, last);
+    if (rule.monthMode === 'weekday') {
+      if (rule.weekOfMonth === 'last') return last - ((new Date(year, month, last).getDay() - rule.weekday + 7) % 7);
+      return 1 + ((rule.weekday - new Date(year, month, 1).getDay() + 7) % 7) + (rule.weekOfMonth - 1) * 7;
+    }
+    return Math.min(fallbackDay, last);
+  }
+  // Weeks start on Monday: 0 = Monday … 6 = Sunday.
+  const mondayIndex = day => (day + 6) % 7;
+
   function nextRecurrenceDate(value, recurrence) {
     const normalized = normalizeRecurrence(recurrence);
     const date = parseDateOnly(value);
     if (!normalized || !date) return null;
     if (normalized.frequency === 'daily') return addDays(value, normalized.interval);
+    if (normalized.frequency === 'weekly' && normalized.weekdays) {
+      const order = normalized.weekdays.map(mondayIndex).sort((a, b) => a - b), current = mondayIndex(date.getDay());
+      const later = order.find(index => index > current);
+      if (later !== undefined) return addDays(value, later - current);
+      return addDays(value, normalized.interval * 7 - current + order[0]);
+    }
     if (normalized.frequency === 'weekly') return addDays(value, normalized.interval * 7);
+    if (normalized.frequency === 'yearly') {
+      const year = date.getFullYear() + normalized.interval;
+      return dateOnly(new Date(year, date.getMonth(), Math.min(date.getDate(), lastDayOfMonth(year, date.getMonth()))));
+    }
 
-    const year = date.getFullYear();
-    const monthIndex = date.getMonth();
-    const day = date.getDate();
-    const targetMonthIndex = monthIndex + normalized.interval;
-    const targetYear = year + Math.floor(targetMonthIndex / 12);
+    const targetMonthIndex = date.getMonth() + normalized.interval;
+    const targetYear = date.getFullYear() + Math.floor(targetMonthIndex / 12);
     const normalizedMonth = ((targetMonthIndex % 12) + 12) % 12;
-    const lastDay = new Date(targetYear, normalizedMonth + 1, 0).getDate();
-    return dateOnly(new Date(targetYear, normalizedMonth, Math.min(day, lastDay)));
+    return dateOnly(new Date(targetYear, normalizedMonth, recurrenceDayInMonth(targetYear, normalizedMonth, normalized, date.getDate())));
+  }
+
+  // The first day on or after `start` that matches the rule (S15: "the first time is the first
+  // matching day from the start"). Rules without chosen days start on the start itself.
+  function firstRecurrenceDate(start, recurrence) {
+    const rule = normalizeRecurrence(recurrence);
+    const date = parseDateOnly(start);
+    if (!rule || !date) return null;
+    if (rule.weekdays) {
+      const offset = [0, 1, 2, 3, 4, 5, 6].find(days => rule.weekdays.includes((date.getDay() + days) % 7));
+      return addDays(start, offset);
+    }
+    if (rule.monthMode) {
+      const day = recurrenceDayInMonth(date.getFullYear(), date.getMonth(), rule, date.getDate());
+      if (day >= date.getDate()) return dateOnly(new Date(date.getFullYear(), date.getMonth(), day));
+      const next = new Date(date.getFullYear(), date.getMonth() + 1, 1);
+      return dateOnly(new Date(next.getFullYear(), next.getMonth(), recurrenceDayInMonth(next.getFullYear(), next.getMonth(), rule, 1)));
+    }
+    return start;
+  }
+
+  // The next `count` dates from the first one, stopping at the rule's end date or remaining count.
+  function upcomingRecurrenceDates(start, recurrence, count = 5) {
+    const rule = normalizeRecurrenceV3(recurrence);
+    if (!rule) return [];
+    let limit = Math.max(0, Math.floor(Number(count) || 0));
+    if (rule.endType === 'afterOccurrences' && rule.endAfterOccurrences) limit = Math.min(limit, Math.max(0, rule.endAfterOccurrences - rule.occurrencesCreated));
+    const dates = [];
+    for (let current = firstRecurrenceDate(start, rule); current && dates.length < limit; current = nextRecurrenceDate(current, rule)) {
+      if (rule.endType === 'date' && rule.endDate && current > rule.endDate) break;
+      dates.push(current);
+    }
+    return dates;
   }
 
   function advanceIsoTimestamp(value, recurrence) {
@@ -455,7 +523,10 @@
     // appointment from (for example) 09:30 to 08:30.
     if (normalized.frequency === 'daily') date.setDate(date.getDate() + normalized.interval);
     else if (normalized.frequency === 'weekly') date.setDate(date.getDate() + normalized.interval * 7);
-    else {
+    else if (normalized.frequency === 'yearly') {
+      const targetYear = date.getFullYear() + normalized.interval, month = date.getMonth();
+      date.setFullYear(targetYear, month, Math.min(date.getDate(), lastDayOfMonth(targetYear, month)));
+    } else {
       const originalDay = date.getDate();
       const targetMonthIndex = date.getMonth() + normalized.interval;
       const targetYear = date.getFullYear() + Math.floor(targetMonthIndex / 12);
@@ -474,13 +545,26 @@
     const now = new Date(nowIso);
     const nowDate = Number.isNaN(now.getTime()) ? dateOnly() : dateOnly(new Date(now.getFullYear(), now.getMonth(), now.getDate()));
     const advance=value=>{let next=nextRecurrenceDate(value,recurrence);if(recurrence.skipNext)next=nextRecurrenceDate(next,recurrence);return next;};
-    let plannedDate = source.plannedDate ? advance(source.plannedDate) : null;
-    const dueDate = source.dueDate ? advance(source.dueDate) : null;
-    if (!plannedDate && !dueDate) plannedDate = advance(nowDate);
+    let plannedDate, dueDate, reminderAt;
+    if (recurrence.weekdays || recurrence.monthMode) {
+      // R11a: the plan day (or else the due day) moves to the next occurrence; the due day and the
+      // reminder keep their distance to it, the reminder on the same local wall-clock time.
+      const anchor = source.plannedDate || source.dueDate || nowDate;
+      const shift = templateOffset(advance(anchor), anchor);
+      plannedDate = source.plannedDate ? addDays(source.plannedDate, shift) : source.dueDate ? null : addDays(anchor, shift);
+      dueDate = source.dueDate ? addDays(source.dueDate, shift) : null;
+      const reminder = source.reminderAt ? new Date(source.reminderAt) : null;
+      if (reminder && !Number.isNaN(reminder.getTime())) reminder.setDate(reminder.getDate() + shift);
+      reminderAt = reminder && !Number.isNaN(reminder.getTime()) ? reminder.toISOString() : null;
+    } else {
+      plannedDate = source.plannedDate ? advance(source.plannedDate) : null;
+      dueDate = source.dueDate ? advance(source.dueDate) : null;
+      if (!plannedDate && !dueDate) plannedDate = advance(nowDate);
+      reminderAt=source.reminderAt?advanceIsoTimestamp(source.reminderAt,recurrence):null;
+      if(reminderAt && recurrence.skipNext)reminderAt=advanceIsoTimestamp(reminderAt,recurrence);
+    }
     if(!shouldGenerateRecurrence(recurrence,plannedDate || dueDate))return null;
     const id = String(newId || `task_${Date.now().toString(36)}`);
-    let reminderAt=source.reminderAt?advanceIsoTimestamp(source.reminderAt,recurrence):null;
-    if(reminderAt && recurrence.skipNext)reminderAt=advanceIsoTimestamp(reminderAt,recurrence);
     return {
       ...templateCopy(source),
       id,
@@ -1985,6 +2069,8 @@
     habitDayPercent,
     habitWeekProgress,
     nextRecurrenceDate,
+    firstRecurrenceDate,
+    upcomingRecurrenceDates,
     normalizeRecurrenceV3,
     shouldGenerateRecurrence,
     splitRecurrenceForFuture,

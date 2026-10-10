@@ -181,6 +181,7 @@
     // Interval 1 has its own wording: Serbian plural "one" also covers 21, 31 …
     if (recurrence.frequency === 'daily') return interval === 1 ? tr('Every day') : trn(interval, 'Every {count} day', 'Every {count} days');
     if (recurrence.frequency === 'weekly') return interval === 1 ? tr('Every week') : trn(interval, 'Every {count} week', 'Every {count} weeks');
+    if (recurrence.frequency === 'yearly') return interval === 1 ? tr('Every year') : trn(interval, 'Every {count} year', 'Every {count} years');
     return interval === 1 ? tr('Every month') : trn(interval, 'Every {count} month', 'Every {count} months');
   }
 

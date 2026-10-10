@@ -113,9 +113,18 @@
     const booleanField = (item, key) => { if (item[key] != null && typeof item[key] !== 'boolean') fail(key); };
     const positiveInteger = value => Number.isInteger(value) && value > 0;
     const positiveField = (item, key) => { numberField(item,key); if (item[key] != null && item[key] <= 0) fail(key); };
+    // R11a: weekly weekdays, monthly by day or nth weekday; each only with its own frequency and mode.
+    const recurrenceDays = item => {
+      const weekday = value => Number.isInteger(value) && value >= 0 && value <= 6;
+      if (item.weekdays != null && (item.frequency !== 'weekly' || !Array.isArray(item.weekdays) || !item.weekdays.length || !item.weekdays.every(weekday) || new Set(item.weekdays).size !== item.weekdays.length)) fail('recurrence');
+      if (item.monthMode != null && (item.frequency !== 'monthly' || !['day','weekday'].includes(item.monthMode))) fail('recurrence');
+      if (item.monthMode === 'day' ? !(item.monthDay === 'last' || Number.isInteger(item.monthDay) && item.monthDay >= 1 && item.monthDay <= 31) : item.monthDay != null) fail('recurrence');
+      if (item.monthMode === 'weekday' ? !(item.weekOfMonth === 'last' || Number.isInteger(item.weekOfMonth) && item.weekOfMonth >= 1 && item.weekOfMonth <= 4) || !weekday(item.weekday) : item.weekOfMonth != null || item.weekday != null) fail('recurrence');
+    };
     const recurrence = item => {
       if (item == null) return;
-      if (!object(item) || !['daily','weekly','monthly'].includes(item.frequency) || !positiveInteger(item.interval)) fail('recurrence');
+      if (!object(item) || !['daily','weekly','monthly','yearly'].includes(item.frequency) || !positiveInteger(item.interval)) fail('recurrence');
+      recurrenceDays(item);
       enumField(item,'status',['active','paused','ended']);enumField(item,'endType',['never','date','afterOccurrences']);dateField(item,'endDate');
       if (item.endType === 'date' && !date(item.endDate) || item.endType === 'afterOccurrences' && !positiveInteger(item.endAfterOccurrences)) fail('recurrence end');
       numberField(item,'occurrencesCreated');booleanField(item,'skipNext');
@@ -244,10 +253,10 @@
       for (const key of ['plannedOffsetDays','dueOffsetDays','reminderOffsetDays','targetOffsetDays','endOffsetDays','dateOffsetDays']) if (data[key] != null && !Number.isInteger(data[key])) fail(`Template ${key}`);
       for (const key of ['plannedTime','dueTime','reminderTime','time']) if (data[key] != null && root.TodoCore.normalizeTime(data[key]) !== data[key]) fail(`Template ${key}`);
       for (const key of ['targetValue','target','timesPerWeek','everyNDays','successfulPeriodsTarget','interval','endAfterOccurrences']) positiveField(data,key);
-      enumField(data,'priority',['none','low','medium','high']);enumField(data,'frequencyType',['daily','weekdays','timesPerWeek','everyNDays']);enumField(data,'trackingType',['checkbox','numeric']);enumField(data,'progressMode',['manual','linkedTasks','linkedHabits']);enumField(data,'progressType',['percentage','numeric']);enumField(data,'frequency',['daily','weekly','monthly']);
+      enumField(data,'priority',['none','low','medium','high']);enumField(data,'frequencyType',['daily','weekdays','timesPerWeek','everyNDays']);enumField(data,'trackingType',['checkbox','numeric']);enumField(data,'progressMode',['manual','linkedTasks','linkedHabits']);enumField(data,'progressType',['percentage','numeric']);enumField(data,'frequency',['daily','weekly','monthly','yearly']);
       for (const key of ['tasks','subtasks','milestones','goalLinkConfigs']) if (data[key] != null) { if (!Array.isArray(data[key])) fail(`Template ${key}`);data[key].forEach(templateData); }
       if (data.reminders != null) { if (Array.isArray(data.reminders)) data.reminders.forEach(templateData);else templateData(data.reminders); }
-      if (data.recurrence != null) templateData(data.recurrence);
+      if (data.recurrence != null) { templateData(data.recurrence);recurrenceDays(data.recurrence); }
       if (data.selectedTaskIndices != null && (!Array.isArray(data.selectedTaskIndices) || data.selectedTaskIndices.some(index=>!Number.isInteger(index) || index<0))) fail('Template selected tasks');
     };
     for (const item of state.templates) { if (!['task','project','goal','habit'].includes(item.type)) fail('Template type');templateData(item.data); }

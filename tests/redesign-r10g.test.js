@@ -82,8 +82,7 @@ test('the R10g layer and the Serbian labels', () => {
   }
 });
 
-test('R10g is released as 2.0.0-alpha.25', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.25');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.25';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.25');
+test('R10g shipped as 2.0.0-alpha.25 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 99) >= 25);
 });
