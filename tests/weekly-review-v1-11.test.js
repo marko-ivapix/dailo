@@ -127,9 +127,10 @@ test('the review page lists the six sections with existing row actions and links
   assert.equal(ignored, undefined, 'other routes are left to the app');
   assert.match(html, /<h1>Weekly review<\/h1><p>Week of F:2026-10-05<\/p>/);
   for (const heading of ['Empty the Inbox', 'Overdue and missed plans', 'Next 7 days', 'Goals', 'Habits', 'Areas']) assert.ok(html.includes(heading), heading);
-  assert.match(html, /data-row="i1" data-context="inbox" data-options="inbox"/);
-  assert.match(html, /data-row="o1" data-context="today" data-options="overdue"/);
-  assert.match(html, /data-row="m1" data-context="today" data-options="overdue"/);
+  // R17: steps 1 and 2 use the usual task rows (Inbox chips, "+ Danas" for late tasks).
+  assert.match(html, /data-row="i1" data-context="inbox" data-options="today,inbox"/);
+  assert.match(html, /data-row="o1" data-context="today" data-options="today,addToday"/);
+  assert.match(html, /data-row="m1" data-context="today" data-options="today,addToday"/);
   // R13: the next days open the Calendar instead of Upcoming; goals are the Ciljevi rows.
   assert.match(html, /data-action="review-open-day"/);
   assert.match(html, /data-route="goal\/g1"[^>]*>Maraton/);

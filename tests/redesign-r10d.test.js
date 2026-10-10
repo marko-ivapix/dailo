@@ -77,7 +77,8 @@ test('S7: templates are grouped by type with what they make; a tap opens a sheet
   const html = module.renderRoute({ type: 'templates' }, ctx);
   assert.match(html, /^<header title="Templates" subtitle="Reusable items with dates relative to the day you make them\."><\/header><section class="section templates-group"><div class="section-header"><h2 class="section-label"><i class="ph ph-check-square" aria-hidden="true"><\/i> Tasks · 2<\/h2><\/div><div class="today-card templates-list">/);
   assert.deepEqual([...html.matchAll(/<i class="ph ([\w-]+)" aria-hidden="true"><\/i> (\w+) · (\d)<\/h2>/g)].map(match => match.slice(1)), [['ph-check-square', 'Tasks', '2'], ['ph-folder', 'Projects', '1'], ['ph-target', 'Goals', '1']]);
-  assert.match(html, /<button class="template-list-row" type="button" data-action="template-open" data-template-id="tp1"><span class="template-list-main"><span class="task-title">Weekly report<\/span><span class="task-meta">Send report · 3 subtasks<\/span><\/span><i class="ph ph-caret-right" aria-hidden="true"><\/i><\/button>/);
+  // R17: list rows lost the "›" arrow.
+  assert.match(html, /<button class="template-list-row" type="button" data-action="template-open" data-template-id="tp1"><span class="template-list-main"><span class="task-title">Weekly report<\/span><span class="task-meta">Send report · 3 subtasks<\/span><\/span><\/button>/);
   assert.match(html, /data-template-id="tp2"><span class="template-list-main"><span class="task-title">Expenses<\/span><span class="task-meta">Submit expenses<\/span>/);
   assert.match(html, /<span class="task-meta">Client onboarding · 5 tasks<\/span>/);
   assert.match(html, /<span class="task-meta">Read 6 books · 3 milestones<\/span>/);
@@ -107,7 +108,8 @@ test('S8: the view list shows the type, the pin, the filters and how many items 
   const module = moduleFor(viewsUi);
   const html = module.renderRoute({ type: 'saved-views' }, ctx);
   assert.match(html, /^<header title="Saved Views" subtitle="Saved filters for one kind of item\."><\/header><div class="today-card views-list">/);
-  assert.match(html, /<button class="view-list-row" type="button" data-route="saved-view\/v1"><i class="ph ph-funnel view-list-icon" aria-hidden="true"><\/i><span class="view-list-main"><span class="task-title">High · Work<\/span><span class="task-meta">Tasks · pinned to “More” · Area: Work · Priority: High<\/span><\/span><span class="view-list-count">1<\/span><i class="ph ph-caret-right" aria-hidden="true"><\/i><\/button>/);
+  // R17: list rows lost the "›" arrow.
+  assert.match(html, /<button class="view-list-row" type="button" data-route="saved-view\/v1"><i class="ph ph-funnel view-list-icon" aria-hidden="true"><\/i><span class="view-list-main"><span class="task-title">High · Work<\/span><span class="task-meta">Tasks · pinned to “More” · Area: Work · Priority: High<\/span><\/span><span class="view-list-count">1<\/span><\/button>/);
   assert.match(html, /data-route="saved-view\/v2">[\s\S]*?<span class="task-meta">Habits · Tracking: Numeric<\/span><\/span><span class="view-list-count">1<\/span>/);
   assert.match(html, /data-route="saved-view\/v3">[\s\S]*?<span class="task-meta">Goals · All goals<\/span>/);
   assert.match(html, /<button class="inline-add" type="button" data-action="new-saved-view"><i class="ph ph-plus" aria-hidden="true"><\/i> New saved view<\/button><\/div>$/);

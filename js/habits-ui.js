@@ -87,11 +87,12 @@
     const check = numeric
       ? `<button class="habit-check" type="button" data-action="habit-today-toggle" data-habit-id="${esc(habit.id)}"${dateAttr} data-long-press="habit-today-menu" aria-label="${esc(tr('Enter value: {habit}', { habit: habit.name }))}">`
       : `<button class="habit-check" type="button" data-action="habit-today-toggle" data-habit-id="${esc(habit.id)}"${dateAttr} data-long-press="habit-today-menu" aria-pressed="${status === 'done'}" aria-label="${esc(habit.name)}">`;
-    const meta = options.meta ? `<span class="task-meta">${esc(options.meta)}</span>` : '';
-    const count = right && !(options.count === false && !numeric) ? `<span class="task-side habit-today-count">${esc(right)}</span>` : '';
+    // R17: the week count or the value joins the meta line under the name instead of the right side.
+    const metaText = [options.meta, right && !(options.count === false && !numeric) ? right : ''].filter(Boolean).join(' · ');
+    const meta = metaText ? `<span class="task-meta">${esc(metaText)}</span>` : '';
     // R14b (T5 amended): like a task row, the name comes first and the circle closes the row on the right.
     const main = `<button class="today-row-main" type="button" data-action="habit-today-menu" data-habit-id="${esc(habit.id)}"${dateAttr} aria-haspopup="dialog"><span class="task-title">${esc(habit.name)}</span>${meta}</button>`;
-    return `<article class="today-row habit-today-row${status === 'done' ? ' is-done' : ''}${status === 'skipped' ? ' is-skipped' : ''}" data-habit-id="${esc(habit.id)}">${main}${count}${check}${habitCircle(status, fraction)}</button></article>`;
+    return `<article class="today-row habit-today-row${status === 'done' ? ' is-done' : ''}${status === 'skipped' ? ' is-skipped' : ''}" data-habit-id="${esc(habit.id)}">${main}${check}${habitCircle(status, fraction)}</button></article>`;
   }
 
   function openTodayHabitMenu(ctx, anchor, habitId, date = ctx.Core.dateOnly()) {
@@ -684,9 +685,9 @@
     if (action === 'habit-freq-day' && sheet?.kind === 'frequency') { const day = Number(el.dataset.day); sheet.weekdays = sheet.weekdays.includes(day) ? sheet.weekdays.filter(item => item !== day) : [...sheet.weekdays, day]; ctx.refreshSheet(frequencySheetHtml(ctx)); return true; }
     if (action === 'habit-freq-step' && sheet?.kind === 'frequency' && STEPS[el.dataset.key]) { const [min, max] = STEPS[el.dataset.key]; sheet[el.dataset.key] = Math.min(max, Math.max(min, sheet[el.dataset.key] + Number(el.dataset.step || 0))); ctx.refreshSheet(frequencySheetHtml(ctx)); return true; }
     if (action === 'habit-freq-apply') { applyFrequencySheet(ctx); return true; }
-    if (action === 'habit-draft-reminders') { syncDraftInputs(ctx); const times = activeReminderTimes(ctx, d); sheet = { kind: 'reminders', times: times.length ? times : ['09:00'] }; showSheet(ctx, el, reminderSheetHtml(ctx), 'habit-reminders'); return true; }
+    if (action === 'habit-draft-reminders') { syncDraftInputs(ctx); const times = activeReminderTimes(ctx, d); sheet = { kind: 'reminders', times: times.length ? times : [ctx.Core.defaultReminderTime(ctx.state.settings)] }; showSheet(ctx, el, reminderSheetHtml(ctx), 'habit-reminders'); return true; }
     if (action === 'habit-reminder-add' && sheet?.kind === 'reminders') { sheet.times.push('18:00'); ctx.refreshSheet(reminderSheetHtml(ctx)); return true; }
-    if (action === 'habit-reminder-remove' && sheet?.kind === 'reminders') { sheet.times.splice(Number(el.dataset.index), 1); if (!sheet.times.length) sheet.times.push('09:00'); ctx.refreshSheet(reminderSheetHtml(ctx)); return true; }
+    if (action === 'habit-reminder-remove' && sheet?.kind === 'reminders') { sheet.times.splice(Number(el.dataset.index), 1); if (!sheet.times.length) sheet.times.push(ctx.Core.defaultReminderTime(ctx.state.settings)); ctx.refreshSheet(reminderSheetHtml(ctx)); return true; }
     if (action === 'habit-reminder-clear') { setDraftReminders(ctx, []); sheet = null; ctx.closePopover(); ctx.renderModal(); return true; }
     if (action === 'habit-reminder-apply' && sheet?.kind === 'reminders') { setDraftReminders(ctx, [...new Set(sheet.times.map(time => ctx.Core.normalizeTime(time)).filter(Boolean))].sort()); sheet = null; ctx.closePopover(); ctx.renderModal(); return true; }
     if (action === 'habit-draft-start') { syncDraftInputs(ctx); ctx.openHabitStartSheet(el); return true; }

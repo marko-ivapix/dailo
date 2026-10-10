@@ -59,8 +59,9 @@
     </article>`;
   }
 
+  // R17: the title, ×, then the round check on the right, like task rows.
   function subtaskRow(task, subtask, ctx) {
-    return `<div class="subtask-row ${subtask.isCompleted ? 'is-completed' : ''}" draggable="true" data-subtask-id="${ctx.esc(subtask.id)}" data-parent-task-id="${ctx.esc(task.id)}"><button class="complete-control ${subtask.isCompleted ? 'is-completed' : ''}" type="button" data-action="toggle-subtask" data-task-id="${ctx.esc(task.id)}" data-subtask-id="${ctx.esc(subtask.id)}" aria-label="${subtask.isCompleted ? tr('Mark subtask incomplete') : tr('Complete subtask')}">${subtask.isCompleted ? '<i class="ph ph-check"></i>' : ''}</button><span class="subtask-title" data-action="edit-subtask" data-task-id="${ctx.esc(task.id)}" data-subtask-id="${ctx.esc(subtask.id)}" tabindex="0">${ctx.esc(subtask.title)}</span><button class="btn-icon" type="button" data-action="delete-subtask" data-task-id="${ctx.esc(task.id)}" data-subtask-id="${ctx.esc(subtask.id)}" aria-label="${tr('Delete subtask')}"><i class="ph ph-x"></i></button></div>`;
+    return `<div class="subtask-row ${subtask.isCompleted ? 'is-completed' : ''}" draggable="true" data-subtask-id="${ctx.esc(subtask.id)}" data-parent-task-id="${ctx.esc(task.id)}"><span class="subtask-title" data-action="edit-subtask" data-task-id="${ctx.esc(task.id)}" data-subtask-id="${ctx.esc(subtask.id)}" tabindex="0">${ctx.esc(subtask.title)}</span><button class="btn-icon" type="button" data-action="delete-subtask" data-task-id="${ctx.esc(task.id)}" data-subtask-id="${ctx.esc(subtask.id)}" aria-label="${tr('Delete subtask')}"><i class="ph ph-x"></i></button><button class="complete-control ${subtask.isCompleted ? 'is-completed' : ''}" type="button" data-action="toggle-subtask" data-task-id="${ctx.esc(task.id)}" data-subtask-id="${ctx.esc(subtask.id)}" aria-label="${subtask.isCompleted ? tr('Mark subtask incomplete') : tr('Complete subtask')}">${subtask.isCompleted ? '<i class="ph ph-check"></i>' : ''}</button></div>`;
   }
 
   // Redesign R3 (D1–D4, E1): the task window. The title and the project link on top, then Planiranje and
@@ -89,7 +90,7 @@
       <h3 class="task-window-group">${tr('Organization')}</h3>
       <div class="task-window-card">${row('task-project-picker', 'ph-folder-simple', tr('Project'), project ? esc(project.name) : '')}${row('task-tags-picker', 'ph-tag', tr('Tags'), tagSummary(task.tagIds) || '')}${row('task-priority-picker', 'ph-flag', tr('Priority'), priority)}</div>
       <h3 class="task-window-group">${tr('Subtasks')} · ${completedCount}/${task.subtasks.length}</h3>
-      <div class="task-window-card"><div class="subtask-list" data-subtask-list="${esc(task.id)}">${[...task.subtasks].sort((a,b)=>clampOrder(a.order)-clampOrder(b.order)).map(s => subtaskRow(task, s, ctx)).join('')}</div><div class="add-subtask-input"><span></span><input id="detail-subtask" class="input" type="text" placeholder="${tr('Add subtask...')}" data-task-id="${esc(task.id)}" /></div></div>
+      <div class="task-window-card"><div class="subtask-list" data-subtask-list="${esc(task.id)}">${[...task.subtasks].sort((a,b)=>clampOrder(a.order)-clampOrder(b.order)).map(s => subtaskRow(task, s, ctx)).join('')}</div><div class="add-subtask-input"><input id="detail-subtask" class="input" type="text" placeholder="${tr('Add subtask...')}" data-task-id="${esc(task.id)}" /></div></div>
       <label class="task-window-group" for="detail-notes">${tr('Notes')}</label><textarea id="detail-notes" class="detail-notes" placeholder="${tr('Add notes...')}">${esc(modalState.notesDraft)}</textarea>
       <div class="task-window-attachments">${renderAttachmentsSection({ ownerType: 'task', ownerId: task.id })}</div>
       <details class="task-window-more"><summary><span>${tr('More options')}</span><span class="task-window-more-meta">${tr('Area, goals, importance')}</span><i class="ph ph-caret-right task-properties-caret" aria-hidden="true"></i></summary>

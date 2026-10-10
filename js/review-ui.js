@@ -61,9 +61,9 @@
     let html = ctx.pageHeader(tr('Weekly review'), tr('Week of {date}', { date: ctx.formatDate(review.weekStart) }), { add: false });
     html += `<div class="weekly-review">${lastSevenDays(ctx)}${weekJournal(ctx, review.weekStart)}`;
 
-    html += step(1, tr('Empty the Inbox'), review.inbox.length, card(review.inbox.map(task => ctx.reviewTaskRow(task, 'inbox', { inbox: true })).join('')), !review.inbox.length);
+    html += step(1, tr('Empty the Inbox'), review.inbox.length, card(review.inbox.map(task => ctx.reviewTaskRow(task, 'inbox', { today: true, inbox: true })).join('')), !review.inbox.length);
     const late = [...review.overdue, ...review.missedPlans];
-    html += step(2, tr('Overdue and missed plans'), late.length, card(late.map(task => ctx.reviewTaskRow(task, 'today', { overdue: true })).join('')), !late.length);
+    html += step(2, tr('Overdue and missed plans'), late.length, card(late.map(task => ctx.reviewTaskRow(task, 'today', { today: true, addToday: true })).join('')), !late.length);
 
     // Step 3 shows only what is on a day; a row opens that day in the Calendar (Predstojeće moved there, C9).
     const days = review.nextDays.map(day => {

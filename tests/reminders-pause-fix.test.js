@@ -43,7 +43,7 @@ function reconcileContext() {
     notificationTimer: 1, notificationPermission: null, exactAlarmState: null,
     clearTimeout: () => {}, nowIso: () => '2026-10-10T10:00:00.000Z',
     Core: { notificationPlan: () => [{ key: 'task:a:1', kind: 'task', at: '2026-10-10T10:03:00.000Z' }] },
-    notificationBody: () => 'Podsetnik', rememberNotified: () => {}, currentRoute: () => ({ type: 'today' }), render: () => {},
+    notificationBody: () => 'Podsetnik', rememberNotified: () => {}, readPlannedFired: () => ({}) /* R18: planned-time reminders already shown */, currentRoute: () => ({ type: 'today' }), render: () => {},
     localStorage: { getItem: key => stored[key] ?? null, setItem: (key, value) => { stored[key] = value; } },
   };
   ctx.globalThis = { DailoPlatform: { isNative: true, notifications: {

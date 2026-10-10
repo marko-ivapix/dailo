@@ -197,10 +197,10 @@ test('T5, H6: compact habit rows with a round check, the week or the value on th
   assert.match(skipped, /is-skipped/);
   assert.match(skipped, /habit-circle is-skipped/);
   const weekly = render({ id: 'h3', name: 'Gym', trackingType: 'checkbox', frequencyType: 'timesPerWeek', timesPerWeek: 4 }, { status: 'pending' });
-  assert.match(weekly, /<span class="task-side habit-today-count">2\/4 weekly<\/span>/);
+  assert.match(weekly, /<span class="task-meta">2\/4 weekly<\/span>/); // R17: under the name
   assert.match(weekly, /stroke-dasharray="34\.6 69\.1"/, 'half the week');
   const numeric = render({ id: 'h4', name: 'Water', trackingType: 'numeric', targetValue: 2, unit: 'l', frequencyType: 'daily' }, { status: 'missed', value: 1.5 });
-  assert.match(numeric, /<span class="task-side habit-today-count">1\.5 \/ 2 l<\/span>/);
+  assert.match(numeric, /<span class="task-meta">1\.5 \/ 2 l<\/span>/);
   assert.match(numeric, /stroke-dasharray="51\.8 69\.1"/);
   assert.match(numeric, /aria-label="Enter value: Water"/);
   assert.doesNotMatch(numeric, /aria-pressed/);

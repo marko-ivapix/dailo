@@ -50,6 +50,12 @@
     const sundayFirst = state.settings.weekStartsOn === 0 || state.settings.weekStartsOn === 'sunday';
     const capacity = ctx.Core?.dailyCapacityMinutes ? ctx.Core.dailyCapacityMinutes(state.settings) : 360;
     // R12c (J6): the evening journal notice — off or a time; a time synced from elsewhere is listed too.
+    // R18: the hour Dailo proposes for reminders (06:00–21:00, plus a stored time off the hour).
+    const rawDefault = state.settings.defaultReminderTime;
+    const defaultTime = /^([01]\d|2[0-3]):[0-5]\d$/.test(rawDefault || '') ? rawDefault : '09:00';
+    const defaultTimeOptions = [...new Set([...Array.from({ length: 16 }, (_, index) => `${String(index + 6).padStart(2, '0')}:00`), defaultTime])].sort()
+      .map(time => `<option value="${time}"${time === defaultTime ? ' selected' : ''}>${time}</option>`).join('');
+    const native = ctx.notificationSettings?.() || null;
     const rawJournalTime = state.settings.journalReminderTime;
     const journalTime = rawJournalTime === null ? null : typeof rawJournalTime === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(rawJournalTime) ? rawJournalTime : '20:00';
     const journalOptions = `<option value="off"${journalTime ? '' : ' selected'}>${tr('Off')}</option>` + [...new Set(['19:00', '20:00', '21:00', '22:00', ...(journalTime ? [journalTime] : [])])].sort()
@@ -67,8 +73,11 @@
         <h2>${tr('General')}</h2>
         <div class="settings-row"><label class="settings-label" for="preference-week-start"><strong>${tr('Week starts on')}</strong><span>${tr('Used by weekly views and habit periods.')}</span></label><select class="input" id="preference-week-start"><option value="monday"${!sundayFirst ? ' selected' : ''}>${tr('Monday')}</option><option value="sunday"${sundayFirst ? ' selected' : ''}>${tr('Sunday')}</option></select></div>
         <div class="settings-row"><label class="settings-label" for="daily-capacity"><strong>${tr('Daily capacity')}</strong><span>${tr('Planned work per day, compared with task durations in the Calendar day view.')}</span></label><select class="input" id="daily-capacity">${capacityOptions}</select></div>
-        ${reminderRows(ctx.notificationSettings?.() || null, notificationButtonLabel)}
-        <div class="settings-row"><label class="settings-label" for="journal-reminder-time"><strong>${tr('Journal reminder')}</strong><span>${tr('When “Write down how the day went” appears on Today.')}</span></label><select class="input" id="journal-reminder-time">${journalOptions}</select></div>
+        ${reminderRows(native, notificationButtonLabel)}
+        <div class="settings-row"><label class="settings-label" for="default-reminder-time"><strong>${tr('Default reminder time')}</strong><span>${tr('Used when Dailo proposes a reminder: tomorrow, the day before, new habits and goals.')}</span></label><select class="input" id="default-reminder-time">${defaultTimeOptions}</select></div>
+        <div class="settings-row"><label class="settings-label" for="planned-time-reminders"><strong>${tr('Reminder at the planned time')}</strong><span>${tr('A task with a planned time reminds you then, even without its own reminder.')}</span></label><input id="planned-time-reminders" type="checkbox"${state.settings.plannedTimeReminders === true ? ' checked' : ''}></div>
+        <div class="settings-row"><label class="settings-label" for="journal-reminder-time"><strong>${tr('Journal reminder')}</strong><span>${tr('When “Write down how the day went” appears on Today.')}</span></label><select class="input" id="journal-reminder-time">${journalOptions}</select></div>${native ? `
+        <div class="settings-row settings-sub"><label class="settings-label" for="journal-notifications"><strong>${tr('Journal on the phone too')}</strong><span>${tr('The notification arrives even when Dailo is closed.')}</span></label><input id="journal-notifications" type="checkbox"${state.settings.journalNotifications === true ? ' checked' : ''}${journalTime ? '' : ' disabled'}></div>` : ''}
       </section>
       <section class="settings-card" data-settings-data>
         <h2>${tr('Data')}</h2>

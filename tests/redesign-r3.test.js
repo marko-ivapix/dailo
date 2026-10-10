@@ -181,7 +181,7 @@ test('E6: reminder presets follow the planned time; the sheet has date, time, a 
   ctx.openReminderPicker({}, { type: 'task', taskId: 't1' });
   const html = ctx.calls.at(-1)[1];
   const presets = [...html.matchAll(/data-pop-action="reminder-preset" data-date="([\d-]+)" data-time="([\d:]+)"[^>]*>([^<]+)</g)].map(match => match.slice(1));
-  assert.deepEqual(presets, [['2026-10-20', '10:30', 'At the planned time'], ['2026-10-20', '10:15', '15 min before'], ['2026-10-20', '09:30', '1 h before'], ['2026-10-19', '09:00', 'Day before at 9:00']]);
+  assert.deepEqual(presets, [['2026-10-20', '10:30', 'At the planned time'], ['2026-10-20', '10:15', '15 min before'], ['2026-10-20', '09:30', '1 h before'], ['2026-10-19', '09:00', 'Day before at 09:00']]); // R18: the default reminder time
   assert.match(html, /<input id="reminder-date" class="input" type="date" value="2026-10-20">/);
   assert.match(html, /<input id="reminder-time" class="input" type="time" value="10:30">/);
   assert.match(html, /<p class="sheet-summary" data-reminder-summary>Remind me R\(2026-10-20\) at 10:30<\/p>/);
@@ -195,7 +195,7 @@ test('E6: reminder presets follow the planned time; the sheet has date, time, a 
   ctx.openReminderPicker({}, { type: 'task', taskId: 't1' });
   const loose = ctx.calls.at(-1)[1];
   assert.match(loose, /<p class="sheet-note">Quick choices for the planned time appear when the task has one\.<\/p>/);
-  assert.match(loose, /data-pop-action="reminder-preset"[^>]*>Tomorrow morning</);
+  assert.match(loose, /data-pop-action="reminder-preset"[^>]*>Tomorrow at 09:00</); // R18
   assert.match(loose, /data-pop-action="reminder-clear">Clear reminder</);
   assert.match(fn('openReminderPicker'), /Core\.laterToday\(new Date\(\)\)/, 'H-2 still applies');
   assert.match(sr, /"Remind me \{date\} at \{time\}": "Podseti me \{date\} u \{time\}"/);

@@ -25,7 +25,8 @@ function habitModule() {
   const ctx = { Core, esc: String, state: { habitLogCache: {}, settings: {} }, habitMetrics: () => ({ currentPeriodCount: 2, currentPeriodTarget: 4 }) };
   return (habit, status) => module.renderRoute({ type: 'habit-today-row', habit, todayStatus: status }, ctx);
 }
-const order = row => ['today-row-main', 'habit-today-count', 'habit-check'].map(name => row.indexOf(`class="${name}`) >= 0 ? row.indexOf(`class="${name}`) : row.indexOf(name));
+// R17: the progress text moved into the meta line under the name.
+const order = row => ['today-row-main', 'task-meta', 'habit-check'].map(name => row.indexOf(`class="${name}`) >= 0 ? row.indexOf(`class="${name}`) : row.indexOf(name));
 const endsWithCircle = row => /<button class="habit-check"[^>]*><svg[\s\S]*<\/svg><\/button><\/article>$/.test(row);
 
 test('T5: a habit row is the name, the progress text and the circle at the far right', () => {
@@ -39,7 +40,7 @@ test('T5: a habit row is the name, the progress text and the circle at the far r
   assert.ok(main < count && count < check, 'name, then "1.5 / 2 l", then the circle');
   assert.ok(endsWithCircle(numeric));
   const weekly = row({ id: 'h3', name: 'Gym', trackingType: 'checkbox', frequencyType: 'timesPerWeek', targetCount: 4, status: 'active' }, { status: 'pending' });
-  assert.match(weekly, /<span class="task-side habit-today-count">2\/4 weekly<\/span><button class="habit-check"/);
+  assert.match(weekly, /<span class="task-meta">2\/4 weekly<\/span><\/button><button class="habit-check"/);
   assert.ok(endsWithCircle(weekly));
 });
 

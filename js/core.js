@@ -1434,18 +1434,34 @@
   // habit reminder times on scheduled days, where a snooze silences the moments before it and is a notification
   // of its own, and a met weekly target silences the rest of the current week. Only future moments inside the
   // window are listed, at most `limit` (iOS keeps 64 pending notifications per app).
-  function notificationPlan(state, now, { days = 14, limit = 60, logs = {} } = {}) {
+  function notificationPlan(state, now, { days = 14, limit = 60, logs = {}, plannedFired = {} } = {}) {
     const start = new Date(now).getTime();
     if (!state || !Number.isFinite(start)) return [];
     const end = start + days * 86400000;
     const list = [];
     const add = (kind, item, moment, title, date = null) => {
-      const time = reminderInstant(moment.startsWith('snooze:') ? moment.slice(7) : moment);
+      const time = reminderInstant(moment.replace(/^(snooze|planned):/, ''));
       if (time === null || time <= start || time > end) return;
       list.push({ key: notificationKey(kind, item.id, moment), kind, id: item.id, at: new Date(time).toISOString(), title, route: `${kind}/${encodeURIComponent(item.id)}`, date });
     };
+    const planned = plannedTimeReminders(state.settings);
     for (const task of state.tasks || []) {
       if (!task.isCompleted && task.reminderAt && !taskReminderFired(task)) add('task', task, task.reminderAt, task.title, task.dueDate || null);
+      // R18 (c): a planned time reminds under its own key, so it never clashes with a set reminder.
+      const moment = planned ? plannedReminderMoment(task) : null;
+      if (moment && plannedFired[task.id] !== moment) add('task', task, `planned:${moment}`, task.title, task.dueDate || null);
+    }
+    // R18 (b): the journal at its reminder time each day; today drops out once it has an entry with text or a mood.
+    const journalTime = journalNotifications(state.settings) ? journalReminderTime(state.settings) : null;
+    if (journalTime) {
+      const firstDay = dateOnly(new Date(start));
+      for (let offset = 0; offset <= days; offset += 1) {
+        const date = addDays(firstDay, offset);
+        const entry = offset === 0 ? journalEntryFor(state, date) : null;
+        if (entry && (String(entry.text || '').trim() || entry.mood)) continue;
+        const moment = combineDateTime(date, journalTime);
+        if (moment) add('journal', { id: journalEntryId(date) }, moment, '', date);
+      }
     }
     for (const goal of state.goals || []) {
       if (goal.status !== 'active') continue;
@@ -1784,6 +1800,30 @@
     const habitsDone = due.filter(habit => habitStatusForDate(habit, habitLogs || [], date, date).status === 'done').length;
     return { completed, habitsDone, habitsDue: due.length };
   }
+  // R18: the reminder settings — the hour Dailo proposes, reminders at a task's planned time, and the journal as a
+  // phone notification. Missing values mean the defaults, so older data needs no migration.
+  function defaultReminderTime(settings) {
+    return normalizeTime(settings?.defaultReminderTime) || '09:00';
+  }
+  function plannedTimeReminders(settings) {
+    return settings?.plannedTimeReminders === true;
+  }
+  function journalNotifications(settings) {
+    return settings?.journalNotifications === true;
+  }
+  // An open task with a planned date and time and no reminder of its own reminds at its planned moment.
+  function plannedReminderMoment(task) {
+    if (!task || task.isCompleted || task.reminderAt) return null;
+    return combineDateTime(task.plannedDate, normalizeTime(task.plannedTime));
+  }
+  // In the open app a planned reminder shows once, and only within two hours of its moment.
+  function plannedReminderDue(task, now, firedMoment) {
+    const moment = plannedReminderMoment(task);
+    if (!moment || firedMoment === moment) return null;
+    const at = reminderInstant(moment), current = new Date(now).getTime();
+    return at !== null && at <= current && current - at < 2 * 3600000 ? moment : null;
+  }
+
   // When the evening journal notice appears (J6): a local time, or null when it is off; 20:00 when unset.
   function journalReminderTime(settings) {
     const value = settings?.journalReminderTime;
@@ -2158,6 +2198,11 @@
     journalEntryId,
     journalEntryFor,
     journalReminderTime,
+    defaultReminderTime,
+    plannedTimeReminders,
+    journalNotifications,
+    plannedReminderMoment,
+    plannedReminderDue,
     journalDaySummary,
     weeklyReviewStats,
     normalizeRecurrenceV3,

@@ -109,7 +109,7 @@ test('S5: empty first steps fold into "· gotovo", the next days open the Calend
   assert.match(html, /<button class="review-row" type="button" data-route="habit\/h1"><span>Walk<\/span><span class="review-row-meta">streak 4 · 80%<\/span><\/button>/);
   assert.match(html, /<button class="review-row" type="button" data-route="area\/a1"><span>Health<\/span><span class="review-row-meta">0 open tasks<\/span><\/button>/);
   const busy = render().html();
-  assert.match(busy, /data-weekly-review-step="1"><div class="section-header"><h2 class="section-label"><span class="weekly-review-number" aria-hidden="true">1<\/span>Empty the Inbox<\/h2><span class="section-count">1<\/span><\/div><div class="today-card"><row id="new2" inbox inbox><\/row><\/div>/);
+  assert.match(busy, /data-weekly-review-step="1"><div class="section-header"><h2 class="section-label"><span class="weekly-review-number" aria-hidden="true">1<\/span>Empty the Inbox<\/h2><span class="section-count">1<\/span><\/div><div class="today-card"><row id="new2" inbox today,inbox><\/row><\/div>/); // R17: the usual task rows
 });
 
 test('S5: the finish button, the done line and the earlier reviews', () => {

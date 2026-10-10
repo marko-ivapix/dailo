@@ -21,15 +21,18 @@
     const completed = projectTasks(projectId, true);
     const goal = (state.goals || []).find(item => item.status !== 'archived' && (item.projectLinks || []).some(link => link.projectId === projectId));
     const summary = [area?.name, trn(openTasks.length, '{count} open', '{count} open'), completed.length ? trn(completed.length, '{count} done', '{count} done') : ''].filter(Boolean).join(' · ');
-    let html = `<div class="screen-topbar"><button class="screen-back" type="button" data-route="tasks"><i class="ph ph-caret-left" aria-hidden="true"></i>${tr('Tasks')}</button><button class="btn-icon" type="button" data-action="project-menu" data-project-id="${esc(projectId)}" aria-label="${tr('Project menu')}"><i class="ph ph-dots-three"></i></button></div>`;
-    html += `<h1 class="page-title project-title"><span class="project-dot" style="--project-color:${esc(project.color)}" aria-hidden="true"></span>${esc(project.name)}</h1><p class="page-subtitle">${esc(summary)}</p>`;
+    // R17: "‹ Zadaci" above the usual header (color dot, name, summary, search and the project's ⋯).
+    let html = backLink() + ctx.pageHeader(project.name, summary, { add: false, projectMenu: projectId, color: project.color });
     if (archived) html += `<section class="weekly-review-notice project-archived-notice" role="status"><i class="ph ph-archive weekly-review-notice-icon" aria-hidden="true"></i><div class="backup-reminder-copy"><strong>${tr('Archived project')}</strong><span>${tr('Its tasks stay out of every list until you restore it.')}</span></div><div class="backup-reminder-actions"><button class="btn btn-secondary" type="button" data-action="restore-project" data-project-id="${esc(projectId)}">${tr('Restore')}</button></div></section>`;
     if (goal) html += `<button class="project-goal-link" type="button" data-route="goal/${esc(goal.id)}"><i class="ph ph-target" aria-hidden="true"></i>${esc(tr('Goal: {goal}', { goal: goal.title }))} · ${ctx.goalPercent(goal)}%</button>`;
     if (openTasks.length) html += `<div class="task-list today-card" data-list-context="project:${esc(projectId)}">${openTasks.map(task => renderProjectTaskRow(task, projectId, { draggable: !archived, today: true, hidePlace: true })).join('')}</div>`;
+    else if (!archived) html += `<p class="today-empty">${tr('No open tasks.')}</p>`;
     if (!archived) html += `<button class="inline-add" type="button" data-action="quick-add" data-project-id="${esc(projectId)}"><i class="ph ph-plus"></i> ${tr('Add task')}</button>`;
     html += completedSection(ctx, projectId, completed, task => renderProjectTaskRow(task, projectId, { completed: true, today: true, hidePlace: true }));
     return html;
   }
+
+  const backLink = () => `<div class="screen-topbar"><button class="screen-back" type="button" data-route="tasks"><i class="ph ph-caret-left" aria-hidden="true"></i>${tr('Tasks')}</button></div>`;
 
   function completedSection(ctx, key, completed, row) {
     if (!completed.length) return '';
@@ -42,9 +45,8 @@
     const { esc, taskRow } = ctx;
     const open = ctx.looseTasks(false);
     const completed = ctx.looseTasks(true);
-    let html = `<div class="screen-topbar"><button class="screen-back" type="button" data-route="tasks"><i class="ph ph-caret-left" aria-hidden="true"></i>${tr('Tasks')}</button></div>`;
-    html += `<h1 class="page-title project-title">${tr('No project')}</h1><p class="page-subtitle">${esc(trn(open.length, '{count} open', '{count} open'))}</p>`;
-    if (open.length) html += `<div class="task-list today-card">${open.map(task => taskRow(task, 'anytime', { today: true })).join('')}</div>`;
+    let html = backLink() + ctx.pageHeader(tr('No project'), trn(open.length, '{count} open', '{count} open'), { add: false });
+    html += open.length ? `<div class="task-list today-card">${open.map(task => taskRow(task, 'anytime', { today: true })).join('')}</div>` : `<p class="today-empty">${tr('No sorted tasks without a project.')}</p>`;
     html += `<button class="inline-add" type="button" data-action="quick-add" data-anytime="true"><i class="ph ph-plus"></i> ${tr('Add task')}</button>`;
     html += completedSection(ctx, 'none', completed, task => taskRow(task, 'completed', { today: true }));
     return html + `<p class="tasks-note">${tr('Sorted tasks that belong to no project.')}</p>`;
@@ -63,11 +65,12 @@
     }).join('')}</div>`;
   }
 
+  // R17: a sheet like "Nova oblast" — the big name field, the colors and one big button.
   function renderProjectModal(ctx) {
     const { modalState, modalFrame, PROJECT_COLORS, esc } = ctx;
     const editing = Boolean(modalState.projectId);
     const draft = modalState.draft;
-    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">${editing ? tr('Edit project') : tr('New project')}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close dialog')}"><i class="ph ph-x"></i></button></div><label class="field-label" for="project-name">${tr('Name')}</label><input id="project-name" class="input ${modalState.error ? 'is-error' : ''}" type="text" maxlength="100" value="${esc(draft.name)}" placeholder="${tr('Project name')}" />${modalState.error ? `<div class="validation">${esc(modalState.error)}</div>` : ''}<div style="height:18px"></div><span class="field-label">${tr('Color')}</span><div class="color-grid">${PROJECT_COLORS.map(color => `<button class="color-swatch ${color === draft.color ? 'is-selected' : ''}" type="button" data-action="select-project-color" data-color="${color}" style="--swatch:${color}" aria-label="${tr('Select project color')}"></button>`).join('')}</div><div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">${tr('Cancel')}</button><button class="btn btn-primary" type="button" data-action="save-project">${editing ? tr('Save changes') : tr('Create project')}</button></div></div></div>`, 'quick');
+    return modalFrame(`<div class="modal-inner quick-sheet project-window"><div class="modal-header"><h2 class="modal-title">${editing ? tr('Edit project') : tr('New project')}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close dialog')}"><i class="ph ph-x"></i></button></div><input id="project-name" class="quick-title-input${modalState.error ? ' is-error' : ''}" type="text" maxlength="100" autocomplete="off" placeholder="${tr('Project name')}" value="${esc(draft.name)}" aria-label="${tr('Project name')}">${modalState.error ? `<div class="validation" role="alert">${esc(modalState.error)}</div>` : ''}<span class="habit-window-label">${tr('Color')}</span><div class="color-grid">${PROJECT_COLORS.map(color => `<button class="color-swatch ${color === draft.color ? 'is-selected' : ''}" type="button" data-action="select-project-color" data-color="${color}" style="--swatch:${color}" aria-label="${tr('Select project color')}" aria-pressed="${color === draft.color}"></button>`).join('')}</div><div class="quick-sheet-footer"><span></span><button class="btn btn-primary habit-window-save" type="button" data-action="save-project">${editing ? tr('Save changes') : tr('Create project')}</button></div></div>`, 'quick');
   }
 
   function openProjectMenu(ctx, anchor, projectId) {

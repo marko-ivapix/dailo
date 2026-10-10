@@ -44,9 +44,9 @@
     const { state, pageHeader, esc } = context;
     const rows = state.savedViews.map(view => {
       const meta = [typeLabel(view.type), view.isPinned ? tr('pinned to “More”') : '', summaryText(context, view)].filter(Boolean).join(' · ');
-      return `<button class="view-list-row" type="button" data-route="saved-view/${esc(view.id)}"><i class="ph ph-funnel view-list-icon" aria-hidden="true"></i><span class="view-list-main"><span class="task-title">${esc(view.name)}</span><span class="task-meta">${esc(meta)}</span></span><span class="view-list-count">${results(context, view).length}</span><i class="ph ph-caret-right" aria-hidden="true"></i></button>`;
+      return `<button class="view-list-row" type="button" data-route="saved-view/${esc(view.id)}"><i class="ph ph-funnel view-list-icon" aria-hidden="true"></i><span class="view-list-main"><span class="task-title">${esc(view.name)}</span><span class="task-meta">${esc(meta)}</span></span><span class="view-list-count">${results(context, view).length}</span></button>`;
     }).join('');
-    return pageHeader(tr('Saved Views'), tr('Saved filters for one kind of item.'), { add: false }) + `<div class="today-card views-list">${rows}<button class="inline-add" type="button" data-action="new-saved-view"><i class="ph ph-plus" aria-hidden="true"></i> ${tr('New saved view')}</button></div>`;
+    return pageHeader(tr('Saved Views'), tr('Saved filters for one kind of item.'), { add: false }) + `<div class="today-card views-list">${rows || `<p class="today-empty">${tr('No saved views yet. “+” saves the filters you use often.')}</p>`}<button class="inline-add" type="button" data-action="new-saved-view"><i class="ph ph-plus" aria-hidden="true"></i> ${tr('New saved view')}</button></div>`;
   }
 
   function renderDetail(context, id) {
