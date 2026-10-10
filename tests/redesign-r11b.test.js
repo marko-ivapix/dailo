@@ -39,7 +39,7 @@ function editor({ task = { id: 't', title: 'Bins', plannedDate: SATURDAY, recurr
   };
   vm.createContext(withI18n(ctx));
   const constants = app.match(/  const REPEAT_[\s\S]*?\n\n/)[0];
-  vm.runInContext(`let repeatSheet = null;\n${constants}${['recurrenceLabel', 'repeatList', 'openRepeatPicker', 'repeatSource', 'repeatEditorState', 'repeatRuleFromSheet', 'repeatPresetOn', 'repeatSheetHtml', 'readRepeatInputs', 'handleRepeatAction', 'applyRepeatSheet'].map(fn).join('\n')}\nthis.sheet = () => repeatSheet;`, ctx);
+  vm.runInContext(`let repeatSheet = null;\n${constants}${['recurrenceLabel', 'repeatList', 'openRepeatPicker', 'repeatSource', 'repeatEditorState', 'repeatRuleFromSheet', 'repeatPresetOn', 'repeatSheetHtml', 'readRepeatInputs', 'handleRepeatAction', 'applyRepeatSheet', 'recurrencePendingSiblings', 'recurrenceSkipTarget'].map(fn).join('\n')}\nthis.sheet = () => repeatSheet;`, ctx);
   ctx.open = () => { ctx.openRepeatPicker({}, { type: 'task', taskId: task.id }); return ctx.repeatSheetHtml(); };
   ctx.act = (action, data = {}) => { ctx.handleRepeatAction(action, { dataset: { popAction: action, ...data } }); return ctx.repeatSheetHtml(); };
   return ctx;
@@ -123,7 +123,8 @@ test('S15: monthly by day or weekday, yearly, the end fields and the controls of
   html = repeating.open();
   assert.match(html, /data-pop-action="repeat-preset" data-preset="2" aria-pressed="true">Every month</, 'a legacy monthly rule opens on the start day');
   assert.match(html, /data-repeat-summary>Every month on day 1<\/p><p class="sheet-note">Next times: Sun, Nov 1 · Tue, Dec 1 · Fri, Jan 1<\/p>/, 'the next dates start today');
-  assert.match(html, /<h3 class="sheet-group-title">This repeat<\/h3>[\s\S]*data-pop-action="pause-recurrence" data-task-id="r" data-target-type="task">[\s\S]*data-pop-action="skip-recurrence"[\s\S]*data-pop-action="end-recurrence"/);
+  // R11c (S14) orders the controls skip, pause, end and adds a line under each (tests/redesign-r11c.test.js).
+  assert.match(html, /<h3 class="sheet-group-title">This repeat<\/h3>[\s\S]*data-pop-action="skip-recurrence" data-task-id="r" data-target-type="task">[\s\S]*data-pop-action="pause-recurrence"[\s\S]*data-pop-action="end-recurrence"/);
   assert.match(html, /<div class="sheet-footer"><span><\/span><button class="btn btn-primary" type="button" data-pop-action="repeat-apply">Apply<\/button><\/div>$/);
 });
 
@@ -204,8 +205,7 @@ test('the R11b layer and the Serbian labels', () => {
   }
 });
 
-test('R11b is released as 2.0.0-alpha.27', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.27');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.27';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.27');
+test('R11b shipped as 2.0.0-alpha.27 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 99) >= 27);
 });

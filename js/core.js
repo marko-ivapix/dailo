@@ -498,6 +498,25 @@
     return start;
   }
 
+  // R11c (S14): "Ovo i buduća" moves the rule's chosen day along with the occurrence. Returns only the
+  // changed fields; "last day", plain intervals, daily and yearly rules follow the date by themselves.
+  function recurrenceDayShift(recurrence, fromDate, toDate) {
+    const rule = normalizeRecurrence(recurrence);
+    const from = parseDateOnly(fromDate), to = parseDateOnly(toDate);
+    if (!rule || !from || !to || fromDate === toDate) return {};
+    if (rule.weekdays) {
+      if (!rule.weekdays.includes(from.getDay())) return {};
+      return { weekdays: [...new Set(rule.weekdays.map(day => (day === from.getDay() ? to.getDay() : day)))].sort((a, b) => a - b) };
+    }
+    if (rule.monthMode === 'day') return rule.monthDay === from.getDate() ? { monthDay: to.getDate() } : {};
+    if (rule.monthMode === 'weekday') {
+      if (rule.weekday !== from.getDay()) return {};
+      const nth = Math.ceil(to.getDate() / 7);
+      return { weekOfMonth: rule.weekOfMonth === 'last' || nth > 4 ? 'last' : nth, weekday: to.getDay() };
+    }
+    return {};
+  }
+
   // The next `count` dates from the first one, stopping at the rule's end date or remaining count.
   // Dates before `from` (e.g. today) are left out but still count toward the remaining count.
   function upcomingRecurrenceDates(start, recurrence, count = 5, from = null) {
@@ -2073,6 +2092,7 @@
     nextRecurrenceDate,
     firstRecurrenceDate,
     upcomingRecurrenceDates,
+    recurrenceDayShift,
     normalizeRecurrenceV3,
     shouldGenerateRecurrence,
     splitRecurrenceForFuture,

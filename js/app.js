@@ -219,6 +219,9 @@
     else text = interval === 1 ? tr('Every month') : trn(interval, 'Every {count} month', 'Every {count} months');
     if (recurrence.endType === 'date' && recurrence.endDate) text += ` · ${tr('until {date}', { date: formatDate(recurrence.endDate) })}`;
     else if (recurrence.endType === 'afterOccurrences' && recurrence.endAfterOccurrences) text += ` · ${trn(recurrence.endAfterOccurrences, '{count} time', '{count} times')}`;
+    // R11c (S14): a paused or ended repeat says so.
+    if (recurrence.status === 'paused') text += ` · ${tr('paused')}`;
+    else if (recurrence.status === 'ended') text += ` · ${tr('ended')}`;
     return text;
   }
 
@@ -2471,7 +2474,7 @@
       monthMode: rule?.monthMode || 'day', monthDay: rule?.monthDay ?? date.getDate(),
       weekOfMonth: rule?.weekOfMonth ?? (nth > 4 ? 'last' : nth), weekday: rule?.weekday ?? date.getDay(),
       endType: rule?.endType || 'never', endDate: rule?.endDate || Core.addDays(start, 90), endAfterOccurrences: rule?.endAfterOccurrences || 10,
-      occurrencesCreated: rule?.occurrencesCreated || 0, error: '',
+      occurrencesCreated: rule?.occurrencesCreated || 0, status: rule?.status || 'active', error: '',
     };
     sheet.initial = rule ? repeatRuleFromSheet(sheet) : null;
     return sheet;
@@ -2527,13 +2530,14 @@
       + (s.endType === 'date' ? `<label class="sheet-field"><i class="ph ph-calendar-blank" aria-hidden="true"></i><span>${tr('End date')}</span><input id="repeat-end-date" class="input" type="date" min="${esc(s.start)}" value="${esc(s.endDate)}"></label>` : '')
       + (s.endType === 'afterOccurrences' ? `<label class="sheet-field"><i class="ph ph-hash" aria-hidden="true"></i><span>${tr('Number of times')}</span><input id="repeat-end-count" class="input" type="number" min="1" step="1" value="${esc(s.endAfterOccurrences)}"></label>` : '')
       + (s.error ? `<p class="validation" role="alert">${esc(s.error)}</p>` : '');
-    // The existing controls stay for a task that already repeats; R11c (S14) gives them Undo and new wording.
+    // R11c (S14): the controls of an active or paused repeat; each says what it did and offers Undo.
     const operational = s.target.type === 'task' ? taskRecurrence(source) : null;
     const attrs = `data-task-id="${esc(s.target.taskId)}" data-target-type="task"`;
-    const control = (action, label) => `<button class="popover-option sheet-option" type="button" data-pop-action="${action}" ${attrs}><span class="sheet-option-label">${label}</span></button>`;
-    const controls = operational ? `<h3 class="sheet-group-title">${tr('This repeat')}</h3><p class="sheet-note">${tr('Controls apply to this and pending recurrence. Skip affects the next generated occurrence, not already-created tasks.')}</p><div class="sheet-card">${control(operational.status === 'paused' ? 'resume-recurrence' : 'pause-recurrence', operational.status === 'paused' ? tr('Resume recurrence') : tr('Pause recurrence'))}${control('skip-recurrence', operational.skipNext ? tr('Skip next occurrence (scheduled)') : tr('Skip next occurrence'))}${control('end-recurrence', tr('End recurrence'))}</div>` : '';
+    const control = (action, label, note, danger = false) => `<button class="popover-option sheet-option${danger ? ' is-danger' : ''}" type="button" data-pop-action="${action}" ${attrs}><span class="sheet-option-label">${label}<small>${note}</small></span></button>`;
+    const paused = operational?.status === 'paused', skipping = Boolean(operational && taskRecurrence(recurrenceSkipTarget(source))?.skipNext);
+    const controls = operational && operational.status !== 'ended' ? `<h3 class="sheet-group-title">${tr('This repeat')}</h3><div class="sheet-card">${control('skip-recurrence', skipping ? tr('Skip is scheduled · cancel') : tr('Skip next occurrence'), skipping ? tr('The next task is made for the repeat after it.') : tr('When you complete this one, the next repeat is skipped.'))}${control(paused ? 'resume-recurrence' : 'pause-recurrence', paused ? tr('Resume recurrence') : tr('Pause recurrence'), paused ? tr('Completing makes the next task again.') : tr('While paused, completing makes no next one.'))}${control('end-recurrence', tr('End recurrence'), tr('This task stays; no more are made.'), true)}</div>` : '';
     const clear = operational ? '<span></span>' : `<button class="btn btn-ghost" type="button" data-pop-action="repeat-clear">${tr('Does not repeat')}</button>`;
-    return `<div class="popover-title">${tr('Repeat')}</div>${source?.title ? `<p class="sheet-subtitle">${esc(source.title)}</p>` : ''}<div class="sheet-chips">${chips}</div><div class="view-tabs habit-window-seg repeat-frequency" role="group" aria-label="${tr('Frequency')}">${segment}</div>${stepper}${extra}<p class="sheet-summary" data-repeat-summary>${esc(recurrenceLabel(rule))}</p><p class="sheet-note">${esc(next)}</p>${end}${controls}<div class="sheet-footer">${clear}<button class="btn btn-primary" type="button" data-pop-action="repeat-apply">${tr('Apply')}</button></div>`;
+    return `<div class="popover-title">${tr('Repeat')}</div>${source?.title ? `<p class="sheet-subtitle">${esc(source.title)}</p>` : ''}<div class="sheet-chips">${chips}</div><div class="view-tabs habit-window-seg repeat-frequency" role="group" aria-label="${tr('Frequency')}">${segment}</div>${stepper}${extra}<p class="sheet-summary" data-repeat-summary>${esc(recurrenceLabel({ ...rule, status: s.status }))}</p><p class="sheet-note">${esc(next)}</p>${end}${controls}<div class="sheet-footer">${clear}<button class="btn btn-primary" type="button" data-pop-action="repeat-apply">${tr('Apply')}</button></div>`;
   }
   function readRepeatInputs() {
     const date = $('#repeat-end-date', popoverEl), count = $('#repeat-end-count', popoverEl);
@@ -2585,7 +2589,9 @@
     }
     const rule = repeatRuleFromSheet(s);
     if (s.target.type !== 'task') { setRecurrence(s.target.type, null, rule); return; }
-    if (JSON.stringify(rule) === JSON.stringify(s.initial)) { closePopover(); return; }
+    // An ended repeat starts again with "Primeni" (R11c); an unchanged active or paused one only closes.
+    if (s.status === 'ended') rule.status = 'active';
+    else if (JSON.stringify(rule) === JSON.stringify(s.initial)) { closePopover(); return; }
     setRecurrence('task', s.target.taskId, rule);
   }
 
@@ -2732,7 +2738,9 @@
   }
   function taskRecurrence(task) {return task?.recurrenceBaseline?.recurrence || task?.recurrence;}
   function renderRecurrenceScope() {
-    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">${tr('Edit recurring task')}</h2><button class="btn-icon" data-action="close-modal" aria-label="${tr('Cancel')}"><i class="ph ph-x"></i></button></div><p class="dialog-copy">${tr('Apply these changes to this occurrence only, or this and pending future occurrences? Past and completed siblings stay unchanged.')}</p><div class="modal-footer"><button class="btn btn-secondary" data-action="recurrence-scope" data-scope="occurrence">${tr('This occurrence')}</button><button class="btn btn-primary" data-action="recurrence-scope" data-scope="future">${tr('This and future')}</button></div></div>`,'small-modal');
+    const task=getTask(modalState.taskId);
+    const option=(scope,label,note)=>`<button class="popover-option sheet-option" type="button" data-action="recurrence-scope" data-scope="${scope}"><span class="sheet-option-label">${label}<small>${note}</small></span><i class="ph ph-caret-right" aria-hidden="true"></i></button>`;
+    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">${tr('Apply the change')}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Cancel')}"><i class="ph ph-x"></i></button></div>${task?.title?`<p class="sheet-subtitle">${esc(task.title)}</p>`:''}<div class="sheet-card">${option('occurrence',tr('This occurrence'),tr('The next repeats stay as they were.'))}${option('future',tr('This and future'),tr('The change applies from this repeat on.'))}</div></div>`,'small-modal');
   }
   function cancelRecurrenceScope() {
     const pending=modalState;if(pending?.type!=='recurrence-scope')return;
@@ -2744,6 +2752,7 @@
     const pending=modalState;if(pending?.type!=='recurrence-scope')return;
     const task=getTask(pending.taskId);if(!task){cancelRecurrenceScope();return;}
     const changes=pending.changes;
+    const snapshot=snapshotTasks(state.tasks.filter(item=>item.id===task.id || taskRecurrence(task)?.seriesId && taskRecurrence(item)?.seriesId===taskRecurrence(task).seriesId));
     if(scope==='occurrence') {
       if(!task.recurrenceBaseline){task.recurrenceBaseline=copyTemplate(task);delete task.recurrenceBaseline.recurrenceBaseline;}
       const scoped=copyTemplate(changes);
@@ -2752,6 +2761,12 @@
     } else {
       const original=copyTemplate(task),oldSeries=taskRecurrence(task)?.seriesId;
       const effective=task.plannedDate || task.dueDate || Core.dateOnly();
+      // R11c (S14): "Ovo i buduća" moves the rule's day along from its old day (the baseline's when there is one).
+      const anchor=task.plannedDate?'plannedDate':'dueDate',ruleDay=(task.recurrenceBaseline || task)[anchor];
+      if(changes[anchor] && ruleDay) {
+        const shifted=Core.recurrenceDayShift(changes.recurrence?{...taskRecurrence(task),...changes.recurrence}:taskRecurrence(task),ruleDay,changes[anchor]);
+        if(Object.keys(shifted).length)changes.recurrence={...(changes.recurrence || {}),...shifted};
+      }
       const branch=Core.splitRecurrenceForFuture(task,changes,effective);
       const dayDelta=(before,after)=>Math.round((Date.parse(after+'T12:00:00Z')-Date.parse(before+'T12:00:00Z'))/86400000);
       for(const sibling of state.tasks) {
@@ -2775,6 +2790,12 @@
     modalState=pending.previous;
     if(modalState?.type==='task'){modalState.titleDraft=task.title;modalState.notesDraft=task.notes || '';}
     saveState();render();renderModal();
+    setUndo(scope==='occurrence'?msg('Saved · only this one'):msg('Saved · this and future ones'),()=>{
+      restoreTasks(snapshot);
+      const restored=getTask(pending.taskId);
+      if(modalState?.type==='task' && restored){modalState.titleDraft=restored.title;modalState.notesDraft=restored.notes || '';}
+      saveState();render();renderModal();
+    });
     pending.after?.();
   }
   function requestTaskEdit(taskId,changes,after=null) {
@@ -2783,11 +2804,14 @@
     changes={...taskDraftChanges(task),...changes};
     changes=Object.fromEntries(Object.entries(changes).filter(([key,value])=>JSON.stringify(key==='recurrence' && value?Core.normalizeRecurrenceV3({...task.recurrence,...value}):value)!==JSON.stringify(task[key])));
     if(!Object.keys(changes).length){after?.();return false;}
-    if(taskRecurrence(task)) {
+    // R11c (S14): only a change of a date, the reminder or the repeat asks "Samo ovo / Ovo i buduća".
+    if(taskRecurrence(task) && Object.keys(changes).some(key=>['plannedDate','plannedTime','dueDate','dueTime','reminderAt','recurrence'].includes(key))) {
       const focusSelector=document.activeElement?.id?`#${document.activeElement.id}`:'#detail-title';
       closePopover();modalState={type:'recurrence-scope',taskId,changes:copyTemplate(changes),previous:modalState,after,focusSelector};renderModal();return true;
     }
     Object.assign(task,copyTemplate(changes),{updatedAt:nowIso()});
+    // Other fields save at once; an occurrence changed with "Samo ovo" passes them on to the next one too.
+    if(task.recurrenceBaseline)for(const [key,value] of Object.entries(changes))if(!['todayOrder','projectOrder','inboxOrder','reminderFiredAt'].includes(key))task.recurrenceBaseline[key]=copyTemplate(value);
     if(modalState?.type==='task'){modalState.titleDraft=task.title;modalState.notesDraft=task.notes || '';}
     saveState();render();renderModal();after?.();return false;
   }
@@ -2811,16 +2835,45 @@
   }
   function manageRecurrence(taskId,action) {
     const task=getTask(taskId),rule=taskRecurrence(task);if(!rule)return;
-    const effective=task.plannedDate || task.dueDate || Core.dateOnly();
-    const pending=state.tasks.filter(sibling=>!sibling.isCompleted && taskRecurrence(sibling)?.seriesId===rule.seriesId && (sibling.id===taskId || (sibling.plannedDate || sibling.dueDate)>=effective && (sibling.plannedDate || sibling.dueDate)>=Core.dateOnly())).sort((a,b)=>(a.plannedDate || a.dueDate || '').localeCompare(b.plannedDate || b.dueDate || '') || a.id.localeCompare(b.id));
-    const update=action==='skip-recurrence'?{skipNext:true}:{status:action==='pause-recurrence'?'paused':action==='resume-recurrence'?'active':'ended'};
-    for(const item of action==='skip-recurrence'?[pending.find(s=>!s.recurrenceSuccessorId) || task]:[task,...pending.filter(s=>s.id!==taskId)]){
+    const pending=recurrencePendingSiblings(task,rule);
+    const skipTarget=pending.find(s=>!s.recurrenceSuccessorId) || task;
+    // R11c (S14): tapping "Preskoči sledeći put" again cancels the scheduled skip.
+    const update=action==='skip-recurrence'?{skipNext:!taskRecurrence(skipTarget)?.skipNext}:{status:action==='pause-recurrence'?'paused':action==='resume-recurrence'?'active':'ended'};
+    for(const item of action==='skip-recurrence'?[skipTarget]:[task,...pending.filter(s=>s.id!==taskId)]){
       if(item.recurrence)Object.assign(item.recurrence,update);
       if(item.recurrenceBaseline?.recurrence)Object.assign(item.recurrenceBaseline.recurrence,update);
       item.updatedAt=nowIso();
     }
     if(action==='resume-recurrence' && task.isCompleted)generateRecurringSuccessor(task,nowIso());
     task.updatedAt=nowIso();closePopover();saveState();render();renderModal();
+  }
+  function recurrencePendingSiblings(task,rule) {
+    const effective=task.plannedDate || task.dueDate || Core.dateOnly();
+    return state.tasks.filter(sibling=>!sibling.isCompleted && taskRecurrence(sibling)?.seriesId===rule.seriesId && (sibling.id===task.id || (sibling.plannedDate || sibling.dueDate)>=effective && (sibling.plannedDate || sibling.dueDate)>=Core.dateOnly())).sort((a,b)=>(a.plannedDate || a.dueDate || '').localeCompare(b.plannedDate || b.dueDate || '') || a.id.localeCompare(b.id));
+  }
+  // The series' earliest pending occurrence without a successor carries the skip (V1.3).
+  function recurrenceSkipTarget(task) {
+    const rule=taskRecurrence(task);
+    return rule ? recurrencePendingSiblings(task,rule).find(s=>!s.recurrenceSuccessorId) || task : null;
+  }
+  // Copies of the tasks an action may change, and of the ids that existed, for Undo.
+  function snapshotTasks(items) {
+    return { copies: items.map(item => copyTemplate(item)), ids: new Set(state.tasks.map(item => item.id)) };
+  }
+  function restoreTasks(snapshot) {
+    const copies = new Map(snapshot.copies.map(item => [item.id, item]));
+    const added = state.tasks.filter(item => !snapshot.ids.has(item.id)).map(item => item.id);
+    state.tasks = state.tasks.filter(item => snapshot.ids.has(item.id)).map(item => (copies.has(item.id) ? copyTemplate(copies.get(item.id)) : item));
+    added.forEach(removeCloneGoalLinks);
+  }
+  // R11c (S14): the repeat controls say what they did and offer "Poništi" for the whole series.
+  function controlRecurrence(taskId,action) {
+    const task=getTask(taskId),rule=taskRecurrence(task);if(!rule)return;
+    const snapshot=snapshotTasks(state.tasks.filter(item=>item.id===taskId || taskRecurrence(item)?.seriesId===rule.seriesId));
+    manageRecurrence(taskId,action);
+    const skipping=Boolean(taskRecurrence(recurrenceSkipTarget(getTask(taskId)))?.skipNext);
+    const message=action==='skip-recurrence'?(skipping?msg('The next repeat will be skipped'):msg('Skip cancelled')):action==='pause-recurrence'?msg('Repeat paused'):action==='resume-recurrence'?msg('Repeat resumed'):msg('Repeat ended');
+    setUndo(message,()=>{restoreTasks(snapshot);saveState();render();renderModal();});
   }
 
   function setProject(targetType, taskId, projectId) {
@@ -2938,7 +2991,10 @@
     task.isCompleted = true; task.completedAt = completedAt; task.updatedAt = completedAt;
     const generatedId=taskRecurrence(task)?generateRecurringSuccessor(task,completedAt):null;
     saveState();
-    setUndo(msg('Task completed'), () => {
+    // R11c (S14): the message says when the next occurrence comes.
+    const next = generatedId ? getTask(generatedId) : null;
+    const nextDate = next?.plannedDate || next?.dueDate;
+    setUndo(nextDate ? tr('Task completed · next {date}', { date: REPEAT_DATE_FMT.format(parseLocalDate(nextDate)) }) : msg('Task completed'), () => {
       const current = getTask(taskId); if (!current) return;
       Object.assign(current,copyTemplate(previous),{updatedAt:nowIso()});
       if (generatedId) {state.tasks = state.tasks.filter(item => item.id !== generatedId);removeCloneGoalLinks(generatedId);}
@@ -3907,7 +3963,7 @@
     const title = String(value || '').trim(); if (!title) return;
     const task = getTask(taskId); if (!task) return;
     const orders = task.subtasks.map(s => s.order).filter(Number.isFinite);
-    if(taskRecurrence(task)){requestTaskEdit(taskId,{subtasks:[...task.subtasks,{id:uid('sub'),title,isCompleted:false,order:orders.length?Math.max(...orders)+1:0}]});return;}
+    if(taskRecurrence(task)){requestTaskEdit(taskId,{subtasks:[...task.subtasks,{id:uid('sub'),title,isCompleted:false,order:orders.length?Math.max(...orders)+1:0}]});requestAnimationFrame(() => $('#detail-subtask')?.focus());return;}
     task.subtasks.push({ id: uid('sub'), title, isCompleted: false, order: orders.length ? Math.max(...orders) + 1 : 0 });
     task.updatedAt = nowIso(); saveState(); renderModal(); render();
     requestAnimationFrame(() => $('#detail-subtask')?.focus());
@@ -4926,7 +4982,7 @@
     else if (action === 'set-plan') setPlan(button.dataset.targetType, button.dataset.taskId, button.dataset.date);
     else if (action === 'set-due') setDue(button.dataset.targetType, button.dataset.taskId, button.dataset.date);
     else if (action === 'set-reminder') setReminder(button.dataset.targetType, button.dataset.taskId, button.dataset.reminder);
-    else if (['pause-recurrence','resume-recurrence','skip-recurrence','end-recurrence'].includes(action)) manageRecurrence(button.dataset.taskId,action);
+    else if (['pause-recurrence','resume-recurrence','skip-recurrence','end-recurrence'].includes(action)) controlRecurrence(button.dataset.taskId,action);
     else if (action === 'inline-new-tag') inlineNewTag(button);
     else if (action === 'inline-select-tag-color') { $$('.color-swatch', popoverEl).forEach(s => s.classList.toggle('is-selected', s === button)); const create = $('[data-pop-action="inline-tag-create"]', popoverEl); if (create) create.dataset.color = button.dataset.color; }
     else if (action === 'inline-tag-cancel') closePopover();
