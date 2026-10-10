@@ -82,7 +82,7 @@
   // R9c–R10d (K12): on Ciljevi, Beleške, Resursi, Oznake, Šabloni and Sačuvani prikazi the floating "+" adds what belongs
   // there and its label says what;
   // elsewhere it opens the menu.
-  const QUICK_ADD_DIRECT = Object.freeze({ '#goals': [msg('New goal'), () => openGoalModal()], '#notes': [msg('New note'), () => openKnowledgeWindow('note')], '#resources': [msg('New resource'), () => openKnowledgeWindow('resource')], '#tags': [msg('New tag'), () => openTagModal()], '#templates': [msg('New template'), () => callDomainHook('handleAction', 'new-template', { target: $('#mobile-quick-add-toggle') })], '#saved-views': [msg('New saved view'), () => callDomainHook('handleAction', 'new-saved-view', { target: $('#mobile-quick-add-toggle') })] });
+  const QUICK_ADD_DIRECT = Object.freeze({ '#goals': [msg('New goal'), () => openGoalModal()], '#notes': [msg('New note'), () => openKnowledgeWindow('note')], '#resources': [msg('New resource'), () => openKnowledgeWindow('resource')], '#tags': [msg('New tag'), () => openTagModal()], '#templates': [msg('New template'), () => callDomainHook('handleAction', 'new-template', { target: $('#mobile-quick-add-toggle') })], '#saved-views': [msg('New saved view'), () => callDomainHook('handleAction', 'new-saved-view', { target: $('#mobile-quick-add-toggle') })], '#cleaning': [msg('New recurring task'), () => callDomainHook('handleAction', 'new-cleaning-chore', { target: $('#mobile-quick-add-toggle') })] });
   const quickAddDirect = () => QUICK_ADD_DIRECT[location.hash] || null;
   function syncQuickAddToggle() {
     const toggle = $('#mobile-quick-add-toggle');
@@ -663,6 +663,7 @@
       openProjectModal, saveProjectModal, archiveProject, restoreProject, deleteProject,
       openQuickAdd, openGoalModal, openHabitModal,
       renderAreaTaskRow(task, areaId) { return taskRow(task, `area:${areaId}`, { today: true }); },
+      repeatEditorState, repeatEditorHtml, repeatEditorUpdate, repeatEditorError, repeatEditorSetStart, repeatRuleFromSheet, repeatFocusSelector, readRepeatInputs,
       renderChoreRow(task, options = {}) { return taskRow(task, 'cleaning', { today: true, metaText: options.metaText, sideHtml: options.sideHtml }); },
       renderGoalListRow(goal) { return callDomainHook('renderRoute', { type: 'goal-list-row', goal }) || ''; },
       renderHabitListRow(habit) { return callDomainHook('renderRoute', { type: 'habit-list-row', habit }) || ''; },
@@ -2507,9 +2508,9 @@
     openPopover(anchor, repeatSheetHtml(), { type: 'repeat', target });
     repeatSheet = sheet; // openPopover closes the previous sheet first, which clears the sheet state
   }
-  function repeatSheetHtml() {
-    const s = repeatSheet, source = repeatSource(s.target);
-    const rule = repeatRuleFromSheet(s), date = parseLocalDate(s.start);
+  // R11e: the editor's body is shared by the task window's sheet and the "Nova redovna obaveza" window.
+  function repeatEditorHtml(s) {
+    const rule = repeatRuleFromSheet(s);
     const pressed = on => `${on ? ' is-selected' : ''}" type="button"`;
     const radio = (action, value, label, on, extra = '') => `<button class="popover-option sheet-option${on ? ' is-selected' : ''}" type="button" role="radio" aria-checked="${on}" data-pop-action="${action}" data-value="${value}"><span class="sheet-radio${on ? ' is-on' : ''}" aria-hidden="true"></span><span class="sheet-option-label">${label}</span>${extra}</button>`;
     const dayButtons = (action, isOn) => `<div class="habit-weekdays">${REPEAT_DAY_ORDER.map(day => `<button class="habit-weekday${isOn(day) ? ' is-on' : ''}" type="button" data-pop-action="${action}" data-day="${day}" aria-pressed="${isOn(day)}">${tr(REPEAT_SHORT_DAYS[day])}</button>`).join('')}</div>`;
@@ -2537,6 +2538,10 @@
       + (s.endType === 'date' ? `<label class="sheet-field"><i class="ph ph-calendar-blank" aria-hidden="true"></i><span>${tr('End date')}</span><input id="repeat-end-date" class="input" type="date" min="${esc(s.start)}" value="${esc(s.endDate)}"></label>` : '')
       + (s.endType === 'afterOccurrences' ? `<label class="sheet-field"><i class="ph ph-hash" aria-hidden="true"></i><span>${tr('Number of times')}</span><input id="repeat-end-count" class="input" type="number" min="1" step="1" value="${esc(s.endAfterOccurrences)}"></label>` : '')
       + (s.error ? `<p class="validation" role="alert">${esc(s.error)}</p>` : '');
+    return `<div class="sheet-chips">${chips}</div><div class="view-tabs habit-window-seg repeat-frequency" role="group" aria-label="${tr('Frequency')}">${segment}</div>${stepper}${extra}<p class="sheet-summary" data-repeat-summary>${esc(recurrenceLabel({ ...rule, status: s.status }))}</p><p class="sheet-note">${esc(next)}</p>${end}`;
+  }
+  function repeatSheetHtml() {
+    const s = repeatSheet, source = repeatSource(s.target);
     // R11c (S14): the controls of an active or paused repeat; each says what it did and offers Undo.
     const operational = s.target.type === 'task' ? taskRecurrence(source) : null;
     const attrs = `data-task-id="${esc(s.target.taskId)}" data-target-type="task"`;
@@ -2544,24 +2549,17 @@
     const paused = operational?.status === 'paused', skipping = Boolean(operational && taskRecurrence(recurrenceSkipTarget(source))?.skipNext);
     const controls = operational && operational.status !== 'ended' ? `<h3 class="sheet-group-title">${tr('This repeat')}</h3><div class="sheet-card">${control('skip-recurrence', skipping ? tr('Skip is scheduled · cancel') : tr('Skip next occurrence'), skipping ? tr('The next task is made for the repeat after it.') : tr('When you complete this one, the next repeat is skipped.'))}${control(paused ? 'resume-recurrence' : 'pause-recurrence', paused ? tr('Resume recurrence') : tr('Pause recurrence'), paused ? tr('Completing makes the next task again.') : tr('While paused, completing makes no next one.'))}${control('end-recurrence', tr('End recurrence'), tr('This task stays; no more are made.'), true)}</div>` : '';
     const clear = operational ? '<span></span>' : `<button class="btn btn-ghost" type="button" data-pop-action="repeat-clear">${tr('Does not repeat')}</button>`;
-    return `<div class="popover-title">${tr('Repeat')}</div>${source?.title ? `<p class="sheet-subtitle">${esc(source.title)}</p>` : ''}<div class="sheet-chips">${chips}</div><div class="view-tabs habit-window-seg repeat-frequency" role="group" aria-label="${tr('Frequency')}">${segment}</div>${stepper}${extra}<p class="sheet-summary" data-repeat-summary>${esc(recurrenceLabel({ ...rule, status: s.status }))}</p><p class="sheet-note">${esc(next)}</p>${end}${controls}<div class="sheet-footer">${clear}<button class="btn btn-primary" type="button" data-pop-action="repeat-apply">${tr('Apply')}</button></div>`;
+    return `<div class="popover-title">${tr('Repeat')}</div>${source?.title ? `<p class="sheet-subtitle">${esc(source.title)}</p>` : ''}${repeatEditorHtml(s)}${controls}<div class="sheet-footer">${clear}<button class="btn btn-primary" type="button" data-pop-action="repeat-apply">${tr('Apply')}</button></div>`;
   }
-  function readRepeatInputs() {
-    const date = $('#repeat-end-date', popoverEl), count = $('#repeat-end-count', popoverEl);
-    if (date) repeatSheet.endDate = date.value;
-    if (count) repeatSheet.endAfterOccurrences = count.value;
+  function readRepeatInputs(s) {
+    const root = popoverEl || document;
+    const date = $('#repeat-end-date', root), count = $('#repeat-end-count', root);
+    if (date) s.endDate = date.value;
+    if (count) s.endAfterOccurrences = count.value;
   }
-  function handleRepeatAction(action, button) {
-    const s = repeatSheet;
-    if (!s) return false;
-    readRepeatInputs();
-    s.error = '';
-    const data = button.dataset, date = parseLocalDate(s.start);
-    if (action === 'repeat-apply') { applyRepeatSheet(); return true; }
-    if (action === 'repeat-clear') {
-      if (s.target.type === 'task') closePopover(); else setRecurrence(s.target.type, null, null);
-      return true;
-    }
+  // The editor's state changes, without rendering; false for an action that is not the editor's.
+  function repeatEditorUpdate(s, action, data) {
+    const date = parseLocalDate(s.start);
     if (action === 'repeat-preset') {
       const preset = REPEAT_PRESETS[Number(data.preset)]?.[1];
       if (!preset) return true;
@@ -2580,17 +2578,46 @@
     else if (action === 'repeat-nth-day') s.weekday = Number(data.day);
     else if (action === 'repeat-end') s.endType = data.value;
     else return false;
+    if (['repeat-day', 'repeat-month-mode', 'repeat-month-day', 'repeat-nth', 'repeat-nth-day'].includes(action)) s.daysChosen = true;
+    return true;
+  }
+  // R11e: a new start (the new recurring-task window) moves the days the person has not chosen yet.
+  function repeatEditorSetStart(s, start) {
+    const date = parseLocalDate(start);
+    s.start = start;
+    if (s.daysChosen) return;
+    const nth = Math.ceil(date.getDate() / 7);
+    Object.assign(s, { weekdays: [date.getDay()], monthDay: date.getDate(), weekOfMonth: nth > 4 ? 'last' : nth, weekday: date.getDay() });
+  }
+  function repeatFocusSelector(action, data) {
     const key = ['value', 'day', 'preset', 'step'].find(name => data[name] != null);
-    refreshSheet(repeatSheetHtml(), `[data-pop-action="${action}"]${key ? `[data-${key}="${cssEscape(data[key])}"]` : ''}`);
+    return `[data-pop-action="${action}"]${key ? `[data-${key}="${cssEscape(data[key])}"]` : ''}`;
+  }
+  function repeatEditorError(s) {
+    const endDate = Core.parseDateOnly(s.endDate);
+    const valid = s.endType === 'date' ? Boolean(endDate) && Core.dateOnly(endDate) === s.endDate
+      : s.endType === 'afterOccurrences' ? Number.isInteger(Number(s.endAfterOccurrences)) && Number(s.endAfterOccurrences) >= 1 : true;
+    return valid ? '' : tr('Choose a valid end date or number of times.');
+  }
+  function handleRepeatAction(action, button) {
+    const s = repeatSheet;
+    if (!s) return false;
+    readRepeatInputs(s);
+    s.error = '';
+    if (action === 'repeat-apply') { applyRepeatSheet(); return true; }
+    if (action === 'repeat-clear') {
+      if (s.target.type === 'task') closePopover(); else setRecurrence(s.target.type, null, null);
+      return true;
+    }
+    if (!repeatEditorUpdate(s, action, button.dataset)) return false;
+    refreshSheet(repeatSheetHtml(), repeatFocusSelector(action, button.dataset));
     return true;
   }
   function applyRepeatSheet() {
     const s = repeatSheet;
-    const endDate = Core.parseDateOnly(s.endDate);
-    const valid = s.endType === 'date' ? Boolean(endDate) && Core.dateOnly(endDate) === s.endDate
-      : s.endType === 'afterOccurrences' ? Number.isInteger(Number(s.endAfterOccurrences)) && Number(s.endAfterOccurrences) >= 1 : true;
-    if (!valid) {
-      s.error = tr('Choose a valid end date or number of times.');
+    const error = repeatEditorError(s);
+    if (error) {
+      s.error = error;
       refreshSheet(repeatSheetHtml(), s.endType === 'date' ? '#repeat-end-date' : '#repeat-end-count');
       return;
     }

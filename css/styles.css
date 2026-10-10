@@ -2785,6 +2785,10 @@ a.btn { text-decoration: none; }
 .cleaning-archived-name small { color: var(--ink-3); font-size: 12px; }
 .cleaning-note { margin-top: 18px; }
 
+/* Redesign R11e — Nova redovna obaveza (S15). */
+.chore-window .sheet-group-title { margin-top: 14px; }
+.chore-start-date { width: auto; min-height: 36px; }
+
 /* Keep primary compact actions touchable after all density rules. */
 @media (max-width: 700px), (pointer: coarse) {
   .task-actions .btn-icon,

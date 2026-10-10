@@ -39,7 +39,8 @@ function editor({ task = { id: 't', title: 'Bins', plannedDate: SATURDAY, recurr
   };
   vm.createContext(withI18n(ctx));
   const constants = app.match(/  const REPEAT_[\s\S]*?\n\n/)[0];
-  vm.runInContext(`let repeatSheet = null;\n${constants}${['recurrenceLabel', 'repeatList', 'openRepeatPicker', 'repeatSource', 'repeatEditorState', 'repeatRuleFromSheet', 'repeatPresetOn', 'repeatSheetHtml', 'readRepeatInputs', 'handleRepeatAction', 'applyRepeatSheet', 'recurrencePendingSiblings', 'recurrenceSkipTarget'].map(fn).join('\n')}\nthis.sheet = () => repeatSheet;`, ctx);
+  // R11e split the editor into shared parts (body, state update, end check) for the new recurring-task window.
+  vm.runInContext(`let repeatSheet = null;\n${constants}${['recurrenceLabel', 'repeatList', 'openRepeatPicker', 'repeatSource', 'repeatEditorState', 'repeatRuleFromSheet', 'repeatPresetOn', 'repeatEditorHtml', 'repeatSheetHtml', 'readRepeatInputs', 'repeatEditorUpdate', 'repeatFocusSelector', 'repeatEditorError', 'handleRepeatAction', 'applyRepeatSheet', 'recurrencePendingSiblings', 'recurrenceSkipTarget'].map(fn).join('\n')}\nthis.sheet = () => repeatSheet;`, ctx);
   ctx.open = () => { ctx.openRepeatPicker({}, { type: 'task', taskId: task.id }); return ctx.repeatSheetHtml(); };
   ctx.act = (action, data = {}) => { ctx.handleRepeatAction(action, { dataset: { popAction: action, ...data } }); return ctx.repeatSheetHtml(); };
   return ctx;

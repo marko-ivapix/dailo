@@ -446,6 +446,20 @@ click('.popover [data-pop-action="cleaning-group-save"]');
 await new Promise(resolve => setTimeout(resolve, 50));
 const smokeGroup = window.TodoApp.state.projects.find(project => project.name === 'Smoke grupa');
 if (!smokeGroup?.isCleaningRoom || !window.document.querySelector(`#main [data-cleaning-section="${smokeGroup.id}"] [data-action="new-cleaning-chore"]`)) fail('Napravi grupu did not add the group with "+ Dodaj obavezu"');
+// Redesign R11e: the group's "+ Dodaj obavezu" → a name → Sutra → Mesečno → Zakaži obavezu → the first matching day.
+click(`#main [data-cleaning-section="${smokeGroup.id}"] [data-action="new-cleaning-chore"]`);
+await new Promise(resolve => setTimeout(resolve, 20));
+if (!window.document.querySelector('#modal-root .chore-window [data-repeat-summary]')) fail('"+ Dodaj obavezu" did not open "Nova redovna obaveza" with the repeat editor');
+type('#cleaning-chore-title', 'Smoke obaveza');
+const choreTomorrow = window.TodoCore.addDays(window.TodoCore.dateOnly(), 1);
+click(`#modal-root [data-action="chore-start"][data-value="${choreTomorrow}"]`);
+click('#modal-root [data-pop-action="repeat-frequency"][data-value="monthly"]');
+await new Promise(resolve => setTimeout(resolve, 20));
+if (!window.document.querySelector('#modal-root [data-pop-action="repeat-month-day"]')) fail('Mesečno did not show the days of the month in the window');
+click('#modal-root [data-action="save-cleaning-chore"]');
+await new Promise(resolve => setTimeout(resolve, 50));
+const chore = window.TodoApp.state.tasks.find(task => task.title === 'Smoke obaveza');
+if (!chore || chore.projectId !== smokeGroup.id || chore.plannedDate !== choreTomorrow || chore.recurrence?.frequency !== 'monthly' || chore.recurrence?.monthDay !== Number(choreTomorrow.slice(8)) || window.document.querySelector('#modal-root .chore-window')) fail(`Zakaži obavezu made ${JSON.stringify(chore && { projectId: chore.projectId, plannedDate: chore.plannedDate, recurrence: chore.recurrence })}`);
 // Redesign R10g: Još → Podešavanja → Opšte, Podaci, Pomoć → Prvi dan nedelje → Nedelja applies at once; no sidebar.
 click('#mobile-bottom-nav [data-route="more"]');
 await new Promise(resolve => setTimeout(resolve, 50));
@@ -471,5 +485,5 @@ if (!found) fail('the task is missing after reopening');
 const errors = [...first.errors, ...second.errors];
 second.dom.window.close();
 if (errors.length) fail(`script errors: ${errors.join(' | ')}`);
-console.log(`smoke: OK — started, created "${title}", Back closed Quick Add, route change named the page and focused its heading, Još opened Ciljevi, focus survived a re-render, Today checked in a habit, the Zadaci switch showed the projects and opened one, the task window's date sheet planned a task, Quick Add filed a task under \"Bez projekta\", \"Razvrstaj redom\" planned an Inbox task for today, the Calendar listed a picked day and its Raspored, Navike opened a past day and Nedelja, the new habit window created a numeric weekday habit, Detalji navike changed a day and an old address opened the window, Ciljevi grouped by month, the goal window set a target date and an old address opened it, the \"+\" on Ciljevi created a numeric goal, Oblasti made an area and its \"+\" filed a task there, Beleške made a text-only note in its window, Oznake made a tag and opened its screen, Sačuvani prikazi saved a habits view and opened it, Završeni zadaci restored a task and Poništi completed it again, Search grouped the results and Fokus ticked a subtask, the repeat editor set \"Sredom i subotom\", a repeating task's title saved without a question and \"Ovo i buduća\" moved its rule until Poništi, Redovne obaveze made a group, Podešavanja applied the week start at once, reopened and found it (tasks: ${second.window.TodoApp.state?.tasks?.length ?? 'n/a'})`);
+console.log(`smoke: OK — started, created "${title}", Back closed Quick Add, route change named the page and focused its heading, Još opened Ciljevi, focus survived a re-render, Today checked in a habit, the Zadaci switch showed the projects and opened one, the task window's date sheet planned a task, Quick Add filed a task under \"Bez projekta\", \"Razvrstaj redom\" planned an Inbox task for today, the Calendar listed a picked day and its Raspored, Navike opened a past day and Nedelja, the new habit window created a numeric weekday habit, Detalji navike changed a day and an old address opened the window, Ciljevi grouped by month, the goal window set a target date and an old address opened it, the \"+\" on Ciljevi created a numeric goal, Oblasti made an area and its \"+\" filed a task there, Beleške made a text-only note in its window, Oznake made a tag and opened its screen, Sačuvani prikazi saved a habits view and opened it, Završeni zadaci restored a task and Poništi completed it again, Search grouped the results and Fokus ticked a subtask, the repeat editor set \"Sredom i subotom\", a repeating task's title saved without a question and \"Ovo i buduća\" moved its rule until Poništi, Redovne obaveze made a group and its \"+ Dodaj obavezu\" scheduled a monthly chore, Podešavanja applied the week start at once, reopened and found it (tasks: ${second.window.TodoApp.state?.tasks?.length ?? 'n/a'})`);
 process.exit(0);

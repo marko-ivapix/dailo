@@ -2,10 +2,8 @@
   'use strict';
   const { tr, trn, msg } = window.TodoI18n;
 
-  const roomProjects = state => (state.projects || []).filter(project => project.isCleaningRoom && !project.isArchived);
   // The sample Area is created with a translated name; an existing English "Home" Area is still reused.
   const isHomeArea = area => [msg('Home'), tr('Home')].some(name => area.name.toLowerCase() === name.toLowerCase());
-  const localDateTimeIso = value => { if (!value) return null; const date = new Date(value); return Number.isNaN(date.getTime()) ? null : date.toISOString(); };
 
   // Redesign R11d (S4): "Redovne obaveze" — everything that repeats. Groups are the cleaning rooms (projects
   // with isCleaningRoom); then the projects with repeating tasks, then "Bez grupe".
@@ -191,29 +189,66 @@
     ctx.saveState(); ctx.navigate('cleaning');
   }
 
+  // Redesign R11e (S15, S4, K4): "Nova redovna obaveza" — the name, the group, the start and the repeat editor
+  // of the task window inside this tall window. The first time is the first matching day from the start.
+  const nextMonday = (Core, today) => Core.addDays(today, ((8 - Core.parseDateOnly(today).getDay()) % 7) || 7);
   function renderModal(ctx) {
-    const { modalState, state, esc, modalFrame } = ctx;
-    const d = modalState.draft;
-    const rooms = roomProjects(state);
-    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">${tr('Schedule cleaning chore')}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div><div class="form-stack"><label class="field-label">${tr('Chore')}<input id="cleaning-chore-title" class="input" maxlength="120" value="${esc(d.title)}" placeholder="${tr('Vacuum, wipe dust, check boiler…')}"></label><label class="field-label">${tr('Room')}<select id="cleaning-chore-project" class="input">${rooms.map(room => `<option value="${esc(room.id)}" ${room.id === d.projectId ? 'selected' : ''}>${esc(room.name)}</option>`).join('')}</select></label><div class="goal-form-grid"><label class="field-label">${tr('First date')}<input id="cleaning-chore-date" class="input" type="date" value="${esc(d.plannedDate)}"></label><label class="field-label">${tr('Time')}<input id="cleaning-chore-time" class="input" type="time" value="${esc(d.plannedTime)}"></label></div><div class="goal-form-grid"><label class="field-label">${tr('Repeat')}<select id="cleaning-chore-frequency" class="input"><option value="daily" ${d.frequency === 'daily' ? 'selected' : ''}>${tr('Daily')}</option><option value="weekly" ${d.frequency === 'weekly' ? 'selected' : ''}>${tr('Weekly')}</option><option value="monthly" ${d.frequency === 'monthly' ? 'selected' : ''}>${tr('Monthly')}</option></select></label><label class="field-label">${tr('Every')}<input id="cleaning-chore-interval" class="input" type="number" min="1" step="1" value="${esc(d.interval)}"></label></div><label class="field-label">${tr('Reminder')}<input id="cleaning-chore-reminder" class="input" type="datetime-local" value="${esc(d.reminder)}"></label>${d.error ? `<p class="validation" role="alert">${esc(d.error)}</p>` : ''}</div><div class="modal-footer"><button class="btn btn-ghost" type="button" data-action="close-modal">${tr('Cancel')}</button><button class="btn btn-primary" type="button" data-action="save-cleaning-chore">${tr('Schedule chore')}</button></div></div>`, 'quick');
+    const { modalState, esc, modalFrame, Core } = ctx;
+    const d = modalState.draft, today = Core.dateOnly();
+    const chip = (action, value, label, on) => `<button class="quick-chip${on ? ' is-selected' : ''}" type="button" data-action="${action}" data-value="${esc(value)}" aria-pressed="${on}">${esc(label)}</button>`;
+    const groups = groupsOf(ctx).filter(group => !group.isArchived);
+    const starts = [[tr('Today'), today], [tr('Tomorrow'), Core.addDays(today, 1)], [tr('Start of next week'), nextMonday(Core, today)]];
+    return modalFrame(`<div class="modal-inner quick-sheet habit-window chore-window"><div class="modal-header"><h2 class="modal-title">${tr('New recurring task')}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div><input id="cleaning-chore-title" class="quick-title-input${d.error ? ' is-error' : ''}" type="text" maxlength="120" autocomplete="off" placeholder="${tr('Vacuum, pay a bill, change the oil…')}" value="${esc(d.title)}" aria-label="${tr('Chore')}">${d.error ? `<div class="validation" role="alert">${esc(d.error)}</div>` : ''}<h3 class="sheet-group-title">${tr('Group')}</h3><div class="sheet-chips">${groups.map(group => chip('chore-group', group.id, group.name, d.projectId === group.id)).join('')}${chip('chore-group', '', tr('No group'), !d.projectId)}</div><h3 class="sheet-group-title">${tr('Starts')}</h3><div class="sheet-chips">${starts.map(([label, value]) => chip('chore-start', value, label, d.start === value)).join('')}<input id="cleaning-chore-start" class="input chore-start-date" type="date" value="${esc(d.start)}" aria-label="${tr('Start date')}"></div><h3 class="sheet-group-title">${tr('Repeat')}</h3>${ctx.repeatEditorHtml(d.repeat)}<div class="quick-sheet-footer"><span></span><button class="btn btn-primary habit-window-save" type="button" data-action="save-cleaning-chore">${tr('Schedule chore')}</button></div></div>`, 'quick');
   }
 
-  function openModal(ctx, type, projectId = null) {
-    ctx.setModalState({ type, draft: { title: '', projectId: projectId || roomProjects(ctx.state)[0]?.id || '', plannedDate: ctx.Core.dateOnly(), plannedTime: '', frequency: 'weekly', interval: 1, reminder: '', error: '' } });
+  function openModal(ctx, groupId = null) {
+    const groups = groupsOf(ctx).filter(group => !group.isArchived), start = ctx.Core.dateOnly();
+    const projectId = groups.some(group => group.id === groupId) ? groupId : groups[0]?.id || '';
+    ctx.setModalState({ type: 'cleaning-chore', draft: { title: '', projectId, start, error: '', repeat: ctx.repeatEditorState({ type: 'draft' }, { plannedDate: start, recurrence: null }) } });
     ctx.renderModal();
     requestAnimationFrame(() => ctx.$('#cleaning-chore-title')?.focus());
   }
-
-  function value(ctx, selector) { return ctx.$(selector)?.value || ''; }
+  function readChoreDraft(ctx) {
+    const title = ctx.$('#cleaning-chore-title');
+    if (title) ctx.modalState.draft.title = title.value;
+  }
+  function setChoreStart(ctx, value) {
+    if (!ctx.Core.parseDateOnly(value)) return;
+    const d = ctx.modalState.draft;
+    d.start = value;
+    ctx.repeatEditorSetStart(d.repeat, value);
+  }
 
   function saveChore(ctx) {
-    const d = ctx.modalState.draft, chore = value(ctx, '#cleaning-chore-title').trim(), projectId = value(ctx, '#cleaning-chore-project');
-    const date = value(ctx, '#cleaning-chore-date'), interval = Number(value(ctx, '#cleaning-chore-interval'));
-    if (!chore || !projectId || !date || !Number.isInteger(interval) || interval < 1) { d.error = tr('Add a chore, room, first date and a positive interval.'); ctx.renderModal(); return; }
-    const now = ctx.nowIso(), id = ctx.uid('task');
-    const recurrence = ctx.Core.normalizeRecurrenceV3({ frequency: value(ctx, '#cleaning-chore-frequency') || 'weekly', interval, endType: 'never', endDate: null, endAfterOccurrences: null, seriesId: id });
-    ctx.state.tasks.push({ id, title: chore, notes: '', projectId, areaId: null, goalIds: [], plannedDate: date, plannedTime: value(ctx, '#cleaning-chore-time') || null, dueDate: date, dueTime: null, reminderAt: localDateTimeIso(value(ctx, '#cleaning-chore-reminder')), reminderFiredAt: null, recurrence, tagIds: [], priority: 'none', attachmentIds: [], isInbox: false, isCompleted: false, completedAt: null, subtasks: [], todayOrder: null, projectOrder: null, inboxOrder: null, createdAt: now, updatedAt: now });
-    ctx.saveState(); ctx.closeModal(); ctx.navigate('cleaning');
+    const d = ctx.modalState.draft;
+    readChoreDraft(ctx);
+    ctx.readRepeatInputs(d.repeat);
+    d.error = ''; d.repeat.error = '';
+    const title = String(d.title || '').trim();
+    if (!title) { d.error = tr('Enter a chore.'); ctx.renderModal(); return; }
+    const endError = ctx.repeatEditorError(d.repeat);
+    if (endError) { d.repeat.error = endError; ctx.renderModal(); return; }
+    const rule = ctx.repeatRuleFromSheet(d.repeat);
+    const first = ctx.Core.firstRecurrenceDate(d.start, rule) || d.start;
+    const now = ctx.nowIso(), id = ctx.uid('task'), projectId = d.projectId && ctx.getProject(d.projectId) ? d.projectId : null;
+    ctx.state.tasks.push({ id, title, notes: '', projectId, areaId: null, goalIds: [], plannedDate: first, plannedTime: null, dueDate: first, dueTime: null, reminderAt: null, reminderFiredAt: null, recurrence: ctx.Core.normalizeRecurrenceV3({ ...rule, seriesId: id }), tagIds: [], priority: 'none', attachmentIds: [], isInbox: false, isCompleted: false, completedAt: null, subtasks: [], todayOrder: null, projectOrder: null, inboxOrder: null, createdAt: now, updatedAt: now });
+    ctx.saveState(); ctx.closeModal(); ctx.render();
+    ctx.setToastMessage(tr('Scheduled · first time {date}', { date: ctx.relativeDateLabel(first).toLowerCase() }));
+  }
+  function handleChoreAction(action, el, ctx) {
+    if (ctx.modalState?.type !== 'cleaning-chore') return false;
+    const d = ctx.modalState.draft;
+    if (action === 'chore-group') { readChoreDraft(ctx); d.projectId = el.dataset.value || ''; }
+    else if (action === 'chore-start') { readChoreDraft(ctx); setChoreStart(ctx, el.dataset.value); }
+    else if (action.startsWith('repeat-')) {
+      readChoreDraft(ctx); ctx.readRepeatInputs(d.repeat); d.repeat.error = '';
+      if (!ctx.repeatEditorUpdate(d.repeat, action, el.dataset)) return false;
+      ctx.renderModal();
+      requestAnimationFrame(() => ctx.$(ctx.repeatFocusSelector(action, el.dataset))?.focus());
+      return true;
+    } else return false;
+    ctx.renderModal();
+    return true;
   }
 
   window.TodoDomainModules?.register({
@@ -225,14 +260,22 @@
     handleAction(action, event, ctx) {
       const el = event?.target.closest('[data-action], [data-pop-action]');
       if (!el) return false;
-      if (handleGroupAction(action, el, ctx)) return true;
-      if (action === 'new-cleaning-chore') openModal(ctx, 'cleaning-chore', el.dataset.projectId || null);
+      if (handleGroupAction(action, el, ctx) || handleChoreAction(action, el, ctx)) return true;
+      if (action === 'new-cleaning-chore') openModal(ctx, el.dataset.projectId || null);
       else if (action === 'save-cleaning-chore') saveChore(ctx);
       else if (action === 'add-cleaning-examples') addExamples(ctx, el.dataset.cleaningPreset || 'apartment');
       else if (action === 'cleaning-filter') { (ctx.state.ui ||= {}).cleaningRoomFilter = el.dataset.value || 'all'; ctx.saveAndRender(); }
       else if (action === 'cleaning-archived-fold') { (ctx.state.ui ||= {}).cleaningArchivedOpen = ctx.state.ui.cleaningArchivedOpen !== true; ctx.saveAndRender(); }
       else if (action === 'toggle-cleaning-completed') { const ui = ctx.state.ui || (ctx.state.ui = {}); ui.cleaningCompletedExpanded ||= {}; const id = el.dataset.projectId; ui.cleaningCompletedExpanded[id] = !ui.cleaningCompletedExpanded[id]; ctx.saveAndRender(); }
       else return false;
+      return true;
+    },
+    handleInput(event, ctx) {
+      if (ctx.modalState?.type !== 'cleaning-chore') return false;
+      if (event.target.id === 'cleaning-chore-title') { ctx.modalState.draft.title = event.target.value; return true; }
+      if (event.target.id !== 'cleaning-chore-start') return false;
+      setChoreStart(ctx, event.target.value);
+      ctx.renderModal();
       return true;
     },
   });

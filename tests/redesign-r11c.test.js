@@ -106,7 +106,7 @@ function editorContext(task, others = []) {
     modalState: { type: 'task', taskId: task.id }, popoverEl: {}, $: () => null, formatDate: value => `F:${value}`, cssEscape: String,
     openPopover: () => {}, refreshSheet: () => {}, setRecurrence: (type, id, rule) => ctx.calls.push(['set', type, id, plain(rule)]),
   });
-  vm.runInContext(`let repeatSheet = null;\n${constants}${['recurrenceLabel', 'repeatList', 'openRepeatPicker', 'repeatSource', 'repeatEditorState', 'repeatRuleFromSheet', 'repeatPresetOn', 'repeatSheetHtml', 'readRepeatInputs', 'handleRepeatAction', 'applyRepeatSheet', 'recurrencePendingSiblings', 'recurrenceSkipTarget'].map(fn).join('\n')}`, ctx);
+  vm.runInContext(`let repeatSheet = null;\n${constants}${['recurrenceLabel', 'repeatList', 'openRepeatPicker', 'repeatSource', 'repeatEditorState', 'repeatRuleFromSheet', 'repeatPresetOn', 'repeatEditorHtml', 'repeatSheetHtml', 'readRepeatInputs', 'repeatEditorUpdate', 'repeatFocusSelector', 'repeatEditorError', 'handleRepeatAction', 'applyRepeatSheet', 'recurrencePendingSiblings', 'recurrenceSkipTarget'].map(fn).join('\n')}`, ctx);
   ctx.open = () => { ctx.openRepeatPicker({}, { type: 'task', taskId: task.id }); return ctx.repeatSheetHtml(); };
   return ctx;
 }

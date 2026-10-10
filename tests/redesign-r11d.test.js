@@ -217,8 +217,7 @@ test('the R11d layer and the Serbian labels', () => {
   assert.ok(sr.includes('"{count} tasks repeat": { one: "{count} obaveza se ponavlja", few: "{count} obaveze se ponavljaju", other: "{count} obaveza se ponavlja" }'));
 });
 
-test('R11d is released as 2.0.0-alpha.29', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.29');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.29';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.29');
+test('R11d shipped as 2.0.0-alpha.29 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 99) >= 29);
 });
