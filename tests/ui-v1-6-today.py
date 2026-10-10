@@ -1,4 +1,4 @@
-"""Static V1.6 Today focus-strip and compact task-row contract."""
+"""Static Today and compact task-row contract (V1.6, rewritten for Redesign R2)."""
 from pathlib import Path
 
 
@@ -9,12 +9,14 @@ def read(path):
     return (ROOT / path).read_text()
 
 
-def test_today_has_focus_strip_and_filter_controls():
+def test_today_sections_replace_focus_strip_and_filter():
+    # Redesign R2 (T1, T2, M3): Zakasnelo, Planirano danas, Navike and Završeno replace the
+    # focus strip, its filter and its counts.
     source = read('js/app.js')
-    assert 'data-today-focus-strip' in source
-    assert 'data-today-filter' in source
-    assert 'data-today-open-count' in source
-    assert 'data-today-completed-count' in source
+    assert 'data-today-focus-strip' not in source
+    assert 'data-today-filter' not in source
+    assert "tr('Planned today')" in source
+    assert 'data-action="today-expand"' in source
     assert 'data-action="quick-add" data-today="true"' in source
 
 

@@ -21,29 +21,13 @@ function functions(source, names) {
 }
 function state() { return Core.normalizeState({ version: 3, tasks: [], projects: [], areas: [], goals: [], habits: [], tags: [], templates: [], savedViews: [], notes: [], resources: [], settings: {}, ui: {} }); }
 
-test('Dashboard preserves preamble, saved order, move directions and pinned-first order', () => {
-  const node = (id, card = false) => ({ id, dataset: card ? { dashboardSection: id } : {}, classList: { toggle(name, value) { this[name] = value; } }, matches() { return ['header', 'context'].includes(id) || card; } });
-  const cards = ['focus', 'review', 'actions'].map(id => node(id, true));
-  const content = { children: [node('header'), node('context'), ...cards, node('tasks')], classList: { toggle() {} }, querySelectorAll: () => cards,
-    insertBefore(item, anchor) { this.children.splice(this.children.indexOf(item), 1); this.children.splice(anchor ? this.children.indexOf(anchor) : this.children.length, 0, item); } };
-  const ctx = { state: state(), main: { querySelector: () => content }, saveAndRender() {} };
-  vm.createContext(withI18n(ctx)); vm.runInContext(functions(app, ['applyTodayDashboard']), ctx);
-  const order = () => { vm.runInContext('applyTodayDashboard(main)', ctx); return content.children.map(item => item.id); };
-  ctx.state.settings.dashboard.sectionOrder = ['actions', 'focus', 'review'];
-  assert.deepEqual(order(), ['header', 'context', 'actions', 'focus', 'review', 'tasks']);
-  const move = app.split('\n').find(line => line.includes("else if (action === 'dashboard-move')"));
-  ctx.action = 'dashboard-move'; ctx.el = { dataset: { dashboardSection: 'focus', direction: 'up' } };
-  vm.runInContext(move.replace('else if', 'if'), ctx);
-  assert.deepEqual(order(), ['header', 'context', 'focus', 'actions', 'review', 'tasks']);
-  ctx.el.dataset.direction = 'down'; vm.runInContext(move.replace('else if', 'if'), ctx);
-  ctx.state.settings.dashboard.pinnedSectionIds = ['review'];
-  assert.deepEqual(order(), ['header', 'context', 'review', 'actions', 'focus', 'tasks']);
-  assert.equal(cards[1].classList['is-dashboard-pinned'], true);
-  ctx.state.settings.dashboard.sectionOrder = ['actions', 'focus', 'review'];
-  ctx.state.settings.dashboard.pinnedSectionIds = ['focus'];
-  ctx.el.dataset = { dashboardSection: 'review', direction: 'up' };
-  vm.runInContext(move.replace('else if', 'if'), ctx);
-  assert.deepEqual(order(), ['header', 'context', 'focus', 'review', 'actions', 'tasks'], 'move within the visible unpinned group');
+// Redesign R2 (T2): the Today dashboard cards and their order, pin and "Focus View" controls are gone. A stored
+// "Focus View" must not hide the new sections, so nothing on Today reads the dashboard settings any more; the
+// settings themselves stay normalized for older backups.
+test('Today no longer applies the dashboard layout; its stored settings stay valid', () => {
+  assert.doesNotMatch(app, /applyTodayDashboard|today-focus-view|dashboard-move|dashboard-pin|dashboard-focus-toggle/);
+  const dashboard = state().settings.dashboard;
+  assert.ok(dashboard && typeof dashboard === 'object');
 });
 
 test('Calendar Week and Day Detail honor hidden Tasks and retain combined planned/due metadata', () => {

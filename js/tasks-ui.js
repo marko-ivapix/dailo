@@ -2,7 +2,27 @@
   'use strict';
   const { tr, trn, msg } = window.TodoI18n;
 
+  // Redesign R2 (T3, G6): the Today row. Checkbox, title, "time · project" (or area), and on the right the
+  // priority flag (high red, medium amber) and the due label. The ⋯ menu stays until R3 moves it to the window.
+  function renderTodayTaskRow(task, listContext, options, ctx) {
+    const esc = ctx.esc;
+    const project = ctx.getProject(task.projectId);
+    const place = project ? project.name : ctx.getArea?.(task.areaId)?.name;
+    const meta = [task.plannedTime, place].filter(Boolean).join(' · ');
+    const flag = ['high', 'medium'].includes(task.priority) ? `<i class="ph ph-flag task-flag task-flag--${task.priority}" role="img" aria-label="${tr('{priority} priority', { priority: task.priority === 'high' ? tr('High') : tr('Medium') })}"></i>` : '';
+    const due = task.isCompleted ? '' : ctx.todayDueLabel(task.dueDate, ctx.Core.dateOnly());
+    const draggable = options.draggable && !task.isCompleted;
+    const addToday = options.addToday ? `<div class="quick-actions"><button class="quick-chip" type="button" data-action="inbox-today" data-task-id="${esc(task.id)}">+ ${tr('Today')}</button></div>` : '';
+    return `<article class="task-row task-row--today ${task.isCompleted ? 'is-completed' : ''}" data-task-row-compact data-task-id="${esc(task.id)}" data-list-context="${esc(listContext)}" ${draggable ? 'draggable="true"' : ''}>
+      <button class="complete-control ${task.isCompleted ? 'is-completed' : ''}" type="button" data-action="toggle-complete" data-inline-today-complete data-task-id="${esc(task.id)}" aria-label="${task.isCompleted ? tr('Mark incomplete') : tr('Complete task')}">${task.isCompleted ? '<i class="ph ph-check"></i>' : ''}</button>
+      <div class="task-main" data-action="open-task" data-task-id="${esc(task.id)}" role="button" tabindex="0"><div class="task-title">${esc(task.title)}</div>${meta ? `<div class="task-meta">${esc(meta)}</div>` : ''}${addToday}</div>
+      <span class="task-side">${flag}${due}</span>
+      <div class="task-actions" data-task-compact-actions><button class="btn-icon" type="button" data-action="task-menu" data-task-id="${esc(task.id)}" aria-label="${tr('Task actions')}"><i class="ph ph-dots-three"></i></button></div>
+    </article>`;
+  }
+
   function renderTaskRow(task, listContext, options, ctx) {
+    if (options?.today) return renderTodayTaskRow(task, listContext, options, ctx);
     const project = ctx.getProject(task.projectId);
     const today = ctx.Core.dateOnly();
     const meta = [];

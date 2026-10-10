@@ -267,6 +267,10 @@
         .map(milestone => ({ goal, milestone }))),
       overdueGoals: activeGoals.filter(goal => goal.targetDate && goal.targetDate < today),
       goals: activeGoals.filter(goal => goal.targetDate === today),
+      // Redesign R2 (T2a): open milestones of active goals due today join "Planirano danas".
+      milestones: activeGoals.flatMap(goal => (goal.milestones || [])
+        .filter(milestone => milestone.date === today && !milestone.isCompleted)
+        .map(milestone => ({ goal, milestone }))),
     };
   }
 

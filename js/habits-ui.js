@@ -143,6 +143,56 @@
     return `<article class="habit-row habit-row--${esc(status)}"${todayStatus ? ' style="grid-template-columns:minmax(0,1fr) auto"' : ''}><button class="habit-open" type="button" data-route="habit/${esc(habit.id)}"><span><strong>${esc(habit.name)}</strong><small class="habit-row-meta"><span>${esc(routineLabel(habit.routine))}</span><span>${esc(habitFrequencyLabel(ctx, habit))}</span><span class="habit-status habit-status--${esc(status)}">${esc(statusLabel(status))}</span></small></span><span class="habit-progress">${esc(habitProgressLabel(ctx, habit, metrics))}</span></button>${todayStatus ? `<div class="habit-checkin-controls">${actions}${menu}</div>` : menu}</article>`;
   }
 
+  // Redesign R2 (T5, H6): the compact Today row. A round check (a tap checks in; numeric habits open the value
+  // sheet), the name (opens the menu, as does a long press on the check) and the week or the value on the right.
+  const number = value => Number(value || 0).toLocaleString(I18n.locale(), { maximumFractionDigits: 2 });
+  function habitCircle(state, fraction) {
+    if (state === 'done') return '<svg class="habit-circle is-done" viewBox="0 0 28 28" aria-hidden="true"><circle class="habit-circle-fill" cx="14" cy="14" r="12.5"/><path class="habit-circle-tick" d="M8.5 14.5l3.5 3.5 7.5-8"/></svg>';
+    if (state === 'skipped') return '<svg class="habit-circle is-skipped" viewBox="0 0 28 28" aria-hidden="true"><circle class="habit-circle-dashed" cx="14" cy="14" r="11"/></svg>';
+    const arc = fraction > 0 ? `<circle class="habit-circle-arc" cx="14" cy="14" r="11" stroke-dasharray="${(fraction * 69.115).toFixed(1)} 69.1" transform="rotate(-90 14 14)"/>` : '';
+    return `<svg class="habit-circle" viewBox="0 0 28 28" aria-hidden="true"><circle class="habit-circle-track" cx="14" cy="14" r="11"/>${arc}</svg>`;
+  }
+
+  function renderHabitTodayRow(ctx, habit, todayStatus = {}) {
+    const { esc, habitMetrics } = ctx;
+    const status = todayStatus?.status || 'pending';
+    const numeric = habit.trackingType === 'numeric';
+    let fraction = 0; let right = '';
+    if (numeric) {
+      const target = Number(habit.targetValue) || 0;
+      fraction = target > 0 ? Math.min(1, Number(todayStatus?.value || 0) / target) : 0;
+      right = `${number(todayStatus?.value)} / ${number(target)}${habit.unit ? ` ${habit.unit}` : ''}`;
+    } else if (habit.frequencyType === 'timesPerWeek') {
+      const metrics = habitMetrics(habit);
+      fraction = metrics.currentPeriodTarget > 0 ? Math.min(1, metrics.currentPeriodCount / metrics.currentPeriodTarget) : 0;
+      right = tr('{count}/{target} weekly', { count: metrics.currentPeriodCount, target: metrics.currentPeriodTarget });
+    }
+    const check = numeric
+      ? `<button class="habit-check" type="button" data-action="habit-today-toggle" data-habit-id="${esc(habit.id)}" data-long-press="habit-today-menu" aria-label="${esc(tr('Enter value: {habit}', { habit: habit.name }))}">`
+      : `<button class="habit-check" type="button" data-action="habit-today-toggle" data-habit-id="${esc(habit.id)}" data-long-press="habit-today-menu" aria-pressed="${status === 'done'}" aria-label="${esc(habit.name)}">`;
+    return `<article class="today-row habit-today-row${status === 'done' ? ' is-done' : ''}${status === 'skipped' ? ' is-skipped' : ''}" data-habit-id="${esc(habit.id)}">${check}${habitCircle(status, fraction)}</button><button class="today-row-main" type="button" data-action="habit-today-menu" data-habit-id="${esc(habit.id)}" aria-haspopup="dialog"><span class="task-title">${esc(habit.name)}</span></button>${right ? `<span class="task-side habit-today-count">${esc(right)}</span>` : ''}</article>`;
+  }
+
+  function openTodayHabitMenu(ctx, anchor, habitId) {
+    const { getHabit, esc, openPopover, state, Core } = ctx;
+    const habit = getHabit(habitId); if (!habit) return;
+    const skipped = state.habitLogCache?.[habitId]?.find(log => log.date === Core.dateOnly())?.status === 'skipped';
+    const value = habit.trackingType === 'numeric' ? `<button class="popover-option" type="button" data-pop-action="habit-today-value" data-habit-id="${esc(habitId)}"><i class="ph ph-pencil-simple"></i>${tr('Enter value')}</button>` : '';
+    const skip = habit.trackingType === 'numeric' ? '' : `<button class="popover-option" type="button" data-pop-action="habit-today-skip" data-habit-id="${esc(habitId)}"><i class="ph ph-arrow-bend-up-right"></i>${skipped ? tr('Undo skip') : tr('Skip today')}</button>`;
+    const details = `<button class="popover-option" type="button" data-pop-action="habit-today-details" data-habit-id="${esc(habitId)}"><i class="ph ph-chart-line-up"></i>${tr('Habit details')}</button>`;
+    openPopover(anchor, `<div class="popover-title">${esc(habit.name)}</div>${value}${skip}${details}`, { type: 'habit-today-menu', habitId });
+  }
+
+  // H6: the value sheet with the quick values, the day's total and "Primeni".
+  function renderHabitValueModal(ctx) {
+    const { modalState, getHabit, esc, modalFrame } = ctx;
+    const habit = getHabit(modalState.habitId);
+    if (!habit) return '';
+    const unit = habit.unit ? ` ${esc(habit.unit)}` : '';
+    const chips = (habit.quickValues || []).map(value => `<button class="quick-chip" type="button" data-action="habit-value-add" data-value="${esc(value)}">+${esc(number(value))}${unit}</button>`).join('');
+    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">${esc(habit.name)}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div><p class="habit-value-summary"><strong class="habit-value-total">${esc(number(modalState.total))}</strong> / ${esc(number(habit.targetValue))}${unit}</p>${chips ? `<div class="quick-actions">${chips}</div>` : ''}<label class="field-label" for="habit-value-total">${tr('Total for the day')}</label><input id="habit-value-total" class="input" type="number" min="0" step="any" value="${esc(modalState.total)}"><div class="modal-footer"><div class="modal-footer-actions"><button class="btn btn-primary" type="button" data-action="habit-value-apply">${tr('Apply')}</button></div></div></div>`, 'habit-value-modal');
+  }
+
   function renderHabitSection(ctx, label, habits, group = {}) {
     const icon = group.icon ? `<i class="ph ${group.icon}" aria-hidden="true"></i>` : '';
     const copy = group.copy ? `<p>${ctx.esc(group.copy)}</p>` : '';
@@ -557,6 +607,28 @@
     if (action === 'habit-property') { openHabitProperty(ctx, event.target.closest('[data-habit-property]')); return true; }
     const el = event?.target.closest('[data-action], [data-pop-action]');
     if (!el) return false;
+    const today = Core.dateOnly();
+    const todayLog = id => state.habitLogCache?.[id]?.find(log => log.date === today);
+    if (action === 'habit-today-toggle') {
+      const habit = getHabit(el.dataset.habitId); if (!habit) return true;
+      if (habit.trackingType === 'numeric') ctx.openHabitValue(habit.id);
+      else setHabitLog(habit.id, today, todayLog(habit.id)?.status === 'done' ? 'missed' : 'done');
+      return true;
+    }
+    if (action === 'habit-today-menu') { openTodayHabitMenu(ctx, el, el.dataset.habitId); return true; }
+    if (action === 'habit-today-skip') { closePopover(); setHabitLog(el.dataset.habitId, today, todayLog(el.dataset.habitId)?.status === 'skipped' ? 'missed' : 'skipped'); return true; }
+    if (action === 'habit-today-value') { closePopover(); ctx.openHabitValue(el.dataset.habitId); return true; }
+    if (action === 'habit-today-details') { closePopover(); ctx.navigate(`habit/${el.dataset.habitId}`); return true; }
+    if (action === 'habit-value-add') {
+      const total = Number(ctx.modalState?.total || 0) + Number(el.dataset.value || 0);
+      ctx.modalState.total = Math.round(total * 1000) / 1000; ctx.renderModal(); return true;
+    }
+    if (action === 'habit-value-apply') {
+      const { habitId, date } = ctx.modalState || {};
+      const total = Math.max(0, Number(ctx.$('#habit-value-total')?.value) || 0);
+      if (habitId) setHabitLog(habitId, date, 'done', total).then(saved => { if (saved === true && ctx.modalState?.type === 'habit-value') ctx.closeModal(); }).catch(console.error);
+      return true;
+    }
     if (action === 'edit-habit-settings') openHabitSettings(ctx, el);
     else if (action === 'save-habit-settings') saveHabitSettings(ctx);
     else if (action === 'save-habit-property') saveHabitProperty(ctx);
@@ -610,8 +682,9 @@
       if (route.type === 'habits') return renderHabits(ctx);
       if (route.type === 'habit') return renderHabit(ctx, route.id);
       if (route.type === 'habit-row') return renderHabitRow(ctx, route.habit, route.todayStatus);
+      if (route.type === 'habit-today-row') return renderHabitTodayRow(ctx, route.habit, route.todayStatus);
       if (route.type !== 'modal') return false;
-      const renderers = { habit: renderHabitModal, 'habit-settings': renderHabitSettingsModal, 'habit-finished': renderHabitFinishedModal };
+      const renderers = { habit: renderHabitModal, 'habit-settings': renderHabitSettingsModal, 'habit-finished': renderHabitFinishedModal, 'habit-value': renderHabitValueModal };
       return renderers[route.modalType]?.(ctx);
     },
     handleAction,

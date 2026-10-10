@@ -280,6 +280,7 @@
     next.ui.areaTab = ['all', 'active', 'archived'].includes(next.ui.areaTab) ? next.ui.areaTab : 'all';
     next.ui.calendarView = ['day', 'week', 'month'].includes(next.ui.calendarView) ? next.ui.calendarView : 'week';
     next.ui.tasksView = next.ui.tasksView === 'projects' ? 'projects' : 'anytime';
+    next.ui.todayExpanded = Object.fromEntries(['overdue', 'today', 'habits'].map(key => [key, next.ui.todayExpanded?.[key] === true]));
     next.ui.calendarVisibility = Object.fromEntries(['tasks', 'habits', 'goals', 'milestones'].map(type => [type, next.ui.calendarVisibility?.[type] !== false]));
     const habitMonth = String(next.ui.habitTrackerMonth || '');
     next.ui.habitTrackerMonth = /^\d{4}-\d{2}$/.test(habitMonth) && Core.parseDateOnly(`${habitMonth}-01`) ? habitMonth : Core.dateOnly().slice(0, 7);
@@ -596,6 +597,7 @@
       templateTypes: TEMPLATE_TYPES, templateLabel, openTemplateEditorFromSource, saveTemplateRecord, duplicateTemplateRecord,
       captureModalReturnFocus,
       durationLabel,
+      todayDueLabel, openHabitValue,
       syncView,
       reviewTaskRow(task, context, options = {}) {
         return taskRow(task, context, options);
@@ -944,27 +946,10 @@
       else content = renderToday();
     }
     main.innerHTML = `${warning}<div class="content ${route.type === 'calendar' ? 'calendar-content' : ''}">${content}</div>`;
-    if (route.type === 'today') applyTodayDashboard(main);
     if (createdGoalFocusId && route.type === 'goal' && route.id === createdGoalFocusId) {
       createdGoalFocusId = null;
       restoreGoalFocus(goalFocusTarget(main.querySelector('[data-goal-property="title"]')));
     }
-  }
-
-  function applyTodayDashboard(main) {
-    const dashboard = state.settings.dashboard || {};
-    const content = main.querySelector('.content'); if (!content) return;
-    const cards = [...content.querySelectorAll(':scope > [data-dashboard-section]')];
-    const visible = new Set(state.settings.todayVisibleSections || ['focus', 'review', 'actions']);
-    cards.forEach(card => { card.hidden = !visible.has(card.dataset.dashboardSection); });
-    const pins = new Set(dashboard.pinnedSectionIds || []);
-    cards.forEach(card => card.classList.toggle('is-dashboard-pinned', pins.has(card.dataset.dashboardSection)));
-    const rank = new Map((dashboard.sectionOrder || []).map((id, index) => [id, index]));
-    const ordered = [...cards].sort((a, b) => Number(pins.has(b.dataset.dashboardSection)) - Number(pins.has(a.dataset.dashboardSection)) || (rank.get(a.dataset.dashboardSection) ?? 99) - (rank.get(b.dataset.dashboardSection) ?? 99));
-    // Keep the page title and Today date/context ahead of customizable cards.
-    const anchor = [...content.children].find(child => !child.matches('.page-header, [data-today-context], [data-dashboard-section]'));
-    for (const card of ordered) content.insertBefore(card, anchor || null);
-    content.classList.toggle('today-focus-view', dashboard.focusedMode === true);
   }
 
   function pageHeader(title, subtitle, options = {}) {
@@ -972,7 +957,7 @@
     const projectMenu = options.projectMenu ? `<button class="btn-icon" type="button" data-action="project-menu" data-project-id="${esc(options.projectMenu)}" aria-label="${tr('Project menu')}"><i class="ph ph-dots-three"></i></button>` : '';
     const actionHtml = options.actionHtml || '';
     return `<header class="page-header">
-      <div><h1 class="page-title">${esc(title)}</h1>${subtitle ? `<p class="page-subtitle">${esc(subtitle)}</p>` : ''}</div>
+      <div>${options.eyebrow ? `<p class="page-eyebrow">${esc(options.eyebrow)}</p>` : ''}<h1 class="page-title">${esc(title)}</h1>${subtitle ? `<p class="page-subtitle">${esc(subtitle)}</p>` : ''}</div>
       <div class="page-actions">
         <button class="btn-icon page-search" type="button" data-action="open-search" aria-label="${tr('Search')}"><i class="ph ph-magnifying-glass" aria-hidden="true"></i></button>
         ${actionHtml}${projectMenu}${addButton}
@@ -1046,82 +1031,58 @@
     return hours ? tr('{hours} h', { hours }) : tr('{minutes} min', { minutes: rest });
   }
 
-  // Today's planned load against the daily capacity, once a task planned for today has a duration (V1.12).
-  function todayCapacityItem() {
-    const capacity = Core.dailyCapacityMinutes(state.settings);
-    const load = Core.dayLoad(state.tasks, Core.dateOnly());
-    if (!capacity || !load.withDuration) return '';
-    const text = `${durationLabel(load.minutes)} / ${durationLabel(capacity)}`;
-    return load.minutes > capacity
-      ? `<span class="today-capacity is-over" data-today-capacity aria-label="${tr('Over capacity: {load} of {capacity}', { load: durationLabel(load.minutes), capacity: durationLabel(capacity) })}">${text}</span>`
-      : `<span class="today-capacity" data-today-capacity>${text}</span>`;
+  // Redesign R2 (T7): at most 3 late, 5 planned and 5 habit rows until the section is opened in place.
+  const TODAY_LIMITS = { overdue: 3, today: 5, habits: 5 };
+  function todayLimited(key, rows) {
+    const open = state.ui.todayExpanded?.[key] === true;
+    const max = TODAY_LIMITS[key];
+    const more = rows.length > max ? `<button class="today-more" type="button" data-action="today-expand" data-today-key="${key}" aria-expanded="${open}">${open ? tr('Show less') : tr('Show {count} more', { count: rows.length - max })}</button>` : '';
+    return (open ? rows : rows.slice(0, max)).join('') + more;
   }
 
+  // Redesign R2 (G6): an overdue date red, due today amber, later dates gray.
+  function todayDueLabel(date, today = Core.dateOnly()) {
+    if (!date) return '';
+    const cls = date < today ? ' is-overdue' : date === today ? ' is-today' : '';
+    const text = date === today ? tr('Due today') : date === Core.addDays(today, 1) ? tr('Due tomorrow') : tr('Due {date}', { date: formatDate(date) });
+    return `<span class="task-due${cls}">${esc(text)}</span>`;
+  }
+
+  // Redesign R2 (T2a): a goal or milestone deadline as a row with the target icon; it opens the goal.
+  function deadlineRow({ goal, milestone }, today = Core.dateOnly()) {
+    const meta = milestone ? tr('Milestone · {goal}', { goal: goal.title }) : tr('Goal · {percent}%', { percent: Math.round(Core.computeGoalProgress(goal, state, state.habitMetrics || {}).percent) });
+    return `<article class="today-row deadline-row" data-goal-id="${esc(goal.id)}"><span class="deadline-icon" aria-hidden="true"><i class="ph ph-target"></i></span><button class="today-row-main" type="button" data-route="goal/${esc(goal.id)}"><span class="task-title">${esc(milestone ? milestone.title : goal.title)}</span><span class="task-meta">${esc(meta)}</span></button><span class="task-side">${todayDueLabel(milestone ? milestone.date : goal.targetDate, today)}</span></article>`;
+  }
+
+  // Redesign R2 (T1–T7): the date above "Danas", notices while they apply, then Zakasnelo, Planirano danas,
+  // Navike and a folded Završeno. Focus, review, actions, the summary strip and capacity left Today (T2a).
   function renderToday() {
     const today = Core.dateOnly();
-    const derivedSections = Core.deriveTodayV3(state, Object.values(state.habitLogCache || {}).flat(), today);
-    const todayFocusFilter = state.settings.todayFocusFilter || 'all';
-    const sections = Core.filterTodayTasks(derivedSections, todayFocusFilter, today);
-    const total = sections.today.length;
-    const goalCount = sections.goals.length + sections.overdueGoals.length;
-    const overdueCount = sections.overdue.length + sections.overdueMilestones.length + sections.overdueGoals.length;
-    const contextCounts = [
-      total && trn(total, '{count} task planned', '{count} tasks planned'),
-      sections.habits.length && trn(sections.habits.length, '{count} routine', '{count} routines'),
-      goalCount && trn(goalCount, '{count} goal', '{count} goals'),
-      overdueCount && trn(overdueCount, '{count} overdue', '{count} overdue'),
-    ].filter(Boolean).join(' · ');
-    const openTodayCount = (() => {
-      const taskIds = new Set();
-      for (const entry of [...derivedSections.overdue, ...derivedSections.today, ...derivedSections.suggestions]) {
-        const task = entry.task || entry;
-        if (task && !task.isCompleted) taskIds.add(task.id);
-      }
-      return taskIds.size;
-    })();
-    const completedTodayCount = derivedSections.completed.length;
-    const plannedMinutes = derivedSections.today.reduce((sum, task) => sum + (task.durationMinutes || 0), 0);
-    let html = pageHeader(tr('Today'), '', { contextToday: true, add: false, actionHtml: `<button class="btn btn-secondary" type="button" data-action="dashboard-focus-toggle"><i class="ph ph-faders-horizontal"></i>${state.settings.dashboard?.focusedMode ? tr('Full Today') : tr('Focus View')}</button><button class="btn btn-secondary" type="button" data-action="open-focus"><i class="ph ph-crosshair"></i> ${tr('Focus')}</button>` });
-    if (state.settings.todayFocusStrip !== false) html += `<section class="today-focus-strip" data-today-focus-strip aria-label="${tr('Today focus')}"><div class="today-focus-strip-summary"><span class="today-context-date"><i class="ph ph-calendar-blank"></i>${esc(formatPageToday(today))}</span><span class="today-focus-strip-count" data-today-open-count>${trn(openTodayCount, '{count} open', '{count} open')}</span>${todayCapacityItem()}<span class="today-focus-strip-count" data-today-completed-count>${trn(completedTodayCount, '{count} completed', '{count} completed')}</span>${plannedMinutes ? `<span class="today-focus-strip-count">${tr('{minutes} min planned', { minutes: plannedMinutes })}</span>` : ''}</div><div class="today-focus-strip-controls"><label class="today-filter">${tr('Show')} <select class="filter-select" data-today-filter aria-label="${tr('Filter Today tasks')}">${[['all', msg('All')], ['open', msg('Open')], ['completed', msg('Completed')], ['important', msg('Important')], ['dueToday', msg('Due today')]].map(([value, label]) => `<option value="${value}"${todayFocusFilter === value ? ' selected' : ''}>${tr(label)}</option>`).join('')}</select></label><button class="btn btn-primary" type="button" data-action="quick-add" data-today="true"><i class="ph ph-plus"></i>${tr('Add task')}</button></div></section>`;
-    html += `<div class="today-context" data-today-context="true">${contextCounts ? `<span class="today-context-summary">${esc(contextCounts)}</span>` : ''}</div>`;
+    const sections = Core.deriveTodayV3(state, Object.values(state.habitLogCache || {}).flat(), today);
+    let html = pageHeader(tr('Today'), '', { add: false, eyebrow: formatPageToday(today) });
     if (globalThis.DailoPlatform?.isNative) html += transferNotice();
     html += backupReminderNotice();
     html += weeklyReviewNotice();
-    const focusIds = Core.selectFocusTasks(state.tasks, state.settings.focusTaskIds);
-    const focusTasks = focusIds.map(getTask);
-    const completedToday = state.tasks.filter(task => task.isCompleted && Core.localDateOf(String(task.completedAt || '')) === today);
-    const dashboardTools = id => `<span class="dashboard-tools"><button class="btn-icon" type="button" data-action="dashboard-move" data-dashboard-section="${id}" data-direction="up" aria-label="${tr('Move section up')}"><i class="ph ph-caret-up"></i></button><button class="btn-icon ${state.settings.dashboard?.pinnedSectionIds?.includes(id) ? 'is-active' : ''}" type="button" data-action="dashboard-pin" data-dashboard-section="${id}" aria-label="${tr('Pin section')}" aria-pressed="${state.settings.dashboard?.pinnedSectionIds?.includes(id) ? 'true' : 'false'}"><i class="ph ph-push-pin"></i></button><button class="btn-icon" type="button" data-action="dashboard-move" data-dashboard-section="${id}" data-direction="down" aria-label="${tr('Move section down')}"><i class="ph ph-caret-down"></i></button></span>`;
-    html += `<section class="section today-focus" data-today-focus data-dashboard-section="focus" aria-labelledby="today-focus-heading"><div class="section-header"><h2 class="section-label" id="today-focus-heading">${tr('Daily focus')}</h2><span class="section-count">${focusTasks.length} / 3</span>${dashboardTools('focus')}</div>${focusTasks.length ? `<div class="task-list">${focusTasks.map(task => taskRow(task, 'focus')).join('')}</div>` : `<p class="area-empty-copy">${tr('Choose up to three open tasks using the focus button or Task properties.')}</p>`}</section>`;
-    html += `<section class="section daily-review" data-daily-review data-dashboard-section="review" aria-labelledby="daily-review-heading"><div class="section-header"><h2 class="section-label" id="daily-review-heading">${tr('Daily review')}</h2>${dashboardTools('review')}</div><div class="daily-review-stats"><span data-daily-review-completed>${trn(completedToday.length, '{count} completed today', '{count} completed today')}</span><span data-daily-review-open>${trn(sections.today.length, '{count} unfinished planned task', '{count} unfinished planned tasks')}</span><span>${tr('{minutes} min planned remaining', { minutes: plannedMinutes })}</span></div></section>`;
-    html += `<section class="today-actions" data-today-actions="true" data-dashboard-section="actions" aria-labelledby="today-actions-heading"><div class="section-header"><h2 class="section-label" id="today-actions-heading">${tr('Daily actions')}</h2>${dashboardTools('actions')}</div><div class="today-actions-grid"><button class="today-action" type="button" data-route="inbox"><i class="ph ph-tray"></i><span>${tr('Inbox')}</span></button><button class="today-action" type="button" data-action="quick-add" data-today="true"><i class="ph ph-plus-circle"></i><span>${tr('Quick Add')}</span></button><button class="today-action" type="button" data-action="open-focus"><i class="ph ph-crosshair"></i><span>${tr('Focus')}</span></button><button class="today-action" type="button" data-route="calendar"><i class="ph ph-calendar"></i><span>${tr('Calendar')}</span></button><button class="today-action" type="button" data-action="add-starter-examples"><i class="ph ph-sparkle"></i><span>${tr('Populate workspace')}</span></button></div></section>`;
-
-    if (sections.overdue.length) {
-      html += `<section class="section today-section today-section--overdue" data-today-section="overdue-tasks"><div class="section-header"><h2 class="section-label danger">${tr('Overdue Tasks')}</h2><span class="section-count">${sections.overdue.length}</span></div><div class="task-list">${sections.overdue.map(t => taskRow(t, 'today', { overdue: true })).join('')}</div></section>`;
-    }
-
-    if (sections.today.length || sections.suggestions.length) {
-      html += `<section class="section today-section today-section--tasks" data-today-section="tasks"><div class="section-header"><h2 class="section-label">${tr('Tasks')}</h2><span class="section-count">${sections.today.length}</span></div>`;
-      if (sections.today.length) html += `<div class="task-list" data-list-context="today">${sections.today.map(t => taskRow(t, 'today', { draggable: true })).join('')}</div>`;
-      html += `<button class="inline-add" type="button" data-action="quick-add" data-today="true"><i class="ph ph-plus"></i> ${tr('Add task')}</button>`;
-      if (sections.suggestions.length) {
-        const open = state.ui.suggestionsExpanded;
-        html += `<div><button class="collapsible-trigger" type="button" data-action="toggle-suggestions" aria-expanded="${open}"><span class="left"><i class="ph ph-sparkle"></i> ${tr('Suggested for today')}</span><span>${sections.suggestions.length} <i class="ph ph-caret-${open ? 'up' : 'down'}"></i></span></button>`;
-        if (open) html += `<div class="task-list">${sections.suggestions.map(item => taskRow(item.task, 'suggestion', { suggestionReason: item.reason })).join('')}</div><button class="btn btn-ghost" type="button" data-action="add-all-suggestions"><i class="ph ph-plus-circle"></i> ${tr('Add all to Today')}</button>`;
-        html += `</div>`;
-      }
-      html += `</section>`;
-    }
-    if (sections.habits.length) html += `<section class="section today-section today-section--habits" data-today-section="habits"><div class="section-header"><h2 class="section-label">${tr('Habits')}</h2><span class="section-count">${sections.habits.length}</span></div><div class="habit-list">${sections.habits.map(item => renderHabitRow(item.habit, item.status)).join('')}</div></section>`;
-    if (sections.overdueMilestones.length) html += `<section class="section today-section today-section--overdue" data-today-section="overdue-milestones"><div class="section-header"><h2 class="section-label danger">${tr('Overdue Milestones')}</h2><span class="section-count">${sections.overdueMilestones.length}</span></div><div class="milestone-list">${sections.overdueMilestones.map(({ goal, milestone }) => `<div class="milestone-row"><button class="task-check" type="button" data-action="toggle-milestone" data-goal-id="${esc(goal.id)}" data-milestone-id="${esc(milestone.id)}" aria-label="${tr('Complete milestone')}"><i class="ph ph-circle"></i></button><button class="btn btn-ghost" type="button" data-route="goal/${esc(goal.id)}">${esc(milestone.title)} · ${esc(goal.title)}</button><small>${esc(relativeDateLabel(milestone.date))}</small></div>`).join('')}</div></section>`;
-    for (const [label, goals, danger] of [[msg('Overdue Goals'), sections.overdueGoals, true], [msg('Goals'), sections.goals, false]]) {
-      if (goals.length) html += `<section class="section today-section today-section--${danger ? 'overdue' : 'goals'}" data-today-section="${danger ? 'overdue-goals' : 'goals'}"><div class="section-header"><h2 class="section-label${danger ? ' danger' : ''}">${tr(label)}</h2><span class="section-count">${goals.length}</span></div><div class="goal-list">${goals.map(renderGoalRow).join('')}</div></section>`;
-    }
-    if (!sections.today.length && !sections.overdue.length && !sections.habits.length && !sections.overdueMilestones.length && !sections.overdueGoals.length && !sections.goals.length && !sections.completed.length && !sections.suggestions.length) html += emptyState(tr('Nothing planned for today.'), tr('Add a task when you are ready.'), tr('Add task'), 'quick-add', { today: true });
-
+    const section = (key, label, count, body, danger = false) => `<section class="section today-section today-section--${key}" data-today-section="${key}"><div class="section-header"><h2 class="section-label${danger ? ' danger' : ''}">${label}</h2><span class="section-count">${count}</span></div>${body}</section>`;
+    const overdueRows = [
+      ...sections.overdue.map(task => taskRow(task, 'today', { today: true })),
+      ...sections.overdueGoals.map(goal => deadlineRow({ goal }, today)),
+      ...sections.overdueMilestones.map(item => deadlineRow(item, today)),
+    ];
+    if (overdueRows.length) html += section('overdue', tr('Past due'), overdueRows.length, `<div class="task-list today-card">${todayLimited('overdue', overdueRows)}</div>`, true);
+    const plannedRows = [
+      ...sections.today.map(task => taskRow(task, 'today', { today: true, draggable: true })),
+      ...sections.goals.map(goal => deadlineRow({ goal }, today)),
+      ...sections.milestones.map(item => deadlineRow(item, today)),
+    ];
+    html += section('today', tr('Planned today'), plannedRows.length, `<div class="task-list today-card" data-list-context="today">${plannedRows.length ? todayLimited('today', plannedRows) : `<p class="today-empty">${tr('Nothing planned. “+” adds a task for today.')}</p>`}</div><button class="inline-add" type="button" data-action="quick-add" data-today="true"><i class="ph ph-plus"></i> ${tr('Add task')}</button>`);
+    // Done habits move to the bottom (T5).
+    const habits = [...sections.habits.filter(item => item.status.status !== 'done'), ...sections.habits.filter(item => item.status.status === 'done')];
+    if (habits.length) html += section('habits', tr('Habits'), `${habits.length - sections.habits.filter(item => item.status.status !== 'done').length}/${habits.length}`, `<div class="habit-list today-card">${todayLimited('habits', habits.map(item => renderHabitTodayRow(item.habit, item.status)))}</div>`);
     if (sections.completed.length) {
-      const open = state.ui.todayCompletedExpanded;
+      const open = state.ui.todayCompletedExpanded === true;
       html += `<section class="section today-section today-section--completed" data-today-section="completed"><button class="collapsible-trigger" type="button" data-action="toggle-today-completed" aria-expanded="${open}"><span class="left"><i class="ph ph-check-circle"></i> ${tr('Completed')}</span><span>${sections.completed.length} <i class="ph ph-caret-${open ? 'up' : 'down'}"></i></span></button>`;
-      if (open) html += `<div class="task-list">${sections.completed.map(t => taskRow(t, 'completed')).join('')}</div>`;
+      if (open) html += `<div class="task-list today-card">${sections.completed.map(task => taskRow(task, 'completed', { today: true })).join('')}</div>`;
       html += `</section>`;
     }
     return html;
@@ -1196,6 +1157,14 @@
     const summary = `${trn(open, '{count} open task', '{count} open tasks')} · ${trn(projects.length, '{count} project', '{count} projects')}`;
     const tab = (key, label) => `<button class="btn ${view === key ? 'is-selected' : ''}" type="button" data-action="tasks-view" data-view="${key}" aria-pressed="${view === key}">${label}</button>`;
     let html = pageHeader(tr('Tasks'), summary, { add: false });
+    // Redesign R2 (T2a, Z2): the suggestions that left Today, folded, with "+ Danas" per row.
+    const suggestions = Core.deriveTodaySections(state.tasks, Core.dateOnly()).suggestions;
+    if (suggestions.length) {
+      const open = state.ui.suggestionsExpanded === true;
+      html += `<section class="tasks-suggestions" data-tasks-suggestions><button class="collapsible-trigger" type="button" data-action="toggle-suggestions" aria-expanded="${open}"><span class="left"><i class="ph ph-sparkle"></i> ${tr('Suggested for today')}</span><span>${suggestions.length} <i class="ph ph-caret-${open ? 'up' : 'down'}"></i></span></button>`;
+      if (open) html += `<div class="task-list today-card">${suggestions.map(item => taskRow(item.task, 'suggestion', { today: true, addToday: true, suggestionReason: item.reason })).join('')}</div><button class="btn btn-ghost" type="button" data-action="add-all-suggestions"><i class="ph ph-plus-circle"></i> ${tr('Add all to Today')}</button>`;
+      html += `</section>`;
+    }
     html += `<div class="view-tabs tasks-view-switch" role="group" aria-label="${tr('Tasks')}">${tab('anytime', tr('Anytime'))}${tab('projects', tr('Projects'))}</div>`;
     if (view === 'projects') {
       html += `<div class="more-card">${projects.map(project => `<button class="mobile-more-route more-row" type="button" data-route="project/${esc(encodeURIComponent(project.id))}"><span class="project-dot" style="--project-color:${esc(project.color)}" aria-hidden="true"></span><span class="more-row-label">${esc(project.name)}</span><span class="more-row-value">${projectTasks(project.id, false).length}</span><i class="ph ph-caret-right more-row-caret" aria-hidden="true"></i></button>`).join('')}</div>`;
@@ -1263,6 +1232,21 @@
 
   function renderHabitRow(habit, todayStatus = null) {
     return callDomainHook('renderRoute', { type: 'habit-row', habit, todayStatus }) || '';
+  }
+
+  function renderHabitTodayRow(habit, todayStatus) {
+    return callDomainHook('renderRoute', { type: 'habit-today-row', habit, todayStatus }) || '';
+  }
+
+  // Redesign R2 (H6): a numeric habit's value sheet for today.
+  function openHabitValue(habitId) {
+    const habit = getHabit(habitId);
+    if (!habit || habit.status !== 'active') return;
+    const existing = state.habitLogCache?.[habitId]?.find(log => log.date === Core.dateOnly());
+    captureModalReturnFocus();
+    modalState = { type: 'habit-value', habitId, date: Core.dateOnly(), total: Number(existing?.value || 0) };
+    renderModal();
+    requestAnimationFrame(() => $('#habit-value-total')?.focus());
   }
 
   function renderUpcoming() {
@@ -1640,10 +1624,7 @@
       // Habit weeks before a week-start change keep their boundaries (M11).
       weekStartHistory: Core.recordWeekStartChange(state.settings, $('#preference-week-start')?.value, Core.dateOnly()),
       compactDensity: $('#preference-density')?.checked,
-      todayFocusFilter: $('#preference-today-filter')?.value,
       weekStartsOn: $('#preference-week-start')?.value,
-      todayVisibleSections: $$('[data-preference-today-section]:checked').map(input => input.value),
-      todayFocusStrip: $('#preference-focus-strip')?.checked,
     });
     saveAndRender();
   }
@@ -4335,9 +4316,6 @@
     if (callDomainHook('handleAction', action, event) !== undefined) return;
     if(action==='recurrence-scope'){applyRecurrenceScope(el.dataset.scope);return;}
     if(action==='from-template')openTemplatePicker();
-    else if (action === 'dashboard-focus-toggle') { state.settings.dashboard.focusedMode = !state.settings.dashboard.focusedMode; saveAndRender(); }
-    else if (action === 'dashboard-pin') { const pins = new Set(state.settings.dashboard.pinnedSectionIds || []), id = el.dataset.dashboardSection; if (pins.has(id)) pins.delete(id); else pins.add(id); state.settings.dashboard.pinnedSectionIds = [...pins]; saveAndRender(); }
-    else if (action === 'dashboard-move') { const ids = ['focus', 'review', 'actions'], pins = new Set(state.settings.dashboard.pinnedSectionIds || []); const order = [...new Set([...(state.settings.dashboard.sectionOrder || []), ...ids])].filter(id => ids.includes(id)).sort((a, b) => Number(pins.has(b)) - Number(pins.has(a))); const from = order.indexOf(el.dataset.dashboardSection), to = from + (el.dataset.direction === 'up' ? -1 : 1); if (from >= 0 && to >= 0 && to < order.length && pins.has(order[from]) === pins.has(order[to])) [order[from], order[to]] = [order[to], order[from]]; state.settings.dashboard.sectionOrder = order; saveAndRender(); }
     else if(action==='toggle-sidebar-section'){const key=el.dataset.section;state.ui.sidebarSections[key]=!state.ui.sidebarSections[key];saveAndRender();}
     else if(action==='more-route'){closePopover();navigate(el.dataset.moreRoute);}
     else if(action==='choose-template')chooseTemplate(el.dataset.templateId);
@@ -4377,6 +4355,7 @@
     else if (action === 'attachment-image-picker') $('#attachment-image-input')?.click();
     else if (action === 'toggle-suggestions') { state.ui.suggestionsExpanded = !state.ui.suggestionsExpanded; saveAndRender(); }
     else if (action === 'toggle-today-completed') { state.ui.todayCompletedExpanded = !state.ui.todayCompletedExpanded; saveAndRender(); }
+    else if (action === 'today-expand') { const key = el.dataset.todayKey; if (Object.hasOwn(TODAY_LIMITS, key)) { state.ui.todayExpanded = { ...state.ui.todayExpanded, [key]: !state.ui.todayExpanded?.[key] }; saveAndRender(); } }
     else if (action === 'add-all-suggestions') addAllSuggestions();
     else if (action === 'inbox-filter') { state.ui.inboxFilter = INBOX_FILTERS.some(([value]) => value === el.dataset.inboxFilter) ? el.dataset.inboxFilter : 'all'; saveAndRender(); }
     else if (action === 'inbox-remove') removeInboxRecord(el.dataset.inboxType, el.dataset.inboxId);
@@ -4529,11 +4508,6 @@
 
   function handleChange(event) {
     if (globalOperation) return;
-    if (event.target.matches('[data-today-filter]')) {
-      state.settings.todayFocusFilter = ['all', 'open', 'completed', 'important', 'dueToday'].includes(event.target.value) ? event.target.value : 'all';
-      saveAndRender();
-      return;
-    }
     if (modalState?.type === 'quick' && ['quick-planned-time', 'quick-due-time'].includes(event.target.id)) {
       const planned = event.target.id === 'quick-planned-time';
       modalState.draft[planned ? 'plannedTime' : 'dueTime'] = Core.normalizeTime(event.target.value);
@@ -4838,7 +4812,31 @@
     const [moved]=ids.splice(from,1); ids.splice(to,0,moved); ids.forEach((id,i)=>{ const s=task.subtasks.find(x=>x.id===id); if(s)s.order=i; }); task.updatedAt=nowIso(); saveState(); renderModal(); render();
   }
 
+  // Redesign R2 (T5): a long press on an element with data-long-press runs that action (the habit menu on
+  // Today), and the click that follows the press is swallowed. The menu is also reachable by a tap or keyboard.
+  let longPressTimer = null, longPressFired = false;
+  function handleLongPressStart(event) {
+    if (!event.isPrimary || event.button > 0) return;
+    const el = event.target.closest?.('[data-long-press]');
+    if (!el) return;
+    clearTimeout(longPressTimer); longPressFired = false;
+    longPressTimer = setTimeout(() => { longPressTimer = null; longPressFired = true; callDomainHook('handleAction', el.dataset.longPress, { target: el }); }, 500);
+  }
+  function cancelLongPress() {
+    clearTimeout(longPressTimer); longPressTimer = null;
+  }
+  function handleLongPressClick(event) {
+    if (!longPressFired) return;
+    longPressFired = false; event.preventDefault(); event.stopPropagation();
+  }
+
   function attachEvents() {
+    document.addEventListener('pointerdown', handleLongPressStart);
+    document.addEventListener('pointerup', cancelLongPress);
+    document.addEventListener('pointercancel', cancelLongPress);
+    document.addEventListener('pointermove', event => { if (longPressTimer && (Math.abs(event.movementX) > 4 || Math.abs(event.movementY) > 4)) cancelLongPress(); });
+    document.addEventListener('click', handleLongPressClick, true);
+    document.addEventListener('contextmenu', event => { if (event.target.closest?.('[data-long-press]')) event.preventDefault(); });
     document.addEventListener('pointerdown', handleTaskSwipeStart);
     document.addEventListener('pointermove', handleTaskSwipeMove, { passive: false });
     document.addEventListener('pointerup', finishTaskSwipe);

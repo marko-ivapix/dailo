@@ -38,40 +38,36 @@ test('Today filters use an explicit projection date without mutating rows or arr
   for (const key of ['overdue', 'today', 'completed', 'suggestions']) assert.notEqual(Core.filterTodayTasks(sections, 'all', '2026-09-17')[key], sections[key]);
 });
 
-test('Today filter uses the shared compact select styling', () => {
+// Redesign R2 (T2, M3, M6): the summary strip, its filter and their settings left Today. The stored values
+// stay valid (normalization and backups), and Core.filterTodayTasks stays for compatibility.
+test('Today has no filter or summary strip; its settings stay stored but unused', () => {
   const app = fs.readFileSync(require.resolve('../js/app.js'), 'utf8');
-  assert.match(app, /<select class="filter-select" data-today-filter/);
+  assert.doesNotMatch(app, /data-today-filter|data-today-focus-strip|data-today-open-count|todayFocusStrip/);
+  assert.match(app, /data-action="quick-add" data-today="true"/, 'the one Today capture row stays');
+  const settings = Core.normalizeV16Settings({ todayFocusStrip: false, todayFocusFilter: 'important' });
+  assert.equal(settings.todayFocusStrip, false);
+  assert.equal(settings.todayFocusFilter, 'important');
 });
 
-test('Today focus strip exposes counts and a single Today capture action', () => {
-  const app = fs.readFileSync(require.resolve('../js/app.js'), 'utf8');
-  assert.match(app, /data-today-focus-strip/);
-  assert.match(app, /data-today-open-count/);
-  assert.match(app, /data-today-completed-count/);
-  assert.match(app, /data-action="quick-add" data-today="true"/);
-});
-
-test('Today open count includes distinct overdue and suggested task records', () => {
+test('Today counts overdue and planned work; suggestions moved to Zadaci', () => {
   const vm = require('node:vm');
-const { withI18n, runInNewContextWithI18n } = require('./support/i18n.js');
+  const { withI18n } = require('./support/i18n.js');
   const today = Core.dateOnly();
   const tasks = [
     { id: 'overdue', title: 'Overdue', dueDate: Core.addDays(today, -1) },
     { id: 'planned', title: 'Planned', plannedDate: today },
     { id: 'suggested', title: 'Due today', dueDate: today },
   ];
-  const state = Core.normalizeState({ version: 3, tasks, projects: [], tags: [], areas: [], goals: [], habits: [], notes: [], resources: [], templates: [], savedViews: [], settings: { todayFocusStrip: true }, ui: {} });
+  const state = Core.normalizeState({ version: 3, tasks, projects: [], tags: [], areas: [], goals: [], habits: [], notes: [], resources: [], templates: [], savedViews: [], settings: {}, ui: {} });
   const source = fs.readFileSync(require.resolve('../js/app.js'), 'utf8');
-  const renderToday = source.slice(source.indexOf('  function renderToday()'), source.indexOf('  function renderInbox()'));
-  const context = { state, Core, esc: String, getTask: id => tasks.find(task => task.id === id), pageHeader: () => '', formatPageToday: String, emptyState: () => '', backupReminderNotice: () => '', weeklyReviewNotice: () => '', todayCapacityItem: () => '', taskRow: () => '' };
+  const fn = name => { const start = source.indexOf(`  function ${name}(`); return source.slice(start, source.indexOf('\n  }\n', start) + 4); };
+  const context = { state, Core, esc: String, formatDate: String, formatPageToday: String, pageHeader: () => '', backupReminderNotice: () => '', weeklyReviewNotice: () => '', renderHabitTodayRow: () => '', taskRow: task => `<t ${task.id}>` };
   vm.createContext(withI18n(context));
-  const html = vm.runInContext(`${renderToday}\nrenderToday()`, context);
-  assert.match(html, /data-today-open-count>3 open/);
-});
-
-test('Today focus strip respects its disabled dashboard setting', () => {
-  const app = fs.readFileSync(require.resolve('../js/app.js'), 'utf8');
-  assert.match(app, /state\.settings\.todayFocusStrip !== false/);
+  vm.runInContext(`const TODAY_LIMITS = { overdue: 3, today: 5, habits: 5 };\n${fn('todayLimited')}${fn('todayDueLabel')}${fn('deadlineRow')}${fn('renderToday')}`, context);
+  const html = vm.runInContext('renderToday()', context);
+  assert.match(html, /Past due<\/h2><span class="section-count">1<\/span><\/div><div class="task-list today-card"><t overdue>/);
+  assert.match(html, /Planned today<\/h2><span class="section-count">1<\/span>/);
+  assert.doesNotMatch(html, /<t suggested>/);
 });
 
 test('task rows retain existing handlers through compact affordance hooks', () => {

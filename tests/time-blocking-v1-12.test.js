@@ -121,20 +121,18 @@ test('the day view is a stored calendar view and moves by one day', () => {
   assert.equal(ctx.state.ui.calendarView, 'day');
 });
 
-test('Today shows the planned load against capacity once a task has a duration', () => {
+// Redesign R2 (T2a): capacity left Today and stays only in Calendar → Dan; durations still format the same.
+test('capacity is shown only in the Calendar day view; durations format as before', () => {
   const app = read('js/app.js');
   const slice = (from, to) => app.slice(app.indexOf(from), app.indexOf(to));
-  const context = { Core, state: { tasks: [task('a', { plannedDate: Core.dateOnly(), durationMinutes: 300 }), task('b', { plannedDate: Core.dateOnly(), durationMinutes: 90 })], settings: {} } };
+  const context = { Core, state: { tasks: [], settings: {} } };
   vm.createContext(withI18n(context));
-  vm.runInContext(`${slice('  function durationLabel(', '  function todayCapacityItem(')}\n${slice('  function todayCapacityItem(', '  function renderToday(')}`, context);
-  assert.match(vm.runInContext('todayCapacityItem()', context), /<span class="today-capacity is-over" data-today-capacity aria-label="Over capacity: 6 h 30 min of 6 h">6 h 30 min \/ 6 h<\/span>/);
-  context.state.settings.dailyCapacityMinutes = 480;
-  assert.match(vm.runInContext('todayCapacityItem()', context), /<span class="today-capacity" data-today-capacity>6 h 30 min \/ 8 h<\/span>/);
-  context.state.tasks = [task('c', { plannedDate: Core.dateOnly() })];
-  assert.equal(vm.runInContext('todayCapacityItem()', context), '');
+  vm.runInContext(slice('  function durationLabel(', '  const TODAY_LIMITS'), context);
   assert.equal(vm.runInContext('durationLabel(45)', context), '45 min');
   assert.equal(vm.runInContext('durationLabel(120)', context), '2 h');
-  assert.match(app, /data-today-open-count>[^`]*<\/span>\$\{todayCapacityItem\(\)\}/);
+  assert.equal(vm.runInContext('durationLabel(390)', context), '6 h 30 min');
+  assert.doesNotMatch(app, /todayCapacityItem|data-today-capacity/);
+  assert.match(read('js/calendar-ui.js'), /const load = Core\.dayLoad\(tasks, date\);/);
 });
 
 test('Settings offers the daily capacity and the app stores a valid choice', () => {
@@ -156,7 +154,7 @@ test('Quick Add has a duration chip with preset values that wins over the parsed
   const slice = (from, to) => app.slice(app.indexOf(from), app.indexOf(to));
   const context = { Core, modalState: { type: 'quick', draft: { durationMinutes: null } }, esc: String, popover: null, openPopover(anchor, html) { context.popover = html; }, closePopover() { context.closed = true; }, renderModal() { context.rendered = true; } };
   vm.createContext(withI18n(context));
-  vm.runInContext(`${slice('  function durationLabel(', '  function todayCapacityItem(')}\n${slice('  function openDurationPicker(', '  function setReminder(')}`, context);
+  vm.runInContext(`${slice('  function durationLabel(', '  const TODAY_LIMITS')}\n${slice('  function openDurationPicker(', '  function setReminder(')}`, context);
   vm.runInContext('openDurationPicker({})', context);
   for (const minutes of [15, 30, 45, 60, 90, 120]) assert.match(context.popover, new RegExp(`data-pop-action="set-duration" data-minutes="${minutes}"`));
   assert.doesNotMatch(context.popover, /data-minutes=""/, 'nothing to remove yet');

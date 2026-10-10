@@ -2265,6 +2265,45 @@ a.btn { text-decoration: none; }
 .more-row-caret { color: var(--ink-4); }
 .tasks-view-switch { margin-bottom: 12px; }
 
+/* Redesign R2 — Today (T1–T7, T2a, G6, H6). */
+.page-eyebrow { margin: 0 0 2px; color: var(--ink-3); font-size: 13px; font-weight: 500; }
+.page-eyebrow::first-letter { text-transform: uppercase; }
+.today-section { margin-top: 18px; }
+.today-section .section-header { margin-bottom: 6px; }
+.today-section .section-count::before { content: "· "; }
+.today-card { display: grid; padding: 2px 4px; border: 1px solid var(--line-1); border-radius: var(--radius-md); background: var(--graphite-850); }
+.today-card > :is(.task-row, .today-row) + :is(.task-row, .today-row) { border-top-color: var(--line-1); }
+.today-card > .task-row, .today-card > .today-row { border-radius: 0; }
+.today-empty { margin: 12px 10px; color: var(--ink-3); font-size: 14px; }
+.today-more { width: 100%; min-height: 40px; border: 0; border-top: 1px solid var(--line-1); background: none; color: var(--blue-300); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; }
+.task-row--today { grid-template-columns: auto minmax(0, 1fr) auto auto; min-height: 52px; }
+.task-side { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-3); font-size: 12px; white-space: nowrap; }
+.task-flag { font-size: 15px; }
+.task-flag--high { color: var(--danger); }
+.task-flag--medium { color: var(--warning); }
+.task-due.is-overdue { color: var(--danger); }
+.task-due.is-today { color: var(--warning); }
+.today-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; min-height: 52px; padding: 6px 8px; border: 1px solid transparent; }
+.today-row-main { min-width: 0; display: grid; gap: 2px; padding: 4px 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.today-row-main .task-meta { margin-top: 0; }
+.deadline-row .task-title { font-size: 15px; }
+.deadline-icon { display: inline-grid; place-items: center; width: 28px; color: var(--blue-300); font-size: 20px; }
+.habit-check { display: inline-grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 50%; background: none; cursor: pointer; touch-action: manipulation; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.habit-circle { width: 28px; height: 28px; }
+.habit-circle-track { fill: none; stroke: var(--line-3); stroke-width: 2.5; }
+.habit-circle-arc { fill: none; stroke: var(--success); stroke-width: 2.5; stroke-linecap: round; }
+.habit-circle-fill { fill: var(--success); }
+.habit-circle-tick { fill: none; stroke: var(--graphite-900); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.habit-circle-dashed { fill: none; stroke: var(--ink-3); stroke-width: 2.5; stroke-dasharray: 4 3.4; }
+.habit-today-row.is-done .task-title { color: var(--ink-3); }
+.habit-today-count { font-variant-numeric: tabular-nums; }
+.tasks-suggestions { margin-bottom: 12px; }
+.tasks-suggestions .today-card { margin-top: 6px; }
+.habit-value-summary { margin: 4px 0 12px; color: var(--ink-3); font-size: 16px; }
+.habit-value-total { color: var(--ink-1); font-size: 28px; font-weight: 600; }
+.habit-value-modal .quick-actions { margin-bottom: 12px; }
+@media (pointer: coarse) { .habit-check { width: 44px; height: 44px; } }
+
 /* Keep primary compact actions touchable after all density rules. */
 @media (max-width: 700px), (pointer: coarse) {
   .task-actions .btn-icon,

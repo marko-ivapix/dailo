@@ -76,8 +76,29 @@ if (!window.document.activeElement?.matches?.('#main .more-row[data-route="goals
 goalsRow.ownerDocument.querySelector('#main .more-row[data-route="goals"]').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
 await new Promise(resolve => setTimeout(resolve, 50));
 if (window.location.hash !== '#goals' || !window.document.querySelector('#mobile-bottom-nav [data-route="more"]').classList.contains('is-active')) fail('Ciljevi did not open under Još');
+// Redesign R2: Today shows "Planirano danas" and compact habit rows; a tap on the round check checks in.
+// The first run has no habits, so the demo examples come from Settings first.
+window.location.hash = '#settings';
+await new Promise(resolve => setTimeout(resolve, 50));
+window.document.querySelector('#main [data-action="add-starter-examples"]').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+for (let i = 0; i < 100 && !window.TodoApp.state.habits.length; i += 1) await new Promise(resolve => setTimeout(resolve, 20));
+await new Promise(resolve => setTimeout(resolve, 100));
+window.location.hash = '#today';
+await new Promise(resolve => setTimeout(resolve, 50));
+if (!window.document.querySelector('#main [data-today-section="today"]')) fail('Today has no "Planirano danas" section');
+const habitCheck = window.document.querySelector('#main .habit-today-row .habit-check[aria-pressed="false"]');
+if (!habitCheck) fail('Today shows no open checkbox habit');
+const habitId = habitCheck.dataset.habitId;
+habitCheck.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+const habitDone = () => window.TodoApp.state.habitLogCache?.[habitId]?.some(log => log.status === 'done');
+for (let i = 0; i < 50 && !habitDone(); i += 1) await new Promise(resolve => setTimeout(resolve, 20));
+await new Promise(resolve => setTimeout(resolve, 50));
+// A done habit moves to the bottom (T5), so it may sit behind "Prikaži još"; the section count shows it.
+if (!habitDone() || !/^1\//.test(window.document.querySelector('#main [data-today-section="habits"] .section-count')?.textContent || '')) fail('the habit check did not mark the habit done');
 window.location.hash = '#tasks';
 await new Promise(resolve => setTimeout(resolve, 50));
+const hasSuggestion = window.TodoCore.deriveTodaySections(window.TodoApp.state.tasks, window.TodoCore.dateOnly()).suggestions.length > 0;
+if (hasSuggestion !== Boolean(window.document.querySelector('#main [data-tasks-suggestions]'))) fail('the Zadaci suggestions card does not match the suggestions');
 window.document.querySelector('#main [data-action="tasks-view"][data-view="projects"]').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
 if (window.TodoApp.state.ui.tasksView !== 'projects' || !window.document.querySelector('#main .more-row[data-route^="project/"]')) fail('the Zadaci switch did not show the projects');
 window.dispatchEvent(new window.Event('pagehide'));
@@ -90,5 +111,5 @@ if (!found) fail('the task is missing after reopening');
 const errors = [...first.errors, ...second.errors];
 second.dom.window.close();
 if (errors.length) fail(`script errors: ${errors.join(' | ')}`);
-console.log(`smoke: OK — started, created "${title}", Back closed Quick Add, route change named the page and focused its heading, Još opened Ciljevi, focus survived a re-render, the Zadaci switch showed the projects, reopened and found it (tasks: ${second.window.TodoApp.state?.tasks?.length ?? 'n/a'})`);
+console.log(`smoke: OK — started, created "${title}", Back closed Quick Add, route change named the page and focused its heading, Još opened Ciljevi, focus survived a re-render, Today checked in a habit, the Zadaci switch showed the projects, reopened and found it (tasks: ${second.window.TodoApp.state?.tasks?.length ?? 'n/a'})`);
 process.exit(0);
