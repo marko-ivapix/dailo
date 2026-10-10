@@ -79,9 +79,10 @@
     });
   }
 
-  // R9c, R10b, R10c (K12): on Ciljevi, Beleške, Resursi and Oznake the floating "+" adds what belongs there and its label says what;
+  // R9c–R10d (K12): on Ciljevi, Beleške, Resursi, Oznake, Šabloni and Sačuvani prikazi the floating "+" adds what belongs
+  // there and its label says what;
   // elsewhere it opens the menu.
-  const QUICK_ADD_DIRECT = Object.freeze({ '#goals': [msg('New goal'), () => openGoalModal()], '#notes': [msg('New note'), () => openKnowledgeWindow('note')], '#resources': [msg('New resource'), () => openKnowledgeWindow('resource')], '#tags': [msg('New tag'), () => openTagModal()] });
+  const QUICK_ADD_DIRECT = Object.freeze({ '#goals': [msg('New goal'), () => openGoalModal()], '#notes': [msg('New note'), () => openKnowledgeWindow('note')], '#resources': [msg('New resource'), () => openKnowledgeWindow('resource')], '#tags': [msg('New tag'), () => openTagModal()], '#templates': [msg('New template'), () => callDomainHook('handleAction', 'new-template', { target: $('#mobile-quick-add-toggle') })], '#saved-views': [msg('New saved view'), () => callDomainHook('handleAction', 'new-saved-view', { target: $('#mobile-quick-add-toggle') })] });
   const quickAddDirect = () => QUICK_ADD_DIRECT[location.hash] || null;
   function syncQuickAddToggle() {
     const toggle = $('#mobile-quick-add-toggle');
@@ -604,7 +605,7 @@
       refreshSheet, openHabitDetails, openGoalDetails,
       openHabitStartSheet(anchor) { openDateSheet(anchor, { type: 'habit' }, 'start'); },
       calendarTaskRow(task) { return taskRow(task, 'calendar', { today: true }); },
-      templateTypes: TEMPLATE_TYPES, templateLabel, openTemplateEditorFromSource, saveTemplateRecord, duplicateTemplateRecord,
+      templateTypes: TEMPLATE_TYPES, templateLabel, openTemplateEditorFromSource, saveTemplateRecord, duplicateTemplateRecord, useTemplate,
       captureModalReturnFocus,
       durationLabel,
       todayDueLabel, openHabitValue,
@@ -629,18 +630,20 @@
       projectOverviewRow(project) { return projectOverviewRow(project, listTasks()); },
       renderGoalRow, renderHabitRow,
       renderSavedViewItem(view, item, today) {
-        return view.type === 'tasks' ? taskRow(item, 'saved-view') : view.type === 'goals' ? renderGoalRow(item) : renderHabitRow(item, item.status === 'active' ? Core.habitStatusForDate(item, state.habitLogCache?.[item.id] || [], today, today) : null);
+        // R10d (S8): the rows of their screens — Today rows, Ciljevi rows and compact habit rows.
+        return view.type === 'tasks' ? taskRow(item, 'saved-view', { today: true }) : view.type === 'goals' ? callDomainHook('renderRoute', { type: 'goal-list-row', goal: item }) || '' : callDomainHook('renderRoute', { type: 'habit-list-row', habit: item }) || '';
       },
       saveSavedViewDraft(id, draft) {
         const existing = state.savedViews.find(view => view.id === id);
         const view = { ...draft, name: draft.name.trim(), id: existing?.id || uid('view'), createdAt: existing?.createdAt || nowIso(), updatedAt: nowIso() };
         if (existing) state.savedViews.splice(state.savedViews.indexOf(existing), 1, view); else state.savedViews.push(view);
-        saveState(); closeModal(); render();
+        saveState(); closeModal(); render(); setToastMessage(tr('View saved'));
       },
       duplicateSavedView(id) {
         const source = state.savedViews.find(view => view.id === id);
         if (!source) return;
-        const view = copyTemplate(source); view.id = uid('view'); view.name += ' copy'; view.createdAt = view.updatedAt = nowIso(); state.savedViews.push(view); saveAndRender();
+        const view = copyTemplate(source); view.id = uid('view'); view.name = tr('{name} (copy)', { name: source.name }); view.isPinned = false; view.createdAt = view.updatedAt = nowIso(); state.savedViews.push(view); saveAndRender();
+        setToastMessage(tr('View duplicated'));
       },
       toggleSavedViewPin(id) {
         const view = state.savedViews.find(item => item.id === id);
@@ -1755,7 +1758,6 @@
     const record = { ...copyTemplate(draft), name: draft.name.trim(), id: id || uid('template'), createdAt: existing?.createdAt || nowIso(), updatedAt: nowIso() };
     if (existing) state.templates.splice(state.templates.indexOf(existing), 1, record); else state.templates.push(record);
     modalState.savedTemplateId = record.id;
-    state.ui.templateType = draft.type;
     if (saveState()) runScheduledTaskTemplates();
     closeModal(); render();
     return record;
@@ -1764,7 +1766,16 @@
   function duplicateTemplateRecord(id) {
     const source = state.templates.find(template => template.id === id);
     if (!source) return;
-    const record = copyTemplate(source); record.id = uid('template'); record.name += ' copy'; record.createdAt = record.updatedAt = nowIso(); state.templates.push(record); saveAndRender();
+    const record = copyTemplate(source); record.id = uid('template'); record.name = tr('{name} (copy)', { name: source.name }); record.createdAt = record.updatedAt = nowIso(); state.templates.push(record); saveAndRender();
+    setToastMessage(tr('Template duplicated'));
+  }
+
+  // "Upotrebi šablon" opens the usual new-item window, already filled; the user still saves it.
+  function useTemplate(id) {
+    const template = state.templates.find(item => item.id === id); if (!template) return;
+    if (template.type === 'task') { openQuickAdd(); applyQuickTemplate(template.id); renderModal(); return; }
+    if (template.type === 'project') openProjectModal(); else if (template.type === 'habit') openHabitModal(); else openGoalModal();
+    openTemplatePicker(); chooseTemplate(template.id);
   }
   function openTemplatePicker() {
     if(modalState.type==='quick')syncQuickDraftFromDom();
@@ -4644,8 +4655,6 @@
     const routeEl = event.target.closest('[data-route]');
     if (routeEl) { event.preventDefault(); navigate(routeEl.dataset.route); return; }
 
-    const templateTab=event.target.closest('[data-template-type]');
-    if(templateTab){if(callDomainHook('handleAction','template-type',event)!==undefined)return;state.ui.templateType=templateTab.dataset.templateType;saveAndRender();return;}
 
     const pop = event.target.closest('[data-pop-action]');
     if (pop) { if (callDomainHook('handleAction', pop.dataset.popAction, event) === undefined) handlePopoverAction(pop); return; }
@@ -4668,7 +4677,7 @@
     else if(action==='more-route'){closePopover();navigate(el.dataset.moreRoute);}
     else if(action==='choose-template')chooseTemplate(el.dataset.templateId);
     else if(action==='template-picker-back'){if(modalState.previous?.type==='goal')closeModal();else{modalState=modalState.previous;renderModal();}}
-    else if(action==='use-template'){const template=state.templates.find(t=>t.id===el.dataset.templateId);if(template){if(template.type==='task'){openQuickAdd();applyQuickTemplate(template.id);renderModal();}else{if(template.type==='project')openProjectModal();else if(template.type==='habit')openHabitModal();else openGoalModal();openTemplatePicker();chooseTemplate(template.id);}}}
+    else if(action==='use-template')useTemplate(el.dataset.templateId);
     else if (action === 'toggle-sidebar') { state.ui.sidebarCollapsed = !state.ui.sidebarCollapsed; saveAndRender(); }
     else if (action === 'quick-add') { const context = el.closest('#mobile-quick-add-menu') ? routeQuickAddContext() : { projectId: el.dataset.projectId || null, areaId: el.dataset.areaId || null, today: el.dataset.today === 'true', anytime: el.dataset.anytime === 'true' }; if (context) openQuickAdd(context); else setToastMessage(tr('Restore the project to add tasks.')); }
     else if (action === 'open-task') openTaskDetail(el.dataset.taskId);

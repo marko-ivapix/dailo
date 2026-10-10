@@ -291,12 +291,12 @@ test('attachment drop zones keep hover and drag-over feedback after the V1.8 sec
 
 // Phase 9 — Templates, Settings and More
 
-test('template rows use the segmented type switch and do not pretend their text is clickable', () => {
-  assert.match(read('js/templates-ui.js'), /<div class="view-tabs">/);
-  assert.match(rule(v18, '.view-tabs'), /margin-bottom:\s*14px/);
-  const text = rule(v18, '[data-template-row] .goal-open');
-  assert.match(text, /cursor:\s*default/);
-  assert.match(rule(v18, '[data-template-row] .goal-open:hover'), /background:\s*transparent/);
+// Redesign R10d (S7): the type tabs gave way to groups, and a whole template row is a button that opens its sheet.
+test('template rows are grouped buttons that open a sheet; the editor fields stay a grid', () => {
+  const templates = read('js/templates-ui.js');
+  assert.doesNotMatch(templates, /<div class="view-tabs">|data-template-type="\$\{templateType\}"/);
+  assert.match(templates, /<button class="template-list-row" type="button" data-action="template-open"/);
+  assert.match(rule(css, '.template-list-row:focus-visible,\n.view-list-row:focus-visible'), /box-shadow:\s*var\(--focus-ring-inset\)/);
   assert.match(rule(v18, '.template-fields'), /display:\s*grid/);
 });
 

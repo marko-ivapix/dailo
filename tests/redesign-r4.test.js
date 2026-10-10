@@ -137,7 +137,9 @@ test('S7: a template fills what is missing; a typed title, a picked date and a p
   assert.equal(task.title, 'Moj naslov');
   assert.equal(task.subtasks.length, 2);
   assert.ok(typed.calls.some(call => call[0] === 'goalLinks'), 'template goal links are kept');
-  assert.match(app, /action==='use-template'\)\{const template=state\.templates\.find\(t=>t\.id===el\.dataset\.templateId\);if\(template\)\{if\(template\.type==='task'\)\{openQuickAdd\(\);applyQuickTemplate\(template\.id\);renderModal\(\);\}/);
+  // R10d moved the Templates screen's "Upotrebi" into useTemplate(); a task template still fills Quick Add.
+  assert.match(app, /action==='use-template'\)useTemplate\(el\.dataset\.templateId\);/);
+  assert.match(app, /if \(template\.type === 'task'\) \{ openQuickAdd\(\); applyQuickTemplate\(template\.id\); renderModal\(\); return; \}/);
 });
 
 test('the template sheet lists task templates with their summary', () => {

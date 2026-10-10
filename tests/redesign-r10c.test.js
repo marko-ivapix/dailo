@@ -120,8 +120,7 @@ test('the R10c layer and the Serbian labels', () => {
   assert.match(sr, /"\{count\} tags": \{ one: "\{count\} oznaka", few: "\{count\} oznake", other: "\{count\} oznaka" \}/);
 });
 
-test('R10c is released as 2.0.0-alpha.21', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.21');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.21';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.21');
+test('R10c shipped as 2.0.0-alpha.21 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 99) >= 21);
 });

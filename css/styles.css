@@ -2697,6 +2697,30 @@ a.btn { text-decoration: none; }
 .tag-window .quick-title-input { margin-bottom: 6px; }
 .tag-window .habit-window-label { margin: 12px 2px 8px; }
 
+/* Redesign R10d — Šabloni and Sačuvani prikazi (S7, S8). */
+.templates-group { margin-top: 16px; }
+.templates-group .section-label i { color: var(--ink-3); }
+.template-list-row,
+.view-list-row { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 10px; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.view-list-row { grid-template-columns: auto minmax(0, 1fr) auto auto; }
+.templates-list > .template-list-row + .template-list-row,
+.views-list > .view-list-row + .view-list-row { border-top: 1px solid var(--line-1); }
+.template-list-row > .ph-caret-right,
+.view-list-row > .ph-caret-right { color: var(--ink-4); }
+.template-list-row:focus-visible,
+.view-list-row:focus-visible { outline: none; box-shadow: var(--focus-ring-inset); }
+.template-list-main,
+.view-list-main { display: grid; gap: 2px; min-width: 0; }
+.templates-add { margin-top: 16px; }
+.templates-add .inline-add,
+.views-list .inline-add { margin: 2px 6px 6px; }
+.templates-note { margin: 10px 2px 0; }
+.sheet-primary { width: 100%; min-height: 44px; margin-bottom: 12px; }
+.view-list-icon { color: var(--ink-3); font-size: 18px; }
+.view-list-count { color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.view-window .quick-title-input { margin-bottom: 2px; }
+.view-pin-toggle { display: inline-flex; align-items: center; gap: 10px; margin-top: 12px; padding: 6px 4px; border: 0; background: none; color: var(--ink-1); font: inherit; cursor: pointer; }
+
 /* Keep primary compact actions touchable after all density rules. */
 @media (max-width: 700px), (pointer: coarse) {
   .task-actions .btn-icon,
