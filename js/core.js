@@ -150,7 +150,7 @@
     };};
     if (template.type === 'task') return {task:task(d,ids.taskId)};
     if (template.type === 'project') {
-      const project = {...common,id:ids.projectId || makeId('project'),name:d.name || '',color:d.color || '#5362FF',areaId:live('areas',d.areaId),goalIds:links('goals',d.goalIds),isArchived:false,archivedAt:null,order:null};
+      const project = {...common,id:ids.projectId || makeId('project'),name:d.name || '',color:safeColor(d.color, '#5362FF'),areaId:live('areas',d.areaId),goalIds:links('goals',d.goalIds),isArchived:false,archivedAt:null,order:null};
       const tasks=(d.tasks || []).map(child=>task(child,null,project.id));
       return {project,tasks,goalLinks:configs.map(c=>({goalId:c.goalId,contributionMode:c.contributionMode,selectedTaskIds:[...new Set((c.selectedTaskIndices || []).filter(i=>Number.isInteger(i) && tasks[i]).map(i=>tasks[i].id))]}))};
     }
@@ -487,8 +487,16 @@
     };
   }
 
+  // A task reminder counts as fired only up to the moment it fired for (audit R-3): the fired marker is
+  // device-local, so a reminder moved later on another device must fire again here.
+  function taskReminderFired(task) {
+    const fired = task?.reminderFiredAt ? new Date(task.reminderFiredAt).getTime() : NaN;
+    const moment = reminderInstant(task?.reminderAt);
+    return Number.isFinite(fired) && (moment === null || fired >= moment);
+  }
+
   function isReminderDue(task, nowIso) {
-    if (!task || task.isCompleted || !task.reminderAt || task.reminderFiredAt) return false;
+    if (!task || task.isCompleted || !task.reminderAt || taskReminderFired(task)) return false;
     const reminder = reminderInstant(task.reminderAt);
     const now = new Date(nowIso).getTime();
     return reminder !== null && Number.isFinite(now) && reminder <= now;
@@ -1237,7 +1245,7 @@
       list.push({ key: notificationKey(kind, item.id, moment), kind, id: item.id, at: new Date(time).toISOString(), title, route: `${kind}/${encodeURIComponent(item.id)}`, date });
     };
     for (const task of state.tasks || []) {
-      if (!task.isCompleted && task.reminderAt && !task.reminderFiredAt) add('task', task, task.reminderAt, task.title, task.dueDate || null);
+      if (!task.isCompleted && task.reminderAt && !taskReminderFired(task)) add('task', task, task.reminderAt, task.title, task.dueDate || null);
     }
     for (const goal of state.goals || []) {
       if (goal.status !== 'active') continue;
@@ -1270,6 +1278,23 @@
       }
     }
     return list.sort((a, b) => a.at.localeCompare(b.at) || a.key.localeCompare(b.key)).slice(0, limit);
+  }
+
+  // Records that first arrive through sync (audit R-3): their past reminder moments are marked as handled on this
+  // device, so a new device does not replay old reminders. Records this device already had are left as they are.
+  function settleArrivedReminders(previous, next, now) {
+    const at = new Date(now).getTime();
+    if (!next || !Number.isFinite(at)) return next;
+    const known = type => new Set((previous?.[type] || []).map(item => item?.id));
+    const past = moment => { const time = reminderInstant(moment); return time !== null && time <= at; };
+    const today = dateOnly(new Date(at));
+    const tasks = known('tasks'), goals = known('goals'), habits = known('habits');
+    return {
+      ...next,
+      tasks: (next.tasks || []).map(task => (!tasks.has(task.id) && task.reminderAt && !task.reminderFiredAt && past(task.reminderAt) ? { ...task, reminderFiredAt: new Date(at).toISOString() } : task)),
+      goals: (next.goals || []).map(goal => (goals.has(goal.id) ? goal : { ...goal, reminderFiredMoments: [...new Set([...(goal.reminderFiredMoments || []), ...goalReminderMoments(goal).filter(past)])] })),
+      habits: (next.habits || []).map(habit => (habits.has(habit.id) ? habit : { ...habit, reminderFiredMoments: [...new Set([...(habit.reminderFiredMoments || []), ...(habit.reminders || []).filter(item => item?.enabled !== false && normalizeTime(item.time)).map(item => combineDateTime(today, item.time)).filter(past)])] })),
+    };
   }
 
   // Snooze choices (audit H-2): "tonight" is 19:00, or 21:00 once it is 19:00; later than that there is no tonight
@@ -1466,6 +1491,11 @@
       createdAt: nowIso,
       updatedAt: nowIso,
     };
+  }
+
+  // Colors reach style attributes (audit S-4): only #rgb and #rrggbb are accepted.
+  function safeColor(value, fallback) {
+    return typeof value === 'string' && /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(value) ? value : fallback;
   }
 
   function normalizeTime(value) {
@@ -1893,6 +1923,9 @@
     weekStartFor,
     buildNextRecurringTask,
     isReminderDue,
+    taskReminderFired,
+    settleArrivedReminders,
+    safeColor,
     reminderInstant,
     notificationKey,
     notificationPlan,

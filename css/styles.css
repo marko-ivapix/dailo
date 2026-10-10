@@ -2267,6 +2267,8 @@ a.btn { text-decoration: none; }
 @media (max-width: 700px) {
   .toast-root { left: max(12px, env(safe-area-inset-left)); right: max(12px, env(safe-area-inset-right)); }
 }
+/* M12 (A-2): a route change focuses the page heading; no ring unless the keyboard brought it there. */
+.page-title[tabindex="-1"]:focus:not(:focus-visible) { outline: none; }
 /* M11: Search shows how many results it left out. */
 .search-more-note { margin: 4px 10px 8px; color: var(--ink-3); font-size: 12px; }
 

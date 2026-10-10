@@ -108,7 +108,7 @@ test('Y-2: pulled tombstones no longer stop sync on normalization', () => {
 
 test('Y-2: the app prunes pulled data before normalizing it', () => {
   const block = read('js/app.js').match(/async function applySyncResult[\s\S]*?\n  }\n/)[0];
-  assert.match(block, /normalizeState\(Core\.pruneDanglingReferences\(result\.state\)\)/);
+  assert.match(block, /normalizeState\((Core\.settleArrivedReminders\(previous, )?Core\.pruneDanglingReferences\(result\.state\)/, 'M12 wraps the pruned state in settleArrivedReminders');
 });
 
 test('D-1: localDateOf turns an instant into the local calendar day', () => {

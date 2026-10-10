@@ -341,7 +341,7 @@
       ...tag,
       id: tag.id || uid('tag'),
       name: Core.normalizeTagName(tag.name),
-      color: tag.color || PROJECT_COLORS[i % PROJECT_COLORS.length],
+      color: Core.safeColor(tag.color, PROJECT_COLORS[i % PROJECT_COLORS.length]),
       createdAt: tag.createdAt || nowIso(),
       updatedAt: tag.updatedAt || nowIso(),
     }));
@@ -357,10 +357,11 @@
       attachmentIds: Array.isArray(t.attachmentIds) ? t.attachmentIds : [],
       subtasks: (t.subtasks || []).map((s, i) => ({ ...s, id: s.id || uid('sub'), title: s.title || '', isCompleted: Boolean(s.isCompleted), order: Number.isFinite(s.order) ? s.order : i })),
     }));
-    next.projects = next.projects.map((p, i) => ({ color: PROJECT_COLORS[i % PROJECT_COLORS.length], order: i, createdAt: nowIso(), updatedAt: nowIso(), isArchived: false, archivedAt: null, ...p }));
+    next.projects = next.projects.map((p, i) => ({ order: i, createdAt: nowIso(), updatedAt: nowIso(), isArchived: false, archivedAt: null, ...p, color: Core.safeColor(p.color, PROJECT_COLORS[i % PROJECT_COLORS.length]) }));
     next.areas = (next.areas || []).map((area, i) => ({
       name: '', color: PROJECT_COLORS[i % PROJECT_COLORS.length], icon: AREA_ICONS[0], status: 'active', isPinned: false,
       createdAt: nowIso(), updatedAt: nowIso(), ...area,
+      color: Core.safeColor(area.color, PROJECT_COLORS[i % PROJECT_COLORS.length]),
       name: Core.normalizeTagName(area.name),
       status: area.status === 'archived' ? 'archived' : 'active',
       isPinned: Boolean(area.isPinned),
@@ -835,7 +836,35 @@
         : (a, b) => clampOrder(a.projectOrder) - clampOrder(b.projectOrder) || b.createdAt.localeCompare(a.createdAt));
   }
 
+  // Focus survives a re-render (audit A-2): the focused control in the sidebar, main view or bottom navigation is
+  // found again by its id or data attributes. A route change names the page and moves focus to its heading.
+  const FOCUS_KEYS = ['action', 'route', 'taskId', 'projectId', 'goalId', 'habitId', 'areaId', 'tagId', 'ownerType', 'ownerId', 'date', 'goalProperty', 'habitProperty', 'milestoneId', 'section', 'filter', 'value'];
+  function focusDescriptor(element) {
+    if (!(element instanceof HTMLElement) || element === document.body || !element.closest('#sidebar, #main, #mobile-bottom-nav')) return null;
+    // Rendering must never fail on focus bookkeeping, so a missing CSS.escape (old WebViews, jsdom) has a fallback.
+    const escape = value => (globalThis.CSS?.escape ? globalThis.CSS.escape(value) : String(value).replace(/["\\\]#.:]/g, '\\$&'));
+    if (element.id) return `#${escape(element.id)}`;
+    const attrs = FOCUS_KEYS.filter(key => element.dataset[key] !== undefined).map(key => `[data-${key.replace(/[A-Z]/g, c => '-' + c.toLowerCase())}="${escape(element.dataset[key])}"]`).join('');
+    return attrs ? `${element.tagName.toLowerCase()}${attrs}` : null;
+  }
+  let renderedRoute = null;
   function render() {
+    const focused = focusDescriptor(document.activeElement);
+    renderView();
+    const route = location.hash || '#today';
+    const routeChanged = renderedRoute !== null && route !== renderedRoute;
+    renderedRoute = route;
+    announceRoute(routeChanged);
+    if (!routeChanged && focused && (!document.activeElement || document.activeElement === document.body)) $(focused)?.focus({ preventScroll: true });
+  }
+  function announceRoute(moveFocus) {
+    const heading = $('#main .page-title');
+    const name = heading?.textContent?.trim();
+    document.title = name ? `${name} · Dailo` : 'Dailo';
+    if (moveFocus && !modalState && heading) { heading.setAttribute('tabindex', '-1'); heading.focus({ preventScroll: true }); }
+  }
+
+  function renderView() {
     const app = $('#app');
     if (!app) return;
     if (recovery) {
@@ -3516,7 +3545,8 @@
     const previous = state;
     applyingSync = true;
     try {
-      state = normalizeState(Core.pruneDanglingReferences(result.state));
+      // Records new to this device do not replay their past reminders here (audit R-3).
+      state = normalizeState(Core.settleArrivedReminders(previous, Core.pruneDanglingReferences(result.state), nowIso()));
       if (!saveState()) { state = previous; throw new Error(msg('Changes could not be saved locally. Try again.')); }
     } finally { applyingSync = false; }
     if (result.habitLogDeletes.length) await TodoStorage.habitLogs.deleteMany(result.habitLogDeletes);
@@ -4185,24 +4215,22 @@
       ...dueGoals.filter(({ goal, moment }) => !shown.has(Core.notificationKey('goal', goal.id, moment))).map(({ goal }) => goal.title),
       ...dueHabits.filter(({ habit, moment }) => !shown.has(Core.notificationKey('habit', habit.id, moment))).map(({ habit }) => habit.name),
     ];
+    // Fired markers are device-local and not an edit: no updatedAt bump, so nothing is pushed (audit R-3).
     for (const task of dueTasks) {
       task.reminderFiredAt = now;
-      task.updatedAt = now;
       if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
         try { new Notification(task.title, { body: task.dueDate ? tr('Due {date}', { date: relativeDateLabel(task.dueDate) }) : tr('Task reminder') }); } catch (_) { /* in-app reminder remains */ }
       }
     }
     for (const { goal, moment } of dueGoals) {
       goal.reminderFiredMoments = [...new Set([...(goal.reminderFiredMoments || []), moment])];
-      goal.updatedAt = now;
       if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
         try { new Notification(goal.title, { body: goal.targetDate ? tr('Goal target {date}', { date: relativeDateLabel(goal.targetDate) }) : tr('Goal reminder') }); } catch (_) { /* in-app reminder remains */ }
       }
     }
     for (const { habit, moment, snooze } of dueHabits) {
       habit.reminderFiredMoments = [...new Set([...(habit.reminderFiredMoments || []), moment])];
-      if (snooze) { habit.pendingSnoozeAt = null; habit.snoozedUntil = null; }
-      habit.updatedAt = now;
+      if (snooze) { habit.pendingSnoozeAt = null; habit.snoozedUntil = null; habit.updatedAt = now; }
       if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
         try { new Notification(habit.name, { body: tr('Habit reminder') }); } catch (_) { /* in-app reminder remains */ }
       }

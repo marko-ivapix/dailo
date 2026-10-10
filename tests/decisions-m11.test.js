@@ -193,8 +193,8 @@ test('typing updates the query at once and rebuilds the results after a short pa
   assert.match(app, /modalState\.query = event\.target\.value;\n\s+scheduleSearchResults\(\);/);
 });
 
-test('M11 is released as 2.0.0-alpha.3', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.3');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.3';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.3');
+test('M11 shipped as 2.0.0-alpha.3 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.([3-9]|\d{2,})$|^2\.\d+\.\d+/);
+  assert.match(read('sw.js'), new RegExp(`const VERSION = '${Release.APP_VERSION.replace(/\./g, '\\.')}';`));
+  assert.equal(JSON.parse(read('package.json')).version, Release.APP_VERSION);
 });

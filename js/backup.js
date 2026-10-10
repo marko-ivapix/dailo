@@ -10,14 +10,15 @@
 
   const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
   const MAX_ATTACHMENTS_PER_OWNER = 10;
-  // ZIP limits are intentionally conservative.  They protect the local-first
-  // app from malformed archives and decompression bombs before any replacement
-  // or IndexedDB write is attempted.  Callers may pass smaller limits in tests.
+  // ZIP limits protect the local-first app from malformed archives and
+  // decompression bombs before any replacement or IndexedDB write is attempted.
+  // The export checks the same limits (audit E-1), so every backup Dailo writes
+  // can be imported again. Callers may pass smaller limits in tests.
   const LIMITS = Object.freeze({
     maxZipEntries: 2000,
-    maxAttachments: 200,
-    maxAttachmentBytes: 50 * 1024 * 1024,
-    maxDecompressedBytes: 100 * 1024 * 1024,
+    maxAttachments: 1000,
+    maxAttachmentBytes: 250 * 1024 * 1024,
+    maxDecompressedBytes: 300 * 1024 * 1024,
   });
   // V1.3/V1.4 share the ZIP format. The app/schema version is tracked
   // separately in the manifest data (`data.version === 3`).
@@ -58,7 +59,8 @@
     return exportBackupV3(state, { attachments: attachmentApi, habitLogs: root.TodoStorage.habitLogs, goalHistory: root.TodoStorage.goalHistory }, nowIso);
   }
 
-  async function exportBackupV3(state, storage, nowIso) {
+  async function exportBackupV3(state, storage, nowIso, options = {}) {
+    const limits = { ...LIMITS, ...(options.limits || {}) };
     const source = state;
     const sourceText = JSON.stringify(state);
     state = deepClone(state);
@@ -75,6 +77,11 @@
     validateDomain(state, habitLogs, goalHistory);
     validateIds(state, records);
     root.TodoStorage.verifyAttachmentReferences(state, records);
+    // The import would refuse anything over these limits, so the export stops first (audit E-1).
+    const attachmentBytes = records.reduce((sum, record) => sum + (Number(record.blob?.size ?? record.size) || 0), 0);
+    if (records.length + 1 > limits.maxZipEntries) throw new Error(`${msg('Backup exceeds ZIP entry limit')}: ${limits.maxZipEntries}`);
+    if (records.length > limits.maxAttachments) throw new Error(`${msg('Backup exceeds attachment count limit')}: ${limits.maxAttachments}`);
+    if (attachmentBytes > limits.maxAttachmentBytes) throw new Error(`${msg('Backup exceeds attachment bytes limit (bytes)')}: ${limits.maxAttachmentBytes}`);
     const byId = new Map(records.map(record => [record.id, record]));
     for (const owner of owners) {
       for (const id of owner.item.attachmentIds || []) {
@@ -87,7 +94,9 @@
     }
     const manifest = { backupVersion: BACKUP_VERSION, appVersion: '1.3', releaseVersion: root.DailoRelease?.APP_VERSION || null, exportedAt: nowIso, data: state, attachments: metadata, habitLogs, goalHistory };
     if (JSON.stringify(source) !== sourceText) throw new Error(msg('Source changed during export. Retry.'));
-    zip.file('data.json', JSON.stringify(manifest, null, 2));
+    const dataText = JSON.stringify(manifest, null, 2);
+    if (attachmentBytes + new TextEncoder().encode(dataText).length > limits.maxDecompressedBytes) throw new Error(`${msg('Backup exceeds decompressed size limit (bytes)')}: ${limits.maxDecompressedBytes}`);
+    zip.file('data.json', dataText);
     const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
     if (JSON.stringify(source) !== sourceText) throw new Error(msg('Source changed during export. Retry.'));
     return blob;

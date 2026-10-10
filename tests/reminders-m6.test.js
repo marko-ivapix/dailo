@@ -33,7 +33,7 @@ test('task reminders: open, unfired, in the future and inside the window', () =>
   const state = base({ tasks: [
     task('a', { reminderAt: '2026-10-09T18:00:00', dueDate: '2026-10-10' }),
     task('done', { reminderAt: '2026-10-09T18:00:00', isCompleted: true }),
-    task('fired', { reminderAt: '2026-10-09T18:00:00', reminderFiredAt: NOW }),
+    task('fired', { reminderAt: '2026-10-09T18:00:00', reminderFiredAt: local('2026-10-09', '18:01') }), // fired for this moment (M12 rule)
     task('past', { reminderAt: '2026-10-09T09:59:00' }),
     task('far', { reminderAt: '2026-10-24T09:00:00' }),
     task('utc', { reminderAt: '2026-10-12T06:00:00.000Z' }),

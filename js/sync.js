@@ -16,7 +16,12 @@
   const COLLECTIONS = ['tasks', 'projects', 'tags', 'areas', 'goals', 'habits', 'notes', 'resources', 'templates', 'savedViews'];
   // Per-device settings and fields that never leave the device (attachments sync in V2.1).
   const DEVICE_SETTINGS = ['backupStatus', 'compactDensity'];
-  const DEVICE_FIELDS = { tasks: ['attachmentIds'], notes: ['attachmentIds'], resources: ['attachmentIds'] };
+  // Reminder fired markers are device-local too (audit R-3): a reminder firing on one device must not rewrite the
+  // record for the others. Shadow format 2 hashes records without them; format 1 (V2.0-a) hashed them in.
+  const DEVICE_FIELDS = { tasks: ['attachmentIds', 'reminderFiredAt'], notes: ['attachmentIds'], resources: ['attachmentIds'], goals: ['reminderFiredMoments'], habits: ['reminderFiredMoments'] };
+  const LEGACY_DEVICE_FIELDS = { tasks: ['attachmentIds'], notes: ['attachmentIds'], resources: ['attachmentIds'] };
+  const DEVICE_DEFAULTS = { attachmentIds: [], reminderFiredAt: null, reminderFiredMoments: [] };
+  const SHADOW_FORMAT = 2;
   const PULL_OVERLAP_MS = 5000;
   // Record types this build understands. Rows of any other type come from a newer app version: they are
   // left alone on the server and never enter the shadow, so this build can never push deletions for them.
@@ -67,16 +72,31 @@
   }
 
   // Everything that syncs, keyed "type/id": collection records, the shared settings and habit logs.
-  function collectRecords(state, habitLogs = []) {
+  function collectRecords(state, habitLogs = [], deviceFields = DEVICE_FIELDS) {
     const records = new Map();
     for (const type of COLLECTIONS) {
       for (const item of Array.isArray(state?.[type]) ? state[type] : []) {
-        if (item && typeof item.id === 'string' && item.id) records.set(keyOf(type, item.id), { type, id: item.id, data: clone(omit(item, DEVICE_FIELDS[type] || [])) });
+        if (item && typeof item.id === 'string' && item.id) records.set(keyOf(type, item.id), { type, id: item.id, data: clone(omit(item, deviceFields[type] || [])) });
       }
     }
     if (state?.settings && typeof state.settings === 'object') records.set(keyOf('settings', 'settings'), { type: 'settings', id: 'settings', data: clone(omit(state.settings, DEVICE_SETTINGS)) });
     for (const log of habitLogs || []) if (log && typeof log.id === 'string' && log.id) records.set(keyOf('habitLogs', log.id), { type: 'habitLogs', id: log.id, data: clone(log) });
     return records;
+  }
+
+  // A pulled row without device-local fields (older clients still send the fired markers).
+  const remoteData = row => (COLLECTIONS.includes(row.type) && row.data ? omit(row.data, DEVICE_FIELDS[row.type] || []) : row.data);
+
+  // Shadow format 1 → 2: a record unchanged since the last sync gets its hash without the device-local fields, so
+  // the format change pushes nothing and remote deletions still apply.
+  function upgradeShadow(shadow, state, habitLogs) {
+    const next = { ...shadow };
+    const legacy = collectRecords(state, habitLogs, LEGACY_DEVICE_FIELDS);
+    for (const [key, record] of collectRecords(state, habitLogs)) {
+      const old = legacy.get(key);
+      if (old && own(next, key) && next[key] === hashRecord(old.data)) next[key] = hashRecord(record.data);
+    }
+    return next;
   }
 
   // Fingerprint of the synced records except settings. The app stores it when it creates the first-run examples,
@@ -150,9 +170,10 @@
       }
       const deviceFields = DEVICE_FIELDS[row.type] || [];
       const existing = index >= 0 ? list[index] : null;
-      if (existing && hashRecord(omit(existing, deviceFields)) === hashRecord(row.data)) continue;
-      const record = clone(row.data);
-      for (const field of deviceFields) record[field] = existing && own(existing, field) ? existing[field] : [];
+      const data = remoteData(row);
+      if (existing && hashRecord(omit(existing, deviceFields)) === hashRecord(data)) continue;
+      const record = clone(data);
+      for (const field of deviceFields) record[field] = existing && own(existing, field) ? existing[field] : clone(DEVICE_DEFAULTS[field] ?? null);
       if (index >= 0) list[index] = record;
       else list.push(record);
       changed = true;
@@ -250,6 +271,7 @@
       const local = await readLocal();
       const records = collectRecords(local.state, local.habitLogs);
       let shadow = meta.shadow ? { ...meta.shadow } : null;
+      if (shadow && meta.shadowFormat !== SHADOW_FORMAT) shadow = upgradeShadow(shadow, local.state, local.habitLogs);
       let cursor = meta.cursor || null;
 
       if (!shadow) {
@@ -265,14 +287,15 @@
             .map(record => ({ type: record.type, id: record.id, data: null, deleted: true, updated_at: '' }));
           const result = applyRemote(local.state, local.habitLogs, [...localOnly, ...live]);
           if (result.changed) await writeLocal(result);
-          meta.shadow = Object.fromEntries(live.map(row => [keyOf(row.type, row.id), hashRecord(row.data)]));
+          meta.shadow = Object.fromEntries(live.map(row => [keyOf(row.type, row.id), hashRecord(remoteData(row))]));
+          meta.shadowFormat = SHADOW_FORMAT;
           meta.cursor = latest(remoteRows, null);
           meta.lastSyncAt = new Date(now()).toISOString();
           meta.lastError = null;
           return { status: 'ok', pushed: 0, pulled: live.length };
         }
         if (chosen === 'device') {
-          shadow = Object.fromEntries(live.map(row => [keyOf(row.type, row.id), hashRecord(row.data)]));
+          shadow = Object.fromEntries(live.map(row => [keyOf(row.type, row.id), hashRecord(remoteData(row))]));
           cursor = latest(remoteRows, null);
         } else {
           // Merge: a record on both sides keeps its newer `updatedAt`; otherwise this device's version wins.
@@ -291,6 +314,7 @@
       for (const record of diff.upserts) shadow[keyOf(record.type, record.id)] = hashRecord(record.data);
       for (const record of diff.deletes) delete shadow[keyOf(record.type, record.id)];
       meta.shadow = { ...shadow };
+      meta.shadowFormat = SHADOW_FORMAT;
       meta.cursor = cursor;
 
       const since = cursor ? new Date(Date.parse(cursor) - PULL_OVERLAP_MS).toISOString() : null;
@@ -300,7 +324,7 @@
       const incoming = pulled.filter(row => {
         if (!knownRow(row)) return false;
         const key = keyOf(row.type, row.id);
-        return row.deleted ? own(shadow, key) || currentRecords.has(key) : shadow[key] !== hashRecord(row.data);
+        return row.deleted ? own(shadow, key) || currentRecords.has(key) : shadow[key] !== hashRecord(remoteData(row));
       });
       if (incoming.length) {
         const result = applyRemote(current.state, current.habitLogs, incoming);
@@ -309,9 +333,10 @@
       for (const row of incoming) {
         const key = keyOf(row.type, row.id);
         if (row.deleted) delete shadow[key];
-        else shadow[key] = hashRecord(row.data);
+        else shadow[key] = hashRecord(remoteData(row));
       }
       meta.shadow = shadow;
+      meta.shadowFormat = SHADOW_FORMAT;
       meta.cursor = latest(pulled, cursor);
       meta.lastSyncAt = new Date(now()).toISOString();
       meta.lastError = null;
