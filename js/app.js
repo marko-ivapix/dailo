@@ -840,12 +840,14 @@
   // found again by its id or data attributes. A route change names the page and moves focus to its heading.
   const FOCUS_KEYS = ['action', 'route', 'taskId', 'projectId', 'goalId', 'habitId', 'areaId', 'tagId', 'ownerType', 'ownerId', 'date', 'goalProperty', 'habitProperty', 'milestoneId', 'section', 'filter', 'value'];
   function focusDescriptor(element) {
-    if (!(element instanceof HTMLElement) || element === document.body || !element.closest('#sidebar, #main, #mobile-bottom-nav')) return null;
+    const region = element instanceof HTMLElement && element !== document.body ? element.closest('#sidebar, #main, #mobile-bottom-nav') : null;
+    if (!region) return null;
     // Rendering must never fail on focus bookkeeping, so a missing CSS.escape (old WebViews, jsdom) has a fallback.
     const escape = value => (globalThis.CSS?.escape ? globalThis.CSS.escape(value) : String(value).replace(/["\\\]#.:]/g, '\\$&'));
     if (element.id) return `#${escape(element.id)}`;
     const attrs = FOCUS_KEYS.filter(key => element.dataset[key] !== undefined).map(key => `[data-${key.replace(/[A-Z]/g, c => '-' + c.toLowerCase())}="${escape(element.dataset[key])}"]`).join('');
-    return attrs ? `${element.tagName.toLowerCase()}${attrs}` : null;
+    // Searched within its own region: the same data attributes can appear in another part of the page.
+    return attrs ? `#${region.id} ${element.tagName.toLowerCase()}${attrs}` : null;
   }
   let renderedRoute = null;
   function render() {
