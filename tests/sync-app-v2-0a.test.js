@@ -65,7 +65,8 @@ test('Settings shows the sync card only when sync is configured: e-mail, then co
 
   const view = fields => () => ({ configured: true, signedIn: false, step: 'email', email: '', busy: false, error: '', running: false, lastSyncAt: null, lastError: '', ...fields });
   const email = renderSettings(view({ email: 'ana@example.com', error: 'Enter a valid e-mail address.' }));
-  assert.match(email, /<section class="settings-card" data-settings-sync>\s*<h2>Sync<\/h2>/);
+  // Redesign R10g (M5): the sync card is the "Nalog" group.
+  assert.match(email, /<section class="settings-card" data-settings-sync>\s*<h2>Account<\/h2>/);
   assert.match(email, /<input class="input" id="sync-email" type="email" inputmode="email" autocomplete="email" value="ana@example\.com" \/>/);
   assert.match(email, /data-action="sync-request-code">Send code<\/button>/);
   assert.match(email, /<p class="validation" role="alert">Enter a valid e-mail address\.<\/p>/);

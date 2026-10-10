@@ -76,7 +76,8 @@ test('Settings explains how to install, or confirms the app is installed', () =>
   assert.match(browser, /data-install-status="browser"/);
   assert.match(browser, /Add to Home Screen/);
   assert.match(browser, /kept separately/);
+  // Redesign R10g (M5): "Instaliraj aplikaciju" shows only while Dailo is not installed.
   const installed = renderSettings(true);
-  assert.match(installed, /data-install-status="installed"/);
+  assert.doesNotMatch(installed, /data-install-status/);
   assert.doesNotMatch(installed, /Add to Home Screen/);
 });

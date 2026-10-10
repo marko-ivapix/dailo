@@ -2752,6 +2752,12 @@ a.btn { text-decoration: none; }
 .focus-footer { display: grid; gap: 8px; }
 .focus-footer-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 
+/* Redesign R10g — Podešavanja (M5, M6). */
+.settings-sub { padding-left: 16px; border-left: 2px solid var(--line-1); }
+@media (max-width: 700px), (pointer: coarse) {
+  .settings-desktop { display: none; }
+}
+
 /* Keep primary compact actions touchable after all density rules. */
 @media (max-width: 700px), (pointer: coarse) {
   .task-actions .btn-icon,

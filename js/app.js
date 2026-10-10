@@ -199,8 +199,6 @@
       savedViews: [],
       settings: { ...Core.normalizeV16Settings({}), shortcuts: { ...SHORTCUT_DEFAULTS } },
       ui: {
-        sidebarCollapsed: false,
-        sidebarSections: {},
         suggestionsExpanded: false,
         todayCompletedExpanded: false,
         projectCompletedExpanded: {},
@@ -280,9 +278,7 @@
     const next = Core.migrateStateV16(migrated.state).state;
     next.settings = Core.normalizeV16Settings(next.settings);
     next.ui = next.ui || {};
-    next.ui.sidebarSections = next.ui.sidebarSections || {};
     next.settings.shortcuts = Object.fromEntries(Object.entries(SHORTCUT_DEFAULTS).map(([key,value])=>[key,Object.hasOwn(next.settings.shortcuts || {},key) ? Core.normalizeShortcut(next.settings.shortcuts[key]) : value]));
-    next.ui.sidebarCollapsed = Boolean(next.ui.sidebarCollapsed);
     next.ui.suggestionsExpanded = Boolean(next.ui.suggestionsExpanded);
     next.ui.todayCompletedExpanded = Boolean(next.ui.todayCompletedExpanded);
     next.ui.projectCompletedExpanded = next.ui.projectCompletedExpanded || {};
@@ -665,8 +661,7 @@
       saveShortcut,
       disableShortcut,
       resetShortcuts,
-      savePersonalization,
-      resetPersonalization
+      savePersonalization
     };
   }
 
@@ -841,11 +836,11 @@
         : (a, b) => clampOrder(a.projectOrder) - clampOrder(b.projectOrder) || b.createdAt.localeCompare(a.createdAt));
   }
 
-  // Focus survives a re-render (audit A-2): the focused control in the sidebar, main view or bottom navigation is
+  // Focus survives a re-render (audit A-2): the focused control in the main view or bottom navigation is
   // found again by its id or data attributes. A route change names the page and moves focus to its heading.
   const FOCUS_KEYS = ['action', 'route', 'taskId', 'projectId', 'goalId', 'habitId', 'areaId', 'tagId', 'ownerType', 'ownerId', 'date', 'goalProperty', 'habitProperty', 'milestoneId', 'section', 'filter', 'value'];
   function focusDescriptor(element) {
-    const region = element instanceof HTMLElement && element !== document.body ? element.closest('#sidebar, #main, #mobile-bottom-nav') : null;
+    const region = element instanceof HTMLElement && element !== document.body ? element.closest('#main, #mobile-bottom-nav') : null;
     if (!region) return null;
     // Rendering must never fail on focus bookkeeping, so a missing CSS.escape (old WebViews, jsdom) has a fallback.
     const escape = value => (globalThis.CSS?.escape ? globalThis.CSS.escape(value) : String(value).replace(/["\\\]#.:]/g, '\\$&'));
@@ -875,14 +870,10 @@
     const app = $('#app');
     if (!app) return;
     if (recovery) {
-      app.classList.remove('is-collapsed');
-      $('#sidebar').innerHTML = '';
       $('#main').innerHTML = renderRecovery();
       renderMobileBottomNav();
       return;
     }
-    app.classList.toggle('is-collapsed', Boolean(state.ui.sidebarCollapsed));
-    renderSidebar();
     renderMain();
     renderMobileBottomNav();
   }
@@ -910,64 +901,6 @@
     const badge = $('#mobile-inbox-badge');
     const count = activeInboxRecords('all').length;
     if (badge) { badge.textContent = count > 99 ? '99+' : String(count); badge.hidden = count === 0; }
-  }
-
-  function renderSidebar() {
-    const route = currentRoute();
-    const inboxCount = activeInboxRecords('all').length;
-    const collapsed = state.ui.sidebarCollapsed;
-    const projects = sortedProjects();
-    const pinnedAreas = sortedAreas().filter(area => area.status === 'active' && area.isPinned);
-    const moduleRoute = {project:'projects',area:'areas',note:'notes',resource:'resources',goal:'goals',habit:'habits','saved-view':'saved-views'}[route.type];
-    const link = (path,icon,label) => navItem(path,icon,label,route.type === path || moduleRoute === path || path.startsWith(route.type+'/') && route.id === path.split('/')[1]);
-    const group = (key,label,body) => `<section class="sidebar-section" data-sidebar-section="${key}"><button class="sidebar-section-title sidebar-section-toggle" type="button" data-action="toggle-sidebar-section" data-section="${key}" aria-expanded="${!state.ui.sidebarSections[key]}" aria-controls="sidebar-${key}" title="${label}"><span>${label}</span><i class="ph ${state.ui.sidebarSections[key]?'ph-caret-right':'ph-caret-down'}"></i></button><div class="sidebar-section-body" id="sidebar-${key}" ${state.ui.sidebarSections[key]?'hidden':''}>${body}</div></section>`;
-    $('#sidebar').innerHTML = `
-      <div class="sidebar-header">
-        <div class="brand" title="Dailo ${esc(Release.APP_VERSION)}">
-          <span class="brand-mark" aria-hidden="true"></span>
-          <span class="brand-name">Dailo</span>
-        </div>
-        <button class="btn-icon sidebar-collapse" type="button" data-action="toggle-sidebar" aria-label="${collapsed ? tr('Expand sidebar') : tr('Collapse sidebar')}" title="${collapsed ? tr('Expand sidebar') : tr('Collapse sidebar')}">
-          <i class="ph ph-sidebar-simple"></i>
-        </button>
-      </div>
-      <div class="sidebar-scroll">
-        <nav class="nav-group" aria-label="${tr('Task views')}">
-          ${navItem('today', 'ph-sun', tr('Today'), route.type === 'today', '', 'data-drop-plan="today"')}
-          ${navItem('inbox', 'ph-tray', tr('Inbox'), route.type === 'inbox', inboxCount || '')}
-          ${navItem('upcoming', 'ph-calendar-dots', tr('Upcoming'), route.type === 'upcoming')}
-          ${navItem('calendar', 'ph-calendar-blank', tr('Calendar'), route.type === 'calendar')}
-          <div class="task-context-drop tomorrow-drop-target" data-drop-plan="tomorrow" aria-label="${tr('Drop task to plan for tomorrow')}"><i class="ph ph-arrow-bend-down-right"></i><span>${tr('Tomorrow')}</span></div>
-        </nav>
-
-        ${group('work',tr('WORK'),`
-          ${link('projects','ph-folder',tr('Projects'))}
-          <div class="projects-list" data-drop-context="projects">
-            ${projects.map(project => `
-              <button class="project-item ${route.type === 'project' && route.id === project.id ? 'is-active' : ''}" type="button" data-route="project/${esc(project.id)}" data-project-id="${esc(project.id)}" data-drop-project-id="${esc(project.id)}" draggable="true" title="${esc(project.name)}">
-                <span class="project-dot" style="--project-color:${esc(project.color)}"></span>
-                <span class="project-name">${esc(project.name)}</span>
-              </button>`).join('')}
-          </div>
-          <button class="sidebar-action sidebar-new-project" type="button" data-action="new-project" title="${tr('New project')}">
-            <i class="ph ph-plus"></i><span>${tr('New project')}</span>
-          </button>
-          ${link('areas','ph-squares-four',tr('Areas'))}${link('notes','ph-note',tr('Notes'))}${link('resources','ph-link',tr('Resources'))}${link('tags','ph-tag',tr('Tags'))}${link('cleaning','ph-broom',tr('Cleaning'))}`)}
-        ${group('progress',tr('PROGRESS'),link('goals','ph-target',tr('Goals'))+link('habits','ph-repeat',tr('Habits'))+link('review','ph-clipboard-text',tr('Weekly review')))}
-        ${group('tools',tr('TOOLS'),link('templates','ph-copy',tr('Templates'))+link('saved-views','ph-funnel',tr('Saved Views')))}
-        ${group('pinned-areas',tr('PINNED AREAS'),`<div class="pinned-areas-list">${pinnedAreas.map(area => `<button class="sidebar-action pinned-area ${route.type === 'area' && route.id === area.id ? 'is-active' : ''}" type="button" data-route="area/${esc(area.id)}" title="${esc(area.name)}"><i class="ph ${esc(area.icon)}" style="color:${esc(area.color)}"></i><span>${esc(area.name)}</span></button>`).join('')}</div>`)}
-        ${group('pinned-views',tr('PINNED VIEWS'),state.savedViews.filter(v=>v.isPinned).map(v=>link('saved-view/'+esc(v.id),'ph-funnel',esc(v.name))).join(''))}
-        ${group('more',tr('MORE'),link('completed','ph-check-circle',tr('Completed'))+link('archived','ph-archive',tr('Archived Projects'))+link('settings','ph-gear',tr('Settings')))}
-
-        <div class="sidebar-footer">
-          <button class="sidebar-action" type="button" data-action="open-search" title="${tr('Search')}">
-            <i class="ph ph-magnifying-glass"></i><span>${tr('Search')}</span>
-          </button>
-          <button class="sidebar-action" type="button" data-action="more-menu" title="${tr('More')}">
-            <i class="ph ph-dots-three-outline"></i><span>${tr('More')}</span>
-          </button>
-        </div>
-      </div>`;
   }
 
   function navItem(route, icon, label, active, badge = '', attrs = '') {
@@ -1758,7 +1691,6 @@
     });
     saveAndRender();
   }
-  function resetPersonalization() { state.settings = { ...Core.resetV16Settings(state.settings), weekStartHistory: Core.recordWeekStartChange(state.settings, 'monday', Core.dateOnly()) }; saveAndRender(); }
   const copyTemplate = value => JSON.parse(JSON.stringify(value));
   const TYPE_LABELS = { task: msg('Task'), project: msg('Project'), habit: msg('Habit'), goal: msg('Goal'), note: msg('Note'), resource: msg('Resource'), area: msg('Area'), tag: msg('Tag'), template: msg('Template') };
   const templateLabel = type => (TYPE_LABELS[type] ? tr(TYPE_LABELS[type]) : type[0].toUpperCase() + type.slice(1));
@@ -2543,12 +2475,6 @@
     const tag = getTag(tagId); if (!tag) return;
     const html = `<button class="popover-option" type="button" data-pop-action="edit-tag" data-tag-id="${esc(tagId)}"><i class="ph ph-pencil-simple"></i>${tr('Edit tag')}</button><button class="popover-option" type="button" data-pop-action="delete-tag" data-tag-id="${esc(tagId)}" style="color:var(--danger)"><i class="ph ph-trash"></i>${tr('Delete tag')}</button>`;
     openPopover(anchor, html, { type: 'tag-menu', tagId });
-  }
-
-  function openMoreMenu(anchor) {
-    const route = currentRoute();
-    const html = `<button class="popover-option ${route.type === 'anytime' ? 'is-selected' : ''}" type="button" data-route="anytime"><i class="ph ph-infinity"></i>${tr('Anytime')}</button><button class="popover-option ${route.type === 'archived' ? 'is-selected' : ''}" type="button" data-action="more-route" data-more-route="archived"><i class="ph ph-archive"></i>${tr('Archived Projects')}</button><div class="popover-separator"></div><button class="popover-option ${route.type === 'completed' ? 'is-selected' : ''}" type="button" data-action="more-route" data-more-route="completed"><i class="ph ph-check-circle"></i>${tr('Completed')}</button><button class="popover-option ${route.type === 'settings' ? 'is-selected' : ''}" type="button" data-action="more-route" data-more-route="settings"><i class="ph ph-gear"></i>${tr('Settings')}</button>`;
-    openPopover(anchor, html, { type: 'more' });
   }
 
   // Redesign R3 (E2): every popover is a bottom sheet over a dimmed backdrop, with a grabber, its title and X.
@@ -4696,12 +4622,10 @@
     if (callDomainHook('handleAction', action, event) !== undefined) return;
     if(action==='recurrence-scope'){applyRecurrenceScope(el.dataset.scope);return;}
     if(action==='from-template')openTemplatePicker();
-    else if(action==='toggle-sidebar-section'){const key=el.dataset.section;state.ui.sidebarSections[key]=!state.ui.sidebarSections[key];saveAndRender();}
     else if(action==='more-route'){closePopover();navigate(el.dataset.moreRoute);}
     else if(action==='choose-template')chooseTemplate(el.dataset.templateId);
     else if(action==='template-picker-back'){if(modalState.previous?.type==='goal')closeModal();else{modalState=modalState.previous;renderModal();}}
     else if(action==='use-template')useTemplate(el.dataset.templateId);
-    else if (action === 'toggle-sidebar') { state.ui.sidebarCollapsed = !state.ui.sidebarCollapsed; saveAndRender(); }
     else if (action === 'quick-add') { const context = el.closest('#mobile-quick-add-menu') ? routeQuickAddContext() : { projectId: el.dataset.projectId || null, areaId: el.dataset.areaId || null, today: el.dataset.today === 'true', anytime: el.dataset.anytime === 'true' }; if (context) openQuickAdd(context); else setToastMessage(tr('Restore the project to add tasks.')); }
     else if (action === 'open-task') openTaskDetail(el.dataset.taskId);
     else if (action === 'toggle-focus-task') {
@@ -4728,7 +4652,6 @@
     else if (action === 'save-area-linked') saveAreaLinkedModal();
     else if (action === 'new-tag') openTagModal();
     else if (action === 'tag-menu') openTagMenu(el, el.dataset.tagId);
-    else if (action === 'more-menu') openMoreMenu(el);
     else if (action === 'task-menu') openTaskMenu(el, el.dataset.taskId);
     else if (action === 'attachment-menu') openAttachmentMenu(el, el.dataset.attachmentId);
     else if (action === 'attachment-image-picker') $('#attachment-image-input')?.click();
@@ -4941,6 +4864,8 @@
     if (event.target.matches('[data-task-time]')) { updateTask(event.target.dataset.taskId, { [event.target.dataset.taskTime]: Core.normalizeTime(event.target.value) }, false); render(); return; }
     if (event.target.matches('[data-task-flag]')) { const task = getTask(event.target.dataset.taskId); const field = event.target.dataset.taskFlag; if (task && ['isImportant', 'isUrgent'].includes(field)) { task[field] = event.target.checked; task.updatedAt = nowIso(); saveState(); render(); } return; }
     if (['attachment-input', 'attachment-image-input'].includes(event.target.id)) { receiveAttachmentFiles(event.target.dataset, [...event.target.files]); event.target.value=''; return; }
+    // R10g (M5): the week start and density apply at once; the week-start history is kept (M11).
+    if (['preference-week-start', 'preference-density'].includes(event.target.id)) { savePersonalization(); return; }
     if (event.target.id === 'daily-capacity') { const minutes = Number(event.target.value); if (Number.isInteger(minutes) && minutes >= 0 && minutes <= 1440) { state.settings.dailyCapacityMinutes = minutes; saveAndRender(); } return; }
     if (event.target.id === 'backup-reminder-days') { const days = Number(event.target.value); if (Number.isInteger(days) && days >= 0 && days <= 90) { state.settings.backupReminderDays = days; saveAndRender(); } return; }
     if (event.target.id === 'backup-import-input') { const file=event.target.files?.[0]; event.target.value=''; if(file) inspectImportBackup(file); return; }
@@ -5107,8 +5032,6 @@
     if (dragState.type === 'subtask') {
       const target = event.target.closest('.subtask-row[draggable="true"]'); if (!target || target.dataset.parentTaskId !== dragState.parentId || target.dataset.subtaskId === dragState.id) return; event.preventDefault(); target.classList.add('is-drop-target'); return;
     }
-    const contextTarget = event.target.closest('[data-drop-plan], [data-drop-project-id]');
-    if (contextTarget) { event.preventDefault(); contextTarget.classList.add('is-drop-target'); return; }
     const target = event.target.closest('.task-row[draggable="true"]');
     if (!target || target.dataset.listContext !== dragState.context || target.dataset.taskId === dragState.id) return;
     event.preventDefault(); target.classList.add('is-drop-target');
@@ -5136,39 +5059,9 @@
     } else if (dragState.type === 'subtask') {
       const target = event.target.closest('.subtask-row[draggable="true"]'); if (target && target.dataset.parentTaskId === dragState.parentId) reorderSubtasks(dragState.parentId, dragState.id, target.dataset.subtaskId);
     } else {
-      const contextTarget = event.target.closest('[data-drop-plan], [data-drop-project-id]');
-      if (contextTarget) moveTaskByDrop(dragState.id, contextTarget);
-      else {
-        const target = event.target.closest('.task-row[draggable="true"]'); if (target && target.dataset.listContext === dragState.context) reorderTasks(dragState.context, dragState.id, target.dataset.taskId);
-      }
+      const target = event.target.closest('.task-row[draggable="true"]'); if (target && target.dataset.listContext === dragState.context) reorderTasks(dragState.context, dragState.id, target.dataset.taskId);
     }
     cleanupDrag();
-  }
-
-  function moveTaskByDrop(taskId, target) {
-    const task = getTask(taskId); if (!task || !target) return;
-    if(taskRecurrence(task)){
-      if(target.dataset.dropPlan==='today')requestTaskEdit(taskId,{plannedDate:Core.dateOnly(),isInbox:false,todayOrder:nextOrder('today')});
-      else if(target.dataset.dropPlan==='tomorrow')requestTaskEdit(taskId,{plannedDate:Core.addDays(Core.dateOnly(),1),isInbox:false,todayOrder:null});
-      else if(target.dataset.dropProjectId && getProject(target.dataset.dropProjectId))requestTaskEdit(taskId,{projectId:target.dataset.dropProjectId,areaId:null,isInbox:false,projectOrder:nextOrder(`project:${target.dataset.dropProjectId}`)});
-      return;
-    }
-    const prev = { plannedDate: task.plannedDate, isInbox: task.isInbox, todayOrder: task.todayOrder, projectId: task.projectId, areaId: task.areaId, projectOrder: task.projectOrder };
-    let message = '';
-    if (target.dataset.dropPlan === 'today') {
-      if (task.plannedDate === Core.dateOnly() && !task.isInbox) return;
-      task.plannedDate = Core.dateOnly(); task.isInbox = false; task.todayOrder = nextOrder('today'); message = msg('Task moved to Today');
-    } else if (target.dataset.dropPlan === 'tomorrow') {
-      const tomorrow = Core.addDays(Core.dateOnly(), 1);
-      if (task.plannedDate === tomorrow && !task.isInbox) return;
-      task.plannedDate = tomorrow; task.isInbox = false; task.todayOrder = null; message = msg('Task moved to Tomorrow');
-    } else if (target.dataset.dropProjectId) {
-      const projectId = target.dataset.dropProjectId;
-      if (!getProject(projectId) || (task.projectId === projectId && !task.isInbox)) return;
-      task.projectId = projectId; task.areaId = null; task.isInbox = false; task.projectOrder = nextOrder(`project:${projectId}`); message = msg('Task moved to project');
-    } else return;
-    task.updatedAt = nowIso(); saveState(); render();
-    setUndo(message, () => { const current = getTask(taskId); if (!current) return; Object.assign(current, prev, { updatedAt: nowIso() }); saveState(); render(); });
   }
 
   function handleDragEnd() { cleanupDrag(); }

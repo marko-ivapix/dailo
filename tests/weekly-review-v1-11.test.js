@@ -151,7 +151,6 @@ test('an empty week says so per section; a recorded week shows when it was done 
 test('the app routes, links, notices and records the weekly review', () => {
   const app = read('js/app.js');
   assert.match(app, /'completed', 'review', 'settings'\]\.includes\(hash\)/);
-  assert.match(app, /link\('review','ph-clipboard-text',tr\('Weekly review'\)\)/);
   // Redesign R1: the Još screen replaced the More sheet's route list.
   assert.match(app, /moreRow\('review', 'ph-clipboard-text', tr\('Weekly review'\)\)/);
   assert.match(app, /reviewTaskRow\(task, context, options = \{\}\) \{\s*return taskRow\(task, context, options\);/);

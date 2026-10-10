@@ -106,7 +106,9 @@ test('a completed week keeps its result after the week start changes', () => {
 
 test('the app records week-start changes and passes the history to every habit calculation', () => {
   assert.match(fn(app, 'savePersonalization'), /weekStartHistory: Core\.recordWeekStartChange\(state\.settings, \$\('#preference-week-start'\)\?\.value, Core\.dateOnly\(\)\)/);
-  assert.match(app, /function resetPersonalization\(\) \{ state\.settings = \{ \.\.\.Core\.resetV16Settings\(state\.settings\), weekStartHistory: Core\.recordWeekStartChange\(state\.settings, 'monday', Core\.dateOnly\(\)\) \};/, 'a reset to Monday is a change too');
+  // Redesign R10g (M5): the "reset personalization" button left Settings; the week start applies on change through
+  // savePersonalization, which records the history (above).
+  assert.doesNotMatch(app, /function resetPersonalization\(/);
   for (const file of ['js/app.js', 'js/habits-ui.js', 'js/calendar-ui.js']) {
     const source = read(file);
     for (const call of ['deriveHabitMetrics', 'habitReminderActive', 'habitCompletionForDates', 'habitAnalytics', 'habitPeriodKey']) {
