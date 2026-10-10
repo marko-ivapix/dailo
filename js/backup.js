@@ -276,6 +276,18 @@
       if (!object(dashboard) || dashboard.focusedMode != null && typeof dashboard.focusedMode !== 'boolean') fail('dashboard');
       for (const key of ['sectionOrder', 'pinnedSectionIds']) if (dashboard[key] != null && (!Array.isArray(dashboard[key]) || dashboard[key].some(value => !name(value)) || new Set(dashboard[key]).size !== dashboard[key].length)) fail('dashboard');
     }
+    // R12a: the journal — one entry per day, its id taken from the day; the evening reminder time or null.
+    if (state.journal != null) {
+      if (!Array.isArray(state.journal)) fail('journal');
+      const days = new Set();
+      for (const item of state.journal) {
+        if (!object(item) || !date(item.date) || item.id !== root.TodoCore.journalEntryId(item.date) || days.has(item.date) || typeof item.text !== 'string'
+          || item.mood != null && !(Number.isInteger(item.mood) && item.mood >= 1 && item.mood <= 5)) fail('journal');
+        days.add(item.date);
+        entityTimestamps(item, 'journal');
+      }
+    }
+    if (state.settings?.journalReminderTime != null && root.TodoCore.normalizeTime(state.settings.journalReminderTime) !== state.settings.journalReminderTime) fail('journalReminderTime');
     if (state.settings != null) {
       if (!object(state.settings)) fail('settings');
       enumField(state.settings, 'todayFocusFilter', ['all', 'open', 'completed', 'important', 'dueToday']);

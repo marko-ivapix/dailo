@@ -13,7 +13,7 @@
   // Marks a user-visible error text as a translation key (see js/i18n.js); the app translates it where it is shown.
   const msg = text => text;
 
-  const COLLECTIONS = ['tasks', 'projects', 'tags', 'areas', 'goals', 'habits', 'notes', 'resources', 'templates', 'savedViews'];
+  const COLLECTIONS = ['tasks', 'projects', 'tags', 'areas', 'goals', 'habits', 'notes', 'resources', 'templates', 'savedViews', 'journal'];
   // Per-device settings and fields that never leave the device (attachments sync in V2.1).
   const DEVICE_SETTINGS = ['backupStatus', 'compactDensity'];
   // Reminder fired markers are device-local too (audit R-3): a reminder firing on one device must not rewrite the

@@ -13,6 +13,7 @@ Jednokratno podešavanje servera za sinhronizaciju (V2.0-a). Traje desetak minut
 1. U projektu otvori **SQL Editor → New query**.
 2. Nalepi ceo sadržaj fajla `supabase/migrations/0001_sync.sql` iz repozitorijuma i klikni **Run**.
 3. Treba da piše „Success“. Napravljene su tabele `records` i `record_history`, pravila po kojima svaki korisnik vidi samo svoje podatke, i funkcija za brisanje naloga.
+4. Otvori novi upit (**New query**), nalepi ceo sadržaj fajla `supabase/migrations/0002_journal.sql` i klikni **Run**. On dozvoljava sinhronizaciju Dnevnika. Treba ponovo da piše „Success“.
 
 ## 3. Prijava kodom na e-poštu
 

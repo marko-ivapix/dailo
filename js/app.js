@@ -239,6 +239,7 @@
       resources: [],
       templates: [],
       savedViews: [],
+      journal: [],
       settings: { ...Core.normalizeV16Settings({}), shortcuts: { ...SHORTCUT_DEFAULTS } },
       ui: {
         suggestionsExpanded: false,
@@ -3479,7 +3480,7 @@
   }
 
   function undoDomain() {
-    return JSON.stringify(Object.fromEntries(['tasks','projects','tags','areas','goals','habits','notes','resources','templates','savedViews'].map(name => [name, state?.[name]])));
+    return JSON.stringify(Object.fromEntries(['tasks','projects','tags','areas','goals','habits','notes','resources','templates','savedViews','journal'].map(name => [name, state?.[name]])));
   }
 
   const deleteLifecycle = {

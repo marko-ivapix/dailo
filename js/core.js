@@ -1735,12 +1735,30 @@
     return project && project.areaId ? project.areaId : null;
   }
 
+  // R12a: the journal — one entry per day; the id is the day so two devices meet in one record.
+  const isJournalDate = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && dateOnly(parseDateOnly(value)) === value;
+  function journalEntryId(date) {
+    return `journal_${date}`;
+  }
+  function normalizeJournalEntry(item) {
+    return { ...item, text: typeof item.text === 'string' ? item.text : '', mood: Number.isInteger(item.mood) && item.mood >= 1 && item.mood <= 5 ? item.mood : null };
+  }
+  function journalEntryFor(state, date) {
+    return (state?.journal || []).find(item => item.date === date) || null;
+  }
+  // When the evening journal notice appears (J6): a local time, or null when it is off; 20:00 when unset.
+  function journalReminderTime(settings) {
+    const value = settings?.journalReminderTime;
+    if (value === null) return null;
+    return normalizeTime(value) || '20:00';
+  }
+
   function collectionIsValid(state, key) {
     return Array.isArray(state[key]);
   }
 
   function invalidV3Collection(input) {
-    return ['tasks', 'projects', 'tags', 'areas', 'goals', 'habits', 'notes', 'resources', 'templates', 'savedViews']
+    return ['tasks', 'projects', 'tags', 'areas', 'goals', 'habits', 'notes', 'resources', 'templates', 'savedViews', 'journal']
       .find(key => Object.hasOwn(input, key) && !Array.isArray(input[key]));
   }
 
@@ -1823,7 +1841,7 @@
 
   function duplicateEntityId(state) {
     const seen = new Set();
-    for (const key of ['tasks', 'projects', 'tags', 'areas', 'goals', 'habits', 'notes', 'resources', 'templates', 'savedViews']) {
+    for (const key of ['tasks', 'projects', 'tags', 'areas', 'goals', 'habits', 'notes', 'resources', 'templates', 'savedViews', 'journal']) {
       for (const item of state[key] || []) {
         if (seen.has(item.id)) return item.id;
         seen.add(item.id);
@@ -1898,7 +1916,7 @@
   function validateStateV3(state, migrated = false) {
     if (!state || typeof state !== 'object' || state.version !== 3) return { ok: false, reason: 'unsupported-version' };
     // Older V3 recovery destinations can predate these optional collections.
-    state = { notes: [], resources: [], ...state };
+    state = { notes: [], resources: [], journal: [], ...state };
     const collections = ['tasks', 'projects', 'tags', 'areas', 'goals', 'habits', 'notes', 'resources', 'templates', 'savedViews'];
     for (const key of collections) {
       if (!collectionIsValid(state, key)) return { ok: false, reason: `invalid-${key}` };
@@ -1913,6 +1931,11 @@
     if (!objectIdsAreValid(state.habits)) return { ok: false, reason: 'invalid-habit' };
     if (!objectIdsAreValid(state.templates)) return { ok: false, reason: 'invalid-template' };
     if (!objectIdsAreValid(state.savedViews)) return { ok: false, reason: 'invalid-saved-view' };
+    // R12a: one journal entry per day, its id taken from the day.
+    if (!Array.isArray(state.journal) || state.journal.some(item => !item || typeof item !== 'object' || !isJournalDate(item.date) || item.id !== journalEntryId(item.date)
+      || typeof item.text !== 'string' || !(item.mood === null || Number.isInteger(item.mood) && item.mood >= 1 && item.mood <= 5)
+      || !isIsoTimestamp(item.createdAt) || !isIsoTimestamp(item.updatedAt))
+      || new Set(state.journal.map(item => item.date)).size !== state.journal.length) return { ok: false, reason: 'invalid-journal' };
     if (duplicateEntityId(state)) return { ok: false, reason: 'duplicate-id' };
     const malformedField = invalidExplicitV3Field(state);
     if (malformedField) return { ok: false, reason: malformedField };
@@ -2006,6 +2029,7 @@
     }
     state.goals = state.goals.map(goal => goal && ({ horizon: 'short', ...goal }));
     state.habits = state.habits.map(habit => habit && ({ routine: 'daily', ...habit }));
+    state.journal = Array.isArray(state.journal) ? state.journal.map(item => (item && typeof item === 'object' ? normalizeJournalEntry(item) : item)) : [];
     if (!Array.isArray(state.tasks) || !Array.isArray(state.projects)) return { ok: false, reason: 'invalid-state' };
     state.tasks = state.tasks.map(task => {
       const recurrence=normalizeRecurrenceV3(task.recurrence);
@@ -2093,6 +2117,9 @@
     firstRecurrenceDate,
     upcomingRecurrenceDates,
     recurrenceDayShift,
+    journalEntryId,
+    journalEntryFor,
+    journalReminderTime,
     normalizeRecurrenceV3,
     shouldGenerateRecurrence,
     splitRecurrenceForFuture,
