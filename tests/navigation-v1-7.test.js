@@ -11,7 +11,8 @@ const calendar = fs.readFileSync(require.resolve('../js/calendar-ui.js'), 'utf8'
 // under Zadaci, and Search is the magnifier in every page header. R7 (C9): Upcoming is the Calendar's Predstojeće.
 const moreRoutes = [
   ['areas', 'Areas'], ['tags', 'Tags'], ['notes', 'Notes'], ['resources', 'Resources'],
-  ['cleaning', 'Cleaning'], ['templates', 'Templates'], ['saved-views', 'Saved Views'],
+  // R11d (S4, M4): Čišćenje is now "Redovne obaveze".
+  ['cleaning', 'Recurring tasks'], ['templates', 'Templates'], ['saved-views', 'Saved Views'],
   ['completed', 'Completed'], ['archived', 'Archived Projects'], ['goals', 'Goals'], ['review', 'Weekly review'],
   ['settings', 'Settings']
 ];

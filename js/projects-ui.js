@@ -53,7 +53,8 @@
   // Redesign R10e (S10): one card; a row opens the read-only project and "Vrati" restores it (with Undo).
   function renderArchivedProjects(ctx) {
     const { allProjects, projectTasks, pageHeader, emptyState, esc, getArea } = ctx;
-    const projects = allProjects().filter(project => project.isArchived);
+    // R11d (S4): archived groups fold on Redovne obaveze instead.
+    const projects = allProjects().filter(project => project.isArchived && !project.isCleaningRoom);
     const html = pageHeader(tr('Archived Projects'), trn(projects.length, '{count} archived project', '{count} archived projects'), { add: false });
     if (!projects.length) return html + emptyState(tr('No archived projects.'), tr('Archived projects stay here until you restore them.'));
     return `${html}<div class="today-card archived-list">${projects.map(project => {

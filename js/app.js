@@ -628,7 +628,7 @@
       getHabit, habitMetrics, habitDraft, openHabitModal, refreshHabitMetrics,
       setHabitLog, updateHabitStatus, snoozeHabit, syncHabitGoalLinks,
       areaDefaults: { color: PROJECT_COLORS[0], icon: AREA_ICONS[0] },
-      Core, getTask, getGoal, getProject, allProjects, sortedProjects, projectTasks, goalProgressLabel, goalStatusLabel, relativeDateLabel, formatReminder, recurrenceLabel, priorityLabel, priorityIcon, tagSummary, clampOrder, emptyState,
+      Core, getTask, getGoal, getProject, allProjects, sortedProjects, projectTasks, goalProgressLabel, goalStatusLabel, relativeDateLabel, formatReminder, recurrenceLabel, taskRecurrence, priorityLabel, priorityIcon, tagSummary, clampOrder, emptyState,
       render, restoreGoalFocus, captureGoalProgress, evaluateGoalProgressChanges,
       putGoalHistory, goalDraft, openGoalModal, openPopover, templateMenuEntry, syncGoalLinks,
       maybePromptGoalReached, updateGoalStatus, saveAndRender,
@@ -663,6 +663,7 @@
       openProjectModal, saveProjectModal, archiveProject, restoreProject, deleteProject,
       openQuickAdd, openGoalModal, openHabitModal,
       renderAreaTaskRow(task, areaId) { return taskRow(task, `area:${areaId}`, { today: true }); },
+      renderChoreRow(task, options = {}) { return taskRow(task, 'cleaning', { today: true, metaText: options.metaText, sideHtml: options.sideHtml }); },
       renderGoalListRow(goal) { return callDomainHook('renderRoute', { type: 'goal-list-row', goal }) || ''; },
       renderHabitListRow(habit) { return callDomainHook('renderRoute', { type: 'habit-list-row', habit }) || ''; },
       projectOverviewRow(project) { return projectOverviewRow(project, listTasks()); },
@@ -1159,6 +1160,11 @@
   function moreRow(route, icon, label, value = '', sub = '') {
     return `<button class="mobile-more-route more-row" type="button" data-route="${esc(route)}"><i class="ph ${icon}" aria-hidden="true"></i><span class="more-row-label">${esc(label)}${sub ? `<small>${esc(sub)}</small>` : ''}</span>${value !== '' ? `<span class="more-row-value">${esc(String(value))}</span>` : ''}<i class="ph ph-caret-right more-row-caret" aria-hidden="true"></i></button>`;
   }
+  // R11d (S4): an open task whose repeat is active or paused, outside Inbox and archived projects or groups.
+  function isOpenRepeating(task) {
+    const rule = taskRecurrence(task);
+    return Boolean(rule && rule.status !== 'ended' && !task.isCompleted && !task.isInbox && !getProject(task.projectId)?.isArchived);
+  }
   function renderMoreScreen() {
     const card = (title, rows) => `<section class="more-group">${title ? `<h2 class="more-group-title">${title}</h2>` : ''}<div class="more-card">${rows.join('')}</div></section>`;
     const pinned = [
@@ -1173,7 +1179,7 @@
     html += card(tr('Planning'), [
       moreRow('goals', 'ph-target', tr('Goals'), count((state.goals || []).filter(goal => goal.status === 'active'))),
       moreRow('areas', 'ph-squares-four', tr('Areas'), count((state.areas || []).filter(area => area.status !== 'archived'))),
-      moreRow('cleaning', 'ph-broom', tr('Cleaning')),
+      moreRow('cleaning', 'ph-arrows-clockwise', tr('Recurring tasks'), count(state.tasks.filter(isOpenRepeating))),
       moreRow('review', 'ph-clipboard-text', tr('Weekly review')),
     ]);
     html += card(tr('Library'), [
@@ -1185,7 +1191,7 @@
     ]);
     html += card(tr('Archives'), [
       moreRow('completed', 'ph-check-circle', tr('Completed'), count(state.tasks.filter(task => task.isCompleted))),
-      moreRow('archived', 'ph-archive', tr('Archived Projects'), count(state.projects.filter(project => project.isArchived))),
+      moreRow('archived', 'ph-archive', tr('Archived Projects'), count(state.projects.filter(project => project.isArchived && !project.isCleaningRoom))),
     ]);
     html += card('', [moreRow('settings', 'ph-gear', tr('Settings'), '', syncText)]);
     return html;
@@ -1210,7 +1216,8 @@
   function renderTasksScreen() {
     const view = state.ui.tasksView === 'projects' ? 'projects' : 'anytime';
     const tasks = listTasks();
-    const projects = sortedProjects();
+    // R11d (S4): groups of Redovne obaveze stay out of Zadaci → Projekti.
+    const projects = sortedProjects().filter(project => !project.isCleaningRoom);
     const later = Core.deriveAnytime(tasks);
     const open = tasks.filter(task => !task.isCompleted && !task.isInbox).length;
     const summary = `${trn(open, '{count} open task', '{count} open tasks')} · ${trn(projects.length, '{count} project', '{count} projects')}`;

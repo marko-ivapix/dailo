@@ -216,8 +216,7 @@ test('the R11c layer and the Serbian labels', () => {
   assert.match(app, /\['pause-recurrence','resume-recurrence','skip-recurrence','end-recurrence'\]\.includes\(action\)\) controlRecurrence\(button\.dataset\.taskId,action\);/);
 });
 
-test('R11c is released as 2.0.0-alpha.28', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.28');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.28';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.28');
+test('R11c shipped as 2.0.0-alpha.28 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 99) >= 28);
 });

@@ -2769,6 +2769,22 @@ a.btn { text-decoration: none; }
 .sheet-option.is-danger { color: var(--danger); }
 .modal .sheet-subtitle { margin: -6px 0 12px; }
 
+/* Redesign R11d — Redovne obaveze (S4). */
+.cleaning-chips { margin: 4px 0 12px; }
+.cleaning-add-group { color: var(--blue-300); }
+.cleaning-add { margin: 0; border-top: 1px solid var(--line-1); border-radius: 0; }
+.cleaning-section { margin-top: 18px; }
+.cleaning-section-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.cleaning-section-title { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--ink-1); font-size: 15px; font-weight: 600; }
+.cleaning-section-count { color: var(--ink-3); font-weight: 500; }
+.cleaning-section-kind { color: var(--ink-3); font-size: 12px; }
+.cleaning-project-link { display: inline-flex; align-items: center; gap: 8px; padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
+.cleaning-done-toggle { margin-top: 8px; }
+.cleaning-archived-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; }
+.cleaning-archived-name { display: grid; gap: 2px; color: var(--ink-1); }
+.cleaning-archived-name small { color: var(--ink-3); font-size: 12px; }
+.cleaning-note { margin-top: 18px; }
+
 /* Keep primary compact actions touchable after all density rules. */
 @media (max-width: 700px), (pointer: coarse) {
   .task-actions .btn-icon,
