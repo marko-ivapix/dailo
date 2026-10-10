@@ -65,23 +65,26 @@ test('analytics retains recorded pre-today pause-boundary logs as historical evi
   ]);
 });
 
-test('habit detail renders a compact read-only analytics summary, chart, and heatmap', () => {
+// Redesign R8c (S13): the habit page's analytics strip, chart and heatmap became the details window's four numbers
+// and month calendar; rendering still never mutates the logs.
+test('habit details render the four numbers and the month calendar without changing the logs', () => {
   const adapters = {};
   const window = { TodoDomainModules: { register: adapter => { adapters[adapter.name] = adapter; } } };
   runInNewContextWithI18n(fs.readFileSync(require.resolve('../js/habits-ui.js'), 'utf8'), { window, requestAnimationFrame: fn => fn() });
   const habit = { id: 'h', name: 'Read', status: 'active', trackingType: 'checkbox', targetValue: 1, startDate: '2026-09-14', frequencyType: 'daily', routine: 'daily', quickValues: [], minimumTarget: null, idealTarget: null, graceDays: 0 };
   const logs = [{ habitId: 'h', date: '2026-09-14', status: 'done' }, { habitId: 'h', date: '2026-09-15', status: 'done' }];
   const ctx = {
-    Core: { ...Core, dateOnly: () => '2026-09-17' }, state: { habits: [habit], areas: [], goals: [], habitLogCache: { h: logs }, settings: {}, ui: {} },
-    esc: value => String(value ?? '').replace(/</g, '&lt;'), getHabit: () => habit, getArea: () => null,
-    pageHeader: () => '', habitMetrics: item => Core.deriveHabitMetrics(item, logs, '2026-09-17'),
-    habitFrequencyLabel: () => 'Daily', habitProgressLabel: () => '0 / 1',
+    Core: { ...Core, dateOnly: date => (date ? Core.dateOnly(date) : '2026-09-17') }, state: { habits: [habit], areas: [], goals: [], habitLogCache: { h: logs }, settings: { weekStartsOn: 'monday' }, ui: {} },
+    esc: value => String(value ?? '').replace(/</g, '&lt;'), getHabit: () => habit, getArea: () => null, formatDate: value => value,
+    modalState: { type: 'habit-details', habitId: 'h', month: '2026-09' }, modalFrame: content => content,
+    habitMetrics: item => Core.deriveHabitMetrics(item, logs, '2026-09-17'),
   };
 
-  const html = adapters.habits.renderRoute({ type: 'habit', id: 'h' }, ctx);
+  const html = adapters.habits.renderRoute({ type: 'modal', modalType: 'habit-details' }, ctx);
 
-  assert.match(html, /data-habit-analytics/);
-  assert.match(html, /data-habit-analytics-chart/);
-  assert.match(html, /data-habit-analytics-heatmap/);
+  assert.match(html, /<div class="habit-details-tile"><strong>2 days<\/strong><span>Longest streak<\/span><\/div><div class="habit-details-tile"><strong>2<\/strong><span>Total check-ins<\/span>/);
+  assert.match(html, /<button class="habit-cell is-done" type="button" data-action="habit-today-toggle" data-habit-id="h" data-date="2026-09-14"/);
+  assert.match(html, /data-date="2026-09-16" aria-label="2026-09-16: Missed"/);
+  assert.match(html, /data-date="2026-09-13" disabled aria-label="2026-09-13: Not scheduled"/, 'before the start');
   assert.deepEqual(logs, [{ habitId: 'h', date: '2026-09-14', status: 'done' }, { habitId: 'h', date: '2026-09-15', status: 'done' }]);
 });

@@ -61,7 +61,6 @@
   let modalReturnFocus = null;
   let popoverReturnFocus = null;
   let goalPropertyEditor = null;
-  let habitPropertyEditor = null;
   let createdGoalFocusId = null;
   const knowledgeAttachmentCache = new Map();
   let syncMeta = null;
@@ -581,8 +580,6 @@
       setModalState(value) { modalState = value; },
       get goalPropertyEditor() { return goalPropertyEditor; },
       set goalPropertyEditor(value) { goalPropertyEditor = value; },
-      get habitPropertyEditor() { return habitPropertyEditor; },
-      set habitPropertyEditor(value) { habitPropertyEditor = value; },
       get popoverEl() { return popoverEl; },
       getHabit, habitMetrics, habitDraft, openHabitModal, refreshHabitMetrics,
       setHabitLog, updateHabitStatus, snoozeHabit, syncHabitGoalLinks,
@@ -600,7 +597,7 @@
       openGoalHistory,
       nowIso, uid, copyTemplate, saveState, navigate, setToastMessage, requestDeleteEntity, openConfirm, setUndo,
       calendarDate, parseLocalDate, formatDate, navigateCalendar, openPlanPicker, listTasks, deadlineRow,
-      refreshSheet,
+      refreshSheet, openHabitDetails,
       openHabitStartSheet(anchor) { openDateSheet(anchor, { type: 'habit' }, 'start'); },
       calendarTaskRow(task) { return taskRow(task, 'calendar', { today: true }); },
       templateTypes: TEMPLATE_TYPES, templateLabel, openTemplateEditorFromSource, saveTemplateRecord, duplicateTemplateRecord,
@@ -706,6 +703,9 @@
   function navigate(route) {
     closePopover();
     closeModal();
+    // Redesign R8c (S13): a habit's details open as a window over the current screen.
+    const habitRoute = /^#?habit\/(.+)$/.exec(route);
+    if (habitRoute) { openHabitDetails(decodeURIComponent(habitRoute[1])); return; }
     const target = route.startsWith('#') ? route : `#${route}`;
     if (location.hash === target) render();
     else location.hash = target;
@@ -985,6 +985,8 @@
       else content = renderToday();
     }
     main.innerHTML = `${warning}<div class="content ${route.type === 'calendar' && state.ui.calendarView !== 'upcoming' ? 'calendar-content' : ''}">${content}</div>`;
+    // An old #habit/<id> address shows the Habits screen with the details window on top (R8c).
+    if (route.type === 'habit') { history.replaceState(null, '', '#habits'); openHabitDetails(route.id); }
     if (createdGoalFocusId && route.type === 'goal' && route.id === createdGoalFocusId) {
       createdGoalFocusId = null;
       restoreGoalFocus(goalFocusTarget(main.querySelector('[data-goal-property="title"]')));
@@ -1320,8 +1322,11 @@
     const today = Core.dateOnly();
     if (!habit || !Core.parseDateOnly(date) || date > today || (date === today && habit.status !== 'active')) return;
     const existing = state.habitLogCache?.[habitId]?.find(log => log.date === date);
-    captureModalReturnFocus();
+    // From the details window the sheet returns there when it closes (R8c).
+    const previous = modalState?.type === 'habit-details' ? modalState : null;
+    if (!previous) captureModalReturnFocus();
     modalState = { type: 'habit-value', habitId, date, total: Number(existing?.value || 0) };
+    if (previous) modalState.previous = previous;
     renderModal();
     requestAnimationFrame(() => $('#habit-value-total')?.focus());
   }
@@ -1562,6 +1567,16 @@
     renderModal(); requestAnimationFrame(() => $('#habit-name')?.focus());
   }
 
+  // Redesign R8c (S13): a habit's details open as a window over the current screen.
+  function openHabitDetails(habitId) {
+    if (!getHabit(habitId)) return;
+    closePopover();
+    if (modalState?.type !== 'habit-details') captureModalReturnFocus();
+    modalState = { type: 'habit-details', habitId, month: Core.dateOnly().slice(0, 7), draft: null };
+    renderModal();
+    requestAnimationFrame(() => $('#modal-root [data-action="close-modal"]')?.focus());
+  }
+
   function openConfirm(config) {
     captureModalReturnFocus();
     closePopover();
@@ -1571,6 +1586,7 @@
 
   function closeModal() {
     if (modalState?.type === 'focus') stopFocusTimer();
+    if (modalState?.type === 'habit-value' && modalState.previous) { modalState = modalState.previous; renderModal(); return; }
     if (modalState?.previous?.type === 'goal') {
       const target = modalState.returnFocus; modalState = modalState.previous; renderModal(); restoreGoalFocus(target); return;
     }
@@ -1608,7 +1624,7 @@
       $('.modal-inner',root)?.insertAdjacentHTML('afterbegin',`<button class="btn btn-ghost" type="button" data-action="from-template"><i class="ph ph-copy"></i> ${tr('From template')}</button>`);
     }
     if (['confirm','recurrence-scope'].includes(modalState?.type)) requestAnimationFrame(() => root.querySelector('.modal button, .modal [href], .modal input, .modal select, .modal textarea, .modal [tabindex]:not([tabindex="-1"])')?.focus());
-    if (['goal', 'goal-source', 'goal-links', 'goal-reminders', 'goal-history', 'milestone', 'habit-settings'].includes(modalState?.type)) requestAnimationFrame(() => ([...root.querySelectorAll('input, select, textarea')].find(el => el.offsetParent !== null) || root.querySelector('.modal-footer [data-action="close-modal"]'))?.focus());
+    if (['goal', 'goal-source', 'goal-links', 'goal-reminders', 'goal-history', 'milestone'].includes(modalState?.type)) requestAnimationFrame(() => ([...root.querySelectorAll('input, select, textarea')].find(el => el.offsetParent !== null) || root.querySelector('.modal-footer [data-action="close-modal"]'))?.focus());
   }
 
   function modalFrame(content, cls = '', dialogAttrs = '') {
@@ -3610,7 +3626,7 @@
       reportStorageFailure(rollbackError ? new AggregateError([error, rollbackError], msg('Habit check-in failed and rollback needs attention.')) : error);
       return null;
     }
-    evaluateGoalProgressChanges(before); await evaluateHabitBoundaries(); render(); return true;
+    evaluateGoalProgressChanges(before); await evaluateHabitBoundaries(); render(); if (modalState?.type === 'habit-details') renderModal(); return true;
   }
 
   async function evaluateHabitBoundaries() {
@@ -4594,8 +4610,6 @@
     if (pop) { if (callDomainHook('handleAction', pop.dataset.popAction, event) === undefined) handlePopoverAction(pop); return; }
     const goalProperty = event.target.closest('[data-goal-property]');
     if (goalProperty && callDomainHook('handleAction', 'goal-property', event) !== undefined) return;
-    const habitProperty = event.target.closest('[data-habit-property]');
-    if (habitProperty && callDomainHook('handleAction', 'habit-property', event) !== undefined) return;
 
     const el = event.target.closest('[data-action]');
     if (!el) {
@@ -4883,9 +4897,6 @@
     if (handleAreaTabKeydown(event)) return;
     const typing = target && (target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"]') || target.isContentEditable);
     if (goalPropertyEditor && !modalState && !popoverEl && (event.key === 'Escape' || (event.key === 'Enter' && typing && !event.isComposing))) {
-      if (callDomainHook('handleInput', event) !== undefined) return;
-    }
-    if (habitPropertyEditor && !modalState && !popoverEl && (event.key === 'Escape' || (event.key === 'Enter' && typing && !event.isComposing))) {
       if (callDomainHook('handleInput', event) !== undefined) return;
     }
     if (popoverEl && event.key === 'Tab') { trapPopoverFocus(event); return; }
@@ -5266,7 +5277,7 @@
   // Android Back works like Escape: it closes the top sheet, menu, popover, inline editor or dialog and reports
   // whether anything closed; otherwise the platform goes to the previous screen or minimizes (audit P-3, M4).
   // A reset or restore that is already running is never interrupted.
-  const overlaySnapshot = () => [$('#mobile-quick-add-toggle')?.getAttribute('aria-expanded'), popoverEl, modalState, goalPropertyEditor, habitPropertyEditor, document.activeElement];
+  const overlaySnapshot = () => [$('#mobile-quick-add-toggle')?.getAttribute('aria-expanded'), popoverEl, modalState, goalPropertyEditor, document.activeElement];
   function handleBackButton() {
     if (globalOperation?.busy) return true;
     const before = overlaySnapshot();

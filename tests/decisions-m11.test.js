@@ -60,9 +60,10 @@ test('metrics, completion and the weekly chart score each week with its own targ
   assert.equal(Core.habitCompletionForDates(changed, logs, ['2026-09-29', '2026-10-01'], '2026-10-09', 'monday'), 100);
 });
 
+// Redesign R8c: the settings panels gave way to the details window, which saves through commitHabitDetails.
 test('both habit save paths record a weekly target change for the current week', () => {
   const habitsUi = read('js/habits-ui.js');
-  for (const name of ['saveHabitModal', 'saveHabitSettings']) {
+  for (const name of ['saveHabitModal', 'commitHabitDetails']) {
     assert.match(fn(habitsUi, name), /Core\.recordHabitTargetChange\(habit, [^;]+Core\.habitPeriodKey\(\{ frequencyType: 'timesPerWeek' \}, Core\.dateOnly\(\), Core\.habitWeekRule\((ctx\.)?state\.settings\)\)\)/, name);
   }
 });

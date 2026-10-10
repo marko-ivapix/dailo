@@ -2564,6 +2564,28 @@ a.btn { text-decoration: none; }
 .habit-reminder-time .input { flex: 1; }
 .habit-reminder-add { margin: 2px 0 4px; }
 
+/* Redesign R8c — the habit details window (S13). */
+.habit-details .modal-header { margin-bottom: 0; }
+.habit-details-today { margin-top: 2px; }
+.habit-details-title { margin: 4px 2px 2px; color: var(--ink-1); font-size: 22px; font-weight: 600; overflow-wrap: anywhere; }
+.habit-details-meta { margin: 0 2px 12px; color: var(--ink-3); font-size: 13px; }
+.habit-details-today-line { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 6px 2px 0; color: var(--ink-3); font-size: 13px; }
+.habit-details-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+.habit-details-tile { display: grid; gap: 2px; padding: 10px 12px; border: 1px solid var(--line-1); border-radius: var(--radius-md); background: var(--graphite-850); }
+.habit-details-tile strong { color: var(--ink-1); font-size: 20px; font-variant-numeric: tabular-nums; }
+.habit-details-tile span { color: var(--ink-3); font-size: 12px; }
+.habit-details-month { margin-top: 14px; }
+.habit-details-month-head { display: flex; align-items: center; justify-content: space-between; margin: 0 2px 6px; color: var(--ink-1); font-weight: 600; }
+.habit-details-calendar { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; justify-items: center; }
+.habit-details-weekday { color: var(--ink-3); font-size: 11px; }
+.habit-details-calendar .habit-cell { width: 32px; height: 32px; color: var(--ink-2); font: inherit; font-size: 12px; }
+.habit-details-calendar .habit-cell.is-done { color: var(--graphite-900); font-weight: 600; }
+.habit-details-calendar .habit-cell.is-unscheduled { width: 32px; height: 32px; border: 0; background: none; color: var(--ink-4); }
+.habit-details-label { margin: 16px 2px 6px; color: var(--ink-3); font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+.habit-details-insight { gap: 6px; padding: 10px 14px; color: var(--ink-1); font-size: 14px; }
+.habit-details-insight p { margin: 0; }
+.habit-details-status { width: 100%; min-height: 48px; }
+
 /* Keep primary compact actions touchable after all density rules. */
 @media (max-width: 700px), (pointer: coarse) {
   .task-actions .btn-icon,

@@ -13,106 +13,6 @@
   const statusLabel = status => (Object.prototype.hasOwnProperty.call(STATUS_LABELS, status) ? tr(STATUS_LABELS[status]) : status);
   const routineLabel = routine => (ROUTINES[routine || 'daily'] ? tr(ROUTINES[routine || 'daily']) : '');
 
-  function routineOptions(value) {
-    return Object.entries(ROUTINES).map(([key, label]) => `<option value="${key}" ${(value || 'daily') === key ? 'selected' : ''}>${tr(label)}</option>`).join('');
-  }
-
-  function openHabitProperty(ctx, element) {
-    const { getHabit, render, $, goalFocusTarget } = ctx;
-    const habit = getHabit(element.dataset.habitId); if (!habit) return;
-    const field = element.dataset.habitProperty;
-    ctx.habitPropertyEditor = { habit, field, value: field === 'quickValues' ? (habit.quickValues || []).join(', ') : habit[field] ?? '', returnFocus: goalFocusTarget(element) };
-    render(); requestAnimationFrame(() => $('#habit-detail-' + ctx.habitPropertyEditor?.field)?.focus());
-  }
-
-  function cancelHabitProperty(ctx) {
-    const { render, restoreGoalFocus } = ctx;
-    const target = ctx.habitPropertyEditor?.returnFocus; ctx.habitPropertyEditor = null; render(); restoreGoalFocus(target);
-  }
-
-  function saveHabitProperty(ctx) {
-    const { getHabit, $, state, render, nowIso, saveState, restoreGoalFocus } = ctx;
-    const editor = ctx.habitPropertyEditor;
-    if (!editor || getHabit(editor.habit.id) !== editor.habit) { cancelHabitProperty(ctx); return; }
-    const { habit, field } = editor; editor.value = $('#habit-detail-' + field)?.value ?? editor.value;
-    const targetField = ['minimumTarget', 'idealTarget'].includes(field);
-    const value = targetField ? (String(editor.value).trim() === '' ? null : Number(editor.value)) : ['targetValue', 'graceDays'].includes(field) ? Number(editor.value) : field === 'areaId' ? editor.value || null : field === 'quickValues' ? String(editor.value).split(',').map(item => Number(item.trim())).filter(item => Number.isFinite(item) && item > 0) : String(editor.value).trim();
-    const fractionalTarget = habit.trackingType === 'numeric' && habit.frequencyType !== 'timesPerWeek';
-    const invalidTarget = targetField && value !== null && (!Number.isFinite(value) || value <= 0 || !fractionalTarget && !Number.isInteger(value));
-    const minimum = field === 'minimumTarget' ? value : habit.minimumTarget;
-    const ideal = field === 'idealTarget' ? value : habit.idealTarget;
-    const targetError = invalidTarget ? (fractionalTarget ? tr('Enter a number above zero, or leave blank.') : tr('Enter a whole number above zero, or leave blank.')) : field === 'graceDays' && (!Number.isInteger(value) || value < 0) ? tr('Enter zero or more whole days.') : targetField && minimum && ideal && minimum > ideal ? tr('Ideal target must be at least the minimum target.') : '';
-    if (targetError) { editor.error = targetError; render(); requestAnimationFrame(() => $('#habit-detail-' + field)?.focus()); return; }
-    const hasHistory = (state.habitLogCache?.[habit.id] || []).length > 0;
-    const error = field === 'name' && !value ? tr('Habit needs a name.') : field === 'targetValue' && habit.trackingType === 'numeric' && (!Number.isFinite(value) || value <= 0) ? tr('Numeric habits need a target above zero.') : field === 'trackingType' && value !== habit.trackingType && hasHistory ? tr('Tracking cannot change while this Habit has history.') : '';
-    if (error) { editor.error = error; render(); requestAnimationFrame(() => $('#habit-detail-' + field)?.focus()); return; }
-    const old = habit[field];
-    if (JSON.stringify(old) !== JSON.stringify(value)) { habit[field] = value; habit.updatedAt = nowIso(); saveState(); }
-    const target = editor.returnFocus; ctx.habitPropertyEditor = null; render(); restoreGoalFocus(target);
-  }
-
-  function openHabitSettings(ctx, element) {
-    const { getHabit, state, Core, habitDraft, goalFocusTarget, renderModal } = ctx;
-    const habit = getHabit(element.dataset.habitId); if (!habit) return;
-    const logs = state.habitLogCache?.[habit.id] || []; const today = Core.dateOnly(); const todayLog = logs.find(log => log.date === today);
-    ctx.setModalState({ type: 'habit-settings', panel: element.dataset.habitPanel, habitId: habit.id, source: habit, draft: { ...habitDraft(habit), historyDate: today, historyValue: todayLog?.value ?? 0, historyStatus: todayLog?.status || 'done' }, returnFocus: goalFocusTarget(element), error: '' });
-    renderModal();
-  }
-
-  function habitSettingsFields(ctx, d, panel) {
-    const { esc, state, Core } = ctx;
-    const weekdays = [msg('Sun'), msg('Mon'), msg('Tue'), msg('Wed'), msg('Thu'), msg('Fri'), msg('Sat')];
-    if (panel === 'frequency') return `<label class="field-label">${tr('Frequency')}<select id="habit-panel-frequency" class="input"><option value="daily" ${d.frequencyType === 'daily' ? 'selected' : ''}>${tr('Daily')}</option><option value="weekdays" ${d.frequencyType === 'weekdays' ? 'selected' : ''}>${tr('Selected weekdays')}</option><option value="timesPerWeek" ${d.frequencyType === 'timesPerWeek' ? 'selected' : ''}>${tr('X times per week')}</option><option value="everyNDays" ${d.frequencyType === 'everyNDays' ? 'selected' : ''}>${tr('Every N days')}</option></select></label><div class="habit-frequency-fields"><label class="field-label">${tr('X per week')}<input id="habit-panel-times" class="input" type="number" min="1" max="7" step="1" value="${esc(d.timesPerWeek)}"></label><label class="field-label">${tr('Every N days')}<input id="habit-panel-every" class="input" type="number" min="1" step="1" value="${esc(d.everyNDays)}"></label><div class="field-label">${tr('Weekdays')}<div class="weekday-picker">${weekdays.map((label, day) => `<label><input type="checkbox" data-habit-panel-weekday="${day}" ${d.weekdays.includes(day) ? 'checked' : ''}>${tr(label)}</label>`).join('')}</div></div></div>`;
-    if (panel === 'reminders') return `<label class="field-label">${tr('Reminder times (comma separated)')}<input id="habit-panel-reminders" class="input" value="${esc((d.reminders || []).filter(item => item.enabled).map(item => item.time).join(','))}" placeholder="09:00, 18:00"></label><p class="area-empty-copy">${tr('Disabled reminder records stay intact.')}</p>`;
-    if (panel === 'continuation') return `<label class="field-label">${tr('Continuation')}<select id="habit-panel-continuation" class="input"><option value="automatic" ${d.continuation === 'automatic' ? 'selected' : ''}>${tr('Repeat automatically')}</option><option value="askEachPeriod" ${d.continuation === 'askEachPeriod' ? 'selected' : ''}>${tr('Ask each period')}</option><option value="onePeriod" ${d.continuation === 'onePeriod' ? 'selected' : ''}>${tr('One period only')}</option></select></label>`;
-    if (panel === 'end') return `<label class="field-label">${tr('End condition')}<select id="habit-panel-end-type" class="input"><option value="never" ${d.endType === 'never' ? 'selected' : ''}>${tr('Never')}</option><option value="date" ${d.endType === 'date' ? 'selected' : ''}>${tr('On date')}</option><option value="successfulPeriods" ${d.endType === 'successfulPeriods' ? 'selected' : ''}>${tr('After successful periods')}</option></select></label><label class="field-label">${tr('End date')}<input id="habit-panel-end-date" class="input" type="date" value="${esc(d.endDate)}"></label><label class="field-label">${tr('Successful periods')}<input id="habit-panel-successful-periods" class="input" type="number" min="1" step="1" value="${esc(d.successfulPeriodsTarget)}"></label>`;
-    if (panel === 'goals') return `<div class="link-picker"><h3>${tr('Linked Goals')}</h3>${state.goals.map(goal => `<label><input type="checkbox" data-habit-panel-goal="${esc(goal.id)}" ${d.goalIds.includes(goal.id) ? 'checked' : ''}>${esc(goal.title)}</label>`).join('') || `<span class="area-empty-copy">${tr('No Goals yet.')}</span>`}</div>`;
-    return `<label class="field-label">${tr('Date')}<input id="habit-panel-history-date" class="input" type="date" max="${esc(Core.dateOnly())}" value="${esc(d.historyDate)}"></label>${d.trackingType === 'numeric' ? `<label class="field-label">${tr('Total')}<input id="habit-panel-history-value" class="input" type="number" step="any" value="${esc(d.historyValue)}"></label>` : `<label class="field-label">${tr('Status')}<select id="habit-panel-history-status" class="input"><option value="done" ${d.historyStatus === 'done' ? 'selected' : ''}>${tr('Done')}</option><option value="skipped" ${d.historyStatus === 'skipped' ? 'selected' : ''}>${tr('Skipped')}</option><option value="missed" ${d.historyStatus === 'missed' ? 'selected' : ''}>${tr('Missed')}</option></select></label>`}`;
-  }
-
-  function renderHabitSettingsModal(ctx) {
-    const { modalFrame, esc } = ctx;
-    const names = { frequency: msg('Frequency'), reminders: msg('Reminders'), continuation: msg('Continuation'), end: msg('End condition'), goals: msg('Linked Goals'), history: msg('Edit history') };
-    const saveLabels = { frequency: msg('Save frequency'), reminders: msg('Save reminders'), continuation: msg('Save continuation'), end: msg('Save end condition'), goals: msg('Save linked goals'), history: msg('Save edit history') };
-    const d = ctx.modalState.draft; const name = tr(names[ctx.modalState.panel] || msg('Habit settings')); const saveLabel = tr(saveLabels[ctx.modalState.panel] || msg('Save habit settings'));
-    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">${name}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div><div class="form-stack">${habitSettingsFields(ctx, d, ctx.modalState.panel)}${ctx.modalState.error ? `<p class="validation" role="alert">${esc(ctx.modalState.error)}</p>` : ''}</div><div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">${tr('Cancel')}</button><button class="btn btn-primary" type="button" data-action="save-habit-settings">${saveLabel}</button></div></div></div>`, 'small-modal');
-  }
-
-  async function saveHabitSettings(ctx) {
-    const { getHabit, closeModal, $, $$, renderModal, Core, uid, syncHabitGoalLinks, setHabitLog, restoreGoalFocus, nowIso, saveState, refreshHabitMetrics, render } = ctx;
-    if (ctx.modalState?.type !== 'habit-settings') return;
-    const editor = ctx.modalState; const habit = getHabit(editor.habitId);
-    if (!habit || habit !== editor.source) { closeModal(); return; }
-    const d = editor.draft; const panel = editor.panel;
-    if (panel === 'frequency') {
-      d.frequencyType = $('#habit-panel-frequency')?.value || d.frequencyType;
-      d.timesPerWeek = Number($('#habit-panel-times')?.value); d.everyNDays = Number($('#habit-panel-every')?.value); d.weekdays = $$('[data-habit-panel-weekday]').filter(input => input.checked).map(input => Number(input.dataset.habitPanelWeekday));
-      if ((d.frequencyType === 'timesPerWeek' && (!Number.isInteger(d.timesPerWeek) || d.timesPerWeek < 1 || d.timesPerWeek > 7)) || (d.frequencyType === 'everyNDays' && (!Number.isInteger(d.everyNDays) || d.everyNDays < 1)) || (d.frequencyType === 'weekdays' && !d.weekdays.length)) { editor.error = tr('Use a positive whole-number schedule and select weekdays when needed.'); renderModal(); return; }
-      habit.targetHistory = Core.recordHabitTargetChange(habit, d, Core.habitPeriodKey({ frequencyType: 'timesPerWeek' }, Core.dateOnly(), Core.habitWeekRule(ctx.state.settings)));
-      Object.assign(habit, { frequencyType: d.frequencyType, timesPerWeek: d.timesPerWeek, everyNDays: d.everyNDays, weekdays: d.weekdays });
-    } else if (panel === 'reminders') {
-      const oldByTime = new Map((habit.reminders || []).map(item => [item.time, item])); const disabled = (habit.reminders || []).filter(item => item.enabled === false);
-      const enabled = String($('#habit-panel-reminders')?.value || '').split(',').map(value => Core.normalizeTime(value.trim())).filter(Boolean).map(time => ({ ...(oldByTime.get(time) || {}), id: oldByTime.get(time)?.id || uid('habit-reminder'), time, enabled: oldByTime.get(time)?.enabled !== false }));
-      habit.reminders = [...disabled, ...enabled.filter(item => !disabled.some(disabledItem => disabledItem.id === item.id))];
-    } else if (panel === 'continuation') habit.continuation = $('#habit-panel-continuation')?.value || habit.continuation;
-    else if (panel === 'end') {
-      const endType = $('#habit-panel-end-type')?.value || 'never'; const endDate = $('#habit-panel-end-date')?.value || null; const periods = $('#habit-panel-successful-periods')?.value;
-      if (endType === 'date' && !endDate) { editor.error = tr('Choose an end date.'); renderModal(); return; }
-      if (endType === 'successfulPeriods' && (!Number.isInteger(Number(periods)) || Number(periods) < 1)) { editor.error = tr('Successful periods must be a positive whole number.'); renderModal(); return; }
-      Object.assign(habit, { endType, endDate: endType === 'date' ? endDate : null, successfulPeriodsTarget: endType === 'successfulPeriods' ? Number(periods) : null });
-    } else if (panel === 'goals') {
-      syncHabitGoalLinks(habit, $$('[data-habit-panel-goal]').filter(input => input.checked).map(input => input.dataset.habitPanelGoal));
-    } else {
-      const date = $('#habit-panel-history-date')?.value; const value = habit.trackingType === 'numeric' ? Number($('#habit-panel-history-value')?.value || 0) : null; const status = habit.trackingType === 'numeric' ? 'done' : $('#habit-panel-history-status')?.value || 'missed';
-      if (!date || date > Core.dateOnly()) { editor.error = tr('Choose an eligible past date.'); renderModal(); return; }
-      const target = editor.returnFocus; const saved = await setHabitLog(habit.id, date, status, value);
-      if (saved === null) return;
-      if (!saved) { editor.error = tr('That date is not scheduled for this Habit.'); renderModal(); return; }
-      if (ctx.modalState === editor) { closeModal(); restoreGoalFocus(target); } return;
-    }
-    habit.updatedAt = nowIso(); saveState(); const target = editor.returnFocus; closeModal(); await refreshHabitMetrics(); render(); restoreGoalFocus(target);
-  }
-
   // Redesign R8b: Svaki dan, Radnim danima, Vikendom or the days; Jednom / N puta nedeljno; Svaki drugi dan / Na svaka N dana.
   const WEEKDAY_KEYS = [msg('Sun'), msg('Mon'), msg('Tue'), msg('Wed'), msg('Thu'), msg('Fri'), msg('Sat')];
   function habitFrequencyLabel(ctx, habit) {
@@ -382,87 +282,6 @@
     return html;
   }
 
-  function heatmapHtml(ctx, habit, logs) {
-    const { Core, esc } = ctx;
-    const today = Core.dateOnly();
-    const current = new Date(`${today}T12:00:00`);
-    const year = current.getFullYear(); const month = current.getMonth();
-    const count = new Date(year, month + 1, 0).getDate();
-    const dates = Array.from({ length: count }, (_, index) => `${year}-${String(month + 1).padStart(2, '0')}-${String(index + 1).padStart(2, '0')}`);
-    return `<p class="area-empty-copy">${esc(current.toLocaleDateString(I18n.locale(), { month: 'long', year: 'numeric' }))}</p><div class="habit-heatmap" aria-label="${tr('Monthly heatmap')}">${dates.map(date => { const status = Core.habitStatusForDate(habit, logs, date, today); return `<span class="heatmap-day is-${esc(status.status)}" style="--heat-intensity:${Math.max(0, Math.min(1, Number(status.percent || 0) / 100))}" title="${esc(date)}"></span>`; }).join('')}</div>`;
-  }
-
-  function renderHabitAnalytics(ctx, habit, logs) {
-    const { Core, esc, state } = ctx;
-    const today = Core.dateOnly();
-    const current = new Date(`${today}T12:00:00`);
-    const days = new Date(current.getFullYear(), current.getMonth() + 1, 0).getDate();
-    const dates = Array.from({ length: days }, (_, index) => `${today.slice(0, 8)}${String(index + 1).padStart(2, '0')}`);
-    const analytics = Core.habitAnalytics(habit, logs, { today, dates, weekStartsOn: Core.habitWeekRule(state.settings) });
-    const chart = habit.frequencyType === 'timesPerWeek'
-      ? analytics.weeklySeries.map((point, index) => ({ label: tr('W{number}', { number: index + 1 }), ...point }))
-      : analytics.monthlySeries.slice(-7).map(point => ({ label: point.date.slice(-2), ...point }));
-    return `<section class="habit-analytics" data-habit-analytics><div class="habit-analytics-summary"><span><strong>${analytics.completionPercent}%</strong> ${tr('completion')}</span><span><strong>${analytics.checkedToday ? tr('Yes') : tr('No')}</strong> ${tr('checked today')}</span><span><strong>${analytics.currentStreak}</strong> ${tr('current streak')}</span><span><strong>${analytics.bestStreak}</strong> ${tr('best streak')}</span></div><div class="habit-analytics-chart" data-habit-analytics-chart aria-label="${tr('Recent completion chart')}">${chart.map(point => `<span title="${esc(point.label)}: ${esc(point.percent)}%"><i style="--habit-bar-height:${Math.max(5, point.percent)}%"></i><small>${esc(point.label)}</small></span>`).join('') || `<small>${tr('No eligible days yet.')}</small>`}</div><div class="habit-analytics-heatmap" data-habit-analytics-heatmap aria-label="${tr('Eligible monthly activity')}">${analytics.monthlySeries.map(point => `<i class="is-${esc(point.status)}" style="--heat-intensity:${Math.max(0, Math.min(1, point.percent / 100))}" title="${esc(point.date)}: ${esc(statusLabel(point.status))}"></i>`).join('') || `<small>${tr('No eligible days yet.')}</small>`}</div></section>`;
-  }
-
-  function renderHabitInsights(ctx, habit, metrics) {
-    const { Core, esc } = ctx;
-    const today = Core.dateOnly();
-    const target = Core.getHabitTargetStatus(habit, metrics);
-    const periods = (metrics.periods || []).filter(period => period.key <= today);
-    const currentIndex = periods.findIndex(period => period.isCurrent);
-    let missedDays = 0;
-    for (let i = currentIndex - 1; i >= 0; i--) {
-      const period = periods[i];
-      if (period.skipped || Core.getHabitTargetStatus(habit, { currentPeriodCount: period.progressValue }).minimumMet) break;
-      missedDays += period.dates.length;
-    }
-    const graceDays = Math.max(0, Number(habit.graceDays) || 0);
-    const recovery = missedDays ? `${target.minimumMet ? trn(missedDays, 'Recovered after {count} missed day.', 'Recovered after {count} missed days.') : trn(missedDays, 'Resume after {count} missed day.', 'Resume after {count} missed days.')} ${missedDays <= graceDays ? trn(graceDays, 'Within your {count}-day grace allowance.', 'Within your {count}-day grace allowance.') : trn(graceDays, 'Beyond your {count}-day grace allowance; start again today.', 'Beyond your {count}-day grace allowance; start again today.')}` : tr('No recent missed period to recover from.');
-    const summary = (label, days, key) => {
-      const since = Core.addDays(today, 1 - days);
-      const included = periods.filter(period => period.dates.at(-1) >= since);
-      const statuses = included.map(period => Core.getHabitTargetStatus(habit, { currentPeriodCount: period.progressValue }));
-      const minimum = statuses.filter(status => status.minimumMet).length;
-      const ideal = statuses.filter(status => status.idealMet).length;
-      return `<section class="insight-card" data-habit-insight="${key}"><h3>${label}</h3><strong>${tr('{minimum} minimum · {ideal} ideal', { minimum, ideal })}</strong><p>${trn(included.length, '{count} scheduled period in the last {days} days, through today.', '{count} scheduled periods in the last {days} days, through today.', { days })}</p></section>`;
-    };
-    return `<section class="habit-insights" data-habit-insights><div class="insight-card" data-habit-target-status="${target.status}"><h2>${tr('Target progress')}</h2><strong>${tr('{current} / {minimum} minimum · {ideal} ideal', { current: esc(target.current), minimum: esc(target.minimumTarget), ideal: esc(target.idealTarget) })}</strong><p>${target.idealMet ? tr('Ideal target met') : target.minimumMet ? tr('Minimum target met') : tr('Working toward minimum')}</p><p data-habit-recovery>${esc(recovery)}</p></div><div class="insight-grid">${summary(tr('Weekly insight'), 7, 'week')}${summary(tr('Monthly insight'), 30, 'month')}</div></section>`;
-  }
-
-  function renderHabit(ctx, habitId) {
-    const { getHabit, habitMetrics, state, Core, pageHeader, esc } = ctx;
-    const habit = getHabit(habitId); if (!habit) return renderHabits(ctx);
-    const metrics = habitMetrics(habit); const logs = state.habitLogCache?.[habit.id] || [];
-    const today = Core.dateOnly(); const todayStatus = Core.habitStatusForDate(habit, logs, today, today);
-    const todayLog = logs.find(log => log.date === today);
-    const history = [...logs].sort((a, b) => String(b.date).localeCompare(String(a.date)));
-    let html = pageHeader(habit.name, `${habitFrequencyLabel(ctx, habit)} · ${statusLabel(habit.status)}`, { add: false, actionHtml: `<button class="btn btn-secondary" type="button" data-action="edit-habit" data-habit-id="${esc(habit.id)}"><i class="ph ph-pencil-simple"></i> ${tr('Edit')}</button><button class="btn-icon" type="button" data-action="habit-menu" data-habit-id="${esc(habit.id)}" aria-label="${tr('Habit actions')}"><i class="ph ph-dots-three"></i></button>` });
-    html += `<div class="form-stack goal-properties habit-target-properties">${[['minimumTarget', tr('Minimum target')], ['idealTarget', tr('Ideal target')], ['graceDays', tr('Grace days')]].map(([field, label]) => renderHabitProperty(ctx, habit, field, label)).join('')}<p class="area-empty-copy">${habit.frequencyType === 'timesPerWeek' ? tr('Targets apply to each scheduled period (completed check-ins per week).') : habit.trackingType === 'numeric' ? tr('Targets apply to each scheduled period ({unit}).', { unit: esc(habit.unit || tr('units')) }) : tr('Targets apply to each scheduled period (check-ins).')} ${tr('Grace describes recovery; recorded check-ins and streaks stay unchanged.')}</p></div>`;
-    html += renderHabitInsights(ctx, habit, metrics);
-    html += `<div class="form-stack goal-properties habit-properties">${[['name',tr('Name')],['areaId',tr('Area')],['routine',tr('Routine')],['trackingType',tr('Tracking')],['targetValue',tr('Target value')],['unit',tr('Unit')],['quickValues',tr('Quick values')]].map(([field,label]) => renderHabitProperty(ctx, habit, field, label)).join('')}<div class="goal-detail-actions"><button class="btn btn-secondary" type="button" data-action="edit-habit-settings" data-habit-id="${esc(habit.id)}" data-habit-panel="frequency">${tr('Frequency')}</button><button class="btn btn-secondary" type="button" data-action="edit-habit-settings" data-habit-id="${esc(habit.id)}" data-habit-panel="reminders">${tr('Reminders')}</button><button class="btn btn-secondary" type="button" data-action="edit-habit-settings" data-habit-id="${esc(habit.id)}" data-habit-panel="continuation">${tr('Continuation')}</button><button class="btn btn-secondary" type="button" data-action="edit-habit-settings" data-habit-id="${esc(habit.id)}" data-habit-panel="end">${tr('End condition')}</button><button class="btn btn-secondary" type="button" data-action="edit-habit-settings" data-habit-id="${esc(habit.id)}" data-habit-panel="goals">${tr('Linked Goals')}</button></div></div>`;
-    html += `<section class="habit-detail-card"><div class="habit-detail-context"><span class="habit-status habit-status--${esc(habit.status)}">${esc(statusLabel(habit.status))}</span><span>${esc(habitFrequencyLabel(ctx, habit))}</span><span>${tr('Today: {status}', { status: esc(statusLabel(todayStatus.status)) })}</span></div><div class="habit-summary"><strong>${esc(habitProgressLabel(ctx, habit, metrics))}</strong><span>${tr('Current period')}</span></div><div class="habit-metric-grid"><div><strong>${metrics.currentStreak}</strong><span>${tr('Current streak')}</span></div><div><strong>${metrics.longestStreak}</strong><span>${tr('Longest streak')}</span></div><div><strong>${metrics.totalCheckins}</strong><span>${tr('Total check-ins')}</span></div><div><strong>${Math.round(metrics.completionRate)}%</strong><span>${tr('Completion rate')}</span></div></div>${habit.status === 'active' ? (habit.trackingType === 'numeric' ? `<div class="habit-checkin-controls">${(habit.quickValues || []).map(value => `<button class="btn btn-secondary" type="button" data-action="habit-quick-add" data-habit-id="${esc(habit.id)}" data-value="${esc(value)}">+${esc(value)}</button>`).join('')}<label class="field-label">${tr('Daily total')}<input id="habit-direct-total" class="input" type="number" step="any" value="${esc(todayLog?.value || 0)}" /></label><button class="btn btn-primary" type="button" data-action="save-habit-total" data-habit-id="${esc(habit.id)}">${tr('Save total')}</button></div>` : `<div class="habit-checkin-controls"><button class="btn btn-primary" type="button" data-action="habit-checkin" data-habit-id="${esc(habit.id)}">${todayStatus.status === 'done' ? tr('Mark not done') : tr('Check in')}</button><button class="btn btn-ghost" type="button" data-action="habit-skip" data-habit-id="${esc(habit.id)}">${tr('Skip today')}</button></div>`) : `<p class="area-empty-copy">${tr('Paused and archived habits preserve history but cannot be checked in.')}</p>`}</section>`;
-    html += renderHabitAnalytics(ctx, habit, logs);
-    html += `<section class="section"><div class="section-header"><h2 class="section-label">${tr('Monthly heatmap')}</h2></div>${heatmapHtml(ctx, habit, logs)}</section>`;
-    const historyEditor = `<div class="habit-history-row"><input id="habit-history-date" class="input" type="date" max="${esc(today)}" value="${esc(today)}">${habit.trackingType === 'numeric' ? `<input id="habit-history-new-value" class="input" type="number" step="any" value="0">` : `<select id="habit-history-new-status" class="input"><option value="done">${tr('Done')}</option><option value="skipped">${tr('Skipped')}</option><option value="missed">${tr('Missed')}</option></select>`}<button class="btn btn-ghost" type="button" data-action="save-habit-history-date" data-habit-id="${esc(habit.id)}">${tr('Save date')}</button></div>`;
-    html += `<section class="section"><div class="section-header"><h2 class="section-label">${tr('History')}</h2><button class="btn btn-ghost" type="button" data-action="edit-habit-settings" data-habit-id="${esc(habit.id)}" data-habit-panel="history">${tr('Edit history')}</button></div>${historyEditor}${history.length ? `<div class="habit-history">${history.map(log => `<div class="habit-history-row"><span>${esc(log.date)}</span>${habit.trackingType === 'numeric' ? `<input class="input" type="number" step="any" value="${esc(log.value ?? 0)}" data-habit-history-value data-habit-date="${esc(log.date)}">` : `<select class="input" data-habit-history-status data-habit-date="${esc(log.date)}"><option value="done" ${log.status === 'done' ? 'selected' : ''}>${tr('Done')}</option><option value="skipped" ${log.status === 'skipped' ? 'selected' : ''}>${tr('Skipped')}</option><option value="missed" ${log.status === 'missed' ? 'selected' : ''}>${tr('Missed')}</option></select>`}<button class="btn btn-ghost" type="button" data-action="save-habit-history" data-habit-id="${esc(habit.id)}" data-habit-date="${esc(log.date)}">${tr('Save')}</button></div>`).join('')}</div>` : `<p class="area-empty-copy">${tr('No history yet. Choose any eligible past date to add a correction.')}</p>`}</section>`;
-    return html;
-  }
-
-  function renderHabitProperty(ctx, habit, field, label) {
-    const { getArea, state, esc } = ctx;
-    const editor = ctx.habitPropertyEditor?.habit === habit && ctx.habitPropertyEditor.field === field ? ctx.habitPropertyEditor : null;
-    const value = field === 'routine' ? routineLabel(habit.routine) : field === 'areaId' ? getArea(habit.areaId)?.name || tr('No area') : field === 'quickValues' ? (habit.quickValues || []).join(', ') : field === 'trackingType' && habit.trackingType ? (habit.trackingType === 'numeric' ? tr('Numeric') : tr('Checkbox')) : habit[field] ?? '';
-    if (!editor) return `<div class="goal-property"><span class="field-label">${label}</span><button class="btn btn-ghost" type="button" data-habit-property="${field}" data-habit-id="${esc(habit.id)}">${esc(value === 0 ? 0 : value || (field === 'areaId' ? tr('No area') : tr('Not set')))}</button></div>`;
-    const saveLabels = { minimumTarget: msg('Save minimum target'), idealTarget: msg('Save ideal target'), graceDays: msg('Save grace days'), name: msg('Save name'), areaId: msg('Save area'), routine: msg('Save routine'), trackingType: msg('Save tracking'), targetValue: msg('Save target value'), unit: msg('Save unit'), quickValues: msg('Save quick values') };
-    const saveLabel = tr(saveLabels[field] || msg('Save'));
-    const id = 'habit-detail-' + field;
-    const fractionalTarget = field !== 'graceDays' && habit.trackingType === 'numeric' && habit.frequencyType !== 'timesPerWeek';
-    if (['minimumTarget', 'idealTarget', 'graceDays'].includes(field)) return `<div class="goal-property-editor"><label class="field-label" for="${id}">${label}</label><input id="${id}" class="input" type="number" min="${field === 'graceDays' || fractionalTarget ? 0 : 1}" step="${fractionalTarget ? 'any' : '1'}" value="${esc(editor.value)}" ${editor.error ? 'aria-invalid="true" aria-describedby="habit-property-error"' : ''}>${editor.error ? `<p id="habit-property-error" class="validation" role="alert">${esc(editor.error)}</p>` : ''}<div class="goal-detail-actions"><button class="btn btn-secondary" type="button" data-action="save-habit-property">${saveLabel}</button><button class="btn btn-ghost" type="button" data-action="cancel-habit-property">${tr('Cancel')}</button></div></div>`;
-    const input = field === 'routine' ? `<select id="${id}" class="input">${routineOptions(editor.value)}</select>` : field === 'areaId' ? `<select id="${id}" class="input"><option value="">${tr('No area')}</option>${state.areas.filter(a => a.status === 'active' || a.id === habit.areaId).map(a => `<option value="${esc(a.id)}" ${a.id === editor.value ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select>` : field === 'trackingType' ? `<select id="${id}" class="input"><option value="checkbox" ${editor.value === 'checkbox' ? 'selected' : ''}>${tr('Checkbox')}</option><option value="numeric" ${editor.value === 'numeric' ? 'selected' : ''}>${tr('Numeric')}</option></select>` : `<input id="${id}" class="input" type="${field === 'targetValue' ? 'number' : 'text'}" ${field === 'targetValue' ? 'step="any"' : field === 'name' ? 'maxlength="120"' : ''} value="${esc(editor.value)}" ${editor.error ? 'aria-invalid="true" aria-describedby="habit-property-error"' : ''}>`;
-    return `<div class="goal-property-editor"><label class="field-label" for="${id}">${label}</label>${input}${editor.error ? `<p id="habit-property-error" class="validation" role="alert">${esc(editor.error)}</p>` : ''}<div class="goal-detail-actions"><button class="btn btn-secondary" type="button" data-action="save-habit-property">${saveLabel}</button><button class="btn btn-ghost" type="button" data-action="cancel-habit-property">${tr('Cancel')}</button></div></div>`;
-  }
-
   // Redesign R8b (N1–N6): the new habit window. The draft lives in ctx.modalState.draft; the rows open small sheets
   // over the window that write the draft back with "Primeni", or at once for a single choice.
   const plainNumber = value => Number(value || 0).toLocaleString(I18n.locale(), { maximumFractionDigits: 2, useGrouping: false });
@@ -484,6 +303,12 @@
   function habitSegment(action, label, options, current) {
     return `<div class="view-tabs habit-window-seg" role="group" aria-label="${label}">${options.map(([value, text]) => `<button class="btn${current === value ? ' is-selected' : ''}" type="button" data-action="${action}" data-value="${value}" aria-pressed="${current === value}">${text}</button>`).join('')}</div>`;
   }
+  // The targets as the app counts them: a blank minimum is the target, a blank ideal is the minimum.
+  function targetsLabel(ctx, d) {
+    if (!d.minimumTarget && !d.idealTarget) return '';
+    const target = ctx.Core.getHabitTargetStatus(d, 0);
+    return tr('Minimum {minimum} · ideal {ideal}', { minimum: plainNumber(target.minimumTarget), ideal: plainNumber(target.idealTarget) });
+  }
   function habitEndLabel(ctx, d) {
     const weekly = d.frequencyType === 'timesPerWeek';
     const count = Number(d.successfulPeriodsTarget);
@@ -499,14 +324,185 @@
     const weekly = d.frequencyType === 'timesPerWeek';
     const error = ctx.modalState.error;
     const area = (state.areas || []).find(item => item.id === d.areaId)?.name || '';
-    const target = weekly ? d.timesPerWeek : d.targetValue;
-    const targets = d.minimumTarget || d.idealTarget ? tr('Minimum {minimum} · ideal {ideal}', { minimum: plainNumber(d.minimumTarget ?? target), ideal: plainNumber(d.idealTarget ?? target) }) : '';
+    const targets = targetsLabel(ctx, d);
     const goals = (state.goals || []).filter(goal => (d.goalIds || []).includes(goal.id)).map(goal => goal.title).join(', ');
     const open = d.moreOpen === true;
     const more = open ? `<div class="habit-window-card">${habitWindowRow(ctx, 'habit-draft-start', 'ph-calendar-blank', tr('Start'), !d.startDate || d.startDate === Core.dateOnly() ? tr('Today') : ctx.relativeDateLabel(d.startDate))}${habitWindowRow(ctx, 'habit-draft-end', 'ph-flag-checkered', tr('End'), habitEndLabel(ctx, d))}${numeric || weekly ? habitWindowRow(ctx, 'habit-draft-targets', 'ph-gauge', tr('Minimum and ideal'), targets, tr('Same as the target')) : ''}${numeric ? habitWindowRow(ctx, 'habit-draft-quick', 'ph-lightning', tr('Quick values'), draftQuickValues(d).map(value => `+${plainNumber(value)}`).join('  ')) : ''}${habitWindowRow(ctx, 'habit-draft-goals', 'ph-target', tr('Linked goals'), goals, tr('None'))}</div><p class="sheet-note">${tr('“Continuation” and “Grace days” are in the habit details.')}</p>` : '';
     const tracking = `${habitSegment('habit-draft-tracking', tr('Tracking'), [['checkbox', tr('Checkbox')], ['numeric', tr('Numeric')]], numeric ? 'numeric' : 'checkbox')}${numeric ? `<div class="habit-window-target"><label for="habit-target-value">${tr('Target')}</label><input id="habit-target-value" class="input" type="number" min="0" step="any" value="${esc(d.targetValue)}"><input id="habit-unit" class="input" maxlength="20" value="${esc(d.unit)}" placeholder="${tr('unit')}" aria-label="${tr('Unit')}"><span>${tr('per day')}</span></div>` : ''}`;
     const card = `<div class="habit-window-card">${habitWindowRow(ctx, 'habit-draft-area', 'ph-squares-four', tr('Area'), area, tr('No area (optional)'))}<div class="habit-window-block"><span class="habit-window-label"><i class="ph ph-clock" aria-hidden="true"></i>${tr('Routine')}</span>${habitSegment('habit-draft-routine', tr('Routine'), [['morning', tr('Morning')], ['daily', tr('Daytime')], ['night', tr('Night')]], ROUTINE_ORDER.includes(d.routine) ? d.routine : 'daily')}</div><div class="habit-window-block"><span class="habit-window-label"><i class="ph ph-check-square" aria-hidden="true"></i>${tr('Tracking')}</span>${tracking}</div>${habitWindowRow(ctx, 'habit-draft-frequency', 'ph-repeat', tr('Frequency'), habitFrequencyLabel(ctx, d))}${habitWindowRow(ctx, 'habit-draft-reminders', 'ph-bell', tr('Reminder'), activeReminderTimes(ctx, d).join(', '))}</div>`;
     return modalFrame(`<div class="modal-inner quick-sheet habit-window"><div class="modal-header"><h2 class="modal-title">${editing ? tr('Edit habit') : tr('New habit')}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div><input id="habit-name" class="quick-title-input${error ? ' is-error' : ''}" type="text" maxlength="120" autocomplete="off" placeholder="${tr('What do you want to practice?')}" value="${esc(d.name)}" aria-label="${tr('Habit name')}">${error ? `<div class="validation" role="alert">${esc(error)}</div>` : ''}${card}<button class="habit-window-more" type="button" data-action="toggle-habit-more" aria-expanded="${open}"><strong>${tr('More settings')}</strong><span>${open ? tr('Hide') : tr('Start, end, goals')} <i class="ph ph-caret-${open ? 'up' : 'down'}" aria-hidden="true"></i></span></button>${more}<div class="quick-sheet-footer"><span></span><button class="btn btn-primary habit-window-save" type="button" data-action="save-habit">${editing ? tr('Save changes') : tr('Create habit')}</button></div></div>`, 'quick');
+  }
+
+  // Redesign R8c (S13): the habit details window over the current screen. The settings rows open the R8b sheets on a
+  // fresh draft of the habit; an applied sheet saves at once (commitHabitDetails).
+  const CONTINUATION_LABELS = Object.freeze({ automatic: msg('Repeat automatically'), askEachPeriod: msg('Ask each period'), onePeriod: msg('One period only') });
+  function habitRecovery(ctx, habit, metrics) {
+    const { Core } = ctx;
+    const today = Core.dateOnly();
+    const target = Core.getHabitTargetStatus(habit, metrics);
+    const periods = (metrics.periods || []).filter(period => period.key <= today);
+    const currentIndex = periods.findIndex(period => period.isCurrent);
+    let missedDays = 0;
+    for (let i = currentIndex - 1; i >= 0; i--) {
+      const period = periods[i];
+      if (period.skipped || Core.getHabitTargetStatus(habit, { currentPeriodCount: period.progressValue }).minimumMet) break;
+      missedDays += period.dates.length;
+    }
+    const graceDays = Math.max(0, Number(habit.graceDays) || 0);
+    if (!missedDays) return tr('No recent missed period to recover from.');
+    return `${target.minimumMet ? trn(missedDays, 'Recovered after {count} missed day.', 'Recovered after {count} missed days.') : trn(missedDays, 'Resume after {count} missed day.', 'Resume after {count} missed days.')} ${missedDays <= graceDays ? trn(graceDays, 'Within your {count}-day grace allowance.', 'Within your {count}-day grace allowance.') : trn(graceDays, 'Beyond your {count}-day grace allowance; start again today.', 'Beyond your {count}-day grace allowance; start again today.')}`;
+  }
+
+  function renderHabitDetails(ctx) {
+    const { state, Core, esc, modalFrame, getHabit } = ctx;
+    const habit = getHabit(ctx.modalState.habitId);
+    if (!habit) return '';
+    const week = habitsWeek(ctx);
+    const logs = state.habitLogCache?.[habit.id] || [];
+    const metrics = ctx.habitMetrics(habit);
+    const active = habit.status === 'active';
+    const numeric = habit.trackingType === 'numeric';
+    const weekly = habit.frequencyType === 'timesPerWeek';
+    const id = esc(habit.id);
+    const frequency = habitFrequencyLabel(ctx, habit);
+    let html = `<div class="modal-header task-window-header"><span class="task-window-kind">${tr('Habit')}</span><div class="task-window-actions"><button class="btn-icon" type="button" data-action="habit-details-menu" data-habit-id="${id}" aria-label="${tr('Habit actions')}"><i class="ph ph-dots-three"></i></button><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div></div><h2 class="habit-details-title">${esc(habit.name)}</h2><p class="habit-details-meta">${esc([frequency, routineLabel(habit.routine), statusLabel(habit.status)].join(' · '))}</p>`;
+    const today = Core.habitDayState(habit, logs, week.today, week.today, week.rule);
+    if (active) {
+      const skip = !numeric && !['done', 'unscheduled'].includes(today.state) ? `<button class="btn btn-ghost" type="button" data-action="habit-today-skip" data-habit-id="${id}">${today.state === 'skipped' ? tr('Undo skip') : tr('Skip today')}</button>` : '';
+      html += `<div class="today-card habit-details-today">${renderHabitTodayRow(ctx, habit, { status: today.state === 'done' ? 'done' : today.state === 'skipped' ? 'skipped' : 'pending', value: today.value })}</div><div class="habit-details-today-line"><span>${esc(tr('Today: {status}', { status: tr(CELL_LABELS[today.state]) }))}</span>${skip}</div>`;
+    } else html += `<p class="sheet-note">${tr('Paused and archived habits preserve history but cannot be checked in.')}</p>`;
+    const progress = Core.habitWeekProgress(habit, logs, week.start, week.today, week.rule);
+    const streak = count => (weekly ? trn(count, '{count} week', '{count} weeks') : trn(count, '{count} day', '{count} days'));
+    const tile = (value, label) => `<div class="habit-details-tile"><strong>${esc(value)}</strong><span>${label}</span></div>`;
+    html += `<div class="habit-details-tiles">${tile(streak(Number(metrics.currentStreak) || 0), tr('Current streak'))}${tile(streak(Number(metrics.longestStreak) || 0), tr('Longest streak'))}${tile(String(Number(metrics.totalCheckins) || 0), tr('Total check-ins'))}${tile(`${progress.planned ? Math.min(100, Math.round(progress.done / progress.planned * 100)) : 0}%`, tr('Done this week'))}</div>`;
+    // The month calendar: a tap records today or a past day like a tap in Dan.
+    const current = week.today.slice(0, 7);
+    const month = /^\d{4}-\d{2}$/.test(ctx.modalState.month || '') && ctx.modalState.month <= current ? ctx.modalState.month : current;
+    const first = Core.parseDateOnly(`${month}-01`);
+    const length = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
+    const firstDay = Core.weekStartKey(state.settings?.weekStartsOn) === 'sunday' ? 0 : 1;
+    const lead = (first.getDay() - firstDay + 7) % 7;
+    const names = Array.from({ length: 7 }, (_, index) => `<span class="habit-details-weekday">${tr(WEEKDAY_KEYS[(firstDay + index) % 7])}</span>`).join('');
+    const cells = Array.from({ length }, (_, index) => {
+      const date = Core.addDays(`${month}-01`, index);
+      const day = Core.habitDayState(habit, logs, date, week.today, week.rule);
+      const inactive = ['future', 'unscheduled'].includes(day.state) || (date === week.today && !active);
+      return `<button class="habit-cell is-${day.state}${date === week.today ? ' is-today' : ''}" type="button" data-action="habit-today-toggle" data-habit-id="${id}" data-date="${date}"${inactive ? ' disabled' : ''} aria-label="${esc(`${ctx.formatDate(date, 'full')}: ${tr(CELL_LABELS[day.state])}`)}"${numeric ? '' : ` aria-pressed="${day.state === 'done'}"`}>${index + 1}</button>`;
+    }).join('');
+    const label = capitalized(new Intl.DateTimeFormat(I18n.locale(), { month: 'long', year: 'numeric' }).format(first));
+    html += `<div class="habit-details-month"><div class="habit-details-month-head"><button class="btn-icon" type="button" data-action="habit-details-month" data-shift="-1" aria-label="${tr('Previous month')}"><i class="ph ph-caret-left"></i></button><span>${esc(label)}</span><button class="btn-icon" type="button" data-action="habit-details-month" data-shift="1" aria-label="${tr('Next month')}"${month >= current ? ' disabled' : ''}><i class="ph ph-caret-right"></i></button></div><div class="habit-details-calendar">${names}${'<span aria-hidden="true"></span>'.repeat(lead)}${cells}</div><p class="sheet-note">${tr('A tap on a past day changes the history.')}</p></div>`;
+    // Uvid: the week, the period target and the recovery line.
+    let targetLine = '';
+    let targetAttr = '';
+    if (numeric || weekly) {
+      const target = Core.getHabitTargetStatus(habit, metrics);
+      targetAttr = ` data-habit-target-status="${esc(target.status)}"`;
+      targetLine = `<p>${esc(tr('{current} / {minimum} minimum · {ideal} ideal', { current: plainNumber(target.current), minimum: plainNumber(target.minimumTarget), ideal: plainNumber(target.idealTarget) }))} · ${esc(target.idealMet ? tr('Ideal target met') : target.minimumMet ? tr('Minimum target met') : tr('Working toward minimum'))}</p>`;
+    }
+    html += `<h3 class="habit-details-label">${tr('Insight')}</h3><div class="today-card habit-details-insight"${targetAttr}><p>${esc(tr('This week: {done} of {planned}', { done: progress.done, planned: progress.planned }))}</p>${targetLine}<p class="task-meta" data-habit-recovery>${esc(habitRecovery(ctx, habit, metrics))}</p></div>`;
+    // Podešavanja
+    const row = (action, icon, title, value, empty) => habitWindowRow(ctx, action, icon, title, value, empty);
+    const area = (state.areas || []).find(item => item.id === habit.areaId)?.name || '';
+    const goals = (state.goals || []).filter(goal => (habit.goalIds || []).includes(goal.id)).map(goal => goal.title).join(', ');
+    const targets = targetsLabel(ctx, habit);
+    const grace = Math.max(0, Number(habit.graceDays) || 0);
+    const rows = [
+      row('habit-details-name', 'ph-text-aa', tr('Name'), habit.name),
+      row('habit-draft-area', 'ph-squares-four', tr('Area'), area, tr('No area')),
+      row('habit-details-routine', 'ph-clock', tr('Routine'), routineLabel(habit.routine)),
+      row('habit-details-tracking', 'ph-check-square', tr('Tracking'), numeric ? `${tr('Numeric')} · ${plainNumber(habit.targetValue)}${habit.unit ? ` ${habit.unit}` : ''}` : tr('Checkbox')),
+      numeric ? row('habit-draft-quick', 'ph-lightning', tr('Quick values'), draftQuickValues(habit).map(value => `+${plainNumber(value)}`).join('  ')) : '',
+      row('habit-draft-frequency', 'ph-repeat', tr('Frequency'), frequency),
+      row('habit-draft-reminders', 'ph-bell', tr('Reminders'), activeReminderTimes(ctx, habit).join(', ')),
+      numeric || weekly ? row('habit-draft-targets', 'ph-gauge', tr('Minimum and ideal'), targets, tr('Same as the target')) : '',
+      row('habit-details-grace', 'ph-shield-check', tr('Grace days'), grace ? trn(grace, '{count} day', '{count} days') : tr('No grace days')),
+      row('habit-details-continuation', 'ph-arrows-clockwise', tr('Continuation'), tr(CONTINUATION_LABELS[habit.continuation] || CONTINUATION_LABELS.automatic)),
+      row('habit-draft-end', 'ph-flag-checkered', tr('End'), habitEndLabel(ctx, habit)),
+      row('habit-draft-goals', 'ph-target', tr('Linked goals'), goals, tr('None')),
+    ].join('');
+    html += `<h3 class="habit-details-label">${tr('Settings')}</h3><div class="habit-window-card">${rows}</div>`;
+    const [status, statusText] = active ? ['paused', tr('Pause habit')] : habit.status === 'paused' ? ['active', tr('Resume habit')] : ['active', tr('Restore habit')];
+    html += `<div class="quick-sheet-footer"><span></span><button class="btn btn-secondary habit-details-status" type="button" data-action="habit-details-status" data-habit-id="${id}" data-status="${status}">${statusText}</button></div>`;
+    return modalFrame(`<div class="modal-inner quick-sheet habit-details">${html}</div>`, 'quick');
+  }
+
+  // A details sheet saves at once. A new weekly target applies from this week on (M11).
+  function commitHabitDetails(ctx) {
+    const { getHabit, Core, state, nowIso, saveState, syncHabitGoalLinks, captureGoalProgress, evaluateGoalProgressChanges, refreshHabitMetrics, render } = ctx;
+    const habit = getHabit(ctx.modalState?.habitId); const d = ctx.modalState?.draft;
+    if (!habit || !d) return;
+    const numeric = d.trackingType === 'numeric';
+    const fields = {
+      name: String(d.name || '').trim() || habit.name, areaId: d.areaId || null, routine: d.routine, trackingType: d.trackingType, targetValue: d.targetValue, unit: d.unit,
+      quickValues: numeric ? draftQuickValues(d) : (habit.quickValues || []), frequencyType: d.frequencyType, weekdays: d.weekdays, timesPerWeek: d.timesPerWeek, everyNDays: d.everyNDays,
+      startDate: d.startDate, reminders: d.reminders, minimumTarget: d.minimumTarget ?? null, idealTarget: d.idealTarget ?? null, graceDays: d.graceDays, continuation: d.continuation,
+      endType: d.endType, endDate: d.endType === 'date' ? d.endDate : null, successfulPeriodsTarget: d.endType === 'successfulPeriods' ? Number(d.successfulPeriodsTarget) : null,
+    };
+    habit.targetHistory = Core.recordHabitTargetChange(habit, fields, Core.habitPeriodKey({ frequencyType: 'timesPerWeek' }, Core.dateOnly(), Core.habitWeekRule(state.settings)));
+    const goalsChanged = JSON.stringify([...(habit.goalIds || [])].sort()) !== JSON.stringify([...(d.goalIds || [])].sort());
+    const before = goalsChanged ? captureGoalProgress() : null;
+    Object.assign(habit, fields, { updatedAt: nowIso() });
+    if (goalsChanged) syncHabitGoalLinks(habit, d.goalIds || []);
+    ctx.modalState.draft = null;
+    saveState();
+    refreshHabitMetrics().then(() => { render(); if (ctx.modalState?.type === 'habit-details') ctx.renderModal(); if (before) evaluateGoalProgressChanges(before); }).catch(console.error);
+  }
+
+  function choiceSheetHtml(ctx, title, action, options, current) {
+    return `<div class="popover-title">${title}</div>${sheetSubtitle(ctx)}<div class="sheet-card" role="radiogroup" aria-label="${title}">${options.map(([value, label]) => radioOption(action, value, label, current === value)).join('')}</div>`;
+  }
+  function nameSheetHtml(ctx) {
+    return `<div class="popover-title">${tr('Name')}</div><label class="sheet-field"><span>${tr('Name')}</span><input id="habit-rename" class="input" maxlength="120" value="${ctx.esc(sheet.name)}" data-sheet-focus></label>${sheet.error ? `<p class="validation" role="alert">${ctx.esc(sheet.error)}</p>` : ''}${applyFooter('habit-name-apply')}`;
+  }
+  function trackingSheetHtml(ctx) {
+    const numeric = sheet.type === 'numeric';
+    const choice = sheet.history ? `<p class="sheet-note">${tr('Tracking cannot change while this Habit has history.')}</p>` : `<div class="sheet-card" role="radiogroup" aria-label="${tr('Tracking')}">${[['checkbox', tr('Checkbox')], ['numeric', tr('Numeric')]].map(([value, label]) => radioOption('habit-tracking-type', value, label, sheet.type === value)).join('')}</div>`;
+    const target = numeric ? `<div class="habit-window-target"><label for="habit-tracking-target">${tr('Target')}</label><input id="habit-tracking-target" class="input" type="number" min="0" step="any" value="${ctx.esc(sheet.target)}"><input id="habit-tracking-unit" class="input" maxlength="20" value="${ctx.esc(sheet.unit)}" placeholder="${tr('unit')}" aria-label="${tr('Unit')}"><span>${tr('per day')}</span></div>` : '';
+    return `<div class="popover-title">${tr('Tracking')}</div>${sheetSubtitle(ctx)}${choice}${target}${sheet.error ? `<p class="validation" role="alert">${ctx.esc(sheet.error)}</p>` : ''}${applyFooter('habit-tracking-apply')}`;
+  }
+  function graceSheetHtml(ctx) {
+    return `<div class="popover-title">${tr('Grace days')}</div>${sheetSubtitle(ctx)}<label class="sheet-field"><i class="ph ph-shield-check" aria-hidden="true"></i><span>${tr('Grace days')}</span><input id="habit-grace" class="input" type="number" min="0" step="1" value="${ctx.esc(sheet.value)}"></label><p class="sheet-note">${tr('Grace describes recovery; recorded check-ins and streaks stay unchanged.')}</p>${sheet.error ? `<p class="validation" role="alert">${ctx.esc(sheet.error)}</p>` : ''}${applyFooter('habit-grace-apply')}`;
+  }
+  function readTrackingInputs(ctx) {
+    sheet.target = ctx.$('#habit-tracking-target')?.value ?? sheet.target;
+    sheet.unit = ctx.$('#habit-tracking-unit')?.value ?? sheet.unit;
+  }
+
+  // The details' own sheets (name, routine, tracking, grace days, continuation); true when handled.
+  function handleHabitDetailsSheet(action, el, ctx, d) {
+    const closeAndRender = () => { sheet = null; ctx.closePopover(); ctx.renderModal(); };
+    if (action === 'habit-details-name') { sheet = { kind: 'name', name: d.name, error: '' }; showSheet(ctx, el, nameSheetHtml(ctx), 'habit-name'); return true; }
+    if (action === 'habit-name-apply' && sheet?.kind === 'name') {
+      sheet.name = String(ctx.$('#habit-rename')?.value ?? sheet.name);
+      if (!sheet.name.trim()) { sheet.error = tr('Habit needs a name.'); ctx.refreshSheet(nameSheetHtml(ctx)); return true; }
+      d.name = sheet.name.trim(); closeAndRender(); return true;
+    }
+    if (action === 'habit-details-routine') { sheet = { kind: 'routine' }; showSheet(ctx, el, choiceSheetHtml(ctx, tr('Routine'), 'habit-details-set-routine', [['morning', tr('Morning')], ['daily', tr('Daytime')], ['night', tr('Night')]], routineOf(d)), 'habit-routine'); return true; }
+    if (action === 'habit-details-set-routine') { if (ROUTINE_ORDER.includes(el.dataset.value)) d.routine = el.dataset.value; closeAndRender(); return true; }
+    if (action === 'habit-details-tracking') {
+      sheet = { kind: 'tracking', type: d.trackingType === 'numeric' ? 'numeric' : 'checkbox', target: d.targetValue, unit: d.unit || '', history: (ctx.state.habitLogCache?.[ctx.modalState.habitId] || []).length > 0, error: '' };
+      showSheet(ctx, el, trackingSheetHtml(ctx), 'habit-tracking'); return true;
+    }
+    if (action === 'habit-tracking-type' && sheet?.kind === 'tracking' && !sheet.history) { readTrackingInputs(ctx); sheet.type = el.dataset.value === 'numeric' ? 'numeric' : 'checkbox'; sheet.error = ''; ctx.refreshSheet(trackingSheetHtml(ctx)); return true; }
+    if (action === 'habit-tracking-apply' && sheet?.kind === 'tracking') {
+      readTrackingInputs(ctx);
+      const target = Number(sheet.target);
+      if (sheet.type === 'numeric' && !(Number.isFinite(target) && target > 0)) { sheet.error = tr('Numeric habits need a target above zero.'); ctx.refreshSheet(trackingSheetHtml(ctx)); return true; }
+      if (sheet.type !== d.trackingType) { d.minimumTarget = null; d.idealTarget = null; }
+      d.trackingType = sheet.type;
+      if (sheet.type === 'numeric') { d.targetValue = target; d.unit = String(sheet.unit).trim(); }
+      closeAndRender(); return true;
+    }
+    if (action === 'habit-details-grace') { sheet = { kind: 'grace', value: Number(d.graceDays) || 0, error: '' }; showSheet(ctx, el, graceSheetHtml(ctx), 'habit-grace'); return true; }
+    if (action === 'habit-grace-apply' && sheet?.kind === 'grace') {
+      sheet.value = ctx.$('#habit-grace')?.value ?? sheet.value;
+      const value = Number(sheet.value);
+      if (!Number.isInteger(value) || value < 0) { sheet.error = tr('Enter zero or more whole days.'); ctx.refreshSheet(graceSheetHtml(ctx)); return true; }
+      d.graceDays = value; closeAndRender(); return true;
+    }
+    if (action === 'habit-details-continuation') { sheet = { kind: 'continuation' }; showSheet(ctx, el, choiceSheetHtml(ctx, tr('Continuation'), 'habit-details-set-continuation', Object.entries(CONTINUATION_LABELS).map(([value, label]) => [value, tr(label)]), d.continuation || 'automatic'), 'habit-continuation'); return true; }
+    if (action === 'habit-details-set-continuation') { if (CONTINUATION_LABELS[el.dataset.value]) d.continuation = el.dataset.value; closeAndRender(); return true; }
+    return false;
   }
 
   // --- The sheets over the window (one at a time) ---------------------------------------------------------
@@ -610,7 +606,7 @@
     const fractional = d.trackingType === 'numeric' && !weekly;
     const target = plainNumber(weekly ? d.timesPerWeek : d.targetValue);
     const field = (id, label, value) => `<label class="sheet-field"><span>${label}</span><input id="${id}" class="input" type="number" min="${fractional ? 0 : 1}" step="${fractional ? 'any' : '1'}" value="${ctx.esc(value ?? '')}" placeholder="${ctx.esc(target)}"></label>`;
-    return `<div class="popover-title">${tr('Minimum and ideal')}</div>${sheetSubtitle(ctx)}${field('habit-minimum', tr('Minimum'), sheet.minimum)}${field('habit-ideal', tr('Ideal'), sheet.ideal)}<p class="sheet-note">${weekly ? tr('Check-ins per week. Blank means the same as the target.') : tr('Per day. Blank means the same as the target.')}</p>${sheet.error ? `<p class="validation" role="alert">${ctx.esc(sheet.error)}</p>` : ''}${applyFooter('habit-targets-apply')}`;
+    return `<div class="popover-title">${tr('Minimum and ideal')}</div>${sheetSubtitle(ctx)}${field('habit-minimum', tr('Minimum'), sheet.minimum)}${field('habit-ideal', tr('Ideal'), sheet.ideal)}<p class="sheet-note">${weekly ? tr('Check-ins per week. A blank minimum is the target; a blank ideal is the minimum.') : tr('Per day. A blank minimum is the target; a blank ideal is the minimum.')}</p>${sheet.error ? `<p class="validation" role="alert">${ctx.esc(sheet.error)}</p>` : ''}${applyFooter('habit-targets-apply')}`;
   }
   function applyTargetsSheet(ctx) {
     const d = ctx.modalState.draft;
@@ -637,10 +633,25 @@
     return `<div class="popover-title">${tr('Linked goals')}</div>${sheetSubtitle(ctx)}<div class="sheet-card">${options || `<div class="popover-empty">${tr('No Goals yet.')}</div>`}</div>${applyFooter('habit-goals-apply')}`;
   }
 
-  // The window's own actions and its sheets; true when handled.
+  // The window's own actions and its sheets; true when handled. In the details window (R8c) an opener starts from a
+  // fresh draft of the habit, and a change to the draft saves at once.
+  const DETAIL_OPENERS = new Set(['habit-details-name', 'habit-draft-area', 'habit-details-routine', 'habit-details-tracking', 'habit-draft-quick', 'habit-draft-frequency', 'habit-draft-reminders', 'habit-draft-targets', 'habit-details-grace', 'habit-details-continuation', 'habit-draft-end', 'habit-draft-goals']);
   function handleHabitWindowAction(action, el, ctx) {
-    const d = ctx.modalState?.type === 'habit' ? ctx.modalState.draft : null;
+    const details = ctx.modalState?.type === 'habit-details';
+    if (details && DETAIL_OPENERS.has(action)) {
+      const habit = ctx.getHabit(ctx.modalState.habitId);
+      if (!habit) return true;
+      ctx.modalState.draft = ctx.habitDraft(habit);
+    }
+    const d = ctx.modalState?.type === 'habit' || details ? ctx.modalState.draft : null;
     if (!d) return false;
+    if (!details) return handleHabitDraftAction(action, el, ctx, d);
+    const before = JSON.stringify(d);
+    const handled = handleHabitDetailsSheet(action, el, ctx, d) || handleHabitDraftAction(action, el, ctx, d);
+    if (handled && ctx.modalState?.draft === d && JSON.stringify(d) !== before) commitHabitDetails(ctx);
+    return handled;
+  }
+  function handleHabitDraftAction(action, el, ctx, d) {
     const focusSame = selector => requestAnimationFrame(() => ctx.$(selector)?.focus?.());
     if (action === 'habit-draft-routine' || action === 'habit-draft-tracking') {
       const value = el.dataset.value;
@@ -693,7 +704,8 @@
     return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">${esc(title)}</h2><button class="btn-icon" type="button" data-action="continue-habit" aria-label="${tr('Close dialog')}"><i class="ph ph-x"></i></button></div><p class="dialog-copy">${esc(copy)}</p><div class="modal-footer"><span></span><div class="modal-footer-actions">${ask ? '<button class="btn btn-ghost" type="button" data-action="pause-habit" data-habit-id="' + esc(habit?.id || '') + '">' + tr('Pause') + '</button>' : ''}<button class="btn btn-ghost" type="button" data-action="continue-habit" data-habit-id="${esc(habit?.id || '')}" data-boundary="${esc(boundary)}">${onePeriod ? tr('Convert to repeating') : tr('Continue habit')}</button><button class="btn btn-primary" type="button" data-action="archive-habit" data-habit-id="${esc(habit?.id || '')}">${tr('Archive')}</button></div></div></div>`, 'small-modal');
   }
 
-  function openHabitMenu(ctx, anchor, habitId) {
+  // R8c: the details window's ⋯ has the template, snooze, archive or restore and delete; its rows and footer do the rest.
+  function openHabitMenu(ctx, anchor, habitId, options = {}) {
     const { getHabit, esc, openPopover, templateMenuEntry, Core } = ctx;
     const habit = getHabit(habitId); if (!habit) return;
     // After 21:00 there is no "tonight" left (audit H-2).
@@ -702,7 +714,9 @@
       ? `<button class="popover-option" type="button" data-pop-action="restore-habit" data-habit-id="${esc(habitId)}"><i class="ph ph-arrow-counter-clockwise"></i>${tr('Restore habit')}</button>`
       : `<button class="popover-option" type="button" data-pop-action="${habit.status === 'paused' ? 'resume-habit' : 'pause-habit'}" data-habit-id="${esc(habitId)}"><i class="ph ph-pause"></i>${habit.status === 'paused' ? tr('Resume habit') : tr('Pause habit')}</button>`;
     const archive = habit.status !== 'archived' ? `<button class="popover-option" type="button" data-pop-action="archive-habit" data-habit-id="${esc(habitId)}"><i class="ph ph-archive"></i>${tr('Archive habit')}</button>` : '';
-    const html = `<button class="popover-option" type="button" data-pop-action="edit-habit" data-habit-id="${esc(habitId)}"><i class="ph ph-pencil-simple"></i>${tr('Edit habit')}</button>${lifecycle}${archive}<div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="snooze-habit" data-habit-id="${esc(habitId)}" data-snooze="15m"><i class="ph ph-clock"></i>${tr('Snooze 15 min')}</button><button class="popover-option" type="button" data-pop-action="snooze-habit" data-habit-id="${esc(habitId)}" data-snooze="1h"><i class="ph ph-clock"></i>${tr('Snooze 1 hour')}</button>${tonight}<div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="delete-habit" data-habit-id="${esc(habitId)}" style="color:var(--danger)"><i class="ph ph-trash"></i>${tr('Delete habit')}</button>`;
+    const restore = `<button class="popover-option" type="button" data-pop-action="restore-habit" data-habit-id="${esc(habitId)}"><i class="ph ph-arrow-counter-clockwise"></i>${tr('Restore habit')}</button>`;
+    const top = options.details ? (habit.status === 'archived' ? restore : archive) : `<button class="popover-option" type="button" data-pop-action="edit-habit" data-habit-id="${esc(habitId)}"><i class="ph ph-pencil-simple"></i>${tr('Edit habit')}</button>${lifecycle}${archive}`;
+    const html = `${top}<div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="snooze-habit" data-habit-id="${esc(habitId)}" data-snooze="15m"><i class="ph ph-clock"></i>${tr('Snooze 15 min')}</button><button class="popover-option" type="button" data-pop-action="snooze-habit" data-habit-id="${esc(habitId)}" data-snooze="1h"><i class="ph ph-clock"></i>${tr('Snooze 1 hour')}</button>${tonight}<div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="delete-habit" data-habit-id="${esc(habitId)}" style="color:var(--danger)"><i class="ph ph-trash"></i>${tr('Delete habit')}</button>`;
     openPopover(anchor, templateMenuEntry('habit',habitId)+html, { type: 'habit-menu', habitId });
   }
 
@@ -898,7 +912,6 @@
     const { $, state, Core, getHabit, habitMetrics, openHabitModal, renderModal, setHabitLog, nowIso, saveState, closeModal, refreshHabitMetrics, render, updateHabitStatus, closePopover, snoozeHabit, requestDeleteEntity, saveAndRender } = ctx;
     if (action === 'read-habit-draft') { readHabitDraft(ctx); return true; }
     if (action === 'add-starter-examples') { addStarterExamples(ctx); return true; }
-    if (action === 'habit-property') { openHabitProperty(ctx, event.target.closest('[data-habit-property]')); return true; }
     const el = event?.target.closest('[data-action], [data-pop-action]');
     if (!el) return false;
     if (handleHabitWindowAction(action, el, ctx)) return true;
@@ -927,7 +940,15 @@
       state.ui.habitChartDay = null; saveAndRender(); return true;
     }
     if (action === 'habits-fold') { const key = el.dataset.fold === 'archived' ? 'habitsArchivedOpen' : 'habitsPausedOpen'; state.ui[key] = !state.ui[key]; saveAndRender(); return true; }
-    if (action === 'habit-today-details') { closePopover(); ctx.navigate(`habit/${el.dataset.habitId}`); return true; }
+    if (action === 'habit-today-details') { closePopover(); ctx.openHabitDetails(el.dataset.habitId); return true; }
+    if (action === 'habit-details-menu') { openHabitMenu(ctx, el, el.dataset.habitId, { details: true }); return true; }
+    if (action === 'habit-details-status') { updateHabitStatus(el.dataset.habitId, el.dataset.status === 'paused' ? 'paused' : 'active'); ctx.closeModal(); return true; }
+    if (action === 'habit-details-month') {
+      const current = today.slice(0, 7);
+      const month = shiftMonth(/^\d{4}-\d{2}$/.test(ctx.modalState?.month || '') ? ctx.modalState.month : current, Number(el.dataset.shift) || 0);
+      if (ctx.modalState?.type === 'habit-details') { ctx.modalState.month = month > current ? current : month; ctx.renderModal(); }
+      return true;
+    }
     if (action === 'habit-value-add') {
       const total = Number(ctx.modalState?.total || 0) + Number(el.dataset.value || 0);
       ctx.modalState.total = Math.round(total * 1000) / 1000; ctx.renderModal(); return true;
@@ -938,11 +959,7 @@
       if (habitId) setHabitLog(habitId, date, 'done', total).then(saved => { if (saved === true && ctx.modalState?.type === 'habit-value') ctx.closeModal(); }).catch(console.error);
       return true;
     }
-    if (action === 'edit-habit-settings') openHabitSettings(ctx, el);
-    else if (action === 'save-habit-settings') saveHabitSettings(ctx);
-    else if (action === 'save-habit-property') saveHabitProperty(ctx);
-    else if (action === 'cancel-habit-property') cancelHabitProperty(ctx);
-    else if (action === 'new-habit') openHabitModal(null, { inbox: Boolean(event?.target?.closest?.('#mobile-quick-add-menu')) });
+    if (action === 'new-habit') openHabitModal(null, { inbox: Boolean(event?.target?.closest?.('#mobile-quick-add-menu')) });
     else if (action === 'edit-habit') { closePopover(); openHabitModal(el.dataset.habitId); }
     else if (action === 'habit-menu') openHabitMenu(ctx, el, el.dataset.habitId);
     else if (action === 'save-habit') saveHabitModal(ctx);
@@ -950,13 +967,10 @@
     else if (action === 'habit-checkin') { const habit = getHabit(el.dataset.habitId); const existing = state.habitLogCache?.[habit?.id]?.find(log => log.date === Core.dateOnly()); setHabitLog(el.dataset.habitId, Core.dateOnly(), existing?.status === 'done' ? 'missed' : 'done'); }
     else if (action === 'habit-skip') setHabitLog(el.dataset.habitId, Core.dateOnly(), 'skipped');
     else if (action === 'habit-quick-add') { const habit = getHabit(el.dataset.habitId); const existing = state.habitLogCache?.[habit?.id]?.find(log => log.date === Core.dateOnly()); setHabitLog(el.dataset.habitId, Core.dateOnly(), 'done', Number(existing?.value || 0) + Number(el.dataset.value || 0)); }
-    else if (action === 'save-habit-total') setHabitLog(el.dataset.habitId, Core.dateOnly(), 'done', Number($('#habit-direct-total')?.value || 0));
-    else if (action === 'save-habit-history') { const habit = getHabit(el.dataset.habitId); const date = el.dataset.habitDate; const value = habit?.trackingType === 'numeric' ? Number($(`[data-habit-history-value][data-habit-date="${CSS.escape(date)}"]`)?.value || 0) : null; const status = habit?.trackingType === 'numeric' ? 'done' : $(`[data-habit-history-status][data-habit-date="${CSS.escape(date)}"]`)?.value || 'missed'; setHabitLog(el.dataset.habitId, date, status, value); }
-    else if (action === 'save-habit-history-date') { const habit = getHabit(el.dataset.habitId); const date = $('#habit-history-date')?.value; const value = habit?.trackingType === 'numeric' ? Number($('#habit-history-new-value')?.value || 0) : null; const status = habit?.trackingType === 'numeric' ? 'done' : $('#habit-history-new-status')?.value || 'missed'; setHabitLog(el.dataset.habitId, date, status, value); }
     else if (action === 'continue-habit') { const habit = getHabit(el.dataset.habitId || ctx.modalState?.habitId); if (habit) { const boundary = el.dataset.boundary || ctx.modalState?.boundary; const prior = habitMetrics(habit).periods?.filter(period => !period.isCurrent).at(-1); habit.lastContinuationPeriod = prior?.key || Core.habitPeriodKey(habit, Core.dateOnly(), Core.habitWeekRule(state.settings)); if (boundary === 'onePeriod') habit.continuation = 'automatic'; if (boundary === 'end') { habit.endType = 'never'; habit.endDate = null; habit.successfulPeriodsTarget = null; } habit.updatedAt = nowIso(); saveState(); } closeModal(); refreshHabitMetrics().then(render); }
     else if (action === 'pause-habit') updateHabitStatus(el.dataset.habitId || ctx.modalState?.habitId, 'paused');
-    else if (action === 'archive-habit') updateHabitStatus(el.dataset.habitId, 'archived');
-    else if (action === 'resume-habit' || action === 'restore-habit') updateHabitStatus(el.dataset.habitId, 'active');
+    else if (action === 'archive-habit') { updateHabitStatus(el.dataset.habitId, 'archived'); if (ctx.modalState?.type === 'habit-details') ctx.closeModal(); }
+    else if (action === 'resume-habit' || action === 'restore-habit') { updateHabitStatus(el.dataset.habitId, 'active'); if (ctx.modalState?.type === 'habit-details') ctx.closeModal(); }
     else if (action === 'delete-habit') { closePopover(); requestDeleteEntity('habit', el.dataset.habitId); }
     else if (action === 'snooze-habit') { snoozeHabit(el.dataset.habitId, el.dataset.snooze); closePopover(); }
     else return false;
@@ -965,19 +979,7 @@
 
   function handleInput(event, ctx) {
     const target = event.target;
-    if (event.type === 'keydown') {
-      const typing = target && (target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"]') || target.isContentEditable);
-      if (ctx.habitPropertyEditor && !ctx.modalState && !ctx.popoverEl && (event.key === 'Escape' || (event.key === 'Enter' && typing && !event.isComposing))) {
-        event.preventDefault();
-        if (event.key === 'Escape') cancelHabitProperty(ctx); else saveHabitProperty(ctx);
-        return true;
-      }
-      return false;
-    }
     if (!['input', 'change'].includes(event.type)) return false;
-    if (ctx.habitPropertyEditor && target.id === 'habit-detail-' + ctx.habitPropertyEditor.field) {
-      ctx.habitPropertyEditor.value = target.value; return true;
-    }
     // R8b: the window's typed fields and the live inputs of its sheets.
     if (ctx.modalState?.type === 'habit' && ['habit-name', 'habit-target-value', 'habit-unit'].includes(target.id)) { readHabitDraft(ctx); return true; }
     if (target.id === 'habit-freq-start' && sheet?.kind === 'frequency') { if (ctx.Core.parseDateOnly(target.value)) { sheet.startDate = target.value; ctx.refreshSheet(frequencySheetHtml(ctx)); } return true; }
@@ -989,11 +991,11 @@
     name: 'habits',
     renderRoute(route, ctx) {
       if (route.type === 'habits') return renderHabits(ctx);
-      if (route.type === 'habit') return renderHabit(ctx, route.id);
+      if (route.type === 'habit') return renderHabits(ctx); // R8c: app.js opens the details window on top
       if (route.type === 'habit-row') return renderHabitRow(ctx, route.habit, route.todayStatus);
       if (route.type === 'habit-today-row') return renderHabitTodayRow(ctx, route.habit, route.todayStatus);
       if (route.type !== 'modal') return false;
-      const renderers = { habit: renderHabitModal, 'habit-settings': renderHabitSettingsModal, 'habit-finished': renderHabitFinishedModal, 'habit-value': renderHabitValueModal };
+      const renderers = { habit: renderHabitModal, 'habit-details': renderHabitDetails, 'habit-finished': renderHabitFinishedModal, 'habit-value': renderHabitValueModal };
       return renderers[route.modalType]?.(ctx);
     },
     handleAction,

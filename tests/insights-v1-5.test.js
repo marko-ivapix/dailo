@@ -52,45 +52,68 @@ test('Goal numeric edits persist fractional current, target and unit without lif
   assert.equal(f.goal.status, 'active');
 });
 
-test('Habit minimum, ideal and grace controls save numbers and reject inverted or invalid targets', () => {
+// Redesign R8c (S13): the habit page with its inline editors and rolling week/month cards became the details window.
+// Minimum, ideal and grace days are now set in its sheets with the same validation, and "Uvid" keeps the target status
+// and the recovery line.
+const appSource = fs.readFileSync(require.resolve('../js/app.js'), 'utf8');
+function detailsFixture() {
   const f = fixture();
-  for (const [field, value] of [['minimumTarget', '3'], ['idealTarget', '6'], ['graceDays', '2']]) {
-    f.ctx.habitPropertyEditor = { habit: f.habit, field, value };
-    f.adapters.habits.handleAction('save-habit-property', f.event, f.ctx);
-  }
+  const calls = [];
+  const draftCtx = { Core: f.ctx.Core };
+  vm.createContext(withI18n(draftCtx));
+  const start = appSource.indexOf('  function habitDraft(');
+  vm.runInContext(appSource.slice(start, appSource.indexOf('\n  }\n', start) + 4), draftCtx);
+  f.state.settings = { weekStartsOn: 'monday' };
+  Object.assign(f.ctx, {
+    modalState: { type: 'habit-details', habitId: 'h', month: '2026-09', draft: null },
+    habitDraft: habit => draftCtx.habitDraft(habit), formatDate: value => value, modalFrame: content => content,
+    openPopover: (anchor, html) => calls.push(html), refreshSheet: html => calls.push(html), closePopover() {}, renderModal() {},
+    refreshHabitMetrics: () => Promise.resolve(), syncHabitGoalLinks() {}, uid: kind => `${kind}-1`,
+  });
+  const act = (action, dataset = {}) => f.adapters.habits.handleAction(action, { target: { closest: () => ({ dataset }) } }, f.ctx);
+  return { ...f, calls, act, lastSheet: () => calls.at(-1) };
+}
+const setTargets = (f, minimum, ideal) => { f.act('habit-draft-targets'); Object.assign(f.inputs, { '#habit-minimum': { value: minimum }, '#habit-ideal': { value: ideal } }); f.act('habit-targets-apply'); };
+
+test('Habit minimum, ideal and grace sheets save numbers and reject inverted or invalid targets', () => {
+  const f = detailsFixture();
+  setTargets(f, '3', '6');
   assert.equal(f.persisted().habits[0].minimumTarget, 3);
   assert.equal(f.persisted().habits[0].idealTarget, 6);
+  f.act('habit-details-grace');
+  f.inputs['#habit-grace'] = { value: '2' };
+  f.act('habit-grace-apply');
   assert.equal(f.persisted().habits[0].graceDays, 2);
-  for (const [field, value] of [['minimumTarget', '7'], ['idealTarget', '2'], ['graceDays', '-1'], ['minimumTarget', 'Infinity']]) {
-    f.ctx.habitPropertyEditor = { habit: f.habit, field, value };
-    f.adapters.habits.handleAction('save-habit-property', f.event, f.ctx);
-    assert.ok(f.ctx.habitPropertyEditor.error);
+  for (const [minimum, ideal] of [['7', '2'], ['Infinity', '']]) {
+    setTargets(f, minimum, ideal);
+    assert.match(f.lastSheet(), /<p class="validation" role="alert">/, `${minimum} / ${ideal}`);
   }
+  assert.equal(f.habit.minimumTarget, 3, 'a rejected sheet saves nothing');
+  f.act('habit-details-grace');
+  f.inputs['#habit-grace'] = { value: '-1' };
+  f.act('habit-grace-apply');
+  assert.match(f.lastSheet(), /Enter zero or more whole days\./);
+  assert.equal(f.habit.graceDays, 2);
 });
 
-test('Numeric Habit controls persist fractional targets while count-based Habits reject them', () => {
-  const f = fixture();
-  for (const [field, value] of [['minimumTarget', '0.5'], ['idealTarget', '1']]) {
-    f.ctx.habitPropertyEditor = { habit: f.habit, field, value };
-    f.adapters.habits.handleAction('save-habit-property', f.event, f.ctx);
-  }
+test('Numeric Habit sheets keep fractional targets while count-based Habits reject them', () => {
+  const f = detailsFixture();
+  setTargets(f, '0.5', '1');
   assert.equal(f.habit.minimumTarget, 0.5, 'fractional input updates the numeric Habit');
   assert.equal(f.persisted().habits[0].minimumTarget, 0.5);
   assert.equal(f.persisted().habits[0].idealTarget, 1);
-  f.ctx.habitPropertyEditor = { habit: f.habit, field: 'minimumTarget', value: '0.5' };
-  assert.match(f.adapters.habits.renderRoute({ type: 'habit', id: 'h' }, f.ctx), /id="habit-detail-minimumTarget"[^>]*step="any"/);
+  f.act('habit-draft-targets');
+  assert.match(f.lastSheet(), /id="habit-minimum"[^>]*step="any"/);
   for (const mode of [{ trackingType: 'checkbox', frequencyType: 'daily' }, { trackingType: 'numeric', frequencyType: 'timesPerWeek', timesPerWeek: 2 }]) {
     Object.assign(f.habit, mode, { minimumTarget: 1, idealTarget: 2 });
-    for (const field of ['minimumTarget', 'idealTarget']) {
-      f.ctx.habitPropertyEditor = { habit: f.habit, field, value: '1.5' };
-      f.adapters.habits.handleAction('save-habit-property', f.event, f.ctx);
-      assert.ok(f.ctx.habitPropertyEditor.error);
-    }
+    setTargets(f, '1.5', '');
+    assert.match(f.lastSheet(), /Enter a whole number above zero, or leave blank\./);
+    assert.equal(f.habit.minimumTarget, 1);
   }
 });
 
-test('Habit insights distinguish minimum recovery, grace and rolling week/month totals', () => {
-  const f = fixture();
+test('Habit insight shows the target status, recovery and grace', () => {
+  const f = detailsFixture();
   f.state.habitLogCache.h = [
     { habitId: 'h', date: '2026-09-14', value: 4, status: 'done' },
     { habitId: 'h', date: '2026-09-15', value: 4, status: 'done' },
@@ -98,24 +121,21 @@ test('Habit insights distinguish minimum recovery, grace and rolling week/month 
     { habitId: 'h', date: '2026-09-17', value: 2, status: 'done' },
     { habitId: 'h', date: '2026-09-18', value: 100, status: 'done' }
   ];
-  const html = f.adapters.habits.renderRoute({ type: 'habit', id: 'h' }, f.ctx);
+  const html = f.adapters.habits.renderRoute({ type: 'modal', modalType: 'habit-details' }, f.ctx);
   assert.match(html, /data-habit-target-status="minimum"/);
   assert.match(html, /Recovered after 1 missed day/);
   assert.match(html, /Within your 1-day grace allowance/);
-  assert.match(html, /data-habit-insight="week"[^]*?3 minimum[^]*?2 ideal/);
-  assert.match(html, /data-habit-insight="month"[^]*?3 minimum[^]*?2 ideal/);
-  assert.match(html, /data-habit-property="graceDays"/);
+  assert.match(html, /data-action="habit-details-grace"/);
   assert.equal(f.habit.status, 'active');
 });
 
-test('Habit weekly insights treat the week as one period and do not call unrequired days missed', () => {
-  const f = fixture();
+test('Habit weekly insight treats the week as one period and does not call unrequired days missed', () => {
+  const f = detailsFixture();
   Object.assign(f.habit, { frequencyType: 'timesPerWeek', timesPerWeek: 2, minimumTarget: 2, idealTarget: 3, startDate: '2026-09-07' });
   f.state.habitLogCache.h = ['2026-09-08', '2026-09-11', '2026-09-14', '2026-09-17'].map(date => ({ habitId: 'h', date, status: 'done', value: 4 }));
-  const html = f.adapters.habits.renderRoute({ type: 'habit', id: 'h' }, f.ctx);
+  const html = f.adapters.habits.renderRoute({ type: 'modal', modalType: 'habit-details' }, f.ctx);
   assert.match(html, /data-habit-target-status="minimum"/);
   assert.match(html, /No recent missed period to recover from/);
-  assert.match(html, /data-habit-insight="week"[^]*?2 minimum[^]*?0 ideal/);
 });
 
 test('Goal habit contributions cap each link and escape names', () => {

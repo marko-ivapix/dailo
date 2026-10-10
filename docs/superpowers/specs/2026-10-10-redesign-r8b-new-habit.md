@@ -16,7 +16,7 @@
 3. **Under "Više" (N4),** rows with "›" that open small sheets:
    - **Početak:** the date sheet (Danas / Sutra / Sledeće nedelje, the month grid); the default is today.
    - **Kraj:** Nikad, Na datum, or after a number of successful periods (days, or weeks for "X puta nedeljno").
-   - **Minimalna i idealna:** only for "Brojevno" and "X puta nedeljno". Blank means the target, and the ideal must be at least the minimum. Changing the tracking, or switching to or from "X puta nedeljno", clears both.
+   - **Minimalna i idealna:** only for "Brojevno" and "X puta nedeljno". A blank minimum means the target and a blank ideal means the minimum, as the app counts them (the decision log says "the target" for both; the app's rule stays). The ideal must be at least the minimum. Changing the tracking, or switching to or from "X puta nedeljno", clears both.
    - **Brze vrednosti:** only for "Brojevno". They are suggested from the target (2 l → +0,25 +0,5 +1; 20 min → +5 +10 +20) until the person changes them, and they appear in the value sheet.
    - **Povezani ciljevi:** a multiple choice with "Primeni".
    - The note: "„Nastavak“ i „Dani tolerancije“ su u detaljima navike." Both settings are kept unchanged on a save.

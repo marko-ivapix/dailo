@@ -235,8 +235,10 @@ test('T5: a tap checks in, a long press or the name opens skip and details', asy
   ctx.state.habitLogCache.h1 = [];
   module.handleAction('habit-today-skip', { target: target({ habitId: 'h1' }) }, ctx);
   assert.deepEqual(ctx.calls.at(-1), ['log', 'h1', TODAY, 'skipped']);
+  // R8c: "Detalji navike" opens the details window instead of the habit page.
+  ctx.openHabitDetails = id => ctx.calls.push(['details', id]);
   module.handleAction('habit-today-details', { target: target({ habitId: 'h1' }) }, ctx);
-  assert.deepEqual(ctx.calls.slice(-2), [['close'], ['navigate', 'habit/h1']]);
+  assert.deepEqual(ctx.calls.slice(-2), [['close'], ['details', 'h1']]);
   module.handleAction('habit-today-value', { target: target({ habitId: 'h2' }) }, ctx);
   assert.deepEqual(ctx.calls.slice(-2), [['close'], ['value', 'h2']]);
   for (const [key, value] of [['Habit details', 'Detalji navike'], ['Undo skip', 'Poništi preskakanje'], ['Enter value', 'Upiši vrednost']]) assert.match(sr, new RegExp(`"${key}": "${value}"`));

@@ -107,7 +107,7 @@ test('N3, N4: Brojevno shows the target per day; "Više" holds Početak, Kraj, t
   const set = windowHtml(windowCtx({ moreOpen: true, trackingType: 'numeric', targetValue: 2, minimumTarget: 1.5, idealTarget: null, startDate: Core.addDays(TODAY, 2), endType: 'successfulPeriods', successfulPeriodsTarget: 30, goalIds: ['g1'] }));
   assert.match(set, new RegExp(`Start<\\/span><span class="task-window-row-value is-set">R:${Core.addDays(TODAY, 2)}<\\/span>`));
   assert.match(set, /End<\/span><span class="task-window-row-value is-set">After 30 successful days<\/span>/);
-  assert.match(set, /Minimum and ideal<\/span><span class="task-window-row-value is-set">Minimum 1\.5 · ideal 2<\/span>/);
+  assert.match(set, /Minimum and ideal<\/span><span class="task-window-row-value is-set">Minimum 1\.5 · ideal 1\.5<\/span>/);
   assert.match(set, /Linked goals<\/span><span class="task-window-row-value is-set">Maraton<\/span>/);
   assert.match(windowHtml(windowCtx({ moreOpen: true, frequencyType: 'timesPerWeek', endType: 'successfulPeriods', successfulPeriodsTarget: 1 })), /After 1 successful week</);
   assert.match(windowHtml(windowCtx({ moreOpen: true, endType: 'date', endDate: '2026-12-31' })), /End<\/span><span class="task-window-row-value is-set">Until D:2026-12-31<\/span>/);
@@ -229,7 +229,7 @@ test('N4: Kraj, Minimalna i idealna, Brze vrednosti, Oblast and Povezani ciljevi
   // Minimalna i idealna: blank is the target; the ideal is at least the minimum.
   act(module, ctx, 'habit-draft-targets');
   assert.match(lastHtml(ctx), /<input id="habit-minimum" class="input" type="number" min="0" step="any" value="" placeholder="2">/);
-  assert.match(lastHtml(ctx), /<p class="sheet-note">Per day\. Blank means the same as the target\.<\/p>/);
+  assert.match(lastHtml(ctx), /<p class="sheet-note">Per day\. A blank minimum is the target; a blank ideal is the minimum\.<\/p>/);
   Object.assign(ctx.inputs, { '#habit-minimum': '3', '#habit-ideal': '2' });
   act(module, ctx, 'habit-targets-apply');
   assert.match(lastHtml(ctx), /Ideal target must be at least the minimum target\./);
@@ -328,8 +328,9 @@ test('the R8b layer and the Serbian labels', () => {
   assert.match(sr, /"Once every \{count\} days": \{ one: "Na svaki \{count\} dan", few: "Na svaka \{count\} dana", other: "Na svakih \{count\} dana" \}/);
 });
 
-test('R8b is released as 2.0.0-alpha.14', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.14');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.14';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.14');
+test('R8b shipped as 2.0.0-alpha.14 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 99) >= 14);
+  assert.match(read('sw.js'), new RegExp(`const VERSION = '${Release.APP_VERSION.replace(/\./g, '\\.')}';`));
+  assert.equal(JSON.parse(read('package.json')).version, Release.APP_VERSION);
 });
