@@ -79,11 +79,13 @@
     });
   }
 
-  // R9c (GO7, K12): on Ciljevi the floating "+" opens "Novi cilj" directly and its label says so; elsewhere it opens the menu.
-  const quickAddOpensGoal = () => location.hash === '#goals';
+  // R9c, R10b (K12): on Ciljevi, Beleške and Resursi the floating "+" adds what belongs there and its label says what;
+  // elsewhere it opens the menu.
+  const QUICK_ADD_DIRECT = Object.freeze({ '#goals': [msg('New goal'), () => openGoalModal()], '#notes': [msg('New note'), () => openKnowledgeWindow('note')], '#resources': [msg('New resource'), () => openKnowledgeWindow('resource')] });
+  const quickAddDirect = () => QUICK_ADD_DIRECT[location.hash] || null;
   function syncQuickAddToggle() {
     const toggle = $('#mobile-quick-add-toggle');
-    if (toggle && (quickAddOpensGoal() || !toggle.hasAttribute('aria-expanded'))) setMobileQuickAddOpen(false);
+    if (toggle && (quickAddDirect() || !toggle.hasAttribute('aria-expanded'))) setMobileQuickAddOpen(false);
   }
 
   function setMobileQuickAddOpen(open) {
@@ -91,11 +93,11 @@
     const toggle = $('#mobile-quick-add-toggle');
     const menu = $('#mobile-quick-add-menu');
     if (!root || !toggle || !menu) return;
-    const direct = !open && quickAddOpensGoal();
+    const direct = !open && quickAddDirect();
     root.classList.toggle('is-open', open);
     if (direct) toggle.removeAttribute('aria-expanded');
     else toggle.setAttribute('aria-expanded', String(open));
-    toggle.setAttribute('aria-label', direct ? tr('New goal') : open ? tr('Close quick add menu') : tr('Open quick add menu'));
+    toggle.setAttribute('aria-label', direct ? tr(direct[0]) : open ? tr('Close quick add menu') : tr('Open quick add menu'));
     menu.hidden = !open;
   }
 
@@ -596,7 +598,7 @@
       pageHeader, modalFrame, renderMain, renderModal, currentRoute,
       knowledgeAttachmentCache, readOwnerAttachments, renderAttachmentRow,
       renderAttachmentsSection, loadOwnerAttachments, addAttachments,
-      closePopover, flushTextSave, goalFocusTarget, closeModal,
+      closePopover, flushTextSave, scheduleTextSave, goalFocusTarget, closeModal,
       openGoalHistory,
       nowIso, uid, copyTemplate, saveState, navigate, setToastMessage, requestDeleteEntity, openConfirm, setUndo,
       calendarDate, parseLocalDate, formatDate, navigateCalendar, openPlanPicker, listTasks, deadlineRow,
@@ -714,6 +716,9 @@
     // Redesign R9b (GO5): so does a goal.
     const goalRoute = /^#?goal\/(.+)$/.exec(route);
     if (goalRoute) { openGoalDetails(decodeURIComponent(goalRoute[1])); return; }
+    // Redesign R10b (S3): so do a note and a resource.
+    const knowledgeRoute = /^#?(note|resource)\/(.+)$/.exec(route);
+    if (knowledgeRoute) { openKnowledgeWindow(knowledgeRoute[1], decodeURIComponent(knowledgeRoute[2])); return; }
     const target = route.startsWith('#') ? route : `#${route}`;
     if (location.hash === target) render();
     else location.hash = target;
@@ -997,6 +1002,7 @@
     if (route.type === 'habit') { history.replaceState(null, '', '#habits'); openHabitDetails(route.id); }
     // An old #goal/<id> address shows Ciljevi with the goal window on top (R9b).
     if (route.type === 'goal') { history.replaceState(null, '', '#goals'); openGoalDetails(route.id); }
+    if (['note', 'resource'].includes(route.type)) { history.replaceState(null, '', route.type === 'note' ? '#notes' : '#resources'); openKnowledgeWindow(route.type, route.id); }
     syncQuickAddToggle(); // after the redirects above
   }
 
@@ -1582,6 +1588,12 @@
     modalState = { type: 'habit-details', habitId, month: Core.dateOnly().slice(0, 7), draft: null };
     renderModal();
     requestAnimationFrame(() => $('#modal-root [data-action="close-modal"]')?.focus());
+  }
+
+  // Redesign R10b (S3): a note or a resource opens as a window like the task window; without an id it is a new one.
+  function openKnowledgeWindow(type, id = null) {
+    if (modalState?.type !== 'knowledge') captureModalReturnFocus();
+    callDomainHook('handleAction', 'open-knowledge', { ownerType: type, ownerId: id });
   }
 
   // Redesign R9b (GO5): a goal opens as a window like the task window.
@@ -4628,7 +4640,7 @@
       return;
     }
     const action = el.dataset.action;
-    if (action === 'toggle-mobile-quick-add') { if (quickAddOpensGoal()) { openGoalModal(); return; } setMobileQuickAddOpen(el.getAttribute('aria-expanded') !== 'true'); return; }
+    if (action === 'toggle-mobile-quick-add') { const direct = quickAddDirect(); if (direct) { direct[1](); return; } setMobileQuickAddOpen(el.getAttribute('aria-expanded') !== 'true'); return; }
     if (el.closest('#mobile-quick-add-menu')) {
       setMobileQuickAddOpen(false);
       $('#mobile-quick-add-toggle')?.focus();
@@ -4941,7 +4953,7 @@
       const physicalKey = /^Key[A-Z]$/.test(event.code || '') ? event.code.slice(3) : /^Digit[0-9]$/.test(event.code || '') ? event.code.slice(5) : event.key;
       const combination=Core.normalizeShortcut([event.ctrlKey || event.metaKey?'Ctrl/Cmd':null,event.altKey?'Alt':null,event.shiftKey?'Shift':null,physicalKey].filter(Boolean).join('+'));
       const command=Object.keys(SHORTCUT_DEFAULTS).find(key=>combination && state.settings.shortcuts[key]===combination);
-      if(command){event.preventDefault();if(command==='newTask'){if(quickAddOpensGoal())openGoalModal();else openQuickAdd();}else if(command==='search')openSearch();else navigate(command);return;}
+      if(command){event.preventDefault();if(command==='newTask'){const direct=quickAddDirect();if(direct)direct[1]();else openQuickAdd();}else if(command==='search')openSearch();else navigate(command);return;}
       // Preserve the existing convenient Search alias, without bypassing suppression.
       if(state.settings.shortcuts.search !== null && event.key==='/' && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey){event.preventDefault();openSearch();return;}
     }

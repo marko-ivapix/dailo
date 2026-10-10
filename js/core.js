@@ -1618,7 +1618,8 @@
     const suppliedAttachments = Array.isArray(source.attachmentIds) ? source.attachmentIds : [];
     const attachmentIds = [...new Set(suppliedAttachments.filter(id => typeof id === 'string' && id.trim()).map(id => id.trim()))];
     if (!Array.isArray(source.attachmentIds) || suppliedAttachments.some(id => typeof id !== 'string' || !id.trim())) errors.push('attachmentIds');
-    if (!linkUrls.length && !attachmentIds.length) errors.push('source');
+    // A note needs only a title (redesign R10b, decided 2026-10-09); a resource still needs a link, image or file.
+    if (type === 'resource' && !linkUrls.length && !attachmentIds.length) errors.push('source');
     return { valid: !errors.length, errors, normalized: { ...source, type, title, linkUrls, attachmentIds } };
   }
 

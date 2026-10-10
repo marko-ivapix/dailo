@@ -2665,6 +2665,27 @@ a.btn { text-decoration: none; }
 .area-window .quick-title-input { margin-bottom: 6px; }
 .area-window .habit-window-label { margin: 12px 2px 8px; }
 
+/* Redesign R10b — Beleške and Resursi (S3). */
+.knowledge-chips { margin: -4px 0 12px; }
+.knowledge-chips .quick-chip.is-selected { color: var(--ink-1); }
+.knowledge-chips .ph-fill.ph-star { color: var(--warning); }
+.knowledge-list .knowledge-row { grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; }
+.knowledge-row-icon { color: var(--ink-3); font-size: 18px; }
+.knowledge-row .task-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.knowledge-tag-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--tag-color, var(--ink-3)); }
+.knowledge-window .quick-title-input { margin-bottom: 2px; }
+.knowledge-window .knowledge-favorite.is-favorite { color: var(--warning); }
+.knowledge-text { width: 100%; min-height: 120px; resize: vertical; }
+.knowledge-clip-quote { margin: 0; padding: 8px 12px; border-left: 2px solid var(--blue-300); color: var(--ink-2); white-space: pre-wrap; }
+.knowledge-links { padding: 0; }
+.knowledge-link-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 6px 6px 6px 12px; }
+.knowledge-link { overflow: hidden; color: var(--blue-300); text-overflow: ellipsis; white-space: nowrap; }
+.knowledge-link-add { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; padding: 8px; }
+.knowledge-empty { margin: 8px 2px; }
+.knowledge-clear { color: var(--ink-3); }
+.sheet-field-stack { display: grid; gap: 6px; }
+.sheet-field-stack textarea { width: 100%; resize: vertical; }
+
 /* Keep primary compact actions touchable after all density rules. */
 @media (max-width: 700px), (pointer: coarse) {
   .task-actions .btn-icon,

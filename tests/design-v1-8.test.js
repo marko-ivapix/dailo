@@ -273,10 +273,12 @@ test('organizational lists share the hairline card and display numerals', () => 
   assert.match(rule(v18, '.tag-dot'), /border-radius:\s*2px/);
 });
 
-test('Notes and Resources keep their own rows with accent clips and a filter panel', () => {
-  assert.match(read('js/knowledge.js'), /class="goal-row knowledge-row"/);
-  assert.match(rule(v18, '.knowledge-clip blockquote'), /border-left:\s*2px solid var\(--blue-300\)/);
-  assert.match(rule(v18, '.filter-bar, .knowledge-filters'), /background:\s*var\(--graphite-850\)/);
+// Redesign R10b (S3): the knowledge rows became Today-style rows in one card, the filter selects became chips, and the
+// clip shows as a quote in the item window with the same blue accent.
+test('Notes and Resources keep their own rows with accent clips and filter chips', () => {
+  assert.match(read('js/knowledge.js'), /class="today-row knowledge-row"/);
+  assert.match(read('js/knowledge.js'), /class="sheet-chips knowledge-chips"/);
+  assert.match(rule(css, '.knowledge-clip-quote'), /border-left:\s*2px solid var\(--blue-300\)/);
 });
 
 test('attachment drop zones keep hover and drag-over feedback after the V1.8 section background', () => {

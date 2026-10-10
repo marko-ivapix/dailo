@@ -160,11 +160,13 @@ test('GO7: "Napravi cilj" needs a name and a numeric target; a new goal stays on
 });
 
 test('app.js: the floating "+" on Ciljevi opens the window and says "Novi cilj"; Q does the same; editing opens the goal window', () => {
-  assert.match(app, /const quickAddOpensGoal = \(\) => location\.hash === '#goals';/);
-  assert.match(fn('handleClick'), /if \(action === 'toggle-mobile-quick-add'\) \{ if \(quickAddOpensGoal\(\)\) \{ openGoalModal\(\); return; \} setMobileQuickAddOpen\(el\.getAttribute\('aria-expanded'\) !== 'true'\); return; \}/);
-  assert.match(fn('handleKeydown'), /if\(command==='newTask'\)\{if\(quickAddOpensGoal\(\)\)openGoalModal\(\);else openQuickAdd\(\);\}/);
-  assert.match(fn('setMobileQuickAddOpen'), /const direct = !open && quickAddOpensGoal\(\);[\s\S]*toggle\.setAttribute\('aria-label', direct \? tr\('New goal'\)/);
-  assert.match(fn('syncQuickAddToggle'), /quickAddOpensGoal\(\)/);
+  // R10b generalized the direct "+" to a table of screens (Ciljevi, Beleške, Resursi).
+  assert.match(app, /const QUICK_ADD_DIRECT = Object\.freeze\(\{ '#goals': \[msg\('New goal'\), \(\) => openGoalModal\(\)\]/);
+  assert.match(app, /const quickAddDirect = \(\) => QUICK_ADD_DIRECT\[location\.hash\] \|\| null;/);
+  assert.match(fn('handleClick'), /if \(action === 'toggle-mobile-quick-add'\) \{ const direct = quickAddDirect\(\); if \(direct\) \{ direct\[1\]\(\); return; \} setMobileQuickAddOpen\(el\.getAttribute\('aria-expanded'\) !== 'true'\); return; \}/);
+  assert.match(fn('handleKeydown'), /if\(command==='newTask'\)\{const direct=quickAddDirect\(\);if\(direct\)direct\[1\]\(\);else openQuickAdd\(\);\}/);
+  assert.match(fn('setMobileQuickAddOpen'), /const direct = !open && quickAddDirect\(\);[\s\S]*toggle\.setAttribute\('aria-label', direct \? tr\(direct\[0\]\)/);
+  assert.match(fn('syncQuickAddToggle'), /quickAddDirect\(\)/);
   assert.match(fn('renderMain'), /syncQuickAddToggle\(\);/);
   assert.match(fn('openGoalModal'), /^  function openGoalModal\(context = \{\}\) \{/);
   assert.match(fn('openGoalModal'), /modalState = \{ type: 'goal', draft: goalDraft\(null, context\.areaId\), error: '', returnFocus \};/);

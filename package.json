@@ -1,6 +1,6 @@
 {
   "name": "dailo",
-  "version": "2.0.0-alpha.19",
+  "version": "2.0.0-alpha.20",
   "private": true,
   "description": "Dailo: local-first personal productivity app (web/PWA, iPhone and Android through Capacitor).",
   "license": "UNLICENSED",
