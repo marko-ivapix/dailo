@@ -75,7 +75,7 @@ test('habit details render the four numbers and the month calendar without chang
   const logs = [{ habitId: 'h', date: '2026-09-14', status: 'done' }, { habitId: 'h', date: '2026-09-15', status: 'done' }];
   const ctx = {
     Core: { ...Core, dateOnly: date => (date ? Core.dateOnly(date) : '2026-09-17') }, state: { habits: [habit], areas: [], goals: [], habitLogCache: { h: logs }, settings: { weekStartsOn: 'monday' }, ui: {} },
-    esc: value => String(value ?? '').replace(/</g, '&lt;'), getHabit: () => habit, getArea: () => null, formatDate: value => value,
+    esc: value => String(value ?? '').replace(/</g, '&lt;'), getHabit: () => habit, getArea: () => null, formatDate: value => value, relativeDateLabel: value => value, // R16: the "Početak" row
     modalState: { type: 'habit-details', habitId: 'h', month: '2026-09' }, modalFrame: content => content,
     habitMetrics: item => Core.deriveHabitMetrics(item, logs, '2026-09-17'),
   };

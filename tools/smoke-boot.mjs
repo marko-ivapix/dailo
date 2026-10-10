@@ -536,6 +536,26 @@ await new Promise(resolve => setTimeout(resolve, 50));
 if (!window.document.querySelector('#detail-title') || window.document.activeElement?.id === 'detail-title') fail('the task window focused its title (the keyboard would open)');
 click('#modal-root [data-action="close-modal"]');
 await new Promise(resolve => setTimeout(resolve, 20));
+// Redesign R15: Još is two-column tiles, and the Nalog tile next to Podešavanja opens the Nalog screen.
+window.location.hash = '#more';
+await new Promise(resolve => setTimeout(resolve, 50));
+const tiles = [...window.document.querySelectorAll('#main .more-tiles > .more-row')];
+if (!tiles.length || tiles.some(tile => !tile.firstElementChild?.matches('.more-row-icon')) || window.document.querySelector('#main .more-row-caret')) fail('Još is not a grid of tiles with the icon on top');
+click('#main .more-tiles .more-row[data-route="account"]');
+await new Promise(resolve => setTimeout(resolve, 50));
+if (window.location.hash !== '#account' || window.document.querySelector('#main .page-title')?.textContent !== 'Nalog' || !window.document.querySelector('#main [data-account-local]')) fail('the Nalog tile did not open the Nalog screen');
+// Redesign R16: Detalji navike → Početak → Početak meseca → Primeni saves the habit's start at once.
+const startHabit = window.TodoApp.state.habits.find(habit => habit.status === 'active');
+window.location.hash = `#habit/${startHabit.id}`;
+await new Promise(resolve => setTimeout(resolve, 50));
+click('#modal-root .habit-details [data-action="habit-draft-start"]');
+const monthStart = `${window.TodoCore.dateOnly().slice(0, 8)}01`; // on the 1st the "Danas" chip carries the same date
+click(`.popover [data-pop-action="date-sheet-pick"][data-date="${monthStart}"]`);
+click('.popover [data-pop-action="date-sheet-apply"]');
+await new Promise(resolve => setTimeout(resolve, 50));
+if (window.TodoApp.state.habits.find(habit => habit.id === startHabit.id).startDate !== monthStart || !window.document.querySelector('#modal-root .habit-details')) fail('Početak meseca in the details window did not save the habit\'s start');
+click('#modal-root .habit-details [data-action="close-modal"]');
+await new Promise(resolve => setTimeout(resolve, 20));
 window.dispatchEvent(new window.Event('pagehide'));
 const saved = keep(window);
 first.dom.window.close();
@@ -546,5 +566,5 @@ if (!found) fail('the task is missing after reopening');
 const errors = [...first.errors, ...second.errors];
 second.dom.window.close();
 if (errors.length) fail(`script errors: ${errors.join(' | ')}`);
-console.log(`smoke: OK — started, created "${title}", Back closed Quick Add, route change named the page and focused its heading, Još opened Ciljevi, focus survived a re-render, Today checked in a habit, the Zadaci switch showed the projects and opened one, the task window's date sheet planned a task, Quick Add filed a task under \"Bez projekta\", \"Razvrstaj redom\" planned an Inbox task for today, the Calendar listed a picked day and its Raspored, Navike opened a past day and Nedelja, the new habit window created a numeric weekday habit, Detalji navike changed a day and an old address opened the window, Ciljevi grouped by month, the goal window set a target date and an old address opened it, the \"+\" on Ciljevi created a numeric goal, Oblasti made an area and its \"+\" filed a task there, Beleške made a text-only note in its window, Oznake made a tag and opened its screen, Sačuvani prikazi saved a habits view and opened it, Završeni zadaci restored a task and Poništi completed it again, Search grouped the results and Fokus ticked a subtask, the repeat editor set \"Sredom i subotom\", a repeating task's title saved without a question and \"Ovo i buduća\" moved its rule until Poništi, Redovne obaveze made a group and its \"+ Dodaj obavezu\" scheduled a monthly chore, Dnevnik saved today's entry with a mood and its search found it, Nedeljni pregled showed seven columns and today's journal face and recorded the review, Podešavanja applied the week start and turned the journal reminder off at once, Today had no weekly review notice and task and habit rows ended with their checkbox or circle, the \"+\" scrim closed the menu, a task opened without focusing its title, reopened and found it (tasks: ${second.window.TodoApp.state?.tasks?.length ?? 'n/a'})`);
+console.log(`smoke: OK — started, created "${title}", Back closed Quick Add, route change named the page and focused its heading, Još opened Ciljevi, focus survived a re-render, Today checked in a habit, the Zadaci switch showed the projects and opened one, the task window's date sheet planned a task, Quick Add filed a task under \"Bez projekta\", \"Razvrstaj redom\" planned an Inbox task for today, the Calendar listed a picked day and its Raspored, Navike opened a past day and Nedelja, the new habit window created a numeric weekday habit, Detalji navike changed a day and an old address opened the window, Ciljevi grouped by month, the goal window set a target date and an old address opened it, the \"+\" on Ciljevi created a numeric goal, Oblasti made an area and its \"+\" filed a task there, Beleške made a text-only note in its window, Oznake made a tag and opened its screen, Sačuvani prikazi saved a habits view and opened it, Završeni zadaci restored a task and Poništi completed it again, Search grouped the results and Fokus ticked a subtask, the repeat editor set \"Sredom i subotom\", a repeating task's title saved without a question and \"Ovo i buduća\" moved its rule until Poništi, Redovne obaveze made a group and its \"+ Dodaj obavezu\" scheduled a monthly chore, Dnevnik saved today's entry with a mood and its search found it, Nedeljni pregled showed seven columns and today's journal face and recorded the review, Podešavanja applied the week start and turned the journal reminder off at once, Today had no weekly review notice and task and habit rows ended with their checkbox or circle, the \"+\" scrim closed the menu, a task opened without focusing its title, Još showed tiles and Nalog opened its screen, Detalji navike moved a habit's start to the 1st of the month, reopened and found it (tasks: ${second.window.TodoApp.state?.tasks?.length ?? 'n/a'})`);
 process.exit(0);

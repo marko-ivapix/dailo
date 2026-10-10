@@ -723,7 +723,7 @@
 
   function currentRoute() {
     const hash = location.hash.replace(/^#/, '') || 'today';
-    if (['today', 'inbox', 'tasks', 'more', 'upcoming', 'calendar', 'anytime', 'tags', 'areas', 'notes', 'resources', 'goals', 'habits', 'templates', 'projects', 'cleaning', 'saved-views', 'archived', 'completed', 'review', 'settings', 'journal'].includes(hash)) return { type: hash };
+    if (['today', 'inbox', 'tasks', 'more', 'upcoming', 'calendar', 'anytime', 'tags', 'areas', 'notes', 'resources', 'goals', 'habits', 'templates', 'projects', 'cleaning', 'saved-views', 'archived', 'completed', 'review', 'settings', 'journal', 'account'].includes(hash)) return { type: hash };
     for (const type of ['note', 'resource']) if (hash.startsWith(type + '/')) {
       const id = decodeURIComponent(hash.slice(type.length + 1));
       return attachmentOwner({ ownerType: type, ownerId: id }) ? { type, id } : { type: knowledgeCollection(type) };
@@ -1165,8 +1165,9 @@
 
 
   // Redesign R1 (M4): "Još" lists every screen that is not in the bottom bar, in cards.
+  // R15 (M4 amended): a tile — the icon on top, the count at the top right, the name and its small line below.
   function moreRow(route, icon, label, value = '', sub = '') {
-    return `<button class="mobile-more-route more-row" type="button" data-route="${esc(route)}"><i class="ph ${icon}" aria-hidden="true"></i><span class="more-row-label">${esc(label)}${sub ? `<small>${esc(sub)}</small>` : ''}</span>${value !== '' ? `<span class="more-row-value">${esc(String(value))}</span>` : ''}<i class="ph ph-caret-right more-row-caret" aria-hidden="true"></i></button>`;
+    return `<button class="mobile-more-route more-row" type="button" data-route="${esc(route)}"><i class="ph ${icon} more-row-icon" aria-hidden="true"></i>${value !== '' ? `<span class="more-row-value">${esc(String(value))}</span>` : ''}<span class="more-row-label">${esc(label)}${sub ? `<small>${esc(sub)}</small>` : ''}</span></button>`;
   }
   // R11d (S4): an open task whose repeat is active or paused, outside Inbox and archived projects or groups.
   function isOpenRepeating(task) {
@@ -1174,14 +1175,14 @@
     return Boolean(rule && rule.status !== 'ended' && !task.isCompleted && !task.isInbox && !getProject(task.projectId)?.isArchived);
   }
   function renderMoreScreen() {
-    const card = (title, rows) => `<section class="more-group">${title ? `<h2 class="more-group-title">${title}</h2>` : ''}<div class="more-card">${rows.join('')}</div></section>`;
+    const card = (title, rows) => `<section class="more-group">${title ? `<h2 class="more-group-title">${title}</h2>` : ''}<div class="more-card more-tiles">${rows.join('')}</div></section>`;
     const pinned = [
       ...sortedAreas().filter(area => area.status !== 'archived' && area.isPinned).map(area => moreRow(`area/${encodeURIComponent(area.id)}`, area.icon || 'ph-squares-four', area.name, '', tr('Area'))),
       ...(state.savedViews || []).filter(view => view.isPinned).map(view => moreRow(`saved-view/${encodeURIComponent(view.id)}`, 'ph-funnel', view.name, '', tr('Saved view'))),
     ];
     const count = list => (list || []).length;
     const sync = syncView();
-    const syncText = sync.configured && sync.signedIn ? (sync.lastSyncAt ? tr('Last synced {time}', { time: formatReminder(sync.lastSyncAt) }) : tr('Sync is on')) : tr('Data is on this device only');
+    const accountText = sync.configured && sync.signedIn ? sync.email : sync.configured ? tr('Sign in') : tr('Data is on this device only');
     let html = pageHeader(tr('More'), '', { add: false });
     if (pinned.length) html += card(tr('Pinned'), pinned);
     html += card(tr('Planning'), [
@@ -1202,7 +1203,8 @@
       moreRow('completed', 'ph-check-circle', tr('Completed'), count(state.tasks.filter(task => task.isCompleted))),
       moreRow('archived', 'ph-archive', tr('Archived Projects'), count(state.projects.filter(project => project.isArchived && !project.isCleaningRoom))),
     ]);
-    html += card('', [moreRow('settings', 'ph-gear', tr('Settings'), '', syncText)]);
+    // R15 (M5 amended): Nalog sits next to Podešavanja and carries the account state.
+    html += card('', [moreRow('settings', 'ph-gear', tr('Settings')), moreRow('account', 'ph-user-circle', tr('Account'), '', accountText)]);
     return html;
   }
 
@@ -2262,7 +2264,11 @@
     const { target, kind, date, time, view } = dateSheet;
     const source = target.type === 'quick' || target.type === 'habit' ? modalState?.draft : getTask(target.taskId);
     const today = Core.dateOnly();
-    const quick = [[tr('Today'), today], [tr('Tomorrow'), Core.addDays(today, 1)], [tr('Start of next week'), nextMonday(today)]];
+    // R16: a habit's start offers the 1st of this month (unless that is today), so it is planned on every day of the month.
+    const monthStart = `${today.slice(0, 8)}01`;
+    const quick = kind === 'start'
+      ? [...(monthStart < today ? [[tr('Start of the month'), monthStart]] : []), [tr('Today'), today], [tr('Tomorrow'), Core.addDays(today, 1)]]
+      : [[tr('Today'), today], [tr('Tomorrow'), Core.addDays(today, 1)], [tr('Start of next week'), nextMonday(today)]];
     const chips = `<div class="sheet-chips">${quick.map(([label, value]) => `<button class="quick-chip${date === value ? ' is-selected' : ''}" type="button" data-pop-action="date-sheet-pick" data-date="${value}" aria-pressed="${date === value}">${esc(label)}</button>`).join('')}</div>`;
     if (kind === 'start') return `<div class="popover-title">${tr('Start')}</div><p class="sheet-subtitle">${esc(source?.name?.trim() || tr('New habit'))}</p>${chips}${monthGrid(date, view, today)}<div class="sheet-footer"><span></span><button class="btn btn-primary" type="button" data-pop-action="date-sheet-apply">${tr('Apply')}</button></div>`;
     const otherDate = kind === 'plan' ? source?.dueDate : source?.plannedDate;
@@ -2274,7 +2280,12 @@
   function applyDateSheet(clear) {
     if (!dateSheet) return;
     const { target, kind } = dateSheet;
-    if (target.type === 'habit') { modalState.draft.startDate = dateSheet.date || Core.dateOnly(); closePopover(); renderModal(); return; }
+    if (target.type === 'habit') {
+      modalState.draft.startDate = dateSheet.date || Core.dateOnly(); closePopover();
+      // R16: in the habit details window the new start saves at once, like the other rows there.
+      if (modalState.type === 'habit-details') callDomainHook('handleAction', 'habit-details-commit', null); else renderModal();
+      return;
+    }
     const date = clear ? null : dateSheet.date;
     const time = date ? Core.normalizeTime($('#date-sheet-time', popoverEl)?.value ?? dateSheet.time) : null;
     if (target.type === 'quick') {
@@ -4056,7 +4067,7 @@
   }
 
   function refreshSyncCard() {
-    if (currentRoute().type === 'settings' && !editingText()) render();
+    if (['settings', 'account'].includes(currentRoute().type) && !editingText()) render();
   }
 
   function scheduleSync(delay = 3000) {

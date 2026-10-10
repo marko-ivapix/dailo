@@ -2905,6 +2905,15 @@ a.btn { text-decoration: none; }
 .goal-milestone-row > .today-row-main { flex: 1; min-width: 0; }
 .goal-milestone-row > .habit-check { flex: none; width: 44px; height: 44px; }
 
+/* Redesign R15 — Još as two-column tiles (M4) with Nalog next to Podešavanja (M5), amended 2026-10-10. */
+.more-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 0; border: 0; background: none; }
+.more-tiles > .more-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "icon value" "label label"; align-items: start; gap: 12px; min-height: 96px; padding: 14px; border: 1px solid var(--line-1); border-radius: var(--radius-md); background: var(--graphite-850); color: var(--ink-1); }
+.more-tiles > .more-row:hover { border-color: var(--line-2); background: var(--graphite-800); }
+.more-tiles .more-row-icon { grid-area: icon; display: inline-grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; background: var(--accent-tint); color: var(--blue-300); font-size: 20px; }
+.more-tiles .more-row-value { grid-area: value; color: var(--ink-2); font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.more-tiles .more-row-label { grid-area: label; align-self: end; font-size: 15px; font-weight: 500; }
+.more-tiles .more-row-label small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 400; }
+
 /* Keep primary compact actions touchable after all density rules. */
 @media (max-width: 700px), (pointer: coarse) {
   .task-actions .btn-icon,

@@ -313,7 +313,8 @@ test('N1: "Napravi naviku" asks for a name, creates the habit without UI fields,
 test('app.js: Početak uses the date sheet without a time; the context hands over refreshSheet and the start sheet', () => {
   assert.match(fn('openDateSheet'), /target\.type === 'habit'/);
   assert.match(fn('dateSheetHtml'), /kind === 'start'/);
-  assert.match(fn('applyDateSheet'), /if \(target\.type === 'habit'\) \{ modalState\.draft\.startDate = dateSheet\.date \|\| Core\.dateOnly\(\); closePopover\(\); renderModal\(\); return; \}/);
+  // R16: in the details window the start saves at once (habit-details-commit); the new habit window only re-renders.
+  assert.match(fn('applyDateSheet'), /modalState\.draft\.startDate = dateSheet\.date \|\| Core\.dateOnly\(\); closePopover\(\);[\s\S]*if \(modalState\.type === 'habit-details'\) callDomainHook\('handleAction', 'habit-details-commit', null\); else renderModal\(\);/);
   assert.match(app, /openHabitStartSheet\(anchor\) \{ openDateSheet\(anchor, \{ type: 'habit' \}, 'start'\); \}/);
   assert.match(fn('domainContext'), /refreshSheet,/);
 });
