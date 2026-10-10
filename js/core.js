@@ -1746,6 +1746,14 @@
   function journalEntryFor(state, date) {
     return (state?.journal || []).find(item => item.date === date) || null;
   }
+  // The read-only summary of a day in its journal entry (J2): tasks completed that day, and the habits planned that
+  // day (weekly-target habits left out) with how many were done.
+  function journalDaySummary(state, habitLogs, date) {
+    const completed = (state?.tasks || []).filter(task => task.isCompleted && localDateOf(task.completedAt) === date).length;
+    const due = (state?.habits || []).filter(habit => habit.status === 'active' && habit.frequencyType !== 'timesPerWeek' && habitScheduledOn(habit, date));
+    const habitsDone = due.filter(habit => habitStatusForDate(habit, habitLogs || [], date, date).status === 'done').length;
+    return { completed, habitsDone, habitsDue: due.length };
+  }
   // When the evening journal notice appears (J6): a local time, or null when it is off; 20:00 when unset.
   function journalReminderTime(settings) {
     const value = settings?.journalReminderTime;
@@ -2120,6 +2128,7 @@
     journalEntryId,
     journalEntryFor,
     journalReminderTime,
+    journalDaySummary,
     normalizeRecurrenceV3,
     shouldGenerateRecurrence,
     splitRecurrenceForFuture,

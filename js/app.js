@@ -82,7 +82,7 @@
   // R9c–R10d (K12): on Ciljevi, Beleške, Resursi, Oznake, Šabloni and Sačuvani prikazi the floating "+" adds what belongs
   // there and its label says what;
   // elsewhere it opens the menu.
-  const QUICK_ADD_DIRECT = Object.freeze({ '#goals': [msg('New goal'), () => openGoalModal()], '#notes': [msg('New note'), () => openKnowledgeWindow('note')], '#resources': [msg('New resource'), () => openKnowledgeWindow('resource')], '#tags': [msg('New tag'), () => openTagModal()], '#templates': [msg('New template'), () => callDomainHook('handleAction', 'new-template', { target: $('#mobile-quick-add-toggle') })], '#saved-views': [msg('New saved view'), () => callDomainHook('handleAction', 'new-saved-view', { target: $('#mobile-quick-add-toggle') })], '#cleaning': [msg('New recurring task'), () => callDomainHook('handleAction', 'new-cleaning-chore', { target: $('#mobile-quick-add-toggle') })] });
+  const QUICK_ADD_DIRECT = Object.freeze({ '#goals': [msg('New goal'), () => openGoalModal()], '#notes': [msg('New note'), () => openKnowledgeWindow('note')], '#resources': [msg('New resource'), () => openKnowledgeWindow('resource')], '#tags': [msg('New tag'), () => openTagModal()], '#templates': [msg('New template'), () => callDomainHook('handleAction', 'new-template', { target: $('#mobile-quick-add-toggle') })], '#saved-views': [msg('New saved view'), () => callDomainHook('handleAction', 'new-saved-view', { target: $('#mobile-quick-add-toggle') })], '#cleaning': [msg('New recurring task'), () => callDomainHook('handleAction', 'new-cleaning-chore', { target: $('#mobile-quick-add-toggle') })], '#journal': [msg('Today’s entry'), () => callDomainHook('handleAction', 'open-journal', { target: $('#mobile-quick-add-toggle') })] });
   const quickAddDirect = () => QUICK_ADD_DIRECT[location.hash] || null;
   function syncQuickAddToggle() {
     const toggle = $('#mobile-quick-add-toggle');
@@ -720,7 +720,7 @@
 
   function currentRoute() {
     const hash = location.hash.replace(/^#/, '') || 'today';
-    if (['today', 'inbox', 'tasks', 'more', 'upcoming', 'calendar', 'anytime', 'tags', 'areas', 'notes', 'resources', 'goals', 'habits', 'templates', 'projects', 'cleaning', 'saved-views', 'archived', 'completed', 'review', 'settings'].includes(hash)) return { type: hash };
+    if (['today', 'inbox', 'tasks', 'more', 'upcoming', 'calendar', 'anytime', 'tags', 'areas', 'notes', 'resources', 'goals', 'habits', 'templates', 'projects', 'cleaning', 'saved-views', 'archived', 'completed', 'review', 'settings', 'journal'].includes(hash)) return { type: hash };
     for (const type of ['note', 'resource']) if (hash.startsWith(type + '/')) {
       const id = decodeURIComponent(hash.slice(type.length + 1));
       return attachmentOwner({ ownerType: type, ownerId: id }) ? { type, id } : { type: knowledgeCollection(type) };
@@ -1186,6 +1186,7 @@
     ]);
     html += card(tr('Library'), [
       moreRow('notes', 'ph-note', tr('Notes'), count(state.notes)),
+      moreRow('journal', 'ph-book-open', tr('Journal'), count(state.journal)),
       moreRow('resources', 'ph-link', tr('Resources'), count(state.resources)),
       moreRow('tags', 'ph-tag', tr('Tags'), count(state.tags)),
       moreRow('templates', 'ph-copy', tr('Templates'), count(state.templates)),
@@ -1415,11 +1416,13 @@
       templateContext: context,
       defaults,
       draft: {
-        title: '', notes: '', projectId: defaults.projectId, areaId: defaults.areaId, plannedDate: defaults.plannedDate, parsedPlanDate: null, explicitPlan: defaults.explicitPlan,
+        title: context.title || '', notes: '', projectId: defaults.projectId, areaId: defaults.areaId, plannedDate: defaults.plannedDate, parsedPlanDate: null, explicitPlan: defaults.explicitPlan,
         dueDate: null, plannedTime: null, dueTime: null, explicitPlannedTime: false, reminderAt: null, reminderFiredAt: null, recurrence: null, tagIds: [], priority: 'none', subtasks: [],
       },
       error: '',
     };
+    // R12b (J9): "+ Zadatak za sutra" comes back to the journal entry when Quick Add closes.
+    if (context.returnTo) modalState.returnTo = context.returnTo;
     renderModal();
     requestAnimationFrame(() => $('#quick-title')?.focus());
   }
@@ -1634,6 +1637,8 @@
 
   function closeModal() {
     if (modalState?.type === 'focus') stopFocusTimer();
+    // R12b (J2): an entry emptied of text and mood leaves when its window closes.
+    if (modalState?.type === 'journal') callDomainHook('handleAction', 'journal-closing', null);
     if (modalState?.type === 'habit-value' && modalState.previous) { modalState = modalState.previous; renderModal(); return; }
     if (modalState?.previous?.type === 'goal') {
       const target = modalState.returnFocus; modalState = modalState.previous; renderModal(); restoreGoalFocus(target); return;

@@ -103,8 +103,7 @@ test('the journal is part of the delete-safety fingerprint, not of Search', () =
   assert.equal(Core.searchItems.length, 3, 'Search takes tasks, projects and the query only');
 });
 
-test('R12a is released as 2.0.0-alpha.31', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.31');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.31';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.31');
+test('R12a shipped as 2.0.0-alpha.31 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 99) >= 31);
 });
