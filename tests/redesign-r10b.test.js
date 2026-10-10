@@ -281,7 +281,7 @@ test('app.js: links and old addresses open the window; the floating "+" adds a n
   assert.match(fn('navigate'), /const knowledgeRoute = \/\^#\?\(note\|resource\)\\\/\(\.\+\)\$\/\.exec\(route\);\n\s+if \(knowledgeRoute\) \{ openKnowledgeWindow\(knowledgeRoute\[1\], decodeURIComponent\(knowledgeRoute\[2\]\)\); return; \}/);
   assert.match(fn('renderMain'), /if \(\['note', 'resource'\]\.includes\(route\.type\)\) \{ history\.replaceState\(null, '', route\.type === 'note' \? '#notes' : '#resources'\); openKnowledgeWindow\(route\.type, route\.id\); \}/);
   assert.match(fn('openKnowledgeWindow'), /callDomainHook\('handleAction', 'open-knowledge', \{ ownerType: type, ownerId: id \}\);/);
-  assert.match(app, /const QUICK_ADD_DIRECT = Object\.freeze\(\{ '#goals': \[msg\('New goal'\), \(\) => openGoalModal\(\)\], '#notes': \[msg\('New note'\), \(\) => openKnowledgeWindow\('note'\)\], '#resources': \[msg\('New resource'\), \(\) => openKnowledgeWindow\('resource'\)\] \}\);/);
+  assert.match(app, /const QUICK_ADD_DIRECT = Object\.freeze\(\{ '#goals': \[msg\('New goal'\), \(\) => openGoalModal\(\)\], '#notes': \[msg\('New note'\), \(\) => openKnowledgeWindow\('note'\)\], '#resources': \[msg\('New resource'\), \(\) => openKnowledgeWindow\('resource'\)\]/);
   assert.match(fn('handleClick'), /if \(action === 'toggle-mobile-quick-add'\) \{ const direct = quickAddDirect\(\); if \(direct\) \{ direct\[1\]\(\); return; \}/);
   assert.match(app, /scheduleTextSave, /);
   assert.doesNotMatch(knowledgeUi, /function renderKnowledgeDetail\(|knowledge-detail-metadata|data-knowledge-filter|knowledge-metadata-grid/);
@@ -297,8 +297,7 @@ test('the R10b layer and the Serbian labels', () => {
   }
 });
 
-test('R10b is released as 2.0.0-alpha.20', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.20');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.20';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.20');
+test('R10b shipped as 2.0.0-alpha.20 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 99) >= 20);
 });

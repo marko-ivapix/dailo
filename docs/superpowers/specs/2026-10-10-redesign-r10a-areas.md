@@ -2,13 +2,14 @@
 
 **Date:** 2026-10-10 · **Status:** implements decided rows of `2026-10-08-redesign-decisions.md` (final 2026-10-09) · **Plan:** `docs/superpowers/plans/2026-10-10-redesign-implementation.md` · **Release:** `2.0.0-alpha.19`.
 
-R10 ships in parts:
+R10 ships in parts (split into six with R10c):
 
 - **R10a:** Oblasti and one area (S1, S2).
 - **R10b:** Beleške and Resursi (S3).
-- **R10c:** Oznake, Šabloni and Sačuvani prikazi (S6–S8).
-- **R10d:** Završeni zadaci, Arhivirani projekti, Pretraga and Fokus (S9–S12).
-- **R10e:** Settings (M5, M6) and the retired sidebar.
+- **R10c:** Oznake (S6).
+- **R10d:** Šabloni and Sačuvani prikazi (S7, S8).
+- **R10e:** Završeni zadaci, Arhivirani projekti, Pretraga and Fokus (S9–S12).
+- **R10f:** Settings (M5, M6) and the retired sidebar.
 
 ## What changes
 

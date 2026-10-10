@@ -79,9 +79,9 @@
     });
   }
 
-  // R9c, R10b (K12): on Ciljevi, Beleške and Resursi the floating "+" adds what belongs there and its label says what;
+  // R9c, R10b, R10c (K12): on Ciljevi, Beleške, Resursi and Oznake the floating "+" adds what belongs there and its label says what;
   // elsewhere it opens the menu.
-  const QUICK_ADD_DIRECT = Object.freeze({ '#goals': [msg('New goal'), () => openGoalModal()], '#notes': [msg('New note'), () => openKnowledgeWindow('note')], '#resources': [msg('New resource'), () => openKnowledgeWindow('resource')] });
+  const QUICK_ADD_DIRECT = Object.freeze({ '#goals': [msg('New goal'), () => openGoalModal()], '#notes': [msg('New note'), () => openKnowledgeWindow('note')], '#resources': [msg('New resource'), () => openKnowledgeWindow('resource')], '#tags': [msg('New tag'), () => openTagModal()] });
   const quickAddDirect = () => QUICK_ADD_DIRECT[location.hash] || null;
   function syncQuickAddToggle() {
     const toggle = $('#mobile-quick-add-toggle');
@@ -288,7 +288,6 @@
     next.ui.completedProjectFilter = next.ui.completedProjectFilter || '';
     next.ui.completedPeriod = Number(next.ui.completedPeriod) || 0;
     next.ui.inboxFilter = INBOX_FILTERS.some(([value]) => value === next.ui.inboxFilter) ? next.ui.inboxFilter : 'all';
-    next.ui.selectedTagId = next.ui.selectedTagId || '';
     // Redesign R7 (C1, C6): Nedelja, Mesec or Predstojeće; a stored V1.12 "day" view is the week on its Raspored.
     if (next.ui.calendarView === 'day') next.ui.calendarDayMode = 'schedule';
     next.ui.calendarView = ['week', 'month', 'upcoming'].includes(next.ui.calendarView) ? next.ui.calendarView : 'week';
@@ -689,6 +688,10 @@
       if (getProject(id)) return { type: 'project', id };
       return { type: 'today' };
     }
+    if (hash.startsWith('tag/')) {
+      const id = decodeURIComponent(hash.slice('tag/'.length));
+      return getTag(id) ? { type: 'tag', id } : { type: 'tags' };
+    }
     if (hash.startsWith('area/')) {
       const id = decodeURIComponent(hash.slice('area/'.length));
       if (getArea(id)) return { type: 'area', id };
@@ -994,6 +997,7 @@
       else if (route.type === 'inbox') content = renderInbox();
       else if (route.type === 'anytime') content = renderAnytime();
       else if (route.type === 'tags') content = renderTags();
+      else if (route.type === 'tag') content = renderTag(route.id);
       else if (route.type === 'completed') content = renderCompleted();
       else content = renderToday();
     }
@@ -1278,21 +1282,37 @@
     return html;
   }
 
+  // Redesign R10c (S6): Oznake lists the tags with what uses them; a tag opens its own screen with its active tasks
+  // and, new, the notes and resources that carry it.
+  function tagLibrary(tagId) {
+    return [...(state.notes || []).map(item => ['note', item]), ...(state.resources || []).map(item => ['resource', item])]
+      .filter(([, item]) => (item.tagIds || []).includes(tagId))
+      .sort((a, b) => String(b[1].updatedAt || '').localeCompare(String(a[1].updatedAt || '')));
+  }
+
+  function libraryRow([type, item]) {
+    return `<div class="today-row area-library-row"><button class="today-row-main" type="button" data-route="${type}/${esc(item.id)}"><span class="task-title"><i class="ph ${type === 'note' ? 'ph-note' : 'ph-link'}" aria-hidden="true"></i> ${esc(item.title)}</span><span class="task-meta">${type === 'note' ? tr('Note') : tr('Resource')}</span></button></div>`;
+  }
+
+  function tagUsage(tag) {
+    const tasks = Core.tasksForTag(listTasks(), tag.id).length, library = tagLibrary(tag.id).length;
+    return [tasks ? trn(tasks, '{count} task', '{count} tasks') : '', library ? trn(library, '{count} in the library', '{count} in the library') : ''].filter(Boolean).join(' · ') || tr('Not in use');
+  }
+
   function renderTags() {
     const tags = [...(state.tags || [])].sort((a, b) => String(a.name).localeCompare(String(b.name)));
-    const selected = getTag(state.ui.selectedTagId) || tags[0] || null;
-    if (selected && state.ui.selectedTagId !== selected.id) state.ui.selectedTagId = selected.id;
-    let html = pageHeader(tr('Tags'), trn(tags.length, '{count} global tag', '{count} global tags'), { add: false, actionHtml: `<button class="btn btn-primary" type="button" data-action="new-tag"><i class="ph ph-plus"></i> ${tr('New tag')}</button>` });
+    const html = pageHeader(tr('Tags'), trn(tags.length, '{count} tag', '{count} tags'), { add: false });
     if (!tags.length) return html + emptyState(tr('No tags yet.'), tr('Create a global tag and reuse it across tasks.'), tr('New tag'), 'new-tag');
-    html += `<div class="tags-layout"><div class="tag-list">${tags.map(tag => {
-      const count = Core.tasksForTag(state.tasks, tag.id).length;
-      return `<div class="tag-row ${selected?.id === tag.id ? 'is-selected' : ''}" data-tag-id="${esc(tag.id)}"><button class="tag-select" type="button" data-action="select-tag" data-tag-id="${esc(tag.id)}"><span class="tag-dot" style="--tag-color:${esc(tag.color)}"></span><span class="tag-name">${esc(tag.name)}</span><span class="tag-count">${trn(count, '{count} task', '{count} tasks')}</span></button><button class="btn-icon" type="button" data-action="tag-menu" data-tag-id="${esc(tag.id)}" aria-label="${tr('Tag actions')}"><i class="ph ph-dots-three"></i></button></div>`;
-    }).join('')}</div>`;
-    if (selected) {
-      const tasks = Core.tasksForTag(state.tasks, selected.id);
-      html += `<section class="selected-tag-section"><div class="section-header"><div><h2 class="selected-tag-title"><span class="tag-dot" style="--tag-color:${esc(selected.color)}"></span>${esc(selected.name)}</h2><p class="page-subtitle">${trn(tasks.length, '{count} active task', '{count} active tasks')}</p></div></div>${tasks.length ? `<div class="task-list">${tasks.map(t => taskRow(t, 'tags')).join('')}</div>` : emptyState(tr('No active tasks with this tag.'), tr('Assign this tag from Quick Add or Task Detail.'))}</section>`;
-    }
-    html += '</div>';
+    return `${html}<div class="today-card tags-list">${tags.map(tag => `<button class="tag-list-row" type="button" data-route="tag/${esc(tag.id)}"><span class="tag-dot" style="--tag-color:${esc(tag.color)}" aria-hidden="true"></span><span class="tag-list-main"><span class="task-title">${esc(tag.name)}</span><span class="task-meta">${esc(tagUsage(tag))}</span></span><i class="ph ph-caret-right" aria-hidden="true"></i></button>`).join('')}<button class="inline-add" type="button" data-action="new-tag"><i class="ph ph-plus" aria-hidden="true"></i> ${tr('New tag')}</button></div>`;
+  }
+
+  function renderTag(tagId) {
+    const tag = getTag(tagId);
+    if (!tag) return renderTags();
+    const tasks = Core.tasksForTag(listTasks(), tag.id), library = tagLibrary(tag.id);
+    let html = pageHeader(tag.name, trn(tasks.length, '{count} active task', '{count} active tasks'), { add: false, actionHtml: `<button class="btn-icon" type="button" data-action="tag-menu" data-tag-id="${esc(tag.id)}" aria-label="${tr('Tag actions')}"><i class="ph ph-dots-three"></i></button>` });
+    html += tasks.length ? `<div class="task-list today-card">${tasks.map(task => taskRow(task, 'tags', { today: true })).join('')}</div>` : emptyState(tr('No active tasks with this tag.'), tr('Assign it with #tag in Quick Add or in the task window.'));
+    if (library.length) html += `<section class="section tag-library"><div class="section-header"><h2 class="section-label">${tr('In the library')} · ${library.length}</h2></div><div class="today-card">${library.map(libraryRow).join('')}</div></section>`;
     return html;
   }
 
@@ -2132,10 +2152,11 @@
     return `<button class="search-result" type="button" data-action="open-task" data-task-id="${esc(task.id)}"><span class="search-result-icon">${task.isCompleted ? '<i class="ph-fill ph-check-circle" style="color:var(--success)"></i>' : '<i class="ph ph-circle"></i>'}</span><span><span class="search-result-title">${esc(task.title)}</span><span class="search-result-meta">${esc(parts.join(' · ') || tr('Task'))}</span></span></button>`;
   }
 
+  // R10c: a sheet like the area window, with one big button.
   function renderTagModal() {
     const editing = Boolean(modalState.tagId);
     const d = modalState.draft;
-    return modalFrame(`<div class="modal-inner"><div class="modal-header"><div><h2 class="dialog-title">${editing ? tr('Edit tag') : tr('New tag')}</h2></div><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div><div class="form-stack"><label class="field-label" for="tag-name">${tr('Name')}</label><input id="tag-name" class="input ${modalState.error ? 'is-error' : ''}" type="text" maxlength="80" value="${esc(d.name)}" placeholder="${tr('Tag name')}" />${modalState.error ? `<div class="validation">${esc(modalState.error)}</div>` : ''}<div class="field-label">${tr('Color')}</div><div class="color-grid">${PROJECT_COLORS.map(c => `<button class="color-swatch ${c === d.color ? 'is-selected' : ''}" type="button" data-action="select-tag-color" data-color="${c}" style="--swatch:${c}" aria-label="${tr('Select color')}"></button>`).join('')}</div></div><div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">${tr('Cancel')}</button><button class="btn btn-primary" type="button" data-action="save-tag">${editing ? tr('Save') : tr('Create')}</button></div></div></div>`, 'small-modal');
+    return modalFrame(`<div class="modal-inner quick-sheet tag-window"><div class="modal-header"><h2 class="modal-title">${editing ? tr('Edit tag') : tr('New tag')}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div><input id="tag-name" class="quick-title-input${modalState.error ? ' is-error' : ''}" type="text" maxlength="80" autocomplete="off" placeholder="${tr('Tag name')}" value="${esc(d.name)}" aria-label="${tr('Tag name')}">${modalState.error ? `<div class="validation" role="alert">${esc(modalState.error)}</div>` : ''}<span class="habit-window-label">${tr('Color')}</span><div class="color-grid">${PROJECT_COLORS.map(c => `<button class="color-swatch${c === d.color ? ' is-selected' : ''}" type="button" data-action="select-tag-color" data-color="${c}" style="--swatch:${c}" aria-label="${tr('Select color')}" aria-pressed="${c === d.color}"></button>`).join('')}</div><div class="quick-sheet-footer"><span></span><button class="btn btn-primary habit-window-save" type="button" data-action="save-tag">${editing ? tr('Save changes') : tr('Create tag')}</button></div></div>`, 'quick');
   }
 
   function renderAreaLinkedModal() {
@@ -2991,7 +3012,6 @@
     }
     if (type === 'habit') snapshot.habitLogs = await TodoStorage.habitLogs.listByHabit(identity);
     if (type === 'goal') snapshot.goalHistory = await TodoStorage.goalHistory.listByGoal(identity);
-    snapshot.selectedTagId = state.ui.selectedTagId;
     validateDeleteSnapshot(snapshot);
     return snapshot;
   }
@@ -3058,12 +3078,6 @@
       if (effect.scalar) { if (!restore || current === effect.after) target[effect.field] = restore ? effect.before : effect.after; }
       else target[effect.field] = restore ? inverseArray(current || [], effect.before, effect.removed)
         : (current || []).filter(value => !effect.removed.some(removed => JSON.stringify(removed) === JSON.stringify(value)));
-    }
-    const selection = state.ui.selectedTagId;
-    rollback.push(() => { state.ui.selectedTagId = selection; });
-    if (snapshot.type === 'tag') {
-      if (!restore && selection === snapshot.identity) { snapshot.afterSelectedTagId = state.tags[0]?.id || ''; state.ui.selectedTagId = snapshot.afterSelectedTagId; }
-      if (restore && selection === snapshot.afterSelectedTagId) state.ui.selectedTagId = snapshot.selectedTagId;
     }
     return () => rollback.reverse().forEach(fn => fn());
   }
@@ -3447,15 +3461,17 @@
     if (modalState?.type !== 'tag') return;
     const name = Core.normalizeTagName(modalState.draft.name);
     const valid = Core.validateTagName(state.tags || [], name, modalState.tagId || null);
-    if (!valid.ok) { modalState.error = valid.reason === 'duplicate-tag' ? tr('A tag with this name already exists.') : tr('Tag needs a name.'); renderModal(); return; }
+    if (!valid.ok) { modalState.error = valid.reason === 'duplicate-tag' ? tr('A tag with this name already exists.') : tr('Tag needs a name.'); renderModal(); requestAnimationFrame(() => $('#tag-name')?.focus()); return; }
     if (modalState.tagId) {
       const tag = getTag(modalState.tagId); if (!tag) return;
       tag.name = name; tag.color = modalState.draft.color; tag.updatedAt = nowIso();
     } else {
       const tag = { id: uid('tag'), name, color: modalState.draft.color, createdAt: nowIso(), updatedAt: nowIso() };
-      state.tags.push(tag); state.ui.selectedTagId = tag.id;
+      state.tags.push(tag);
     }
+    const created = !modalState.tagId;
     saveState(); closeModal(); render();
+    if (created) setToastMessage(tr('Tag “{name}” created', { name })); // R10c: a new tag stays on the current screen
   }
 
   function deleteTag(tagId) {
@@ -4679,7 +4695,6 @@
     else if (action === 'delete-milestone') deleteMilestone(el.dataset.goalId, el.dataset.milestoneId);
     else if (action === 'save-area-linked') saveAreaLinkedModal();
     else if (action === 'new-tag') openTagModal();
-    else if (action === 'select-tag') { state.ui.selectedTagId = el.dataset.tagId; saveAndRender(); }
     else if (action === 'tag-menu') openTagMenu(el, el.dataset.tagId);
     else if (action === 'more-menu') openMoreMenu(el);
     else if (action === 'task-menu') openTaskMenu(el, el.dataset.taskId);

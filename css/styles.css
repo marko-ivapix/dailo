@@ -2686,6 +2686,17 @@ a.btn { text-decoration: none; }
 .sheet-field-stack { display: grid; gap: 6px; }
 .sheet-field-stack textarea { width: 100%; resize: vertical; }
 
+/* Redesign R10c — Oznake (S6). */
+.tag-list-row { width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 10px; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.tags-list > .tag-list-row + .tag-list-row { border-top: 1px solid var(--line-1); }
+.tag-list-row > .ph-caret-right { color: var(--ink-4); }
+.tag-list-row:focus-visible { outline: none; box-shadow: var(--focus-ring-inset); }
+.tag-list-main { display: grid; gap: 2px; min-width: 0; }
+.tags-list .inline-add { margin: 2px 6px 6px; }
+.tag-library { margin-top: 16px; }
+.tag-window .quick-title-input { margin-bottom: 6px; }
+.tag-window .habit-window-label { margin: 12px 2px 8px; }
+
 /* Keep primary compact actions touchable after all density rules. */
 @media (max-width: 700px), (pointer: coarse) {
   .task-actions .btn-icon,
