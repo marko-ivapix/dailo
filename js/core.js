@@ -499,15 +499,17 @@
   }
 
   // The next `count` dates from the first one, stopping at the rule's end date or remaining count.
-  function upcomingRecurrenceDates(start, recurrence, count = 5) {
+  // Dates before `from` (e.g. today) are left out but still count toward the remaining count.
+  function upcomingRecurrenceDates(start, recurrence, count = 5, from = null) {
     const rule = normalizeRecurrenceV3(recurrence);
     if (!rule) return [];
-    let limit = Math.max(0, Math.floor(Number(count) || 0));
-    if (rule.endType === 'afterOccurrences' && rule.endAfterOccurrences) limit = Math.min(limit, Math.max(0, rule.endAfterOccurrences - rule.occurrencesCreated));
+    const limit = Math.max(0, Math.floor(Number(count) || 0));
+    let remaining = rule.endType === 'afterOccurrences' && rule.endAfterOccurrences ? Math.max(0, rule.endAfterOccurrences - rule.occurrencesCreated) : Infinity;
     const dates = [];
-    for (let current = firstRecurrenceDate(start, rule); current && dates.length < limit; current = nextRecurrenceDate(current, rule)) {
+    for (let current = firstRecurrenceDate(start, rule), steps = 0; current && dates.length < limit && remaining > 0 && steps < 10000; current = nextRecurrenceDate(current, rule), steps += 1) {
       if (rule.endType === 'date' && rule.endDate && current > rule.endDate) break;
-      dates.push(current);
+      remaining -= 1;
+      if (!from || current >= from) dates.push(current);
     }
     return dates;
   }

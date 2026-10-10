@@ -128,8 +128,7 @@ test('a yearly rule has its own label and template choice', () => {
   for (const line of ['"Every year": "Svake godine"', '"Every {count} years": { one: "Svakih {count} godinu", few: "Svake {count} godine", other: "Svakih {count} godina" }', '"Yearly": "Godišnje"']) assert.ok(sr.includes(line), line);
 });
 
-test('R11a is released as 2.0.0-alpha.26', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.26');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.26';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.26');
+test('R11a shipped as 2.0.0-alpha.26 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 99) >= 26);
 });

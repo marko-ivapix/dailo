@@ -52,7 +52,11 @@ test('popover headings stay labelled after repeat and reminder content swaps', (
   assert.match(app, /function setPopoverContent\(html\)/);
   assert.match(app, /return `<div class="popover-title">\$\{tr\('Reminder'\)\}<\/div>/);
   assert.match(app, /refreshSheet\(reminderSheetHtml\(\)/);
-  assert.match(app, /setPopoverContent\(`<div class="popover-title">\$\{tr\('Custom repeat'\)\}/);
+  // R11b: the repeat editor replaced the custom-repeat form; it swaps its content with refreshSheet like the
+  // reminder sheet, and the inline "New tag" form still swaps through setPopoverContent.
+  assert.match(app, /return `<div class="popover-title">\$\{tr\('Repeat'\)\}<\/div>/);
+  assert.match(app, /refreshSheet\(repeatSheetHtml\(\)/);
+  assert.match(app, /setPopoverContent\(`<div class="popover-title">\$\{tr\('New tag'\)\}/);
   assert.match(app, /popoverEl\.innerHTML = html;\n    decorateSheet\(popoverEl\);/);
   assert.match(app, /setPopoverContent[\s\S]*?requestAnimationFrame\(\(\) => \(popoverEl && sheetInitialFocus\(popoverEl\)\)\?\.focus\(\)\)/);
   assert.match(app, /closePopover\(\)[\s\S]*?openerIsActive[\s\S]*?focusRoot\?\.querySelector\(returnFocus\.selector\)/);

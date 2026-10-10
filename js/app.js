@@ -175,15 +175,53 @@
     return Number.isNaN(date.getTime()) ? null : date.toISOString();
   }
 
+  // Redesign R11b (S15): the repeat editor's choices and the sentence for a rule. Weeks start on Monday.
+  const REPEAT_DAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
+  const REPEAT_SHORT_DAYS = [msg('Sun'), msg('Mon'), msg('Tue'), msg('Wed'), msg('Thu'), msg('Fri'), msg('Sat')];
+  const REPEAT_ON_DAYS = [msg('on Sundays'), msg('on Mondays'), msg('on Tuesdays'), msg('on Wednesdays'), msg('on Thursdays'), msg('on Fridays'), msg('on Saturdays')];
+  const REPEAT_NTH = [[1, msg('First')], [2, msg('Second')], [3, msg('Third')], [4, msg('Fourth')], ['last', msg('Last')]];
+  // Serbian ordinals agree with the weekday, so each pair is its own phrase.
+  const REPEAT_NTH_WEEKDAY = {
+    1: [msg('the first Sunday'), msg('the first Monday'), msg('the first Tuesday'), msg('the first Wednesday'), msg('the first Thursday'), msg('the first Friday'), msg('the first Saturday')],
+    2: [msg('the second Sunday'), msg('the second Monday'), msg('the second Tuesday'), msg('the second Wednesday'), msg('the second Thursday'), msg('the second Friday'), msg('the second Saturday')],
+    3: [msg('the third Sunday'), msg('the third Monday'), msg('the third Tuesday'), msg('the third Wednesday'), msg('the third Thursday'), msg('the third Friday'), msg('the third Saturday')],
+    4: [msg('the fourth Sunday'), msg('the fourth Monday'), msg('the fourth Tuesday'), msg('the fourth Wednesday'), msg('the fourth Thursday'), msg('the fourth Friday'), msg('the fourth Saturday')],
+    last: [msg('the last Sunday'), msg('the last Monday'), msg('the last Tuesday'), msg('the last Wednesday'), msg('the last Thursday'), msg('the last Friday'), msg('the last Saturday')],
+  };
+  const REPEAT_PRESETS = [[msg('Every day'), { frequency: 'daily', interval: 1 }], [msg('Every week'), { frequency: 'weekly', interval: 1 }], [msg('Every month'), { frequency: 'monthly', interval: 1 }], [msg('Every 3 months'), { frequency: 'monthly', interval: 3 }], [msg('Every year'), { frequency: 'yearly', interval: 1 }]];
+  const REPEAT_FREQUENCIES = [['daily', msg('Day by day')], ['weekly', msg('Weekly')], ['monthly', msg('Monthly')], ['yearly', msg('Yearly')]];
+  const REPEAT_DATE_FMT = new Intl.DateTimeFormat(I18n.locale(), { weekday: 'short', month: 'short', day: 'numeric' });
+
+  function repeatList(items) {
+    return items.length > 1 ? tr('{list} and {last}', { list: items.slice(0, -1).join(', '), last: items[items.length - 1] }) : items[0] || '';
+  }
+
   function recurrenceLabel(recurrence) {
     if (!recurrence) return tr('Does not repeat');
     const interval = Math.max(1, Number(recurrence.interval) || 1);
+    const cap = text => text.charAt(0).toUpperCase() + text.slice(1);
+    let text;
     // Interval 1 has its own wording: Serbian plural "one" also covers 21, 31 …
-    if (recurrence.frequency === 'daily') return interval === 1 ? tr('Every day') : trn(interval, 'Every {count} day', 'Every {count} days');
-    if (recurrence.frequency === 'weekly') return interval === 1 ? tr('Every week') : trn(interval, 'Every {count} week', 'Every {count} weeks');
-    if (recurrence.frequency === 'yearly') return interval === 1 ? tr('Every year') : trn(interval, 'Every {count} year', 'Every {count} years');
-    return interval === 1 ? tr('Every month') : trn(interval, 'Every {count} month', 'Every {count} months');
+    if (recurrence.frequency === 'daily') text = interval === 1 ? tr('Every day') : trn(interval, 'Every {count} day', 'Every {count} days');
+    else if (recurrence.frequency === 'weekly' && recurrence.weekdays?.length) {
+      const days = REPEAT_DAY_ORDER.filter(day => recurrence.weekdays.includes(day));
+      const names = days.join() === '1,2,3,4,5' ? tr('on weekdays') : days.join() === '6,0' ? tr('on weekends') : repeatList(days.map(day => tr(REPEAT_ON_DAYS[day])));
+      text = interval === 1 ? cap(names) : trn(interval, 'Every {count} week, {days}', 'Every {count} weeks, {days}', { days: names });
+    } else if (recurrence.frequency === 'weekly') text = interval === 1 ? tr('Every week') : trn(interval, 'Every {count} week', 'Every {count} weeks');
+    else if (recurrence.frequency === 'monthly' && recurrence.monthMode === 'weekday') {
+      const which = tr(REPEAT_NTH_WEEKDAY[recurrence.weekOfMonth]?.[recurrence.weekday] || '');
+      text = interval === 1 ? cap(tr('{which} of every month', { which })) : trn(interval, 'Every {count} month, {which}', 'Every {count} months, {which}', { which });
+    } else if (recurrence.frequency === 'monthly' && recurrence.monthMode === 'day' && recurrence.monthDay === 'last') {
+      text = interval === 1 ? tr('Every month on the last day') : trn(interval, 'Every {count} month, on the last day', 'Every {count} months, on the last day');
+    } else if (recurrence.frequency === 'monthly' && recurrence.monthMode === 'day') {
+      text = interval === 1 ? tr('Every month on day {day}', { day: recurrence.monthDay }) : trn(interval, 'Every {count} month, on day {day}', 'Every {count} months, on day {day}', { day: recurrence.monthDay });
+    } else if (recurrence.frequency === 'yearly') text = interval === 1 ? tr('Every year') : trn(interval, 'Every {count} year', 'Every {count} years');
+    else text = interval === 1 ? tr('Every month') : trn(interval, 'Every {count} month', 'Every {count} months');
+    if (recurrence.endType === 'date' && recurrence.endDate) text += ` · ${tr('until {date}', { date: formatDate(recurrence.endDate) })}`;
+    else if (recurrence.endType === 'afterOccurrences' && recurrence.endAfterOccurrences) text += ` · ${trn(recurrence.endAfterOccurrences, '{count} time', '{count} times')}`;
+    return text;
   }
+
 
   function createEmptyState() {
     return {
@@ -2416,27 +2454,139 @@
     if (value) setReminder(reminderSheet.target.type, reminderSheet.target.taskId, value);
   }
 
-  function openRepeatPicker(anchor, target) {
-    const task = target.type === 'quick' ? modalState.draft : getTask(target.taskId);
-    if (!task) return;
-    const current = task.recurrence;
-    const attrs = `${target.taskId ? `data-task-id="${esc(target.taskId)}"` : ''} data-target-type="${target.type}"`;
-    const option = (label, frequency) => `<button class="popover-option ${current?.frequency === frequency && Number(current?.interval || 1) === 1 ? 'is-selected' : ''}" type="button" data-pop-action="set-repeat" data-frequency="${frequency || ''}" data-interval="1" ${attrs}>${tr(label)}${current?.frequency === frequency && Number(current?.interval || 1) === 1 ? '<i class="ph ph-check spacer"></i>' : ''}</button>`;
-    const operational=taskRecurrence(task);
-    const management=operational && target.type!=='quick' ? `<div class="popover-separator"></div><p class="popover-empty">${tr('Controls apply to this and pending recurrence. Skip affects the next generated occurrence, not already-created tasks.')}</p><button class="popover-option" data-pop-action="${operational.status==='paused'?'resume-recurrence':'pause-recurrence'}" ${attrs}>${operational.status==='paused'?tr('Resume recurrence'):tr('Pause recurrence')}</button><button class="popover-option" data-pop-action="skip-recurrence" ${attrs}>${operational.skipNext?tr('Skip next occurrence (scheduled)'):tr('Skip next occurrence')}</button><button class="popover-option" data-pop-action="end-recurrence" ${attrs}>${tr('End recurrence')}</button>`:'';
-    const html = `<div class="popover-title">${tr('Repeat')}</div>${option(msg('Does not repeat'), '')}${option(msg('Every day'), 'daily')}${option(msg('Every week'), 'weekly')}${option(msg('Every month'), 'monthly')}<div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="show-custom-repeat" ${attrs}><i class="ph ph-sliders-horizontal"></i>${current?tr('Edit recurrence / End on date / End after N occurrences'):tr('Custom interval...')}</button>${management}`;
-    openPopover(anchor, html, { type: 'repeat', target });
+  // Redesign R11b (S15, E7): one repeat editor for the task window and drafts. It keeps every choice while
+  // the frequency changes and writes the R11a rule only on "Primeni".
+  let repeatSheet = null;
+  function repeatSource(target) {
+    return target.type === 'task' ? getTask(target.taskId) : modalState?.draft;
   }
-
-
-  function showCustomRepeat(button) {
-    if (!popoverEl) return;
-    const targetType = button.dataset.targetType;
-    const taskId = button.dataset.taskId || '';
-    const source = targetType === 'quick' ? modalState.draft : getTask(taskId);
-    const current = source?.recurrence || { frequency: 'weekly', interval: 2 };
-    setPopoverContent(`<div class="popover-title">${tr('Custom repeat')}</div><div class="popover-inline-form"><label class="field-label" for="repeat-interval">${tr('Repeat every')}</label><div class="repeat-custom-row"><input id="repeat-interval" class="input" type="number" min="1" max="99" value="${Math.max(1, Number(current.interval) || 1)}" /><select id="repeat-frequency" class="input"><option value="daily" ${current.frequency === 'daily' ? 'selected' : ''}>${tr('days')}</option><option value="weekly" ${current.frequency === 'weekly' ? 'selected' : ''}>${tr('weeks')}</option><option value="monthly" ${current.frequency === 'monthly' ? 'selected' : ''}>${tr('months')}</option></select></div><div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn btn-ghost" type="button" data-pop-action="custom-repeat-cancel">${tr('Cancel')}</button><button class="btn btn-primary" type="button" data-pop-action="custom-repeat-apply" data-target-type="${targetType}" ${taskId ? `data-task-id="${esc(taskId)}"` : ''}>${tr('Apply')}</button></div></div>`);
-    $('.repeat-custom-row',popoverEl).insertAdjacentHTML('afterend',`<label class="field-label">${tr('End condition')}<select id="repeat-end-type" class="input"><option value="never" ${!current.endType || current.endType==='never'?'selected':''}>${tr('Never')}</option><option value="date" ${current.endType==='date'?'selected':''}>${tr('End on date')}</option><option value="afterOccurrences" ${current.endType==='afterOccurrences'?'selected':''}>${tr('End after N occurrences (including initial)')}</option></select></label><label class="field-label">${tr('End date')}<input id="repeat-end-date" class="input" type="date" value="${esc(current.endDate || '')}"></label><label class="field-label">${tr('Total occurrences')}<input id="repeat-end-count" class="input" type="number" min="1" step="1" value="${esc(current.endAfterOccurrences || '')}"></label><p class="validation" role="alert" id="repeat-error" hidden></p>`);
+  function repeatEditorState(target, source) {
+    const start = source.plannedDate || source.parsedPlanDate || source.dueDate || Core.dateOnly();
+    const date = parseLocalDate(start);
+    const rule = Core.normalizeRecurrenceV3(source.recurrence);
+    const nth = Math.ceil(date.getDate() / 7);
+    const sheet = {
+      target, start, frequency: rule?.frequency || 'weekly', interval: rule?.interval || 1,
+      weekdays: rule?.weekdays ? [...rule.weekdays] : [date.getDay()],
+      monthMode: rule?.monthMode || 'day', monthDay: rule?.monthDay ?? date.getDate(),
+      weekOfMonth: rule?.weekOfMonth ?? (nth > 4 ? 'last' : nth), weekday: rule?.weekday ?? date.getDay(),
+      endType: rule?.endType || 'never', endDate: rule?.endDate || Core.addDays(start, 90), endAfterOccurrences: rule?.endAfterOccurrences || 10,
+      occurrencesCreated: rule?.occurrencesCreated || 0, error: '',
+    };
+    sheet.initial = rule ? repeatRuleFromSheet(sheet) : null;
+    return sheet;
+  }
+  function repeatRuleFromSheet(sheet) {
+    const rule = { frequency: sheet.frequency, interval: sheet.interval };
+    if (sheet.frequency === 'weekly') rule.weekdays = [...sheet.weekdays];
+    if (sheet.frequency === 'monthly') Object.assign(rule, sheet.monthMode === 'weekday' ? { monthMode: 'weekday', weekOfMonth: sheet.weekOfMonth, weekday: sheet.weekday } : { monthMode: 'day', monthDay: sheet.monthDay });
+    return { ...rule, endType: sheet.endType, endDate: sheet.endType === 'date' ? sheet.endDate : null, endAfterOccurrences: sheet.endType === 'afterOccurrences' ? Number(sheet.endAfterOccurrences) : null };
+  }
+  function repeatPresetOn(sheet, index) {
+    const preset = REPEAT_PRESETS[index][1], date = parseLocalDate(sheet.start);
+    if (sheet.frequency !== preset.frequency || sheet.interval !== preset.interval) return false;
+    if (preset.frequency === 'weekly') return sheet.weekdays.length === 1 && sheet.weekdays[0] === date.getDay();
+    if (preset.frequency === 'monthly') return sheet.monthMode === 'day' && sheet.monthDay === date.getDate();
+    return true;
+  }
+  function openRepeatPicker(anchor, target) {
+    const source = repeatSource(target);
+    if (!source) return;
+    const sheet = repeatEditorState(target, source);
+    repeatSheet = sheet;
+    openPopover(anchor, repeatSheetHtml(), { type: 'repeat', target });
+    repeatSheet = sheet; // openPopover closes the previous sheet first, which clears the sheet state
+  }
+  function repeatSheetHtml() {
+    const s = repeatSheet, source = repeatSource(s.target);
+    const rule = repeatRuleFromSheet(s), date = parseLocalDate(s.start);
+    const pressed = on => `${on ? ' is-selected' : ''}" type="button"`;
+    const radio = (action, value, label, on, extra = '') => `<button class="popover-option sheet-option${on ? ' is-selected' : ''}" type="button" role="radio" aria-checked="${on}" data-pop-action="${action}" data-value="${value}"><span class="sheet-radio${on ? ' is-on' : ''}" aria-hidden="true"></span><span class="sheet-option-label">${label}</span>${extra}</button>`;
+    const dayButtons = (action, isOn) => `<div class="habit-weekdays">${REPEAT_DAY_ORDER.map(day => `<button class="habit-weekday${isOn(day) ? ' is-on' : ''}" type="button" data-pop-action="${action}" data-day="${day}" aria-pressed="${isOn(day)}">${tr(REPEAT_SHORT_DAYS[day])}</button>`).join('')}</div>`;
+    const chips = REPEAT_PRESETS.map(([label], index) => { const on = repeatPresetOn(s, index); return `<button class="quick-chip${pressed(on)} data-pop-action="repeat-preset" data-preset="${index}" aria-pressed="${on}">${tr(label)}</button>`; }).join('');
+    const segment = REPEAT_FREQUENCIES.map(([value, label]) => `<button class="btn${pressed(s.frequency === value)} data-pop-action="repeat-frequency" data-value="${value}" aria-pressed="${s.frequency === value}">${tr(label)}</button>`).join('');
+    const n = s.interval;
+    const unit = { daily: trn(n, 'day', 'days'), weekly: trn(n, 'week', 'weeks'), monthly: trn(n, 'month', 'months'), yearly: trn(n, 'year', 'years') }[s.frequency];
+    const stepper = `<div class="sheet-field habit-stepper-field"><span>${tr('Interval')}</span><span class="habit-stepper"><button class="btn-icon" type="button" data-pop-action="repeat-step" data-step="-1"${n <= 1 ? ' disabled' : ''} aria-label="${tr('Decrease')}"><i class="ph ph-minus"></i></button><span class="habit-stepper-value" aria-live="polite">${n}</span><button class="btn-icon" type="button" data-pop-action="repeat-step" data-step="1"${n >= 99 ? ' disabled' : ''} aria-label="${tr('Increase')}"><i class="ph ph-plus"></i></button><span class="repeat-unit">${esc(unit)}</span></span></div>`;
+    let extra = '';
+    if (s.frequency === 'weekly') extra = `<h3 class="sheet-group-title">${tr('Days')}</h3>${dayButtons('repeat-day', day => s.weekdays.includes(day))}`;
+    if (s.frequency === 'monthly') {
+      const which = tr(REPEAT_NTH_WEEKDAY[s.weekOfMonth][s.weekday]);
+      extra = `<div class="sheet-card" role="radiogroup" aria-label="${tr('Monthly')}">${radio('repeat-month-mode', 'day', tr('Day of the month'), s.monthMode === 'day', `<span class="sheet-option-value">${s.monthDay === 'last' ? tr('last') : `${s.monthDay}.`}</span>`)}${radio('repeat-month-mode', 'weekday', tr('Day of the week'), s.monthMode === 'weekday', `<span class="sheet-option-value">${esc(which)}</span>`)}</div>`;
+      if (s.monthMode === 'day') {
+        extra += `<div class="repeat-month-days">${Array.from({ length: 31 }, (_, index) => { const on = s.monthDay === index + 1; return `<button class="sheet-calendar-day${pressed(on)} data-pop-action="repeat-month-day" data-value="${index + 1}" aria-pressed="${on}">${index + 1}</button>`; }).join('')}<button class="quick-chip repeat-last-day${pressed(s.monthDay === 'last')} data-pop-action="repeat-month-day" data-value="last" aria-pressed="${s.monthDay === 'last'}">${tr('Last day')}</button></div>`;
+        if (typeof s.monthDay === 'number' && s.monthDay > 28) extra += `<p class="sheet-note">${tr('In shorter months it falls on the last day.')}</p>`;
+      } else {
+        extra += `<div class="sheet-chips">${REPEAT_NTH.map(([value, label]) => `<button class="quick-chip${pressed(s.weekOfMonth === value)} data-pop-action="repeat-nth" data-value="${value}" aria-pressed="${s.weekOfMonth === value}">${tr(label)}</button>`).join('')}</div>${dayButtons('repeat-nth-day', day => s.weekday === day)}`;
+      }
+    }
+    if (s.frequency === 'yearly') extra = `<p class="sheet-note">${esc(tr('The date is the day of the first time: {date}.', { date: formatDate(s.start) }))}</p>`;
+    const dates = Core.upcomingRecurrenceDates(s.start, { ...rule, occurrencesCreated: s.occurrencesCreated }, 3, Core.dateOnly());
+    const next = dates.length ? tr('Next times: {dates}', { dates: dates.map(value => REPEAT_DATE_FMT.format(parseLocalDate(value))).join(' · ') }) : tr('No more repeats.');
+    const end = `<h3 class="sheet-group-title">${tr('End')}</h3><div class="sheet-card" role="radiogroup" aria-label="${tr('End')}">${radio('repeat-end', 'never', tr('Never'), s.endType === 'never')}${radio('repeat-end', 'date', tr('On date'), s.endType === 'date')}${radio('repeat-end', 'afterOccurrences', tr('After a number of times'), s.endType === 'afterOccurrences')}</div>`
+      + (s.endType === 'date' ? `<label class="sheet-field"><i class="ph ph-calendar-blank" aria-hidden="true"></i><span>${tr('End date')}</span><input id="repeat-end-date" class="input" type="date" min="${esc(s.start)}" value="${esc(s.endDate)}"></label>` : '')
+      + (s.endType === 'afterOccurrences' ? `<label class="sheet-field"><i class="ph ph-hash" aria-hidden="true"></i><span>${tr('Number of times')}</span><input id="repeat-end-count" class="input" type="number" min="1" step="1" value="${esc(s.endAfterOccurrences)}"></label>` : '')
+      + (s.error ? `<p class="validation" role="alert">${esc(s.error)}</p>` : '');
+    // The existing controls stay for a task that already repeats; R11c (S14) gives them Undo and new wording.
+    const operational = s.target.type === 'task' ? taskRecurrence(source) : null;
+    const attrs = `data-task-id="${esc(s.target.taskId)}" data-target-type="task"`;
+    const control = (action, label) => `<button class="popover-option sheet-option" type="button" data-pop-action="${action}" ${attrs}><span class="sheet-option-label">${label}</span></button>`;
+    const controls = operational ? `<h3 class="sheet-group-title">${tr('This repeat')}</h3><p class="sheet-note">${tr('Controls apply to this and pending recurrence. Skip affects the next generated occurrence, not already-created tasks.')}</p><div class="sheet-card">${control(operational.status === 'paused' ? 'resume-recurrence' : 'pause-recurrence', operational.status === 'paused' ? tr('Resume recurrence') : tr('Pause recurrence'))}${control('skip-recurrence', operational.skipNext ? tr('Skip next occurrence (scheduled)') : tr('Skip next occurrence'))}${control('end-recurrence', tr('End recurrence'))}</div>` : '';
+    const clear = operational ? '<span></span>' : `<button class="btn btn-ghost" type="button" data-pop-action="repeat-clear">${tr('Does not repeat')}</button>`;
+    return `<div class="popover-title">${tr('Repeat')}</div>${source?.title ? `<p class="sheet-subtitle">${esc(source.title)}</p>` : ''}<div class="sheet-chips">${chips}</div><div class="view-tabs habit-window-seg repeat-frequency" role="group" aria-label="${tr('Frequency')}">${segment}</div>${stepper}${extra}<p class="sheet-summary" data-repeat-summary>${esc(recurrenceLabel(rule))}</p><p class="sheet-note">${esc(next)}</p>${end}${controls}<div class="sheet-footer">${clear}<button class="btn btn-primary" type="button" data-pop-action="repeat-apply">${tr('Apply')}</button></div>`;
+  }
+  function readRepeatInputs() {
+    const date = $('#repeat-end-date', popoverEl), count = $('#repeat-end-count', popoverEl);
+    if (date) repeatSheet.endDate = date.value;
+    if (count) repeatSheet.endAfterOccurrences = count.value;
+  }
+  function handleRepeatAction(action, button) {
+    const s = repeatSheet;
+    if (!s) return false;
+    readRepeatInputs();
+    s.error = '';
+    const data = button.dataset, date = parseLocalDate(s.start);
+    if (action === 'repeat-apply') { applyRepeatSheet(); return true; }
+    if (action === 'repeat-clear') {
+      if (s.target.type === 'task') closePopover(); else setRecurrence(s.target.type, null, null);
+      return true;
+    }
+    if (action === 'repeat-preset') {
+      const preset = REPEAT_PRESETS[Number(data.preset)]?.[1];
+      if (!preset) return true;
+      Object.assign(s, preset);
+      if (preset.frequency === 'weekly') s.weekdays = [date.getDay()];
+      if (preset.frequency === 'monthly') Object.assign(s, { monthMode: 'day', monthDay: date.getDate() });
+    } else if (action === 'repeat-frequency') Object.assign(s, { frequency: data.value, interval: 1 });
+    else if (action === 'repeat-step') s.interval = Math.min(99, Math.max(1, s.interval + Number(data.step)));
+    else if (action === 'repeat-day') {
+      const day = Number(data.day);
+      if (!s.weekdays.includes(day)) s.weekdays = [...s.weekdays, day].sort((a, b) => a - b);
+      else if (s.weekdays.length > 1) s.weekdays = s.weekdays.filter(item => item !== day);
+    } else if (action === 'repeat-month-mode') s.monthMode = data.value === 'weekday' ? 'weekday' : 'day';
+    else if (action === 'repeat-month-day') s.monthDay = data.value === 'last' ? 'last' : Number(data.value);
+    else if (action === 'repeat-nth') s.weekOfMonth = data.value === 'last' ? 'last' : Number(data.value);
+    else if (action === 'repeat-nth-day') s.weekday = Number(data.day);
+    else if (action === 'repeat-end') s.endType = data.value;
+    else return false;
+    const key = ['value', 'day', 'preset', 'step'].find(name => data[name] != null);
+    refreshSheet(repeatSheetHtml(), `[data-pop-action="${action}"]${key ? `[data-${key}="${cssEscape(data[key])}"]` : ''}`);
+    return true;
+  }
+  function applyRepeatSheet() {
+    const s = repeatSheet;
+    const endDate = Core.parseDateOnly(s.endDate);
+    const valid = s.endType === 'date' ? Boolean(endDate) && Core.dateOnly(endDate) === s.endDate
+      : s.endType === 'afterOccurrences' ? Number.isInteger(Number(s.endAfterOccurrences)) && Number(s.endAfterOccurrences) >= 1 : true;
+    if (!valid) {
+      s.error = tr('Choose a valid end date or number of times.');
+      refreshSheet(repeatSheetHtml(), s.endType === 'date' ? '#repeat-end-date' : '#repeat-end-count');
+      return;
+    }
+    const rule = repeatRuleFromSheet(s);
+    if (s.target.type !== 'task') { setRecurrence(s.target.type, null, rule); return; }
+    if (JSON.stringify(rule) === JSON.stringify(s.initial)) { closePopover(); return; }
+    setRecurrence('task', s.target.taskId, rule);
   }
 
   function setReminder(targetType, taskId, value) {
@@ -2532,7 +2682,7 @@
     const returnFocus = popoverEl?.returnFocus || popoverReturnFocus;
     if (popoverEl) { popoverEl.backdrop?.remove(); popoverEl.remove(); }
     popoverEl = null;
-    dateSheet = null; reminderSheet = null; tagSheet = null; projectGoalSheet = null;
+    dateSheet = null; reminderSheet = null; tagSheet = null; projectGoalSheet = null; repeatSheet = null;
     popoverReturnFocus = null;
     restoreGoalFocus(target);
     if (!target && returnFocus) requestAnimationFrame(() => {
@@ -4736,6 +4886,7 @@
 
   function handlePopoverAction(button) {
     const action = button.dataset.popAction;
+    if (action?.startsWith('repeat-') && handleRepeatAction(action, button)) return;
     if (action === 'close-sheet') closePopover();
     else if (action === 'quick-place' && modalState?.type === 'quick') { const inbox = button.dataset.place === 'inbox'; Object.assign(modalState.draft, { projectId: null, processed: !inbox, placePicked: true }); closePopover(); renderModal(); }
     else if (action === 'quick-template-pick') { const id = button.dataset.templateId; closePopover(); applyQuickTemplate(id); renderModal(); requestAnimationFrame(() => $('#quick-title')?.focus()); }
@@ -4775,15 +4926,7 @@
     else if (action === 'set-plan') setPlan(button.dataset.targetType, button.dataset.taskId, button.dataset.date);
     else if (action === 'set-due') setDue(button.dataset.targetType, button.dataset.taskId, button.dataset.date);
     else if (action === 'set-reminder') setReminder(button.dataset.targetType, button.dataset.taskId, button.dataset.reminder);
-    else if (action === 'set-repeat') setRecurrence(button.dataset.targetType, button.dataset.taskId, button.dataset.frequency ? { frequency: button.dataset.frequency, interval: Number(button.dataset.interval) || 1 } : null);
-    else if (action === 'show-custom-repeat') showCustomRepeat(button);
-    else if (action === 'custom-repeat-cancel') closePopover();
     else if (['pause-recurrence','resume-recurrence','skip-recurrence','end-recurrence'].includes(action)) manageRecurrence(button.dataset.taskId,action);
-    else if (action === 'custom-repeat-apply') {
-      const interval=Number($('#repeat-interval',popoverEl)?.value),frequency=$('#repeat-frequency',popoverEl)?.value || 'weekly',endType=$('#repeat-end-type',popoverEl)?.value || 'never',endDate=$('#repeat-end-date',popoverEl)?.value || null,endAfterOccurrences=Number($('#repeat-end-count',popoverEl)?.value) || null;
-      if(!Number.isInteger(interval) || interval<1 || endType==='afterOccurrences' && (!Number.isInteger(endAfterOccurrences) || endAfterOccurrences<1) || endType==='date' && !endDate){const error=$('#repeat-error',popoverEl);error.hidden=false;error.textContent=tr('Provide a positive whole-number interval/count and a valid end date.');return;}
-      setRecurrence(button.dataset.targetType,button.dataset.taskId,{frequency,interval,endType,endDate,endAfterOccurrences});
-    }
     else if (action === 'inline-new-tag') inlineNewTag(button);
     else if (action === 'inline-select-tag-color') { $$('.color-swatch', popoverEl).forEach(s => s.classList.toggle('is-selected', s === button)); const create = $('[data-pop-action="inline-tag-create"]', popoverEl); if (create) create.dataset.color = button.dataset.color; }
     else if (action === 'inline-tag-cancel') closePopover();

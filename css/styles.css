@@ -2758,6 +2758,13 @@ a.btn { text-decoration: none; }
   .settings-desktop { display: none; }
 }
 
+/* Redesign R11b — the repeat editor (S15, E7). */
+.repeat-frequency { margin: 0 0 12px; }
+.repeat-unit { min-width: 64px; color: var(--ink-3); font-size: 13px; }
+.repeat-month-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; margin: 8px 0; text-align: center; }
+.repeat-month-days .sheet-calendar-day { height: 36px; }
+.repeat-last-day { grid-column: span 4; justify-content: center; margin: 4px; }
+
 /* Keep primary compact actions touchable after all density rules. */
 @media (max-width: 700px), (pointer: coarse) {
   .task-actions .btn-icon,
