@@ -56,6 +56,7 @@
     const defaultTimeOptions = [...new Set([...Array.from({ length: 16 }, (_, index) => `${String(index + 6).padStart(2, '0')}:00`), defaultTime])].sort()
       .map(time => `<option value="${time}"${time === defaultTime ? ' selected' : ''}>${time}</option>`).join('');
     const native = ctx.notificationSettings?.() || null;
+    const autoBackup = ctx.readAutoBackup?.() || { enabled: false };
     const rawJournalTime = state.settings.journalReminderTime;
     const journalTime = rawJournalTime === null ? null : typeof rawJournalTime === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(rawJournalTime) ? rawJournalTime : '20:00';
     const journalOptions = `<option value="off"${journalTime ? '' : ' selected'}>${tr('Off')}</option>` + [...new Set(['19:00', '20:00', '21:00', '22:00', ...(journalTime ? [journalTime] : [])])].sort()
@@ -82,6 +83,8 @@
       <section class="settings-card" data-settings-data>
         <h2>${tr('Data')}</h2>
         <div class="settings-row"><div class="settings-label"><strong>${tr('Backup')}</strong><span>${tr('Last export:')} ${statusTime(backupStatus.lastExport)}<br>${tr('Last import:')} ${statusTime(backupStatus.lastImport)}<br>${tr('Recovery snapshot:')} ${backupStatus.snapshotAvailable ? tr('Available') : tr('None pending')}<br>${tr('Validation:')} ${esc(trMessage(backupStatus.validationResult || msg('Not yet validated')))}</span></div><button class="btn btn-secondary" type="button" data-action="export-backup"><i class="ph ph-download-simple"></i> ${tr('Export ZIP')}</button></div>
+${native ? `
+        <div class="settings-row"><label class="settings-label" for="auto-backup"><strong>${tr('Automatic backup')}</strong><span>${tr('Once a week to Documents/Dailo on this phone; the newest four are kept.')}${autoBackup.lastAt ? `<br>${tr('Last copy:')} ${statusTime(autoBackup.lastAt)}` : ''}${autoBackup.error ? `<br>${esc(tr('Last attempt failed: {error}', { error: autoBackup.error }))}` : ''}</span></label><input id="auto-backup" type="checkbox"${autoBackup.enabled ? ' checked' : ''}></div>` : ''}
         <div class="settings-row settings-sub"><label class="settings-label" for="backup-reminder-days"><strong>${tr('Backup reminder')}</strong><span>${tr('Today reminds you to export a backup when the last one is older than this.')}</span></label><select class="input" id="backup-reminder-days">${reminderOptions}</select></div>
         <div class="settings-row"><div class="settings-label"><strong>${tr('Restore from backup')}</strong><span>${tr('Validate a ZIP first, then replace current data only after you confirm.')}</span></div><div><button class="btn btn-secondary" type="button" data-action="import-backup"><i class="ph ph-upload-simple"></i> ${tr('Import ZIP')}</button><input id="backup-import-input" type="file" accept=".zip,application/zip" hidden /></div></div>
         <div class="settings-row"><div class="settings-label"><strong>${tr('Local snapshots')}</strong><span>${tr('Five automatic copies, at most once every five minutes after saving. Restore one item with its files and history.')}</span></div><button class="btn btn-secondary" type="button" data-action="open-local-snapshots">${tr('Browse snapshots')}</button></div>

@@ -18,6 +18,11 @@
   const VERSION = 3;
   const PROJECT_COLORS = ['#5362FF', '#30CBAD', '#A879FF', '#4CC9F0', '#F5B942', '#FF8A5B', '#F06A8A', '#8FD14F'];
   // R22c: a swatch is announced by its color's name instead of one shared "Izaberi boju".
+  // R27 (J): an automatic weekly backup on the phone, the full ZIP in Documents/Dailo with the newest four kept.
+  // Device-local ('dailoAutoBackup', outside state, backups and sync): { enabled, lastAt, lastFile, error }.
+  const AUTO_BACKUP_KEY = 'dailoAutoBackup';
+  let autoBackupRunning = false;
+
   // R26 (I): the journal lock. Device-local ('dailoJournalLock', outside state, backups and sync), and only in the
   // phone app with a fingerprint, face or PIN. The journal opens once per visit and closes again when Dailo goes to
   // the background.
@@ -677,6 +682,7 @@
       foldButton,
       colorName,
       journalLock,
+      readAutoBackup,
       saveTextFile: (text, name, type) => globalThis.DailoPlatform.files.saveFile(new Blob([text], { type }), name, name),
       templateTypes: TEMPLATE_TYPES, templateLabel, openTemplateEditorFromSource, saveTemplateRecord, duplicateTemplateRecord, useTemplate,
       captureModalReturnFocus,
@@ -5251,6 +5257,7 @@
     if (event.target.id === 'journal-reminder-time') { const value = event.target.value; if (value === 'off' || Core.normalizeTime(value) === value) { state.settings.journalReminderTime = value === 'off' ? null : value; saveAndRender(); } return; }
     // R18: the reminder settings apply at once (the phone plan is rebuilt on save).
     if (event.target.id === 'default-reminder-time') { const value = Core.normalizeTime(event.target.value); if (value) { state.settings.defaultReminderTime = value; saveAndRender(); } return; }
+    if (event.target.id === 'auto-backup') { writeAutoBackup({ enabled: event.target.checked }); if (event.target.checked) runAutoBackup({ announce: true }); render(); return; }
     if (event.target.id === 'planned-time-reminders') { state.settings.plannedTimeReminders = event.target.checked; saveAndRender(); return; }
     if (event.target.id === 'journal-notifications') { state.settings.journalNotifications = event.target.checked; saveAndRender(); return; }
     if (event.target.id === 'daily-capacity') { const minutes = Number(event.target.value); if (Number.isInteger(minutes) && minutes >= 0 && minutes <= 1440) { state.settings.dailyCapacityMinutes = minutes; saveAndRender(); } return; }
@@ -5662,6 +5669,48 @@
   }
 
   // Back in the foreground: a new day, due reminders and a sync round, without waiting for the 30-second timer.
+  function readAutoBackup() {
+    try {
+      const value = JSON.parse(localStorage.getItem(AUTO_BACKUP_KEY) || 'null');
+      return { enabled: value?.enabled === true, lastAt: value?.lastAt || null, lastFile: value?.lastFile || null, error: value?.error || null };
+    } catch (_) { return { enabled: false, lastAt: null, lastFile: null, error: null }; }
+  }
+
+  function writeAutoBackup(patch) {
+    const next = { ...readAutoBackup(), ...patch };
+    try { localStorage.setItem(AUTO_BACKUP_KEY, JSON.stringify(next)); } catch (_) { /* tried again next time */ }
+    return next;
+  }
+
+  function autoBackupDue() {
+    if (!globalThis.DailoPlatform?.isNative) return false;
+    const meta = readAutoBackup();
+    if (!meta.enabled) return false;
+    const last = Date.parse(meta.lastAt || '');
+    return !Number.isFinite(last) || Date.parse(nowIso()) - last >= 7 * 86400000;
+  }
+
+  // Never during an import, a restore or recovery; a failure is remembered for Settings and tried again next time.
+  async function runAutoBackup({ announce = false } = {}) {
+    if (autoBackupRunning || !state || globalOperation || recovery || startupPromise || !Backup || !globalThis.DailoPlatform?.isNative) return false;
+    autoBackupRunning = true;
+    try {
+      const blob = await Backup.exportBackupV3(state, TodoStorage, nowIso());
+      const saved = await globalThis.DailoPlatform.files.saveBackupCopy(blob, `dailo-auto-${Core.dateOnly()}.zip`, { keep: 4, prefix: 'dailo-auto-' });
+      writeAutoBackup({ lastAt: nowIso(), lastFile: `${saved.folder}/${saved.name}`, error: null });
+      if (announce) setToastMessage(tr('Backup saved to {folder}', { folder: saved.folder }));
+      return true;
+    } catch (error) {
+      console.error(error);
+      writeAutoBackup({ error: String(error?.message || error) });
+      if (announce) setToastMessage(tr('The automatic backup failed: {error}', { error: String(error?.message || error) }));
+      return false;
+    } finally {
+      autoBackupRunning = false;
+      if (currentRoute().type === 'settings') render();
+    }
+  }
+
   // R26 (I): a locked journal closes again when Dailo goes to the background; its open entry is saved and closed.
   function lockJournalAgain() {
     if (!journalLock.enabled() || !journalUnlocked) return;
@@ -5673,6 +5722,7 @@
   function resumeApp() {
     if (globalOperation || startupPromise || recovery || !state) return;
     checkDateAndReminders();
+    if (autoBackupDue()) runAutoBackup();
     scheduleSync(500);
     if (globalThis.DailoPlatform?.isNative) scheduleNotificationPlan(500);
   }
@@ -5712,6 +5762,7 @@
     platform.links.onAppLink?.(handleIncomingLink);
     scheduleNotificationPlan(0);
     consumeLaunchParams();
+    setTimeout(() => { if (autoBackupDue()) runAutoBackup(); }, 8000);
   }
 
   // R24: links that open Dailo — the icon's shortcuts (dailo://new-task, dailo://today, dailo://journal) and text

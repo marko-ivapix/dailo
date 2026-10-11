@@ -11,6 +11,7 @@
   // official Capacitor plugins through Capacitor.registerPlugin (vendor/capacitor/capacitor.js).
 
   const SHARE_DIR = 'dailo-share';
+  const BACKUP_DIR = 'Dailo'; // R27: Documents/Dailo on the phone
   const MIRROR = 'dailo/state.json';
   const MIRROR_TMP = 'dailo/state.json.tmp';
   const CHUNK_BYTES = 3 * 256 * 1024; // a multiple of 3, so every base64 chunk can be appended as is
@@ -88,11 +89,11 @@
       for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
       return env.btoa(binary);
     }
-    async function writeChunked(fs, path, blob) {
+    async function writeChunked(fs, path, blob, directory = 'CACHE') {
       let offset = 0;
       do {
         const bytes = new Uint8Array(await blob.slice(offset, offset + CHUNK_BYTES).arrayBuffer());
-        const options = { path, data: base64Of(bytes), directory: 'CACHE' };
+        const options = { path, data: base64Of(bytes), directory };
         if (offset === 0) await fs.writeFile({ ...options, recursive: true });
         else await fs.appendFile(options);
         offset += CHUNK_BYTES;
@@ -118,6 +119,21 @@
     // Returns 'downloaded' (web), 'shared' or 'cancelled' (app). Callers record a backup only when it was not cancelled.
     async function saveFile(blob, fileName, title) {
       return isNative ? shareBlob(blob, fileName, title) : webDownload(blob, fileName);
+    }
+    // R27 (J): an automatic backup in the phone's Documents/Dailo folder, which other apps and the Files app can
+    // reach and which stays when Dailo's own data is cleared. Only the newest `keep` files with the prefix stay;
+    // anything else in the folder is left alone. App only.
+    async function saveBackupCopy(blob, fileName, { keep = 4, prefix = 'dailo-auto-' } = {}) {
+      const fs = isNative ? plugin('Filesystem') : null;
+      if (!fs) throw new Error('Automatic backups need the phone app.');
+      const name = safeName(fileName);
+      await writeChunked(fs, `${BACKUP_DIR}/${name}`, blob, 'DOCUMENTS');
+      try {
+        const { files = [] } = await fs.readdir({ path: BACKUP_DIR, directory: 'DOCUMENTS' });
+        const own = files.map(file => (typeof file === 'string' ? file : file?.name || '')).filter(item => item.startsWith(prefix) && item.endsWith('.zip')).sort().reverse();
+        for (const old of own.slice(keep)) await fs.deleteFile({ path: `${BACKUP_DIR}/${old}`, directory: 'DOCUMENTS' });
+      } catch (_) { /* pruning is best effort; the new copy is written */ }
+      return { folder: `Documents/${BACKUP_DIR}`, name };
     }
     // Native only: opens a file in another app through the share sheet. The web keeps its own logic.
     async function openFile(blob, fileName) {
@@ -310,7 +326,7 @@
       plugin,
       lifecycle: Object.freeze({ onPause, onResume }),
       backButton: Object.freeze({ setHandler: setBackHandler }),
-      files: Object.freeze({ saveFile, openFile, cleanupSharedFiles }),
+      files: Object.freeze({ saveFile, openFile, cleanupSharedFiles, saveBackupCopy }),
       links: Object.freeze({ openExternal, interceptExternalLinks, onAppLink }),
       storage: Object.freeze({ status: storageStatus }),
       durable: Object.freeze({ write: writeMirror, read: readMirror }),

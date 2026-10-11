@@ -221,7 +221,8 @@ test('attachments open through the share sheet in the app; pause flushes typing;
 test('resume runs the day change, reminders and a sync without waiting for the 30-second timer', () => {
   const calls = [];
   const ctx = { Core: { dateOnly: () => '2026-10-10' }, lastToday: '2026-10-09', globalOperation: null, startupPromise: null, recovery: null, state: {},
-    refreshHabitDateBoundary: async () => calls.push('boundary'), checkReminders: () => calls.push('reminders'), scheduleSync: delay => calls.push(`sync:${delay}`), console };
+    refreshHabitDateBoundary: async () => calls.push('boundary'), checkReminders: () => calls.push('reminders'), scheduleSync: delay => calls.push(`sync:${delay}`), console,
+    autoBackupDue: () => false /* R27: the weekly backup check on resume */ };
   vm.createContext(ctx);
   vm.runInContext(region('  function resumeApp(', '\n  // Native integration'), ctx);
   ctx.resumeApp();
