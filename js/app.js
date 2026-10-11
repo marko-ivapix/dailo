@@ -3104,6 +3104,7 @@
     task.isCompleted = true; task.completedAt = completedAt; task.updatedAt = completedAt;
     const generatedId=taskRecurrence(task)?generateRecurringSuccessor(task,completedAt):null;
     saveState();
+    haptic('success');
     // R11c (S14): the message says when the next occurrence comes.
     const next = generatedId ? getTask(generatedId) : null;
     const nextDate = next?.plannedDate || next?.dueDate;
@@ -3917,6 +3918,7 @@
       const putHabitLog = TodoStorage.habitLogs.putIfCurrent || TodoStorage.habitLogs.put;
       await putHabitLog.call(TodoStorage.habitLogs, record, existing || null);
       if (!ownsCanonical()) throw new Error(msg('Canonical data changed in another tab during Habit check-in.'));
+      if (record.status === 'done') haptic('success');
       await refreshHabitMetrics();
     } catch (error) {
       let rollbackError = null;
@@ -4762,7 +4764,7 @@
     clearTimeout(notificationTimer); notificationTimer = null;
     const platform = globalThis.DailoPlatform;
     if (!platform?.isNative || !state || globalOperation || recovery) return;
-    const items = Core.notificationPlan(state, nowIso(), { logs: state.habitLogCache || {}, plannedFired: readPlannedFired() }).map(item => ({ ...item, title: item.kind === 'journal' ? tr('Journal') : item.title, body: notificationBody(item) }));
+    const items = Core.notificationPlan(state, nowIso(), { logs: state.habitLogCache || {}, plannedFired: readPlannedFired() }).map(item => ({ ...item, actionType: item.kind === 'task' ? 'dailo-task' : item.kind === 'habit' ? 'dailo-habit' : undefined, title: item.kind === 'journal' ? tr('Journal') : item.title, body: notificationBody(item) }));
     let result = await platform.notifications.reconcile(items);
     // The system question is asked once, when there is first something to notify about; later from Settings.
     if (ask && result.status === 'permission' && result.permission === 'prompt' && items.length && !localStorage.getItem('dailoNotifyAsked')) {
@@ -4782,10 +4784,44 @@
   function openNotificationTarget(extra) {
     const [kind, ...rest] = String(extra?.route || '').split('/');
     const id = decodeURIComponent(rest.join('/'));
-    if (!state || globalOperation || recovery || modalState || !id) return;
+    if (!state || globalOperation || recovery || !id) return;
+    if (extra.actionId && extra.actionId !== 'tap') { runNotificationAction(kind, id, extra.actionId); return; }
+    if (modalState) return;
     if (kind === 'journal') { navigate('#journal'); return; }
     if (kind === 'task') { if (getTask(id)) openTaskDetail(id); return; }
     if ((kind === 'goal' && getGoal(id)) || (kind === 'habit' && getHabit(id))) navigate(`#${kind}/${encodeURIComponent(id)}`);
+  }
+
+  // R23: a button on a notification acts at once. Completing goes through toggleComplete (Undo, the next repeat),
+  // checking in through setHabitLog; snoozing moves the task's reminder an hour from now.
+  function runNotificationAction(kind, id, action) {
+    if (kind === 'task' && action === 'complete') {
+      const task = getTask(id); if (!task || task.isCompleted) return;
+      if (modalState?.type === 'task' && modalState.taskId === id) { flushTextSave(); closeModal(); }
+      toggleComplete(id);
+    } else if (kind === 'task' && action === 'snooze') {
+      const task = getTask(id); if (!task || task.isCompleted) return;
+      const at = new Date(Math.ceil((Date.parse(nowIso()) + 3600000) / 60000) * 60000).toISOString();
+      task.reminderAt = at; task.updatedAt = nowIso();
+      if (saveState()) { render(); setToastMessage(tr('Reminder moved to {time}', { time: formatReminder(at) })); }
+    } else if (kind === 'habit' && action === 'checkin') {
+      const habit = getHabit(id); if (!habit) return;
+      setHabitLog(id, Core.dateOnly(), 'done', habit.trackingType === 'numeric' ? habit.targetValue : null);
+    }
+  }
+
+  // R23: the buttons phone notifications carry, named in Serbian; "foreground" brings Dailo up to act.
+  function notificationActionTypes() {
+    return [
+      { id: 'dailo-task', actions: [{ id: 'complete', title: tr('Complete'), foreground: true }, { id: 'snooze', title: tr('Snooze 1 hour'), foreground: true }] },
+      { id: 'dailo-habit', actions: [{ id: 'checkin', title: tr('Check in'), foreground: true }] },
+    ];
+  }
+
+  // R23: a short vibration on completing, checking in and passing the swipe threshold. Reduced motion turns it off.
+  function haptic(kind) {
+    try { if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return; } catch (_) { /* no media queries */ }
+    globalThis.DailoPlatform?.haptics?.(kind);
   }
 
   async function allowExactAlarms() {
@@ -5311,6 +5347,9 @@
     event.preventDefault();
     swipe.distance = horizontal;
     swipe.swiping = true;
+    // R23: a light tick when the swipe passes the point where releasing completes the task.
+    if (!swipe.armed && horizontal >= 96) { swipe.armed = true; haptic('tick'); }
+    else if (swipe.armed && horizontal < 96) swipe.armed = false;
     const progress = Math.min(1, horizontal / 96);
     swipe.row.style.background = `rgba(48, 203, 173, ${0.14 + progress * 0.22})`;
     swipe.row.style.borderColor = `rgba(48, 203, 173, ${0.3 + progress * 0.5})`;
@@ -5564,6 +5603,7 @@
     platform.backButton.setHandler(handleBackButton);
     platform.links.interceptExternalLinks(document, { onlinePages: { 'uputstvo.html': Release.GUIDE_URL } });
     platform.files.cleanupSharedFiles().catch(console.error);
+    platform.notifications.setActionTypes?.(notificationActionTypes());
     platform.notifications.onOpen(openNotificationTarget);
     scheduleNotificationPlan(0);
   }

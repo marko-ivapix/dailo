@@ -227,7 +227,7 @@
         for (const item of items || []) {
           let id = notificationId(item.key);
           while (desired.has(id)) id = (id % 0x7fffffff) + 1;
-          desired.set(id, { ...item, sig: notificationId(`${item.title}\u0000${item.body}\u0000${item.at}\u0000${item.route}\u0000${exact}`).toString(36) });
+          desired.set(id, { ...item, sig: notificationId(`${item.title}\u0000${item.body}\u0000${item.at}\u0000${item.route}\u0000${exact}\u0000${item.actionType || ''}`).toString(36) });
         }
         const now = Date.now();
         const pending = (await ln().getPending())?.notifications || [];
@@ -244,6 +244,7 @@
           id, title: item.title, body: item.body || '',
           schedule: { at: new Date(item.at), allowWhileIdle: true },
           extra: { key: item.key, route: item.route, sig: item.sig },
+          ...(item.actionType ? { actionTypeId: item.actionType } : {}),
           ...(exact === 'denied' ? { isExactNotification: false } : {}),
         }));
         if (notifications.length) await ln().schedule({ notifications });
@@ -253,13 +254,28 @@
       return reconcileQueue;
     }
     // A tapped notification. The plugin keeps the event until a listener exists, so a tap that started the app
-    // is delivered once the app registers this after loading its data.
+    // is delivered once the app registers this after loading its data. R23: the handler also hears which button
+    // was pressed ("tap" for the notification itself).
     function onNotificationOpen(handler) {
       if (!isNative || !ln()) return false;
       ln().addListener('localNotificationActionPerformed', event => {
-        try { handler(event?.notification?.extra || {}); } catch (error) { env.console?.error?.(error); }
+        try { handler({ ...(event?.notification?.extra || {}), actionId: event?.actionId }); } catch (error) { env.console?.error?.(error); }
       });
       return true;
+    }
+    // R23: the buttons a notification can carry (Završi, Odloži 1 h, Zabeleži), registered once per launch.
+    async function setActionTypes(types) {
+      if (!isNative || !ln()?.registerActionTypes) return false;
+      try { await ln().registerActionTypes({ types }); return true; } catch (error) { env.console?.error?.(error); return false; }
+    }
+
+    // R23: haptic feedback — the Haptics plugin in the app, a short vibration where a browser supports it.
+    function haptics(kind = 'tick') {
+      try {
+        const h = plugin('Haptics');
+        if (h) { (kind === 'success' ? h.notification({ type: 'SUCCESS' }) : h.impact({ style: 'LIGHT' }))?.catch?.(() => {}); return; }
+        env.navigator?.vibrate?.(kind === 'success' ? 18 : 8);
+      } catch (_) { /* feedback is optional */ }
     }
 
     return Object.freeze({
@@ -273,7 +289,8 @@
       links: Object.freeze({ openExternal, interceptExternalLinks }),
       storage: Object.freeze({ status: storageStatus }),
       durable: Object.freeze({ write: writeMirror, read: readMirror }),
-      notifications: Object.freeze({ permission: notificationPermission, requestPermission: requestNotificationPermission, exactAlarms, allowExactAlarms, reconcile, onOpen: onNotificationOpen, notificationId }),
+      notifications: Object.freeze({ permission: notificationPermission, requestPermission: requestNotificationPermission, exactAlarms, allowExactAlarms, reconcile, onOpen: onNotificationOpen, setActionTypes, notificationId }),
+      haptics,
     });
   }
 

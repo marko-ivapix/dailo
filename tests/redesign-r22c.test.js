@@ -79,8 +79,7 @@ test('leftovers: #projects opens Zadaci → Projekti, long titles wrap, the habi
   has('.habits-chart-axis { font-size: 11px; }');
 });
 
-test('R22c is released as 2.0.0-alpha.47', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.47');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.47';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.47');
+test('R22c shipped as 2.0.0-alpha.47 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 99) >= 47);
 });

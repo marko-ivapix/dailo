@@ -1,6 +1,6 @@
 {
   "name": "dailo",
-  "version": "2.0.0-alpha.47",
+  "version": "2.0.0-alpha.48",
   "private": true,
   "description": "Dailo: local-first personal productivity app (web/PWA, iPhone and Android through Capacitor).",
   "license": "UNLICENSED",
@@ -28,6 +28,7 @@
     "@capacitor/browser": "8.0.5",
     "@capacitor/core": "8.5.3",
     "@capacitor/filesystem": "8.1.4",
+    "@capacitor/haptics": "8.0.2",
     "@capacitor/ios": "8.5.3",
     "@capacitor/keyboard": "8.0.6",
     "@capacitor/local-notifications": "8.3.1",

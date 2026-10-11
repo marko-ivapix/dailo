@@ -273,6 +273,8 @@
     "Duplicate": "Dupliraj",
     "Delete tag": "Obriši oznaku",
     "Menu": "Meni",
+    "Complete": "Završi",
+    "Reminder moved to {time}": "Podsetnik je pomeren na {time}",
     "Color: {name}": "Boja: {name}",
     "Tag: {name}": "Oznaka: {name}",
     "Blue": "Plava",
