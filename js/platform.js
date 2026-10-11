@@ -274,6 +274,20 @@
       return true;
     }
 
+    // R26 (I): the journal lock — a fingerprint, face or the phone's PIN through the biometric plugin (app only).
+    const biometric = () => plugin('BiometricAuthNative');
+    async function lockAvailable() {
+      if (!isNative || !biometric()?.checkBiometry) return false;
+      try { const result = await biometric().checkBiometry(); return Boolean(result?.isAvailable || result?.deviceIsSecure); } catch (_) { return false; }
+    }
+    async function unlock({ reason, title, cancel } = {}) {
+      if (!isNative || !biometric()?.internalAuthenticate) return false;
+      try {
+        await biometric().internalAuthenticate({ reason, androidTitle: title, cancelTitle: cancel, allowDeviceCredential: true, androidConfirmationRequired: false });
+        return true;
+      } catch (_) { return false; }
+    }
+
     // R23: the buttons a notification can carry (Završi, Odloži 1 h, Zabeleži), registered once per launch.
     async function setActionTypes(types) {
       if (!isNative || !ln()?.registerActionTypes) return false;
@@ -302,6 +316,7 @@
       durable: Object.freeze({ write: writeMirror, read: readMirror }),
       notifications: Object.freeze({ permission: notificationPermission, requestPermission: requestNotificationPermission, exactAlarms, allowExactAlarms, reconcile, onOpen: onNotificationOpen, setActionTypes, notificationId }),
       haptics,
+      security: Object.freeze({ available: lockAvailable, unlock }),
     });
   }
 

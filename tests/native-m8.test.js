@@ -22,7 +22,7 @@ function listFiles(dir, base = dir) {
 
 // Verified on npm on 2026-10-09 (audit section 6).
 const CAPACITOR = {
-  '@capacitor/android': '8.5.3', '@capacitor/app': '8.1.2', '@capacitor/browser': '8.0.5', '@capacitor/core': '8.5.3',
+  '@aparajita/capacitor-biometric-auth': '10.0.0' /* R26, verified on npm 2026-10-11 */, '@capacitor/android': '8.5.3', '@capacitor/app': '8.1.2', '@capacitor/browser': '8.0.5', '@capacitor/core': '8.5.3',
   '@capacitor/filesystem': '8.1.4', '@capacitor/haptics': '8.0.2' /* R23, verified on npm 2026-10-11 */, '@capacitor/ios': '8.5.3', '@capacitor/keyboard': '8.0.6',
   '@capacitor/local-notifications': '8.3.1', '@capacitor/share': '8.0.3',
 };

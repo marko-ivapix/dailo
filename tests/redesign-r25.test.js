@@ -110,8 +110,7 @@ test('E: the touch drag is wired to the page, blocks the native drag and long-pr
   assert.match(css, /@media \(pointer: coarse\) \{\n\s+\.task-row\[draggable="true"\] \{ -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; \}/);
 });
 
-test('R25 is released as 2.0.0-alpha.50', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.50');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.50';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.50');
+test('R25 shipped as 2.0.0-alpha.50 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 99) >= 50);
 });

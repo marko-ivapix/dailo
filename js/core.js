@@ -1811,6 +1811,19 @@
   function journalEntryFor(state, date) {
     return (state?.journal || []).find(item => item.date === date) || null;
   }
+  // R26 (G): "Na današnji dan" — entries with text or a mood from the same day of an earlier month or year, newest
+  // first, with how many months ago they were.
+  function journalOnThisDay(state, date, limit = 6) {
+    const [year, month, day] = String(date || '').split('-').map(Number);
+    if (!year || !month || !day) return [];
+    return (state?.journal || [])
+      .filter(item => item.date < date && (item.text?.trim() || item.mood) && Number(item.date.slice(8, 10)) === day)
+      .map(item => ({ entry: item, months: (year - Number(item.date.slice(0, 4))) * 12 + (month - Number(item.date.slice(5, 7))) }))
+      .filter(item => item.months > 0)
+      .sort((a, b) => b.entry.date.localeCompare(a.entry.date))
+      .slice(0, limit);
+  }
+
   // The read-only summary of a day in its journal entry (J2): tasks completed that day, and the habits planned that
   // day (weekly-target habits left out) with how many were done.
   function journalDaySummary(state, habitLogs, date) {
@@ -2215,6 +2228,7 @@
     upcomingRecurrenceDates,
     recurrenceDayShift,
     journalEntryId,
+    journalOnThisDay,
     journalEntryFor,
     journalReminderTime,
     defaultReminderTime,

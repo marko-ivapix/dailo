@@ -39,6 +39,8 @@
 
   // J8: the week's journal — a face for a mood, ✎ for an entry without one, · for none; a tap opens the day.
   function weekJournal(ctx, weekStart) {
+    // R26: a locked journal keeps its week out of the review until it is opened.
+    if (ctx.journalLock?.enabled() && !ctx.journalLock.unlocked()) return '';
     const { Core, esc, formatDate } = ctx;
     const today = Core.dateOnly();
     const days = Array.from({ length: 7 }, (_, index) => Core.addDays(weekStart, index)).map(date => {

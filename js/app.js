@@ -18,6 +18,26 @@
   const VERSION = 3;
   const PROJECT_COLORS = ['#5362FF', '#30CBAD', '#A879FF', '#4CC9F0', '#F5B942', '#FF8A5B', '#F06A8A', '#8FD14F'];
   // R22c: a swatch is announced by its color's name instead of one shared "Izaberi boju".
+  // R26 (I): the journal lock. Device-local ('dailoJournalLock', outside state, backups and sync), and only in the
+  // phone app with a fingerprint, face or PIN. The journal opens once per visit and closes again when Dailo goes to
+  // the background.
+  const JOURNAL_LOCK_KEY = 'dailoJournalLock';
+  let journalUnlocked = false;
+  const journalLock = {
+    available: () => Promise.resolve(globalThis.DailoPlatform?.security?.available?.() || false),
+    enabled: () => { try { return Boolean(globalThis.DailoPlatform?.isNative) && localStorage.getItem(JOURNAL_LOCK_KEY) === '1'; } catch (_) { return false; } },
+    unlocked: () => journalUnlocked,
+    async unlock({ force = false } = {}) {
+      if (!force && (!journalLock.enabled() || journalUnlocked)) return true;
+      const ok = await globalThis.DailoPlatform?.security?.unlock?.({ reason: tr('Unlock the journal'), title: tr('Journal'), cancel: tr('Cancel') });
+      if (ok) journalUnlocked = true;
+      return Boolean(ok);
+    },
+    set(on) {
+      try { if (on) localStorage.setItem(JOURNAL_LOCK_KEY, '1'); else localStorage.removeItem(JOURNAL_LOCK_KEY); } catch (_) { /* stays as it was */ }
+      journalUnlocked = true;
+    },
+  };
   const COLOR_NAMES = { '#5362FF': msg('Blue'), '#30CBAD': msg('Teal'), '#A879FF': msg('Purple'), '#4CC9F0': msg('Sky blue'), '#F5B942': msg('Yellow'), '#FF8A5B': msg('Orange'), '#F06A8A': msg('Pink'), '#8FD14F': msg('Green') };
   const AREA_ICONS = ['ph-briefcase', 'ph-house', 'ph-heart', 'ph-chart-line-up', 'ph-graduation-cap', 'ph-palette', 'ph-plant', 'ph-airplane'];
   const DATE_FMT = new Intl.DateTimeFormat(I18n.locale(), { weekday: 'long', month: 'long', day: 'numeric' });
@@ -656,6 +676,8 @@
       backLink,
       foldButton,
       colorName,
+      journalLock,
+      saveTextFile: (text, name, type) => globalThis.DailoPlatform.files.saveFile(new Blob([text], { type }), name, name),
       templateTypes: TEMPLATE_TYPES, templateLabel, openTemplateEditorFromSource, saveTemplateRecord, duplicateTemplateRecord, useTemplate,
       captureModalReturnFocus,
       durationLabel,
@@ -5640,6 +5662,14 @@
   }
 
   // Back in the foreground: a new day, due reminders and a sync round, without waiting for the 30-second timer.
+  // R26 (I): a locked journal closes again when Dailo goes to the background; its open entry is saved and closed.
+  function lockJournalAgain() {
+    if (!journalLock.enabled() || !journalUnlocked) return;
+    journalUnlocked = false;
+    if (modalState?.type === 'journal') { flushTextSave(); closeModal(); }
+    if (state && currentRoute().type === 'journal') render();
+  }
+
   function resumeApp() {
     if (globalOperation || startupPromise || recovery || !state) return;
     checkDateAndReminders();
@@ -5673,6 +5703,7 @@
     const platform = globalThis.DailoPlatform;
     if (!platform) return;
     platform.lifecycle.onResume(resumeApp);
+    platform.lifecycle.onPause(lockJournalAgain);
     platform.backButton.setHandler(handleBackButton);
     platform.links.interceptExternalLinks(document, { onlinePages: { 'uputstvo.html': Release.GUIDE_URL } });
     platform.files.cleanupSharedFiles().catch(console.error);

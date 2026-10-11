@@ -3116,6 +3116,13 @@ h2.task-window-kind { margin: 0; font-size: 13px; }
   .task-row[draggable="true"] { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 }
 
+/* Redesign R26 — "Na današnji dan" and the locked journal (2026-10-11). */
+.journal-on-this-day-title { margin-top: 18px; }
+.journal-on-this-day { margin-bottom: 4px; }
+.journal-locked { display: grid; justify-items: center; gap: 8px; }
+.journal-locked::before { content: none; }
+.journal-locked > i { color: var(--ink-3); font-size: 40px; }
+
 /* Keep primary compact actions touchable after all density rules. */
 @media (max-width: 700px), (pointer: coarse) {
   .task-actions .btn-icon,

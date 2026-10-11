@@ -1,6 +1,6 @@
 {
   "name": "dailo",
-  "version": "2.0.0-alpha.50",
+  "version": "2.0.0-alpha.51",
   "private": true,
   "description": "Dailo: local-first personal productivity app (web/PWA, iPhone and Android through Capacitor).",
   "license": "UNLICENSED",
@@ -23,6 +23,7 @@
     "jsdom": "29.1.1"
   },
   "dependencies": {
+    "@aparajita/capacitor-biometric-auth": "10.0.0",
     "@capacitor/android": "8.5.3",
     "@capacitor/app": "8.1.2",
     "@capacitor/browser": "8.0.5",
