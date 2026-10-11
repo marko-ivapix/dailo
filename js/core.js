@@ -1434,6 +1434,25 @@
   // habit reminder times on scheduled days, where a snooze silences the moments before it and is a notification
   // of its own, and a met weekly target silences the rest of the current week. Only future moments inside the
   // window are listed, at most `limit` (iOS keeps 64 pending notifications per app).
+  // R24: text shared to Dailo from another app (Android "Podeli", the web app's share target) as a Quick Add draft:
+  // the subject or title (else the first line) names the task; the other lines and a link not already shown are
+  // the notes. A bare link is named by its site.
+  function sharedTextDraft({ text = '', subject = '', title = '', url = '' } = {}) {
+    const clean = value => String(value || '').replace(/\r\n?/g, '\n').trim();
+    const lines = clean(text).split('\n').map(line => line.trim()).filter(Boolean);
+    const link = clean(url);
+    const onlyLink = value => /^https?:\/\/\S+$/i.test(value);
+    const site = value => { try { return new URL(value).hostname.replace(/^www\./, ''); } catch (_) { return value; } };
+    let name = clean(subject) || clean(title);
+    let notes = lines;
+    if (!name && lines.length) {
+      if (onlyLink(lines[0])) name = site(lines[0]);
+      else { name = lines[0]; notes = lines.slice(1); }
+    }
+    if (link && !notes.includes(link) && !name.includes(link)) notes = [...notes, link];
+    return { title: name.replace(/\s+/g, ' ').slice(0, 200).trim(), notes: notes.join('\n') };
+  }
+
   function notificationPlan(state, now, { days = 14, limit = 60, logs = {}, plannedFired = {} } = {}) {
     const start = new Date(now).getTime();
     if (!state || !Number.isFinite(start)) return [];
@@ -2219,6 +2238,7 @@
     reminderInstant,
     notificationKey,
     notificationPlan,
+    sharedTextDraft,
     snoozeTarget,
     laterToday,
     filterCompleted,

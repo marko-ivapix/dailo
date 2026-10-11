@@ -167,7 +167,7 @@ test('J9: "+ Zadatak za sutra" takes the selection or a "Sutra:" line, plans the
   act(adapter, ctx, 'journal-task-tomorrow');
   assert.deepEqual(ctx.calls.at(-1)[1], { plannedDate: TODAY, title: '', returnTo: { type: 'journal', date: '2026-10-01' } }, 'never before today');
   assert.match(app, /if \(context\.returnTo\) modalState\.returnTo = context\.returnTo;/);
-  assert.match(app, /title: context\.title \|\| '', notes: ''/);
+  assert.match(app, /title: context\.title \|\| '', notes: context\.notes \|\| ''/); // R24: shared text can bring notes
 });
 
 test('J1: Još → Biblioteka, the route, the direct "+", the closing hook, and the module is loaded and precached', () => {

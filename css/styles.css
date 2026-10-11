@@ -3105,6 +3105,11 @@ body:has(#toast-root .toast) .mobile-quick-add { transform: translateY(-64px); }
 .habits-chart-axis { font-size: 11px; }
 h2.task-window-kind { margin: 0; font-size: 13px; }
 
+/* Redesign R24 — the link or text shared to Dailo, shown under the Quick Add title (2026-10-11). */
+.quick-shared-note { display: flex; align-items: flex-start; gap: 8px; margin: 6px 2px 4px; color: var(--ink-3); font-size: 13px; }
+.quick-shared-note span { min-width: 0; display: -webkit-box; overflow: hidden; overflow-wrap: anywhere; -webkit-box-orient: vertical; -webkit-line-clamp: 3; white-space: pre-line; }
+.quick-shared-note i { flex: none; margin-top: 2px; }
+
 /* Keep primary compact actions touchable after all density rules. */
 @media (max-width: 700px), (pointer: coarse) {
   .task-actions .btn-icon,

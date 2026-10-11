@@ -263,6 +263,17 @@
       });
       return true;
     }
+    // R24: links that open the app (its shortcuts and shared text). The App plugin keeps a link that started the
+    // app until this listener exists, so a cold start is delivered once too.
+    function onAppLink(handler) {
+      const app = plugin('App');
+      if (!app?.addListener) return false;
+      app.addListener('appUrlOpen', event => {
+        try { handler(event?.url || ''); } catch (error) { env.console?.error?.(error); }
+      });
+      return true;
+    }
+
     // R23: the buttons a notification can carry (Završi, Odloži 1 h, Zabeleži), registered once per launch.
     async function setActionTypes(types) {
       if (!isNative || !ln()?.registerActionTypes) return false;
@@ -286,7 +297,7 @@
       lifecycle: Object.freeze({ onPause, onResume }),
       backButton: Object.freeze({ setHandler: setBackHandler }),
       files: Object.freeze({ saveFile, openFile, cleanupSharedFiles }),
-      links: Object.freeze({ openExternal, interceptExternalLinks }),
+      links: Object.freeze({ openExternal, interceptExternalLinks, onAppLink }),
       storage: Object.freeze({ status: storageStatus }),
       durable: Object.freeze({ write: writeMirror, read: readMirror }),
       notifications: Object.freeze({ permission: notificationPermission, requestPermission: requestNotificationPermission, exactAlarms, allowExactAlarms, reconcile, onOpen: onNotificationOpen, setActionTypes, notificationId }),

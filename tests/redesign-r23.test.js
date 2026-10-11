@@ -138,8 +138,7 @@ test('F: the Haptics plugin is pinned and synced into both native projects', () 
   assert.match(read('js/platform.js'), /plugin\('Haptics'\)/);
 });
 
-test('R23 is released as 2.0.0-alpha.48', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.48');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.48';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.48');
+test('R23 shipped as 2.0.0-alpha.48 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 99) >= 48);
 });

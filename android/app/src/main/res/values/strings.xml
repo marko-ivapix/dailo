@@ -4,4 +4,8 @@
     <string name="title_activity_main">Dailo</string>
     <string name="package_name">cloud.ivapix.dailo</string>
     <string name="custom_url_scheme">cloud.ivapix.dailo</string>
+    <!-- Redesign R24: the icon shortcuts. -->
+    <string name="shortcut_new_task">Novi zadatak</string>
+    <string name="shortcut_today">Danas</string>
+    <string name="shortcut_journal">Dnevnik</string>
 </resources>

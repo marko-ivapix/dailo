@@ -1454,7 +1454,7 @@
       templateContext: context,
       defaults,
       draft: {
-        title: context.title || '', notes: '', projectId: defaults.projectId, areaId: defaults.areaId, plannedDate: defaults.plannedDate, parsedPlanDate: null, explicitPlan: defaults.explicitPlan,
+        title: context.title || '', notes: context.notes || '', projectId: defaults.projectId, areaId: defaults.areaId, plannedDate: defaults.plannedDate, parsedPlanDate: null, explicitPlan: defaults.explicitPlan,
         dueDate: null, plannedTime: null, dueTime: null, explicitPlannedTime: false, reminderAt: null, reminderFiredAt: null, recurrence: null, tagIds: [], priority: 'none', subtasks: [],
       },
       error: '',
@@ -1908,6 +1908,7 @@
       <div class="modal-header"><h2 class="modal-title">${tr('New task')}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div>
       <input id="quick-title" class="quick-title-input${modalState.error ? ' is-error' : ''}" type="text" maxlength="500" autocomplete="off" placeholder="${tr('What needs to be done?')}" value="${esc(d.title)}" aria-label="${tr('Task title')}" />
       ${modalState.error ? `<div class="validation">${esc(modalState.error)}</div>` : ''}
+      ${modalState.draft.notes ? `<p class="quick-shared-note"><i class="ph ph-link" aria-hidden="true"></i><span>${esc(modalState.draft.notes)}</span></p>` : ''}
       <div class="quick-parse-slot" data-quick-preview-slot aria-live="polite">${quickParsePreview(parsed)}</div>
       <div class="quick-selectors"><button class="quick-selector" type="button" data-action="quick-plan-picker"><i class="ph ph-calendar-check" aria-hidden="true"></i><span data-quick-plan-label>${esc(quickPlanLabel(plan, time))}</span><i class="ph ph-caret-right" aria-hidden="true"></i></button><button class="quick-selector" type="button" data-action="quick-project-picker"><i class="ph ph-folder-simple" aria-hidden="true"></i><span data-quick-place-label>${esc(quickPlace(d, parsed).label)}</span><i class="ph ph-caret-right" aria-hidden="true"></i></button></div>
       ${quickTemplateRow()}
@@ -5605,7 +5606,39 @@
     platform.files.cleanupSharedFiles().catch(console.error);
     platform.notifications.setActionTypes?.(notificationActionTypes());
     platform.notifications.onOpen(openNotificationTarget);
+    platform.links.onAppLink?.(handleIncomingLink);
     scheduleNotificationPlan(0);
+    consumeLaunchParams();
+  }
+
+  // R24: links that open Dailo — the icon's shortcuts (dailo://new-task, dailo://today, dailo://journal) and text
+  // shared to it (dailo://share?text=…&subject=…). An open window is saved and closed first.
+  function handleIncomingLink(href) {
+    let link;
+    try { link = new URL(String(href || '')); } catch (_) { return false; }
+    if (link.protocol !== 'dailo:' || !state || globalOperation || recovery) return false;
+    const target = link.hostname || link.pathname.replace(/^\/+/, '');
+    if (!['new-task', 'today', 'journal', 'share'].includes(target)) return false;
+    closePopover();
+    if (modalState) { flushTextSave(); closeModal(); }
+    if (target === 'new-task') openQuickAdd({});
+    else if (target === 'share') {
+      const params = Object.fromEntries(['text', 'subject', 'title', 'url'].map(key => [key, link.searchParams.get(key) || '']));
+      openQuickAdd(Core.sharedTextDraft(params));
+    } else navigate(`#${target}`);
+    return true;
+  }
+
+  // R24: the web app gets the same from its manifest — ?shortcut= from a shortcut, share_* from the share target.
+  // The address is cleaned first, so a reload does not repeat it.
+  function consumeLaunchParams() {
+    const params = new URLSearchParams(location.search);
+    const shortcut = params.get('shortcut');
+    const shared = ['share_text', 'share_title', 'share_url'].some(key => params.get(key));
+    if (!shortcut && !shared) return;
+    history.replaceState(null, '', location.pathname + location.hash);
+    if (shortcut) handleIncomingLink(`dailo://${shortcut}`);
+    else handleIncomingLink(`dailo://share?${new URLSearchParams({ text: params.get('share_text') || '', title: params.get('share_title') || '', url: params.get('share_url') || '' })}`);
   }
 
   async function drainReady(resolve, reject) {
