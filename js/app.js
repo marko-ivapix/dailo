@@ -5645,6 +5645,22 @@
     mirrorTimer = null;
     const text = localStorage.getItem(STORAGE_KEY);
     if (text && globalThis.DailoPlatform?.isNative) globalThis.DailoPlatform.durable.write(text).catch(console.error);
+    updateWidget();
+  }
+
+  // R28: the Android "Danas" widget gets a small snapshot after each change — today's open tasks, late ones first —
+  // with the Serbian texts for an empty day and for a day that has passed since Dailo was last opened.
+  function updateWidget() {
+    const platform = globalThis.DailoPlatform;
+    if (platform?.kind !== 'android' || !platform.widget || !state) return;
+    const today = Core.dateOnly(), snap = Core.widgetSnapshot(state, today);
+    platform.widget.update({
+      date: today, title: tr('Today'),
+      summary: snap.overdue ? tr('{planned} planned · {late} late', { planned: snap.planned, late: snap.overdue }) : trn(snap.planned, '{count} planned', '{count} planned'),
+      items: snap.items.map(item => ({ text: item.time ? `${item.time} · ${item.title}` : item.title, overdue: item.overdue })),
+      more: snap.more ? tr('+ {count} more', { count: snap.more }) : '',
+      empty: tr('Nothing planned for today'), stale: tr('Open Dailo for today’s plan'),
+    });
   }
   // Only fills a missing store; the normal start-up load then validates and migrates the text as usual.
   async function restoreDurableMirror() {
@@ -5722,6 +5738,7 @@
   function resumeApp() {
     if (globalOperation || startupPromise || recovery || !state) return;
     checkDateAndReminders();
+    updateWidget();
     if (autoBackupDue()) runAutoBackup();
     scheduleSync(500);
     if (globalThis.DailoPlatform?.isNative) scheduleNotificationPlan(500);
@@ -5762,6 +5779,7 @@
     platform.links.onAppLink?.(handleIncomingLink);
     scheduleNotificationPlan(0);
     consumeLaunchParams();
+    updateWidget();
     setTimeout(() => { if (autoBackupDue()) runAutoBackup(); }, 8000);
   }
 

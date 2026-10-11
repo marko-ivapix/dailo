@@ -108,7 +108,7 @@ test('C: Android accepts shared text and hands it to the app as a dailo://share 
   const manifest = read('android/app/src/main/AndroidManifest.xml');
   assert.match(manifest, /<intent-filter>\s*<action android:name="android\.intent\.action\.SEND" \/>\s*<category android:name="android\.intent\.category\.DEFAULT" \/>\s*<data android:mimeType="text\/plain" \/>\s*<\/intent-filter>/);
   const activity = read('android/app/src/main/java/cloud/ivapix/dailo/MainActivity.java');
-  assert.match(activity, /public void onCreate\(Bundle savedInstanceState\) \{\n\s+asAppLink\(getIntent\(\)\);\n\s+super\.onCreate\(savedInstanceState\);/);
+  assert.match(activity, /public void onCreate\(Bundle savedInstanceState\) \{\n[^]*?asAppLink\(getIntent\(\)\);\n\s+super\.onCreate\(savedInstanceState\);/, 'R28 registers the widget plugin first');
   assert.match(activity, /protected void onNewIntent\(Intent intent\) \{\n\s+asAppLink\(intent\);\n\s+super\.onNewIntent\(intent\);/);
   assert.match(activity, /Intent\.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY/, 'reopening from Recents does not share again');
   assert.match(activity, /new Uri\.Builder\(\)\.scheme\("dailo"\)\.authority\("share"\)\.appendQueryParameter\("text", text\)/);

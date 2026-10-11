@@ -290,6 +290,14 @@
       return true;
     }
 
+    // R28: the Android home-screen widget gets its snapshot through the app's own DailoWidget plugin.
+    function updateWidget(snapshot) {
+      if (kind !== 'android') return Promise.resolve(false);
+      const widget = plugin('DailoWidget');
+      if (!widget?.update) return Promise.resolve(false);
+      return Promise.resolve(widget.update({ snapshot: JSON.stringify(snapshot) })).then(() => true, () => false);
+    }
+
     // R26 (I): the journal lock — a fingerprint, face or the phone's PIN through the biometric plugin (app only).
     const biometric = () => plugin('BiometricAuthNative');
     async function lockAvailable() {
@@ -333,6 +341,7 @@
       notifications: Object.freeze({ permission: notificationPermission, requestPermission: requestNotificationPermission, exactAlarms, allowExactAlarms, reconcile, onOpen: onNotificationOpen, setActionTypes, notificationId }),
       haptics,
       security: Object.freeze({ available: lockAvailable, unlock }),
+      widget: Object.freeze({ update: updateWidget }),
     });
   }
 

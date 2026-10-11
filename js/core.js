@@ -228,6 +228,17 @@
     return { overdue, today: todayTasks, suggestions, completed };
   }
 
+  // R28: what the Android "Danas" widget shows — late tasks first, then today's plan in its order, at most `limit`.
+  function widgetSnapshot(state, today, limit = 5) {
+    const sections = deriveTodaySections(state?.tasks || [], today);
+    const rows = [...sections.overdue.map(task => ({ task, overdue: true })), ...sections.today.map(task => ({ task, overdue: false }))];
+    return {
+      date: today, overdue: sections.overdue.length, planned: sections.today.length,
+      items: rows.slice(0, limit).map(({ task, overdue }) => ({ title: String(task.title || ''), time: task.plannedTime || null, overdue })),
+      more: Math.max(0, rows.length - limit),
+    };
+  }
+
   function futureRelevant(task, today) {
     if (task.isCompleted || isOverdue(task, today) || task.plannedDate === today) return null;
     const candidates = [];
@@ -2253,6 +2264,7 @@
     notificationKey,
     notificationPlan,
     sharedTextDraft,
+    widgetSnapshot,
     snoozeTarget,
     laterToday,
     filterCompleted,

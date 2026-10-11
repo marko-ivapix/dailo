@@ -97,8 +97,7 @@ test('J: Android may write to Documents on older versions; iOS shows the folder 
   assert.match(plist, /<key>LSSupportsOpeningDocumentsInPlace<\/key>\s*<true\/>/);
 });
 
-test('R27 is released as 2.0.0-alpha.52', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.52');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.52';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.52');
+test('R27 shipped as 2.0.0-alpha.52 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 99) >= 52);
 });

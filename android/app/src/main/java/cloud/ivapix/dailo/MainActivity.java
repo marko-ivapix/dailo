@@ -12,6 +12,8 @@ public class MainActivity extends BridgeActivity {
     // app listens, so a cold start is delivered too).
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        // Redesign R28: the app's own plugin that feeds the "Danas" widget.
+        registerPlugin(WidgetPlugin.class);
         asAppLink(getIntent());
         super.onCreate(savedInstanceState);
     }
