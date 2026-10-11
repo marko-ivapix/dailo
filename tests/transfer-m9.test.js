@@ -72,10 +72,10 @@ test('in the app a fresh install offers to import a backup or sign in; the web n
   assert.match(html, /data-transfer-notice/);
   assert.match(html, /data-action="import-backup"/);
   assert.match(html, /<input id="backup-import-input" type="file" accept="\.zip,application\/zip" hidden \/>/, 'the file chooser works from Today');
-  assert.match(html, /data-route="settings"/, 'sign in goes to the sync card');
+  assert.match(html, /data-route="account"/, 'sign in goes to the sync card, on Nalog since R15 (R20)');
   assert.match(html, /data-action="dismiss-transfer-notice"/);
-  assert.doesNotMatch(harness({ configured: false }).ctx.transferNotice(), /data-route="settings"/, 'no sign-in without a sync project');
-  assert.doesNotMatch(harness({ signedIn: true }).ctx.transferNotice(), /data-route="settings"/);
+  assert.doesNotMatch(harness({ configured: false }).ctx.transferNotice(), /data-route="account"/, 'no sign-in without a sync project');
+  assert.doesNotMatch(harness({ signedIn: true }).ctx.transferNotice(), /data-route="account"/);
   assert.equal(harness({ native: false }).ctx.transferNotice(), '');
   assert.equal(harness({ untouched: false }).ctx.transferNotice(), '', 'gone once the user has own data');
   assert.equal(harness({ dismissed: true }).ctx.transferNotice(), '');

@@ -40,7 +40,7 @@ function goalCtx(fields = {}, extra = {}) {
     todayDueLabel: date => `<due ${date}>`,
     reviewTaskRow: (task, context, options) => `<row ${task.id} ${context}${options?.today ? ' today' : ''}>`,
     $: selector => (selector in inputs ? { value: inputs[selector] } : null),
-    openPopover: (anchor, html, meta) => calls.push(['open', html, meta]),
+    openPopover: (anchor, html, meta) => calls.push(['open', html, meta]), menuSheet: (title, body) => body, // R20: the menu's title and card come from app.js
     refreshSheet: html => calls.push(['refresh', html]),
     closePopover: () => calls.push(['close']),
     renderModal: () => calls.push(['renderModal']),

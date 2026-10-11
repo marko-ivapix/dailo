@@ -114,8 +114,8 @@
     const pinAction = area.status === 'active'
       ? `<button class="popover-option" type="button" data-pop-action="${area.isPinned ? 'unpin-area' : 'pin-area'}" data-area-id="${esc(areaId)}"><i class="ph ${area.isPinned ? 'ph-push-pin-slash' : 'ph-push-pin'}"></i>${area.isPinned ? tr('Unpin from “More”') : tr('Pin to “More”')}</button>`
       : '';
-    const html = `<button class="popover-option" type="button" data-pop-action="edit-area" data-area-id="${esc(areaId)}"><i class="ph ph-pencil-simple"></i>${tr('Edit area')}</button>${pinAction}${archiveAction}<div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="delete-area" data-area-id="${esc(areaId)}" style="color:var(--danger)"><i class="ph ph-trash"></i>${tr('Delete area')}</button>`;
-    openPopover(anchor, html, { type: 'area-menu', areaId });
+    const html = `<button class="popover-option" type="button" data-pop-action="edit-area" data-area-id="${esc(areaId)}"><i class="ph ph-pencil-simple"></i>${tr('Edit area')}</button>${pinAction}${archiveAction}<div class="popover-separator"></div><button class="popover-option is-danger" type="button" data-pop-action="delete-area" data-area-id="${esc(areaId)}"><i class="ph ph-trash"></i>${tr('Delete area')}</button>`;
+    openPopover(anchor, ctx.menuSheet(area.name, html), { type: 'area-menu', areaId });
   }
 
   function archiveArea(ctx, areaId) {

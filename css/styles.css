@@ -2961,6 +2961,33 @@ body:has(#toast-root .toast) .mobile-quick-add { transform: translateY(-64px); }
 .cleaning-chips .cleaning-add-group { color: var(--blue-300); }
 .cleaning-chips .cleaning-add-group::before { border-style: dashed; border-color: var(--blue-300); background: none; }
 
+/* Redesign R20 — the second design audit, items 1–6: sheets, chips, sticky footers and dates under the title (2026-10-11). */
+/* 1: options in a bottom sheet are 48 px rows with 15 px text (the old density rules made them 32 px and 12 px). */
+.popover--sheet .popover-option { min-height: 48px; font-size: 15px; }
+/* 2: a ⋯ menu has its title and one card; delete rows are red through a class. */
+.sheet-header .popover-title { overflow-wrap: anywhere; }
+.sheet-menu .popover-separator { margin: 2px 8px; }
+.popover-option.is-danger { color: var(--danger); }
+.btn.is-danger { color: var(--danger); }
+/* 3: every chip is a pill inside its 44 px touch height, the selected one filled with the accent (R19 everywhere). */
+.quick-chip { position: relative; isolation: isolate; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 0 14px; border: 0; background: none; color: var(--ink-2); font-size: 14px; }
+.quick-chip::before { content: ""; position: absolute; inset: 4px 0; z-index: -1; border: 1px solid var(--line-2); border-radius: 999px; background: var(--graphite-850); transition: background var(--motion-fast), border-color var(--motion-fast); }
+.quick-chip:hover { background: none; color: var(--ink-1); }
+.quick-chip:hover::before { border-color: var(--line-3); background: var(--graphite-800); }
+.quick-chip.is-selected { color: #fff; }
+.quick-chip.is-selected::before { border-color: var(--blue-600); background: var(--blue-600); }
+.quick-chip:disabled { cursor: not-allowed; opacity: .5; }
+:is(.sheet-chips, .quick-template-row, .quick-actions) { gap: 0 8px; }
+/* 4: Inbox items that are not tasks line up with the task rows — no icon, the same pills. */
+.inbox-item-row { grid-template-columns: minmax(0, 1fr); }
+.inbox-item-chips { grid-column: 1 / -1; }
+.inbox-item-chips .quick-chip { padding: 0 12px; font-size: 13px; }
+.inbox-item-chips .quick-chip::before { inset: 6px 0; background: var(--graphite-800); }
+/* 5: the Save or Apply button stays at the bottom of a long sheet or window. */
+:is(.sheet-footer, .quick-sheet-footer) { position: sticky; bottom: 0; z-index: 2; padding: 10px 0 4px; background: linear-gradient(to bottom, transparent, var(--graphite-850) 30%); }
+/* 6: step 3 of Nedeljni pregled puts the day's count under the date. */
+.review-day-row { display: grid; justify-items: start; gap: 2px; }
+
 /* Keep primary compact actions touchable after all density rules. */
 @media (max-width: 700px), (pointer: coarse) {
   .task-actions .btn-icon,

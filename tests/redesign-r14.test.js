@@ -70,12 +70,13 @@ test('T3: a task row is text first, the due label under the title and the checkb
   assert.match(due, /<div class="task-meta"><due [^>]+><\/div>/);
 });
 
-test('T3: Redovne obaveze keeps its own meta and right-side text, before the checkbox', () => {
-  const chore = rowModule()({ id: 'c', title: 'Bathroom', priority: 'high', dueDate: TODAY })({ context: 'cleaning', metaText: 'Kupatilo · weekly', sideHtml: '<when>' });
-  assert.match(chore, /<div class="task-meta">Kupatilo · weekly<\/div>/);
-  assert.match(chore, /<span class="task-side"><when><\/span>/);
+test('T3: Redovne obaveze keeps its own meta line, its date first (R20), before the checkbox', () => {
+  // R20: the date no longer stands on the right; it leads the meta line (metaLead).
+  const chore = rowModule()({ id: 'c', title: 'Bathroom', priority: 'high', dueDate: TODAY })({ context: 'cleaning', metaText: 'Kupatilo · weekly', metaLead: '<when>' });
+  assert.match(chore, /<div class="task-meta"><when> · Kupatilo · weekly<\/div>/);
+  assert.doesNotMatch(chore, /task-side/);
   assert.doesNotMatch(chore, /task-flag|<due /);
-  assert.ok(chore.indexOf('task-side') < chore.indexOf('class="complete-control') && endsWithCheckbox(chore));
+  assert.ok(endsWithCheckbox(chore));
 });
 
 test('T3: the row lays out as a flex line, so no older grid column moves the checkbox', () => {

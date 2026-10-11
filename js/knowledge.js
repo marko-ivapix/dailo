@@ -276,7 +276,7 @@
     const apply = mutate => { mutate(); sheet = null; commitKnowledge(context); context.closePopover(); return true; };
     if (action === 'knowledge-window-favorite') { d.favorite = !d.favorite; commitKnowledge(context); return true; }
     if (action === 'knowledge-menu') {
-      if (dialog.ownerId) context.openPopover(el, `<button class="popover-option" type="button" style="color:var(--danger)" data-pop-action="delete-knowledge" data-owner-type="${type}" data-owner-id="${esc(dialog.ownerId)}"><i class="ph ph-trash"></i>${type === 'note' ? tr('Delete note') : tr('Delete resource')}</button>`, { type: 'knowledge-menu' });
+      if (dialog.ownerId) context.openPopover(el, context.menuSheet(d.title, `<button class="popover-option is-danger" type="button" data-pop-action="delete-knowledge" data-owner-type="${type}" data-owner-id="${esc(dialog.ownerId)}"><i class="ph ph-trash"></i>${type === 'note' ? tr('Delete note') : tr('Delete resource')}</button>`), { type: 'knowledge-menu' });
       return true;
     }
     if (action === 'knowledge-area') {

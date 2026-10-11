@@ -50,7 +50,7 @@ function detailsCtx(habitFields = {}, logs = [], extra = {}) {
     relativeDateLabel: value => `R:${value}`,
     $: selector => (selector in inputs ? { value: inputs[selector] } : null),
     $$: () => [],
-    openPopover: (anchor, html, meta) => calls.push(['open', html, meta]),
+    openPopover: (anchor, html, meta) => calls.push(['open', html, meta]), menuSheet: (title, body) => body, // R20: the menu's title and card come from app.js
     refreshSheet: html => calls.push(['refresh', html]),
     closePopover: () => calls.push(['close']),
     renderModal: () => calls.push(['renderModal']),

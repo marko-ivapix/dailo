@@ -42,6 +42,15 @@
 | R17 | **Fixes from the design audit** (the user: "da, ispravi sve 1–12"): "Bez projekta" route, tile icons, the task title size, the install row in the phone app, the toast over "+", invisible touch buttons, the remaining left checks and right-side dates, the "›" arrows, the project header, empty states, the project window | T3, T5 (applied everywhere) | none |
 | R18 | **Reminder settings** (the user chose "a, b i c" after the settings audit): the default reminder time, the journal as a phone notification, a reminder at a task's planned time | — (new settings) | **three optional settings** (own data-model spec) |
 | R19 | **Filter chips as pills** (the user's screenshot of Redovne obaveze, "ovo treba biti lepse"): Redovne obaveze, Završeni zadaci, Beleške and Resursi | — | none |
+| R20 | **Second design audit, fixes 1–6** (the user: "moze sve"): 48 px sheet options, ⋯ menus as titled sheets with a red Obriši class, every chip a pill, Inbox items without the icon, sticky Save buttons, dates under the title in Redovne obaveze and step 3 of the review, "Prijavi se" to Nalog, "Iz šablona" as a chip only with templates | — | none |
+| R21 | **Second design audit, fix 3:** the old windows reachable from the new ones (the goal window's sub-windows, the habit value window, the template editor and picker, Dupliraj, Razvrstaj → Gotovo) become sheets with one big button | — | none |
+| R22 | **Second design audit, fixes 7–12:** back links, narrow screens, touch targets and the "+" clearance, one look for segments, empty states, folds and big buttons, Settings rows on phones, the confirm dialog, the journal strip on today, accessibility | — | none |
+| R23 | **Additions A and F:** actions on phone notifications (Završi, Odloži 1 h, Označi) and haptic feedback | — | none (device-local only) |
+| R24 | **Additions B and C:** app shortcuts on the icon and "Podeli u Dailo" (share target), native and PWA | — | none |
+| R25 | **Additions D and E:** a left swipe opens the date sheet; rows reorder by touch | — | none |
+| R26 | **Additions G, H and I:** "Na današnji dan" in Dnevnik, the journal export as text, the journal lock | — | **device-local lock setting** (own spec) |
+| R27 | **Addition J:** an automatic weekly backup on the phone | — | **device-local backup setting** (own spec) |
+| R28 | **Addition K:** the Android home-screen widget | — | none (reads the durable copy) |
 
 ## Test levels
 

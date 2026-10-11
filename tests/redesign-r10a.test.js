@@ -64,7 +64,7 @@ function fixture(extra = {}) {
     setModalState: value => { ctx.modalState = value; },
     modalFrame: (content, cls) => `<frame ${cls}>${content}</frame>`,
     captureModalReturnFocus: () => {}, closePopover: () => calls.push(['closePopover']),
-    openPopover: (anchor, html, meta) => calls.push(['open', html, meta]),
+    openPopover: (anchor, html, meta) => calls.push(['open', html, meta]), menuSheet: (title, body) => body, // R20: the menu's title and card come from app.js
     renderModal: () => calls.push(['renderModal']), render: () => calls.push(['render']), saveAndRender: () => calls.push(['saveAndRender']),
     closeModal: () => { calls.push(['closeModal']); ctx.modalState = null; },
     saveState: () => { calls.push(['save']); return true; },

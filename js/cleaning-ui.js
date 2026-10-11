@@ -56,7 +56,7 @@
     const row = (task, place = false) => {
       const where = place ? (ctx.getProject(task.projectId)?.name || tr('No group')) : '';
       const metaText = task.isCompleted ? tr('Completed {date}', { date: relativeDateLabel(Core.localDateOf(task.completedAt)) }) : [where, ctx.recurrenceLabel(ctx.taskRecurrence(task))].filter(Boolean).join(' · ');
-      return ctx.renderChoreRow(task, { metaText, sideHtml: task.isCompleted ? '' : when(task) });
+      return ctx.renderChoreRow(task, { metaText, metaLead: task.isCompleted ? '' : when(task) });
     };
     const head = (key, title, count, tools = '') => `<section class="cleaning-section" data-cleaning-section="${esc(key)}"><div class="cleaning-section-head"><h2 class="cleaning-section-title">${title}<span class="cleaning-section-count"> · ${count}</span></h2>${tools}</div>`;
     // "Ove nedelje" (S4): what is late or comes within 7 days, from every group and project.

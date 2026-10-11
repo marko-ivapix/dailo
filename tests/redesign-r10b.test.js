@@ -55,7 +55,7 @@ function fixture(extra = {}) {
     modalState: null,
     setModalState: value => { ctx.modalState = value; },
     closePopover: () => calls.push(['closePopover']), flushTextSave() {}, goalFocusTarget() {}, loadOwnerAttachments() {},
-    openPopover: (anchor, html, meta) => calls.push(['open', html, meta]),
+    openPopover: (anchor, html, meta) => calls.push(['open', html, meta]), menuSheet: (title, body) => body, // R20: the menu's title and card come from app.js
     refreshSheet: html => calls.push(['refresh', html]),
     renderModal: () => calls.push(['renderModal']), render: () => calls.push(['render']), saveAndRender: () => calls.push(['saveAndRender']),
     scheduleTextSave: () => calls.push(['scheduleTextSave']),
