@@ -36,7 +36,7 @@
   function completedSection(ctx, key, completed, row) {
     if (!completed.length) return '';
     const expanded = Boolean(ctx.state.ui.projectCompletedExpanded?.[key]);
-    return `<section class="section"><button class="collapsible-trigger" type="button" data-action="toggle-project-completed" data-project-id="${ctx.esc(key)}" aria-expanded="${expanded}"><span class="left"><i class="ph ph-check-circle"></i> ${tr('Completed')}</span><span>${completed.length} <i class="ph ph-caret-${expanded ? 'up' : 'down'}"></i></span></button>${expanded ? `<div class="task-list today-card">${completed.map(row).join('')}</div>` : ''}</section>`;
+    return `<section class="section">${ctx.foldButton('toggle-project-completed', tr('Completed'), completed.length, expanded, ` data-project-id="${ctx.esc(key)}"`)}${expanded ? `<div class="task-list today-card">${completed.map(row).join('')}</div>` : ''}</section>`;
   }
 
   // Redesign R5 (Z6): sorted tasks that belong to no project ("Bez projekta").

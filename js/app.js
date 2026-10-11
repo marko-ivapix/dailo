@@ -651,6 +651,7 @@
       taskRow,
       menuSheet,
       backLink,
+      foldButton,
       templateTypes: TEMPLATE_TYPES, templateLabel, openTemplateEditorFromSource, saveTemplateRecord, duplicateTemplateRecord, useTemplate,
       captureModalReturnFocus,
       durationLabel,
@@ -1123,7 +1124,7 @@
     if (habits.length) html += section('habits', tr('Habits'), `${habits.length - sections.habits.filter(item => item.status.status !== 'done').length}/${habits.length}`, `<div class="habit-list today-card">${todayLimited('habits', habits.map(item => renderHabitTodayRow(item.habit, item.status)))}</div>`);
     if (sections.completed.length) {
       const open = state.ui.todayCompletedExpanded === true;
-      html += `<section class="section today-section today-section--completed" data-today-section="completed"><button class="collapsible-trigger" type="button" data-action="toggle-today-completed" aria-expanded="${open}"><span class="left"><i class="ph ph-check-circle"></i> ${tr('Completed')}</span><span>${sections.completed.length} <i class="ph ph-caret-${open ? 'up' : 'down'}"></i></span></button>`;
+      html += `<section class="section today-section today-section--completed" data-today-section="completed">${foldButton('toggle-today-completed', tr('Completed'), sections.completed.length, open)}`;
       if (open) html += `<div class="task-list today-card">${sections.completed.map(task => taskRow(task, 'completed', { today: true })).join('')}</div>`;
       html += `</section>`;
     }
@@ -1139,7 +1140,7 @@
     let html = pageHeader(tr('Inbox'), all.length ? trn(all.length, '{count} item waiting to be organized', '{count} items waiting to be organized') : tr('Nothing is waiting'), {});
     if (!all.length) return html + `<div class="empty-state inbox-empty"><i class="ph ph-check-circle" aria-hidden="true"></i><h3>${tr('Inbox is empty')}</h3><p>${tr('Everything is sorted.')}</p></div>`;
     html += `<button class="inbox-triage-button" type="button" data-action="inbox-triage"><i class="ph ph-stack" aria-hidden="true"></i><span><strong>${tr('Sort one by one')}</strong> · ${tr('one at a time')}</span><i class="ph ph-caret-right" aria-hidden="true"></i></button>`;
-    if (present.length > 1) html += `<div class="inbox-filter-tabs" role="tablist" aria-label="${tr('Filter Inbox')}">${[INBOX_FILTERS[0], ...present].map(([value, label]) => `<button class="inbox-filter-tab ${filter === value ? 'is-active' : ''}" type="button" role="tab" aria-selected="${filter === value}" data-action="inbox-filter" data-inbox-filter="${value}">${tr(label)}<span class="inbox-filter-count">${value === 'all' ? all.length : activeInboxRecords(value).length}</span></button>`).join('')}</div>`;
+    if (present.length > 1) html += `<div class="sheet-chips inbox-filter-chips" role="group" aria-label="${tr('Filter Inbox')}">${[INBOX_FILTERS[0], ...present].map(([value, label]) => `<button class="quick-chip${filter === value ? ' is-selected' : ''}" type="button" aria-pressed="${filter === value}" data-action="inbox-filter" data-inbox-filter="${value}">${tr(label)}<span class="inbox-filter-count">${value === 'all' ? all.length : activeInboxRecords(value).length}</span></button>`).join('')}</div>`;
     const groups = new Map();
     for (const record of records) {
       const group = inboxGroupForDate(record.item.createdAt);
@@ -1263,21 +1264,21 @@
     const suggestions = Core.deriveTodaySections(tasks, Core.dateOnly()).suggestions;
     if (suggestions.length) {
       const open = state.ui.suggestionsExpanded === true;
-      html += `<section class="tasks-suggestions" data-tasks-suggestions><button class="collapsible-trigger" type="button" data-action="toggle-suggestions" aria-expanded="${open}"><span class="left"><i class="ph ph-sparkle"></i> ${tr('Suggested for today')}</span><span>${suggestions.length} <i class="ph ph-caret-${open ? 'up' : 'down'}"></i></span></button>`;
+      html += `<section class="tasks-suggestions" data-tasks-suggestions>${foldButton('toggle-suggestions', tr('Suggested for today'), suggestions.length, open)}`;
       if (open) html += `<div class="task-list today-card">${suggestions.map(item => taskRow(item.task, 'suggestion', { today: true, addToday: true, suggestionReason: item.reason })).join('')}</div><button class="btn btn-ghost" type="button" data-action="add-all-suggestions"><i class="ph ph-plus-circle"></i> ${tr('Add all to Today')}</button>`;
       html += `</section>`;
     }
     html += `<div class="view-tabs tasks-view-switch" role="group" aria-label="${tr('Tasks')}">${tab('anytime', `${tr('Anytime')} · ${later.length}`)}${tab('projects', tr('Projects'))}</div>`;
     if (view === 'projects') {
       const loose = tasks.filter(task => !task.projectId && !task.isInbox && !task.isCompleted).length;
-      html += `<div class="more-card"><button class="project-row" type="button" data-route="project/none"><i class="ph ph-tray project-row-icon" aria-hidden="true"></i><span class="project-row-main"><span class="task-title">${tr('No project')}</span><span class="task-meta">${esc(trn(loose, '{count} open', '{count} open'))}</span></span></button></div>`;
+      html += `<div class="today-card project-list"><button class="project-row" type="button" data-route="project/none"><i class="ph ph-tray project-row-icon" aria-hidden="true"></i><span class="project-row-main"><span class="task-title">${tr('No project')}</span><span class="task-meta">${esc(trn(loose, '{count} open', '{count} open'))}</span></span></button></div>`;
       const areas = sortedAreas().filter(area => area.status !== 'archived');
       for (const area of areas) {
         const list = projects.filter(project => project.areaId === area.id);
-        if (list.length) html += group(area.name, list.length, `<div class="more-card">${list.map(project => projectOverviewRow(project, tasks)).join('')}</div>`);
+        if (list.length) html += group(area.name, list.length, `<div class="today-card project-list">${list.map(project => projectOverviewRow(project, tasks)).join('')}</div>`);
       }
       const unassigned = projects.filter(project => !areas.some(area => area.id === project.areaId));
-      if (unassigned.length) html += group(tr('No area'), unassigned.length, `<div class="more-card">${unassigned.map(project => projectOverviewRow(project, tasks)).join('')}</div>`);
+      if (unassigned.length) html += group(tr('No area'), unassigned.length, `<div class="today-card project-list">${unassigned.map(project => projectOverviewRow(project, tasks)).join('')}</div>`);
       html += `<button class="inline-add" type="button" data-action="new-project"><i class="ph ph-plus"></i> ${tr('New project')}</button>`;
       return html;
     }
@@ -2177,7 +2178,7 @@
       html += `<h3 class="search-section-title">${tr('Tasks')} · ${result.tasks.length}</h3><div class="today-card search-list">${result.tasks.slice(0, SEARCH_TASK_LIMIT).map(({ task }) => searchTaskResult(task)).join('')}</div>${searchMoreNote(result.tasks.length, SEARCH_TASK_LIMIT)}`;
     }
     if (result.projects.length) {
-      html += `<h3 class="search-section-title">${tr('Projects')} · ${result.projects.length}</h3><div class="today-card search-list">${result.projects.slice(0, SEARCH_PROJECT_LIMIT).map(project => `<button class="search-result" type="button" data-route="project/${esc(project.id)}"><span class="search-result-icon"><span class="project-dot" style="--project-color:${esc(project.color)}"></span></span><span><span class="search-result-title">${esc(project.name)}</span><span class="search-result-meta">${tr('Project')}${project.isArchived ? ` · ${tr('archived')}` : ''}</span></span></button>`).join('')}</div>${searchMoreNote(result.projects.length, SEARCH_PROJECT_LIMIT)}`;
+      html += `<h3 class="search-section-title">${tr('Projects')} · ${result.projects.length}</h3><div class="today-card search-list">${result.projects.slice(0, SEARCH_PROJECT_LIMIT).map(project => `<button class="search-result" type="button" data-route="project/${esc(project.id)}"><span class="search-result-icon"><span class="project-dot" style="--project-color:${esc(project.color)}"></span></span><span class="search-result-text"><span class="search-result-title">${esc(project.name)}</span><span class="search-result-meta">${tr('Project')}${project.isArchived ? ` · ${tr('archived')}` : ''}</span></span></button>`).join('')}</div>${searchMoreNote(result.projects.length, SEARCH_PROJECT_LIMIT)}`;
     }
     return html;
   }
@@ -2212,9 +2213,13 @@
     return modalFrame(`<div class="modal-inner quick-sheet choice-window"><div class="modal-header"><h2 class="modal-title">${tr('Duplicate task')}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close Duplicate task')}"><i class="ph ph-x"></i></button></div><p class="dialog-copy">${trn(count, 'This task has {count} attachment. Copy attachments too?', 'This task has {count} attachments. Copy attachments too?')}</p><div class="sheet-actions"><button class="btn btn-primary" type="button" data-action="duplicate-with-files" data-task-id="${esc(task.id)}">${tr('Copy files')}</button><button class="btn btn-secondary" type="button" data-action="duplicate-without-files" data-task-id="${esc(task.id)}">${tr('Without files')}</button></div></div>`, 'quick');
   }
 
+  // R22b: a sheet like the other choice windows — the title and message, the word to type when asked, then the red
+  // button and Otkaži as full-width buttons. On a phone it opens at the bottom like every other window.
   function renderConfirmModal() {
-    return modalFrame(`<div class="modal-inner"><div class="modal-header"><div><h2 class="modal-title">${esc(tr(modalState.title))}</h2>${modalState.message ? `<p class="page-subtitle" style="margin-top:10px;max-width:380px">${esc(tr(modalState.message))}</p>` : ''}</div><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close dialog')}"><i class="ph ph-x"></i></button></div>${modalState.phrase ? `<label>${tr('Type {word} to continue', { word: esc(modalState.phrase) })}<input id="global-confirm-phrase" class="input" autocomplete="off" /></label>` : ''}<div class="modal-footer" style="border:0;padding-top:0"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">${tr('Cancel')}</button><button class="btn btn-danger" type="button" data-action="confirm-action">${esc(tr(modalState.confirmLabel || msg('Delete')))}</button></div></div></div>`, 'confirm-modal');
+    const phrase = modalState.phrase ? `<label class="sheet-label" for="global-confirm-phrase">${tr('Type {word} to continue', { word: esc(modalState.phrase) })}<input id="global-confirm-phrase" class="input" autocomplete="off" autocapitalize="characters" spellcheck="false" /></label>` : '';
+    return modalFrame(`<div class="modal-inner quick-sheet choice-window confirm-window"><div class="modal-header"><h2 class="modal-title">${esc(tr(modalState.title))}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close dialog')}"><i class="ph ph-x"></i></button></div>${modalState.message ? `<p class="dialog-copy">${esc(tr(modalState.message))}</p>` : ''}${phrase}<div class="sheet-actions"><button class="btn btn-danger" type="button" data-action="confirm-action">${esc(tr(modalState.confirmLabel || msg('Delete')))}</button><button class="btn btn-secondary" type="button" data-action="close-modal">${tr('Cancel')}</button></div></div>`, 'quick confirm-modal');
   }
+
 
   function nextProjectColor() {
     return PROJECT_COLORS[state.projects.length % PROJECT_COLORS.length];
@@ -2699,6 +2704,11 @@
   // Redesign R20: a ⋯ menu is a sheet like the others — the item's name as its title, the options in one card.
   function menuSheet(title, body) {
     return `<div class="popover-title">${esc(title || tr('Menu'))}</div><div class="sheet-card sheet-menu">${body}</div>`;
+  }
+
+  // Redesign R22b: one fold button everywhere — the label and count on the left, the caret on the right.
+  function foldButton(action, label, count, open, attrs = '') {
+    return `<button class="collapsible-trigger" type="button" data-action="${action}"${attrs} aria-expanded="${open}"><span class="left">${label} · ${count}</span><i class="ph ph-caret-${open ? 'up' : 'down'}" aria-hidden="true"></i></button>`;
   }
 
   function openTaskMenu(anchor, taskId) {
@@ -4200,11 +4210,10 @@
 
   function deleteSyncAccount() {
     const word = 'OBRIŠI';
-    const plain = value => String(value || '').normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toUpperCase();
     openConfirm({ title: msg('Delete your sync account?'), message: msg('This deletes your account and all synced data on the server. Data on this device stays.'),
       phrase: word, confirmLabel: msg('Delete account'),
       onConfirm: async () => {
-        if (plain($('#global-confirm-phrase')?.value) !== plain(word)) { setToastMessage(tr('Type {word} exactly to continue.', { word })); return; }
+        if (plainWord($('#global-confirm-phrase')?.value) !== plainWord(word)) { setToastMessage(tr('Type {word} exactly to continue.', { word })); return; }
         modalState = null; renderModal();
         try { await syncClient.deleteAccount(await syncClient.ensureSession(loadSyncMeta().session)); }
         catch (error) { setToastMessage(tr('The account could not be deleted: {error}', { error: trMessage(error.message) })); return; }
@@ -4535,6 +4544,12 @@
     refreshHabitMetrics().then(render).catch(error => setToastMessage(error.message));
   }
 
+  // R22b: the words typed to confirm a destructive action are Serbian, and case and diacritics do not matter.
+  const CONFIRM_WORDS = { reset: 'RESETUJ', restore: 'VRATI' };
+  function plainWord(value) {
+    return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase();
+  }
+
   async function beginGlobalOperation(reason, file = null, selection = null) {
     if (globalOperation) return;
     await (startupPromise || Promise.resolve());
@@ -4571,7 +4586,7 @@
       const summary = selection ? tr('Restore “{name}” and its owned files/history. Other records stay current. Undo is available until further data changes.', { name: selectedItem.title || selectedItem.name })
         : reason === 'restore' ? tr('{tasks} tasks, {projects} projects, {goals} Goals, {habits} Habits, {notes} Notes, {resources} Resources, {files} files, {logs} logs and {events} history events will be restored.', { tasks: op.validated.state.tasks.length, projects: op.validated.state.projects.length, goals: op.validated.state.goals.length, habits: op.validated.state.habits.length, notes: op.validated.state.notes.length, resources: op.validated.state.resources.length, files: op.validated.attachmentRecords.length, logs: op.validated.habitLogs.length, events: op.validated.goalHistory.length }) : '';
       openConfirm({ title: reason === 'reset' ? msg('Reset all app data?') : selection ? msg('Restore selected entity?') : msg('Restore backup?'), message: [tr('A safety ZIP was downloaded and an internal recovery copy was created.'), summary].filter(Boolean).join(' '),
-        phrase: reason.toUpperCase(), confirmLabel: reason === 'reset' ? msg('Reset app') : msg('Restore backup'),
+        phrase: CONFIRM_WORDS[reason], confirmLabel: reason === 'reset' ? msg('Reset app') : msg('Restore backup'),
         onConfirm: () => commitGlobalOperation(op), onCancel: () => abandonGlobalOperation(op) });
     } catch (error) { await abandonGlobalOperation(op, tr('Safety preparation failed: {error}. Nothing was replaced. Retry the operation.', { error: trMessage(error.message) }), { snapshotAvailable: false, validationResult: `${msg('Recovery preparation failed')}: ${error.message}` }); }
   }
@@ -4633,7 +4648,7 @@
 
   async function commitGlobalOperation(op) {
     if (globalOperation !== op || op.busy) return;
-    if ($('#global-confirm-phrase')?.value !== op.reason.toUpperCase()) { setToastMessage(tr('Type {word} exactly to continue.', { word: op.reason.toUpperCase() })); return; }
+    if (plainWord($('#global-confirm-phrase')?.value) !== plainWord(CONFIRM_WORDS[op.reason])) { setToastMessage(tr('Type {word} exactly to continue.', { word: CONFIRM_WORDS[op.reason] })); return; }
     op.busy = true;
     let mutationStarted = false;
     try {

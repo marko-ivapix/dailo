@@ -133,7 +133,7 @@
         <div class="sync-actions"><button class="btn btn-secondary" type="button" data-action="sync-verify-code"${busy}>${tr('Confirm')}</button><button class="btn btn-ghost" type="button" data-action="sync-request-code"${busy}>${tr('Send a new code')}</button><button class="btn btn-ghost" type="button" data-action="sync-change-email">${tr('Change e-mail')}</button></div>`
         : `<div class="settings-row"><label class="settings-label" for="sync-email"><strong>${tr('Sign in')}</strong><span>${tr('Optional. Enter your e-mail address to get a sign-in code. No password is needed. Without signing in, everything stays only on this device.')}</span></label><input class="input" id="sync-email" type="email" inputmode="email" autocomplete="email" value="${esc(sync.email)}" /></div>
         ${syncError}
-        <div class="sync-actions"><button class="btn btn-secondary" type="button" data-action="sync-request-code"${busy}>${tr('Send code')}</button></div>`}
+        <div class="sync-actions"><button class="btn btn-primary" type="button" data-action="sync-request-code"${busy}>${tr('Send code')}</button></div>`}
       </section>`;
     return `${pageHeader(tr('Account'), subtitle, { add: false })}${card}`;
   }

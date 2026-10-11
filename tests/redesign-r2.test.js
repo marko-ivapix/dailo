@@ -8,6 +8,7 @@ const vm = require('node:vm');
 const Core = require('../js/core.js');
 const Release = require('../js/release.js');
 const { withI18n, runInNewContextWithI18n } = require('./support/i18n.js');
+const { foldButton } = require('./support/fold.js');
 
 const read = file => fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
 const app = read('js/app.js');
@@ -121,6 +122,7 @@ function renderTodayWith(stateExtra = {}, stubs = {}) {
   state.ui.todayExpanded = { overdue: false, today: false, habits: false };
   state.habitLogCache = stubs.logs || {};
   const ctx = todayContext(state, {
+    foldButton, // R22b: the one fold button from app.js
     pageHeader: (title, subtitle, options) => `<header title="${title}" eyebrow="${options.eyebrow}" add="${options.add}"></header>`,
     transferNotice: () => '<transfer>', backupReminderNotice: () => '<backup>', callDomainHook: () => '<journal>', // R12c: the journal notice comes from journal-ui.js; R14: no weekly-review notice
     taskRow: (task, context, options) => `<task ${task.id} ${context}${options.today ? ' today' : ''}${options.draggable ? ' drag' : ''}>`,
@@ -298,7 +300,7 @@ test('Z2 early: the suggestions card is at the top of Zadaci with "+ Danas" and 
   // Redesign R5 (S10): the suggestions come from listTasks (no archived projects).
   assert.match(screen, /const suggestions = Core\.deriveTodaySections\(tasks, Core\.dateOnly\(\)\)\.suggestions;/);
   assert.match(screen, /<section class="tasks-suggestions" data-tasks-suggestions>/);
-  assert.match(screen, /data-action="toggle-suggestions" aria-expanded="\$\{open\}"/);
+  assert.match(screen, /foldButton\('toggle-suggestions', tr\('Suggested for today'\), suggestions\.length, open\)/);
   assert.match(screen, /taskRow\(item\.task, 'suggestion', \{ today: true, addToday: true, suggestionReason: item\.reason \}\)/);
   assert.match(screen, /data-action="add-all-suggestions"/);
   assert.ok(screen.indexOf('data-tasks-suggestions') < screen.indexOf('tasks-view-switch'), 'above the switch');

@@ -39,7 +39,7 @@
       return `<button class="area-list-row" type="button" data-route="area/${esc(area.id)}">${areaIcon(ctx, area, 'area-list-icon')}<span class="area-list-main"><span class="task-title">${esc(area.name)}</span><span class="task-meta">${esc(meta)}</span></span></button>`;
     }).join('');
     const open = state.ui.areasArchivedOpen === true;
-    const fold = archived.length ? `<section class="areas-fold"><button class="collapsible-trigger" type="button" data-action="areas-fold" aria-expanded="${open}"><span class="left"><i class="ph ph-caret-${open ? 'up' : 'down'}" aria-hidden="true"></i> ${tr('Archived areas')} · ${archived.length}</span></button>${open ? `<div class="today-card">${archived.map(area => `<div class="today-row goals-fold-row"><button class="today-row-main" type="button" data-route="area/${esc(area.id)}"><span class="task-title">${esc(area.name)}</span></button><button class="quick-chip" type="button" data-action="restore-area" data-area-id="${esc(area.id)}">${tr('Restore')}</button></div>`).join('')}</div>` : ''}</section>` : '';
+    const fold = archived.length ? `<section class="areas-fold">${ctx.foldButton('areas-fold', tr('Archived areas'), archived.length, open)}${open ? `<div class="today-card">${archived.map(area => `<div class="today-row goals-fold-row"><button class="today-row-main" type="button" data-route="area/${esc(area.id)}"><span class="task-title">${esc(area.name)}</span></button><button class="quick-chip" type="button" data-action="restore-area" data-area-id="${esc(area.id)}">${tr('Restore')}</button></div>`).join('')}</div>` : ''}</section>` : '';
     return `${html}<div class="today-card areas-list">${rows}<button class="inline-add" type="button" data-action="new-area"><i class="ph ph-plus" aria-hidden="true"></i> ${tr('New area')}</button></div>${fold}`;
   }
 
@@ -59,7 +59,7 @@
     const shown = all ? tasks : tasks.slice(0, 5);
     const more = tasks.length > 5 ? `<button class="today-more" type="button" data-action="area-all-tasks" data-area-id="${id}" aria-expanded="${all}">${all ? tr('Show less') : tr('Show {count} more', { count: tasks.length - 5 })}</button>` : '';
     const libraryRow = ([type, item]) => `<div class="today-row area-library-row"><button class="today-row-main" type="button" data-route="${type}/${esc(item.id)}"><span class="task-title"><i class="ph ${type === 'note' ? 'ph-note' : 'ph-link'}" aria-hidden="true"></i> ${esc(item.title)}</span><span class="task-meta">${type === 'note' ? tr('Note') : tr('Resource')}</span></button></div>`;
-    html += section(tr('Projects'), projects.length, 'area-new-project', `<div class="more-card">${projects.map(project => projectOverviewRow(project)).join('')}</div>`);
+    html += section(tr('Projects'), projects.length, 'area-new-project', `<div class="today-card project-list">${projects.map(project => projectOverviewRow(project)).join('')}</div>`);
     html += section(tr('Tasks'), tasks.length, 'area-new-task', `<div class="task-list today-card">${shown.map(task => renderAreaTaskRow(task, area.id)).join('')}${more}</div>`);
     html += section(tr('Goals'), goals.length, 'area-new-goal', `<div class="today-card goals-list">${goals.map(goal => renderGoalListRow(goal)).join('')}</div>`);
     html += section(tr('Habits'), habits.length, 'area-new-habit', `<div class="today-card">${habits.map(habit => renderHabitListRow(habit)).join('')}</div>`);

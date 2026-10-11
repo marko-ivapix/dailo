@@ -48,7 +48,7 @@ test('M4: the groups are two-column tile grids; the area screen keeps its list',
   assert.match(rule('.more-tiles .more-row-icon'), /grid-area: icon;[\s\S]*width: 36px; height: 36px;[\s\S]*background: var\(--accent-tint\); color: var\(--blue-300\);/);
   assert.match(rule('.more-tiles .more-row-value'), /grid-area: value;/);
   assert.match(rule('.more-tiles .more-row-label'), /grid-area: label;/);
-  assert.match(read('js/areas-ui.js'), /class="more-card"/, 'the area screen keeps the plain card');
+  assert.match(read('js/areas-ui.js'), /class="today-card project-list"/, 'the area screen keeps its list (R22b: in the usual card)');
 });
 
 test('M5: the last group is Podešavanja and Nalog; the Nalog line follows the sync state', () => {

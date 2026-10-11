@@ -67,7 +67,7 @@
     return pageHeader(tr('Journal'), trn(total, '{count} entry', '{count} entries'), { add: false })
       + `<div class="journal-month"><strong class="journal-month-title">${esc(title)}</strong><span class="journal-month-arrows"><button class="btn-icon" type="button" data-action="journal-month" data-step="-1" aria-label="${tr('Previous month')}"><i class="ph ph-caret-left"></i></button><button class="btn-icon" type="button" data-action="journal-month" data-step="1"${month >= current ? ' disabled' : ''} aria-label="${tr('Next month')}"><i class="ph ph-caret-right"></i></button></span></div>`
       + `<div class="journal-strip" data-month="${month}">${days}</div>`
-      + `<label class="search-box journal-search"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input id="journal-query" class="search-input" type="search" autocomplete="off" placeholder="${tr('Search the journal')}" value="${esc(query)}" aria-label="${tr('Search the journal')}"></label>`
+      + `<label class="sheet-search journal-search"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input id="journal-query" class="input" type="search" autocomplete="off" placeholder="${tr('Search the journal')}" value="${esc(query)}" aria-label="${tr('Search the journal')}"></label>`
       + `<div id="journal-list">${listHtml(ctx)}</div>`;
   }
 

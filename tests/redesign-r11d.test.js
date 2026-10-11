@@ -8,6 +8,7 @@ const path = require('node:path');
 const Core = require('../js/core.js');
 const Release = require('../js/release.js');
 const { runInNewContextWithI18n } = require('./support/i18n.js');
+const { foldButton } = require('./support/fold.js');
 
 const read = file => fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
 const app = read('js/app.js');
@@ -57,6 +58,7 @@ function context(state = fixture(), extra = {}) {
   const projects = () => state.projects.slice().sort((a, b) => a.order - b.order);
   const ctx = {
     calls, state, esc, Core: { ...Core, dateOnly: value => (value ? Core.dateOnly(value) : TODAY) },
+    foldButton, // R22b: the one fold button from app.js
     pageHeader: (title, subtitle) => `<header title="${title}" subtitle="${subtitle}"></header>`,
     allProjects: projects, sortedProjects: () => projects().filter(project => !project.isArchived),
     getProject: id => state.projects.find(project => project.id === id) || null,
@@ -95,7 +97,7 @@ test('S4: everything that repeats, with "Ove nedelje" first and groups, projects
   assert.deepEqual(rowIds(group), ['late', 'soon'], 'the fold is closed');
   assert.match(group, /<row id="late" meta="R:weekly"/, 'no place inside its own section');
   assert.match(group, /<button class="inline-add cleaning-add" type="button" data-action="new-cleaning-chore" data-project-id="g1"><i class="ph ph-plus"><\/i> Add a chore<\/button>/);
-  assert.match(group, /<button class="collapsible-trigger cleaning-done-toggle" type="button" data-action="toggle-cleaning-completed" data-project-id="g1" aria-expanded="false"><span class="left">Completed · 1<\/span>/);
+  assert.match(group, /<button class="collapsible-trigger" type="button" data-action="toggle-cleaning-completed" data-project-id="g1" aria-expanded="false"><span class="left">Completed · 1<\/span>/);
   const project = html.slice(html.indexOf('data-cleaning-section="p1"'), html.indexOf('data-cleaning-section="none"'));
   assert.match(project, /<button class="cleaning-project-link" type="button" data-route="project\/p1"><span class="project-dot" style="--project-color:#2fbf71" aria-hidden="true"><\/span>Finansije<\/button>/);
   assert.match(project, /<span class="cleaning-section-kind">project<\/span>/);
@@ -111,7 +113,7 @@ test('S4: chips filter, the done fold, archived groups with "Vrati", and the emp
   let html = render(context(state));
   assert.deepEqual(sectionTitles(html), ['Kupatilo 2'], 'one group, without "Ove nedelje"');
   assert.match(html, /<row id="done" meta="Completed L:2026-10-01" side=''>/); // R20: no date for a done chore
-  assert.match(html, /<div class="cleaning-archived-row"><span class="cleaning-archived-name">Bašta<small>1 chore<\/small><\/span><button class="btn btn-secondary" type="button" data-action="restore-cleaning-group" data-project-id="g3">Restore<\/button><\/div>/);
+  assert.match(html, /<div class="cleaning-archived-row"><span class="cleaning-archived-name">Bašta<small>1 chore<\/small><\/span><button class="quick-chip" type="button" data-action="restore-cleaning-group" data-project-id="g3">Restore<\/button><\/div>/);
   state.ui.cleaningRoomFilter = 'projects';
   assert.deepEqual(sectionTitles(render(context(state))), ['Finansije 1']);
   state.ui.cleaningRoomFilter = 'gone';

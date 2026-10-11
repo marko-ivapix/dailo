@@ -42,7 +42,7 @@ test('S11: Search is a full-height window with the field on top and the two grou
   const html = ctx.searchResultsHtml('report');
   assert.match(html, /^<h3 class="search-section-title">Tasks · 2<\/h3><div class="today-card search-list"><button class="search-result" type="button" data-action="open-task" data-task-id="/);
   assert.match(html, /<h3 class="search-section-title">Projects · 2<\/h3><div class="today-card search-list">/);
-  assert.match(html, /data-route="project\/p2"><span class="search-result-icon"><span class="project-dot" style="--project-color:#2fbf71"><\/span><\/span><span><span class="search-result-title">Reports 2025<\/span><span class="search-result-meta">Project · archived<\/span><\/span><\/button>/);
+  assert.match(html, /data-route="project\/p2"><span class="search-result-icon"><span class="project-dot" style="--project-color:#2fbf71"><\/span><\/span><span class="search-result-text"><span class="search-result-title">Reports 2025<\/span><span class="search-result-meta">Project · archived<\/span><\/span><\/button>/);
   assert.match(html, /data-route="project\/p1">[\s\S]*?<span class="search-result-meta">Project<\/span>/);
   const order = [...html.matchAll(/data-task-id="(\w+)"/g)].map(match => match[1]);
   assert.deepEqual(order, Core.searchItems(ctx.state.tasks, ctx.state.projects, 'report').tasks.map(({ task }) => task.id), 'the order is unchanged');

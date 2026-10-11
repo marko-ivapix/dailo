@@ -58,7 +58,7 @@
     const { esc, state } = ctx;
     const open = state.ui[{ done: 'goalsDoneOpen', paused: 'goalsPausedOpen', archived: 'goalsArchivedOpen' }[key]] === true;
     const rows = open ? `<div class="today-card">${goals.map(goal => `<div class="today-row goals-fold-row"><button class="today-row-main" type="button" data-route="goal/${esc(goal.id)}"><span class="task-title">${esc(goal.title)}</span><span class="task-meta">${esc(meta(goal))}</span></button>${action ? `<button class="quick-chip" type="button" data-action="${action}" data-goal-id="${esc(goal.id)}">${actionLabel}</button>` : ''}</div>`).join('')}</div>` : '';
-    return `<section class="goals-fold"><button class="collapsible-trigger" type="button" data-action="goals-fold" data-fold="${key}" aria-expanded="${open}"><span class="left"><i class="ph ph-caret-${open ? 'up' : 'down'}" aria-hidden="true"></i> ${label} · ${goals.length}</span></button>${rows}</section>`;
+    return `<section class="goals-fold">${ctx.foldButton('goals-fold', label, goals.length, open, ` data-fold="${key}"`)}${rows}</section>`;
   }
 
   function renderGoals(ctx) {
@@ -173,10 +173,10 @@
     html += `<h3 class="goal-details-label">${tr('Organization')}</h3><div class="habit-window-card">${goalDetailsRow(ctx, goal, 'goal-details-area', 'ph-squares-four', tr('Area'), area, tr('No area'))}${goalDetailsRow(ctx, goal, 'edit-goal-links', 'ph-link', tr('Linked'), linked, tr('None'))}</div>`;
     html += `<button class="habit-window-more" type="button" data-action="goal-details-menu" data-goal-id="${id}"><strong>${tr('More options')}</strong><span>${tr('History, pause, archive')} <i class="ph ph-caret-right" aria-hidden="true"></i></span></button>`;
     // GO6
-    const footer = goal.status === 'completed' ? `<button class="btn btn-secondary goal-details-complete" type="button" data-action="restore-goal" data-goal-id="${id}">${tr('Restore as active')}</button>`
-      : goal.status === 'archived' ? `<button class="btn btn-secondary goal-details-complete" type="button" data-action="restore-goal" data-goal-id="${id}">${tr('Restore goal')}</button>`
-      : `<button class="btn ${percent >= 100 ? 'btn-primary' : 'btn-secondary'} goal-details-complete" type="button" data-action="complete-goal" data-goal-id="${id}">${tr('Mark as achieved')}</button>`;
-    html += `<div class="quick-sheet-footer"><span></span>${footer}</div>`;
+    const footer = goal.status === 'completed' ? `<button class="btn btn-secondary habit-window-save goal-details-complete" type="button" data-action="restore-goal" data-goal-id="${id}">${tr('Restore as active')}</button>`
+      : goal.status === 'archived' ? `<button class="btn btn-secondary habit-window-save goal-details-complete" type="button" data-action="restore-goal" data-goal-id="${id}">${tr('Restore goal')}</button>`
+      : `<button class="btn ${percent >= 100 ? 'btn-primary' : 'btn-secondary'} habit-window-save goal-details-complete" type="button" data-action="complete-goal" data-goal-id="${id}">${tr('Mark as achieved')}</button>`;
+    html += `<div class="quick-sheet-footer">${footer}</div>`;
     return modalFrame(`<div class="modal-inner quick-sheet goal-details">${html}</div>`, 'quick');
   }
 

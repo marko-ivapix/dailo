@@ -8,6 +8,7 @@ const vm = require('node:vm');
 const Core = require('../js/core.js');
 const Release = require('../js/release.js');
 const { withI18n, runInNewContextWithI18n } = require('./support/i18n.js');
+const { foldButton } = require('./support/fold.js');
 
 const read = file => fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
 const app = read('js/app.js');
@@ -40,6 +41,7 @@ function screenContext(ui = {}) {
     Core, esc, state: { tasks, projects, areas, goals: [], ui: { tasksView: 'anytime', ...ui } },
     getProject: id => projects.find(project => project.id === id), getArea: id => areas.find(area => area.id === id),
     sortedProjects: () => projects.filter(project => !project.isArchived), sortedAreas: () => areas,
+    foldButton, // R22b: the one fold button from app.js
     pageHeader: (title, subtitle) => `<header title="${title}" subtitle="${subtitle}"></header>`,
     taskRow: (task, context, options) => `<row ${task.id} ${context}${options?.today ? ' today' : ''}${options?.hidePlace ? ' noplace' : ''}>`,
     emptyState: title => `<empty ${title}>`, formatDate: date => `F(${date})`,
@@ -99,6 +101,7 @@ function projectCtx(extra = {}) {
     goalPercent: () => 45, emptyState: () => '',
     backLink: (route, label) => `<div class="screen-topbar"><button class="screen-back" type="button" data-route="${route}"><i class="ph ph-caret-left" aria-hidden="true"></i>${label}</button></div>`, // R22a: the fallback when opened directly
     // R17: the project screen uses the usual header (color dot, name, summary, search and ⋯).
+    foldButton, // R22b: the one fold button from app.js
     pageHeader: (title, subtitle, options = {}) => `<header title="${title}" subtitle="${subtitle}" menu="${options.projectMenu || ''}" color="${options.color || ''}"></header>`,
     ...extra,
   };
@@ -110,7 +113,7 @@ test('Z7: the project screen has "‹ Zadaci", ⋯, the color, area · counts, t
   assert.match(html, /^<div class="screen-topbar"><button class="screen-back" type="button" data-route="tasks"><i class="ph ph-caret-left" aria-hidden="true"><\/i>Tasks<\/button><\/div><header title="Selidba" subtitle="Kuća · 2 open · 1 done" menu="p1" color="#111111"><\/header>/);
   assert.match(html, /<button class="project-goal-link" type="button" data-route="goal\/g1"><i class="ph ph-target" aria-hidden="true"><\/i>Goal: Novi stan · 45%<\/button>/);
   assert.match(html, /<div class="task-list today-card" data-list-context="project:p1"><row b drag today noplace><row c drag today noplace><\/div><button class="inline-add" type="button" data-action="quick-add" data-project-id="p1">/);
-  assert.match(html, /data-action="toggle-project-completed" data-project-id="p1" aria-expanded="false"><span class="left"><i class="ph ph-check-circle"><\/i> Completed<\/span><span>1 /);
+  assert.match(html, /data-action="toggle-project-completed" data-project-id="p1" aria-expanded="false"><span class="left">Completed · 1<\/span>/);
   assert.doesNotMatch(html, /project-archived-notice/);
 });
 

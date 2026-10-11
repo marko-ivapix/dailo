@@ -268,7 +268,7 @@
     const { esc, state } = ctx;
     const open = state.ui[key === 'paused' ? 'habitsPausedOpen' : 'habitsArchivedOpen'] === true;
     const rows = open ? `<div class="today-card">${habits.map(habit => `<div class="today-row habits-fold-row"><button class="today-row-main" type="button" data-route="habit/${esc(habit.id)}"><span class="task-title">${esc(habit.name)}</span><span class="task-meta">${esc(habitFrequencyLabel(ctx, habit))}</span></button><button class="quick-chip" type="button" data-action="${action}" data-habit-id="${esc(habit.id)}">${actionLabel}</button></div>`).join('')}</div>` : '';
-    return `<section class="habits-fold"><button class="collapsible-trigger" type="button" data-action="habits-fold" data-fold="${key}" aria-expanded="${open}"><span class="left"><i class="ph ph-caret-${open ? 'up' : 'down'}" aria-hidden="true"></i> ${label} · ${habits.length}</span></button>${rows}</section>`;
+    return `<section class="habits-fold">${ctx.foldButton('habits-fold', label, habits.length, open, ` data-fold="${key}"`)}${rows}</section>`;
   }
 
   function renderHabits(ctx) {

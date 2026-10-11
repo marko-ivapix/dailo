@@ -150,7 +150,7 @@ test('Selective Habit restore includes only its own logs and keeps unrelated his
   assert.deepEqual(candidate.habitLogs.find(log => log.id === 'other-log'), current.habitLogs[1]);
 });
 
-test('Selective restore downloads safety ZIP, requires RESTORE, commits and Undo recovers original bytes', async () => {
+test('Selective restore downloads safety ZIP, requires VRATI (R22b), commits and Undo recovers original bytes', async () => {
   const state = await seed();
   const snapshot = { appData: structuredClone(state), ...(await Storage.captureUserData()) };
   state.tasks[0].title = 'Current version'; state.tasks[1].title = 'Keep other edit';
@@ -158,12 +158,12 @@ test('Selective restore downloads safety ZIP, requires RESTORE, commits and Undo
   const file = await Storage.attachments.get('file'); file.blob = new Blob(['new'], { type: 'text/plain' }); await Storage.attachments.put(file);
   const app = appRecovery(state);
   await app.begin({ snapshot, collection: 'tasks', id: 'task' });
-  assert.equal(app.ctx.confirm.phrase, 'RESTORE');
+  assert.equal(app.ctx.confirm.phrase, 'VRATI'); // R22b: the typed word is Serbian
   const safety = await Backup.inspectBackupV3(app.ctx.download);
   assert.equal(safety.state.tasks[0].title, 'Current version');
   await app.commit();
   assert.equal(JSON.parse(localStorage.getItem('todoAppData')).tasks[0].title, 'Current version');
-  app.input.value = 'RESTORE'; await app.commit();
+  app.input.value = 'VRATI'; await app.commit();
   assert.equal(app.ctx.state.tasks[0].title, 'Original');
   assert.equal(app.ctx.state.tasks[1].title, 'Keep other edit');
   assert.equal(await (await Storage.attachments.get('file')).blob.text(), 'old');
@@ -183,7 +183,7 @@ test('Selective restore rolls back metadata and native records when the commit w
   const before = localStorage.getItem('todoAppData');
   const write = localStorage.setItem; let fail = true;
   localStorage.setItem = (key, value) => { if (fail) { fail = false; throw new Error('quota denied'); } write(key, value); };
-  try { app.input.value = 'RESTORE'; await app.commit(); }
+  try { app.input.value = 'VRATI'; await app.commit(); }
   finally { localStorage.setItem = write; }
   const restored = JSON.parse(localStorage.getItem('todoAppData'));
   assert.equal(restored.tasks[0].title, 'Current version');
@@ -199,7 +199,7 @@ test('Selective Undo refuses later edits without overwriting them', async () => 
   const snapshot = { appData: structuredClone(state), ...(await Storage.captureUserData()) };
   state.tasks[0].title = 'Current version'; localStorage.setItem('todoAppData', JSON.stringify(state));
   const app = appRecovery(state); await app.begin({ snapshot, collection: 'tasks', id: 'task' });
-  app.input.value = 'RESTORE'; await app.commit();
+  app.input.value = 'VRATI'; await app.commit();
   app.ctx.state.tasks[1].title = 'Later edit'; localStorage.setItem('todoAppData', JSON.stringify(app.ctx.state));
   await assert.rejects(() => app.ctx.undo(), /Data changed/);
   assert.equal(JSON.parse(localStorage.getItem('todoAppData')).tasks[1].title, 'Later edit');
@@ -211,7 +211,7 @@ test('Successful Undo remains verified when recovery-copy cleanup fails', async 
   const snapshot = { appData: structuredClone(state), ...(await Storage.captureUserData()) };
   state.tasks[0].title = 'Current version'; localStorage.setItem('todoAppData', JSON.stringify(state));
   const app = appRecovery(state); await app.begin({ snapshot, collection: 'tasks', id: 'task' });
-  app.input.value = 'RESTORE'; await app.commit();
+  app.input.value = 'VRATI'; await app.commit();
   const remove = Storage.recoverySnapshots.deleteMany;
   Storage.recoverySnapshots.deleteMany = async () => { throw new Error('cleanup denied'); };
   try { await app.ctx.undo(); } finally { Storage.recoverySnapshots.deleteMany = remove; }

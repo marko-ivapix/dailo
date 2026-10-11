@@ -190,9 +190,9 @@ test('GO5: "Ažuriraj napredak" offers quick steps and saves through the history
 });
 
 test('GO6: "Označi kao ostvaren" is gray below 100% and blue at 100%; finished and archived goals offer "Vrati"', () => {
-  assert.match(render(goalCtx()), /<div class="quick-sheet-footer"><span><\/span><button class="btn btn-secondary goal-details-complete" type="button" data-action="complete-goal" data-goal-id="g">Mark as achieved<\/button><\/div><\/div><\/frame>$/);
-  assert.match(render(goalCtx({ currentValue: 100 })), /<button class="btn btn-primary goal-details-complete" type="button" data-action="complete-goal" data-goal-id="g">Mark as achieved<\/button>/);
-  assert.match(render(goalCtx({ status: 'completed' })), /<button class="btn btn-secondary goal-details-complete" type="button" data-action="restore-goal" data-goal-id="g">Restore as active<\/button>/);
+  assert.match(render(goalCtx()), /<div class="quick-sheet-footer"><button class="btn btn-secondary habit-window-save goal-details-complete" type="button" data-action="complete-goal" data-goal-id="g">Mark as achieved<\/button><\/div><\/div><\/frame>$/);
+  assert.match(render(goalCtx({ currentValue: 100 })), /<button class="btn btn-primary habit-window-save goal-details-complete" type="button" data-action="complete-goal" data-goal-id="g">Mark as achieved<\/button>/);
+  assert.match(render(goalCtx({ status: 'completed' })), /<button class="btn btn-secondary habit-window-save goal-details-complete" type="button" data-action="restore-goal" data-goal-id="g">Restore as active<\/button>/);
   assert.match(render(goalCtx({ status: 'archived' })), /data-action="restore-goal" data-goal-id="g">Restore goal<\/button>/);
   const module = moduleFor();
   const ctx = goalCtx();

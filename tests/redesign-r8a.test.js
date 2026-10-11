@@ -9,6 +9,7 @@ const vm = require('node:vm');
 const Core = require('../js/core.js');
 const Release = require('../js/release.js');
 const { withI18n, runInNewContextWithI18n } = require('./support/i18n.js');
+const { foldButton } = require('./support/fold.js');
 
 const read = file => fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
 const app = read('js/app.js');
@@ -88,6 +89,7 @@ function screen(ui = {}, extra = {}) {
     calls, state, Core, esc,
     getHabit: id => habits.find(habit => habit.id === id),
     habitMetrics: habit => ({ currentStreak: habit.id === 'm' ? 5 : 1, currentPeriodCount: 1, currentPeriodTarget: 3 }),
+    foldButton, // R22b: the one fold button from app.js
     pageHeader: (title, subtitle, options) => `<header title="${title}" subtitle="${subtitle}" add="${options?.add}"></header>`,
     emptyState: (title, text, cta, action) => `<empty ${title} ${action}>`,
     formatDate: (value, mode) => (mode === 'full' ? `F:${value}` : `D:${value}`),
@@ -185,7 +187,7 @@ test('H7, H4: Napredak has the bars of this week and the month chart with today 
 
 test('H5: paused and archived habits fold at the bottom with "Nastavi" and "Vrati"', () => {
   const closed = render(screen());
-  assert.match(closed, /<section class="habits-fold"><button class="collapsible-trigger" type="button" data-action="habits-fold" data-fold="paused" aria-expanded="false"><span class="left"><i class="ph ph-caret-down" aria-hidden="true"><\/i> Paused habits · 1<\/span><\/button><\/section><section class="habits-fold"><button class="collapsible-trigger" type="button" data-action="habits-fold" data-fold="archived" aria-expanded="false"><span class="left"><i class="ph ph-caret-down" aria-hidden="true"><\/i> Archived habits · 1<\/span><\/button><\/section>$/);
+  assert.match(closed, /<section class="habits-fold"><button class="collapsible-trigger" type="button" data-action="habits-fold" data-fold="paused" aria-expanded="false"><span class="left">Paused habits · 1<\/span><i class="ph ph-caret-down" aria-hidden="true"><\/i><\/button><\/section><section class="habits-fold"><button class="collapsible-trigger" type="button" data-action="habits-fold" data-fold="archived" aria-expanded="false"><span class="left">Archived habits · 1<\/span><i class="ph ph-caret-down" aria-hidden="true"><\/i><\/button><\/section>$/);
   const open = render(screen({ habitsPausedOpen: true, habitsArchivedOpen: true }));
   assert.match(open, /<div class="today-row habits-fold-row"><button class="today-row-main" type="button" data-route="habit\/p"><span class="task-title">Paused one<\/span><span class="task-meta">Daily<\/span><\/button><button class="quick-chip" type="button" data-action="resume-habit" data-habit-id="p">Resume<\/button><\/div>/);
   assert.match(open, /data-route="habit\/a">[\s\S]*?<button class="quick-chip" type="button" data-action="restore-habit" data-habit-id="a">Restore<\/button>/);
