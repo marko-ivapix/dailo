@@ -60,6 +60,7 @@
   let dragState = null;
   let taskSwipeState = null;
   let suppressTaskSwipeClick = false;
+  let touchReorder = null;
   let modalReturnFocus = null;
   let popoverReturnFocus = null;
   const knowledgeAttachmentCache = new Map();
@@ -5335,6 +5336,7 @@
   }
 
   function handleTaskSwipeMove(event) {
+    if (touchReorder?.active) return;
     const swipe = taskSwipeState;
     if (!swipe || swipe.pointerId !== event.pointerId) return;
     const horizontal = event.clientX - swipe.startX;
@@ -5344,16 +5346,19 @@
       taskSwipeState = null;
       return;
     }
-    if (horizontal <= 0 || Math.abs(horizontal) <= Math.abs(vertical)) return;
+    if (Math.abs(horizontal) <= Math.abs(vertical)) return;
     event.preventDefault();
     swipe.distance = horizontal;
     swipe.swiping = true;
-    // R23: a light tick when the swipe passes the point where releasing completes the task.
-    if (!swipe.armed && horizontal >= 96) { swipe.armed = true; haptic('tick'); }
-    else if (swipe.armed && horizontal < 96) swipe.armed = false;
-    const progress = Math.min(1, horizontal / 96);
-    swipe.row.style.background = `rgba(48, 203, 173, ${0.14 + progress * 0.22})`;
-    swipe.row.style.borderColor = `rgba(48, 203, 173, ${0.3 + progress * 0.5})`;
+    // R23: a light tick when the swipe passes the point where releasing acts. R25 (D): to the right it completes
+    // the task (green), to the left it opens the date sheet (blue).
+    const reach = Math.abs(horizontal);
+    if (!swipe.armed && reach >= 96) { swipe.armed = true; haptic('tick'); }
+    else if (swipe.armed && reach < 96) swipe.armed = false;
+    const progress = Math.min(1, reach / 96);
+    const tint = horizontal < 0 ? '83, 98, 255' : '48, 203, 173';
+    swipe.row.style.background = `rgba(${tint}, ${0.14 + progress * 0.22})`;
+    swipe.row.style.borderColor = `rgba(${tint}, ${0.3 + progress * 0.5})`;
   }
 
   function finishTaskSwipe(event) {
@@ -5365,7 +5370,67 @@
     if (!swipe.swiping) return;
     suppressTaskSwipeClick = true;
     setTimeout(() => { suppressTaskSwipeClick = false; }, 0);
-    if (event.type !== 'pointercancel' && swipe.distance >= 96) toggleComplete(swipe.row.dataset.taskId);
+    if (event.type === 'pointercancel') return;
+    if (swipe.distance >= 96) toggleComplete(swipe.row.dataset.taskId);
+    else if (swipe.distance <= -96) openPlanPicker(swipe.row, { type: 'task', taskId: swipe.row.dataset.taskId });
+  }
+
+  // R25 (E): touch reordering — hold a row for a moment, then drag it up or down within its own list. Moving before
+  // the hold ends scrolls or swipes as before; while a row is dragged the page does not scroll.
+  function handleTouchReorderStart(event) {
+    if (event.pointerType === 'mouse' || !event.isPrimary || touchReorder) return;
+    const row = event.target.closest?.('.task-row[draggable="true"]');
+    if (!row || event.target.closest('button, input, textarea, select, a, [contenteditable]')) return;
+    const reorder = { row, id: row.dataset.taskId, context: row.dataset.listContext, pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, active: false, target: null };
+    reorder.timer = setTimeout(() => startTouchReorder(reorder), 350);
+    touchReorder = reorder;
+  }
+
+  function startTouchReorder(reorder) {
+    if (touchReorder !== reorder) return;
+    reorder.active = true; reorder.timer = null;
+    if (taskSwipeState?.row === reorder.row) { resetTaskSwipe(taskSwipeState.row, taskSwipeState.originalStyle); taskSwipeState = null; }
+    reorder.row.releasePointerCapture?.(reorder.pointerId);
+    reorder.row.classList.add('is-dragging', 'is-touch-dragging');
+    document.body.classList.add('task-drag-active');
+    haptic('tick');
+  }
+
+  function handleTouchReorderMove(event) {
+    const reorder = touchReorder;
+    if (!reorder || reorder.pointerId !== event.pointerId) return;
+    const dx = event.clientX - reorder.startX, dy = event.clientY - reorder.startY;
+    if (!reorder.active) { if (Math.abs(dx) > 8 || Math.abs(dy) > 8) cancelTouchReorder(); return; }
+    event.preventDefault();
+    reorder.row.style.transform = `translateY(${dy}px)`;
+    const over = document.elementFromPoint(event.clientX, event.clientY)?.closest?.('.task-row[draggable="true"]');
+    const target = over && over !== reorder.row && over.dataset.listContext === reorder.context ? over : null;
+    if (target !== reorder.target) { reorder.target?.classList.remove('is-drop-target'); target?.classList.add('is-drop-target'); reorder.target = target; }
+  }
+
+  function finishTouchReorder(event) {
+    const reorder = touchReorder;
+    if (!reorder || reorder.pointerId !== event.pointerId) return;
+    const target = reorder.active && event.type !== 'pointercancel' ? reorder.target : null;
+    const wasActive = reorder.active;
+    cancelTouchReorder();
+    if (wasActive) { suppressTaskSwipeClick = true; setTimeout(() => { suppressTaskSwipeClick = false; }, 0); }
+    if (target) reorderTasks(reorder.context, reorder.id, target.dataset.taskId);
+  }
+
+  function cancelTouchReorder() {
+    const reorder = touchReorder;
+    if (!reorder) return;
+    clearTimeout(reorder.timer);
+    reorder.row.style.transform = '';
+    reorder.row.classList.remove('is-dragging', 'is-touch-dragging');
+    reorder.target?.classList.remove('is-drop-target');
+    document.body.classList.remove('task-drag-active');
+    touchReorder = null;
+  }
+
+  function blockTouchScroll(event) {
+    if (touchReorder?.active) event.preventDefault();
   }
 
   function handleTaskSwipeClick(event) {
@@ -5376,6 +5441,7 @@
   }
 
   function handleDragStart(event) {
+    if (touchReorder) { event.preventDefault(); return; }
     const calendar = event.target.closest('[data-calendar-drag][draggable="true"]');
     if (calendar) { dragState = { type: `calendar-${calendar.dataset.calendarDrag}`, id: calendar.dataset.calendarItemId }; event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', dragState.id); calendar.classList.add('is-dragging'); return; }
     const project = event.target.closest('.project-item[draggable="true"]');
@@ -5489,6 +5555,12 @@
     document.addEventListener('pointerup', finishTaskSwipe);
     document.addEventListener('pointercancel', finishTaskSwipe);
     document.addEventListener('click', handleTaskSwipeClick, true);
+    document.addEventListener('pointerdown', handleTouchReorderStart);
+    document.addEventListener('pointermove', handleTouchReorderMove, { passive: false });
+    document.addEventListener('pointerup', finishTouchReorder);
+    document.addEventListener('pointercancel', finishTouchReorder);
+    document.addEventListener('touchmove', blockTouchScroll, { passive: false });
+    document.addEventListener('contextmenu', event => { if (touchReorder) event.preventDefault(); });
     document.addEventListener('click', handleClick);
     document.addEventListener('input', handleInput);
     document.addEventListener('change', handleChange);

@@ -127,7 +127,8 @@ test('F: haptics — the plugin in the app, a short vibration in a browser, noth
 test('F: completing a task, checking a habit in and passing the swipe threshold give feedback', () => {
   assert.match(fn('toggleComplete'), /haptic\('success'\);/);
   assert.match(fn('setHabitLog'), /if \(record\.status === 'done'\) haptic\('success'\);/);
-  assert.match(fn('handleTaskSwipeMove'), /if \(!swipe\.armed && horizontal >= 96\) \{ swipe\.armed = true; haptic\('tick'\); \}/);
+  // R25: the tick works in both swipe directions.
+  assert.match(fn('handleTaskSwipeMove'), /if \(!swipe\.armed && reach >= 96\) \{ swipe\.armed = true; haptic\('tick'\); \}/);
 });
 
 test('F: the Haptics plugin is pinned and synced into both native projects', () => {
