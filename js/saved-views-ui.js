@@ -54,7 +54,7 @@
     const view = state.savedViews.find(item => item.id === id);
     if (!view) return pageHeader(tr('Saved View not found'), tr('This view may have been deleted.'), { add: false });
     const today = Core.dateOnly(), rows = Core.applySavedView(view, state, today);
-    const header = pageHeader(view.name, `${summaryText(context, view)} · ${rows.length}`, { add: false, actionHtml: `<button class="btn-icon" type="button" data-action="saved-view-menu" data-saved-view-id="${esc(view.id)}" aria-label="${tr('View actions')}"><i class="ph ph-dots-three"></i></button>` });
+    const header = context.backLink('saved-views', tr('Saved Views')) + pageHeader(view.name, `${summaryText(context, view)} · ${rows.length}`, { add: false, actionHtml: `<button class="btn-icon" type="button" data-action="saved-view-menu" data-saved-view-id="${esc(view.id)}" aria-label="${tr('View actions')}"><i class="ph ph-dots-three"></i></button>` });
     if (!rows.length) return header + emptyState(tr('No matching items'), tr('Change this view’s filters for different results.'));
     const container = view.type === 'tasks' ? 'task-list today-card' : view.type === 'goals' ? 'today-card goals-list' : 'today-card';
     return `${header}<div class="${container}">${rows.map(item => renderSavedViewItem(view, item, today)).join('')}</div>`;

@@ -104,6 +104,7 @@ test('10: the project screen and "Bez projekta" use the usual header with the co
   const ctx = {
     state: { goals: [], ui: {} }, esc, getProject: id => (id === 'p' ? project : null), getArea: () => null,
     projectTasks: () => [], renderProjectTaskRow: () => '', goalPercent: () => 0, looseTasks: () => [], taskRow: () => '',
+    backLink: (route, label) => `<div class="screen-topbar"><button class="screen-back" type="button" data-route="${route}"><i class="ph ph-caret-left" aria-hidden="true"></i>${label}</button></div>`, // R22a: the fallback when opened directly
     pageHeader: (title, subtitle, options) => `<header title="${title}" subtitle="${subtitle}" menu="${options.projectMenu || ''}" color="${options.color || ''}"></header>`,
   };
   const html = projects.renderRoute({ type: 'project', id: 'p' }, ctx);

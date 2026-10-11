@@ -97,6 +97,7 @@ function projectCtx(extra = {}) {
     renderProjectTaskRow: (task, id, options) => `<row ${task.id}${options?.draggable ? ' drag' : ''}${options?.today ? ' today' : ''}${options?.hidePlace ? ' noplace' : ''}${options?.completed ? ' done' : ''}>`,
     taskRow: (task, context, options) => `<row ${task.id} ${context}${options?.today ? ' today' : ''}>`,
     goalPercent: () => 45, emptyState: () => '',
+    backLink: (route, label) => `<div class="screen-topbar"><button class="screen-back" type="button" data-route="${route}"><i class="ph ph-caret-left" aria-hidden="true"></i>${label}</button></div>`, // R22a: the fallback when opened directly
     // R17: the project screen uses the usual header (color dot, name, summary, search and ⋯).
     pageHeader: (title, subtitle, options = {}) => `<header title="${title}" subtitle="${subtitle}" menu="${options.projectMenu || ''}" color="${options.color || ''}"></header>`,
     ...extra,

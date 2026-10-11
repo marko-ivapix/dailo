@@ -52,6 +52,7 @@ function fixture(extra = {}) {
     AREA_ICONS: ['ph-briefcase', 'ph-house', 'ph-heart'], PROJECT_COLORS: ['#4f8cff', '#2fbf71'],
     sortedAreas: () => state.areas,
     getArea: id => state.areas.find(area => area.id === id),
+    backLink: () => '', // R22a: the back link is covered by redesign-r22a
     pageHeader: (title, subtitle, options) => `<header title="${title}" subtitle="${subtitle}" add="${options?.add}">${options?.actionHtml || ''}</header>`,
     emptyState: (title, text, cta, action) => `<empty ${title} ${action}>`,
     listTasks: () => state.tasks.filter(task => !archivedProjects.has(task.projectId)),

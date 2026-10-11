@@ -3019,6 +3019,36 @@ body:has(#toast-root .toast) .mobile-quick-add { transform: translateY(-64px); }
 .goal-links-window .link-picker { display: block; max-height: none; overflow: visible; padding: 0; }
 .goal-links-window .sheet-check-row { flex-wrap: nowrap; gap: 12px; color: var(--ink-1); font-size: 15px; }
 
+/* Redesign R22a — back links, narrow phones, touch targets, the "+" clearance (2026-10-11). */
+/* 9: the last row's check stays clear of the "+" above the bottom bar. */
+.main { padding-bottom: calc(136px + env(safe-area-inset-bottom)); }
+/* 9: a habit cell keeps its small ring inside a bigger tap target. */
+.habit-cell { position: relative; width: 36px; height: 36px; border: 0; background: none; isolation: isolate; }
+.habit-cell::before { content: ""; position: absolute; inset: 5px; border: 2px solid var(--line-2); border-radius: 50%; z-index: -1; }
+.habit-cell.is-unscheduled::before { content: none; }
+.habit-details-calendar .habit-cell::before { inset: 0; }
+.habit-cell.is-today::before { border-color: var(--line-3); }
+.habit-cell.is-done { background: none; color: #0f1114; }
+.habit-cell.is-done::before { border-color: var(--success); background: var(--success); }
+.habit-cell.is-missed::before { border-color: #6A3B3E; }
+.habit-cell.is-skipped::before { border-style: dashed; border-color: var(--ink-3); }
+.habits-week-table td { padding: 1px 0; }
+@media (max-width: 700px), (pointer: coarse) {
+  .btn-icon { min-width: 44px; min-height: 44px; }
+  .toast-action { min-height: 44px; padding: 0 12px; }
+  .color-grid { gap: 10px; }
+  .color-swatch { width: 40px; height: 40px; }
+}
+/* 8: segments, the habit week table and the bottom bar fit a 320 px phone. */
+@media (max-width: 400px) {
+  .habit-window-seg .btn { flex: 1 1 0; min-width: 0; padding-inline: 2px; font-size: 13px; line-height: 1.15; white-space: normal; }
+  .habits-week-table .habits-week-name { max-width: 64px; }
+  .habit-cell { width: 32px; height: 32px; }
+  .habit-cell::before { inset: 4px; }
+  .mobile-bottom-nav-item { padding-inline: 1px; font-size: 10px; }
+  .mobile-bottom-nav-item span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
+
 /* Keep primary compact actions touchable after all density rules. */
 @media (max-width: 700px), (pointer: coarse) {
   .task-actions .btn-icon,

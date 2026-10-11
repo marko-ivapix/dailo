@@ -21,8 +21,9 @@
     const completed = projectTasks(projectId, true);
     const goal = (state.goals || []).find(item => item.status !== 'archived' && (item.projectLinks || []).some(link => link.projectId === projectId));
     const summary = [area?.name, trn(openTasks.length, '{count} open', '{count} open'), completed.length ? trn(completed.length, '{count} done', '{count} done') : ''].filter(Boolean).join(' · ');
-    // R17: "‹ Zadaci" above the usual header (color dot, name, summary, search and the project's ⋯).
-    let html = backLink() + ctx.pageHeader(project.name, summary, { add: false, projectMenu: projectId, color: project.color });
+    // R17: "‹ Zadaci" above the usual header (color dot, name, summary, search and the project's ⋯); R22a: "‹" names
+    // the screen the project was opened from.
+    let html = ctx.backLink('tasks', tr('Tasks')) + ctx.pageHeader(project.name, summary, { add: false, projectMenu: projectId, color: project.color });
     if (archived) html += `<section class="weekly-review-notice project-archived-notice" role="status"><i class="ph ph-archive weekly-review-notice-icon" aria-hidden="true"></i><div class="backup-reminder-copy"><strong>${tr('Archived project')}</strong><span>${tr('Its tasks stay out of every list until you restore it.')}</span></div><div class="backup-reminder-actions"><button class="btn btn-secondary" type="button" data-action="restore-project" data-project-id="${esc(projectId)}">${tr('Restore')}</button></div></section>`;
     if (goal) html += `<button class="project-goal-link" type="button" data-route="goal/${esc(goal.id)}"><i class="ph ph-target" aria-hidden="true"></i>${esc(tr('Goal: {goal}', { goal: goal.title }))} · ${ctx.goalPercent(goal)}%</button>`;
     if (openTasks.length) html += `<div class="task-list today-card" data-list-context="project:${esc(projectId)}">${openTasks.map(task => renderProjectTaskRow(task, projectId, { draggable: !archived, today: true, hidePlace: true })).join('')}</div>`;
@@ -31,8 +32,6 @@
     html += completedSection(ctx, projectId, completed, task => renderProjectTaskRow(task, projectId, { completed: true, today: true, hidePlace: true }));
     return html;
   }
-
-  const backLink = () => `<div class="screen-topbar"><button class="screen-back" type="button" data-route="tasks"><i class="ph ph-caret-left" aria-hidden="true"></i>${tr('Tasks')}</button></div>`;
 
   function completedSection(ctx, key, completed, row) {
     if (!completed.length) return '';
@@ -45,7 +44,7 @@
     const { esc, taskRow } = ctx;
     const open = ctx.looseTasks(false);
     const completed = ctx.looseTasks(true);
-    let html = backLink() + ctx.pageHeader(tr('No project'), trn(open.length, '{count} open', '{count} open'), { add: false });
+    let html = ctx.backLink('tasks', tr('Tasks')) + ctx.pageHeader(tr('No project'), trn(open.length, '{count} open', '{count} open'), { add: false });
     html += open.length ? `<div class="task-list today-card">${open.map(task => taskRow(task, 'anytime', { today: true })).join('')}</div>` : `<p class="today-empty">${tr('No sorted tasks without a project.')}</p>`;
     html += `<button class="inline-add" type="button" data-action="quick-add" data-anytime="true"><i class="ph ph-plus"></i> ${tr('Add task')}</button>`;
     html += completedSection(ctx, 'none', completed, task => taskRow(task, 'completed', { today: true }));

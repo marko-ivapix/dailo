@@ -52,7 +52,7 @@
     const { projects, tasks, goals, habits, library } = contents;
     const id = esc(area.id);
     const summary = [area.status === 'archived' ? tr('Archived area') : '', areaSummaryLine(contents), trn(library.length, '{count} in the library', '{count} in the library')].filter(Boolean).join(' · ');
-    let html = pageHeader(area.name, summary, { add: false, actionHtml: `<button class="btn-icon" type="button" data-action="area-menu" data-area-id="${id}" aria-label="${tr('Area actions')}"><i class="ph ph-dots-three"></i></button>` });
+    let html = ctx.backLink('areas', tr('Areas')) + pageHeader(area.name, summary, { add: false, actionHtml: `<button class="btn-icon" type="button" data-action="area-menu" data-area-id="${id}" aria-label="${tr('Area actions')}"><i class="ph ph-dots-three"></i></button>` });
     if (!projects.length && !tasks.length && !goals.length && !habits.length && !library.length) html += `<p class="area-empty-hint">${tr('This area is empty. Add a project, task, goal, habit or note with “+”.')}</p>`;
     const section = (label, count, action, body, extra = '') => `<section class="section area-section"><div class="section-header"><h2 class="section-label">${label} · ${count}</h2><button class="btn-icon area-section-add" type="button" data-action="${action}" data-area-id="${id}"${extra} aria-label="${esc(tr('Add: {name}', { name: label }))}"><i class="ph ph-plus" aria-hidden="true"></i></button></div>${count ? body : ''}</section>`;
     const all = tasksOpenFor === area.id;

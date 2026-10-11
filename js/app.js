@@ -650,6 +650,7 @@
       calendarTaskRow(task) { return taskRow(task, 'calendar', { today: true }); },
       taskRow,
       menuSheet,
+      backLink,
       templateTypes: TEMPLATE_TYPES, templateLabel, openTemplateEditorFromSource, saveTemplateRecord, duplicateTemplateRecord, useTemplate,
       captureModalReturnFocus,
       durationLabel,
@@ -902,10 +903,28 @@
     return attrs ? `#${region.id} ${element.tagName.toLowerCase()}${attrs}` : null;
   }
   let renderedRoute = null;
+  let renderedTitle = '';
+  // Redesign R22a: the screens a detail screen was opened from, so its "‹ …" returns there. A tab on the bottom bar
+  // starts the trail over, and going back pops it instead of adding a loop.
+  const ROOT_ROUTES = ['#today', '#inbox', '#tasks', '#calendar', '#more'];
+  let screenTrail = [];
+  function trackScreen(route) {
+    if (renderedRoute === null || route === renderedRoute) return;
+    if (ROOT_ROUTES.includes(route)) screenTrail = [];
+    else if (screenTrail.at(-1)?.route === route) screenTrail.pop();
+    else screenTrail = [...screenTrail, { route: renderedRoute, title: renderedTitle }].slice(-20);
+  }
+  function backLink(fallbackRoute, fallbackLabel) {
+    const previous = screenTrail.at(-1);
+    const route = previous ? previous.route.replace(/^#/, '') : fallbackRoute;
+    const label = previous?.title || fallbackLabel;
+    return `<div class="screen-topbar"><button class="screen-back" type="button" data-route="${esc(route)}"><i class="ph ph-caret-left" aria-hidden="true"></i>${esc(label)}</button></div>`;
+  }
   function render() {
     const focused = focusDescriptor(document.activeElement);
-    renderView();
     const route = location.hash || '#today';
+    trackScreen(route);
+    renderView();
     const routeChanged = renderedRoute !== null && route !== renderedRoute;
     renderedRoute = route;
     announceRoute(routeChanged);
@@ -914,6 +933,7 @@
   function announceRoute(moveFocus) {
     const heading = $('#main .page-title');
     const name = heading?.textContent?.trim();
+    renderedTitle = name || '';
     document.title = name ? `${name} · Dailo` : 'Dailo';
     if (moveFocus && !modalState && heading) { heading.setAttribute('tabindex', '-1'); heading.focus({ preventScroll: true }); }
   }
@@ -1310,7 +1330,7 @@
     const tag = getTag(tagId);
     if (!tag) return renderTags();
     const tasks = Core.tasksForTag(listTasks(), tag.id), library = tagLibrary(tag.id);
-    let html = pageHeader(tag.name, trn(tasks.length, '{count} active task', '{count} active tasks'), { add: false, actionHtml: `<button class="btn-icon" type="button" data-action="tag-menu" data-tag-id="${esc(tag.id)}" aria-label="${tr('Tag actions')}"><i class="ph ph-dots-three"></i></button>` });
+    let html = backLink('tags', tr('Tags')) + pageHeader(tag.name, trn(tasks.length, '{count} active task', '{count} active tasks'), { add: false, actionHtml: `<button class="btn-icon" type="button" data-action="tag-menu" data-tag-id="${esc(tag.id)}" aria-label="${tr('Tag actions')}"><i class="ph ph-dots-three"></i></button>` });
     html += tasks.length ? `<div class="task-list today-card">${tasks.map(task => taskRow(task, 'tags', { today: true })).join('')}</div>` : emptyState(tr('No active tasks with this tag.'), tr('Assign it with #tag in Quick Add or in the task window.'));
     if (library.length) html += `<section class="section tag-library"><div class="section-header"><h2 class="section-label">${tr('In the library')} · ${library.length}</h2></div><div class="today-card">${library.map(libraryRow).join('')}</div></section>`;
     return html;

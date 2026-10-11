@@ -35,6 +35,7 @@ function appContext(extra = {}) {
   };
   const ctx = {
     calls, state, Core, esc,
+    backLink: () => '', // R22a: the back link is covered by redesign-r22a
     PROJECT_COLORS: ['#4f8cff', '#2fbf71', '#e5484d'],
     modalState: null,
     getTag: id => state.tags.find(tag => tag.id === id) || null,

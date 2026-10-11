@@ -50,6 +50,7 @@ function fixture(extra = {}) {
   const ctx = {
     calls, inputs, state, Core, esc,
     templateTypes: ['task', 'project', 'habit', 'goal'], templateLabel: type => type,
+    backLink: () => '', // R22a: the back link is covered by redesign-r22a
     pageHeader: (title, subtitle, options) => `<header title="${title}" subtitle="${subtitle}">${options?.actionHtml || ''}</header>`,
     emptyState: (title, text) => `<empty ${title} | ${text}>`,
     formatDate: value => `D:${value}`,

@@ -34,6 +34,20 @@
     }).join('')}</div>`;
   }
 
+  // R22a: the strip opens on today (it starts at the 1st otherwise) and keeps its place when the screen redraws.
+  function placeStrip(month) {
+    if (!globalThis.document || typeof requestAnimationFrame !== 'function') return;
+    const old = document.querySelector('#main .journal-strip');
+    const keep = old && old.dataset.month === month ? old.scrollLeft : null;
+    requestAnimationFrame(() => {
+      const strip = document.querySelector('#main .journal-strip');
+      if (!strip) return;
+      if (keep !== null) { strip.scrollLeft = keep; return; }
+      const day = strip.querySelector('.journal-day.is-today');
+      if (day) strip.scrollLeft = Math.max(0, day.offsetLeft - strip.offsetLeft - (strip.clientWidth - day.offsetWidth) / 2);
+    });
+  }
+
   function renderList(ctx) {
     const { state, esc, Core, pageHeader, formatDate } = ctx;
     const today = Core.dateOnly(), current = today.slice(0, 7);
@@ -49,9 +63,10 @@
       return `<button class="journal-day${date === today ? ' is-today' : ''}${item ? ' has-entry' : ''}" type="button" data-action="open-journal" data-date="${date}"${future ? ' disabled' : ''} aria-label="${esc(label)}"><span class="journal-day-name">${tr(WEEKDAYS[Core.parseDateOnly(date).getDay()])}</span><strong>${Number(date.slice(8))}</strong>${mark}</button>`;
     }).join('');
     const total = (state.journal || []).length;
+    placeStrip(month);
     return pageHeader(tr('Journal'), trn(total, '{count} entry', '{count} entries'), { add: false })
       + `<div class="journal-month"><strong class="journal-month-title">${esc(title)}</strong><span class="journal-month-arrows"><button class="btn-icon" type="button" data-action="journal-month" data-step="-1" aria-label="${tr('Previous month')}"><i class="ph ph-caret-left"></i></button><button class="btn-icon" type="button" data-action="journal-month" data-step="1"${month >= current ? ' disabled' : ''} aria-label="${tr('Next month')}"><i class="ph ph-caret-right"></i></button></span></div>`
-      + `<div class="journal-strip">${days}</div>`
+      + `<div class="journal-strip" data-month="${month}">${days}</div>`
       + `<label class="search-box journal-search"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input id="journal-query" class="search-input" type="search" autocomplete="off" placeholder="${tr('Search the journal')}" value="${esc(query)}" aria-label="${tr('Search the journal')}"></label>`
       + `<div id="journal-list">${listHtml(ctx)}</div>`;
   }

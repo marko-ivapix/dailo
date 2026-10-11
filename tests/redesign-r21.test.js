@@ -130,8 +130,7 @@ test('the unused "Nova navika / Novi cilj" name window of the old area screen is
   assert.doesNotMatch(app, /AreaLinked|area-linked/);
 });
 
-test('R21 is released as 2.0.0-alpha.44', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.44');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.44';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.44');
+test('R21 shipped as 2.0.0-alpha.44 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 99) >= 44);
 });
