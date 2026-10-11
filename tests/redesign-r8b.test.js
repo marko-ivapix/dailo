@@ -323,7 +323,7 @@ test('the R8b layer and the Serbian labels', () => {
   const layer = css.slice(css.indexOf('/* Redesign R8b'));
   assert.ok(layer.length > 20, 'R8b layer');
   for (const selector of ['.habit-window-card', '.habit-window-seg', '.habit-window-target', '.habit-window-more', '.habit-weekday.is-on', '.habit-stepper', '.habit-reminder-time']) assert.ok(layer.includes(selector), selector);
-  for (const [en, value] of [['Checkbox', 'Kvadratić'], ['Numeric', 'Brojevno'], ['Selected weekdays', 'Određeni dani'], ['Every N days', 'Na svakih N dana'], ['More settings', 'Više'], ['Start, end, goals', 'Početak, kraj, ciljevi'], ['On workdays', 'Radnim danima'], ['On weekends', 'Vikendom'], ['Once a week', 'Jednom nedeljno'], ['Every other day', 'Svaki drugi dan'], ['Habit created', 'Navika je napravljena'], ['Choose at least one day.', 'Izaberi bar jedan dan.']]) {
+  for (const [en, value] of [['Checkbox', 'Kvadratić'], ['Numeric', 'Brojevno'], ['Selected weekdays', 'Određeni dani'], ['Every N days', 'Na svakih N dana'], ['More settings', 'Više opcija'] /* R22c */, ['Start, end, goals', 'Početak, kraj, ciljevi'], ['On workdays', 'Radnim danima'], ['On weekends', 'Vikendom'], ['Once a week', 'Jednom nedeljno'], ['Every other day', 'Svaki drugi dan'], ['Habit created', 'Navika je napravljena'], ['Choose at least one day.', 'Izaberi bar jedan dan.']]) {
     assert.ok(sr.includes(`${JSON.stringify(en)}: ${JSON.stringify(value)}`), en);
   }
   assert.match(sr, /"Once every \{count\} days": \{ one: "Na svaki \{count\} dan", few: "Na svaka \{count\} dana", other: "Na svakih \{count\} dana" \}/);

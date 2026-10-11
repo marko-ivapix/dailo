@@ -37,6 +37,7 @@ function appContext(extra = {}) {
     calls, state, Core, esc,
     backLink: () => '', // R22a: the back link is covered by redesign-r22a
     PROJECT_COLORS: ['#4f8cff', '#2fbf71', '#e5484d'],
+    colorName: color => `C${color}`, // R22c: swatches are named
     modalState: null,
     getTag: id => state.tags.find(tag => tag.id === id) || null,
     listTasks: () => state.tasks.filter(task => !state.projects.some(project => project.isArchived && project.id === task.projectId)),
@@ -83,7 +84,7 @@ test('S6: the tag window has the big name field, Boja and one big button; names 
   const ctx = appContext();
   ctx.openTagModal();
   let html = ctx.renderTagModal();
-  assert.equal(html, `<frame quick><div class="modal-inner quick-sheet tag-window"><div class="modal-header"><h2 class="modal-title">New tag</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="Close"><i class="ph ph-x"></i></button></div><input id="tag-name" class="quick-title-input" type="text" maxlength="80" autocomplete="off" placeholder="Tag name" value="" aria-label="Tag name"><span class="habit-window-label">Color</span><div class="color-grid">${['#4f8cff', '#2fbf71', '#e5484d'].map(color => `<button class="color-swatch${color === '#e5484d' ? ' is-selected' : ''}" type="button" data-action="select-tag-color" data-color="${color}" style="--swatch:${color}" aria-label="Select color" aria-pressed="${color === '#e5484d'}"></button>`).join('')}</div><div class="quick-sheet-footer"><span></span><button class="btn btn-primary habit-window-save" type="button" data-action="save-tag">Create tag</button></div></div></frame>`);
+  assert.equal(html, `<frame quick><div class="modal-inner quick-sheet tag-window"><div class="modal-header"><h2 class="modal-title">New tag</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="Close"><i class="ph ph-x"></i></button></div><input id="tag-name" class="quick-title-input" type="text" maxlength="80" autocomplete="off" placeholder="Tag name" value="" aria-label="Tag name"><span class="habit-window-label">Color</span><div class="color-grid">${['#4f8cff', '#2fbf71', '#e5484d'].map(color => `<button class="color-swatch${color === '#e5484d' ? ' is-selected' : ''}" type="button" data-action="select-tag-color" data-color="${color}" style="--swatch:${color}" aria-label="Color: C${color}" aria-pressed="${color === '#e5484d'}"></button>`).join('')}</div><div class="quick-sheet-footer"><span></span><button class="btn btn-primary habit-window-save" type="button" data-action="save-tag">Create tag</button></div></div></frame>`);
   ctx.saveTagModal();
   assert.equal(ctx.modalState.error, 'Tag needs a name.');
   assert.match(ctx.renderTagModal(), /<input id="tag-name" class="quick-title-input is-error"[^>]*><div class="validation" role="alert">Tag needs a name\.<\/div>/);

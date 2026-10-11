@@ -3,10 +3,6 @@
   const I18n = window.TodoI18n;
   const { tr, trn, msg } = I18n;
 
-  function renderProjects(ctx) {
-    const { pageHeader, sortedProjects, esc } = ctx;
-    return pageHeader(tr('Projects'), tr('Active projects'), { add: false, actionHtml: `<button class="btn btn-primary" data-action="new-project">${tr('New project')}</button>` }) + sortedProjects().map(project => `<button class="sidebar-action" data-route="project/${esc(project.id)}"><i class="ph ph-folder"></i><span>${esc(project.name)}</span></button>`).join('');
-  }
 
   // Redesign R5 (Z7, S10): "‹ Zadaci" and ⋯, the name with its color, area · counts, the linked goal, the open tasks
   // in Today rows, "+ Dodaj zadatak" and the done tasks folded. An archived project is read-only until restored.
@@ -69,7 +65,7 @@
     const { modalState, modalFrame, PROJECT_COLORS, esc } = ctx;
     const editing = Boolean(modalState.projectId);
     const draft = modalState.draft;
-    return modalFrame(`<div class="modal-inner quick-sheet project-window"><div class="modal-header"><h2 class="modal-title">${editing ? tr('Edit project') : tr('New project')}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close dialog')}"><i class="ph ph-x"></i></button></div><input id="project-name" class="quick-title-input${modalState.error ? ' is-error' : ''}" type="text" maxlength="100" autocomplete="off" placeholder="${tr('Project name')}" value="${esc(draft.name)}" aria-label="${tr('Project name')}">${modalState.error ? `<div class="validation" role="alert">${esc(modalState.error)}</div>` : ''}<span class="habit-window-label">${tr('Color')}</span><div class="color-grid">${PROJECT_COLORS.map(color => `<button class="color-swatch ${color === draft.color ? 'is-selected' : ''}" type="button" data-action="select-project-color" data-color="${color}" style="--swatch:${color}" aria-label="${tr('Select project color')}" aria-pressed="${color === draft.color}"></button>`).join('')}</div><div class="quick-sheet-footer"><span></span><button class="btn btn-primary habit-window-save" type="button" data-action="save-project">${editing ? tr('Save changes') : tr('Create project')}</button></div></div>`, 'quick');
+    return modalFrame(`<div class="modal-inner quick-sheet project-window"><div class="modal-header"><h2 class="modal-title">${editing ? tr('Edit project') : tr('New project')}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close dialog')}"><i class="ph ph-x"></i></button></div><input id="project-name" class="quick-title-input${modalState.error ? ' is-error' : ''}" type="text" maxlength="100" autocomplete="off" placeholder="${tr('Project name')}" value="${esc(draft.name)}" aria-label="${tr('Project name')}">${modalState.error ? `<div class="validation" role="alert">${esc(modalState.error)}</div>` : ''}<span class="habit-window-label">${tr('Color')}</span><div class="color-grid">${PROJECT_COLORS.map(color => `<button class="color-swatch ${color === draft.color ? 'is-selected' : ''}" type="button" data-action="select-project-color" data-color="${color}" style="--swatch:${color}" aria-label="${esc(tr('Color: {name}', { name: ctx.colorName(color) }))}" aria-pressed="${color === draft.color}"></button>`).join('')}</div><div class="quick-sheet-footer"><span></span><button class="btn btn-primary habit-window-save" type="button" data-action="save-project">${editing ? tr('Save changes') : tr('Create project')}</button></div></div>`, 'quick');
   }
 
   function openProjectMenu(ctx, anchor, projectId) {
@@ -113,7 +109,6 @@
   window.TodoDomainModules?.register({
     name: 'projects',
     renderRoute(route, ctx) {
-      if (route.type === 'projects') return renderProjects(ctx);
       if (route.type === 'project') return renderProject(ctx, route.id);
       if (route.type === 'archived') return renderArchivedProjects(ctx);
       if (route.type === 'modal' && route.modalType === 'project') return renderProjectModal(ctx);

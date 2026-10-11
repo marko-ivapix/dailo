@@ -52,7 +52,7 @@ test('each form window is a bottom sheet with one big button and no Cancel / Sav
 test('the choice windows are sheets with full-width buttons, the main one first', () => {
   const reached = body('js/goals-ui.js', 'renderGoalReachedModal');
   assert.match(reached, /<div class="modal-inner quick-sheet choice-window">/);
-  assert.match(reached, /<div class="sheet-actions"><button class="btn btn-primary" type="button" data-action="complete-goal"[^>]*>\$\{tr\('Mark completed'\)\}<\/button><button class="btn btn-secondary" type="button" data-action="keep-goal-active">/);
+  assert.match(reached, /<div class="sheet-actions"><button class="btn btn-primary" type="button" data-action="complete-goal"[^>]*>\$\{tr\('Mark as achieved'\)\}<\/button><button class="btn btn-secondary" type="button" data-action="keep-goal-active">/);
   const finished = body('js/habits-ui.js', 'renderHabitFinishedModal');
   assert.match(finished, /<div class="modal-inner quick-sheet choice-window">/);
   assert.match(finished, /<div class="sheet-actions"><button class="btn btn-primary" type="button" data-action="archive-habit"/);

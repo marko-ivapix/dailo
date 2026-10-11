@@ -19,7 +19,7 @@
     const meta = type === 'resource'
       ? [`${tr(RESOURCE_TYPES[item.type] || 'Article')} · ${tr(RESOURCE_STATUSES[item.status] || 'Unread')}`, area]
       : [area || tr('No area'), item.linkUrls.length ? trn(item.linkUrls.length, '{count} link', '{count} links') : '', item.attachmentIds.length ? trn(item.attachmentIds.length, '{count} file', '{count} files') : ''];
-    const dots = (item.tagIds || []).map(id => state.tags.find(tag => tag.id === id)).filter(Boolean).map(tag => `<span class="knowledge-tag-dot" style="--tag-color:${esc(tag.color)}" title="${esc(tag.name)}"></span>`).join('');
+    const dots = (item.tagIds || []).map(id => state.tags.find(tag => tag.id === id)).filter(Boolean).map(tag => `<span class="knowledge-tag-dot" style="--tag-color:${esc(tag.color)}" role="img" aria-label="${esc(tr('Tag: {name}', { name: tag.name }))}"></span>`).join('');
     return `<div class="today-row knowledge-row"><i class="ph ${knowledgeIcon(type)} knowledge-row-icon" aria-hidden="true"></i><button class="today-row-main" type="button" data-route="${type}/${esc(item.id)}"><span class="task-title">${esc(item.title)}</span><span class="task-meta">${esc(meta.filter(Boolean).join(' · '))}${dots}</span></button>${favoriteButton(context, type, item)}</div>`;
   }
 
@@ -233,7 +233,7 @@
     const type = modalState.ownerType, d = modalState.draft, isNew = !modalState.ownerId, resource = type === 'resource';
     const star = `<button class="btn-icon knowledge-favorite${d.favorite ? ' is-favorite' : ''}" type="button" data-action="knowledge-window-favorite" aria-pressed="${d.favorite}" aria-label="${d.favorite ? tr('Remove from favorites') : tr('Add to favorites')}"><i class="${d.favorite ? 'ph-fill ph-star' : 'ph ph-star'}"></i></button>`;
     const menu = isNew ? '' : `<button class="btn-icon" type="button" data-action="knowledge-menu" aria-label="${resource ? tr('Resource actions') : tr('Note actions')}"><i class="ph ph-dots-three"></i></button>`;
-    let html = `<div class="modal-header task-window-header"><span class="task-window-kind">${resource ? tr('Resource') : tr('Note')}</span><div class="task-window-actions">${star}${menu}<button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div></div>`;
+    let html = `<div class="modal-header task-window-header"><h2 class="task-window-kind">${resource ? tr('Resource') : tr('Note')}</h2><div class="task-window-actions">${star}${menu}<button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div></div>`;
     const titleError = modalState.errorField === 'title';
     html += `<input id="knowledge-title" class="quick-title-input${titleError ? ' is-error' : ''}" type="text" maxlength="120" autocomplete="off" placeholder="${resource ? tr('Resource name') : tr('Note name')}" value="${esc(d.title)}" aria-label="${tr('Name')}">`;
     html += `<button class="goal-details-area" type="button" data-action="knowledge-area"><i class="ph ph-squares-four" aria-hidden="true"></i>${esc(getArea(d.areaId)?.name || tr('No area'))}</button>`;

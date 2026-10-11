@@ -145,7 +145,7 @@ test('R14 shipped as 2.0.0-alpha.35 or later (the newest release test pins the e
 
 test('I5: Inbox chips are visible pills under the title and keep a 44 px touch height', () => {
   const inbox = rowModule()({ id: 'i', title: 'Check plugin update', dueDate: Core.addDays(TODAY, -1) })({ context: 'inbox', inbox: true });
-  assert.match(inbox, /<div class="task-main"[^>]*><div class="task-title">Check plugin update<\/div><div class="task-meta"><due [^>]+><\/div><div class="quick-actions">/);
+  assert.match(inbox, /<div class="task-main"[^>]*><div class="task-title">Check plugin update<\/div><div class="task-meta"><due [^>]+><\/div><\/div><div class="quick-actions">/, 'R22c: the chips sit beside the row button, not inside it');
   assert.ok(endsWithCheckbox(inbox), 'the checkbox stays at the far right');
   const chip = rule('.task-row--today .quick-chip');
   for (const part of ['position: relative', 'isolation: isolate', 'min-height: 44px', 'font-size: 13px']) assert.ok(chip.includes(part), part);

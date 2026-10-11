@@ -3093,6 +3093,18 @@ body:has(#toast-root .toast) .mobile-quick-add { transform: translateY(-64px); }
   .attachment-drop-zone > span:not(.btn) { display: none; }
 }
 
+/* Redesign R22c — accessibility and leftovers (2026-10-11). */
+/* Chips sit beside the row's button, not inside it; the pair takes the row's free width. */
+.task-row--today > .task-main-wrap { flex: 1 1 auto; min-width: 0; }
+.task-main-wrap > .quick-actions { margin-top: 0; padding: 0 0 4px; }
+/* A missed day is clearly red in the week table and its legend. */
+.habit-cell.is-missed::before { border-color: var(--danger); }
+.habit-cell-swatch.is-missed { border-color: var(--danger); }
+/* Long titles wrap instead of widening the page; the habit chart's labels are readable. */
+.page-title { overflow-wrap: anywhere; }
+.habits-chart-axis { font-size: 11px; }
+h2.task-window-kind { margin: 0; font-size: 13px; }
+
 /* Keep primary compact actions touchable after all density rules. */
 @media (max-width: 700px), (pointer: coarse) {
   .task-actions .btn-icon,
