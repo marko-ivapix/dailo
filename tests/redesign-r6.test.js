@@ -125,7 +125,7 @@ test('I2: "Razvrstaj redom" shows one item with large buttons, a counter and Pre
   assert.match(html, /<span>2 of 2<\/span>/);
   ctx.state.resources[0].isInbox = false;
   html = ctx.renderInboxTriage();
-  assert.match(html, /<div class="empty-state inbox-empty"><i class="ph ph-check-circle" aria-hidden="true"><\/i><h3>Finished<\/h3><p>Inbox is empty\.<\/p><\/div><div class="modal-footer"><span><\/span><div class="modal-footer-actions"><button class="btn btn-secondary" type="button" data-action="close-modal">Close<\/button>/);
+  assert.match(html, /<div class="empty-state inbox-empty"><i class="ph ph-check-circle" aria-hidden="true"><\/i><h3>Finished<\/h3><p>Inbox is empty\.<\/p><\/div><div class="quick-sheet-footer"><button class="btn btn-primary habit-window-save" type="button" data-action="close-modal">Close<\/button>/, 'R21: one big Zatvori');
   assert.match(app, /else if \(action === 'inbox-triage'\) openInboxTriage\(\);/);
   assert.match(app, /else if \(action === 'inbox-triage-skip'\) \{ modalState\.index \+= 1; renderModal\(\); \}/);
   assert.match(sr, /"Finished": "Gotovo"/);

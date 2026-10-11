@@ -91,7 +91,7 @@ test('GO5: Etape with round checks, the editor and "+ Dodaj etapu"', () => {
   act(module, ctx, 'edit-milestone', { goalId: 'g', milestoneId: 'm2' });
   assert.equal(ctx.modalState.type, 'milestone');
   assert.equal(ctx.modalState.returnTo.type, 'goal-details', 'the editor returns to the window');
-  assert.match(moduleFor().renderRoute({ type: 'modal', modalType: 'milestone' }, ctx), /<button class="btn btn-ghost goal-milestone-delete" type="button" data-action="delete-milestone" data-goal-id="g" data-milestone-id="m2">Delete<\/button>/);
+  assert.match(moduleFor().renderRoute({ type: 'modal', modalType: 'milestone' }, ctx), /<button class="btn btn-ghost is-danger goal-milestone-delete" type="button" data-action="delete-milestone" data-goal-id="g" data-milestone-id="m2">Delete<\/button>/, 'R21: red through the class');
 });
 
 test('GO5: linked tasks as Today rows with "Prikaži još", and habit contributions with bars', () => {

@@ -111,8 +111,7 @@ test('8: "Iz šablona" is a chip under the window title, only when templates of 
   assert.match(render, /\$\('\.modal-header', root\)\?\.insertAdjacentHTML\('afterend', `<div class="quick-template-row"><button class="quick-chip" type="button" data-action="from-template"><i class="ph ph-copy" aria-hidden="true"><\/i>\$\{tr\('From template'\)\}<\/button><\/div>`\)/);
 });
 
-test('R20 is released as 2.0.0-alpha.43', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.43');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.43';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.43');
+test('R20 shipped as 2.0.0-alpha.43 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 99) >= 43);
 });

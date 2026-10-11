@@ -1152,7 +1152,7 @@
     const queue = modalState.queue || [];
     const open = queue.filter(([type, id]) => inboxTriageOpen(type, id));
     const header = `<div class="modal-header"><h2 class="modal-title">${tr('Sorting')}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div>`;
-    if (!open.length) return modalFrame(`<div class="modal-inner">${header}<div class="empty-state inbox-empty"><i class="ph ph-check-circle" aria-hidden="true"></i><h3>${tr('Finished')}</h3><p>${activeInboxRecords('all').length ? tr('This list is sorted.') : tr('Inbox is empty.')}</p></div><div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-secondary" type="button" data-action="close-modal">${tr('Close')}</button></div></div></div>`, 'quick inbox-triage-modal');
+    if (!open.length) return modalFrame(`<div class="modal-inner">${header}<div class="empty-state inbox-empty"><i class="ph ph-check-circle" aria-hidden="true"></i><h3>${tr('Finished')}</h3><p>${activeInboxRecords('all').length ? tr('This list is sorted.') : tr('Inbox is empty.')}</p></div><div class="quick-sheet-footer"><button class="btn btn-primary habit-window-save" type="button" data-action="close-modal">${tr('Close')}</button></div></div>`, 'quick inbox-triage-modal');
     if (modalState.index >= open.length) modalState.index = 0;
     const [type, id] = open[modalState.index];
     const item = inboxItem(type, id);
@@ -1572,13 +1572,7 @@
     requestAnimationFrame(() => $('#tag-name')?.focus());
   }
 
-  function openAreaLinkedModal(kind, areaId) {
-    captureModalReturnFocus();
-    const label = kind === 'goal' ? 'Goal' : 'Habit';
-    modalState = { type: 'area-linked', kind, areaId, draft: { name: '' }, error: '' };
-    renderModal();
-    requestAnimationFrame(() => $('#area-linked-name')?.focus());
-  }
+
 
   function goalDraft(goal = null, areaId = null) {
     return {
@@ -1680,7 +1674,6 @@
     else if (modalState.type === 'quick') root.innerHTML = renderQuickModal();
     else if (modalState.type === 'search') root.innerHTML = renderSearchModal();
     else if (modalState.type === 'tag') root.innerHTML = renderTagModal();
-    else if (modalState.type === 'area-linked') root.innerHTML = renderAreaLinkedModal();
     else if (modalState.type === 'confirm') root.innerHTML = renderConfirmModal();
     else if (modalState.type === 'duplicate') root.innerHTML = renderDuplicateModal();
     else if (modalState.type === 'focus') root.innerHTML = renderFocusModal();
@@ -1805,7 +1798,8 @@
   }
   function renderTemplatePicker() {
     const rows=state.templates.filter(t=>t.type===modalState.kind);
-    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">${tr({ task: msg('From task template'), project: msg('From project template'), habit: msg('From habit template'), goal: msg('From goal template') }[modalState.kind] || msg('From template'))}</h2><button class="btn-icon" data-action="template-picker-back" aria-label="${tr('Back')}"><i class="ph ph-x"></i></button></div>${rows.length?rows.map(t=>`<button class="btn btn-secondary template-choice" data-action="choose-template" data-template-id="${esc(t.id)}">${esc(t.name)}</button>`).join(''):`<p class="area-empty-copy">${tr('No templates of this type yet.')}</p>`}</div>`,'quick');
+    // R21: the templates as rows in one card, like the other choice sheets.
+    return modalFrame(`<div class="modal-inner quick-sheet template-picker-window"><div class="modal-header"><h2 class="modal-title">${tr({ task: msg('From task template'), project: msg('From project template'), habit: msg('From habit template'), goal: msg('From goal template') }[modalState.kind] || msg('From template'))}</h2><button class="btn-icon" type="button" data-action="template-picker-back" aria-label="${tr('Back')}"><i class="ph ph-x"></i></button></div>${rows.length?`<div class="sheet-card">${rows.map(t=>`<button class="sheet-row template-choice" type="button" data-action="choose-template" data-template-id="${esc(t.id)}"><i class="ph ph-copy" aria-hidden="true"></i><span>${esc(t.name)}</span></button>`).join('')}</div>`:`<p class="sheet-note">${tr('No templates of this type yet.')}</p>`}</div>`,'quick');
   }
   function chooseTemplate(id) {
     const template=state.templates.find(t=>t.id===id); if(!template)return;
@@ -2189,15 +2183,13 @@
     return modalFrame(`<div class="modal-inner quick-sheet tag-window"><div class="modal-header"><h2 class="modal-title">${editing ? tr('Edit tag') : tr('New tag')}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div><input id="tag-name" class="quick-title-input${modalState.error ? ' is-error' : ''}" type="text" maxlength="80" autocomplete="off" placeholder="${tr('Tag name')}" value="${esc(d.name)}" aria-label="${tr('Tag name')}">${modalState.error ? `<div class="validation" role="alert">${esc(modalState.error)}</div>` : ''}<span class="habit-window-label">${tr('Color')}</span><div class="color-grid">${PROJECT_COLORS.map(c => `<button class="color-swatch${c === d.color ? ' is-selected' : ''}" type="button" data-action="select-tag-color" data-color="${c}" style="--swatch:${c}" aria-label="${tr('Select color')}" aria-pressed="${c === d.color}"></button>`).join('')}</div><div class="quick-sheet-footer"><span></span><button class="btn btn-primary habit-window-save" type="button" data-action="save-tag">${editing ? tr('Save changes') : tr('Create tag')}</button></div></div>`, 'quick');
   }
 
-  function renderAreaLinkedModal() {
-    const goal = modalState.kind === 'goal';
-    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">${goal ? tr('New goal') : tr('New habit')}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div><label class="field-label" for="area-linked-name">${tr('Name')}</label><input id="area-linked-name" class="input ${modalState.error ? 'is-error' : ''}" type="text" maxlength="100" value="${esc(modalState.draft.name)}" placeholder="${goal ? tr('Goal name') : tr('Habit name')}" />${modalState.error ? `<div class="validation">${esc(modalState.error)}</div>` : ''}<div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">${tr('Cancel')}</button><button class="btn btn-primary" type="button" data-action="save-area-linked">${goal ? tr('Create goal') : tr('Create habit')}</button></div></div></div>`, 'quick');
-  }
+
 
   function renderDuplicateModal() {
     const task = getTask(modalState.taskId); if (!task) return '';
     const count = (task.attachmentIds || []).length;
-    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="dialog-title">${tr('Duplicate task')}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close Duplicate task')}"><i class="ph ph-x"></i></button></div><p class="dialog-copy">${trn(count, 'This task has {count} attachment. Copy attachments too?', 'This task has {count} attachments. Copy attachments too?')}</p><div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">${tr('Cancel')}</button><button class="btn btn-secondary" type="button" data-action="duplicate-without-files" data-task-id="${esc(task.id)}">${tr('Without files')}</button><button class="btn btn-primary" type="button" data-action="duplicate-with-files" data-task-id="${esc(task.id)}">${tr('Copy files')}</button></div></div></div>`, 'small-modal');
+    // R21: a sheet with full-width buttons, the main one first; the X cancels.
+    return modalFrame(`<div class="modal-inner quick-sheet choice-window"><div class="modal-header"><h2 class="modal-title">${tr('Duplicate task')}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close Duplicate task')}"><i class="ph ph-x"></i></button></div><p class="dialog-copy">${trn(count, 'This task has {count} attachment. Copy attachments too?', 'This task has {count} attachments. Copy attachments too?')}</p><div class="sheet-actions"><button class="btn btn-primary" type="button" data-action="duplicate-with-files" data-task-id="${esc(task.id)}">${tr('Copy files')}</button><button class="btn btn-secondary" type="button" data-action="duplicate-without-files" data-task-id="${esc(task.id)}">${tr('Without files')}</button></div></div>`, 'quick');
   }
 
   function renderConfirmModal() {
@@ -3738,18 +3730,7 @@
     saveState(); closeModal(); render();
   }
 
-  function saveAreaLinkedModal() {
-    if (modalState?.type !== 'area-linked') return;
-    const input = $('#area-linked-name');
-    const name = String(input?.value || modalState.draft.name || '').trim();
-    if (!name) { modalState.error = modalState.kind === 'goal' ? tr('Goal needs a name.') : tr('Habit needs a name.'); renderModal(); return; }
-    const item = { id: uid(modalState.kind), name, areaId: modalState.areaId, status: 'active', createdAt: nowIso(), updatedAt: nowIso() };
-    if (modalState.kind === 'goal') {
-      state.goals.push({ ...goalDraft(null, modalState.areaId), ...item, title: name, projectLinks: [], taskIds: [], habitLinks: [], milestones: [], reminders: { sevenDaysBefore: false, threeDaysBefore: false, oneDayBefore: false, onTargetDate: false, time: Core.defaultReminderTime(state.settings) }, completedAt: null });
-      putGoalHistory(item.id, 'created');
-    } else state.habits.push({ ...habitDraft(null, modalState.areaId), ...item, goalIds: [], reminderFiredMoments: [] });
-    saveState(); closeModal(); refreshHabitMetrics().then(render);
-  }
+
 
   function putGoalHistory(goalId, type, data = {}) {
     if (!TodoStorage?.goalHistory) return Promise.resolve();
@@ -4941,7 +4922,6 @@
     else if (action === 'tasks-view') { state.ui.tasksView = el.dataset.view === 'projects' ? 'projects' : 'anytime'; saveAndRender(); }
     else if (action === 'delete-draft-goal-milestone') deleteDraftGoalMilestone(el.dataset.milestoneId);
     else if (action === 'delete-milestone') deleteMilestone(el.dataset.goalId, el.dataset.milestoneId);
-    else if (action === 'save-area-linked') saveAreaLinkedModal();
     else if (action === 'new-tag') openTagModal();
     else if (action === 'tag-menu') openTagMenu(el, el.dataset.tagId);
     else if (action === 'task-menu') openTaskMenu(el, el.dataset.taskId);

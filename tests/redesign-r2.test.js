@@ -252,7 +252,7 @@ test('H6: the value sheet has the quick values, the total and "Primeni"', async 
   const habits = [{ id: 'h2', name: 'Water', status: 'active', trackingType: 'numeric', targetValue: 2, unit: 'l', quickValues: [0.25, 0.5] }];
   const ctx = habitCtx({ habits, modalState: { type: 'habit-value', habitId: 'h2', date: TODAY, total: 1.5 }, modalFrame: (content, cls) => `<frame ${cls}>${content}</frame>`, $: () => ({ value: '1.75' }) });
   const html = module.renderRoute({ type: 'modal', modalType: 'habit-value' }, ctx);
-  assert.match(html, /^<frame habit-value-modal>/);
+  assert.match(html, /^<frame quick habit-value-modal>/, 'R21: a sheet at every width');
   assert.match(html, /<h2 class="modal-title">Water<\/h2>/);
   assert.match(html, /<strong class="habit-value-total">1\.5<\/strong> \/ 2 l/);
   assert.match(html, /<button class="quick-chip" type="button" data-action="habit-value-add" data-value="0\.25">\+0\.25 l<\/button><button class="quick-chip" type="button" data-action="habit-value-add" data-value="0\.5">\+0\.5 l<\/button>/);
