@@ -894,6 +894,8 @@
     state.tasks = state.tasks.map(task => ({ ...task, durationMinutes: positiveIntegerOrNull(task.durationMinutes) }));
     state.goals = state.goals.map(goal => ({
       ...goal,
+      // R29: the first starter examples saved 'linkedTasks' here, which backups refuse; it reads as a percentage anyway.
+      ...(goal.progressType != null && !['percentage', 'numeric'].includes(goal.progressType) ? { progressType: 'percentage' } : {}),
       currentValue: Number.isFinite(Number(goal.currentValue)) ? Number(goal.currentValue) : 0,
       targetValue: Number(goal.targetValue) > 0 && Number.isFinite(Number(goal.targetValue)) ? Number(goal.targetValue) : 100,
       unit: typeof goal.unit === 'string' ? goal.unit : '',
