@@ -792,7 +792,7 @@
       ['daily', 'program-30-minutes', tr('Program 30 minutes')], ['daily', 'read-learn-30-minutes', tr('Read/learn 30 minutes')],
       ['night', 'beard-balm', tr('Beard balm')], ['night', 'tomorrow-tasks', tr("Enter tomorrow's tasks")]
     ];
-    const addedAreas = [], addedHabits = [], addedProjects = [], addedTasks = [], addedGoals = [], addedNotes = [], addedResources = [], addedTags = [];
+    const addedAreas = [], addedHabits = [], addedProjects = [], addedTasks = [], addedGoals = [], addedNotes = [], addedResources = [], addedTags = [], addedTemplates = [];
     const timestamp = nowIso(), today = Core.dateOnly();
     const hasSampleOrName = (collection, sampleKey, name, field = 'name') => collection.some(item => item.sampleKey === sampleKey || normalizeName(item[field]) === normalizeName(name));
     const byName = (collection, name, field = 'name') => collection.find(item => normalizeName(item[field]) === normalizeName(name));
@@ -894,7 +894,7 @@
     for (const [key, title, areaId, horizon, progressMode, project] of extraGoalSeeds) {
       const goalKey = `${samplePrefix}:goal:${key}`;
       if (hasSampleOrName(state.goals, goalKey, title, 'title')) continue;
-      const goal = { id: uid('goal'), sampleKey: goalKey, title, areaId, horizon, status: 'active', progressMode, progressType: progressMode === 'manual' ? 'percentage' : 'linkedTasks', currentValue: 0, targetValue: 100, unit: '', targetDate: Core.addDays(today, horizon === 'long' ? 90 : 30), projectLinks: project ? [{ projectId: project.id, contributionMode: 'allTasks', selectedTaskIds: [] }] : [], taskIds: [], habitLinks: [], milestones: [], reminders: { sevenDaysBefore: false, threeDaysBefore: false, oneDayBefore: false, onTargetDate: false, time: '09:00' }, reminderFiredMoments: [], createdAt: timestamp, updatedAt: timestamp, completedAt: null };
+      const goal = { id: uid('goal'), sampleKey: goalKey, title, areaId, horizon, status: 'active', progressMode, progressType: 'percentage', currentValue: 0, targetValue: 100, unit: '', targetDate: Core.addDays(today, horizon === 'long' ? 90 : 30), projectLinks: project ? [{ projectId: project.id, contributionMode: 'allTasks', selectedTaskIds: [] }] : [], taskIds: [], habitLinks: [], milestones: [], reminders: { sevenDaysBefore: false, threeDaysBefore: false, oneDayBefore: false, onTargetDate: false, time: '09:00' }, reminderFiredMoments: [], createdAt: timestamp, updatedAt: timestamp, completedAt: null };
       addedGoals.push(goal);
       if (project) project.goalIds = [...new Set([...(project.goalIds || []), goal.id])];
     }
@@ -904,7 +904,14 @@
     const weeklyRhythmGoal = byName(allGoals, goalName, 'title');
     const programHabit = byName(allHabits, tr('Program 30 minutes'));
     if (!hasSampleOrName(state.resources, resourceKey, resourceName, 'title')) addedResources.push({ id: uid('resource'), sampleKey: resourceKey, title: resourceName, description: tr('A lightweight reference connected to the starter workspace. Edit or delete it whenever you are ready.'), areaId: workArea?.id || null, linkUrls: ['https://todoist.com/productivity-methods/weekly-planning'], attachmentIds: [], relatedTaskIds: linkedTask ? [linkedTask.id] : [], relatedProjectIds: weeklyPlan ? [weeklyPlan.id] : [], relatedGoalIds: weeklyRhythmGoal ? [weeklyRhythmGoal.id] : [], relatedHabitIds: programHabit ? [programHabit.id] : [], createdAt: timestamp, updatedAt: timestamp });
-    const additions = [[state.areas, addedAreas], [state.tags, addedTags], [state.habits, addedHabits], [state.projects, addedProjects], [state.tasks, addedTasks], [state.goals, addedGoals], [state.notes, addedNotes], [state.resources, addedResources]];
+    // R29: the real-life set (js/starter-examples.js) sees this run's first-set items too, so it finds their Areas.
+    const view = { areas: [...state.areas, ...addedAreas], tags: [...state.tags, ...addedTags], habits: [...state.habits, ...addedHabits], projects: [...state.projects, ...addedProjects], tasks: [...state.tasks, ...addedTasks], goals: [...state.goals, ...addedGoals], notes: [...state.notes, ...addedNotes], resources: [...state.resources, ...addedResources], templates: [...(state.templates || [])] };
+    const realLife = window.DailoStarterExamples?.realLifeExamples(view, { Core, uid, today, timestamp, habitDraft, PROJECT_COLORS });
+    if (realLife) {
+      addedTags.push(...realLife.tags); addedHabits.push(...realLife.habits); addedProjects.push(...realLife.projects); addedTasks.push(...realLife.tasks);
+      addedGoals.push(...realLife.goals); addedNotes.push(...realLife.notes); addedResources.push(...realLife.resources); addedTemplates.push(...realLife.templates);
+    }
+    const additions = [[state.areas, addedAreas], [state.tags, addedTags], [state.habits, addedHabits], [state.projects, addedProjects], [state.tasks, addedTasks], [state.goals, addedGoals], [state.notes, addedNotes], [state.resources, addedResources], [state.templates, addedTemplates]];
     if (!additions.some(([, records]) => records.length)) { setToastMessage(tr('Starter examples already present.')); return; }
     for (const [collection, records] of additions) collection.push(...records);
     if (!saveState()) {
@@ -917,7 +924,7 @@
     try {
       await refreshHabitMetrics();
       if (ctx.state !== state) return;
-      render(); setToastMessage(tr('Added {areas} Areas, {projects} Projects, {tasks} Tasks, {goals} Goals, {habits} Habits, {tags} Tags, {notes} Notes and {resources} Resources. All examples are editable.', { areas: addedAreas.length, projects: addedProjects.length, tasks: addedTasks.length, goals: addedGoals.length, habits: addedHabits.length, tags: addedTags.length, notes: addedNotes.length, resources: addedResources.length }));
+      render(); setToastMessage(tr('Added {areas} Areas, {projects} Projects, {tasks} Tasks, {goals} Goals, {habits} Habits, {tags} Tags, {notes} Notes, {resources} Resources and {templates} Templates. All examples are editable.', { areas: addedAreas.length, projects: addedProjects.length, tasks: addedTasks.length, goals: addedGoals.length, habits: addedHabits.length, tags: addedTags.length, notes: addedNotes.length, resources: addedResources.length, templates: addedTemplates.length }));
     } catch (error) {
       console.error(error);
       if (ctx.state !== state) return;

@@ -53,6 +53,7 @@
 | R26 | **Additions G, H and I:** "Na današnji dan" in Dnevnik, the journal export as text, the journal lock | — | **device-local lock setting** (own spec) |
 | R27 | **Addition J:** an automatic weekly backup on the phone | — | **device-local backup setting** (own spec) |
 | R28 | **Addition K:** the Android home-screen widget | — | none (reads the durable copy) |
+| R29 | **The user's request:** real-life starter examples for "Popuni primerima" (camping list, bucket list, habits, goals, chores, tags, notes, resources, templates) | — | none (example records only; `normalizeState` reads an invalid goal `progressType` as `percentage`) |
 
 ## Test levels
 

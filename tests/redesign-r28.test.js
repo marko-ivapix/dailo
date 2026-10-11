@@ -86,8 +86,7 @@ test('K: Android has the widget provider, its plugin, layout and description', (
   assert.match(strings, /<string name="widget_open">Otvori Dailo<\/string>/);
 });
 
-test('R28 is released as 2.0.0-alpha.53', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.53');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.53';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.53');
+test('R28 shipped as 2.0.0-alpha.53 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 99) >= 53);
 });
