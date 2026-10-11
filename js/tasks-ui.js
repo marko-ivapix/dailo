@@ -11,16 +11,15 @@
     const flag = ['high', 'medium'].includes(task.priority) ? `<i class="ph ph-flag task-flag task-flag--${task.priority}" role="img" aria-label="${tr('{priority} priority', { priority: task.priority === 'high' ? tr('High') : tr('Medium') })}"></i>` : '';
     const due = task.isCompleted ? '' : ctx.todayDueLabel(task.dueDate, ctx.Core.dateOnly());
     // R14 (T3): the flag and the due label lead the meta line under the title; the checkbox closes the row on the right.
-    // R11d: Redovne obaveze passes its own meta line (place and repeat sentence) and right side (when).
-    const meta = options.metaText != null ? esc(options.metaText) : flag + [due, ...[task.plannedTime, place].filter(Boolean).map(esc)].filter(Boolean).join(' · ');
+    // R11d: Redovne obaveze passes its own meta line (place and repeat sentence); R20: its date leads that line.
+    const meta = options.metaText != null ? [options.metaLead, esc(options.metaText)].filter(Boolean).join(' · ') : flag + [due, ...[task.plannedTime, place].filter(Boolean).map(esc)].filter(Boolean).join(' · ');
     const draggable = options.draggable && !task.isCompleted;
     const chip = (action, label) => `<button class="quick-chip" type="button" data-action="${action}" data-task-id="${esc(task.id)}">${label}</button>`;
     // Redesign R6 (I5): an Inbox task is sorted with Danas, Sutra, Kad stignem or Projekat….
     const addToday = options.inbox ? `<div class="quick-actions">${chip('inbox-today', tr('Today'))}${chip('inbox-tomorrow', tr('Tomorrow'))}${chip('inbox-anytime', tr('Anytime'))}${chip('inbox-project', tr('Project…'))}</div>`
       : options.addToday ? `<div class="quick-actions">${chip('inbox-today', `+ ${tr('Today')}`)}</div>` : '';
     return `<article class="task-row task-row--today ${task.isCompleted ? 'is-completed' : ''}" data-task-row-compact data-task-id="${esc(task.id)}" data-list-context="${esc(listContext)}" ${draggable ? 'draggable="true"' : ''}>
-      <div class="task-main" data-action="open-task" data-task-id="${esc(task.id)}" role="button" tabindex="0"><div class="task-title">${esc(task.title)}</div>${meta ? `<div class="task-meta">${meta}</div>` : ''}${addToday}</div>
-      ${options.sideHtml ? `<span class="task-side">${options.sideHtml}</span>` : ''}
+      <div class="task-main-wrap"><div class="task-main" data-action="open-task" data-task-id="${esc(task.id)}" role="button" tabindex="0"><div class="task-title">${esc(task.title)}</div>${meta ? `<div class="task-meta">${meta}</div>` : ''}</div>${addToday}</div>
       <div class="task-actions" data-task-compact-actions><button class="btn-icon" type="button" data-action="task-menu" data-task-id="${esc(task.id)}" aria-label="${tr('Task actions')}"><i class="ph ph-dots-three"></i></button></div>
       <button class="complete-control ${task.isCompleted ? 'is-completed' : ''}" type="button" data-action="toggle-complete" data-inline-today-complete data-task-id="${esc(task.id)}" aria-label="${task.isCompleted ? tr('Mark incomplete') : tr('Complete task')}">${task.isCompleted ? '<i class="ph ph-check"></i>' : ''}</button>
     </article>`;
@@ -88,7 +87,7 @@
       <h3 class="task-window-group">${tr('Planning')}</h3>
       <div class="task-window-card">${row('task-plan-picker', 'ph-calendar-check', tr('Planned'), when(task.plannedDate, task.plannedTime))}${row('task-due-picker', 'ph-hourglass-medium', tr('Due date'), when(task.dueDate, task.dueTime), dueClass)}${row('task-reminder-picker', 'ph-bell', tr('Reminder'), task.reminderAt ? esc(formatReminder(task.reminderAt)) : '')}${row('task-repeat-picker', 'ph-arrows-clockwise', tr('Repeat'), task.recurrence ? esc(recurrenceLabel(task.recurrence)) : '')}${row('task-duration-picker', 'ph-timer', tr('Duration'), task.durationMinutes ? esc(durationLabel(task.durationMinutes)) : '')}</div>
       <h3 class="task-window-group">${tr('Organization')}</h3>
-      <div class="task-window-card">${row('task-project-picker', 'ph-folder-simple', tr('Project'), project ? esc(project.name) : '')}${row('task-tags-picker', 'ph-tag', tr('Tags'), tagSummary(task.tagIds) || '')}${row('task-priority-picker', 'ph-flag', tr('Priority'), priority)}</div>
+      <div class="task-window-card">${row('task-tags-picker', 'ph-tag', tr('Tags'), tagSummary(task.tagIds) || '')}${row('task-priority-picker', 'ph-flag', tr('Priority'), priority)}</div>
       <h3 class="task-window-group">${tr('Subtasks')} · ${completedCount}/${task.subtasks.length}</h3>
       <div class="task-window-card"><div class="subtask-list" data-subtask-list="${esc(task.id)}">${[...task.subtasks].sort((a,b)=>clampOrder(a.order)-clampOrder(b.order)).map(s => subtaskRow(task, s, ctx)).join('')}</div><div class="add-subtask-input"><input id="detail-subtask" class="input" type="text" placeholder="${tr('Add subtask...')}" data-task-id="${esc(task.id)}" /></div></div>
       <label class="task-window-group" for="detail-notes">${tr('Notes')}</label><textarea id="detail-notes" class="detail-notes" placeholder="${tr('Add notes...')}">${esc(modalState.notesDraft)}</textarea>

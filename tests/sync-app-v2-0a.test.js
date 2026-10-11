@@ -134,7 +134,9 @@ function syncHarness({ state = baseState(), habitLogs = [], meta = null, fake = 
     modalFrame: content => content, esc,
   };
   vm.createContext(withI18n(context));
-  vm.runInContext(app.slice(start, end), context);
+  // R22b: the typed word is compared with plainWord, which lives with the other confirm words.
+  const plainStart = app.indexOf('\n  function plainWord(') + 1;
+  vm.runInContext(app.slice(start, end) + app.slice(plainStart, app.indexOf('\n  }\n', plainStart) + 4), context);
   return { context, storage, logs, calls, fake, meta: () => JSON.parse(storage.get('dailoSync') || '{}') };
 }
 

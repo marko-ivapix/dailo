@@ -34,8 +34,70 @@
     }).join('')}</div>`;
   }
 
+  // R22a: the strip opens on today (it starts at the 1st otherwise) and keeps its place when the screen redraws.
+  function placeStrip(month) {
+    if (!globalThis.document || typeof requestAnimationFrame !== 'function') return;
+    const old = document.querySelector('#main .journal-strip');
+    const keep = old && old.dataset.month === month ? old.scrollLeft : null;
+    requestAnimationFrame(() => {
+      const strip = document.querySelector('#main .journal-strip');
+      if (!strip) return;
+      if (keep !== null) { strip.scrollLeft = keep; return; }
+      const day = strip.querySelector('.journal-day.is-today');
+      if (day) strip.scrollLeft = Math.max(0, day.offsetLeft - strip.offsetLeft - (strip.clientWidth - day.offsetWidth) / 2);
+    });
+  }
+
+  // R26 (I): while the journal is locked, the screen shows only the lock.
+  const isLocked = ctx => Boolean(ctx.journalLock?.enabled() && !ctx.journalLock.unlocked());
+  const menuButton = () => `<button class="btn-icon" type="button" data-action="journal-screen-menu" aria-label="${tr('Journal actions')}"><i class="ph ph-dots-three"></i></button>`;
+
+  // R26 (G): "Na današnji dan" — the same day of earlier months and years, for the current month.
+  function onThisDay(ctx, today) {
+    const { esc, formatDate } = ctx;
+    const found = ctx.Core.journalOnThisDay(ctx.state, today);
+    if (!found.length) return '';
+    const ago = months => (months % 12 === 0 ? trn(months / 12, '{count} year ago', '{count} years ago') : trn(months, '{count} month ago', '{count} months ago'));
+    const rows = found.map(({ entry, months }) => {
+      const mood = moodOf(entry);
+      return `<button class="journal-row" type="button" data-action="open-journal" data-date="${esc(entry.date)}"><span class="journal-row-head"><strong>${esc(`${formatDate(entry.date, 'full')} · ${ago(months)}`)}</strong>${mood ? `<span class="journal-row-mood" role="img" aria-label="${tr(mood[1])}">${mood[0]}</span>` : ''}</span><span class="journal-row-text">${entry.text ? esc(entry.text) : `<i>${tr('No text')}</i>`}</span></button>`;
+    }).join('');
+    return `<h2 class="review-card-title journal-on-this-day-title">${tr('On this day')}</h2><div class="today-card journal-list journal-on-this-day">${rows}</div>`;
+  }
+
+  // R26 (H): the whole journal as Markdown, newest first, through the share sheet (app) or a download (web).
+  async function exportJournal(ctx) {
+    if (isLocked(ctx) && !(await ctx.journalLock.unlock())) return;
+    const items = (ctx.state.journal || []).filter(item => item.text?.trim() || item.mood).sort((a, b) => b.date.localeCompare(a.date));
+    if (!items.length) { ctx.setToastMessage(tr('The journal is empty')); return; }
+    const text = `# ${tr('Journal')}\n` + items.map(item => {
+      const mood = moodOf(item);
+      return `\n## ${ctx.formatDate(item.date, 'full')}${mood ? ` · ${mood[0]} ${tr(mood[1])}` : ''}\n${item.text?.trim() ? `\n${item.text.trim()}\n` : ''}`;
+    }).join('');
+    await ctx.saveTextFile(text, `dailo-dnevnik-${ctx.Core.dateOnly()}.md`, 'text/markdown;charset=utf-8');
+  }
+
+  // R26: the screen's ⋯ — export, and the lock where the phone can unlock with a fingerprint, face or PIN.
+  async function openScreenMenu(ctx, anchor) {
+    const lock = await ctx.journalLock?.available?.();
+    const option = (action, icon, label) => `<button class="popover-option" type="button" data-pop-action="${action}"><i class="ph ${icon}"></i>${label}</button>`;
+    const lockOption = !lock ? '' : ctx.journalLock.enabled() ? option('journal-lock-off', 'ph-lock-simple-open', tr('Turn the journal lock off')) : option('journal-lock-on', 'ph-lock-simple', tr('Lock the journal'));
+    ctx.openPopover(anchor, ctx.menuSheet(tr('Journal'), `${option('journal-export', 'ph-export', tr('Export as text'))}${lockOption}`), { type: 'journal-screen-menu' });
+  }
+
+  async function setLock(ctx, on) {
+    ctx.closePopover();
+    if (!(await ctx.journalLock.unlock({ force: true }))) return;
+    ctx.journalLock.set(on);
+    ctx.render();
+    ctx.setToastMessage(on ? tr('The journal is locked. It opens with your fingerprint, face or PIN.') : tr('The journal lock is off'));
+  }
+
   function renderList(ctx) {
     const { state, esc, Core, pageHeader, formatDate } = ctx;
+    if (isLocked(ctx)) {
+      return pageHeader(tr('Journal'), '', { add: false }) + `<div class="empty-state journal-locked"><i class="ph ph-lock-simple" aria-hidden="true"></i><h3>${tr('The journal is locked')}</h3><p>${tr('Unlock with your fingerprint, face or phone PIN.')}</p><button class="btn btn-primary" type="button" data-action="journal-unlock">${tr('Unlock')}</button></div>`;
+    }
     const today = Core.dateOnly(), current = today.slice(0, 7);
     const ui = state.ui || (state.ui = {});
     const month = /^\d{4}-\d{2}$/.test(ui.journalMonth || '') && ui.journalMonth <= current ? ui.journalMonth : current;
@@ -49,10 +111,12 @@
       return `<button class="journal-day${date === today ? ' is-today' : ''}${item ? ' has-entry' : ''}" type="button" data-action="open-journal" data-date="${date}"${future ? ' disabled' : ''} aria-label="${esc(label)}"><span class="journal-day-name">${tr(WEEKDAYS[Core.parseDateOnly(date).getDay()])}</span><strong>${Number(date.slice(8))}</strong>${mark}</button>`;
     }).join('');
     const total = (state.journal || []).length;
-    return pageHeader(tr('Journal'), trn(total, '{count} entry', '{count} entries'), { add: false })
+    placeStrip(month);
+    return pageHeader(tr('Journal'), trn(total, '{count} entry', '{count} entries'), { add: false, actionHtml: menuButton() })
       + `<div class="journal-month"><strong class="journal-month-title">${esc(title)}</strong><span class="journal-month-arrows"><button class="btn-icon" type="button" data-action="journal-month" data-step="-1" aria-label="${tr('Previous month')}"><i class="ph ph-caret-left"></i></button><button class="btn-icon" type="button" data-action="journal-month" data-step="1"${month >= current ? ' disabled' : ''} aria-label="${tr('Next month')}"><i class="ph ph-caret-right"></i></button></span></div>`
-      + `<div class="journal-strip">${days}</div>`
-      + `<label class="search-box journal-search"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input id="journal-query" class="search-input" type="search" autocomplete="off" placeholder="${tr('Search the journal')}" value="${esc(query)}" aria-label="${tr('Search the journal')}"></label>`
+      + `<div class="journal-strip" data-month="${month}">${days}</div>`
+      + `<label class="sheet-search journal-search"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input id="journal-query" class="input" type="search" autocomplete="off" placeholder="${tr('Search the journal')}" value="${esc(query)}" aria-label="${tr('Search the journal')}"></label>`
+      + (month === current && !query.trim() ? onThisDay(ctx, today) : '')
       + `<div id="journal-list">${listHtml(ctx)}</div>`;
   }
 
@@ -70,7 +134,8 @@
     return modalFrame(`<div class="modal-inner quick-sheet journal-window"><div class="modal-header task-window-header"><span class="task-window-kind">${tr('Journal')}</span><div class="task-window-actions"><button class="btn-icon" type="button" data-action="journal-menu" aria-label="${tr('Entry actions')}"><i class="ph ph-dots-three"></i></button><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div></div><h2 class="journal-date">${esc(formatDate(date, 'full'))}</h2><p class="journal-summary">${esc(summaryText(ctx, date))}</p><h3 class="sheet-group-title">${tr('Mood')}</h3><div class="journal-moods" role="group" aria-label="${tr('Mood')}">${moods}</div><textarea id="journal-text" class="input journal-text" rows="10" placeholder="${tr('How did the day go? What was good? What tomorrow?')}" aria-label="${tr('Entry')}">${esc(item?.text || '')}</textarea><button class="quick-chip journal-task" type="button" data-action="journal-task-tomorrow">+ ${tr('Task for tomorrow')}</button><p class="sheet-note">${tr('Selected text or a “Tomorrow: …” line becomes the task title. It saves while you type. The journal is not in Search, only in its own search on the Journal screen.')}</p></div>`, 'quick');
   }
 
-  function openEntry(ctx, date) {
+  async function openEntry(ctx, date) {
+    if (isLocked(ctx) && !(await ctx.journalLock.unlock())) return;
     ctx.setModalState({ type: 'journal', date: date || ctx.Core.dateOnly() });
     ctx.renderModal();
     requestAnimationFrame(() => ctx.$('#journal-text')?.focus());
@@ -145,7 +210,11 @@
         return true;
       }
       const el = event?.target?.closest?.('[data-action], [data-pop-action]');
-      if (action === 'open-journal') { openEntry(ctx, el?.dataset?.date); return true; }
+      if (action === 'open-journal') return openEntry(ctx, el?.dataset?.date).then(() => true);
+      if (action === 'journal-unlock') return ctx.journalLock.unlock().then(() => { ctx.render(); return true; });
+      if (action === 'journal-screen-menu') return openScreenMenu(ctx, el).then(() => true);
+      if (action === 'journal-export') { ctx.closePopover(); return exportJournal(ctx).then(() => true); }
+      if (action === 'journal-lock-on' || action === 'journal-lock-off') return setLock(ctx, action === 'journal-lock-on').then(() => true);
       if (action === 'journal-month') {
         const today = ctx.Core.dateOnly(), ui = ctx.state.ui || (ctx.state.ui = {});
         const [year, month] = (/^\d{4}-\d{2}$/.test(ui.journalMonth || '') ? ui.journalMonth : today.slice(0, 7)).split('-').map(Number);

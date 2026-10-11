@@ -8,6 +8,7 @@ const path = require('node:path');
 const Core = require('../js/core.js');
 const Release = require('../js/release.js');
 const { runInNewContextWithI18n } = require('./support/i18n.js');
+const { foldButton } = require('./support/fold.js');
 
 const read = file => fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
 const goalsUi = read('js/goals-ui.js');
@@ -30,6 +31,7 @@ function screen(goals, ui = {}, extra = {}) {
   const state = { goals, tasks: [], projects: [], habits: [], habitMetrics: {}, ui: { goalGroup: 'horizon', ...ui }, settings: {}, ...extra };
   const ctx = {
     calls, state, Core, esc,
+    foldButton, // R22b: the one fold button from app.js
     pageHeader: (title, subtitle, options) => `<header title="${title}" subtitle="${subtitle}" add="${options?.add}"></header>`,
     emptyState: (title, text, cta, action) => `<empty ${title} ${action}>`,
     formatDate: value => `D:${value}`,
@@ -91,7 +93,7 @@ test('GO3: a row has the title, the percentage, a toned bar and the progress wit
 
 test('GO4: Ostvareni, Pauzirani and Arhivirani fold at the bottom; the empty screen offers "Novi cilj"', () => {
   const closed = render(screen(fixture(), {}, { tasks }));
-  assert.match(closed, /<section class="goals-fold"><button class="collapsible-trigger" type="button" data-action="goals-fold" data-fold="done" aria-expanded="false"><span class="left"><i class="ph ph-caret-down" aria-hidden="true"><\/i> Achieved goals · 1<\/span><\/button><\/section><section class="goals-fold">[\s\S]*data-fold="paused"[\s\S]*Paused goals · 1[\s\S]*data-fold="archived"[\s\S]*Archived goals · 1<\/span><\/button><\/section>$/);
+  assert.match(closed, /<section class="goals-fold"><button class="collapsible-trigger" type="button" data-action="goals-fold" data-fold="done" aria-expanded="false"><span class="left">Achieved goals · 1<\/span><i class="ph ph-caret-down" aria-hidden="true"><\/i><\/button><\/section><section class="goals-fold">[\s\S]*data-fold="paused"[\s\S]*Paused goals · 1[\s\S]*data-fold="archived"[\s\S]*Archived goals · 1<\/span><i class="ph ph-caret-down" aria-hidden="true"><\/i><\/button><\/section>$/);
   const open = render(screen(fixture(), { goalsDoneOpen: true, goalsPausedOpen: true, goalsArchivedOpen: true }, { tasks }));
   assert.match(open, /<div class="today-row goals-fold-row"><button class="today-row-main" type="button" data-route="goal\/done"><span class="task-title">Photography<\/span><span class="task-meta">Achieved D:2026-09-12<\/span><\/button><\/div>/);
   assert.match(open, /data-route="goal\/paused"><span class="task-title">Guitar<\/span><span class="task-meta">Manual<\/span><\/button><button class="quick-chip" type="button" data-action="resume-goal" data-goal-id="paused">Resume<\/button>/);

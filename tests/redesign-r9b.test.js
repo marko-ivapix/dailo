@@ -40,7 +40,7 @@ function goalCtx(fields = {}, extra = {}) {
     todayDueLabel: date => `<due ${date}>`,
     reviewTaskRow: (task, context, options) => `<row ${task.id} ${context}${options?.today ? ' today' : ''}>`,
     $: selector => (selector in inputs ? { value: inputs[selector] } : null),
-    openPopover: (anchor, html, meta) => calls.push(['open', html, meta]),
+    openPopover: (anchor, html, meta) => calls.push(['open', html, meta]), menuSheet: (title, body) => body, // R20: the menu's title and card come from app.js
     refreshSheet: html => calls.push(['refresh', html]),
     closePopover: () => calls.push(['close']),
     renderModal: () => calls.push(['renderModal']),
@@ -91,7 +91,7 @@ test('GO5: Etape with round checks, the editor and "+ Dodaj etapu"', () => {
   act(module, ctx, 'edit-milestone', { goalId: 'g', milestoneId: 'm2' });
   assert.equal(ctx.modalState.type, 'milestone');
   assert.equal(ctx.modalState.returnTo.type, 'goal-details', 'the editor returns to the window');
-  assert.match(moduleFor().renderRoute({ type: 'modal', modalType: 'milestone' }, ctx), /<button class="btn btn-ghost goal-milestone-delete" type="button" data-action="delete-milestone" data-goal-id="g" data-milestone-id="m2">Delete<\/button>/);
+  assert.match(moduleFor().renderRoute({ type: 'modal', modalType: 'milestone' }, ctx), /<button class="btn btn-ghost is-danger goal-milestone-delete" type="button" data-action="delete-milestone" data-goal-id="g" data-milestone-id="m2">Delete<\/button>/, 'R21: red through the class');
 });
 
 test('GO5: linked tasks as Today rows with "Prikaži još", and habit contributions with bars', () => {
@@ -190,9 +190,9 @@ test('GO5: "Ažuriraj napredak" offers quick steps and saves through the history
 });
 
 test('GO6: "Označi kao ostvaren" is gray below 100% and blue at 100%; finished and archived goals offer "Vrati"', () => {
-  assert.match(render(goalCtx()), /<div class="quick-sheet-footer"><span><\/span><button class="btn btn-secondary goal-details-complete" type="button" data-action="complete-goal" data-goal-id="g">Mark as achieved<\/button><\/div><\/div><\/frame>$/);
-  assert.match(render(goalCtx({ currentValue: 100 })), /<button class="btn btn-primary goal-details-complete" type="button" data-action="complete-goal" data-goal-id="g">Mark as achieved<\/button>/);
-  assert.match(render(goalCtx({ status: 'completed' })), /<button class="btn btn-secondary goal-details-complete" type="button" data-action="restore-goal" data-goal-id="g">Restore as active<\/button>/);
+  assert.match(render(goalCtx()), /<div class="quick-sheet-footer"><button class="btn btn-secondary habit-window-save goal-details-complete" type="button" data-action="complete-goal" data-goal-id="g">Mark as achieved<\/button><\/div><\/div><\/frame>$/);
+  assert.match(render(goalCtx({ currentValue: 100 })), /<button class="btn btn-primary habit-window-save goal-details-complete" type="button" data-action="complete-goal" data-goal-id="g">Mark as achieved<\/button>/);
+  assert.match(render(goalCtx({ status: 'completed' })), /<button class="btn btn-secondary habit-window-save goal-details-complete" type="button" data-action="restore-goal" data-goal-id="g">Restore as active<\/button>/);
   assert.match(render(goalCtx({ status: 'archived' })), /data-action="restore-goal" data-goal-id="g">Restore goal<\/button>/);
   const module = moduleFor();
   const ctx = goalCtx();

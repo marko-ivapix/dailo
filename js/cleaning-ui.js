@@ -56,7 +56,7 @@
     const row = (task, place = false) => {
       const where = place ? (ctx.getProject(task.projectId)?.name || tr('No group')) : '';
       const metaText = task.isCompleted ? tr('Completed {date}', { date: relativeDateLabel(Core.localDateOf(task.completedAt)) }) : [where, ctx.recurrenceLabel(ctx.taskRecurrence(task))].filter(Boolean).join(' · ');
-      return ctx.renderChoreRow(task, { metaText, sideHtml: task.isCompleted ? '' : when(task) });
+      return ctx.renderChoreRow(task, { metaText, metaLead: task.isCompleted ? '' : when(task) });
     };
     const head = (key, title, count, tools = '') => `<section class="cleaning-section" data-cleaning-section="${esc(key)}"><div class="cleaning-section-head"><h2 class="cleaning-section-title">${title}<span class="cleaning-section-count"> · ${count}</span></h2>${tools}</div>`;
     // "Ove nedelje" (S4): what is late or comes within 7 days, from every group and project.
@@ -72,15 +72,15 @@
       const expanded = Boolean(ui.cleaningCompletedExpanded[section.key]);
       html += head(section.key, title, openList.length, tools);
       if (openList.length || add) html += `<div class="today-card">${openList.map(task => row(task)).join('')}${add}</div>`;
-      if (done.length) html += `<button class="collapsible-trigger cleaning-done-toggle" type="button" data-action="toggle-cleaning-completed" data-project-id="${esc(section.key)}" aria-expanded="${expanded}"><span class="left">${tr('Completed')} · ${done.length}</span><i class="ph ph-caret-${expanded ? 'up' : 'down'}" aria-hidden="true"></i></button>${expanded ? `<div class="today-card">${done.map(task => row(task)).join('')}</div>` : ''}`;
+      if (done.length) html += `${ctx.foldButton('toggle-cleaning-completed', tr('Completed'), done.length, expanded, ` data-project-id="${esc(section.key)}"`)}${expanded ? `<div class="today-card">${done.map(task => row(task)).join('')}</div>` : ''}`;
       html += '</section>';
     }
     // Archived groups fold at the bottom with "Vrati", like archived areas (S1).
     if (archived.length) {
       const openFold = ui.cleaningArchivedOpen === true;
       const count = group => ctx.state.tasks.filter(task => task.projectId === group.id && !task.isCompleted).length;
-      html += `<button class="collapsible-trigger" type="button" data-action="cleaning-archived-fold" aria-expanded="${openFold}"><span class="left">${tr('Archived groups')} · ${archived.length}</span><i class="ph ph-caret-${openFold ? 'up' : 'down'}" aria-hidden="true"></i></button>`;
-      if (openFold) html += `<div class="today-card">${archived.map(group => `<div class="cleaning-archived-row"><span class="cleaning-archived-name">${esc(group.name)}<small>${esc(trn(count(group), '{count} chore', '{count} chores'))}</small></span><button class="btn btn-secondary" type="button" data-action="restore-cleaning-group" data-project-id="${esc(group.id)}">${tr('Restore')}</button></div>`).join('')}</div>`;
+      html += `${ctx.foldButton('cleaning-archived-fold', tr('Archived groups'), archived.length, openFold)}`;
+      if (openFold) html += `<div class="today-card">${archived.map(group => `<div class="cleaning-archived-row"><span class="cleaning-archived-name">${esc(group.name)}<small>${esc(trn(count(group), '{count} chore', '{count} chores'))}</small></span><button class="quick-chip" type="button" data-action="restore-cleaning-group" data-project-id="${esc(group.id)}">${tr('Restore')}</button></div>`).join('')}</div>`;
     }
     return `${html}<p class="sheet-note cleaning-note">${tr('Everything that repeats is here: chores from groups, repeating tasks from projects and the rest. The repeat is set in the task window.')}</p>`;
   }

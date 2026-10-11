@@ -56,6 +56,7 @@
     const defaultTimeOptions = [...new Set([...Array.from({ length: 16 }, (_, index) => `${String(index + 6).padStart(2, '0')}:00`), defaultTime])].sort()
       .map(time => `<option value="${time}"${time === defaultTime ? ' selected' : ''}>${time}</option>`).join('');
     const native = ctx.notificationSettings?.() || null;
+    const autoBackup = ctx.readAutoBackup?.() || { enabled: false };
     const rawJournalTime = state.settings.journalReminderTime;
     const journalTime = rawJournalTime === null ? null : typeof rawJournalTime === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(rawJournalTime) ? rawJournalTime : '20:00';
     const journalOptions = `<option value="off"${journalTime ? '' : ' selected'}>${tr('Off')}</option>` + [...new Set(['19:00', '20:00', '21:00', '22:00', ...(journalTime ? [journalTime] : [])])].sort()
@@ -82,12 +83,14 @@
       <section class="settings-card" data-settings-data>
         <h2>${tr('Data')}</h2>
         <div class="settings-row"><div class="settings-label"><strong>${tr('Backup')}</strong><span>${tr('Last export:')} ${statusTime(backupStatus.lastExport)}<br>${tr('Last import:')} ${statusTime(backupStatus.lastImport)}<br>${tr('Recovery snapshot:')} ${backupStatus.snapshotAvailable ? tr('Available') : tr('None pending')}<br>${tr('Validation:')} ${esc(trMessage(backupStatus.validationResult || msg('Not yet validated')))}</span></div><button class="btn btn-secondary" type="button" data-action="export-backup"><i class="ph ph-download-simple"></i> ${tr('Export ZIP')}</button></div>
+${native ? `
+        <div class="settings-row"><label class="settings-label" for="auto-backup"><strong>${tr('Automatic backup')}</strong><span>${tr('Once a week to Documents/Dailo on this phone; the newest four are kept.')}${autoBackup.lastAt ? `<br>${tr('Last copy:')} ${statusTime(autoBackup.lastAt)}` : ''}${autoBackup.error ? `<br>${esc(tr('Last attempt failed: {error}', { error: autoBackup.error }))}` : ''}</span></label><input id="auto-backup" type="checkbox"${autoBackup.enabled ? ' checked' : ''}></div>` : ''}
         <div class="settings-row settings-sub"><label class="settings-label" for="backup-reminder-days"><strong>${tr('Backup reminder')}</strong><span>${tr('Today reminds you to export a backup when the last one is older than this.')}</span></label><select class="input" id="backup-reminder-days">${reminderOptions}</select></div>
         <div class="settings-row"><div class="settings-label"><strong>${tr('Restore from backup')}</strong><span>${tr('Validate a ZIP first, then replace current data only after you confirm.')}</span></div><div><button class="btn btn-secondary" type="button" data-action="import-backup"><i class="ph ph-upload-simple"></i> ${tr('Import ZIP')}</button><input id="backup-import-input" type="file" accept=".zip,application/zip" hidden /></div></div>
         <div class="settings-row"><div class="settings-label"><strong>${tr('Local snapshots')}</strong><span>${tr('Five automatic copies, at most once every five minutes after saving. Restore one item with its files and history.')}</span></div><button class="btn btn-secondary" type="button" data-action="open-local-snapshots">${tr('Browse snapshots')}</button></div>
         <div class="settings-row"><div class="settings-label"><strong>${tr('Persistent storage')}</strong><span data-storage-persistence="${esc(persistence.state)}">${esc(persistenceText)}${esc(usage)}</span></div>${persistence.state === 'denied' ? `<button class="btn btn-secondary" type="button" data-action="request-storage-persistence">${tr('Request')}</button>` : ''}</div>
         <div class="settings-row"><div class="settings-label"><strong>${tr('Populate demo workspace')}</strong><span>${tr('Add missing editable examples across Areas, Projects, Tasks, Goals, Habits, Cleaning, Tags, Notes and Resources. Existing items and edits stay intact.')}</span></div><button class="btn btn-secondary" type="button" data-action="add-starter-examples">${tr('Populate workspace')}</button></div>
-        <div class="settings-row"><div class="settings-label"><strong>${tr('Reset app data')}</strong><span>${tr('A safety ZIP is created first, then local tasks, projects, tags, attachments and preferences are cleared.')}</span></div><button class="btn btn-ghost" type="button" data-action="reset-app" style="color:var(--danger)">${tr('Reset')}</button></div>
+        <div class="settings-row"><div class="settings-label"><strong>${tr('Reset app data')}</strong><span>${tr('A safety ZIP is created first, then local tasks, projects, tags, attachments and preferences are cleared.')}</span></div><button class="btn btn-ghost is-danger" type="button" data-action="reset-app">${tr('Reset')}</button></div>
       </section>
       <section class="settings-card" data-settings-about>
         <h2>${tr('Help')}</h2>
@@ -127,13 +130,13 @@
         ${sync.signedIn ? `<div class="settings-row"><div class="settings-label"><strong>${tr('Account')}</strong><span>${esc(sync.email)}</span></div></div>
         <div class="settings-row"><div class="settings-label"><strong>${tr('Last sync')}</strong><span data-sync-status>${sync.running ? tr('Syncing…') : statusTime(sync.lastSyncAt)}${sync.lastError ? `<br><span class="validation" role="alert">${esc(trMessage(sync.lastError))}</span>` : ''}</span></div><button class="btn btn-secondary" type="button" data-action="sync-now"${sync.running ? ' disabled' : ''}><i class="ph ph-arrows-clockwise"></i> ${tr('Sync now')}</button></div>
         <p class="area-empty-copy">${tr('Tasks, projects, goals, habits, notes and settings sync between your devices. Attachments stay on the device where they were added.')}</p>
-        <div class="sync-actions"><button class="btn btn-secondary" type="button" data-action="sync-sign-out">${tr('Sign out')}</button><button class="btn btn-ghost" type="button" data-action="sync-delete-account" style="color:var(--danger)">${tr('Delete account')}</button></div>`
+        <div class="sync-actions"><button class="btn btn-secondary" type="button" data-action="sync-sign-out">${tr('Sign out')}</button><button class="btn btn-ghost is-danger" type="button" data-action="sync-delete-account">${tr('Delete account')}</button></div>`
         : sync.step === 'code' ? `<div class="settings-row"><label class="settings-label" for="sync-code"><strong>${tr('Code from the e-mail')}</strong><span>${tr('A code was sent to {email}. It is valid for a short time.', { email: esc(sync.email) })}</span></label><input class="input" id="sync-code" inputmode="numeric" autocomplete="one-time-code" maxlength="10" /></div>
         ${syncError}
         <div class="sync-actions"><button class="btn btn-secondary" type="button" data-action="sync-verify-code"${busy}>${tr('Confirm')}</button><button class="btn btn-ghost" type="button" data-action="sync-request-code"${busy}>${tr('Send a new code')}</button><button class="btn btn-ghost" type="button" data-action="sync-change-email">${tr('Change e-mail')}</button></div>`
         : `<div class="settings-row"><label class="settings-label" for="sync-email"><strong>${tr('Sign in')}</strong><span>${tr('Optional. Enter your e-mail address to get a sign-in code. No password is needed. Without signing in, everything stays only on this device.')}</span></label><input class="input" id="sync-email" type="email" inputmode="email" autocomplete="email" value="${esc(sync.email)}" /></div>
         ${syncError}
-        <div class="sync-actions"><button class="btn btn-secondary" type="button" data-action="sync-request-code"${busy}>${tr('Send code')}</button></div>`}
+        <div class="sync-actions"><button class="btn btn-primary" type="button" data-action="sync-request-code"${busy}>${tr('Send code')}</button></div>`}
       </section>`;
     return `${pageHeader(tr('Account'), subtitle, { add: false })}${card}`;
   }

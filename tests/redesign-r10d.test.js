@@ -50,6 +50,7 @@ function fixture(extra = {}) {
   const ctx = {
     calls, inputs, state, Core, esc,
     templateTypes: ['task', 'project', 'habit', 'goal'], templateLabel: type => type,
+    backLink: () => '', // R22a: the back link is covered by redesign-r22a
     pageHeader: (title, subtitle, options) => `<header title="${title}" subtitle="${subtitle}">${options?.actionHtml || ''}</header>`,
     emptyState: (title, text) => `<empty ${title} | ${text}>`,
     formatDate: value => `D:${value}`,
@@ -58,7 +59,7 @@ function fixture(extra = {}) {
     $: selector => (selector in inputs ? { value: inputs[selector], focus() {} } : null), $$: () => [],
     modalState: null, setModalState: value => { ctx.modalState = value; },
     captureModalReturnFocus() {}, copyTemplate: value => JSON.parse(JSON.stringify(value)),
-    openPopover: (anchor, html, meta) => calls.push(['open', html, meta]), refreshSheet: html => calls.push(['refresh', html]),
+    openPopover: (anchor, html, meta) => calls.push(['open', html, meta]), menuSheet: (title, body) => body /* R20: the menu's title and card come from app.js */, refreshSheet: html => calls.push(['refresh', html]),
     closePopover: () => calls.push(['closePopover']), renderModal: () => calls.push(['renderModal']), render: () => calls.push(['render']), saveAndRender: () => calls.push(['saveAndRender']),
     useTemplate: id => calls.push(['use', id]), duplicateTemplateRecord: id => calls.push(['duplicate-template', id]),
     requestDeleteEntity: (type, id) => calls.push(['delete', type, id]),
@@ -86,7 +87,8 @@ test('S7: templates are grouped by type with what they make; a tap opens a sheet
   assert.doesNotMatch(html, /data-template-type|view-tabs|data-action="use-template"/);
   assert.match(module.renderRoute({ type: 'templates' }, fixture({ state: { templates: [] } })), /<p class="today-empty">No templates yet\. Create one or save an existing item as a template\.<\/p><div class="today-card templates-add">/);
   act(module, ctx, 'template-open', { templateId: 'tp1' });
-  assert.equal(lastSheet(ctx), '<div class="popover-title">Weekly report</div><p class="sheet-subtitle">Send report · 3 subtasks</p><button class="btn btn-primary sheet-primary" type="button" data-pop-action="use-template" data-template-id="tp1">Use template</button><div class="sheet-card"><button class="popover-option" type="button" data-pop-action="edit-template" data-template-id="tp1"><i class="ph ph-pencil-simple"></i>Edit template</button><button class="popover-option" type="button" data-pop-action="duplicate-template" data-template-id="tp1"><i class="ph ph-copy"></i>Duplicate template</button><button class="popover-option" type="button" style="color:var(--danger)" data-pop-action="delete-template" data-template-id="tp1"><i class="ph ph-trash"></i>Delete template</button></div>');
+  // R20: the options card is a sheet menu and Obriši is red through a class.
+  assert.equal(lastSheet(ctx), '<div class="popover-title">Weekly report</div><p class="sheet-subtitle">Send report · 3 subtasks</p><button class="btn btn-primary sheet-primary" type="button" data-pop-action="use-template" data-template-id="tp1">Use template</button><div class="sheet-card sheet-menu"><button class="popover-option" type="button" data-pop-action="edit-template" data-template-id="tp1"><i class="ph ph-pencil-simple"></i>Edit template</button><button class="popover-option" type="button" data-pop-action="duplicate-template" data-template-id="tp1"><i class="ph ph-copy"></i>Duplicate template</button><button class="popover-option is-danger" type="button" data-pop-action="delete-template" data-template-id="tp1"><i class="ph ph-trash"></i>Delete template</button></div>');
   act(module, ctx, 'use-template', { templateId: 'tp1', popAction: 'use-template' });
   act(module, ctx, 'duplicate-template', { templateId: 'tp1', popAction: 'duplicate-template' });
   act(module, ctx, 'delete-template', { templateId: 'tp1', popAction: 'delete-template' });

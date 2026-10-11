@@ -260,7 +260,8 @@ test('the monthly tracker keeps its cell geometry and uses token colors per chec
 test('Oblasti has no tabs; the archived areas fold behind an expandable trigger', () => {
   const areasUi = read('js/areas-ui.js');
   assert.doesNotMatch(areasUi, /role="tablist"|role="tab"/);
-  assert.match(areasUi, /<button class="collapsible-trigger" type="button" data-action="areas-fold" aria-expanded="\$\{open\}">/);
+  // R22b: the expandable trigger comes from foldButton.
+  assert.match(areasUi, /ctx\.foldButton\('areas-fold', tr\('Archived areas'\), archived\.length, open\)/);
 });
 
 test('organizational lists share the hairline card and display numerals', () => {

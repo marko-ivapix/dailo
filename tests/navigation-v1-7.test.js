@@ -13,7 +13,7 @@ const moreRoutes = [
   ['areas', 'Areas'], ['tags', 'Tags'], ['notes', 'Notes'], ['resources', 'Resources'],
   // R11d (S4, M4): Čišćenje is now "Redovne obaveze".
   ['cleaning', 'Recurring tasks'], ['templates', 'Templates'], ['saved-views', 'Saved Views'],
-  ['completed', 'Completed'], ['archived', 'Archived Projects'], ['goals', 'Goals'], ['review', 'Weekly review'],
+  ['completed', 'Completed tasks'] /* R22c: the tile names the screen */, ['archived', 'Archived Projects'], ['goals', 'Goals'], ['review', 'Weekly review'],
   ['settings', 'Settings']
 ];
 

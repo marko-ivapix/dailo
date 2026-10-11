@@ -8,6 +8,7 @@ const vm = require('node:vm');
 const Core = require('../js/core.js');
 const Release = require('../js/release.js');
 const { withI18n, runInNewContextWithI18n } = require('./support/i18n.js');
+const { foldButton } = require('./support/fold.js');
 
 const read = file => fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
 const app = read('js/app.js');
@@ -121,6 +122,7 @@ function renderTodayWith(stateExtra = {}, stubs = {}) {
   state.ui.todayExpanded = { overdue: false, today: false, habits: false };
   state.habitLogCache = stubs.logs || {};
   const ctx = todayContext(state, {
+    foldButton, // R22b: the one fold button from app.js
     pageHeader: (title, subtitle, options) => `<header title="${title}" eyebrow="${options.eyebrow}" add="${options.add}"></header>`,
     transferNotice: () => '<transfer>', backupReminderNotice: () => '<backup>', callDomainHook: () => '<journal>', // R12c: the journal notice comes from journal-ui.js; R14: no weekly-review notice
     taskRow: (task, context, options) => `<task ${task.id} ${context}${options.today ? ' today' : ''}${options.draggable ? ' drag' : ''}>`,
@@ -252,7 +254,7 @@ test('H6: the value sheet has the quick values, the total and "Primeni"', async 
   const habits = [{ id: 'h2', name: 'Water', status: 'active', trackingType: 'numeric', targetValue: 2, unit: 'l', quickValues: [0.25, 0.5] }];
   const ctx = habitCtx({ habits, modalState: { type: 'habit-value', habitId: 'h2', date: TODAY, total: 1.5 }, modalFrame: (content, cls) => `<frame ${cls}>${content}</frame>`, $: () => ({ value: '1.75' }) });
   const html = module.renderRoute({ type: 'modal', modalType: 'habit-value' }, ctx);
-  assert.match(html, /^<frame habit-value-modal>/);
+  assert.match(html, /^<frame quick habit-value-modal>/, 'R21: a sheet at every width');
   assert.match(html, /<h2 class="modal-title">Water<\/h2>/);
   assert.match(html, /<strong class="habit-value-total">1\.5<\/strong> \/ 2 l/);
   assert.match(html, /<button class="quick-chip" type="button" data-action="habit-value-add" data-value="0\.25">\+0\.25 l<\/button><button class="quick-chip" type="button" data-action="habit-value-add" data-value="0\.5">\+0\.5 l<\/button>/);
@@ -298,7 +300,7 @@ test('Z2 early: the suggestions card is at the top of Zadaci with "+ Danas" and 
   // Redesign R5 (S10): the suggestions come from listTasks (no archived projects).
   assert.match(screen, /const suggestions = Core\.deriveTodaySections\(tasks, Core\.dateOnly\(\)\)\.suggestions;/);
   assert.match(screen, /<section class="tasks-suggestions" data-tasks-suggestions>/);
-  assert.match(screen, /data-action="toggle-suggestions" aria-expanded="\$\{open\}"/);
+  assert.match(screen, /foldButton\('toggle-suggestions', tr\('Suggested for today'\), suggestions\.length, open\)/);
   assert.match(screen, /taskRow\(item\.task, 'suggestion', \{ today: true, addToday: true, suggestionReason: item\.reason \}\)/);
   assert.match(screen, /data-action="add-all-suggestions"/);
   assert.ok(screen.indexOf('data-tasks-suggestions') < screen.indexOf('tasks-view-switch'), 'above the switch');

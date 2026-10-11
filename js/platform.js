@@ -11,6 +11,7 @@
   // official Capacitor plugins through Capacitor.registerPlugin (vendor/capacitor/capacitor.js).
 
   const SHARE_DIR = 'dailo-share';
+  const BACKUP_DIR = 'Dailo'; // R27: Documents/Dailo on the phone
   const MIRROR = 'dailo/state.json';
   const MIRROR_TMP = 'dailo/state.json.tmp';
   const CHUNK_BYTES = 3 * 256 * 1024; // a multiple of 3, so every base64 chunk can be appended as is
@@ -88,11 +89,11 @@
       for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
       return env.btoa(binary);
     }
-    async function writeChunked(fs, path, blob) {
+    async function writeChunked(fs, path, blob, directory = 'CACHE') {
       let offset = 0;
       do {
         const bytes = new Uint8Array(await blob.slice(offset, offset + CHUNK_BYTES).arrayBuffer());
-        const options = { path, data: base64Of(bytes), directory: 'CACHE' };
+        const options = { path, data: base64Of(bytes), directory };
         if (offset === 0) await fs.writeFile({ ...options, recursive: true });
         else await fs.appendFile(options);
         offset += CHUNK_BYTES;
@@ -118,6 +119,21 @@
     // Returns 'downloaded' (web), 'shared' or 'cancelled' (app). Callers record a backup only when it was not cancelled.
     async function saveFile(blob, fileName, title) {
       return isNative ? shareBlob(blob, fileName, title) : webDownload(blob, fileName);
+    }
+    // R27 (J): an automatic backup in the phone's Documents/Dailo folder, which other apps and the Files app can
+    // reach and which stays when Dailo's own data is cleared. Only the newest `keep` files with the prefix stay;
+    // anything else in the folder is left alone. App only.
+    async function saveBackupCopy(blob, fileName, { keep = 4, prefix = 'dailo-auto-' } = {}) {
+      const fs = isNative ? plugin('Filesystem') : null;
+      if (!fs) throw new Error('Automatic backups need the phone app.');
+      const name = safeName(fileName);
+      await writeChunked(fs, `${BACKUP_DIR}/${name}`, blob, 'DOCUMENTS');
+      try {
+        const { files = [] } = await fs.readdir({ path: BACKUP_DIR, directory: 'DOCUMENTS' });
+        const own = files.map(file => (typeof file === 'string' ? file : file?.name || '')).filter(item => item.startsWith(prefix) && item.endsWith('.zip')).sort().reverse();
+        for (const old of own.slice(keep)) await fs.deleteFile({ path: `${BACKUP_DIR}/${old}`, directory: 'DOCUMENTS' });
+      } catch (_) { /* pruning is best effort; the new copy is written */ }
+      return { folder: `Documents/${BACKUP_DIR}`, name };
     }
     // Native only: opens a file in another app through the share sheet. The web keeps its own logic.
     async function openFile(blob, fileName) {
@@ -227,7 +243,7 @@
         for (const item of items || []) {
           let id = notificationId(item.key);
           while (desired.has(id)) id = (id % 0x7fffffff) + 1;
-          desired.set(id, { ...item, sig: notificationId(`${item.title}\u0000${item.body}\u0000${item.at}\u0000${item.route}\u0000${exact}`).toString(36) });
+          desired.set(id, { ...item, sig: notificationId(`${item.title}\u0000${item.body}\u0000${item.at}\u0000${item.route}\u0000${exact}\u0000${item.actionType || ''}`).toString(36) });
         }
         const now = Date.now();
         const pending = (await ln().getPending())?.notifications || [];
@@ -244,6 +260,7 @@
           id, title: item.title, body: item.body || '',
           schedule: { at: new Date(item.at), allowWhileIdle: true },
           extra: { key: item.key, route: item.route, sig: item.sig },
+          ...(item.actionType ? { actionTypeId: item.actionType } : {}),
           ...(exact === 'denied' ? { isExactNotification: false } : {}),
         }));
         if (notifications.length) await ln().schedule({ notifications });
@@ -253,13 +270,61 @@
       return reconcileQueue;
     }
     // A tapped notification. The plugin keeps the event until a listener exists, so a tap that started the app
-    // is delivered once the app registers this after loading its data.
+    // is delivered once the app registers this after loading its data. R23: the handler also hears which button
+    // was pressed ("tap" for the notification itself).
     function onNotificationOpen(handler) {
       if (!isNative || !ln()) return false;
       ln().addListener('localNotificationActionPerformed', event => {
-        try { handler(event?.notification?.extra || {}); } catch (error) { env.console?.error?.(error); }
+        try { handler({ ...(event?.notification?.extra || {}), actionId: event?.actionId }); } catch (error) { env.console?.error?.(error); }
       });
       return true;
+    }
+    // R24: links that open the app (its shortcuts and shared text). The App plugin keeps a link that started the
+    // app until this listener exists, so a cold start is delivered once too.
+    function onAppLink(handler) {
+      const app = plugin('App');
+      if (!app?.addListener) return false;
+      app.addListener('appUrlOpen', event => {
+        try { handler(event?.url || ''); } catch (error) { env.console?.error?.(error); }
+      });
+      return true;
+    }
+
+    // R28: the Android home-screen widget gets its snapshot through the app's own DailoWidget plugin.
+    function updateWidget(snapshot) {
+      if (kind !== 'android') return Promise.resolve(false);
+      const widget = plugin('DailoWidget');
+      if (!widget?.update) return Promise.resolve(false);
+      return Promise.resolve(widget.update({ snapshot: JSON.stringify(snapshot) })).then(() => true, () => false);
+    }
+
+    // R26 (I): the journal lock — a fingerprint, face or the phone's PIN through the biometric plugin (app only).
+    const biometric = () => plugin('BiometricAuthNative');
+    async function lockAvailable() {
+      if (!isNative || !biometric()?.checkBiometry) return false;
+      try { const result = await biometric().checkBiometry(); return Boolean(result?.isAvailable || result?.deviceIsSecure); } catch (_) { return false; }
+    }
+    async function unlock({ reason, title, cancel } = {}) {
+      if (!isNative || !biometric()?.internalAuthenticate) return false;
+      try {
+        await biometric().internalAuthenticate({ reason, androidTitle: title, cancelTitle: cancel, allowDeviceCredential: true, androidConfirmationRequired: false });
+        return true;
+      } catch (_) { return false; }
+    }
+
+    // R23: the buttons a notification can carry (Završi, Odloži 1 h, Zabeleži), registered once per launch.
+    async function setActionTypes(types) {
+      if (!isNative || !ln()?.registerActionTypes) return false;
+      try { await ln().registerActionTypes({ types }); return true; } catch (error) { env.console?.error?.(error); return false; }
+    }
+
+    // R23: haptic feedback — the Haptics plugin in the app, a short vibration where a browser supports it.
+    function haptics(kind = 'tick') {
+      try {
+        const h = plugin('Haptics');
+        if (h) { (kind === 'success' ? h.notification({ type: 'SUCCESS' }) : h.impact({ style: 'LIGHT' }))?.catch?.(() => {}); return; }
+        env.navigator?.vibrate?.(kind === 'success' ? 18 : 8);
+      } catch (_) { /* feedback is optional */ }
     }
 
     return Object.freeze({
@@ -269,11 +334,14 @@
       plugin,
       lifecycle: Object.freeze({ onPause, onResume }),
       backButton: Object.freeze({ setHandler: setBackHandler }),
-      files: Object.freeze({ saveFile, openFile, cleanupSharedFiles }),
-      links: Object.freeze({ openExternal, interceptExternalLinks }),
+      files: Object.freeze({ saveFile, openFile, cleanupSharedFiles, saveBackupCopy }),
+      links: Object.freeze({ openExternal, interceptExternalLinks, onAppLink }),
       storage: Object.freeze({ status: storageStatus }),
       durable: Object.freeze({ write: writeMirror, read: readMirror }),
-      notifications: Object.freeze({ permission: notificationPermission, requestPermission: requestNotificationPermission, exactAlarms, allowExactAlarms, reconcile, onOpen: onNotificationOpen, notificationId }),
+      notifications: Object.freeze({ permission: notificationPermission, requestPermission: requestNotificationPermission, exactAlarms, allowExactAlarms, reconcile, onOpen: onNotificationOpen, setActionTypes, notificationId }),
+      haptics,
+      security: Object.freeze({ available: lockAvailable, unlock }),
+      widget: Object.freeze({ update: updateWidget }),
     });
   }
 

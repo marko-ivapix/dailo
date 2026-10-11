@@ -8,6 +8,7 @@ const path = require('node:path');
 const Core = require('../js/core.js');
 const Release = require('../js/release.js');
 const { runInNewContextWithI18n } = require('./support/i18n.js');
+const { foldButton } = require('./support/fold.js');
 
 const read = file => fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
 const app = read('js/app.js');
@@ -49,9 +50,11 @@ function fixture(extra = {}) {
   const archivedProjects = new Set(state.projects.filter(project => project.isArchived).map(project => project.id));
   const ctx = {
     calls, inputs, state, Core, esc,
-    AREA_ICONS: ['ph-briefcase', 'ph-house', 'ph-heart'], PROJECT_COLORS: ['#4f8cff', '#2fbf71'],
+    AREA_ICONS: ['ph-briefcase', 'ph-house', 'ph-heart'], PROJECT_COLORS: ['#4f8cff', '#2fbf71'], colorName: color => `C${color}` /* R22c */,
     sortedAreas: () => state.areas,
     getArea: id => state.areas.find(area => area.id === id),
+    backLink: () => '', // R22a: the back link is covered by redesign-r22a
+    foldButton, // R22b: the one fold button from app.js
     pageHeader: (title, subtitle, options) => `<header title="${title}" subtitle="${subtitle}" add="${options?.add}">${options?.actionHtml || ''}</header>`,
     emptyState: (title, text, cta, action) => `<empty ${title} ${action}>`,
     listTasks: () => state.tasks.filter(task => !archivedProjects.has(task.projectId)),
@@ -64,7 +67,7 @@ function fixture(extra = {}) {
     setModalState: value => { ctx.modalState = value; },
     modalFrame: (content, cls) => `<frame ${cls}>${content}</frame>`,
     captureModalReturnFocus: () => {}, closePopover: () => calls.push(['closePopover']),
-    openPopover: (anchor, html, meta) => calls.push(['open', html, meta]),
+    openPopover: (anchor, html, meta) => calls.push(['open', html, meta]), menuSheet: (title, body) => body, // R20: the menu's title and card come from app.js
     renderModal: () => calls.push(['renderModal']), render: () => calls.push(['render']), saveAndRender: () => calls.push(['saveAndRender']),
     closeModal: () => { calls.push(['closeModal']); ctx.modalState = null; },
     saveState: () => { calls.push(['save']); return true; },
@@ -83,7 +86,7 @@ test('S1: "Oblasti" lists the active areas in one card with "+ Nova oblast"; no 
   // R17: list rows lost the "›" arrow.
   assert.match(html, /<button class="area-list-row" type="button" data-route="area\/a1"><i class="ph ph-briefcase area-list-icon" style="color:#4f8cff" aria-hidden="true"><\/i><span class="area-list-main"><span class="task-title">Work<\/span><span class="task-meta">2 projects · 6 open · 1 goal · pinned<\/span><\/span><\/button>/);
   assert.match(html, /data-route="area\/a2">[\s\S]*?<span class="task-meta">0 open<\/span>/, 'projects and goals only when there are any');
-  assert.match(html, /<button class="inline-add" type="button" data-action="new-area"><i class="ph ph-plus" aria-hidden="true"><\/i> New area<\/button><\/div><section class="areas-fold"><button class="collapsible-trigger" type="button" data-action="areas-fold" aria-expanded="false"><span class="left"><i class="ph ph-caret-down" aria-hidden="true"><\/i> Archived areas · 1<\/span><\/button><\/section>$/);
+  assert.match(html, /<button class="inline-add" type="button" data-action="new-area"><i class="ph ph-plus" aria-hidden="true"><\/i> New area<\/button><\/div><section class="areas-fold"><button class="collapsible-trigger" type="button" data-action="areas-fold" aria-expanded="false"><span class="left">Archived areas · 1<\/span><i class="ph ph-caret-down" aria-hidden="true"><\/i><\/button><\/section>$/);
   assert.doesNotMatch(html, /role="tab|data-tab=|area-menu|data-route="area\/a3"/);
   const module = moduleFor(areasUi);
   act(module, ctx, 'areas-fold');
@@ -131,7 +134,7 @@ test('S2: one area has a summary line, sections with "+", rows and "Prikaži jo�
   assert.match(html, /^<header title="Work" subtitle="2 projects · 6 open · 1 goal · 2 in the library" add="false"><button class="btn-icon" type="button" data-action="area-menu" data-area-id="a1" aria-label="Area actions"><i class="ph ph-dots-three"><\/i><\/button><\/header>/);
   const sections = [...html.matchAll(/<section class="section area-section"><div class="section-header"><h2 class="section-label">([^<]+)<\/h2><button class="btn-icon area-section-add" type="button" data-action="([a-z-]+)" data-area-id="a1"(?: data-owner-type="note")? aria-label="Add: ([^"]+)"><i class="ph ph-plus" aria-hidden="true"><\/i><\/button><\/div>/g)].map(match => match.slice(1));
   assert.deepEqual(sections, [['Projects · 2', 'area-new-project', 'Projects'], ['Tasks · 6', 'area-new-task', 'Tasks'], ['Goals · 1', 'area-new-goal', 'Goals'], ['Habits · 1', 'area-new-habit', 'Habits'], ['Notes and resources · 2', 'new-knowledge', 'Notes and resources']]);
-  assert.match(html, /<div class="more-card"><prow p1><prow p2><\/div>/);
+  assert.match(html, /<div class="today-card project-list"><prow p1><prow p2><\/div>/);
   assert.match(html, /<div class="task-list today-card"><trow t0 a1><trow t1 a1><trow t2 a1><trow t3 a1><trow t4 a1><button class="today-more" type="button" data-action="area-all-tasks" data-area-id="a1" aria-expanded="false">Show 1 more<\/button><\/div>/);
   assert.match(html, /<div class="today-card goals-list"><grow g1><\/div>/);
   assert.match(html, /<div class="today-card"><hrow h1><\/div>/);

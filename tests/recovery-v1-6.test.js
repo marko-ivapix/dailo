@@ -97,7 +97,7 @@ test('startup recovery cleanup clears its status after a saved workspace edit', 
   assert.equal((await Storage.recoverySnapshots.listAll()).length, 0);
 });
 
-test('live restore confirmation lists V1.6 counts and keeps typed RESTORE safety copies through rollback', async () => {
+test('live restore confirmation lists V1.6 counts and keeps typed VRATI (R22b) safety copies through rollback', async () => {
   await Storage.clearAllForTests(); values.clear();
   const current = Core.normalizeState({ version: 3, tasks: [], projects: [], tags: [], areas: [], goals: [], habits: [], notes: [], resources: [], templates: [], savedViews: [], settings: {}, ui: {} });
   localStorage.setItem('todoAppData', JSON.stringify(current));
@@ -107,7 +107,7 @@ test('live restore confirmation lists V1.6 counts and keeps typed RESTORE safety
 
   await app.begin(payload);
   assert.ok(app.ctx.confirm, app.ctx.message);
-  assert.equal(app.ctx.confirm.phrase, 'RESTORE');
+  assert.equal(app.ctx.confirm.phrase, 'VRATI'); // R22b: the typed word is Serbian
   for (const value of ['1 tasks', '1 projects', '1 Goals', '1 Habits', '1 Notes', '1 Resources', '1 logs', '1 history events']) assert.match(app.ctx.confirm.message, new RegExp(value));
   assert.ok(app.ctx.download);
   assert.equal((await Storage.recoverySnapshots.listAll()).length, 1);
@@ -117,7 +117,7 @@ test('live restore confirmation lists V1.6 counts and keeps typed RESTORE safety
   assert.equal(app.ctx.state.tasks.length, 0, 'missing typed confirmation must not replace data');
   const replace = Storage.replaceAllValidatedBackup;
   Storage.replaceAllValidatedBackup = async (_validated, _original, guard) => { guard.onCommit(); throw new Error('injected replacement failure'); };
-  app.input.value = 'RESTORE';
+  app.input.value = 'VRATI';
   try { await app.commit(); } finally { Storage.replaceAllValidatedBackup = replace; }
   assert.equal(app.ctx.state.tasks.length, 0, 'rollback must retain the original state');
   assert.equal(app.ctx.state.settings.backupStatus.snapshotAvailable, false);
@@ -260,7 +260,7 @@ test('rollback status never overwrites a newer workspace written during Undo res
   const newerRaw = JSON.stringify(newer);
   Storage.replaceAllValidatedBackup = async (_validated, _original, guard) => { guard.onCommit(); throw new Error('replacement denied'); };
   app.ctx.deleteLifecycle.resume = async () => { localStorage.setItem('todoAppData', newerRaw); };
-  app.input.value = 'RESTORE';
+  app.input.value = 'VRATI';
   try { await app.commit(); } finally { Storage.replaceAllValidatedBackup = replace; app.ctx.deleteLifecycle.resume = resume; }
   assert.equal(localStorage.getItem('todoAppData'), newerRaw);
   assert.equal(JSON.parse(localStorage.getItem('todoAppData')).tasks[0].title, 'NEWER DURING ROLLBACK');

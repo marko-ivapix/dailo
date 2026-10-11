@@ -54,7 +54,7 @@
     const view = state.savedViews.find(item => item.id === id);
     if (!view) return pageHeader(tr('Saved View not found'), tr('This view may have been deleted.'), { add: false });
     const today = Core.dateOnly(), rows = Core.applySavedView(view, state, today);
-    const header = pageHeader(view.name, `${summaryText(context, view)} · ${rows.length}`, { add: false, actionHtml: `<button class="btn-icon" type="button" data-action="saved-view-menu" data-saved-view-id="${esc(view.id)}" aria-label="${tr('View actions')}"><i class="ph ph-dots-three"></i></button>` });
+    const header = context.backLink('saved-views', tr('Saved Views')) + pageHeader(view.name, `${summaryText(context, view)} · ${rows.length}`, { add: false, actionHtml: `<button class="btn-icon" type="button" data-action="saved-view-menu" data-saved-view-id="${esc(view.id)}" aria-label="${tr('View actions')}"><i class="ph ph-dots-three"></i></button>` });
     if (!rows.length) return header + emptyState(tr('No matching items'), tr('Change this view’s filters for different results.'));
     const container = view.type === 'tasks' ? 'task-list today-card' : view.type === 'goals' ? 'today-card goals-list' : 'today-card';
     return `${header}<div class="${container}">${rows.map(item => renderSavedViewItem(view, item, today)).join('')}</div>`;
@@ -63,8 +63,8 @@
   function openMenu(context, anchor, id) {
     const { state, esc } = context;
     const view = state.savedViews.find(item => item.id === id); if (!view) return;
-    const option = (action, icon, text, danger = false) => `<button class="popover-option" type="button"${danger ? ' style="color:var(--danger)"' : ''} data-pop-action="${action}" data-saved-view-id="${esc(view.id)}"><i class="ph ${icon}"></i>${text}</button>`;
-    context.openPopover(anchor, `${option('edit-saved-view', 'ph-pencil-simple', tr('Edit view'))}${option('duplicate-saved-view', 'ph-copy', tr('Duplicate view'))}${option('pin-saved-view', view.isPinned ? 'ph-push-pin-slash' : 'ph-push-pin', view.isPinned ? tr('Unpin from “More”') : tr('Pin to “More”'))}<div class="popover-separator"></div>${option('delete-saved-view', 'ph-trash', tr('Delete view'), true)}`, { type: 'saved-view-menu', savedViewId: id });
+    const option = (action, icon, text, danger = false) => `<button class="popover-option${danger ? ' is-danger' : ''}" type="button" data-pop-action="${action}" data-saved-view-id="${esc(view.id)}"><i class="ph ${icon}"></i>${text}</button>`;
+    context.openPopover(anchor, context.menuSheet(view.name, `${option('edit-saved-view', 'ph-pencil-simple', tr('Edit view'))}${option('duplicate-saved-view', 'ph-copy', tr('Duplicate view'))}${option('pin-saved-view', view.isPinned ? 'ph-push-pin-slash' : 'ph-push-pin', view.isPinned ? tr('Unpin from “More”') : tr('Pin to “More”'))}<div class="popover-separator"></div>${option('delete-saved-view', 'ph-trash', tr('Delete view'), true)}`), { type: 'saved-view-menu', savedViewId: id });
   }
 
   function openModal(context, id = null) {

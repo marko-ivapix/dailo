@@ -30,7 +30,9 @@ test('dialogs use visible headings as accessible names and modal focus hooks', (
 test('Oblasti folds archived areas behind aria-expanded; the area window choices expose aria-pressed', () => {
   assert.doesNotMatch(areas, /role="tablist"|handleAreaTabKeydown/);
   assert.doesNotMatch(app, /handleAreaTabKeydown/);
-  assert.match(areas, /data-action="areas-fold" aria-expanded="\$\{open\}"/);
+  // R22b: the fold markup comes from foldButton, which sets aria-expanded.
+  assert.match(areas, /ctx\.foldButton\('areas-fold', tr\('Archived areas'\), archived\.length, open\)/);
+  assert.match(require('./support/fold.js').foldButtonSource, /data-action="\$\{action\}"\$\{attrs\} aria-expanded="\$\{open\}"/);
   assert.match(areas, /data-action="select-area-color"[^`]*aria-pressed="\$\{color === d\.color\}"/);
   assert.match(areas, /data-action="select-area-icon"[^`]*aria-pressed="\$\{icon === d\.icon\}"/);
 });

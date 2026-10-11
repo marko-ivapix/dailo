@@ -104,6 +104,7 @@ test('10: the project screen and "Bez projekta" use the usual header with the co
   const ctx = {
     state: { goals: [], ui: {} }, esc, getProject: id => (id === 'p' ? project : null), getArea: () => null,
     projectTasks: () => [], renderProjectTaskRow: () => '', goalPercent: () => 0, looseTasks: () => [], taskRow: () => '',
+    backLink: (route, label) => `<div class="screen-topbar"><button class="screen-back" type="button" data-route="${route}"><i class="ph ph-caret-left" aria-hidden="true"></i>${label}</button></div>`, // R22a: the fallback when opened directly
     pageHeader: (title, subtitle, options) => `<header title="${title}" subtitle="${subtitle}" menu="${options.projectMenu || ''}" color="${options.color || ''}"></header>`,
   };
   const html = projects.renderRoute({ type: 'project', id: 'p' }, ctx);
@@ -125,7 +126,7 @@ test('11: Sačuvani prikazi, Predstojeće and Pretraga have proper empty states'
 
 test('12: "Novi projekat" is a sheet like "Nova oblast" with one big button', () => {
   const projects = moduleFor('js/projects-ui.js');
-  const ctx = { modalState: { type: 'project', draft: { name: '', color: '#111111' }, error: '' }, modalFrame: (content, cls) => `<frame ${cls}>${content}</frame>`, PROJECT_COLORS: ['#111111', '#222222'], esc };
+  const ctx = { modalState: { type: 'project', draft: { name: '', color: '#111111' }, error: '' }, modalFrame: (content, cls) => `<frame ${cls}>${content}</frame>`, PROJECT_COLORS: ['#111111', '#222222'], colorName: color => `C${color}` /* R22c */, esc };
   const html = projects.renderRoute({ type: 'modal', modalType: 'project' }, ctx);
   assert.match(html, /^<frame quick><div class="modal-inner quick-sheet project-window"><div class="modal-header"><h2 class="modal-title">New project<\/h2>/);
   assert.match(html, /<input id="project-name" class="quick-title-input" type="text" maxlength="100" autocomplete="off" placeholder="Project name" value="" aria-label="Project name">/);

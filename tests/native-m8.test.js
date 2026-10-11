@@ -22,8 +22,8 @@ function listFiles(dir, base = dir) {
 
 // Verified on npm on 2026-10-09 (audit section 6).
 const CAPACITOR = {
-  '@capacitor/android': '8.5.3', '@capacitor/app': '8.1.2', '@capacitor/browser': '8.0.5', '@capacitor/core': '8.5.3',
-  '@capacitor/filesystem': '8.1.4', '@capacitor/ios': '8.5.3', '@capacitor/keyboard': '8.0.6',
+  '@aparajita/capacitor-biometric-auth': '10.0.0' /* R26, verified on npm 2026-10-11 */, '@capacitor/android': '8.5.3', '@capacitor/app': '8.1.2', '@capacitor/browser': '8.0.5', '@capacitor/core': '8.5.3',
+  '@capacitor/filesystem': '8.1.4', '@capacitor/haptics': '8.0.2' /* R23, verified on npm 2026-10-11 */, '@capacitor/ios': '8.5.3', '@capacitor/keyboard': '8.0.6',
   '@capacitor/local-notifications': '8.3.1', '@capacitor/share': '8.0.3',
 };
 
@@ -74,7 +74,7 @@ test('the www build copies exactly the precached shell and no service worker', (
 });
 
 test('the iOS and Android projects carry the app id and every plugin the platform layer uses', () => {
-  const plugins = ['App', 'Browser', 'Filesystem', 'Keyboard', 'LocalNotifications', 'Share'];
+  const plugins = ['App', 'Browser', 'Filesystem', 'Haptics', 'Keyboard', 'LocalNotifications', 'Share'];
   const platform = read('js/platform.js');
   for (const name of plugins.filter(name => name !== 'Keyboard')) assert.match(platform, new RegExp(`plugin\\('${name}'\\)`), `${name} is used`);
   assert.match(read('ios/App/App.xcodeproj/project.pbxproj'), /PRODUCT_BUNDLE_IDENTIFIER = cloud\.ivapix\.dailo;/);
@@ -87,7 +87,7 @@ test('the iOS and Android projects carry the app id and every plugin the platfor
   assert.match(gradle, /applicationId "cloud\.ivapix\.dailo"/);
   assert.match(gradle, /namespace = "cloud\.ivapix\.dailo"/);
   const settings = read('android/capacitor.settings.gradle');
-  for (const name of ['app', 'browser', 'filesystem', 'keyboard', 'local-notifications', 'share']) assert.match(settings, new RegExp(`include ':capacitor-${name}'`), `Android ${name}`);
+  for (const name of ['app', 'browser', 'filesystem', 'haptics', 'keyboard', 'local-notifications', 'share']) assert.match(settings, new RegExp(`include ':capacitor-${name}'`), `Android ${name}`);
   assert.match(read('android/variables.gradle'), /minSdkVersion = 24\n\s+compileSdkVersion = 36\n\s+targetSdkVersion = 36/);
   assert.match(read('android/.gitignore'), /app\/src\/main\/assets\/public/);
   assert.ok(exists('android/gradlew') && exists('android/gradle/wrapper/gradle-wrapper.properties'));

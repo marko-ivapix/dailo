@@ -101,7 +101,8 @@ test('a) the reminder sheet, new goals, habits and template reminders start at t
   assert.match(sheet, /\[tr\('Tomorrow at \{time\}', \{ time: morning \}\), \{ date: Core\.addDays\(Core\.dateOnly\(\), 1\), time: morning \}\]/);
   assert.match(sheet, /time: current\?\.time \|\| task\.plannedTime \|\| morning \}/);
   assert.doesNotMatch(app, /'Day before at 9:00'|'Tomorrow morning'/);
-  assert.equal((app.match(/onTargetDate: false, time: Core\.defaultReminderTime\(state\.settings\)/g) || []).length, 2, 'the two new goal drafts; loading keeps stored times');
+  // R21: the unused area name window that made the second goal draft is gone.
+  assert.equal((app.match(/onTargetDate: false, time: Core\.defaultReminderTime\(state\.settings\)/g) || []).length, 1, 'the new goal draft; loading keeps stored times');
   const habits = read('js/habits-ui.js');
   assert.match(habits, /times\.length \? times : \[ctx\.Core\.defaultReminderTime\(ctx\.state\.settings\)\]/);
   assert.match(habits, /if \(!sheet\.times\.length\) sheet\.times\.push\(ctx\.Core\.defaultReminderTime\(ctx\.state\.settings\)\)/);
@@ -146,8 +147,7 @@ test('the Serbian text', () => {
   assert.ok(!sr.includes('"Day before at 9:00"') && !sr.includes('"Tomorrow morning"'), 'the fixed 9:00 labels are gone');
 });
 
-test('R18 is released as 2.0.0-alpha.41', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.41');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.41';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.41');
+test('R18 shipped as 2.0.0-alpha.41 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 99) >= 41);
 });

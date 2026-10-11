@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const { withI18n, runInNewContextWithI18n } = require('./support/i18n.js');
+const { foldButton } = require('./support/fold.js');
 const Core = require('../js/core.js');
 
 function taskState(tasks, focusTaskIds = []) {
@@ -83,12 +84,13 @@ test('Today lists planned tasks in their order with counts instead of the Focus 
   const source = fs.readFileSync(require.resolve('../js/app.js'), 'utf8');
   const fn = name => { const start = source.indexOf(`  function ${name}(`); return source.slice(start, source.indexOf('\n  }\n', start) + 4); };
   const context = { state, Core, esc: String, formatDate: String, formatPageToday: String,
+    foldButton, // R22b: the one fold button from app.js
     pageHeader: () => '', backupReminderNotice: () => '', callDomainHook: () => '' /* R12c: journal notice */, renderHabitTodayRow: () => '', taskRow: (task, view) => `<article data-view="${view}">${task.id}</article>` };
   vm.createContext(withI18n(context));
   vm.runInContext(`const TODAY_LIMITS = { overdue: 3, today: 5, habits: 5 };\n${fn('todayLimited')}${fn('todayDueLabel')}${fn('deadlineRow')}${fn('listTasks')}${fn('renderToday')}`, context);
   const html = vm.runInContext('renderToday()', context);
   assert.deepEqual([...html.matchAll(/<article data-view="today">(\w+)</g)].map(match => match[1]), ['d', 'c', 'b', 'a']);
   assert.match(html, /Planned today<\/h2><span class="section-count">4<\/span>/);
-  assert.match(html, /Completed<\/span><span>1 /);
+  assert.match(html, /Completed · 1<\/span>/);
   assert.doesNotMatch(html, /data-view="focus"|data-daily-review/);
 });

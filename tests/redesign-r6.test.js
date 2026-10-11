@@ -62,10 +62,10 @@ test('I6: an empty Inbox shows a check, "Inbox je prazan" and "Sve je razvrstano
   for (const [key, value] of [['Inbox is empty', 'Inbox je prazan'], ['Everything is sorted\\.', 'Sve je razvrstano\\.'], ['Nothing is waiting', 'Ništa ne čeka'], ['Sort one by one', 'Razvrstaj redom'], ['one at a time', 'jednu po jednu']]) assert.match(sr, new RegExp(`"${key}": "${value}"`), key);
 });
 
-test('I5: a non-task row has its icon, title and type with Otvori, Oblast… and Razvrstano', () => {
+test('I5: a non-task row has its title and type with Otvori, Oblast… and Razvrstano (R20: no icon)', () => {
   const ctx = inboxContext({ goals: [{ id: 'g1', title: 'Run a 10K', isInbox: true, status: 'active', createdAt: at }] });
   const row = ctx.renderInboxRecord({ type: 'goal', item: ctx.state.goals[0] });
-  assert.match(row, /^<article class="today-row inbox-item-row" data-inbox-type="goal" data-inbox-id="g1"><span class="inbox-item-icon" aria-hidden="true"><i class="ph ph-target"><\/i><\/span><button class="today-row-main" type="button" data-route="goal\/g1"><span class="task-title">Run a 10K<\/span><span class="task-meta">Goal<\/span><\/button>/);
+  assert.match(row, /^<article class="today-row inbox-item-row" data-inbox-type="goal" data-inbox-id="g1"><button class="today-row-main" type="button" data-route="goal\/g1"><span class="task-title">Run a 10K<\/span><span class="task-meta">Goal<\/span><\/button>/);
   assert.match(row, /<div class="quick-actions inbox-item-chips"><button class="quick-chip" type="button" data-route="goal\/g1">Open details<\/button><button class="quick-chip" type="button" data-action="inbox-area" data-inbox-type="goal" data-inbox-id="g1">Area…<\/button><button class="quick-chip" type="button" data-action="inbox-remove" data-inbox-type="goal" data-inbox-id="g1">Sorted<\/button><\/div><\/article>$/);
   assert.match(sr, /"Open details": "Otvori"/);
   assert.match(sr, /"Area…": "Oblast…"/);
@@ -125,7 +125,7 @@ test('I2: "Razvrstaj redom" shows one item with large buttons, a counter and Pre
   assert.match(html, /<span>2 of 2<\/span>/);
   ctx.state.resources[0].isInbox = false;
   html = ctx.renderInboxTriage();
-  assert.match(html, /<div class="empty-state inbox-empty"><i class="ph ph-check-circle" aria-hidden="true"><\/i><h3>Finished<\/h3><p>Inbox is empty\.<\/p><\/div><div class="modal-footer"><span><\/span><div class="modal-footer-actions"><button class="btn btn-secondary" type="button" data-action="close-modal">Close<\/button>/);
+  assert.match(html, /<div class="empty-state inbox-empty"><i class="ph ph-check-circle" aria-hidden="true"><\/i><h3>Finished<\/h3><p>Inbox is empty\.<\/p><\/div><div class="quick-sheet-footer"><button class="btn btn-primary habit-window-save" type="button" data-action="close-modal">Close<\/button>/, 'R21: one big Zatvori');
   assert.match(app, /else if \(action === 'inbox-triage'\) openInboxTriage\(\);/);
   assert.match(app, /else if \(action === 'inbox-triage-skip'\) \{ modalState\.index \+= 1; renderModal\(\); \}/);
   assert.match(sr, /"Finished": "Gotovo"/);

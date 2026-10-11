@@ -31,6 +31,7 @@ function appContext(tasks, extra = {}) {
     parseLocalDate: value => { const [y, m, d] = String(value).split('-').map(Number); return new Date(y, m - 1, d, 12); },
     nowIso: () => '2026-10-14T10:00:00.000Z',
     saveState: () => calls.push(['save']), render: () => calls.push(['render']), renderModal: () => calls.push(['renderModal']), closePopover: () => calls.push(['close']),
+    haptic: () => {}, // R23: completing gives haptic feedback
     setUndo: (message, undo) => calls.push(['undo', message, undo]),
     removeCloneGoalLinks: id => calls.push(['unlink', id]),
     captureGoalProgress: () => null, evaluateGoalProgressChanges: () => {},

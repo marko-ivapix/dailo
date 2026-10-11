@@ -17,6 +17,33 @@
   const STORAGE_KEY = 'todoAppData';
   const VERSION = 3;
   const PROJECT_COLORS = ['#5362FF', '#30CBAD', '#A879FF', '#4CC9F0', '#F5B942', '#FF8A5B', '#F06A8A', '#8FD14F'];
+  // R22c: a swatch is announced by its color's name instead of one shared "Izaberi boju".
+  // R27 (J): an automatic weekly backup on the phone, the full ZIP in Documents/Dailo with the newest four kept.
+  // Device-local ('dailoAutoBackup', outside state, backups and sync): { enabled, lastAt, lastFile, error }.
+  const AUTO_BACKUP_KEY = 'dailoAutoBackup';
+  let autoBackupRunning = false;
+
+  // R26 (I): the journal lock. Device-local ('dailoJournalLock', outside state, backups and sync), and only in the
+  // phone app with a fingerprint, face or PIN. The journal opens once per visit and closes again when Dailo goes to
+  // the background.
+  const JOURNAL_LOCK_KEY = 'dailoJournalLock';
+  let journalUnlocked = false;
+  const journalLock = {
+    available: () => Promise.resolve(globalThis.DailoPlatform?.security?.available?.() || false),
+    enabled: () => { try { return Boolean(globalThis.DailoPlatform?.isNative) && localStorage.getItem(JOURNAL_LOCK_KEY) === '1'; } catch (_) { return false; } },
+    unlocked: () => journalUnlocked,
+    async unlock({ force = false } = {}) {
+      if (!force && (!journalLock.enabled() || journalUnlocked)) return true;
+      const ok = await globalThis.DailoPlatform?.security?.unlock?.({ reason: tr('Unlock the journal'), title: tr('Journal'), cancel: tr('Cancel') });
+      if (ok) journalUnlocked = true;
+      return Boolean(ok);
+    },
+    set(on) {
+      try { if (on) localStorage.setItem(JOURNAL_LOCK_KEY, '1'); else localStorage.removeItem(JOURNAL_LOCK_KEY); } catch (_) { /* stays as it was */ }
+      journalUnlocked = true;
+    },
+  };
+  const COLOR_NAMES = { '#5362FF': msg('Blue'), '#30CBAD': msg('Teal'), '#A879FF': msg('Purple'), '#4CC9F0': msg('Sky blue'), '#F5B942': msg('Yellow'), '#FF8A5B': msg('Orange'), '#F06A8A': msg('Pink'), '#8FD14F': msg('Green') };
   const AREA_ICONS = ['ph-briefcase', 'ph-house', 'ph-heart', 'ph-chart-line-up', 'ph-graduation-cap', 'ph-palette', 'ph-plant', 'ph-airplane'];
   const DATE_FMT = new Intl.DateTimeFormat(I18n.locale(), { weekday: 'long', month: 'long', day: 'numeric' });
   const SHORT_DATE_FMT = new Intl.DateTimeFormat(I18n.locale(), { month: 'short', day: 'numeric' });
@@ -58,6 +85,7 @@
   let dragState = null;
   let taskSwipeState = null;
   let suppressTaskSwipeClick = false;
+  let touchReorder = null;
   let modalReturnFocus = null;
   let popoverReturnFocus = null;
   const knowledgeAttachmentCache = new Map();
@@ -649,6 +677,13 @@
       openHabitStartSheet(anchor) { openDateSheet(anchor, { type: 'habit' }, 'start'); },
       calendarTaskRow(task) { return taskRow(task, 'calendar', { today: true }); },
       taskRow,
+      menuSheet,
+      backLink,
+      foldButton,
+      colorName,
+      journalLock,
+      readAutoBackup,
+      saveTextFile: (text, name, type) => globalThis.DailoPlatform.files.saveFile(new Blob([text], { type }), name, name),
       templateTypes: TEMPLATE_TYPES, templateLabel, openTemplateEditorFromSource, saveTemplateRecord, duplicateTemplateRecord, useTemplate,
       captureModalReturnFocus,
       durationLabel,
@@ -670,7 +705,7 @@
       openQuickAdd, openGoalModal, openHabitModal,
       renderAreaTaskRow(task, areaId) { return taskRow(task, `area:${areaId}`, { today: true }); },
       repeatEditorState, repeatEditorHtml, repeatEditorUpdate, repeatEditorError, repeatEditorSetStart, repeatRuleFromSheet, repeatFocusSelector, readRepeatInputs,
-      renderChoreRow(task, options = {}) { return taskRow(task, 'cleaning', { today: true, metaText: options.metaText, sideHtml: options.sideHtml }); },
+      renderChoreRow(task, options = {}) { return taskRow(task, 'cleaning', { today: true, metaText: options.metaText, metaLead: options.metaLead }); },
       renderGoalListRow(goal) { return callDomainHook('renderRoute', { type: 'goal-list-row', goal }) || ''; },
       renderHabitListRow(habit) { return callDomainHook('renderRoute', { type: 'habit-list-row', habit }) || ''; },
       projectOverviewRow(project) { return projectOverviewRow(project, listTasks()); },
@@ -869,14 +904,13 @@
   }
 
   // Redesign R6 (I5): a task is a Today row with Danas / Sutra / Kad stignem / Projekat…; another item has its
-  // icon, title and type with Otvori / Oblast… / Razvrstano.
+  // title and type with Otvori / Oblast… / Razvrstano (R20: no icon, so its title lines up with the task rows).
   function renderInboxRecord(record) {
     if (record.type === 'task') return taskRow(record.item, 'inbox', { today: true, inbox: true, draggable: true });
     const item = record.item;
     const label = { goal: msg('Goal'), habit: msg('Habit'), note: msg('Note'), resource: msg('Resource') }[record.type] || msg('Item');
-    const icon = record.type === 'goal' ? 'ph-target' : record.type === 'habit' ? 'ph-repeat' : record.type === 'note' ? 'ph-note' : 'ph-link';
     const attrs = `data-inbox-type="${esc(record.type)}" data-inbox-id="${esc(item.id)}"`;
-    return `<article class="today-row inbox-item-row" ${attrs}><span class="inbox-item-icon" aria-hidden="true"><i class="ph ${icon}"></i></span><button class="today-row-main" type="button" data-route="${esc(record.type)}/${esc(item.id)}"><span class="task-title">${esc(item.title || item.name || tr(label))}</span><span class="task-meta">${tr(label)}</span></button><div class="quick-actions inbox-item-chips"><button class="quick-chip" type="button" data-route="${esc(record.type)}/${esc(item.id)}">${tr('Open details')}</button><button class="quick-chip" type="button" data-action="inbox-area" ${attrs}>${tr('Area…')}</button><button class="quick-chip" type="button" data-action="inbox-remove" ${attrs}>${tr('Sorted')}</button></div></article>`;
+    return `<article class="today-row inbox-item-row" ${attrs}><button class="today-row-main" type="button" data-route="${esc(record.type)}/${esc(item.id)}"><span class="task-title">${esc(item.title || item.name || tr(label))}</span><span class="task-meta">${tr(label)}</span></button><div class="quick-actions inbox-item-chips"><button class="quick-chip" type="button" data-route="${esc(record.type)}/${esc(item.id)}">${tr('Open details')}</button><button class="quick-chip" type="button" data-action="inbox-area" ${attrs}>${tr('Area…')}</button><button class="quick-chip" type="button" data-action="inbox-remove" ${attrs}>${tr('Sorted')}</button></div></article>`;
   }
 
 
@@ -891,8 +925,8 @@
   // Focus survives a re-render (audit A-2): the focused control in the main view or bottom navigation is
   // found again by its id or data attributes. A route change names the page and moves focus to its heading.
   const FOCUS_KEYS = ['action', 'route', 'taskId', 'projectId', 'goalId', 'habitId', 'areaId', 'tagId', 'ownerType', 'ownerId', 'date', 'goalProperty', 'habitProperty', 'milestoneId', 'section', 'filter', 'value'];
-  function focusDescriptor(element) {
-    const region = element instanceof HTMLElement && element !== document.body ? element.closest('#main, #mobile-bottom-nav') : null;
+  function focusDescriptor(element, regions = '#main, #mobile-bottom-nav') {
+    const region = element instanceof HTMLElement && element !== document.body ? element.closest(regions) : null;
     if (!region) return null;
     // Rendering must never fail on focus bookkeeping, so a missing CSS.escape (old WebViews, jsdom) has a fallback.
     const escape = value => (globalThis.CSS?.escape ? globalThis.CSS.escape(value) : String(value).replace(/["\\\]#.:]/g, '\\$&'));
@@ -902,10 +936,30 @@
     return attrs ? `#${region.id} ${element.tagName.toLowerCase()}${attrs}` : null;
   }
   let renderedRoute = null;
+  let renderedTitle = '';
+  // Redesign R22a: the screens a detail screen was opened from, so its "‹ …" returns there. A tab on the bottom bar
+  // starts the trail over, and going back pops it instead of adding a loop.
+  const ROOT_ROUTES = ['#today', '#inbox', '#tasks', '#calendar', '#more'];
+  let screenTrail = [];
+  function trackScreen(route) {
+    if (renderedRoute === null || route === renderedRoute) return;
+    if (ROOT_ROUTES.includes(route)) screenTrail = [];
+    else if (screenTrail.at(-1)?.route === route) screenTrail.pop();
+    else screenTrail = [...screenTrail, { route: renderedRoute, title: renderedTitle }].slice(-20);
+  }
+  function backLink(fallbackRoute, fallbackLabel) {
+    const previous = screenTrail.at(-1);
+    const route = previous ? previous.route.replace(/^#/, '') : fallbackRoute;
+    const label = previous?.title || fallbackLabel;
+    return `<div class="screen-topbar"><button class="screen-back" type="button" data-route="${esc(route)}"><i class="ph ph-caret-left" aria-hidden="true"></i>${esc(label)}</button></div>`;
+  }
   function render() {
     const focused = focusDescriptor(document.activeElement);
-    renderView();
+    // R22c: the old #projects address opens Zadaci → Projekti.
+    if (location.hash === '#projects' && state?.ui) { state.ui.tasksView = 'projects'; history.replaceState(null, '', '#tasks'); }
     const route = location.hash || '#today';
+    trackScreen(route);
+    renderView();
     const routeChanged = renderedRoute !== null && route !== renderedRoute;
     renderedRoute = route;
     announceRoute(routeChanged);
@@ -914,6 +968,7 @@
   function announceRoute(moveFocus) {
     const heading = $('#main .page-title');
     const name = heading?.textContent?.trim();
+    renderedTitle = name || '';
     document.title = name ? `${name} · Dailo` : 'Dailo';
     if (moveFocus && !modalState && heading) { heading.setAttribute('tabindex', '-1'); heading.focus({ preventScroll: true }); }
   }
@@ -1103,7 +1158,7 @@
     if (habits.length) html += section('habits', tr('Habits'), `${habits.length - sections.habits.filter(item => item.status.status !== 'done').length}/${habits.length}`, `<div class="habit-list today-card">${todayLimited('habits', habits.map(item => renderHabitTodayRow(item.habit, item.status)))}</div>`);
     if (sections.completed.length) {
       const open = state.ui.todayCompletedExpanded === true;
-      html += `<section class="section today-section today-section--completed" data-today-section="completed"><button class="collapsible-trigger" type="button" data-action="toggle-today-completed" aria-expanded="${open}"><span class="left"><i class="ph ph-check-circle"></i> ${tr('Completed')}</span><span>${sections.completed.length} <i class="ph ph-caret-${open ? 'up' : 'down'}"></i></span></button>`;
+      html += `<section class="section today-section today-section--completed" data-today-section="completed">${foldButton('toggle-today-completed', tr('Completed'), sections.completed.length, open)}`;
       if (open) html += `<div class="task-list today-card">${sections.completed.map(task => taskRow(task, 'completed', { today: true })).join('')}</div>`;
       html += `</section>`;
     }
@@ -1119,7 +1174,7 @@
     let html = pageHeader(tr('Inbox'), all.length ? trn(all.length, '{count} item waiting to be organized', '{count} items waiting to be organized') : tr('Nothing is waiting'), {});
     if (!all.length) return html + `<div class="empty-state inbox-empty"><i class="ph ph-check-circle" aria-hidden="true"></i><h3>${tr('Inbox is empty')}</h3><p>${tr('Everything is sorted.')}</p></div>`;
     html += `<button class="inbox-triage-button" type="button" data-action="inbox-triage"><i class="ph ph-stack" aria-hidden="true"></i><span><strong>${tr('Sort one by one')}</strong> · ${tr('one at a time')}</span><i class="ph ph-caret-right" aria-hidden="true"></i></button>`;
-    if (present.length > 1) html += `<div class="inbox-filter-tabs" role="tablist" aria-label="${tr('Filter Inbox')}">${[INBOX_FILTERS[0], ...present].map(([value, label]) => `<button class="inbox-filter-tab ${filter === value ? 'is-active' : ''}" type="button" role="tab" aria-selected="${filter === value}" data-action="inbox-filter" data-inbox-filter="${value}">${tr(label)}<span class="inbox-filter-count">${value === 'all' ? all.length : activeInboxRecords(value).length}</span></button>`).join('')}</div>`;
+    if (present.length > 1) html += `<div class="sheet-chips inbox-filter-chips" role="group" aria-label="${tr('Filter Inbox')}">${[INBOX_FILTERS[0], ...present].map(([value, label]) => `<button class="quick-chip${filter === value ? ' is-selected' : ''}" type="button" aria-pressed="${filter === value}" data-action="inbox-filter" data-inbox-filter="${value}">${tr(label)}<span class="inbox-filter-count">${value === 'all' ? all.length : activeInboxRecords(value).length}</span></button>`).join('')}</div>`;
     const groups = new Map();
     for (const record of records) {
       const group = inboxGroupForDate(record.item.createdAt);
@@ -1152,7 +1207,7 @@
     const queue = modalState.queue || [];
     const open = queue.filter(([type, id]) => inboxTriageOpen(type, id));
     const header = `<div class="modal-header"><h2 class="modal-title">${tr('Sorting')}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div>`;
-    if (!open.length) return modalFrame(`<div class="modal-inner">${header}<div class="empty-state inbox-empty"><i class="ph ph-check-circle" aria-hidden="true"></i><h3>${tr('Finished')}</h3><p>${activeInboxRecords('all').length ? tr('This list is sorted.') : tr('Inbox is empty.')}</p></div><div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-secondary" type="button" data-action="close-modal">${tr('Close')}</button></div></div></div>`, 'quick inbox-triage-modal');
+    if (!open.length) return modalFrame(`<div class="modal-inner">${header}<div class="empty-state inbox-empty"><i class="ph ph-check-circle" aria-hidden="true"></i><h3>${tr('Finished')}</h3><p>${activeInboxRecords('all').length ? tr('This list is sorted.') : tr('Inbox is empty.')}</p></div><div class="quick-sheet-footer"><button class="btn btn-primary habit-window-save" type="button" data-action="close-modal">${tr('Close')}</button></div></div>`, 'quick inbox-triage-modal');
     if (modalState.index >= open.length) modalState.index = 0;
     const [type, id] = open[modalState.index];
     const item = inboxItem(type, id);
@@ -1204,7 +1259,7 @@
       moreRow('saved-views', 'ph-funnel', tr('Saved Views'), count(state.savedViews)),
     ]);
     html += card(tr('Archives'), [
-      moreRow('completed', 'ph-check-circle', tr('Completed'), count(state.tasks.filter(task => task.isCompleted))),
+      moreRow('completed', 'ph-check-circle', tr('Completed tasks'), count(state.tasks.filter(task => task.isCompleted))),
       moreRow('archived', 'ph-archive', tr('Archived Projects'), count(state.projects.filter(project => project.isArchived && !project.isCleaningRoom))),
     ]);
     // R15 (M5 amended): Nalog sits next to Podešavanja and carries the account state.
@@ -1243,21 +1298,21 @@
     const suggestions = Core.deriveTodaySections(tasks, Core.dateOnly()).suggestions;
     if (suggestions.length) {
       const open = state.ui.suggestionsExpanded === true;
-      html += `<section class="tasks-suggestions" data-tasks-suggestions><button class="collapsible-trigger" type="button" data-action="toggle-suggestions" aria-expanded="${open}"><span class="left"><i class="ph ph-sparkle"></i> ${tr('Suggested for today')}</span><span>${suggestions.length} <i class="ph ph-caret-${open ? 'up' : 'down'}"></i></span></button>`;
+      html += `<section class="tasks-suggestions" data-tasks-suggestions>${foldButton('toggle-suggestions', tr('Suggested for today'), suggestions.length, open)}`;
       if (open) html += `<div class="task-list today-card">${suggestions.map(item => taskRow(item.task, 'suggestion', { today: true, addToday: true, suggestionReason: item.reason })).join('')}</div><button class="btn btn-ghost" type="button" data-action="add-all-suggestions"><i class="ph ph-plus-circle"></i> ${tr('Add all to Today')}</button>`;
       html += `</section>`;
     }
     html += `<div class="view-tabs tasks-view-switch" role="group" aria-label="${tr('Tasks')}">${tab('anytime', `${tr('Anytime')} · ${later.length}`)}${tab('projects', tr('Projects'))}</div>`;
     if (view === 'projects') {
       const loose = tasks.filter(task => !task.projectId && !task.isInbox && !task.isCompleted).length;
-      html += `<div class="more-card"><button class="project-row" type="button" data-route="project/none"><i class="ph ph-tray project-row-icon" aria-hidden="true"></i><span class="project-row-main"><span class="task-title">${tr('No project')}</span><span class="task-meta">${esc(trn(loose, '{count} open', '{count} open'))}</span></span></button></div>`;
+      html += `<div class="today-card project-list"><button class="project-row" type="button" data-route="project/none"><i class="ph ph-tray project-row-icon" aria-hidden="true"></i><span class="project-row-main"><span class="task-title">${tr('No project')}</span><span class="task-meta">${esc(trn(loose, '{count} open', '{count} open'))}</span></span></button></div>`;
       const areas = sortedAreas().filter(area => area.status !== 'archived');
       for (const area of areas) {
         const list = projects.filter(project => project.areaId === area.id);
-        if (list.length) html += group(area.name, list.length, `<div class="more-card">${list.map(project => projectOverviewRow(project, tasks)).join('')}</div>`);
+        if (list.length) html += group(area.name, list.length, `<div class="today-card project-list">${list.map(project => projectOverviewRow(project, tasks)).join('')}</div>`);
       }
       const unassigned = projects.filter(project => !areas.some(area => area.id === project.areaId));
-      if (unassigned.length) html += group(tr('No area'), unassigned.length, `<div class="more-card">${unassigned.map(project => projectOverviewRow(project, tasks)).join('')}</div>`);
+      if (unassigned.length) html += group(tr('No area'), unassigned.length, `<div class="today-card project-list">${unassigned.map(project => projectOverviewRow(project, tasks)).join('')}</div>`);
       html += `<button class="inline-add" type="button" data-action="new-project"><i class="ph ph-plus"></i> ${tr('New project')}</button>`;
       return html;
     }
@@ -1310,7 +1365,7 @@
     const tag = getTag(tagId);
     if (!tag) return renderTags();
     const tasks = Core.tasksForTag(listTasks(), tag.id), library = tagLibrary(tag.id);
-    let html = pageHeader(tag.name, trn(tasks.length, '{count} active task', '{count} active tasks'), { add: false, actionHtml: `<button class="btn-icon" type="button" data-action="tag-menu" data-tag-id="${esc(tag.id)}" aria-label="${tr('Tag actions')}"><i class="ph ph-dots-three"></i></button>` });
+    let html = backLink('tags', tr('Tags')) + pageHeader(tag.name, trn(tasks.length, '{count} active task', '{count} active tasks'), { add: false, actionHtml: `<button class="btn-icon" type="button" data-action="tag-menu" data-tag-id="${esc(tag.id)}" aria-label="${tr('Tag actions')}"><i class="ph ph-dots-three"></i></button>` });
     html += tasks.length ? `<div class="task-list today-card">${tasks.map(task => taskRow(task, 'tags', { today: true })).join('')}</div>` : emptyState(tr('No active tasks with this tag.'), tr('Assign it with #tag in Quick Add or in the task window.'));
     if (library.length) html += `<section class="section tag-library"><div class="section-header"><h2 class="section-label">${tr('In the library')} · ${library.length}</h2></div><div class="today-card">${library.map(libraryRow).join('')}</div></section>`;
     return html;
@@ -1428,7 +1483,7 @@
       templateContext: context,
       defaults,
       draft: {
-        title: context.title || '', notes: '', projectId: defaults.projectId, areaId: defaults.areaId, plannedDate: defaults.plannedDate, parsedPlanDate: null, explicitPlan: defaults.explicitPlan,
+        title: context.title || '', notes: context.notes || '', projectId: defaults.projectId, areaId: defaults.areaId, plannedDate: defaults.plannedDate, parsedPlanDate: null, explicitPlan: defaults.explicitPlan,
         dueDate: null, plannedTime: null, dueTime: null, explicitPlannedTime: false, reminderAt: null, reminderFiredAt: null, recurrence: null, tagIds: [], priority: 'none', subtasks: [],
       },
       error: '',
@@ -1572,13 +1627,7 @@
     requestAnimationFrame(() => $('#tag-name')?.focus());
   }
 
-  function openAreaLinkedModal(kind, areaId) {
-    captureModalReturnFocus();
-    const label = kind === 'goal' ? 'Goal' : 'Habit';
-    modalState = { type: 'area-linked', kind, areaId, draft: { name: '' }, error: '' };
-    renderModal();
-    requestAnimationFrame(() => $('#area-linked-name')?.focus());
-  }
+
 
   function goalDraft(goal = null, areaId = null) {
     return {
@@ -1674,13 +1723,14 @@
 
   function renderModal() {
     const root = $('#modal-root');
-    if (!modalState) { root.innerHTML = ''; return; }
+    if (!modalState) { root.innerHTML = ''; root.dataset.modalType = ''; return; }
+    // R22c: when the same window redraws, the focus returns to the control that had it (not to the page).
+    const focused = root.dataset.modalType === modalState.type ? focusDescriptor(document.activeElement, '#modal-root') : null;
     const domainContent = callDomainHook('renderRoute', { type: 'modal', modalType: modalState.type });
     if (domainContent !== undefined) root.innerHTML = domainContent;
     else if (modalState.type === 'quick') root.innerHTML = renderQuickModal();
     else if (modalState.type === 'search') root.innerHTML = renderSearchModal();
     else if (modalState.type === 'tag') root.innerHTML = renderTagModal();
-    else if (modalState.type === 'area-linked') root.innerHTML = renderAreaLinkedModal();
     else if (modalState.type === 'confirm') root.innerHTML = renderConfirmModal();
     else if (modalState.type === 'duplicate') root.innerHTML = renderDuplicateModal();
     else if (modalState.type === 'focus') root.innerHTML = renderFocusModal();
@@ -1689,11 +1739,14 @@
     else if (modalState.type === 'recurrence-scope') root.innerHTML = renderRecurrenceScope();
     else if (modalState.type === 'sync-choice') root.innerHTML = renderSyncChoice();
     else if (modalState.type === 'inbox-triage') root.innerHTML = renderInboxTriage();
-    if (['project','habit','goal'].includes(modalState.type) && !modalState.taskId && !modalState.projectId && !modalState.habitId && !modalState.goalId) {
-      $('.modal-inner',root)?.insertAdjacentHTML('afterbegin',`<button class="btn btn-ghost" type="button" data-action="from-template"><i class="ph ph-copy"></i> ${tr('From template')}</button>`);
+    // R20: "Iz šablona" is a chip under the window title, and only when templates of that type exist.
+    if (['project','habit','goal'].includes(modalState.type) && !modalState.taskId && !modalState.projectId && !modalState.habitId && !modalState.goalId && state.templates.some(template => template.type === modalState.type)) {
+      $('.modal-header', root)?.insertAdjacentHTML('afterend', `<div class="quick-template-row"><button class="quick-chip" type="button" data-action="from-template"><i class="ph ph-copy" aria-hidden="true"></i>${tr('From template')}</button></div>`);
     }
-    if (['confirm','recurrence-scope'].includes(modalState?.type)) requestAnimationFrame(() => root.querySelector('.modal button, .modal [href], .modal input, .modal select, .modal textarea, .modal [tabindex]:not([tabindex="-1"])')?.focus());
-    if (['goal', 'goal-source', 'goal-links', 'goal-reminders', 'goal-history', 'milestone'].includes(modalState?.type)) requestAnimationFrame(() => ([...root.querySelectorAll('input, select, textarea')].find(el => el.offsetParent !== null) || root.querySelector('.modal-footer [data-action="close-modal"]'))?.focus());
+    root.dataset.modalType = modalState.type;
+    if (focused && !root.contains(document.activeElement)) $(focused)?.focus({ preventScroll: true });
+    if (!focused && ['confirm','recurrence-scope'].includes(modalState?.type)) requestAnimationFrame(() => root.querySelector('.modal button, .modal [href], .modal input, .modal select, .modal textarea, .modal [tabindex]:not([tabindex="-1"])')?.focus());
+    if (!focused && ['goal', 'goal-source', 'goal-links', 'goal-reminders', 'goal-history', 'milestone'].includes(modalState?.type)) requestAnimationFrame(() => ([...root.querySelectorAll('input, select, textarea')].find(el => el.offsetParent !== null) || root.querySelector('.modal-footer [data-action="close-modal"]'))?.focus());
   }
 
   function modalFrame(content, cls = '', dialogAttrs = '') {
@@ -1804,7 +1857,8 @@
   }
   function renderTemplatePicker() {
     const rows=state.templates.filter(t=>t.type===modalState.kind);
-    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">${tr({ task: msg('From task template'), project: msg('From project template'), habit: msg('From habit template'), goal: msg('From goal template') }[modalState.kind] || msg('From template'))}</h2><button class="btn-icon" data-action="template-picker-back" aria-label="${tr('Back')}"><i class="ph ph-x"></i></button></div>${rows.length?rows.map(t=>`<button class="btn btn-secondary template-choice" data-action="choose-template" data-template-id="${esc(t.id)}">${esc(t.name)}</button>`).join(''):`<p class="area-empty-copy">${tr('No templates of this type yet.')}</p>`}</div>`,'quick');
+    // R21: the templates as rows in one card, like the other choice sheets.
+    return modalFrame(`<div class="modal-inner quick-sheet template-picker-window"><div class="modal-header"><h2 class="modal-title">${tr({ task: msg('From task template'), project: msg('From project template'), habit: msg('From habit template'), goal: msg('From goal template') }[modalState.kind] || msg('From template'))}</h2><button class="btn-icon" type="button" data-action="template-picker-back" aria-label="${tr('Back')}"><i class="ph ph-x"></i></button></div>${rows.length?`<div class="sheet-card">${rows.map(t=>`<button class="sheet-row template-choice" type="button" data-action="choose-template" data-template-id="${esc(t.id)}"><i class="ph ph-copy" aria-hidden="true"></i><span>${esc(t.name)}</span></button>`).join('')}</div>`:`<p class="sheet-note">${tr('No templates of this type yet.')}</p>`}</div>`,'quick');
   }
   function chooseTemplate(id) {
     const template=state.templates.find(t=>t.id===id); if(!template)return;
@@ -1883,6 +1937,7 @@
       <div class="modal-header"><h2 class="modal-title">${tr('New task')}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div>
       <input id="quick-title" class="quick-title-input${modalState.error ? ' is-error' : ''}" type="text" maxlength="500" autocomplete="off" placeholder="${tr('What needs to be done?')}" value="${esc(d.title)}" aria-label="${tr('Task title')}" />
       ${modalState.error ? `<div class="validation">${esc(modalState.error)}</div>` : ''}
+      ${modalState.draft.notes ? `<p class="quick-shared-note"><i class="ph ph-link" aria-hidden="true"></i><span>${esc(modalState.draft.notes)}</span></p>` : ''}
       <div class="quick-parse-slot" data-quick-preview-slot aria-live="polite">${quickParsePreview(parsed)}</div>
       <div class="quick-selectors"><button class="quick-selector" type="button" data-action="quick-plan-picker"><i class="ph ph-calendar-check" aria-hidden="true"></i><span data-quick-plan-label>${esc(quickPlanLabel(plan, time))}</span><i class="ph ph-caret-right" aria-hidden="true"></i></button><button class="quick-selector" type="button" data-action="quick-project-picker"><i class="ph ph-folder-simple" aria-hidden="true"></i><span data-quick-place-label>${esc(quickPlace(d, parsed).label)}</span><i class="ph ph-caret-right" aria-hidden="true"></i></button></div>
       ${quickTemplateRow()}
@@ -2101,8 +2156,8 @@
   }
 
   function openAttachmentMenu(anchor, attachmentId) {
-    const html = `<button class="popover-option" type="button" data-pop-action="attachment-open" data-attachment-id="${esc(attachmentId)}"><i class="ph ph-arrow-square-out"></i>${tr('Open file')}</button><button class="popover-option" type="button" data-pop-action="attachment-download" data-attachment-id="${esc(attachmentId)}"><i class="ph ph-download-simple"></i>${tr('Download')}</button><div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="attachment-delete" data-attachment-id="${esc(attachmentId)}" data-owner-type="${esc(anchor.dataset.ownerType)}" data-owner-id="${esc(anchor.dataset.ownerId)}" style="color:var(--danger)"><i class="ph ph-trash"></i>${tr('Delete')}</button>`;
-    openPopover(anchor, html, { type: 'attachment-menu', attachmentId });
+    const html = `<button class="popover-option" type="button" data-pop-action="attachment-open" data-attachment-id="${esc(attachmentId)}"><i class="ph ph-arrow-square-out"></i>${tr('Open file')}</button><button class="popover-option" type="button" data-pop-action="attachment-download" data-attachment-id="${esc(attachmentId)}"><i class="ph ph-download-simple"></i>${tr('Download')}</button><div class="popover-separator"></div><button class="popover-option is-danger" type="button" data-pop-action="attachment-delete" data-attachment-id="${esc(attachmentId)}" data-owner-type="${esc(anchor.dataset.ownerType)}" data-owner-id="${esc(anchor.dataset.ownerId)}"><i class="ph ph-trash"></i>${tr('Delete')}</button>`;
+    openPopover(anchor, menuSheet(anchor.closest?.('.attachment-row')?.querySelector('strong')?.textContent, html), { type: 'attachment-menu', attachmentId });
   }
 
   async function openAttachment(attachmentId, download = false) {
@@ -2162,7 +2217,7 @@
       html += `<h3 class="search-section-title">${tr('Tasks')} · ${result.tasks.length}</h3><div class="today-card search-list">${result.tasks.slice(0, SEARCH_TASK_LIMIT).map(({ task }) => searchTaskResult(task)).join('')}</div>${searchMoreNote(result.tasks.length, SEARCH_TASK_LIMIT)}`;
     }
     if (result.projects.length) {
-      html += `<h3 class="search-section-title">${tr('Projects')} · ${result.projects.length}</h3><div class="today-card search-list">${result.projects.slice(0, SEARCH_PROJECT_LIMIT).map(project => `<button class="search-result" type="button" data-route="project/${esc(project.id)}"><span class="search-result-icon"><span class="project-dot" style="--project-color:${esc(project.color)}"></span></span><span><span class="search-result-title">${esc(project.name)}</span><span class="search-result-meta">${tr('Project')}${project.isArchived ? ` · ${tr('archived')}` : ''}</span></span></button>`).join('')}</div>${searchMoreNote(result.projects.length, SEARCH_PROJECT_LIMIT)}`;
+      html += `<h3 class="search-section-title">${tr('Projects')} · ${result.projects.length}</h3><div class="today-card search-list">${result.projects.slice(0, SEARCH_PROJECT_LIMIT).map(project => `<button class="search-result" type="button" data-route="project/${esc(project.id)}"><span class="search-result-icon"><span class="project-dot" style="--project-color:${esc(project.color)}"></span></span><span class="search-result-text"><span class="search-result-title">${esc(project.name)}</span><span class="search-result-meta">${tr('Project')}${project.isArchived ? ` · ${tr('archived')}` : ''}</span></span></button>`).join('')}</div>${searchMoreNote(result.projects.length, SEARCH_PROJECT_LIMIT)}`;
     }
     return html;
   }
@@ -2185,23 +2240,25 @@
   function renderTagModal() {
     const editing = Boolean(modalState.tagId);
     const d = modalState.draft;
-    return modalFrame(`<div class="modal-inner quick-sheet tag-window"><div class="modal-header"><h2 class="modal-title">${editing ? tr('Edit tag') : tr('New tag')}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div><input id="tag-name" class="quick-title-input${modalState.error ? ' is-error' : ''}" type="text" maxlength="80" autocomplete="off" placeholder="${tr('Tag name')}" value="${esc(d.name)}" aria-label="${tr('Tag name')}">${modalState.error ? `<div class="validation" role="alert">${esc(modalState.error)}</div>` : ''}<span class="habit-window-label">${tr('Color')}</span><div class="color-grid">${PROJECT_COLORS.map(c => `<button class="color-swatch${c === d.color ? ' is-selected' : ''}" type="button" data-action="select-tag-color" data-color="${c}" style="--swatch:${c}" aria-label="${tr('Select color')}" aria-pressed="${c === d.color}"></button>`).join('')}</div><div class="quick-sheet-footer"><span></span><button class="btn btn-primary habit-window-save" type="button" data-action="save-tag">${editing ? tr('Save changes') : tr('Create tag')}</button></div></div>`, 'quick');
+    return modalFrame(`<div class="modal-inner quick-sheet tag-window"><div class="modal-header"><h2 class="modal-title">${editing ? tr('Edit tag') : tr('New tag')}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div><input id="tag-name" class="quick-title-input${modalState.error ? ' is-error' : ''}" type="text" maxlength="80" autocomplete="off" placeholder="${tr('Tag name')}" value="${esc(d.name)}" aria-label="${tr('Tag name')}">${modalState.error ? `<div class="validation" role="alert">${esc(modalState.error)}</div>` : ''}<span class="habit-window-label">${tr('Color')}</span><div class="color-grid">${PROJECT_COLORS.map(c => `<button class="color-swatch${c === d.color ? ' is-selected' : ''}" type="button" data-action="select-tag-color" data-color="${c}" style="--swatch:${c}" aria-label="${esc(tr('Color: {name}', { name: colorName(c) }))}" aria-pressed="${c === d.color}"></button>`).join('')}</div><div class="quick-sheet-footer"><span></span><button class="btn btn-primary habit-window-save" type="button" data-action="save-tag">${editing ? tr('Save changes') : tr('Create tag')}</button></div></div>`, 'quick');
   }
 
-  function renderAreaLinkedModal() {
-    const goal = modalState.kind === 'goal';
-    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">${goal ? tr('New goal') : tr('New habit')}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div><label class="field-label" for="area-linked-name">${tr('Name')}</label><input id="area-linked-name" class="input ${modalState.error ? 'is-error' : ''}" type="text" maxlength="100" value="${esc(modalState.draft.name)}" placeholder="${goal ? tr('Goal name') : tr('Habit name')}" />${modalState.error ? `<div class="validation">${esc(modalState.error)}</div>` : ''}<div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">${tr('Cancel')}</button><button class="btn btn-primary" type="button" data-action="save-area-linked">${goal ? tr('Create goal') : tr('Create habit')}</button></div></div></div>`, 'quick');
-  }
+
 
   function renderDuplicateModal() {
     const task = getTask(modalState.taskId); if (!task) return '';
     const count = (task.attachmentIds || []).length;
-    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="dialog-title">${tr('Duplicate task')}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close Duplicate task')}"><i class="ph ph-x"></i></button></div><p class="dialog-copy">${trn(count, 'This task has {count} attachment. Copy attachments too?', 'This task has {count} attachments. Copy attachments too?')}</p><div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">${tr('Cancel')}</button><button class="btn btn-secondary" type="button" data-action="duplicate-without-files" data-task-id="${esc(task.id)}">${tr('Without files')}</button><button class="btn btn-primary" type="button" data-action="duplicate-with-files" data-task-id="${esc(task.id)}">${tr('Copy files')}</button></div></div></div>`, 'small-modal');
+    // R21: a sheet with full-width buttons, the main one first; the X cancels.
+    return modalFrame(`<div class="modal-inner quick-sheet choice-window"><div class="modal-header"><h2 class="modal-title">${tr('Duplicate task')}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close Duplicate task')}"><i class="ph ph-x"></i></button></div><p class="dialog-copy">${trn(count, 'This task has {count} attachment. Copy attachments too?', 'This task has {count} attachments. Copy attachments too?')}</p><div class="sheet-actions"><button class="btn btn-primary" type="button" data-action="duplicate-with-files" data-task-id="${esc(task.id)}">${tr('Copy files')}</button><button class="btn btn-secondary" type="button" data-action="duplicate-without-files" data-task-id="${esc(task.id)}">${tr('Without files')}</button></div></div>`, 'quick');
   }
 
+  // R22b: a sheet like the other choice windows — the title and message, the word to type when asked, then the red
+  // button and Otkaži as full-width buttons. On a phone it opens at the bottom like every other window.
   function renderConfirmModal() {
-    return modalFrame(`<div class="modal-inner"><div class="modal-header"><div><h2 class="modal-title">${esc(tr(modalState.title))}</h2>${modalState.message ? `<p class="page-subtitle" style="margin-top:10px;max-width:380px">${esc(tr(modalState.message))}</p>` : ''}</div><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close dialog')}"><i class="ph ph-x"></i></button></div>${modalState.phrase ? `<label>${tr('Type {word} to continue', { word: esc(modalState.phrase) })}<input id="global-confirm-phrase" class="input" autocomplete="off" /></label>` : ''}<div class="modal-footer" style="border:0;padding-top:0"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">${tr('Cancel')}</button><button class="btn btn-danger" type="button" data-action="confirm-action">${esc(tr(modalState.confirmLabel || msg('Delete')))}</button></div></div></div>`, 'confirm-modal');
+    const phrase = modalState.phrase ? `<label class="sheet-label" for="global-confirm-phrase">${tr('Type {word} to continue', { word: esc(modalState.phrase) })}<input id="global-confirm-phrase" class="input" autocomplete="off" autocapitalize="characters" spellcheck="false" /></label>` : '';
+    return modalFrame(`<div class="modal-inner quick-sheet choice-window confirm-window"><div class="modal-header"><h2 class="modal-title">${esc(tr(modalState.title))}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close dialog')}"><i class="ph ph-x"></i></button></div>${modalState.message ? `<p class="dialog-copy">${esc(tr(modalState.message))}</p>` : ''}${phrase}<div class="sheet-actions"><button class="btn btn-danger" type="button" data-action="confirm-action">${esc(tr(modalState.confirmLabel || msg('Delete')))}</button><button class="btn btn-secondary" type="button" data-action="close-modal">${tr('Cancel')}</button></div></div>`, 'quick confirm-modal');
   }
+
 
   function nextProjectColor() {
     return PROJECT_COLORS[state.projects.length % PROJECT_COLORS.length];
@@ -2453,7 +2510,7 @@
   function inlineNewTag(button) {
     const targetType = button.dataset.targetType; const taskId = button.dataset.taskId || ''; const color = PROJECT_COLORS[(state.tags || []).length % PROJECT_COLORS.length];
     if (!popoverEl) return;
-    setPopoverContent(`<div class="popover-title">${tr('New tag')}</div><div class="popover-inline-form"><input id="inline-tag-name" class="input" type="text" maxlength="80" placeholder="${tr('Tag name')}" /><div class="color-grid">${PROJECT_COLORS.map(c=>`<button class="color-swatch ${c===color?'is-selected':''}" type="button" data-pop-action="inline-select-tag-color" data-color="${c}" aria-label="${tr('Select color')}" style="--swatch:${c}"></button>`).join('')}</div><div id="inline-tag-error" class="validation" hidden></div><div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn btn-ghost" type="button" data-pop-action="inline-tag-cancel">${tr('Cancel')}</button><button class="btn btn-primary" type="button" data-pop-action="inline-tag-create" data-target-type="${targetType}" ${taskId ? `data-task-id="${esc(taskId)}"` : ''} data-color="${color}">${tr('Create')}</button></div></div>`);
+    setPopoverContent(`<div class="popover-title">${tr('New tag')}</div><div class="popover-inline-form"><input id="inline-tag-name" class="input" type="text" maxlength="80" placeholder="${tr('Tag name')}" /><div class="color-grid">${PROJECT_COLORS.map(c=>`<button class="color-swatch ${c===color?'is-selected':''}" type="button" data-pop-action="inline-select-tag-color" data-color="${c}" aria-label="${esc(tr('Color: {name}', { name: colorName(c) }))}" style="--swatch:${c}"></button>`).join('')}</div><div id="inline-tag-error" class="validation" hidden></div><div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn btn-ghost" type="button" data-pop-action="inline-tag-cancel">${tr('Cancel')}</button><button class="btn btn-primary" type="button" data-pop-action="inline-tag-create" data-target-type="${targetType}" ${taskId ? `data-task-id="${esc(taskId)}"` : ''} data-color="${color}">${tr('Create')}</button></div></div>`);
     requestAnimationFrame(()=>$('#inline-tag-name',popoverEl)?.focus());
   }
 
@@ -2683,19 +2740,34 @@
 
 
 
+  function colorName(hex) {
+    const name = COLOR_NAMES[String(hex || '').toUpperCase()];
+    return name ? tr(name) : String(hex || '');
+  }
+
+  // Redesign R20: a ⋯ menu is a sheet like the others — the item's name as its title, the options in one card.
+  function menuSheet(title, body) {
+    return `<div class="popover-title">${esc(title || tr('Menu'))}</div><div class="sheet-card sheet-menu">${body}</div>`;
+  }
+
+  // Redesign R22b: one fold button everywhere — the label and count on the left, the caret on the right.
+  function foldButton(action, label, count, open, attrs = '') {
+    return `<button class="collapsible-trigger" type="button" data-action="${action}"${attrs} aria-expanded="${open}"><span class="left">${label} · ${count}</span><i class="ph ph-caret-${open ? 'up' : 'down'}" aria-hidden="true"></i></button>`;
+  }
+
   function openTaskMenu(anchor, taskId) {
     const task = getTask(taskId); if (!task) return;
     const today = Core.dateOnly();
     const todayAction = task.plannedDate === today ? '' : `<button class="popover-option" type="button" data-pop-action="task-add-today" data-task-id="${esc(taskId)}"><i class="ph ph-sun"></i>${tr('Add to Today')}</button>`;
     const focus = task.isCompleted ? '' : `<button class="popover-option" type="button" data-pop-action="task-start-focus" data-task-id="${esc(taskId)}"><i class="ph ph-timer"></i>${tr('Start focus')}</button>`;
-    const html = `${focus}${todayAction}<button class="popover-option" type="button" data-pop-action="task-move-tomorrow" data-task-id="${esc(taskId)}"><i class="ph ph-arrow-right"></i>${tr('Move to Tomorrow')}</button><button class="popover-option" type="button" data-pop-action="task-move-anytime" data-task-id="${esc(taskId)}"><i class="ph ph-infinity"></i>${tr('Move to Anytime')}</button><button class="popover-option" type="button" data-pop-action="task-open-plan" data-task-id="${esc(taskId)}"><i class="ph ph-calendar-check"></i>${tr('Plan for...')}</button><button class="popover-option" type="button" data-pop-action="task-open-due" data-task-id="${esc(taskId)}"><i class="ph ph-flag"></i>${tr('Change due date')}</button><button class="popover-option" type="button" data-pop-action="task-open-project" data-task-id="${esc(taskId)}"><i class="ph ph-folder-simple"></i>${tr('Move to project')}</button><button class="popover-option" type="button" data-pop-action="task-duplicate" data-task-id="${esc(taskId)}"><i class="ph ph-copy"></i>${tr('Duplicate')}</button><div class="popover-separator"></div><button class="popover-option" type="button" data-pop-action="task-delete" data-task-id="${esc(taskId)}" style="color:var(--danger)"><i class="ph ph-trash"></i>${tr('Delete')}</button>`;
-    openPopover(anchor, templateMenuEntry('task',taskId)+html, { type: 'task-menu', taskId });
+    const html = `${focus}${todayAction}<button class="popover-option" type="button" data-pop-action="task-move-tomorrow" data-task-id="${esc(taskId)}"><i class="ph ph-arrow-right"></i>${tr('Move to Tomorrow')}</button><button class="popover-option" type="button" data-pop-action="task-move-anytime" data-task-id="${esc(taskId)}"><i class="ph ph-infinity"></i>${tr('Move to Anytime')}</button><button class="popover-option" type="button" data-pop-action="task-open-plan" data-task-id="${esc(taskId)}"><i class="ph ph-calendar-check"></i>${tr('Plan for...')}</button><button class="popover-option" type="button" data-pop-action="task-open-due" data-task-id="${esc(taskId)}"><i class="ph ph-flag"></i>${tr('Change due date')}</button><button class="popover-option" type="button" data-pop-action="task-open-project" data-task-id="${esc(taskId)}"><i class="ph ph-folder-simple"></i>${tr('Move to project')}</button><button class="popover-option" type="button" data-pop-action="task-duplicate" data-task-id="${esc(taskId)}"><i class="ph ph-copy"></i>${tr('Duplicate')}</button><div class="popover-separator"></div><button class="popover-option is-danger" type="button" data-pop-action="task-delete" data-task-id="${esc(taskId)}"><i class="ph ph-trash"></i>${tr('Delete')}</button>`;
+    openPopover(anchor, menuSheet(task.title, templateMenuEntry('task',taskId)+html), { type: 'task-menu', taskId });
   }
 
   function openTagMenu(anchor, tagId) {
     const tag = getTag(tagId); if (!tag) return;
-    const html = `<button class="popover-option" type="button" data-pop-action="edit-tag" data-tag-id="${esc(tagId)}"><i class="ph ph-pencil-simple"></i>${tr('Edit tag')}</button><button class="popover-option" type="button" data-pop-action="delete-tag" data-tag-id="${esc(tagId)}" style="color:var(--danger)"><i class="ph ph-trash"></i>${tr('Delete tag')}</button>`;
-    openPopover(anchor, html, { type: 'tag-menu', tagId });
+    const html = `<button class="popover-option" type="button" data-pop-action="edit-tag" data-tag-id="${esc(tagId)}"><i class="ph ph-pencil-simple"></i>${tr('Edit tag')}</button><button class="popover-option is-danger" type="button" data-pop-action="delete-tag" data-tag-id="${esc(tagId)}"><i class="ph ph-trash"></i>${tr('Delete tag')}</button>`;
+    openPopover(anchor, menuSheet(tag.name, html), { type: 'tag-menu', tagId });
   }
 
   // Redesign R3 (E2): every popover is a bottom sheet over a dimmed backdrop, with a grabber, its title and X.
@@ -2714,11 +2786,22 @@
       || [...el.querySelectorAll('button, input, select, textarea, [tabindex]:not([tabindex="-1"])')].find(node => !node.matches('.sheet-close, [data-sheet-search]')) || el.querySelector('.sheet-close');
   }
 
+  // R22c: a sheet is named by its title, also after its content is redrawn in place.
+  let sheetTitleCount = 0;
+  function labelSheet(el) {
+    const title = el.querySelector('.popover-title');
+    if (title) {
+      title.id = title.id || `popover-title-${++sheetTitleCount}`;
+      el.setAttribute('aria-labelledby', title.id);
+    } else el.setAttribute('aria-label', tr('Menu'));
+  }
+
   // Replaces a sheet's content in place and keeps the focus on the control that was used.
   function refreshSheet(html, focusSelector) {
     if (!popoverEl) return;
     popoverEl.innerHTML = html;
     decorateSheet(popoverEl);
+    labelSheet(popoverEl);
     requestAnimationFrame(() => ((focusSelector && popoverEl?.querySelector(focusSelector)) || (popoverEl && sheetInitialFocus(popoverEl)))?.focus());
   }
 
@@ -2731,11 +2814,7 @@
     el.dataset.popoverType = meta.type || '';
     el.innerHTML = html;
     el.setAttribute('role', 'dialog');
-    const title = el.querySelector('.popover-title');
-    if (title) {
-      title.id = title.id || `popover-title-${Date.now().toString(36)}`;
-      el.setAttribute('aria-labelledby', title.id);
-    } else el.setAttribute('aria-label', tr('Menu'));
+    labelSheet(el);
     popoverReturnFocus = popoverFocusTarget(anchor);
     el.returnFocus = popoverReturnFocus;
     el.setAttribute('aria-modal', 'true');
@@ -2784,7 +2863,7 @@
     const taskId = button.dataset.taskId || '';
     if (!popoverEl) return;
     const color = nextProjectColor();
-    setPopoverContent(`<div class="popover-title">${tr('New project')}</div><div class="popover-inline-form"><input id="inline-project-name" class="input" type="text" maxlength="100" placeholder="${tr('Project name')}" /><div class="color-grid">${PROJECT_COLORS.map(c => `<button class="color-swatch ${c === color ? 'is-selected' : ''}" type="button" data-pop-action="inline-select-color" data-color="${c}" aria-label="${tr('Select color')}" style="--swatch:${c}"></button>`).join('')}</div><div id="inline-project-error" class="validation" hidden>${tr('Project needs a name.')}</div><div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn btn-ghost" type="button" data-pop-action="inline-project-cancel">${tr('Cancel')}</button><button class="btn btn-primary" type="button" data-pop-action="inline-project-create" data-target-type="${targetType}" ${taskId ? `data-task-id="${esc(taskId)}"` : ''} data-color="${color}">${tr('Create')}</button></div></div>`);
+    setPopoverContent(`<div class="popover-title">${tr('New project')}</div><div class="popover-inline-form"><input id="inline-project-name" class="input" type="text" maxlength="100" placeholder="${tr('Project name')}" /><div class="color-grid">${PROJECT_COLORS.map(c => `<button class="color-swatch ${c === color ? 'is-selected' : ''}" type="button" data-pop-action="inline-select-color" data-color="${c}" aria-label="${esc(tr('Color: {name}', { name: colorName(c) }))}" style="--swatch:${c}"></button>`).join('')}</div><div id="inline-project-error" class="validation" hidden>${tr('Project needs a name.')}</div><div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn btn-ghost" type="button" data-pop-action="inline-project-cancel">${tr('Cancel')}</button><button class="btn btn-primary" type="button" data-pop-action="inline-project-create" data-target-type="${targetType}" ${taskId ? `data-task-id="${esc(taskId)}"` : ''} data-color="${color}">${tr('Create')}</button></div></div>`);
     requestAnimationFrame(() => $('#inline-project-name', popoverEl)?.focus());
   }
 
@@ -3055,6 +3134,7 @@
     task.isCompleted = true; task.completedAt = completedAt; task.updatedAt = completedAt;
     const generatedId=taskRecurrence(task)?generateRecurringSuccessor(task,completedAt):null;
     saveState();
+    haptic('success');
     // R11c (S14): the message says when the next occurrence comes.
     const next = generatedId ? getTask(generatedId) : null;
     const nextDate = next?.plannedDate || next?.dueDate;
@@ -3732,18 +3812,7 @@
     saveState(); closeModal(); render();
   }
 
-  function saveAreaLinkedModal() {
-    if (modalState?.type !== 'area-linked') return;
-    const input = $('#area-linked-name');
-    const name = String(input?.value || modalState.draft.name || '').trim();
-    if (!name) { modalState.error = modalState.kind === 'goal' ? tr('Goal needs a name.') : tr('Habit needs a name.'); renderModal(); return; }
-    const item = { id: uid(modalState.kind), name, areaId: modalState.areaId, status: 'active', createdAt: nowIso(), updatedAt: nowIso() };
-    if (modalState.kind === 'goal') {
-      state.goals.push({ ...goalDraft(null, modalState.areaId), ...item, title: name, projectLinks: [], taskIds: [], habitLinks: [], milestones: [], reminders: { sevenDaysBefore: false, threeDaysBefore: false, oneDayBefore: false, onTargetDate: false, time: Core.defaultReminderTime(state.settings) }, completedAt: null });
-      putGoalHistory(item.id, 'created');
-    } else state.habits.push({ ...habitDraft(null, modalState.areaId), ...item, goalIds: [], reminderFiredMoments: [] });
-    saveState(); closeModal(); refreshHabitMetrics().then(render);
-  }
+
 
   function putGoalHistory(goalId, type, data = {}) {
     if (!TodoStorage?.goalHistory) return Promise.resolve();
@@ -3879,6 +3948,7 @@
       const putHabitLog = TodoStorage.habitLogs.putIfCurrent || TodoStorage.habitLogs.put;
       await putHabitLog.call(TodoStorage.habitLogs, record, existing || null);
       if (!ownsCanonical()) throw new Error(msg('Canonical data changed in another tab during Habit check-in.'));
+      if (record.status === 'done') haptic('success');
       await refreshHabitMetrics();
     } catch (error) {
       let rollbackError = null;
@@ -4193,11 +4263,10 @@
 
   function deleteSyncAccount() {
     const word = 'OBRIŠI';
-    const plain = value => String(value || '').normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toUpperCase();
     openConfirm({ title: msg('Delete your sync account?'), message: msg('This deletes your account and all synced data on the server. Data on this device stays.'),
       phrase: word, confirmLabel: msg('Delete account'),
       onConfirm: async () => {
-        if (plain($('#global-confirm-phrase')?.value) !== plain(word)) { setToastMessage(tr('Type {word} exactly to continue.', { word })); return; }
+        if (plainWord($('#global-confirm-phrase')?.value) !== plainWord(word)) { setToastMessage(tr('Type {word} exactly to continue.', { word })); return; }
         modalState = null; renderModal();
         try { await syncClient.deleteAccount(await syncClient.ensureSession(loadSyncMeta().session)); }
         catch (error) { setToastMessage(tr('The account could not be deleted: {error}', { error: trMessage(error.message) })); return; }
@@ -4260,7 +4329,7 @@
     if (!globalThis.DailoPlatform?.isNative) return '';
     try { if (localStorage.getItem('dailoTransferDismissed')) return ''; } catch (_) { return ''; }
     if (!untouchedSample()) return '';
-    const signIn = syncClient && !loadSyncMeta().session?.accessToken ? `<button class="btn btn-secondary" type="button" data-route="settings">${tr('Sign in')}</button>` : '';
+    const signIn = syncClient && !loadSyncMeta().session?.accessToken ? `<button class="btn btn-secondary" type="button" data-route="account">${tr('Sign in')}</button>` : '';
     return `<section class="backup-reminder" data-transfer-notice role="status" aria-label="${tr('Data from the web version')}"><i class="ph ph-arrows-left-right backup-reminder-icon" aria-hidden="true"></i><div class="backup-reminder-copy"><strong>${tr('Do you have data in the web version?')}</strong><span>${tr('Export a backup there (Settings → Data) and import it here, or sign in if you use sync. Your data then replaces these examples.')}</span></div><div class="backup-reminder-actions"><button class="btn btn-primary" type="button" data-action="import-backup">${tr('Import backup')}</button><input id="backup-import-input" type="file" accept=".zip,application/zip" hidden />${signIn}<button class="btn btn-ghost" type="button" data-action="dismiss-transfer-notice">${tr('Not needed')}</button></div></section>`;
   }
   function dismissTransferNotice() {
@@ -4528,6 +4597,12 @@
     refreshHabitMetrics().then(render).catch(error => setToastMessage(error.message));
   }
 
+  // R22b: the words typed to confirm a destructive action are Serbian, and case and diacritics do not matter.
+  const CONFIRM_WORDS = { reset: 'RESETUJ', restore: 'VRATI' };
+  function plainWord(value) {
+    return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase();
+  }
+
   async function beginGlobalOperation(reason, file = null, selection = null) {
     if (globalOperation) return;
     await (startupPromise || Promise.resolve());
@@ -4564,7 +4639,7 @@
       const summary = selection ? tr('Restore “{name}” and its owned files/history. Other records stay current. Undo is available until further data changes.', { name: selectedItem.title || selectedItem.name })
         : reason === 'restore' ? tr('{tasks} tasks, {projects} projects, {goals} Goals, {habits} Habits, {notes} Notes, {resources} Resources, {files} files, {logs} logs and {events} history events will be restored.', { tasks: op.validated.state.tasks.length, projects: op.validated.state.projects.length, goals: op.validated.state.goals.length, habits: op.validated.state.habits.length, notes: op.validated.state.notes.length, resources: op.validated.state.resources.length, files: op.validated.attachmentRecords.length, logs: op.validated.habitLogs.length, events: op.validated.goalHistory.length }) : '';
       openConfirm({ title: reason === 'reset' ? msg('Reset all app data?') : selection ? msg('Restore selected entity?') : msg('Restore backup?'), message: [tr('A safety ZIP was downloaded and an internal recovery copy was created.'), summary].filter(Boolean).join(' '),
-        phrase: reason.toUpperCase(), confirmLabel: reason === 'reset' ? msg('Reset app') : msg('Restore backup'),
+        phrase: CONFIRM_WORDS[reason], confirmLabel: reason === 'reset' ? msg('Reset app') : msg('Restore backup'),
         onConfirm: () => commitGlobalOperation(op), onCancel: () => abandonGlobalOperation(op) });
     } catch (error) { await abandonGlobalOperation(op, tr('Safety preparation failed: {error}. Nothing was replaced. Retry the operation.', { error: trMessage(error.message) }), { snapshotAvailable: false, validationResult: `${msg('Recovery preparation failed')}: ${error.message}` }); }
   }
@@ -4626,7 +4701,7 @@
 
   async function commitGlobalOperation(op) {
     if (globalOperation !== op || op.busy) return;
-    if ($('#global-confirm-phrase')?.value !== op.reason.toUpperCase()) { setToastMessage(tr('Type {word} exactly to continue.', { word: op.reason.toUpperCase() })); return; }
+    if (plainWord($('#global-confirm-phrase')?.value) !== plainWord(CONFIRM_WORDS[op.reason])) { setToastMessage(tr('Type {word} exactly to continue.', { word: CONFIRM_WORDS[op.reason] })); return; }
     op.busy = true;
     let mutationStarted = false;
     try {
@@ -4719,7 +4794,7 @@
     clearTimeout(notificationTimer); notificationTimer = null;
     const platform = globalThis.DailoPlatform;
     if (!platform?.isNative || !state || globalOperation || recovery) return;
-    const items = Core.notificationPlan(state, nowIso(), { logs: state.habitLogCache || {}, plannedFired: readPlannedFired() }).map(item => ({ ...item, title: item.kind === 'journal' ? tr('Journal') : item.title, body: notificationBody(item) }));
+    const items = Core.notificationPlan(state, nowIso(), { logs: state.habitLogCache || {}, plannedFired: readPlannedFired() }).map(item => ({ ...item, actionType: item.kind === 'task' ? 'dailo-task' : item.kind === 'habit' ? 'dailo-habit' : undefined, title: item.kind === 'journal' ? tr('Journal') : item.title, body: notificationBody(item) }));
     let result = await platform.notifications.reconcile(items);
     // The system question is asked once, when there is first something to notify about; later from Settings.
     if (ask && result.status === 'permission' && result.permission === 'prompt' && items.length && !localStorage.getItem('dailoNotifyAsked')) {
@@ -4739,10 +4814,44 @@
   function openNotificationTarget(extra) {
     const [kind, ...rest] = String(extra?.route || '').split('/');
     const id = decodeURIComponent(rest.join('/'));
-    if (!state || globalOperation || recovery || modalState || !id) return;
+    if (!state || globalOperation || recovery || !id) return;
+    if (extra.actionId && extra.actionId !== 'tap') { runNotificationAction(kind, id, extra.actionId); return; }
+    if (modalState) return;
     if (kind === 'journal') { navigate('#journal'); return; }
     if (kind === 'task') { if (getTask(id)) openTaskDetail(id); return; }
     if ((kind === 'goal' && getGoal(id)) || (kind === 'habit' && getHabit(id))) navigate(`#${kind}/${encodeURIComponent(id)}`);
+  }
+
+  // R23: a button on a notification acts at once. Completing goes through toggleComplete (Undo, the next repeat),
+  // checking in through setHabitLog; snoozing moves the task's reminder an hour from now.
+  function runNotificationAction(kind, id, action) {
+    if (kind === 'task' && action === 'complete') {
+      const task = getTask(id); if (!task || task.isCompleted) return;
+      if (modalState?.type === 'task' && modalState.taskId === id) { flushTextSave(); closeModal(); }
+      toggleComplete(id);
+    } else if (kind === 'task' && action === 'snooze') {
+      const task = getTask(id); if (!task || task.isCompleted) return;
+      const at = new Date(Math.ceil((Date.parse(nowIso()) + 3600000) / 60000) * 60000).toISOString();
+      task.reminderAt = at; task.updatedAt = nowIso();
+      if (saveState()) { render(); setToastMessage(tr('Reminder moved to {time}', { time: formatReminder(at) })); }
+    } else if (kind === 'habit' && action === 'checkin') {
+      const habit = getHabit(id); if (!habit) return;
+      setHabitLog(id, Core.dateOnly(), 'done', habit.trackingType === 'numeric' ? habit.targetValue : null);
+    }
+  }
+
+  // R23: the buttons phone notifications carry, named in Serbian; "foreground" brings Dailo up to act.
+  function notificationActionTypes() {
+    return [
+      { id: 'dailo-task', actions: [{ id: 'complete', title: tr('Complete'), foreground: true }, { id: 'snooze', title: tr('Snooze 1 hour'), foreground: true }] },
+      { id: 'dailo-habit', actions: [{ id: 'checkin', title: tr('Check in'), foreground: true }] },
+    ];
+  }
+
+  // R23: a short vibration on completing, checking in and passing the swipe threshold. Reduced motion turns it off.
+  function haptic(kind) {
+    try { if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return; } catch (_) { /* no media queries */ }
+    globalThis.DailoPlatform?.haptics?.(kind);
   }
 
   async function allowExactAlarms() {
@@ -4935,7 +5044,6 @@
     else if (action === 'tasks-view') { state.ui.tasksView = el.dataset.view === 'projects' ? 'projects' : 'anytime'; saveAndRender(); }
     else if (action === 'delete-draft-goal-milestone') deleteDraftGoalMilestone(el.dataset.milestoneId);
     else if (action === 'delete-milestone') deleteMilestone(el.dataset.goalId, el.dataset.milestoneId);
-    else if (action === 'save-area-linked') saveAreaLinkedModal();
     else if (action === 'new-tag') openTagModal();
     else if (action === 'tag-menu') openTagMenu(el, el.dataset.tagId);
     else if (action === 'task-menu') openTaskMenu(el, el.dataset.taskId);
@@ -5149,6 +5257,7 @@
     if (event.target.id === 'journal-reminder-time') { const value = event.target.value; if (value === 'off' || Core.normalizeTime(value) === value) { state.settings.journalReminderTime = value === 'off' ? null : value; saveAndRender(); } return; }
     // R18: the reminder settings apply at once (the phone plan is rebuilt on save).
     if (event.target.id === 'default-reminder-time') { const value = Core.normalizeTime(event.target.value); if (value) { state.settings.defaultReminderTime = value; saveAndRender(); } return; }
+    if (event.target.id === 'auto-backup') { writeAutoBackup({ enabled: event.target.checked }); if (event.target.checked) runAutoBackup({ announce: true }); render(); return; }
     if (event.target.id === 'planned-time-reminders') { state.settings.plannedTimeReminders = event.target.checked; saveAndRender(); return; }
     if (event.target.id === 'journal-notifications') { state.settings.journalNotifications = event.target.checked; saveAndRender(); return; }
     if (event.target.id === 'daily-capacity') { const minutes = Number(event.target.value); if (Number.isInteger(minutes) && minutes >= 0 && minutes <= 1440) { state.settings.dailyCapacityMinutes = minutes; saveAndRender(); } return; }
@@ -5256,6 +5365,7 @@
   }
 
   function handleTaskSwipeMove(event) {
+    if (touchReorder?.active) return;
     const swipe = taskSwipeState;
     if (!swipe || swipe.pointerId !== event.pointerId) return;
     const horizontal = event.clientX - swipe.startX;
@@ -5265,13 +5375,19 @@
       taskSwipeState = null;
       return;
     }
-    if (horizontal <= 0 || Math.abs(horizontal) <= Math.abs(vertical)) return;
+    if (Math.abs(horizontal) <= Math.abs(vertical)) return;
     event.preventDefault();
     swipe.distance = horizontal;
     swipe.swiping = true;
-    const progress = Math.min(1, horizontal / 96);
-    swipe.row.style.background = `rgba(48, 203, 173, ${0.14 + progress * 0.22})`;
-    swipe.row.style.borderColor = `rgba(48, 203, 173, ${0.3 + progress * 0.5})`;
+    // R23: a light tick when the swipe passes the point where releasing acts. R25 (D): to the right it completes
+    // the task (green), to the left it opens the date sheet (blue).
+    const reach = Math.abs(horizontal);
+    if (!swipe.armed && reach >= 96) { swipe.armed = true; haptic('tick'); }
+    else if (swipe.armed && reach < 96) swipe.armed = false;
+    const progress = Math.min(1, reach / 96);
+    const tint = horizontal < 0 ? '83, 98, 255' : '48, 203, 173';
+    swipe.row.style.background = `rgba(${tint}, ${0.14 + progress * 0.22})`;
+    swipe.row.style.borderColor = `rgba(${tint}, ${0.3 + progress * 0.5})`;
   }
 
   function finishTaskSwipe(event) {
@@ -5283,7 +5399,67 @@
     if (!swipe.swiping) return;
     suppressTaskSwipeClick = true;
     setTimeout(() => { suppressTaskSwipeClick = false; }, 0);
-    if (event.type !== 'pointercancel' && swipe.distance >= 96) toggleComplete(swipe.row.dataset.taskId);
+    if (event.type === 'pointercancel') return;
+    if (swipe.distance >= 96) toggleComplete(swipe.row.dataset.taskId);
+    else if (swipe.distance <= -96) openPlanPicker(swipe.row, { type: 'task', taskId: swipe.row.dataset.taskId });
+  }
+
+  // R25 (E): touch reordering — hold a row for a moment, then drag it up or down within its own list. Moving before
+  // the hold ends scrolls or swipes as before; while a row is dragged the page does not scroll.
+  function handleTouchReorderStart(event) {
+    if (event.pointerType === 'mouse' || !event.isPrimary || touchReorder) return;
+    const row = event.target.closest?.('.task-row[draggable="true"]');
+    if (!row || event.target.closest('button, input, textarea, select, a, [contenteditable]')) return;
+    const reorder = { row, id: row.dataset.taskId, context: row.dataset.listContext, pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, active: false, target: null };
+    reorder.timer = setTimeout(() => startTouchReorder(reorder), 350);
+    touchReorder = reorder;
+  }
+
+  function startTouchReorder(reorder) {
+    if (touchReorder !== reorder) return;
+    reorder.active = true; reorder.timer = null;
+    if (taskSwipeState?.row === reorder.row) { resetTaskSwipe(taskSwipeState.row, taskSwipeState.originalStyle); taskSwipeState = null; }
+    reorder.row.releasePointerCapture?.(reorder.pointerId);
+    reorder.row.classList.add('is-dragging', 'is-touch-dragging');
+    document.body.classList.add('task-drag-active');
+    haptic('tick');
+  }
+
+  function handleTouchReorderMove(event) {
+    const reorder = touchReorder;
+    if (!reorder || reorder.pointerId !== event.pointerId) return;
+    const dx = event.clientX - reorder.startX, dy = event.clientY - reorder.startY;
+    if (!reorder.active) { if (Math.abs(dx) > 8 || Math.abs(dy) > 8) cancelTouchReorder(); return; }
+    event.preventDefault();
+    reorder.row.style.transform = `translateY(${dy}px)`;
+    const over = document.elementFromPoint(event.clientX, event.clientY)?.closest?.('.task-row[draggable="true"]');
+    const target = over && over !== reorder.row && over.dataset.listContext === reorder.context ? over : null;
+    if (target !== reorder.target) { reorder.target?.classList.remove('is-drop-target'); target?.classList.add('is-drop-target'); reorder.target = target; }
+  }
+
+  function finishTouchReorder(event) {
+    const reorder = touchReorder;
+    if (!reorder || reorder.pointerId !== event.pointerId) return;
+    const target = reorder.active && event.type !== 'pointercancel' ? reorder.target : null;
+    const wasActive = reorder.active;
+    cancelTouchReorder();
+    if (wasActive) { suppressTaskSwipeClick = true; setTimeout(() => { suppressTaskSwipeClick = false; }, 0); }
+    if (target) reorderTasks(reorder.context, reorder.id, target.dataset.taskId);
+  }
+
+  function cancelTouchReorder() {
+    const reorder = touchReorder;
+    if (!reorder) return;
+    clearTimeout(reorder.timer);
+    reorder.row.style.transform = '';
+    reorder.row.classList.remove('is-dragging', 'is-touch-dragging');
+    reorder.target?.classList.remove('is-drop-target');
+    document.body.classList.remove('task-drag-active');
+    touchReorder = null;
+  }
+
+  function blockTouchScroll(event) {
+    if (touchReorder?.active) event.preventDefault();
   }
 
   function handleTaskSwipeClick(event) {
@@ -5294,6 +5470,7 @@
   }
 
   function handleDragStart(event) {
+    if (touchReorder) { event.preventDefault(); return; }
     const calendar = event.target.closest('[data-calendar-drag][draggable="true"]');
     if (calendar) { dragState = { type: `calendar-${calendar.dataset.calendarDrag}`, id: calendar.dataset.calendarItemId }; event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', dragState.id); calendar.classList.add('is-dragging'); return; }
     const project = event.target.closest('.project-item[draggable="true"]');
@@ -5407,6 +5584,12 @@
     document.addEventListener('pointerup', finishTaskSwipe);
     document.addEventListener('pointercancel', finishTaskSwipe);
     document.addEventListener('click', handleTaskSwipeClick, true);
+    document.addEventListener('pointerdown', handleTouchReorderStart);
+    document.addEventListener('pointermove', handleTouchReorderMove, { passive: false });
+    document.addEventListener('pointerup', finishTouchReorder);
+    document.addEventListener('pointercancel', finishTouchReorder);
+    document.addEventListener('touchmove', blockTouchScroll, { passive: false });
+    document.addEventListener('contextmenu', event => { if (touchReorder) event.preventDefault(); });
     document.addEventListener('click', handleClick);
     document.addEventListener('input', handleInput);
     document.addEventListener('change', handleChange);
@@ -5462,6 +5645,22 @@
     mirrorTimer = null;
     const text = localStorage.getItem(STORAGE_KEY);
     if (text && globalThis.DailoPlatform?.isNative) globalThis.DailoPlatform.durable.write(text).catch(console.error);
+    updateWidget();
+  }
+
+  // R28: the Android "Danas" widget gets a small snapshot after each change — today's open tasks, late ones first —
+  // with the Serbian texts for an empty day and for a day that has passed since Dailo was last opened.
+  function updateWidget() {
+    const platform = globalThis.DailoPlatform;
+    if (platform?.kind !== 'android' || !platform.widget || !state) return;
+    const today = Core.dateOnly(), snap = Core.widgetSnapshot(state, today);
+    platform.widget.update({
+      date: today, title: tr('Today'),
+      summary: snap.overdue ? tr('{planned} planned · {late} late', { planned: snap.planned, late: snap.overdue }) : trn(snap.planned, '{count} planned', '{count} planned'),
+      items: snap.items.map(item => ({ text: item.time ? `${item.time} · ${item.title}` : item.title, overdue: item.overdue })),
+      more: snap.more ? tr('+ {count} more', { count: snap.more }) : '',
+      empty: tr('Nothing planned for today'), stale: tr('Open Dailo for today’s plan'),
+    });
   }
   // Only fills a missing store; the normal start-up load then validates and migrates the text as usual.
   async function restoreDurableMirror() {
@@ -5486,9 +5685,61 @@
   }
 
   // Back in the foreground: a new day, due reminders and a sync round, without waiting for the 30-second timer.
+  function readAutoBackup() {
+    try {
+      const value = JSON.parse(localStorage.getItem(AUTO_BACKUP_KEY) || 'null');
+      return { enabled: value?.enabled === true, lastAt: value?.lastAt || null, lastFile: value?.lastFile || null, error: value?.error || null };
+    } catch (_) { return { enabled: false, lastAt: null, lastFile: null, error: null }; }
+  }
+
+  function writeAutoBackup(patch) {
+    const next = { ...readAutoBackup(), ...patch };
+    try { localStorage.setItem(AUTO_BACKUP_KEY, JSON.stringify(next)); } catch (_) { /* tried again next time */ }
+    return next;
+  }
+
+  function autoBackupDue() {
+    if (!globalThis.DailoPlatform?.isNative) return false;
+    const meta = readAutoBackup();
+    if (!meta.enabled) return false;
+    const last = Date.parse(meta.lastAt || '');
+    return !Number.isFinite(last) || Date.parse(nowIso()) - last >= 7 * 86400000;
+  }
+
+  // Never during an import, a restore or recovery; a failure is remembered for Settings and tried again next time.
+  async function runAutoBackup({ announce = false } = {}) {
+    if (autoBackupRunning || !state || globalOperation || recovery || startupPromise || !Backup || !globalThis.DailoPlatform?.isNative) return false;
+    autoBackupRunning = true;
+    try {
+      const blob = await Backup.exportBackupV3(state, TodoStorage, nowIso());
+      const saved = await globalThis.DailoPlatform.files.saveBackupCopy(blob, `dailo-auto-${Core.dateOnly()}.zip`, { keep: 4, prefix: 'dailo-auto-' });
+      writeAutoBackup({ lastAt: nowIso(), lastFile: `${saved.folder}/${saved.name}`, error: null });
+      if (announce) setToastMessage(tr('Backup saved to {folder}', { folder: saved.folder }));
+      return true;
+    } catch (error) {
+      console.error(error);
+      writeAutoBackup({ error: String(error?.message || error) });
+      if (announce) setToastMessage(tr('The automatic backup failed: {error}', { error: String(error?.message || error) }));
+      return false;
+    } finally {
+      autoBackupRunning = false;
+      if (currentRoute().type === 'settings') render();
+    }
+  }
+
+  // R26 (I): a locked journal closes again when Dailo goes to the background; its open entry is saved and closed.
+  function lockJournalAgain() {
+    if (!journalLock.enabled() || !journalUnlocked) return;
+    journalUnlocked = false;
+    if (modalState?.type === 'journal') { flushTextSave(); closeModal(); }
+    if (state && currentRoute().type === 'journal') render();
+  }
+
   function resumeApp() {
     if (globalOperation || startupPromise || recovery || !state) return;
     checkDateAndReminders();
+    updateWidget();
+    if (autoBackupDue()) runAutoBackup();
     scheduleSync(500);
     if (globalThis.DailoPlatform?.isNative) scheduleNotificationPlan(500);
   }
@@ -5519,11 +5770,47 @@
     const platform = globalThis.DailoPlatform;
     if (!platform) return;
     platform.lifecycle.onResume(resumeApp);
+    platform.lifecycle.onPause(lockJournalAgain);
     platform.backButton.setHandler(handleBackButton);
     platform.links.interceptExternalLinks(document, { onlinePages: { 'uputstvo.html': Release.GUIDE_URL } });
     platform.files.cleanupSharedFiles().catch(console.error);
+    platform.notifications.setActionTypes?.(notificationActionTypes());
     platform.notifications.onOpen(openNotificationTarget);
+    platform.links.onAppLink?.(handleIncomingLink);
     scheduleNotificationPlan(0);
+    consumeLaunchParams();
+    updateWidget();
+    setTimeout(() => { if (autoBackupDue()) runAutoBackup(); }, 8000);
+  }
+
+  // R24: links that open Dailo — the icon's shortcuts (dailo://new-task, dailo://today, dailo://journal) and text
+  // shared to it (dailo://share?text=…&subject=…). An open window is saved and closed first.
+  function handleIncomingLink(href) {
+    let link;
+    try { link = new URL(String(href || '')); } catch (_) { return false; }
+    if (link.protocol !== 'dailo:' || !state || globalOperation || recovery) return false;
+    const target = link.hostname || link.pathname.replace(/^\/+/, '');
+    if (!['new-task', 'today', 'journal', 'share'].includes(target)) return false;
+    closePopover();
+    if (modalState) { flushTextSave(); closeModal(); }
+    if (target === 'new-task') openQuickAdd({});
+    else if (target === 'share') {
+      const params = Object.fromEntries(['text', 'subject', 'title', 'url'].map(key => [key, link.searchParams.get(key) || '']));
+      openQuickAdd(Core.sharedTextDraft(params));
+    } else navigate(`#${target}`);
+    return true;
+  }
+
+  // R24: the web app gets the same from its manifest — ?shortcut= from a shortcut, share_* from the share target.
+  // The address is cleaned first, so a reload does not repeat it.
+  function consumeLaunchParams() {
+    const params = new URLSearchParams(location.search);
+    const shortcut = params.get('shortcut');
+    const shared = ['share_text', 'share_title', 'share_url'].some(key => params.get(key));
+    if (!shortcut && !shared) return;
+    history.replaceState(null, '', location.pathname + location.hash);
+    if (shortcut) handleIncomingLink(`dailo://${shortcut}`);
+    else handleIncomingLink(`dailo://share?${new URLSearchParams({ text: params.get('share_text') || '', title: params.get('share_title') || '', url: params.get('share_url') || '' })}`);
   }
 
   async function drainReady(resolve, reject) {

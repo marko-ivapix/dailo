@@ -228,6 +228,17 @@
     return { overdue, today: todayTasks, suggestions, completed };
   }
 
+  // R28: what the Android "Danas" widget shows — late tasks first, then today's plan in its order, at most `limit`.
+  function widgetSnapshot(state, today, limit = 5) {
+    const sections = deriveTodaySections(state?.tasks || [], today);
+    const rows = [...sections.overdue.map(task => ({ task, overdue: true })), ...sections.today.map(task => ({ task, overdue: false }))];
+    return {
+      date: today, overdue: sections.overdue.length, planned: sections.today.length,
+      items: rows.slice(0, limit).map(({ task, overdue }) => ({ title: String(task.title || ''), time: task.plannedTime || null, overdue })),
+      more: Math.max(0, rows.length - limit),
+    };
+  }
+
   function futureRelevant(task, today) {
     if (task.isCompleted || isOverdue(task, today) || task.plannedDate === today) return null;
     const candidates = [];
@@ -1434,6 +1445,25 @@
   // habit reminder times on scheduled days, where a snooze silences the moments before it and is a notification
   // of its own, and a met weekly target silences the rest of the current week. Only future moments inside the
   // window are listed, at most `limit` (iOS keeps 64 pending notifications per app).
+  // R24: text shared to Dailo from another app (Android "Podeli", the web app's share target) as a Quick Add draft:
+  // the subject or title (else the first line) names the task; the other lines and a link not already shown are
+  // the notes. A bare link is named by its site.
+  function sharedTextDraft({ text = '', subject = '', title = '', url = '' } = {}) {
+    const clean = value => String(value || '').replace(/\r\n?/g, '\n').trim();
+    const lines = clean(text).split('\n').map(line => line.trim()).filter(Boolean);
+    const link = clean(url);
+    const onlyLink = value => /^https?:\/\/\S+$/i.test(value);
+    const site = value => { try { return new URL(value).hostname.replace(/^www\./, ''); } catch (_) { return value; } };
+    let name = clean(subject) || clean(title);
+    let notes = lines;
+    if (!name && lines.length) {
+      if (onlyLink(lines[0])) name = site(lines[0]);
+      else { name = lines[0]; notes = lines.slice(1); }
+    }
+    if (link && !notes.includes(link) && !name.includes(link)) notes = [...notes, link];
+    return { title: name.replace(/\s+/g, ' ').slice(0, 200).trim(), notes: notes.join('\n') };
+  }
+
   function notificationPlan(state, now, { days = 14, limit = 60, logs = {}, plannedFired = {} } = {}) {
     const start = new Date(now).getTime();
     if (!state || !Number.isFinite(start)) return [];
@@ -1792,6 +1822,19 @@
   function journalEntryFor(state, date) {
     return (state?.journal || []).find(item => item.date === date) || null;
   }
+  // R26 (G): "Na današnji dan" — entries with text or a mood from the same day of an earlier month or year, newest
+  // first, with how many months ago they were.
+  function journalOnThisDay(state, date, limit = 6) {
+    const [year, month, day] = String(date || '').split('-').map(Number);
+    if (!year || !month || !day) return [];
+    return (state?.journal || [])
+      .filter(item => item.date < date && (item.text?.trim() || item.mood) && Number(item.date.slice(8, 10)) === day)
+      .map(item => ({ entry: item, months: (year - Number(item.date.slice(0, 4))) * 12 + (month - Number(item.date.slice(5, 7))) }))
+      .filter(item => item.months > 0)
+      .sort((a, b) => b.entry.date.localeCompare(a.entry.date))
+      .slice(0, limit);
+  }
+
   // The read-only summary of a day in its journal entry (J2): tasks completed that day, and the habits planned that
   // day (weekly-target habits left out) with how many were done.
   function journalDaySummary(state, habitLogs, date) {
@@ -2196,6 +2239,7 @@
     upcomingRecurrenceDates,
     recurrenceDayShift,
     journalEntryId,
+    journalOnThisDay,
     journalEntryFor,
     journalReminderTime,
     defaultReminderTime,
@@ -2219,6 +2263,8 @@
     reminderInstant,
     notificationKey,
     notificationPlan,
+    sharedTextDraft,
+    widgetSnapshot,
     snoozeTarget,
     laterToday,
     filterCompleted,

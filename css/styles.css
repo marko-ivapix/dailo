@@ -2950,6 +2950,179 @@ body:has(#toast-root .toast) .mobile-quick-add { transform: translateY(-64px); }
 .project-window .quick-title-input { margin-bottom: 6px; }
 .project-window .habit-window-label { margin: 12px 2px 8px; }
 
+/* Redesign R19 — the filter chips of Redovne obaveze, Završeni zadaci, Beleške and Resursi as pills (2026-10-11). */
+:is(.cleaning-chips, .completed-chips, .knowledge-chips) { gap: 8px; }
+:is(.cleaning-chips, .completed-chips, .knowledge-chips) .quick-chip { position: relative; isolation: isolate; display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 14px; border: 0; background: none; color: var(--ink-2); font-size: 14px; font-weight: 500; }
+:is(.cleaning-chips, .completed-chips, .knowledge-chips) .quick-chip::before { content: ""; position: absolute; inset: 4px 0; z-index: -1; border: 1px solid var(--line-2); border-radius: 999px; background: var(--graphite-850); transition: background var(--motion-fast), border-color var(--motion-fast); }
+:is(.cleaning-chips, .completed-chips, .knowledge-chips) .quick-chip:hover { background: none; color: var(--ink-1); }
+:is(.cleaning-chips, .completed-chips, .knowledge-chips) .quick-chip:hover::before { border-color: var(--line-3); background: var(--graphite-800); }
+:is(.cleaning-chips, .completed-chips, .knowledge-chips) .quick-chip.is-selected { color: #fff; }
+:is(.cleaning-chips, .completed-chips, .knowledge-chips) .quick-chip.is-selected::before { border-color: var(--blue-600); background: var(--blue-600); }
+.cleaning-chips .cleaning-add-group { color: var(--blue-300); }
+.cleaning-chips .cleaning-add-group::before { border-style: dashed; border-color: var(--blue-300); background: none; }
+
+/* Redesign R20 — the second design audit, items 1–6: sheets, chips, sticky footers and dates under the title (2026-10-11). */
+/* 1: options in a bottom sheet are 48 px rows with 15 px text (the old density rules made them 32 px and 12 px). */
+.popover--sheet .popover-option { min-height: 48px; font-size: 15px; }
+/* 2: a ⋯ menu has its title and one card; delete rows are red through a class. */
+.sheet-header .popover-title { overflow-wrap: anywhere; }
+.sheet-menu .popover-separator { margin: 2px 8px; }
+.popover-option.is-danger { color: var(--danger); }
+.btn.is-danger { color: var(--danger); }
+/* 3: every chip is a pill inside its 44 px touch height, the selected one filled with the accent (R19 everywhere). */
+.quick-chip { position: relative; isolation: isolate; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 0 14px; border: 0; background: none; color: var(--ink-2); font-size: 14px; }
+.quick-chip::before { content: ""; position: absolute; inset: 4px 0; z-index: -1; border: 1px solid var(--line-2); border-radius: 999px; background: var(--graphite-850); transition: background var(--motion-fast), border-color var(--motion-fast); }
+.quick-chip:hover { background: none; color: var(--ink-1); }
+.quick-chip:hover::before { border-color: var(--line-3); background: var(--graphite-800); }
+.quick-chip.is-selected { color: #fff; }
+.quick-chip.is-selected::before { border-color: var(--blue-600); background: var(--blue-600); }
+.quick-chip:disabled { cursor: not-allowed; opacity: .5; }
+:is(.sheet-chips, .quick-template-row, .quick-actions) { gap: 0 8px; }
+/* 4: Inbox items that are not tasks line up with the task rows — no icon, the same pills. */
+.inbox-item-row { grid-template-columns: minmax(0, 1fr); }
+.inbox-item-chips { grid-column: 1 / -1; }
+.inbox-item-chips .quick-chip { padding: 0 12px; font-size: 13px; }
+.inbox-item-chips .quick-chip::before { inset: 6px 0; background: var(--graphite-800); }
+/* 5: the Save or Apply button stays at the bottom of a long sheet or window. */
+:is(.sheet-footer, .quick-sheet-footer) { position: sticky; bottom: 0; z-index: 2; padding: 10px 0 4px; background: linear-gradient(to bottom, transparent, var(--graphite-850) 30%); }
+/* 6: step 3 of Nedeljni pregled puts the day's count under the date. */
+.review-day-row { display: grid; justify-items: start; gap: 2px; }
+
+/* Redesign R21 — the old windows as sheets with one big button (2026-10-11). */
+.sheet-label { display: grid; gap: 6px; margin-bottom: 12px; color: var(--ink-3); font-size: 13px; font-weight: 500; }
+.sheet-label :is(.input, select, textarea) { width: 100%; min-height: 44px; color: var(--ink-1); font-size: 16px; }
+.sheet-label > .sheet-chips { margin-bottom: 0; }
+.sheet-check-row { min-height: 48px; display: flex; align-items: center; gap: 12px; padding: 6px 12px; color: var(--ink-1); font-size: 15px; cursor: pointer; }
+.sheet-check-row + .sheet-check-row { border-top: 1px solid var(--line-1); }
+.sheet-check-row > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.sheet-check-row input[type="checkbox"] { flex: none; width: 22px; height: 22px; accent-color: var(--blue-500); }
+.sheet-check-row :is(select, input:not([type="checkbox"])) { flex: none; width: auto; max-width: 40%; min-height: 40px; }
+.goal-project-link + .goal-project-link { border-top: 1px solid var(--line-1); }
+.project-task-picker { padding-left: 34px; }
+.sheet-actions { display: grid; gap: 8px; margin-top: 12px; }
+.sheet-actions .btn { width: 100%; min-height: 48px; font-size: 16px; }
+.sheet-row { width: 100%; min-height: 56px; display: grid; grid-template-columns: 22px minmax(0, 1fr); align-items: center; gap: 12px; padding: 8px 12px; border: 0; background: none; color: var(--ink-1); font: inherit; font-size: 15px; text-align: left; cursor: pointer; }
+.sheet-row + .sheet-row { border-top: 1px solid var(--line-1); }
+.sheet-row:hover { background: var(--graphite-800); }
+.sheet-row > i { color: var(--ink-3); font-size: 18px; }
+.template-fields .template-rows { margin: 4px 0 12px; padding: 10px 12px; border: 1px solid var(--line-1); border-radius: var(--radius-md); background: var(--graphite-900); }
+.template-fields .template-rows legend { padding: 0 4px; color: var(--ink-3); font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+.template-check { margin-bottom: 8px; padding-inline: 0; }
+.goal-property-label { color: var(--ink-3); font-size: 12px; }
+.quick-sheet-footer .goal-milestone-delete { flex: none; }
+.choice-window .dialog-copy { margin: 0 0 4px; color: var(--ink-2); font-size: 15px; line-height: 1.5; }
+:is(.milestone-window, .template-window) .quick-title-input { margin-bottom: 10px; }
+:is(.goal-source-window, .goal-history-window) .sheet-label { margin-top: 4px; }
+:is(.goal-reminders-window, .habit-value-window) .sheet-field { margin-top: 4px; }
+.template-picker-window .sheet-card { margin-top: 4px; }
+/* The links window scrolls as one sheet; its rows read like the other sheets. */
+.goal-links-window .link-picker { display: block; max-height: none; overflow: visible; padding: 0; }
+.goal-links-window .sheet-check-row { flex-wrap: nowrap; gap: 12px; color: var(--ink-1); font-size: 15px; }
+
+/* Redesign R22a — back links, narrow phones, touch targets, the "+" clearance (2026-10-11). */
+/* 9: the last row's check stays clear of the "+" above the bottom bar. */
+.main { padding-bottom: calc(136px + env(safe-area-inset-bottom)); }
+/* 9: a habit cell keeps its small ring inside a bigger tap target. */
+.habit-cell { position: relative; width: 36px; height: 36px; border: 0; background: none; isolation: isolate; }
+.habit-cell::before { content: ""; position: absolute; inset: 5px; border: 2px solid var(--line-2); border-radius: 50%; z-index: -1; }
+.habit-cell.is-unscheduled::before { content: none; }
+.habit-details-calendar .habit-cell::before { inset: 0; }
+.habit-cell.is-today::before { border-color: var(--line-3); }
+.habit-cell.is-done { background: none; color: #0f1114; }
+.habit-cell.is-done::before { border-color: var(--success); background: var(--success); }
+.habit-cell.is-missed::before { border-color: #6A3B3E; }
+.habit-cell.is-skipped::before { border-style: dashed; border-color: var(--ink-3); }
+.habits-week-table td { padding: 1px 0; }
+@media (max-width: 700px), (pointer: coarse) {
+  .btn-icon { min-width: 44px; min-height: 44px; }
+  .toast-action { min-height: 44px; padding: 0 12px; }
+  .color-grid { gap: 10px; }
+  .color-swatch { width: 40px; height: 40px; }
+}
+/* 8: segments, the habit week table and the bottom bar fit a 320 px phone. */
+@media (max-width: 400px) {
+  .habit-window-seg .btn { flex: 1 1 0; min-width: 0; padding-inline: 2px; font-size: 13px; line-height: 1.15; white-space: normal; }
+  .habits-week-table .habits-week-name { max-width: 64px; }
+  .habit-cell { width: 32px; height: 32px; }
+  .habit-cell::before { inset: 4px; }
+  .mobile-bottom-nav-item { padding-inline: 1px; font-size: 10px; }
+  .mobile-bottom-nav-item span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
+
+/* Redesign R22b — one look for segments, folds, empty states, labels, big buttons, Settings and the confirm dialog (2026-10-11). */
+/* Segments: Zadaci's switch is full width like the others; Lista / Raspored is readable. */
+.tasks-view-switch { display: flex; width: 100%; }
+.tasks-view-switch .btn { flex: 1 1 0; }
+.calendar-day-mode .btn { padding: 4px 14px; font-size: 14px; }
+.inbox-filter-chips { margin-bottom: 12px; }
+/* Project lists use the usual card (they were the darker Još card). */
+.project-list { padding: 2px; }
+.inbox-filter-chips .inbox-filter-count { margin-left: 2px; padding: 0 6px; border-radius: 999px; background: var(--graphite-800); color: var(--ink-3); font-size: 12px; font-variant-numeric: tabular-nums; }
+.inbox-filter-chips .quick-chip.is-selected .inbox-filter-count { background: rgba(255, 255, 255, .2); color: #fff; }
+/* Folds: the label and count on the left, the caret on the right. */
+.collapsible-trigger { width: 100%; justify-content: space-between; }
+/* Empty states and section labels share one look. */
+:is(.area-empty-hint, .area-empty-copy) { margin: 12px 10px; color: var(--ink-3); font-size: 14px; }
+.inbox-empty::before { content: none; }
+:is(.cleaning-section-title, .review-card-title, .inbox-group-label strong, .settings-card h2) { color: var(--ink-3); font-family: var(--font-ui); font-size: 12px; font-weight: 600; letter-spacing: var(--tracking-label); text-transform: uppercase; }
+.settings-card h2 { margin: 0 0 8px; }
+/* Big buttons are 16 px everywhere. */
+.habit-window-save { font-size: 16px; }
+/* Switches for the on / off settings and the task's Važno / Hitno. */
+:is(.settings-row, .task-flag-row) > input[type="checkbox"] { appearance: none; position: relative; flex: none; width: 46px; height: 28px; margin: 0; border-radius: 999px; background: var(--graphite-700); cursor: pointer; transition: background var(--motion-fast); }
+:is(.settings-row, .task-flag-row) > input[type="checkbox"]::before { content: ""; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: var(--ink-2); transition: transform var(--motion-fast); }
+:is(.settings-row, .task-flag-row) > input[type="checkbox"]:checked { background: var(--blue-600); }
+:is(.settings-row, .task-flag-row) > input[type="checkbox"]:checked::before { transform: translateX(18px); background: #fff; }
+:is(.settings-row, .task-flag-row) > input[type="checkbox"]:disabled { opacity: .4; cursor: default; }
+:is(.settings-row, .task-flag-row) > input[type="checkbox"]:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+/* The task window's "Više opcija" rows read like its other rows; attachments have the group heading. */
+.task-window-more .property-row { min-height: 48px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 10px; }
+.task-window-more .property-row + .property-row, .task-window-more .task-goals-disclosure { border-top: 1px solid var(--line-1); }
+.task-window-more .property-key { color: var(--ink-1); font-size: 15px; }
+.task-window-more .property-value { color: var(--ink-3); font-size: 13px; }
+.task-window-more .task-property-select { width: auto; max-width: 55%; }
+.task-window-attachments .detail-heading { margin: 16px 0 6px; color: var(--ink-3); font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+/* The confirm sheet. */
+.confirm-window .sheet-label { margin-top: 4px; }
+@media (max-width: 520px) {
+  .settings-row:has(> select.input) { flex-direction: column; align-items: stretch; gap: 8px; padding: 10px 0; }
+  .settings-row > select.input { width: 100%; }
+  .settings-card { padding: 14px 16px; }
+}
+@media (pointer: coarse) {
+  .attachment-drop-zone > span:not(.btn) { display: none; }
+}
+
+/* Redesign R22c — accessibility and leftovers (2026-10-11). */
+/* Chips sit beside the row's button, not inside it; the pair takes the row's free width. */
+.task-row--today > .task-main-wrap { flex: 1 1 auto; min-width: 0; }
+.task-main-wrap > .quick-actions { margin-top: 0; padding: 0 0 4px; }
+/* A missed day is clearly red in the week table and its legend. */
+.habit-cell.is-missed::before { border-color: var(--danger); }
+.habit-cell-swatch.is-missed { border-color: var(--danger); }
+/* Long titles wrap instead of widening the page; the habit chart's labels are readable. */
+.page-title { overflow-wrap: anywhere; }
+.habits-chart-axis { font-size: 11px; }
+h2.task-window-kind { margin: 0; font-size: 13px; }
+
+/* Redesign R24 — the link or text shared to Dailo, shown under the Quick Add title (2026-10-11). */
+.quick-shared-note { display: flex; align-items: flex-start; gap: 8px; margin: 6px 2px 4px; color: var(--ink-3); font-size: 13px; }
+.quick-shared-note span { min-width: 0; display: -webkit-box; overflow: hidden; overflow-wrap: anywhere; -webkit-box-orient: vertical; -webkit-line-clamp: 3; white-space: pre-line; }
+.quick-shared-note i { flex: none; margin-top: 2px; }
+
+/* Redesign R25 — a row lifted for touch reordering (2026-10-11). */
+.task-row.is-touch-dragging { position: relative; z-index: 5; pointer-events: none; border-color: var(--line-3); background: var(--graphite-800); box-shadow: var(--shadow-popover); transition: none; }
+@media (pointer: coarse) {
+  .task-row[draggable="true"] { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+}
+
+/* Redesign R26 — "Na današnji dan" and the locked journal (2026-10-11). */
+.journal-on-this-day-title { margin-top: 18px; }
+.journal-on-this-day { margin-bottom: 4px; }
+.journal-locked { display: grid; justify-items: center; gap: 8px; }
+.journal-locked::before { content: none; }
+.journal-locked > i { color: var(--ink-3); font-size: 40px; }
+
 /* Keep primary compact actions touchable after all density rules. */
 @media (max-width: 700px), (pointer: coarse) {
   .task-actions .btn-icon,

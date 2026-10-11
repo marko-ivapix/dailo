@@ -66,7 +66,7 @@ test('J3, J7: the month, the day strip with faces and dots, and the entries newe
   assert.doesNotMatch(day('2026-10-02')[5], /journal-day-(dot|mood)/);
   assert.equal(day('2026-10-10')[1], ' is-today');
   assert.equal(day('2026-10-11')[3], ' disabled', 'future days are disabled');
-  assert.match(html, /<label class="search-box journal-search"><i class="ph ph-magnifying-glass" aria-hidden="true"><\/i><input id="journal-query" class="search-input" type="search" autocomplete="off" placeholder="Search the journal" value="" aria-label="Search the journal"><\/label>/);
+  assert.match(html, /<label class="sheet-search journal-search"><i class="ph ph-magnifying-glass" aria-hidden="true"><\/i><input id="journal-query" class="input" type="search" autocomplete="off" placeholder="Search the journal" value="" aria-label="Search the journal"><\/label>/);
   const rows = [...html.matchAll(/<button class="journal-row" type="button" data-action="open-journal" data-date="([^"]+)">/g)].map(match => match[1]);
   assert.deepEqual(rows, ['2026-10-09', '2026-10-07', '2026-10-01', '2026-09-30'], 'every entry, newest first');
   assert.match(html, /data-date="2026-10-07"><span class="journal-row-head"><strong>FULL:2026-10-07<\/strong><span class="journal-row-mood" role="img" aria-label="Good">🙂<\/span><\/span><span class="journal-row-text">Presentation done\.\nTomorrow: call Ana<\/span><\/button>/);
@@ -167,7 +167,7 @@ test('J9: "+ Zadatak za sutra" takes the selection or a "Sutra:" line, plans the
   act(adapter, ctx, 'journal-task-tomorrow');
   assert.deepEqual(ctx.calls.at(-1)[1], { plannedDate: TODAY, title: '', returnTo: { type: 'journal', date: '2026-10-01' } }, 'never before today');
   assert.match(app, /if \(context\.returnTo\) modalState\.returnTo = context\.returnTo;/);
-  assert.match(app, /title: context\.title \|\| '', notes: ''/);
+  assert.match(app, /title: context\.title \|\| '', notes: context\.notes \|\| ''/); // R24: shared text can bring notes
 });
 
 test('J1: Još → Biblioteka, the route, the direct "+", the closing hook, and the module is loaded and precached', () => {
