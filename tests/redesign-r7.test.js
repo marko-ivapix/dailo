@@ -122,7 +122,8 @@ test('C1, C3, C5: the week bar, a strip of seven days with dots, the selection a
   assert.doesNotMatch(html, /Hidden archived/, 'S10: archived projects stay out');
   const sundayCtx = calendarContext(week());
   sundayCtx.state.settings.weekStartsOn = 'sunday';
-  assert.match(adapter().renderRoute({ type: 'calendar' }, sundayCtx), /<section class="calendar-strip-day" data-calendar-date="2026-10-11">/, 'the week follows the week start');
+  // The day may also carry is-today (the test ran on 2026-10-11, the Sunday it checks), so other classes are allowed.
+  assert.match(adapter().renderRoute({ type: 'calendar' }, sundayCtx), /<section class="calendar-strip-day[^"]*" data-calendar-date="2026-10-11">/, 'the week follows the week start');
 });
 
 test('C1, C5: the month grid has weekday names, blanks, dates and dots only', () => {
