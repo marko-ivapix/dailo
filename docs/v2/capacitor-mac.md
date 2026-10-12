@@ -48,6 +48,8 @@ npm run cap:sync
 
 Sa besplatnim Apple ID-jem aplikacija radi 7 dana. Posle toga je ponovo pokreni iz Xcode-a (▶); podaci ostaju.
 
+Widgeti **Danas** i **Navike** i „Podeli u Dailo” na iPhone-u traže plaćen Apple Developer nalog i nekoliko koraka u Xcode-u: `docs/v2/ios-widgeti.md`.
+
 ## Android
 
 1. `npm run cap:android` otvara projekat u Android Studiju. Sačekaj da se završi „Gradle sync“ (dole desno).

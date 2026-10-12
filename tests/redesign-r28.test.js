@@ -29,7 +29,7 @@ test('K: the widget snapshot lists late tasks first, then today\'s plan in order
   assert.deepEqual(Core.widgetSnapshot({ tasks: [] }, TODAY), { date: TODAY, overdue: 0, planned: 0, items: [], more: 0 });
 });
 
-test('K: the app sends the widget Serbian texts, only on Android', () => {
+test('K: the app sends the widget Serbian texts on the phones (R55: the iPhone too), not on the web', () => {
   const sent = [];
   const ctx = withI18n({ Core: { ...Core, dateOnly: () => TODAY }, state: { tasks: [task('a', { plannedDate: TODAY, plannedTime: '09:30' }), task('late', { dueDate: '2026-10-09' })] } });
   ctx.globalThis = ctx;
@@ -45,18 +45,22 @@ test('K: the app sends the widget Serbian texts, only on Android', () => {
   });
   ctx.DailoPlatform.kind = 'ios';
   ctx.updateWidget();
-  assert.equal(sent.length, 1, 'iOS has no widget yet');
+  assert.equal(sent.length, 2, 'R55: the iPhone widgets get it too');
+  ctx.DailoPlatform.kind = 'web';
+  ctx.updateWidget();
+  assert.equal(sent.length, 2, 'the web has no widget');
   assert.match(fn('writeDurableMirror'), /updateWidget\(\);/, 'every save that reaches the mirror refreshes the widget');
   assert.match(fn('startPlatform'), /updateWidget\(\);/);
   assert.match(fn('resumeApp'), /updateWidget\(\);/);
 });
 
-test('K: the platform hands the snapshot to the app\'s own DailoWidget plugin on Android', async () => {
+test('K: the platform hands the snapshot to the app\'s own DailoWidget plugin on Android and (R55) the iPhone', async () => {
   const calls = [];
   const make = kind => Platform.create({ Capacitor: { isNativePlatform: () => true, getPlatform: () => kind, registerPlugin: name => (name === 'DailoWidget' ? { update: async options => { calls.push(options); } } : {}) }, console });
   assert.equal(await make('android').widget.update({ date: TODAY }), true);
   assert.deepEqual(calls, [{ snapshot: JSON.stringify({ date: TODAY }) }]);
-  assert.equal(await make('ios').widget.update({ date: TODAY }), false);
+  assert.equal(await make('ios').widget.update({ date: TODAY }), true);
+  assert.equal(calls.length, 2);
   assert.equal(await Platform.widget.update({ date: TODAY }), false, 'the web has no widget');
 });
 

@@ -307,12 +307,24 @@
       return true;
     }
 
-    // R28: the Android home-screen widget gets its snapshot through the app's own DailoWidget plugin.
+    // R28: the Android home-screen widget gets its snapshot through the app's own DailoWidget plugin; R55: the iPhone
+    // widgets too, through the plugin in ios/App/App/DailoWidgetPlugin.swift.
     function updateWidget(snapshot) {
-      if (kind !== 'android') return Promise.resolve(false);
+      if (kind !== 'android' && kind !== 'ios') return Promise.resolve(false);
       const widget = plugin('DailoWidget');
       if (!widget?.update) return Promise.resolve(false);
       return Promise.resolve(widget.update({ snapshot: JSON.stringify(snapshot) })).then(() => true, () => false);
+    }
+
+    // R55: text and links shared to Dailo on the iPhone wait in the App Group until the app opens; this takes them.
+    async function takeShared() {
+      if (kind !== 'ios') return [];
+      const widget = plugin('DailoWidget');
+      if (!widget?.takeShared) return [];
+      try {
+        const { items } = await widget.takeShared();
+        return Array.isArray(items) ? items.filter(item => item && (item.text || item.url)) : [];
+      } catch (_) { return []; }
     }
 
     // R26 (I): the journal lock — a fingerprint, face or the phone's PIN through the biometric plugin (app only).
@@ -359,6 +371,7 @@
       haptics,
       security: Object.freeze({ available: lockAvailable, unlock }),
       widget: Object.freeze({ update: updateWidget }),
+      shared: Object.freeze({ take: takeShared }),
     });
   }
 

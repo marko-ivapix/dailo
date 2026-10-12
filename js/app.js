@@ -6703,7 +6703,7 @@
   // with the Serbian texts for an empty day and for a day that has passed since Dailo was last opened.
   function updateWidget() {
     const platform = globalThis.DailoPlatform;
-    if (platform?.kind !== 'android' || !platform.widget || !state) return;
+    if (!['android', 'ios'].includes(platform?.kind) || !platform.widget || !state) return;
     const today = Core.dateOnly(), snap = Core.widgetSnapshot(state, today);
     platform.widget.update({
       date: today, title: tr('Today'),
@@ -6802,6 +6802,7 @@
   function resumeApp() {
     if (globalOperation || startupPromise || recovery || !state) return;
     checkDateAndReminders();
+    takeSharedItems();
     updateWidget();
     if (autoBackupDue()) runAutoBackup();
     scheduleSync(500);
@@ -6848,8 +6849,19 @@
     platform.links.onAppLink?.(handleIncomingLink);
     scheduleNotificationPlan(0);
     consumeLaunchParams();
+    takeSharedItems();
     updateWidget();
     setTimeout(() => { if (autoBackupDue()) runAutoBackup(); }, 8000);
+  }
+
+  // R55: what was shared to Dailo on the iPhone while it was closed. The first item opens like "Podeli u Dailo" on
+  // Android; any others go to Inbox, so nothing waits behind a window.
+  async function takeSharedItems() {
+    const items = await globalThis.DailoPlatform?.shared?.take?.() || [];
+    items.forEach((item, index) => {
+      if (index === 0) handleIncomingLink(`dailo://share?${new URLSearchParams({ text: item.text || '', url: item.url || '' })}`);
+      else addToInbox(item.text || item.url);
+    });
   }
 
   // R24: links that open Dailo — the icon's shortcuts (dailo://new-task, dailo://today, dailo://journal) and text
