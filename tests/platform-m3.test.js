@@ -88,7 +88,8 @@ test('Android Back: the app handler first, then the previous screen, then minimi
   handled = false;
   listeners.backButton[0]({ canGoBack: true });
   listeners.backButton[0]({ canGoBack: false });
-  assert.deepEqual(calls, [['history.back'], ['App.minimizeApp']]);
+  // R32: the app walks its own screens; when it has nowhere to go, Back leaves the app (never browser history).
+  assert.deepEqual(calls, [['App.minimizeApp'], ['App.minimizeApp']]);
   assert.equal(fakeNative('ios').platform.backButton.setHandler(() => true), false, 'iOS has no Back button');
 });
 

@@ -23,8 +23,9 @@ const rule = selector => {
 };
 
 function moreScreen(sync) {
-  const state = { goals: [{ id: 'g', status: 'active' }], areas: [], tasks: [], projects: [], notes: [], journal: [], resources: [], tags: [], templates: [], savedViews: [] };
-  const ctx = withI18n({ state, esc, sortedAreas: () => [], syncView: () => sync, pageHeader: title => `<header>${title}</header>`, isOpenRepeating: () => false, formatReminder: value => value });
+  const state = { goals: [{ id: 'g', status: 'active' }], areas: [], tasks: [], projects: [], notes: [], journal: [], resources: [], tags: [], templates: [], savedViews: [], settings: {} };
+  const ctx = withI18n({ state, esc, Core: require('../js/core.js'), formatDate: String, // R32: the review tile line
+ sortedAreas: () => [], syncView: () => sync, pageHeader: title => `<header>${title}</header>`, isOpenRepeating: () => false, formatReminder: value => value });
   vm.createContext(ctx);
   vm.runInContext(`${fn('moreRow')}${fn('renderMoreScreen')}`, ctx);
   return ctx.renderMoreScreen();

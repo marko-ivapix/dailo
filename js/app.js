@@ -745,6 +745,7 @@
         return { userAgent: navigator.userAgent || '', standalone: Boolean(globalThis.DailoPlatform?.isNative) || navigator.standalone === true || Boolean(window.matchMedia?.('(display-mode: standalone)').matches), persistence: storagePersistence.state };
       },
       storagePersistence: () => storagePersistence,
+      installPrompt: () => Boolean(installPromptEvent),
       shortcutError: () => shortcutError,
       // Native app: the notification permission and (Android) exact-alarm state; null on the web.
       notificationSettings: () => (globalThis.DailoPlatform?.isNative ? { permission: notificationPermission, exact: exactAlarmState } : null),
@@ -816,6 +817,8 @@
     if (knowledgeRoute) { openKnowledgeWindow(knowledgeRoute[1], decodeURIComponent(knowledgeRoute[2])); return; }
     const target = route.startsWith('#') ? route : `#${route}`;
     if (location.hash === target) render();
+    // R32 (finding 17): a tab and a step back replace the address, so Back does not walk through piled-up history.
+    else if (ROOT_ROUTES.includes(target) || screenTrail.at(-1)?.route === target) location.replace(target);
     else location.hash = target;
   }
 
@@ -942,17 +945,26 @@
     // Searched within its own region: the same data attributes can appear in another part of the page.
     return attrs ? `#${region.id} ${element.tagName.toLowerCase()}${attrs}` : null;
   }
+  let installPromptEvent = null;
   let renderedRoute = null;
   let renderedTitle = '';
   // Redesign R22a: the screens a detail screen was opened from, so its "‹ …" returns there. A tab on the bottom bar
   // starts the trail over, and going back pops it instead of adding a loop.
-  const ROOT_ROUTES = ['#today', '#inbox', '#tasks', '#calendar', '#more'];
+  const ROOT_ROUTES = ['#today', '#inbox', '#tasks', '#calendar', '#habits', '#more'];
   let screenTrail = [];
   function trackScreen(route) {
     if (renderedRoute === null || route === renderedRoute) return;
     if (ROOT_ROUTES.includes(route)) screenTrail = [];
     else if (screenTrail.at(-1)?.route === route) screenTrail.pop();
     else screenTrail = [...screenTrail, { route: renderedRoute, title: renderedTitle }].slice(-20);
+  }
+  // R32 (finding 17): where Back goes when no window is open — the screen this one was opened from, then the
+  // start of its tab, then Danas; null on Danas, where the phone minimizes the app.
+  function backTarget(route, trail) {
+    if (route === '#today') return null;
+    if (trail.length) return trail.at(-1).route;
+    if (ROOT_ROUTES.includes(route)) return '#today';
+    return /^#project\//.test(route) ? '#tasks' : '#more';
   }
   function backLink(fallbackRoute, fallbackLabel) {
     const previous = screenTrail.at(-1);
@@ -1029,6 +1041,7 @@
     return '';
   }
 
+  const LIBRARY_ROUTES = ['settings', 'account', 'goals', 'areas', 'notes', 'resources', 'tags', 'templates', 'saved-views', 'cleaning', 'review', 'journal', 'completed', 'archived'];
   function renderMain() {
     const comfortable = state.settings.compactDensity === false;
     document.documentElement.style.setProperty('--content-gutter', comfortable ? '24px' : '20px');
@@ -1051,6 +1064,8 @@
       else if (route.type === 'completed') content = renderCompleted();
       else content = renderToday();
     }
+    // R32 (finding 17): every screen under Još starts with "‹ Još" (or the screen it was opened from).
+    if (LIBRARY_ROUTES.includes(route.type) && !content.includes('class="screen-back"')) content = backLink('more', tr('More')) + content;
     main.innerHTML = `${warning}<div class="content ${route.type === 'calendar' && state.ui.calendarView !== 'upcoming' ? 'calendar-content' : ''}">${content}</div>`;
     // An old #habit/<id> address shows the Habits screen with the details window on top (R8c).
     if (route.type === 'habit') { history.replaceState(null, '', '#habits'); openHabitDetails(route.id); }
@@ -1253,6 +1268,9 @@
       ...(state.savedViews || []).filter(view => view.isPinned).map(view => moreRow(`saved-view/${encodeURIComponent(view.id)}`, 'ph-funnel', view.name, '', tr('Saved view'))),
     ];
     const count = list => (list || []).length;
+    // R32 (finding 37): the review tile says whether this week is done; the notice left Danas in R14.
+    const lastReview = Core.weeklyReviewLog(state.settings)[0];
+    const reviewNote = Core.weeklyReviewDue(state.settings, Core.dateOnly(), state.settings.weekStartsOn) ? tr('Time for this week\'s review') : lastReview ? tr('Last: {date}', { date: formatDate(Core.localDateOf(lastReview.completedAt)) }) : '';
     const sync = syncView();
     const accountText = sync.configured && sync.signedIn ? sync.email : sync.configured ? tr('Sign in') : tr('Data is on this device only');
     let html = pageHeader(tr('More'), '', { add: false });
@@ -1261,7 +1279,7 @@
       moreRow('goals', 'ph-target', tr('Goals'), count((state.goals || []).filter(goal => goal.status === 'active'))),
       moreRow('areas', 'ph-squares-four', tr('Areas'), count((state.areas || []).filter(area => area.status !== 'archived'))),
       moreRow('cleaning', 'ph-arrows-clockwise', tr('Recurring tasks'), count(state.tasks.filter(isOpenRepeating))),
-      moreRow('review', 'ph-clipboard-text', tr('Weekly review')),
+      moreRow('review', 'ph-clipboard-text', tr('Weekly review'), '', reviewNote),
     ]);
     html += card(tr('Library'), [
       moreRow('notes', 'ph-note', tr('Notes'), count(state.notes)),
@@ -3731,7 +3749,9 @@
   function renderToast() {
     const root = $('#toast-root');
     const status = $('#global-status');
-    if (status) status.textContent = toastMessage || globalRecoveryNotice?.message || '';
+    // R32 (finding 28): one polite announcement (the toast itself is not a live region), Undo messages included.
+    const spoken = toastMessage || (undoState ? tr(undoState.message) : '') || globalRecoveryNotice?.message || '';
+    if (status && status.textContent !== spoken) status.textContent = spoken;
     const undo = undoState ? `<div class="toast"><i class="ph-fill ph-check-circle toast-icon"></i><span class="toast-message">${esc(tr(undoState.message))}</span><button class="toast-action" type="button" data-action="undo">${tr('Undo')}</button></div>` : '';
     const info = toastMessage ? `<div class="toast"><i class="ph ph-info toast-icon" style="color:var(--info)"></i><span class="toast-message">${esc(toastMessage)}</span></div>` : '';
     const failed = [...failedDeleteSnapshots][0];
@@ -3740,6 +3760,8 @@
     const staleNotice = staleDataNotice ? `<div class="toast" role="alert"><i class="ph ph-arrows-clockwise toast-icon"></i><span class="toast-message">${tr('This workspace changed in another tab. Refresh to load the latest data.')}</span><button class="toast-action" type="button" data-action="refresh-stale-data">${tr('Refresh')}</button></div>` : '';
     const updateNotice = waitingServiceWorker ? `<div class="toast" role="status"><i class="ph ph-arrow-circle-up toast-icon"></i><span class="toast-message">${tr('A new version of Dailo is available.')}</span><button class="toast-action" type="button" data-action="apply-app-update">${tr('Refresh')}</button></div>` : '';
     root.innerHTML = undo + info + recoveryNotice + globalNotice + staleNotice + updateNotice;
+    // R32 (finding 28): the "+" moves up by the toasts' real height, so a second toast does not cover it.
+    document.documentElement.style.setProperty('--toast-stack', `${root.offsetHeight}px`);
   }
 
   async function doUndo() {
@@ -5177,6 +5199,7 @@
     else if (action === 'enable-notifications') enableBrowserNotifications();
     else if (action === 'allow-exact-alarms') allowExactAlarms();
     else if (action === 'export-backup') exportBackupAction();
+    else if (action === 'install-app' && installPromptEvent) { const prompt = installPromptEvent; installPromptEvent = null; prompt.prompt?.(); render(); }
     else if (action === 'snooze-backup-reminder') { snoozeBackupReminder(); render(); }
     else if (action === 'dismiss-transfer-notice') { dismissTransferNotice(); render(); }
     else if (action === 'sample-start-empty') startEmpty();
@@ -5677,6 +5700,9 @@
     document.addEventListener('dragend', handleDragEnd);
     // The first-sync choice stays open across a route change: closing it would run its cancel, which signs out (audit P-3).
     window.addEventListener('hashchange', () => { closePopover(); if (modalState?.type !== 'sync-choice') closeModal(); render(); });
+    // R32 (finding 31): Chromium browsers offer their own install; Pomoć shows "Instaliraj" while they do.
+    window.addEventListener('beforeinstallprompt', event => { event.preventDefault(); installPromptEvent = event; if (currentRoute().type === 'settings') render(); });
+    window.addEventListener('appinstalled', () => { installPromptEvent = null; if (currentRoute().type === 'settings') render(); });
     window.addEventListener('storage', event => {
       if (globalOperation) return;
       if (event.key !== STORAGE_KEY) return;
@@ -5836,7 +5862,12 @@
     const target = document.activeElement || document.body; // an element: the key handler reads target.closest
     target.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
     const after = overlaySnapshot();
-    return before.some((value, index) => value !== after[index]);
+    if (before.some((value, index) => value !== after[index])) return true;
+    // R32 (finding 17): nothing was open, so Back steps through the screens like the "‹" links.
+    const step = backTarget(location.hash || '#today', screenTrail);
+    if (!step) return false;
+    navigate(step);
+    return true;
   }
 
   // Native integration (audit M3): resume, Back, links that leave the app, leftovers of an interrupted share.

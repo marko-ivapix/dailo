@@ -60,16 +60,16 @@
       plugin('App')?.addListener('resume', () => handler('resume'));
     }
 
-    // Android hardware Back. `handler()` returns true when it closed something (a sheet, popover or dialog);
-    // otherwise Back goes to the previous in-app screen, and from the first screen the app is minimized.
+    // Android hardware Back. `handler()` returns true when it closed something (a sheet, popover or dialog) or
+    // stepped back a screen; otherwise (on Danas) the app is minimized.
     function setBackHandler(handler) {
       if (!isNative || kind !== 'android') return false;
       plugin('App')?.addListener('backButton', event => {
         let handled = false;
         try { handled = Boolean(handler()); } catch (error) { env.console?.error?.(error); }
         if (handled) return;
-        if (event?.canGoBack) env.history?.back();
-        else plugin('App')?.minimizeApp?.();
+        // R32: the app walks its own screens (handler); when it has nowhere to go, Back leaves the app.
+        plugin('App')?.minimizeApp?.();
       });
       return true;
     }

@@ -3133,6 +3133,30 @@ h2.task-window-kind { margin: 0; font-size: 13px; }
 .journal-locked::before { content: none; }
 .journal-locked > i { color: var(--ink-3); font-size: 40px; }
 
+/* Redesign R32 — the shell after the third design pass (2026-10-12). */
+/* An opaque strip under the status bar, so content never scrolls beneath it (no blur, V1.8). */
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top); background: var(--bg-primary); z-index: 79; pointer-events: none; }
+/* Phone type sizes (G5): rows and their meta line read at arm's length, and screens have a large title. */
+@media (max-width: 1023px) {
+  .task-title { font-size: 15px; }
+  .task-meta { font-size: 12.5px; }
+  .page-title { font-size: 26px; }
+}
+/* Text in --ink-4 was below 4.5:1 on graphite; text uses --ink-3, and --ink-4 stays for lines and carets. */
+.task-window-row-value, .quick-more-meta, .task-window-more-meta, .sheet-calendar-weekday, .day-grid-label { color: var(--ink-3); }
+.quick-title-input::placeholder, .search-input::placeholder, textarea::placeholder, .input::placeholder { color: var(--ink-3); }
+/* Settings read like a phone list: padded rows, 13 px lines, and buttons under the text on narrow screens. */
+.settings-row { padding: 10px 0; }
+.settings-label span { font-size: 13px; line-height: 1.4; }
+@media (max-width: 520px) {
+  .settings-row:has(> .btn, > div > .btn) { flex-direction: column; align-items: stretch; gap: 8px; }
+  .settings-row > .btn, .settings-row > div > .btn { width: 100%; min-height: 44px; justify-content: center; }
+}
+/* Toasts lift the "+" by their real height (renderToast sets --toast-stack). */
+@media (max-width: 1023px) {
+  body:has(#toast-root .toast) .mobile-quick-add { transform: translateY(calc(-1 * var(--toast-stack, 56px) - 8px)); }
+}
+
 /* Keep primary compact actions touchable after all density rules. */
 @media (max-width: 700px), (pointer: coarse) {
   .task-actions .btn-icon,
