@@ -54,6 +54,16 @@
 | R27 | **Addition J:** an automatic weekly backup on the phone | — | **device-local backup setting** (own spec) |
 | R28 | **Addition K:** the Android home-screen widget | — | none (reads the durable copy) |
 | R29 | **The user's request:** real-life starter examples for "Popuni primerima" (camping list, bucket list, habits, goals, chores, tags, notes, resources, templates) | — | none (example records only; `normalizeState` reads an invalid goal `progressType` as `percentage`) |
+| R30 | **Third design pass, bugs (tasks):** groups of Redovne obaveze out of the project picker, "Dodaj sve u Danas" with Undo and the repeat question, Quick Add "18h" / "u 18h", the first-run examples card, Inbox "Bez projekta", no past reminder time, "Predlozi za danas" on Danas (spec `docs/superpowers/specs/2026-10-12-design-pass-3.md`) | — | none |
+| R31 | **Third design pass, bugs (planning):** the year in dates, numeric habit skip and value sheet, "+" and Back on Navike, Raspored with deadlines and side-by-side blocks, plurals and wording, milestones after the target date, empty parts of the goal window, past calendar days | — | none |
+| R32 | **Third design pass, the shell:** the status-bar strip, "‹ Još" and Back history, Settings as rows, phone type sizes and contrast, toasts, the Android theme, the install row, the weekly review tile | — | none |
+| R33 | **Third design pass, windows:** the task window (title, Više opcija, no Važno/Hitno), the template editor, Nedelja names, radio circles, number format, example areas and "+" on an area, knowledge window details, link sheets, icons, Fokus return, the ⋯ menu, 44 px, sheet drag | — | none |
+| R34 | **Third design pass, cleanup:** dead CSS and JS, colour and font-size tokens, the density setting on desktop only | — | none |
+| R35 | **Additions A, B, H, I:** search in Beleške and Resursi, a note becomes a task, a shared link becomes a resource, pinned notes and the review tile | — | none |
+| R36 | **Additions C, G, K:** "Dodaj i nastavi", the capture toast and the Inbox add row, a long press on "+", triage dates, date chips, the gesture hint | — | none (device-local hint key) |
+| R37 | **Additions D, F, J:** one-tap habit values, partial progress, "Juče", upcoming repeats in the calendar, text size, a test reminder, the backup status line | — | text size setting (own note) |
+| R38 | **Addition E:** goal progress from milestones | — | **new `progressMode` value** (own data-model note) |
+| R39 | **Addition L:** a light theme and "Prati sistem" (reopens M6) | — | theme setting (own note) |
 
 ## Test levels
 
