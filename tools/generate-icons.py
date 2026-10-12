@@ -10,11 +10,12 @@ Usage (from the repository root): python3 tools/generate-icons.py
 With --native it writes the Capacitor app assets instead (V2.0-b): the iOS App Store icon and launch
 images, the Android launcher icons (legacy, round, adaptive foreground), launch images and the white
 notification icon `ic_stat_dailo`.
+With --og it writes only the 1200x630 link preview `icons/og-image.png` (R57), set in the vendored fonts.
 """
 import sys
 from pathlib import Path
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 
 BLUE = (6, 25, 254)
 # rgba(255,255,255,.92) composited over BLUE.
@@ -125,9 +126,37 @@ def native():
     save(splash(480, 320, 80), res / 'drawable/splash.png')
 
 
+def og_image():
+    """Link preview (Open Graph, 1200x630): the rounded tile, the name and one line about the app on the dark screen."""
+    width, height = 1200, 630
+    image = Image.new('RGB', (width, height), DARK)
+    tile = 220
+    badge = masked(render(tile, 0.38), 0.22)
+    image.paste(badge, (96, (height - tile) // 2), badge)
+    draw = ImageDraw.Draw(image)
+    fonts = ROOT / 'vendor/fonts'
+
+    def font(name, size, weight):
+        face = ImageFont.truetype(str(fonts / name), size)
+        face.set_variation_by_axes([weight])
+        return face
+
+    # The Latin subsets only: keep these lines free of č ć đ š ž (they live in the latin-ext files).
+    left = 96 + tile + 64
+    draw.text((left, 186), 'Dailo', font=font('space-grotesk-latin-wght-normal.woff2', 128, 700), fill=(243, 244, 246))
+    body = font('geist-latin-wght-normal.woff2', 40, 450)
+    draw.text((left, 350), 'Zadaci, navike, ciljevi i dnevnik', font=body, fill=(213, 217, 223))
+    draw.text((left, 400), 'na jednom mestu.', font=body, fill=(213, 217, 223))
+    draw.text((left, 470), 'Radi i bez interneta', font=font('geist-latin-wght-normal.woff2', 30, 500), fill=(62, 215, 186))
+    save(image, OUT / 'og-image.png')
+
+
 def main():
     if '--native' in sys.argv[1:]:
         native()
+        return
+    if '--og' in sys.argv[1:]:
+        og_image()
         return
     OUT.mkdir(exist_ok=True)
     # 0.38 keeps the mark inside the 40% maskable safe-zone radius (also used for iOS, which rounds

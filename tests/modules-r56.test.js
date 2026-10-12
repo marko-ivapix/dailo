@@ -44,8 +44,7 @@ test('a plan names the next parts and how they move', () => {
   for (const part of ['sidebar-ui.js', 'tests/support/source.js', 'domainContext', 'quick-add', 'drag', 'account']) assert.ok(plan.includes(part), part);
 });
 
-test('R56 is released as 2.0.0-alpha.83', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.83');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.83';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.83');
+test('R56 shipped as 2.0.0-alpha.83 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 99) >= 83);
 });

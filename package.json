@@ -1,6 +1,6 @@
 {
   "name": "dailo",
-  "version": "2.0.0-alpha.83",
+  "version": "2.0.0-alpha.84",
   "private": true,
   "description": "Dailo: local-first personal productivity app (web/PWA, iPhone and Android through Capacitor).",
   "license": "UNLICENSED",
@@ -15,6 +15,7 @@
     "serve": "python3 -m http.server 8080",
     "smoke": "node tools/smoke-boot.mjs",
     "check:python": "python3 tools/check-python.py",
+    "check:links": "node tools/check-links.mjs",
     "cap:sync": "node tools/build-www.mjs && cap sync",
     "cap:ios": "cap open ios",
     "cap:android": "cap open android"
