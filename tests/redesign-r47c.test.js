@@ -51,8 +51,7 @@ test('CSS: from 1280 px on the two parts stand side by side and the column widen
   assert.match(block, /  \.screen-columns\.has-side > \.screen-rest \{ grid-column: 1; grid-row: 2; \}/);
 });
 
-test('R47c is released as 2.0.0-alpha.75', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.75');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.75';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.75');
+test('R47c shipped as 2.0.0-alpha.75 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 99) >= 75);
 });

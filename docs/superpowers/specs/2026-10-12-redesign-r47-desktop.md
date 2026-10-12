@@ -11,7 +11,7 @@ The layer applies only from 1024 px on. Below that the phone design stays exactl
 | R47a | `2.0.0-alpha.73` | K1 sidebar, K2 widths, K10 keys, K12 labelled "+" |
 | R47b | `2.0.0-alpha.74` | K4 centered windows, K6 pickers next to their row, K3 hover |
 | R47c | `2.0.0-alpha.75` | K7 two columns on Danas and Navike |
-| R47d | next | K8 calendar week and month, K9 drag and drop onto the sidebar |
+| R47d | `2.0.0-alpha.76` | K8 calendar week and month, K9 drag and drop onto the sidebar |
 
 K5 is not used in the decision log. K11 (Settings → Računar with "Prečice na tastaturi" and "Zbijeniji prikaz", shown only on wide screens) already exists since R10g and R34.
 
@@ -145,3 +145,49 @@ K10's "Q new item" stays the editable "Novi zadatak" shortcut (default N), so ex
   - the version.
 - **Helper:** `tests/support/columns.js` hands the wrapper to the tests that run `renderToday` or `renderHabits` with stubs: R2, R8a, R41, V1.5 and V1.6. Two of their patterns now expect it.
 - **Manual-pending:** the two columns in a real wide browser window.
+
+## R47d — the calendar on a wide screen (K8) and dragging onto the sidebar (K9)
+
+### Calendar (K8)
+
+What was already there since R7 (C3): Nedelja's seven columns of cards with the time and duration, dashed goal and milestone deadlines, dragging a card to another day, and a click on a date that shows the day below with "Lista / Raspored". R47d adds the rest of K8 from 1024 px on; a phone shows none of it, since CSS hides it there (C1).
+
+- **Load bar:** each week day has a thin bar of its planned time against the daily capacity (`dayLoadBar`, `Core.dayLoad`, `Core.dailyCapacityMinutes`). Over capacity it turns yellow, and its tooltip reads "Planirano X od Y". There is no bar with the capacity off or without planned time.
+- **"+ Dodaj":** each day from today on has "+ Dodaj" at the bottom of its column. It opens Quick Add planned for that day; the `quick-add` action now reads `data-date`.
+- **Mesec:** a day lists up to three titles in the day list's order (timed tasks, deadlines, then the others by title), then "+N još" (`monthTitles`). The dot is hidden there, and the selected day's list stays below the grid.
+- **"Danas":** sits next to the arrows (`calendar-today`, the same as T).
+- **Predstojeće:** the phone list, unchanged.
+
+### Dragging (K9)
+
+- **What can be dragged:** the task rows that could already be dragged (Danas, Inbox, a project) and the calendar's cards and Raspored blocks.
+- **Where they can go:**
+  - onto Danas in the sidebar: `addTaskToToday`;
+  - onto "Prevuci ovde za sutra": `moveTaskToTomorrow`;
+  - onto a project in the sidebar: the new `moveTaskToProject`, which also files an Inbox task.
+  The target lights up while the task is over it, and while a task is dragged the "Sutra" zone shows a blue border.
+- **Calendar drops:** a card dropped on a day or an hour now goes through `dropTaskOnDay`. It plans the task there (leaving Inbox) and says "Zadatak je premešten u Danas / za sutra / na drugi dan".
+- **Poništi:** every move offers it.
+- **Repeating tasks:** a repeating task's new date first asks "Samo ovo / Ovo i buduća" (S14), and that question has its own Poništi.
+- **Phones:** this is mouse dragging, so nothing changes there. The sidebar exists only on a wide screen, and R25's touch reorder is untouched.
+
+## Checks (R47d)
+
+- **Node:** `tests/redesign-r47d.test.js`, written first; it failed 10/10. It covers:
+  - the load bar and "+ Dodaj" (with the capacity on and off);
+  - the month titles and "+N još";
+  - the actions;
+  - the CSS;
+  - the sidebar targets;
+  - moving into a project with Poništi;
+  - planning on a day with Poništi, and the repeating task's question;
+  - the drag wiring;
+  - Serbian;
+  - the version.
+- **Updated tests:** R7's phone tests now allow "Danas" and the month titles in the markup (hidden by CSS on a phone). R5's `quick-add` pattern now includes the day.
+- **Smoke:** a task row dragged from Danas onto "Prevuci ovde za sutra" moves to tomorrow, and Poništi brings it back.
+- **Manual-pending:** dragging with a real mouse, the calendar in a wide browser window, and the look of the bars and titles.
+
+## The desktop layer as a whole
+
+K1–K12 are implemented as R47a–R47d. K5 does not exist in the decision log, and K11 was already there. Every part applies only from 1024 px on (the two columns from 1280 px on); the phone design and its tests are unchanged.

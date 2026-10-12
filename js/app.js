@@ -5755,7 +5755,7 @@
     else if(action==='choose-template')chooseTemplate(el.dataset.templateId);
     else if(action==='template-picker-back'){if(modalState.previous?.type==='goal')closeModal();else{modalState=modalState.previous;renderModal();}}
     else if(action==='use-template')useTemplate(el.dataset.templateId);
-    else if (action === 'quick-add') { const context = el.closest('#mobile-quick-add-menu') ? routeQuickAddContext() : { projectId: el.dataset.projectId || null, areaId: el.dataset.areaId || null, today: el.dataset.today === 'true', anytime: el.dataset.anytime === 'true' }; if (context) openQuickAdd(context); else setToastMessage(tr('Restore the project to add tasks.')); }
+    else if (action === 'quick-add') { const context = el.closest('#mobile-quick-add-menu') ? routeQuickAddContext() : { projectId: el.dataset.projectId || null, areaId: el.dataset.areaId || null, today: el.dataset.today === 'true', anytime: el.dataset.anytime === 'true', plannedDate: Core.parseDateOnly(el.dataset.date) ? el.dataset.date : null }; if (context) openQuickAdd(context); else setToastMessage(tr('Restore the project to add tasks.')); }
     else if (action === 'open-task') openTaskDetail(el.dataset.taskId);
     else if (action === 'dismiss-gesture-hint') { dismissGestureHint(); render(); }
     else if (action === 'habits-yesterday') { habitsEntryDay = Core.addDays(Core.dateOnly(), -1); navigate('habits'); }
@@ -5770,6 +5770,7 @@
     else if (action === 'toggle-complete') toggleComplete(el.dataset.taskId);
     else if (action === 'open-search') openSearch();
     else if (action === 'toggle-sidebar') toggleSidebar();
+    else if (action === 'calendar-today') calendarToday();
     else if (action === 'sidebar-fold') toggleSidebarFold(el.dataset.group);
     else if (action === 'tasks-view') { state.ui.tasksView = el.dataset.view === 'projects' ? 'projects' : 'anytime'; saveAndRender(); }
     else if (action === 'delete-draft-goal-milestone') deleteDraftGoalMilestone(el.dataset.milestoneId);
@@ -6259,7 +6260,7 @@
   function handleDragStart(event) {
     if (touchReorder) { event.preventDefault(); return; }
     const calendar = event.target.closest('[data-calendar-drag][draggable="true"]');
-    if (calendar) { dragState = { type: `calendar-${calendar.dataset.calendarDrag}`, id: calendar.dataset.calendarItemId }; event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', dragState.id); calendar.classList.add('is-dragging'); return; }
+    if (calendar) { dragState = { type: `calendar-${calendar.dataset.calendarDrag}`, id: calendar.dataset.calendarItemId }; event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', dragState.id); calendar.classList.add('is-dragging'); document.body.classList.add('task-drag-active'); return; }
     const sub = event.target.closest('.subtask-row[draggable="true"]');
     if (sub) { dragState = { type: 'subtask', id: sub.dataset.subtaskId, parentId: sub.dataset.parentTaskId }; event.dataTransfer.effectAllowed = 'move'; sub.classList.add('is-dragging'); return; }
     const row = event.target.closest('.task-row[draggable="true"]');
@@ -6270,6 +6271,9 @@
     const dropZone = event.target.closest?.('.attachment-drop-zone');
     if (dropZone && event.dataTransfer?.types?.includes('Files')) { event.preventDefault(); dropZone.classList.add('is-dragover'); return; }
     if (!dragState) return;
+    // R47d (K9): a task row or a calendar card can land on Danas, "Sutra" or a project in the sidebar.
+    const sidebarTarget = ['task', 'calendar-task'].includes(dragState.type) && sidebarDropTarget(event.target);
+    if (sidebarTarget) { event.preventDefault(); sidebarTarget.element.classList.add('is-drop-target'); return; }
     const calendarTarget = event.target.closest('[data-calendar-time], [data-calendar-date]');
     if (calendarTarget && ['calendar-task'].includes(dragState.type)) { event.preventDefault(); calendarTarget.classList.add('is-drop-target'); return; }
     if (dragState.type.startsWith('calendar-')) return;
@@ -6291,12 +6295,14 @@
     if (dropZone && event.dataTransfer?.files?.length) { event.preventDefault(); dropZone.classList.remove('is-dragover'); receiveAttachmentFiles(dropZone.dataset, [...event.dataTransfer.files]); return; }
     if (!dragState) return;
     event.preventDefault();
-    if (dragState.type.startsWith('calendar-')) {
+    const sidebarTarget = ['task', 'calendar-task'].includes(dragState.type) && sidebarDropTarget(event.target);
+    if (sidebarTarget) dropTaskOnSidebar(dragState.id, sidebarTarget);
+    else if (dragState.type.startsWith('calendar-')) {
       const target = event.target.closest('[data-calendar-time], [data-calendar-date]');
       if (target) {
         const date = target.closest('[data-calendar-date]')?.dataset.calendarDate;
         const time = Core.normalizeTime(target.dataset.calendarTime);
-        if (Core.parseDateOnly(date) && dragState.type === 'calendar-task') updateTask(dragState.id, { plannedDate: date, ...(time ? { plannedTime: time } : {}) });
+        if (Core.parseDateOnly(date) && dragState.type === 'calendar-task') dropTaskOnDay(dragState.id, date, time);
       }
     } else if (dragState.type === 'subtask') {
       const target = event.target.closest('.subtask-row[draggable="true"]'); if (target && target.dataset.parentTaskId === dragState.parentId) reorderSubtasks(dragState.parentId, dragState.id, target.dataset.subtaskId);
@@ -6304,6 +6310,44 @@
       const target = event.target.closest('.task-row[draggable="true"]'); if (target && target.dataset.listContext === dragState.context && dropGroup(target) === dragState.group) reorderTasks(dragState.context, dragState.id, target.dataset.taskId);
     }
     cleanupDrag();
+  }
+
+  // R47d (K9): the sidebar's drop targets: Danas, "Prevuci ovde za sutra" and the projects.
+  function sidebarDropTarget(element) {
+    const target = element?.closest?.('#desktop-sidebar [data-sidebar-drop], #desktop-sidebar [data-route="today"], #desktop-sidebar [data-route^="project/"]');
+    if (!target) return null;
+    if (target.dataset.sidebarDrop === 'tomorrow') return { element: target, kind: 'tomorrow' };
+    if (target.dataset.route === 'today') return { element: target, kind: 'today' };
+    return { element: target, kind: 'project', projectId: decodeURIComponent(target.dataset.route.slice('project/'.length)) };
+  }
+
+  // Each move says what it did and offers Poništi; a repeating task's date asks "Samo ovo / Ovo i buduća" first (S14).
+  function dropTaskOnSidebar(taskId, target) {
+    if (target.kind === 'today') addTaskToToday(taskId);
+    else if (target.kind === 'tomorrow') moveTaskToTomorrow(taskId);
+    else moveTaskToProject(taskId, target.projectId);
+  }
+
+  function moveTaskToProject(taskId, projectId) {
+    const task = getTask(taskId);
+    if (!task || !getProject(projectId) || (task.projectId === projectId && !task.isInbox)) return;
+    const previous = { projectId: task.projectId ?? null, areaId: task.areaId ?? null, isInbox: task.isInbox };
+    if (requestTaskEdit(taskId, { projectId, areaId: null, isInbox: false })) return;
+    setUndo(msg('Task moved to project'), () => { const current = getTask(taskId); if (!current) return; Object.assign(current, previous, { updatedAt: nowIso() }); saveState(); render(); });
+  }
+
+  // R47d (K9): a task dropped on a calendar day (or an hour of Raspored) is planned there, with Poništi; the
+  // "Samo ovo / Ovo i buduća" question of a repeating task has its own.
+  function dropTaskOnDay(taskId, date, time) {
+    const task = getTask(taskId);
+    if (!task || (task.plannedDate === date && (!time || task.plannedTime === time) && !task.isInbox)) return;
+    const previous = { plannedDate: task.plannedDate ?? null, plannedTime: task.plannedTime ?? null, isInbox: task.isInbox, todayOrder: task.todayOrder ?? null };
+    if (requestTaskEdit(taskId, { plannedDate: date, ...(time ? { plannedTime: time } : {}), isInbox: false })) return;
+    const today = Core.dateOnly();
+    setUndo(date === today ? msg('Task moved to Today') : date === Core.addDays(today, 1) ? msg('Task moved to Tomorrow') : msg('Task moved to another day'), () => {
+      const current = getTask(taskId); if (!current) return;
+      Object.assign(current, previous, { updatedAt: nowIso() }); saveState(); render();
+    });
   }
 
   function handleDragEnd() { cleanupDrag(); }

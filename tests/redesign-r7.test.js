@@ -104,13 +104,14 @@ test('C1, C7: "Kalendar" with the Nedelja / Mesec / Predstojeće switch; no Doda
   const ctx = calendarContext(week());
   const html = adapter().renderRoute({ type: 'calendar' }, ctx);
   assert.match(html, /^<header title="Calendar" subtitle="" add="false"><\/header><div class="view-tabs calendar-view-switch" role="group" aria-label="Calendar view"><button class="btn is-selected" type="button" data-action="calendar-view" data-view="week" aria-pressed="true">Week<\/button><button class="btn" type="button" data-action="calendar-view" data-view="month" aria-pressed="false">Month<\/button><button class="btn" type="button" data-action="calendar-view" data-view="upcoming" aria-pressed="false">Upcoming<\/button><\/div>/);
-  assert.doesNotMatch(html, /calendar-add|calendar-today|data-calendar-visibility|calendar-summary|calendar-legend|calendar-detail|Walk the dog/);
+  // R47d (K8): "Danas" and the month titles are in the markup for wide screens; CSS hides them on a phone (C1).
+  assert.doesNotMatch(html, /calendar-add|data-calendar-visibility|calendar-summary|calendar-legend|calendar-detail|Walk the dog/);
 });
 
 test('C1, C3, C5: the week bar, a strip of seven days with dots, the selection and the wide-screen cards', () => {
   const ctx = calendarContext(week());
   const html = adapter().renderRoute({ type: 'calendar' }, ctx);
-  assert.match(html, /<div class="calendar-period-bar"><h2 class="calendar-period">Oct 12\s*–\s*18, 2026<\/h2><span class="calendar-arrows"><button class="btn-icon" type="button" data-action="calendar-prev" aria-label="Previous week"><i class="ph ph-caret-left"><\/i><\/button><button class="btn-icon" type="button" data-action="calendar-next" aria-label="Next week"><i class="ph ph-caret-right"><\/i><\/button><\/span><\/div>/u);
+  assert.match(html, /<div class="calendar-period-bar"><h2 class="calendar-period">Oct 12\s*–\s*18, 2026<\/h2><span class="calendar-arrows"><button class="btn calendar-today" type="button" data-action="calendar-today">Today<\/button><button class="btn-icon" type="button" data-action="calendar-prev" aria-label="Previous week"><i class="ph ph-caret-left"><\/i><\/button><button class="btn-icon" type="button" data-action="calendar-next" aria-label="Next week"><i class="ph ph-caret-right"><\/i><\/button><\/span><\/div>/u);
   const days = [...html.matchAll(/<section class="calendar-strip-day([^"]*)" data-calendar-date="([\d-]+)">/g)].map(match => [match[2], match[1].trim()]);
   assert.deepEqual(days.map(day => day[0]), ['2026-10-12', '2026-10-13', '2026-10-14', '2026-10-15', '2026-10-16', '2026-10-17', '2026-10-18']);
   assert.deepEqual(days.filter(day => day[1].includes('is-selected')).map(day => day[0]), [DAY]);
@@ -126,18 +127,20 @@ test('C1, C3, C5: the week bar, a strip of seven days with dots, the selection a
   assert.match(adapter().renderRoute({ type: 'calendar' }, sundayCtx), /<section class="calendar-strip-day[^"]*" data-calendar-date="2026-10-11">/, 'the week follows the week start');
 });
 
-test('C1, C5: the month grid has weekday names, blanks, dates and dots only', () => {
+test('C1, C5: the month grid has weekday names, blanks, dates and dots only (titles for wide screens, R47d)', () => {
   const ctx = calendarContext(week(), { calendarView: 'month' });
   const html = adapter().renderRoute({ type: 'calendar' }, ctx);
-  assert.match(html, /<h2 class="calendar-period">October 2026<\/h2><span class="calendar-arrows"><button class="btn-icon" type="button" data-action="calendar-prev" aria-label="Previous month">/);
+  assert.match(html, /<h2 class="calendar-period">October 2026<\/h2><span class="calendar-arrows"><button class="btn calendar-today" type="button" data-action="calendar-today">Today<\/button><button class="btn-icon" type="button" data-action="calendar-prev" aria-label="Previous month">/);
   assert.match(html, /aria-label="Next month"/);
   const grid = html.slice(html.indexOf('<div class="calendar-month-grid">'), html.indexOf('<section class="calendar-day-panel"'));
   assert.deepEqual([...grid.matchAll(/<span class="calendar-grid-weekday">(\w+)<\/span>/g)].map(match => match[1]), ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']);
   assert.equal((grid.match(/<span class="calendar-grid-blank" aria-hidden="true"><\/span>/g) || []).length, 3, '1 October 2026 is a Thursday');
   assert.equal((grid.match(/class="calendar-month-cell/g) || []).length, 31);
-  assert.match(grid, /<button class="calendar-month-cell is-selected" type="button" data-action="calendar-pick" data-date="2026-10-14" aria-pressed="true" aria-label="F:2026-10-14, 4 planned"><span>14<\/span><i class="calendar-dot" aria-hidden="true"><\/i><\/button>/);
+  assert.match(grid, /<button class="calendar-month-cell is-selected" type="button" data-action="calendar-pick" data-date="2026-10-14" aria-pressed="true" aria-label="F:2026-10-14, 4 planned"><span>14<\/span><i class="calendar-dot" aria-hidden="true"><\/i><small class="calendar-month-titles">[^]*?<\/small><\/button>/);
   assert.match(grid, /data-date="2026-10-15" aria-pressed="false" aria-label="F:2026-10-15"><span>15<\/span><i class="calendar-dot is-empty" aria-hidden="true"><\/i>/);
-  assert.doesNotMatch(grid, /Early run|Marathon|calendar-card/, 'no task content in the month grid');
+  assert.doesNotMatch(grid, /calendar-card/, 'no cards in the month grid');
+  // R47d (K8): titles appear only inside .calendar-month-titles, which CSS shows from 1024 px on; a phone keeps dots.
+  assert.doesNotMatch(grid.replace(/<small class="calendar-month-titles">[^]*?<\/small>/g, ''), /Early run|Marathon/, 'no task content outside the wide-screen titles');
   ctx.state.settings.weekStartsOn = 'sunday';
   const sunday = adapter().renderRoute({ type: 'calendar' }, ctx);
   assert.match(sunday, /<div class="calendar-month-grid"><span class="calendar-grid-weekday">Sun<\/span>/);

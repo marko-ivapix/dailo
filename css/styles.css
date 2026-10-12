@@ -2543,6 +2543,27 @@ textarea[data-autogrow] { field-sizing: content; min-height: 0; resize: none; ov
   .screen-side > .habits-progress { margin-top: 4px; }
 }
 
+/* Redesign R47d — the calendar on a wide screen (K8) and dragging onto the sidebar (K9). Each week day has a thin load
+   bar against the daily capacity and "+ Dodaj"; a month day lists up to three titles and "+N još"; "Danas" sits next
+   to the arrows. While a task is dragged, "Prevuci ovde za sutra" in the sidebar lights up. */
+.calendar-load, .calendar-day-add, .calendar-month-titles, .calendar-today { display: none; }
+@media (min-width: 1024px) {
+  .calendar-load { display: block; height: 3px; margin: 0 4px 2px; overflow: hidden; border-radius: var(--radius-pill); background: var(--line-1); }
+  .calendar-load > span { display: block; height: 100%; border-radius: inherit; background: var(--mint-400); }
+  .calendar-load.is-over > span { background: var(--warning); }
+  .calendar-day-add { display: flex; align-items: center; gap: 4px; margin-top: auto; padding: 4px 6px; border: 0; border-radius: var(--radius-sm); background: none; color: var(--ink-3); font: inherit; font-size: var(--text-meta); cursor: pointer; }
+  .calendar-day-add:hover { background: var(--graphite-800); color: var(--ink-1); }
+  .calendar-month-grid { gap: 2px; }
+  .calendar-month-cell { min-height: 96px; align-content: start; justify-items: start; padding: 4px; }
+  .calendar-month-cell:hover { background: var(--graphite-850); }
+  .calendar-month-cell .calendar-dot { display: none; }
+  .calendar-month-titles { display: grid; gap: 2px; width: 100%; text-align: left; }
+  .calendar-month-title { overflow: hidden; padding: 1px 4px; border-radius: var(--radius-xs); background: var(--graphite-800); color: var(--ink-2); font-size: var(--text-xs); text-overflow: ellipsis; white-space: nowrap; }
+  .calendar-month-more { padding: 0 4px; color: var(--ink-3); font-size: var(--text-xs); }
+  .calendar-today { display: inline-flex; }
+  .task-drag-active .sidebar-drop { border-color: var(--blue-300); color: var(--ink-2); }
+}
+
 /* Keep primary compact actions touchable after all density rules. */
 @media (max-width: 700px), (pointer: coarse) {
   .task-actions .btn-icon,

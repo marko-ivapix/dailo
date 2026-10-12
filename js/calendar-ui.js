@@ -31,7 +31,8 @@
   function periodBar(ctx, label, unit) {
     const previous = unit === 'month' ? tr('Previous month') : tr('Previous week');
     const next = unit === 'month' ? tr('Next month') : tr('Next week');
-    return `<div class="calendar-period-bar"><h2 class="calendar-period">${ctx.esc(label)}</h2><span class="calendar-arrows"><button class="btn-icon" type="button" data-action="calendar-prev" aria-label="${previous}"><i class="ph ph-caret-left"></i></button><button class="btn-icon" type="button" data-action="calendar-next" aria-label="${next}"><i class="ph ph-caret-right"></i></button></span></div>`;
+    // R47d (K8): a wide screen has "Danas" next to the arrows (CSS); the phone keeps C1 without it.
+    return `<div class="calendar-period-bar"><h2 class="calendar-period">${ctx.esc(label)}</h2><span class="calendar-arrows"><button class="btn calendar-today" type="button" data-action="calendar-today">${tr('Today')}</button><button class="btn-icon" type="button" data-action="calendar-prev" aria-label="${previous}"><i class="ph ph-caret-left"></i></button><button class="btn-icon" type="button" data-action="calendar-next" aria-label="${next}"><i class="ph ph-caret-right"></i></button></span></div>`;
   }
 
   // The day button speaks its date and count, since the dot is only visual (C5).
@@ -56,6 +57,23 @@
     return `<div class="calendar-cards">${[...items.timed.map(task), ...items.deadlines.map(deadline), ...items.untimed.map(task)].join('')}</div>`;
   }
 
+  // R47d (K8): wide screens give each week day a thin bar of its planned time against the daily capacity.
+  function dayLoadBar(ctx, date) {
+    const capacity = ctx.Core.dailyCapacityMinutes(ctx.state.settings);
+    const load = ctx.Core.dayLoad(ctx.listTasks(), date);
+    if (!capacity || !load.minutes) return '';
+    const percent = Math.min(100, Math.round(load.minutes / capacity * 100));
+    return `<span class="calendar-load${load.minutes > capacity ? ' is-over' : ''}" title="${ctx.esc(tr('Planned {planned} of {capacity}', { planned: ctx.durationLabel(load.minutes), capacity: ctx.durationLabel(capacity) }))}" aria-hidden="true"><span style="width:${percent}%"></span></span>`;
+  }
+
+  // R47d (K8): on a wide screen a month day lists up to three titles in the day list's order, then "+N još".
+  function monthTitles(ctx, items) {
+    const titles = [...items.timed.map(task => task.title), ...items.deadlines.map(({ goal, milestone }) => (milestone ? milestone.title : goal.title)), ...items.untimed.map(task => task.title)];
+    if (!titles.length) return '';
+    const more = titles.length - 3;
+    return `<small class="calendar-month-titles">${titles.slice(0, 3).map(title => `<span class="calendar-month-title">${ctx.esc(title)}</span>`).join('')}${more > 0 ? `<span class="calendar-month-more">${ctx.esc(tr('+{count} more', { count: more }))}</span>` : ''}</small>`;
+  }
+
   function renderWeek(ctx, selected) {
     const { state, Core } = ctx;
     const source = listed(ctx);
@@ -70,7 +88,9 @@
     const strip = days.map(date => {
       const items = Core.calendarDayItems(source, date);
       const classes = `${date === today ? ' is-today' : ''}${date === selected ? ' is-selected' : ''}`;
-      return `<section class="calendar-strip-day${classes}" data-calendar-date="${date}"><button class="calendar-strip-heading" type="button" data-action="calendar-pick" data-date="${date}" aria-pressed="${date === selected}" aria-label="${dayLabel(ctx, date, items)}"><span class="calendar-strip-weekday">${ctx.esc(capitalized(weekday.format(ctx.parseLocalDate(date))))}</span><strong>${ctx.parseLocalDate(date).getDate()}</strong>${dot(items)}</button>${cards(ctx, items)}</section>`;
+      // R47d (K8): the load bar and, from today on, "+ Dodaj" for that day (both only on a wide screen).
+      const add = date >= today ? `<button class="calendar-day-add" type="button" data-action="quick-add" data-date="${date}" aria-label="${ctx.esc(tr('Add a task for {date}', { date: ctx.formatDate(date, 'full') }))}"><i class="ph ph-plus" aria-hidden="true"></i> ${tr('Add')}</button>` : '';
+      return `<section class="calendar-strip-day${classes}" data-calendar-date="${date}"><button class="calendar-strip-heading" type="button" data-action="calendar-pick" data-date="${date}" aria-pressed="${date === selected}" aria-label="${dayLabel(ctx, date, items)}"><span class="calendar-strip-weekday">${ctx.esc(capitalized(weekday.format(ctx.parseLocalDate(date))))}</span><strong>${ctx.parseLocalDate(date).getDate()}</strong>${dot(items)}</button>${dayLoadBar(ctx, date)}${cards(ctx, items)}${add}</section>`;
     }).join('');
     return `${periodBar(ctx, label, 'week')}<div class="calendar-strip">${strip}</div>`;
   }
@@ -91,7 +111,7 @@
       const date = Core.addDays(Core.dateOnly(first), index);
       const items = Core.calendarDayItems(source, date);
       const classes = `${date === today ? ' is-today' : ''}${date === selected ? ' is-selected' : ''}`;
-      return `<button class="calendar-month-cell${classes}" type="button" data-action="calendar-pick" data-date="${date}" aria-pressed="${date === selected}" aria-label="${dayLabel(ctx, date, items)}"><span>${index + 1}</span>${dot(items, repeats[date])}</button>`;
+      return `<button class="calendar-month-cell${classes}" type="button" data-action="calendar-pick" data-date="${date}" aria-pressed="${date === selected}" aria-label="${dayLabel(ctx, date, items)}"><span>${index + 1}</span>${dot(items, repeats[date])}${monthTitles(ctx, items)}</button>`;
     }).join('');
     return `${periodBar(ctx, label, 'month')}<div class="calendar-month-grid">${names}${blanks}${cells}</div>`;
   }
