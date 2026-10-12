@@ -1089,7 +1089,7 @@
   // Redesign R8a (H1, H4): the Habits screen opens on Dan, today and this month whenever it is opened from another screen.
   function enterHabitsRoute(route) {
     const open = route.type === 'habits';
-    if (open && !habitsOpen) Object.assign(state.ui, { habitsView: 'day', habitsDay: habitsEntryDay || Core.dateOnly(), habitTrackerMonth: Core.dateOnly().slice(0, 7), habitChartDay: null });
+    if (open && !habitsOpen) Object.assign(state.ui, { habitsView: 'day', habitsDay: habitsEntryDay || Core.dateOnly(), habitsWeekStart: null, habitTrackerMonth: Core.dateOnly().slice(0, 7), habitChartDay: null });
     if (open) habitsEntryDay = null;
     habitsOpen = open;
   }

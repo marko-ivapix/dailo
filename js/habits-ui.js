@@ -122,6 +122,47 @@
     return { today, rule, start, days: Array.from({ length: 7 }, (_, index) => ctx.Core.addDays(start, index)) };
   }
 
+  const activeHabits = state => ROUTINE_ORDER.flatMap(routine => (state.habits || []).filter(habit => habit.status === 'active' && routineOf(habit) === routine));
+
+  // R41: the week on screen. ‹ and › move it a week at a time, back to the week the first active habit started and
+  // forward to next week; "Ova nedelja" comes back. Without an arrow it is the selected day's week, so an entry from
+  // Danas ("Juče nije zabeleženo" on a Monday) opens last week.
+  function shownWeek(ctx, active) {
+    const { Core, state } = ctx;
+    const current = habitsWeek(ctx);
+    const startOf = date => Core.habitPeriodKey({ frequencyType: 'timesPerWeek' }, date, current.rule);
+    const firstDay = active.map(habit => String(habit.startDate || habit.createdAt || '').slice(0, 10)).filter(date => Core.parseDateOnly(date)).sort()[0];
+    const earliest = firstDay && firstDay < current.start ? startOf(firstDay) : current.start;
+    const latest = Core.addDays(current.start, 7);
+    const day = Core.parseDateOnly(state.ui.habitsDay) && state.ui.habitsDay <= current.today ? state.ui.habitsDay : current.today;
+    const wanted = startOf(Core.parseDateOnly(state.ui.habitsWeekStart) ? state.ui.habitsWeekStart : day);
+    const start = wanted < earliest ? earliest : wanted > latest ? latest : wanted;
+    return { ...current, start, days: Array.from({ length: 7 }, (_, index) => Core.addDays(start, index)), current: current.start, earliest, latest };
+  }
+
+  // Dan's day inside the shown week: the selected day, else the week's last day so far; null in a week not yet begun.
+  function shownDay(ctx, week) {
+    const value = ctx.state.ui.habitsDay;
+    const day = ctx.Core.parseDateOnly(value) && value <= week.today ? value : week.today;
+    if (week.days.includes(day)) return day;
+    return week.days.filter(date => date <= week.today).at(-1) || null;
+  }
+
+  function weekRange(ctx, days) {
+    const range = new Intl.DateTimeFormat(I18n.locale(), { day: 'numeric', month: 'long' });
+    const first = ctx.Core.parseDateOnly(days[0]); const last = ctx.Core.parseDateOnly(days[6]);
+    return typeof range.formatRange === 'function' ? range.formatRange(first, last) : `${ctx.formatDate(days[0])} – ${ctx.formatDate(days[6])}`;
+  }
+
+  function weekNav(ctx, week) {
+    const { Core, esc } = ctx;
+    const isCurrent = week.start === week.current;
+    const relative = isCurrent ? tr('Current week') : week.start === Core.addDays(week.current, -7) ? tr('Last week') : week.start === week.latest ? tr('Next week') : '';
+    const arrow = (shift, icon, label, off) => `<button class="btn-icon" type="button" data-action="habits-week" data-shift="${shift}" aria-label="${label}"${off ? ' disabled' : ''}><i class="ph ph-${icon}" aria-hidden="true"></i></button>`;
+    const back = isCurrent ? '' : `<button class="habits-week-today" type="button" data-action="habits-week" data-shift="0">${tr('Current week')}</button>`;
+    return `<div class="habits-week-nav">${arrow(-1, 'caret-left', tr('Previous week'), week.start <= week.earliest)}<div class="habits-week-range"><strong>${esc(weekRange(ctx, week.days))}</strong>${relative ? `<span>${relative}</span>` : ''}</div>${back}${arrow(1, 'caret-right', tr('Next week'), week.start >= week.latest)}</div>`;
+  }
+
   function ringSvg(percent) {
     const track = '<circle class="habit-ring-track" cx="22" cy="22" r="18"/>';
     if (percent === null) return `<svg class="habit-ring-svg" viewBox="0 0 44 44" aria-hidden="true">${track}<text class="habit-ring-none" x="22" y="26" text-anchor="middle">–</text></svg>`;
@@ -142,7 +183,8 @@
       const name = weekday.format(ctx.Core.parseDateOnly(date));
       return `<button class="habit-ring${date === week.today ? ' is-today' : ''}${isSelected ? ' is-selected' : ''}" type="button" data-action="habits-ring" data-date="${date}"${future ? ' disabled' : ''} aria-label="${esc(label)}"${isSelected ? ' aria-current="date"' : ''}><span class="habit-ring-weekday">${esc(name.charAt(0).toLocaleUpperCase(I18n.locale()) + name.slice(1))}</span>${ringSvg(share.percent)}<span class="habit-ring-date">${Number(date.slice(8))}</span></button>`;
     }).join('');
-    return `<div class="habit-rings" role="group" aria-label="${tr('This week, done of planned')}">${rings}</div>`;
+    const label = !week.current || week.start === week.current ? tr('This week, done of planned') : tr('{range}: done of planned', { range: weekRange(ctx, week.days) });
+    return `<div class="habit-rings" role="group" aria-label="${esc(label)}">${rings}</div>`;
   }
 
   function dayMeta(ctx, habit, day, date, today) {
@@ -178,9 +220,6 @@
   // H3: the week as a table; a cell records a day like a tap in Dan.
   function renderHabitsWeek(ctx, active, week) {
     const { Core, esc, state } = ctx;
-    const range = new Intl.DateTimeFormat(I18n.locale(), { day: 'numeric', month: 'long' });
-    const first = Core.parseDateOnly(week.days[0]); const last = Core.parseDateOnly(week.days[6]);
-    const title = typeof range.formatRange === 'function' ? range.formatRange(first, last) : `${ctx.formatDate(week.days[0])} – ${ctx.formatDate(week.days[6])}`;
     const weekday = new Intl.DateTimeFormat(I18n.locale(), { weekday: 'short' });
     const head = week.days.map(date => `<th scope="col"${date === week.today ? ' class="is-today"' : ''}>${esc(weekday.format(Core.parseDateOnly(date)))}<br>${Number(date.slice(8))}</th>`).join('');
     let body = '';
@@ -190,7 +229,9 @@
       body += `<tr class="habits-week-group"><th scope="rowgroup" colspan="7">${esc(routineLabel(routine))}</th></tr>`;
       // R33 (finding 24): each name has its own full-width row (a button to the details) above its seven days.
       body += habits.map(habit => `<tr class="habits-week-name-row"><th scope="rowgroup" colspan="7" class="habits-week-name"><button class="habits-week-name-button" type="button" data-route="habit/${esc(habit.id)}">${esc(habit.name)}</button></th></tr><tr class="habits-week-days">${week.days.map(date => {
-        const day = Core.habitDayState(habit, state.habitLogCache?.[habit.id] || [], date, week.today, week.rule);
+        const found = Core.habitDayState(habit, state.habitLogCache?.[habit.id] || [], date, week.today, week.rule);
+        // R41: a day ahead the habit is not planned on shows the dash, like a past unscheduled day.
+        const day = found.state === 'future' && !Core.habitScheduledOn(habit, date) ? { ...found, state: 'unscheduled' } : found;
         const inactive = ['unscheduled', 'future'].includes(day.state);
         // R37 (D): a numeric day short of its target shows how far it got as an arc.
         const fraction = habit.trackingType === 'numeric' && day.state !== 'done' && Number(habit.targetValue) > 0 ? Math.min(1, Number(day.value || 0) / Number(habit.targetValue)) : 0;
@@ -200,7 +241,7 @@
       }).join('')}</tr>`).join('');
     }
     const legend = ['done', 'missed', 'skipped', 'unscheduled'].map(key => `<span><i class="habit-cell-swatch is-${key}" aria-hidden="true"></i>${tr(CELL_LABELS[key])}</span>`).join('');
-    return `<h2 class="section-label habits-week-title">${esc(title)}</h2><div class="habits-week-scroll"><table class="habits-week-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div><div class="habits-legend">${legend}</div>`;
+    return `<div class="habits-week-scroll"><table class="habits-week-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div><div class="habits-legend">${legend}</div>`;
   }
 
   // H7: each active habit's week, done days against the week's plan.
@@ -261,18 +302,24 @@
   function renderHabits(ctx) {
     const { state, pageHeader, emptyState, Core } = ctx;
     const habits = state.habits || [];
-    const active = ROUTINE_ORDER.flatMap(routine => habits.filter(habit => habit.status === 'active' && routineOf(habit) === routine));
-    const week = habitsWeek(ctx);
-    const todayShare = Core.habitDayPercent(active, state.habitLogCache || {}, week.today, week.today, week.rule);
+    const active = activeHabits(state);
+    const thisWeek = habitsWeek(ctx);
+    const todayShare = Core.habitDayPercent(active, state.habitLogCache || {}, thisWeek.today, thisWeek.today, thisWeek.rule);
     let html = pageHeader(tr('Habits'), active.length ? tr('{done} of {total} today', { done: todayShare.done, total: todayShare.planned }) : '', { add: false });
     if (!habits.length) return html + emptyState(tr('No habits yet.'), tr('Track a repeatable behavior without turning it into a task.'), tr('New habit'), 'new-habit');
     if (active.length) {
       const view = state.ui.habitsView === 'week' ? 'week' : 'day';
-      const day = Core.parseDateOnly(state.ui.habitsDay) && state.ui.habitsDay <= week.today ? state.ui.habitsDay : week.today;
+      const week = shownWeek(ctx, active);
+      const day = shownDay(ctx, week);
+      html += weekNav(ctx, week);
       html += habitRings(ctx, active, week, view === 'day' ? day : null);
       html += `<div class="view-tabs habits-view-switch" role="group" aria-label="${tr('Habit view')}">${[['day', tr('Day')], ['week', tr('Week')]].map(([key, label]) => `<button class="btn${view === key ? ' is-selected' : ''}" type="button" data-action="habits-view" data-view="${key}" aria-pressed="${view === key}">${label}</button>`).join('')}</div>`;
-      html += view === 'day' ? renderHabitsDay(ctx, active, week, day) : renderHabitsWeek(ctx, active, week);
-      html += `<section class="section habits-progress"><div class="section-header"><h2 class="section-label">${tr('Progress')}</h2></div><div class="today-card habits-bars"><p class="habits-bars-title">${tr('By habit · this week')}</p>${habitBars(ctx, active, week)}</div>${habitChart(ctx, active, week)}</section>`;
+      if (view === 'week') html += renderHabitsWeek(ctx, active, week);
+      else html += day ? renderHabitsDay(ctx, active, week, day) : `<p class="today-empty">${tr('This week has not started yet. The Week view shows what is planned.')}</p>`;
+      // The bars follow a past week; next week has nothing done yet, so they stay on this one.
+      const barsWeek = week.start > week.current ? thisWeek : week;
+      const barsTitle = barsWeek.start === week.current ? tr('By habit · this week') : tr('By habit · {range}', { range: weekRange(ctx, barsWeek.days) });
+      html += `<section class="section habits-progress"><div class="section-header"><h2 class="section-label">${tr('Progress')}</h2></div><div class="today-card habits-bars"><p class="habits-bars-title">${ctx.esc(barsTitle)}</p>${habitBars(ctx, active, barsWeek)}</div>${habitChart(ctx, active, thisWeek)}</section>`;
     } else html += `<p class="today-empty">${tr('No active habits.')}</p>`;
     html += habitFold(ctx, 'paused', tr('Paused habits'), habits.filter(habit => habit.status === 'paused'), 'resume-habit', tr('Resume'));
     html += habitFold(ctx, 'archived', tr('Archived habits'), habits.filter(habit => habit.status === 'archived'), 'restore-habit', tr('Restore'));
@@ -953,6 +1000,18 @@
     if (action === 'habit-today-skip') { closePopover(); setHabitLog(el.dataset.habitId, date, dayLog(el.dataset.habitId)?.status === 'skipped' ? 'missed' : 'skipped'); return true; }
     if (action === 'habit-today-value') { closePopover(); ctx.openHabitValue(el.dataset.habitId, date); return true; }
     if (action === 'habits-view') { state.ui.habitsView = el.dataset.view === 'week' ? 'week' : 'day'; if (state.ui.habitsView === 'day') state.ui.habitsDay = today; saveAndRender(); return true; }
+    if (action === 'habits-week') {
+      const week = shownWeek(ctx, activeHabits(state));
+      const shift = Math.sign(Number(el.dataset.shift) || 0);
+      const start = shift ? Core.addDays(week.start, 7 * shift) : week.current;
+      if (start < week.earliest || start > week.latest) return true;
+      // Dan keeps the same weekday in the new week, never after today.
+      const selected = shownDay(ctx, week);
+      const target = selected ? Core.addDays(start, week.days.indexOf(selected)) : start === week.current ? today : Core.addDays(start, 6);
+      state.ui.habitsWeekStart = start === week.current ? null : start;
+      state.ui.habitsDay = target <= today ? target : today;
+      saveAndRender(); return true;
+    }
     if (action === 'habits-ring') {
       if (Core.parseDateOnly(el.dataset.date) && el.dataset.date <= today) { state.ui.habitsDay = el.dataset.date; state.ui.habitsView = 'day'; saveAndRender(); }
       return true;

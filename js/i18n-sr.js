@@ -862,6 +862,12 @@
     "Not scheduled": "Nije u planu",
     "Progress": "Napredak",
     "By habit · this week": "Po navici · ova nedelja",
+    // R41: paging through weeks on Navike.
+    "Current week": "Ova nedelja",
+    "Last week": "Prošla nedelja",
+    "{range}: done of planned": "{range}: urađeno od planiranog",
+    "By habit · {range}": "Po navici · {range}",
+    "This week has not started yet. The Week view shows what is planned.": "Ova nedelja još nije počela. Prikaz Nedelja pokazuje šta je planirano.",
     "{name}: {done} of {planned}": "{name}: {done} od {planned}",
     "average": "prosek",
     "today {percent}%": "danas {percent}%",
