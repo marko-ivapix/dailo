@@ -141,7 +141,7 @@ test('S10: Today, Zadaci and Predstojeće read tasks through listTasks, which le
   assert.match(fn('renderToday'), /Core\.deriveTodayV3\(\{ \.\.\.state, tasks: listTasks\(\) \}/);
   // R7 (C9): Predstojeće is now the Calendar's view; the calendar module reads ctx.listTasks().
   assert.match(read('js/calendar-ui.js'), /return \{ \.\.\.ctx\.state, tasks: ctx\.listTasks\(\) \};/);
-  assert.match(fn('addAllSuggestions'), /Core\.deriveTodaySections\(listTasks\(\), Core\.dateOnly\(\)\)/);
+  assert.match(fn('addAllSuggestions'), /Core\.deriveTodaySections\(listTasks\(\), today\)/); // R30: `today` is Core.dateOnly()
 });
 
 function sheetCtx() {

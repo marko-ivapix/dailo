@@ -102,7 +102,7 @@ test('I6: Razvrstano and Oblast… take an item out of Inbox with "Poništi"', (
 test('I6: Projekat… from Inbox can be undone', () => {
   const set = fn('setProject');
   assert.match(set, /const previous = \{ projectId: task\.projectId \?\? null, areaId: task\.areaId \?\? null, isInbox: task\.isInbox \};/);
-  assert.match(set, /if \(!asked && previous\.isInbox && projectId\) setUndo\(msg\('Task moved to project'\)/);
+  assert.match(set, /if \(!asked && previous\.isInbox\) setUndo\(projectId \? msg\('Task moved to project'\) : msg\('Task sorted'\)/); // R30: "Bez projekta" sorts too
   assert.match(sr, /"Task moved to project": "Zadatak je premešten u projekat"/);
 });
 

@@ -30,7 +30,7 @@ function quickContext(draft = {}, extra = {}) {
     state: { tasks: [], projects, tags, areas: [], templates, goals: [], habits: [], settings: {} },
     modalState: { type: 'quick', defaults: { projectId: null, areaId: null, plannedDate: null, explicitPlan: false, processed: false }, templateContext: {}, draft: { title: '', notes: '', projectId: null, areaId: null, plannedDate: null, parsedPlanDate: null, explicitPlan: false, dueDate: null, plannedTime: null, dueTime: null, explicitPlannedTime: false, reminderAt: null, reminderFiredAt: null, recurrence: null, tagIds: [], priority: 'none', subtasks: [], ...draft }, error: '' },
     getProject: id => projects.find(project => project.id === id), getTag: id => tags.find(tag => tag.id === id), getArea: () => null,
-    sortedProjects: () => projects, sortedAreas: () => [],
+    sortedProjects: () => projects, sortedAreas: () => [], taskRecurrence: task => task?.recurrence || null, // R30: projectPickerGroups
     relativeDateLabel: date => `R(${date})`, formatReminder: String, recurrenceLabel: String, durationLabel: minutes => `${minutes} min`, priorityLabel: value => value,
     modalFrame: (content, cls) => `<frame ${cls}>${content}</frame>`,
     uid: prefix => `${prefix}_${++n}`, nowIso: () => '2026-10-10T08:00:00.000Z', copyTemplate: value => JSON.parse(JSON.stringify(value)),
@@ -41,7 +41,7 @@ function quickContext(draft = {}, extra = {}) {
     ...extra,
   };
   vm.createContext(withI18n(ctx));
-  vm.runInContext(`${constLine('QUICK_TEMPLATE_FIELDS')}${['parseQuickAddTitle', 'quickParsePreview', 'renderQuickModal', 'quickPlanLabel', 'quickPlace', 'quickTemplateRow', 'quickTemplateSummary', 'openQuickTemplatePicker', 'applyQuickTemplate', 'clearQuickTemplate', 'syncQuickDraftFromDom', 'createTask', 'openProjectPicker', 'setProject'].map(fn).join('')}`, ctx);
+  vm.runInContext(`${constLine('QUICK_TEMPLATE_FIELDS')}${['parseQuickAddTitle', 'quickParsePreview', 'renderQuickModal', 'quickPlanLabel', 'quickPlace', 'quickTemplateRow', 'quickTemplateSummary', 'openQuickTemplatePicker', 'applyQuickTemplate', 'clearQuickTemplate', 'syncQuickDraftFromDom', 'createTask', 'projectPickerGroups', 'openProjectPicker', 'setProject'].map(fn).join('')}`, ctx);
   return ctx;
 }
 

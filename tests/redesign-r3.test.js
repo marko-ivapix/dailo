@@ -96,10 +96,13 @@ function sheetContext(extra = {}) {
     requestTaskEdit: (id, changes) => calls.push(['edit', id, changes]),
     renderModal: () => calls.push(['renderModal']),
     $: () => null,
+    // R30: the picker hides past times and groups of Redovne obaveze; the clock is fixed so the dates above stay ahead.
+    taskRecurrence: task => task?.recurrence || null, lowerFirst: text => text,
+    Date: class extends Date { constructor(...args) { super(...(args.length ? args : ['2026-10-12T08:00:00'])); } static now() { return new Date('2026-10-12T08:00:00').getTime(); } },
     ...extra,
   };
   vm.createContext(withI18n(ctx));
-  vm.runInContext(`let dateSheet = null, reminderSheet = null, tagSheet = null;\n${['nextMonday', 'monthGrid', 'openDateSheet', 'dateSheetHtml', 'applyDateSheet', 'openPriorityPicker', 'openReminderPicker', 'reminderSheetHtml', 'applyReminderSheet', 'setReminder', 'openProjectPicker', 'openTagPicker', 'tagSheetHtml', 'toggleTagSheet', 'applyTagSheet', 'openTaskDurationPicker', 'setTaskDuration'].map(fn).join('')}`, ctx);
+  vm.runInContext(`let dateSheet = null, reminderSheet = null, tagSheet = null;\n${['nextMonday', 'monthGrid', 'openDateSheet', 'dateSheetHtml', 'applyDateSheet', 'openPriorityPicker', 'openReminderPicker', 'reminderSheetHtml', 'applyReminderSheet', 'setReminder', 'reminderStart', 'projectPickerGroups', 'openProjectPicker', 'openTagPicker', 'tagSheetHtml', 'toggleTagSheet', 'applyTagSheet', 'openTaskDurationPicker', 'setTaskDuration'].map(fn).join('')}`, ctx);
   return ctx;
 }
 

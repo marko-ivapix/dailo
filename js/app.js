@@ -178,6 +178,8 @@
     return DATE_FMT.format(parseLocalDate(today));
   }
 
+  // R30 (finding 7): "danas" and "sutra" stay lowercase inside a sentence.
+  const lowerFirst = text => String(text).charAt(0).toLocaleLowerCase() + String(text).slice(1);
   function relativeDateLabel(value, today = Core.dateOnly()) {
     if (!value) return '';
     if (value === today) return tr('Today');
@@ -333,7 +335,7 @@
           { id: 'sub_link', title: tr('Send preview link'), isCompleted: false, order: 2 },
         ],
       }),
-      mkTask('task_invoice', tr('Send client invoice'), { projectId: 'project_client', dueDate: Core.addDays(today, -1), projectOrder: 1 }),
+      mkTask('task_invoice', tr('Send client invoice'), { projectId: 'project_client', dueDate: Core.addDays(today, 1), projectOrder: 1 }),
       mkTask('task_groceries', tr('Buy groceries'), { projectId: 'project_personal', plannedDate: today, todayOrder: 1, projectOrder: 0 }),
       mkTask('task_plugin', tr('Check plugin update'), { isInbox: true, dueDate: Core.addDays(today, 2), inboxOrder: 0 }),
       mkTask('task_accountant', tr('Call accountant'), { isInbox: true, inboxOrder: 1 }),
@@ -1136,7 +1138,10 @@
     const today = Core.dateOnly();
     const sections = Core.deriveTodayV3({ ...state, tasks: listTasks() }, Object.values(state.habitLogCache || {}).flat(), today);
     let html = pageHeader(tr('Today'), '', { add: false, eyebrow: formatPageToday(today) });
-    if (globalThis.DailoPlatform?.isNative) html += transferNotice();
+    const transfer = globalThis.DailoPlatform?.isNative ? transferNotice() : '';
+    html += transfer;
+    // R30 (finding 5): one first-run card at a time; the phone app's transfer question comes first.
+    if (!transfer) html += sampleNotice();
     html += backupReminderNotice();
     // R14 (T6 amended): the weekly review prompt left Today; the review stays in Još.
     html += callDomainHook('renderRoute', { type: 'journal-notice' }) || '';
@@ -1153,6 +1158,9 @@
       ...sections.milestones.map(item => deadlineRow(item, today)),
     ];
     html += section('today', tr('Planned today'), plannedRows.length, `<div class="task-list today-card" data-list-context="today">${plannedRows.length ? todayLimited('today', plannedRows) : `<p class="today-empty">${tr('Nothing planned. “+” adds a task for today.')}</p>`}</div><button class="inline-add" type="button" data-action="quick-add" data-today="true"><i class="ph ph-plus"></i> ${tr('Add task')}</button>`);
+    // R30 (finding 8): tasks due today and missed plans wait in Zadaci → "Predlozi za danas"; Danas links there.
+    const suggestions = Core.deriveTodaySections(listTasks(), today).suggestions;
+    if (suggestions.length) html += `<button class="today-suggestions-link" type="button" data-action="open-today-suggestions"><i class="ph ph-lightbulb" aria-hidden="true"></i><span>${tr('Suggested for today')}</span><span class="today-suggestions-count">${suggestions.length}</span><i class="ph ph-caret-right" aria-hidden="true"></i></button>`;
     // Done habits move to the bottom (T5).
     const habits = [...sections.habits.filter(item => item.status.status !== 'done'), ...sections.habits.filter(item => item.status.status === 'done')];
     if (habits.length) html += section('habits', tr('Habits'), `${habits.length - sections.habits.filter(item => item.status.status !== 'done').length}/${habits.length}`, `<div class="habit-list today-card">${todayLimited('habits', habits.map(item => renderHabitTodayRow(item.habit, item.status)))}</div>`);
@@ -1299,7 +1307,7 @@
     if (suggestions.length) {
       const open = state.ui.suggestionsExpanded === true;
       html += `<section class="tasks-suggestions" data-tasks-suggestions>${foldButton('toggle-suggestions', tr('Suggested for today'), suggestions.length, open)}`;
-      if (open) html += `<div class="task-list today-card">${suggestions.map(item => taskRow(item.task, 'suggestion', { today: true, addToday: true, suggestionReason: item.reason })).join('')}</div><button class="btn btn-ghost" type="button" data-action="add-all-suggestions"><i class="ph ph-plus-circle"></i> ${tr('Add all to Today')}</button>`;
+      if (open) html += `<div class="task-list today-card">${suggestions.map(item => taskRow(item.task, 'suggestion', { today: true, addToday: true, suggestionReason: item.reason })).join('')}</div>${suggestions.some(item => !taskRecurrence(item.task)) ? `<button class="btn btn-ghost" type="button" data-action="add-all-suggestions"><i class="ph ph-plus-circle"></i> ${tr('Add all to Today')}</button>` : ''}`;
       html += `</section>`;
     }
     html += `<div class="view-tabs tasks-view-switch" role="group" aria-label="${tr('Tasks')}">${tab('anytime', `${tr('Anytime')} · ${later.length}`)}${tab('projects', tr('Projects'))}</div>`;
@@ -1320,7 +1328,9 @@
     if (!later.length) return html + emptyState(tr('Nothing waiting in Anytime.'), tr('Processed tasks without a planned date will appear here.'), tr('Add task'), 'quick-add', { anytime: true });
     const loose = later.filter(task => !task.projectId);
     if (loose.length) html += group(tr('No project'), loose.length, `<div class="task-list today-card">${loose.map(task => taskRow(task, 'anytime', { today: true })).join('')}</div>`);
-    for (const project of projects) {
+    // R30 (finding 1): a task in a group of Redovne obaveze is listed under the group, so nothing disappears.
+    const anytimeGroups = sortedProjects();
+    for (const project of anytimeGroups) {
       const rows = later.filter(task => task.projectId === project.id);
       if (rows.length) html += group(project.name, rows.length, `<div class="task-list today-card">${rows.map(task => taskRow(task, 'anytime', { today: true, hidePlace: true })).join('')}</div>`, project.color);
     }
@@ -1916,7 +1926,7 @@
     if (parsed.plannedDate) items.push(item('ph-calendar-check', parsed.plannedTime ? `${relativeDateLabel(parsed.plannedDate)} ${parsed.plannedTime}` : relativeDateLabel(parsed.plannedDate)));
     else if (parsed.plannedTime) items.push(item('ph-clock', parsed.plannedTime));
     if (parsed.dueDate) items.push(item('ph-flag', tr('Due {date}', { date: relativeDateLabel(parsed.dueDate) })));
-    if (parsed.durationMinutes) items.push(item('ph-timer', tr('{minutes} min', { minutes: parsed.durationMinutes })));
+    if (parsed.durationMinutes) items.push(item('ph-timer', durationLabel(parsed.durationMinutes)));
     const project = parsed.projectId && getProject(parsed.projectId);
     if (project) items.push(item('ph-folder-simple', project.name));
     const area = !project && parsed.areaId && getArea(parsed.areaId);
@@ -2264,13 +2274,21 @@
     return PROJECT_COLORS[state.projects.length % PROJECT_COLORS.length];
   }
 
+  // R30 (finding 1): groups of Redovne obaveze are offered only to a repeating task or one already in a group;
+  // a one-off task put in a group used to vanish from Zadaci.
+  function projectPickerGroups(source) {
+    const all = sortedProjects();
+    const repeating = Boolean(taskRecurrence(source));
+    return { projects: all.filter(project => !project.isCleaningRoom), groups: all.filter(project => project.isCleaningRoom && (repeating || project.id === source?.projectId)) };
+  }
+
   // Redesign R3 (E8): projects grouped by area with "Oblast: …", a search field and "+ Novi projekat".
   // A tap applies the choice (E3).
   function openProjectPicker(anchor, target) {
     const source = target.type === 'quick' ? modalState?.draft : getTask(target.taskId);
     const currentId = source?.projectId || null;
     const attrs = `data-target-type="${target.type}"${target.taskId ? ` data-task-id="${esc(target.taskId)}"` : ''}`;
-    const projects = sortedProjects();
+    const { projects, groups } = projectPickerGroups(source);
     const activeAreas = sortedAreas().filter(area => area.status !== 'archived');
     const ordered = [...activeAreas.flatMap(area => projects.filter(project => project.areaId === area.id)), ...projects.filter(project => !activeAreas.some(area => area.id === project.areaId))];
     const option = project => {
@@ -2283,7 +2301,7 @@
     const none = !currentId && !inbox;
     const noneRow = `<button class="popover-option sheet-option${none ? ' is-selected' : ''}" type="button" ${quick ? 'data-pop-action="quick-place" data-place="none"' : `data-pop-action="set-project" data-project-id="" ${attrs}`}><span class="sheet-option-label">${tr('No project')}</span><span class="sheet-radio${none ? ' is-on' : ''}" aria-hidden="true"></span></button>`;
     const inboxRow = quick ? `<button class="popover-option sheet-option${inbox ? ' is-selected' : ''}" type="button" data-pop-action="quick-place" data-place="inbox"><i class="ph ph-tray" aria-hidden="true"></i><span class="sheet-option-label">${tr('Inbox')}<small>${tr('Sort it later')}</small></span><span class="sheet-radio${inbox ? ' is-on' : ''}" aria-hidden="true"></span></button>` : '';
-    const html = `<div class="popover-title">${quick ? tr('Where does the task go') : tr('Project')}</div>${source?.title ? `<p class="sheet-subtitle">${esc(source.title)}</p>` : ''}<label class="sheet-search"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input class="input" type="search" data-sheet-search placeholder="${tr('Search projects')}" aria-label="${tr('Search projects')}"></label><div class="sheet-card">${inboxRow}${noneRow}${ordered.map(option).join('')}<button class="popover-option sheet-option sheet-add" type="button" data-pop-action="inline-new-project" ${attrs}><i class="ph ph-plus" aria-hidden="true"></i>${tr('New project')}</button></div><p class="sheet-note">${tr("The task takes its project's area. A tap applies the choice.")}</p>`;
+    const html = `<div class="popover-title">${quick ? tr('Where does the task go') : tr('Project')}</div>${source?.title ? `<p class="sheet-subtitle">${esc(source.title)}</p>` : ''}<label class="sheet-search"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input class="input" type="search" data-sheet-search placeholder="${tr('Search projects')}" aria-label="${tr('Search projects')}"></label><div class="sheet-card">${inboxRow}${noneRow}${ordered.map(option).join('')}<button class="popover-option sheet-option sheet-add" type="button" data-pop-action="inline-new-project" ${attrs}><i class="ph ph-plus" aria-hidden="true"></i>${tr('New project')}</button></div>${groups.length ? `<h3 class="sheet-group-title">${tr('Recurring tasks')}</h3><div class="sheet-card">${groups.map(option).join('')}</div>` : ''}<p class="sheet-note">${tr("The task takes its project's area. A tap applies the choice.")}</p>`;
     openPopover(anchor, html, { type: 'project', target });
   }
 
@@ -2531,24 +2549,34 @@
       const later = Core.laterToday(new Date()); // null late in the evening: the option is not offered (audit H-2)
       presets = [...(later ? [[tr('Later today'), parts(later)]] : []), [tr('Tomorrow at {time}', { time: morning }), { date: Core.addDays(Core.dateOnly(), 1), time: morning }]];
     }
+    // R30 (finding 7): a passed time is never proposed.
+    presets = presets.filter(([, value]) => new Date(`${value.date}T${value.time}:00`) > new Date());
     const current = task.reminderAt ? parts(task.reminderAt) : null;
-    const sheet = { target, presets, date: current?.date || task.plannedDate || Core.dateOnly(), time: current?.time || task.plannedTime || morning };
+    const start = current || reminderStart({ date: task.plannedDate || Core.dateOnly(), time: task.plannedTime || morning }, presets.map(([, value]) => value), new Date());
+    const sheet = { target, presets, date: start.date, time: start.time };
     reminderSheet = sheet;
     openPopover(anchor, reminderSheetHtml(), { type: 'reminder', target });
     reminderSheet = sheet;
+  }
+  // R30 (finding 7): the sheet starts at the task's own time while it is ahead, else at the first choice that is.
+  function reminderStart(candidate, options, now = new Date()) {
+    const ahead = value => Boolean(value?.date && value?.time) && new Date(`${value.date}T${value.time}:00`) > now;
+    if (ahead(candidate)) return candidate;
+    return options.find(ahead) || { date: Core.addDays(Core.dateOnly(now), 1), time: candidate.time };
   }
   function reminderSheetHtml() {
     const { target, presets, date, time } = reminderSheet;
     const task = target.type === 'quick' ? modalState?.draft : getTask(target.taskId);
     const when = (day, at) => (day ? `${relativeDateLabel(day)}${at ? ` · ${at}` : ''}` : '—');
     const chips = presets.map(([label, value]) => `<button class="quick-chip${value.date === date && value.time === time ? ' is-selected' : ''}" type="button" data-pop-action="reminder-preset" data-date="${value.date}" data-time="${value.time}" aria-pressed="${value.date === date && value.time === time}">${esc(label)}</button>`).join('');
-    return `<div class="popover-title">${tr('Reminder')}</div>${task?.title ? `<p class="sheet-subtitle">${esc(task.title)}</p>` : ''}<div class="sheet-chips">${chips}</div>${task?.plannedDate && task?.plannedTime ? '' : `<p class="sheet-note">${tr('Quick choices for the planned time appear when the task has one.')}</p>`}<label class="sheet-field"><i class="ph ph-calendar-blank" aria-hidden="true"></i><span>${tr('Date')}</span><input id="reminder-date" class="input" type="date" value="${esc(date)}"></label><label class="sheet-field"><i class="ph ph-clock" aria-hidden="true"></i><span>${tr('Time')}</span><input id="reminder-time" class="input" type="time" value="${esc(time)}"></label><p class="sheet-summary" data-reminder-summary>${esc(tr('Remind me {date} at {time}', { date: relativeDateLabel(date), time }))}</p><h3 class="sheet-group-title">${tr('Task dates')}</h3><div class="sheet-card"><div class="sheet-option"><i class="ph ph-calendar-check" aria-hidden="true"></i><span class="sheet-option-label">${tr('Planned')}</span><span class="sheet-option-value">${esc(when(task?.plannedDate, task?.plannedTime))}</span></div><div class="sheet-option"><i class="ph ph-hourglass-medium" aria-hidden="true"></i><span class="sheet-option-label">${tr('Due date')}</span><span class="sheet-option-value">${esc(when(task?.dueDate, task?.dueTime))}</span></div></div><div class="sheet-footer">${task?.reminderAt ? `<button class="btn btn-ghost" type="button" data-pop-action="reminder-clear">${tr('Clear reminder')}</button>` : '<span></span>'}<button class="btn btn-primary" type="button" data-pop-action="reminder-apply">${tr('Apply')}</button></div>`;
+    return `<div class="popover-title">${tr('Reminder')}</div>${task?.title ? `<p class="sheet-subtitle">${esc(task.title)}</p>` : ''}<div class="sheet-chips">${chips}</div>${task?.plannedDate && task?.plannedTime ? '' : `<p class="sheet-note">${tr('Quick choices for the planned time appear when the task has one.')}</p>`}<label class="sheet-field"><i class="ph ph-calendar-blank" aria-hidden="true"></i><span>${tr('Date')}</span><input id="reminder-date" class="input" type="date" value="${esc(date)}"></label><label class="sheet-field"><i class="ph ph-clock" aria-hidden="true"></i><span>${tr('Time')}</span><input id="reminder-time" class="input" type="time" value="${esc(time)}"></label><p class="sheet-summary" data-reminder-summary>${esc(tr('Remind me {date} at {time}', { date: lowerFirst(relativeDateLabel(date)), time }))}</p>${reminderSheet.error ? `<p class="validation" role="alert">${esc(tr(reminderSheet.error))}</p>` : ''}<h3 class="sheet-group-title">${tr('Task dates')}</h3><div class="sheet-card"><div class="sheet-option"><i class="ph ph-calendar-check" aria-hidden="true"></i><span class="sheet-option-label">${tr('Planned')}</span><span class="sheet-option-value">${esc(when(task?.plannedDate, task?.plannedTime))}</span></div><div class="sheet-option"><i class="ph ph-hourglass-medium" aria-hidden="true"></i><span class="sheet-option-label">${tr('Due date')}</span><span class="sheet-option-value">${esc(when(task?.dueDate, task?.dueTime))}</span></div></div><div class="sheet-footer">${task?.reminderAt ? `<button class="btn btn-ghost" type="button" data-pop-action="reminder-clear">${tr('Clear reminder')}</button>` : '<span></span>'}<button class="btn btn-primary" type="button" data-pop-action="reminder-apply">${tr('Apply')}</button></div>`;
   }
   function applyReminderSheet() {
     if (!reminderSheet) return;
     const date = $('#reminder-date', popoverEl)?.value || reminderSheet.date;
     const time = Core.normalizeTime($('#reminder-time', popoverEl)?.value || reminderSheet.time);
     const value = date && time ? fromLocalDateTimeValue(`${date}T${time}`) : null;
+    if (value && new Date(value) <= new Date()) { Object.assign(reminderSheet, { date, time, error: msg('That time has passed. Choose a later one.') }); refreshSheet(reminderSheetHtml()); return; }
     if (value) setReminder(reminderSheet.target.type, reminderSheet.target.taskId, value);
   }
 
@@ -3034,8 +3062,9 @@
     // Redesign R6 (I6): moving a task out of Inbox into a project can be undone.
     const previous = { projectId: task.projectId ?? null, areaId: task.areaId ?? null, isInbox: task.isInbox };
     closePopover();
-    const asked = requestTaskEdit(taskId,{projectId:projectId || null,areaId:null,...(projectId?{isInbox:false}:{})});
-    if (!asked && previous.isInbox && projectId) setUndo(msg('Task moved to project'), () => { const current = getTask(taskId); if (!current) return; Object.assign(current, previous, { updatedAt: nowIso() }); saveState(); render(); renderModal(); });
+    // R30 (finding 6): "Bez projekta" sorts an Inbox task (as in Quick Add) and keeps its area; a project takes the area's place.
+    const asked = requestTaskEdit(taskId, projectId ? { projectId, areaId: null, isInbox: false } : { projectId: null, isInbox: false });
+    if (!asked && previous.isInbox) setUndo(projectId ? msg('Task moved to project') : msg('Task sorted'), () => { const current = getTask(taskId); if (!current) return; Object.assign(current, previous, { updatedAt: nowIso() }); saveState(); render(); renderModal(); });
   }
 
   function setPlan(targetType, taskId, date) {
@@ -3727,13 +3756,22 @@
     finally { work.busy = null; if (undoWork.has(work)) armUndo(work); }
   }
 
+  // R30 (finding 2): one explicit action with Undo; a repeating task keeps its own "+ Danas", which asks
+  // "Samo ovo / Ovo i buduća".
   function addAllSuggestions() {
-    const sections = Core.deriveTodaySections(listTasks(), Core.dateOnly());
+    const today = Core.dateOnly();
+    const tasks = Core.deriveTodaySections(listTasks(), today).suggestions.map(item => item.task).filter(task => !taskRecurrence(task));
+    if (!tasks.length) return;
+    const before = tasks.map(task => ({ task, plannedDate: task.plannedDate, isInbox: task.isInbox, todayOrder: task.todayOrder, updatedAt: task.updatedAt }));
     let order = nextOrder('today');
-    for (const { task } of sections.suggestions) {
-      task.plannedDate = Core.dateOnly(); task.isInbox = false; task.todayOrder = order++; task.updatedAt = nowIso();
+    for (const task of tasks) {
+      task.plannedDate = today; task.isInbox = false; task.todayOrder = order++; task.updatedAt = nowIso();
     }
     saveAndRender();
+    setUndo(msg('Added to Today'), () => {
+      for (const { task, ...fields } of before) Object.assign(task, fields);
+      saveState(); render();
+    });
   }
 
   function addTaskToToday(taskId) {
@@ -4331,6 +4369,31 @@
     if (!untouchedSample()) return '';
     const signIn = syncClient && !loadSyncMeta().session?.accessToken ? `<button class="btn btn-secondary" type="button" data-route="account">${tr('Sign in')}</button>` : '';
     return `<section class="backup-reminder" data-transfer-notice role="status" aria-label="${tr('Data from the web version')}"><i class="ph ph-arrows-left-right backup-reminder-icon" aria-hidden="true"></i><div class="backup-reminder-copy"><strong>${tr('Do you have data in the web version?')}</strong><span>${tr('Export a backup there (Settings → Data) and import it here, or sign in if you use sync. Your data then replaces these examples.')}</span></div><div class="backup-reminder-actions"><button class="btn btn-primary" type="button" data-action="import-backup">${tr('Import backup')}</button><input id="backup-import-input" type="file" accept=".zip,application/zip" hidden />${signIn}<button class="btn btn-ghost" type="button" data-action="dismiss-transfer-notice">${tr('Not needed')}</button></div></section>`;
+  }
+  // R30 (finding 5): a new workspace starts with examples, and Danas says so until the user keeps them, starts
+  // empty or changes them. The answer is device-local ("dailoSampleNotice"), outside state, sync and backups.
+  function sampleNotice() {
+    try { if (localStorage.getItem('dailoSampleNotice')) return ''; } catch (_) { return ''; }
+    if (!untouchedSample()) return '';
+    return `<section class="backup-reminder sample-notice" data-sample-notice role="status" aria-label="${tr('These are examples')}"><i class="ph ph-sparkle backup-reminder-icon" aria-hidden="true"></i><div class="backup-reminder-copy"><strong>${tr('These are examples')}</strong><span>${tr('Dailo starts with a few example tasks so you can see how it works. Start empty, or keep them and change them as you like.')}</span></div><div class="backup-reminder-actions"><button class="btn btn-primary" type="button" data-action="sample-start-empty">${tr('Start empty')}</button><button class="btn btn-secondary" type="button" data-action="sample-keep">${tr('Keep')}</button></div></section>`;
+  }
+  function dismissSampleNotice() {
+    try { localStorage.setItem('dailoSampleNotice', nowIso()); } catch (_) { /* shown again next time */ }
+  }
+  // Only untouched examples are removed (the fingerprint proves nothing is the user's); the button is the
+  // confirmation and Poništi brings them back.
+  function startEmpty() {
+    if (!untouchedSample()) return;
+    const keys = ['tasks', 'projects', 'tags', 'areas', 'goals', 'habits', 'notes', 'resources', 'templates', 'savedViews', 'journal'];
+    const before = Object.fromEntries(keys.map(key => [key, state[key]]));
+    for (const key of keys) state[key] = [];
+    dismissSampleNotice();
+    saveState(); render();
+    setUndo(msg('Examples removed'), () => {
+      Object.assign(state, before);
+      try { localStorage.removeItem('dailoSampleNotice'); } catch (_) { /* the card simply stays hidden */ }
+      saveState(); render();
+    });
   }
   function dismissTransferNotice() {
     try { localStorage.setItem('dailoTransferDismissed', nowIso()); } catch (_) { /* shown again next time */ }
@@ -5053,6 +5116,7 @@
     else if (action === 'toggle-today-completed') { state.ui.todayCompletedExpanded = !state.ui.todayCompletedExpanded; saveAndRender(); }
     else if (action === 'today-expand') { const key = el.dataset.todayKey; if (Object.hasOwn(TODAY_LIMITS, key)) { state.ui.todayExpanded = { ...state.ui.todayExpanded, [key]: !state.ui.todayExpanded?.[key] }; saveAndRender(); } }
     else if (action === 'add-all-suggestions') addAllSuggestions();
+    else if (action === 'open-today-suggestions') { state.ui.suggestionsExpanded = true; navigate('#tasks'); }
     else if (action === 'inbox-filter') { state.ui.inboxFilter = INBOX_FILTERS.some(([value]) => value === el.dataset.inboxFilter) ? el.dataset.inboxFilter : 'all'; saveAndRender(); }
     else if (action === 'inbox-remove') removeInboxRecord(el.dataset.inboxType, el.dataset.inboxId);
     else if (action === 'inbox-area') openInboxAreaSheet(el, el.dataset.inboxType, el.dataset.inboxId);
@@ -5107,6 +5171,8 @@
     else if (action === 'export-backup') exportBackupAction();
     else if (action === 'snooze-backup-reminder') { snoozeBackupReminder(); render(); }
     else if (action === 'dismiss-transfer-notice') { dismissTransferNotice(); render(); }
+    else if (action === 'sample-start-empty') startEmpty();
+    else if (action === 'sample-keep') { dismissSampleNotice(); render(); }
     else if (action === 'complete-weekly-review') completeWeeklyReview();
     else if (action === 'apply-app-update') applyAppUpdate();
     else if (action === 'request-storage-persistence') updateStoragePersistence(true).catch(console.error);
@@ -5148,7 +5214,7 @@
     }
     else if (action === 'date-sheet-apply') applyDateSheet(false);
     else if (action === 'date-sheet-clear') applyDateSheet(true);
-    else if (action === 'reminder-preset' && reminderSheet) { Object.assign(reminderSheet, { date: button.dataset.date, time: button.dataset.time }); refreshSheet(reminderSheetHtml(), `[data-pop-action="reminder-preset"][data-date="${button.dataset.date}"][data-time="${button.dataset.time}"]`); }
+    else if (action === 'reminder-preset' && reminderSheet) { Object.assign(reminderSheet, { date: button.dataset.date, time: button.dataset.time, error: null }); refreshSheet(reminderSheetHtml(), `[data-pop-action="reminder-preset"][data-date="${button.dataset.date}"][data-time="${button.dataset.time}"]`); }
     else if (action === 'reminder-apply') applyReminderSheet();
     else if (action === 'reminder-clear' && reminderSheet) setReminder(reminderSheet.target.type, reminderSheet.target.taskId, '');
     else if (action === 'tag-sheet-toggle') toggleTagSheet(button);
@@ -5212,7 +5278,7 @@
     if (reminderSheet && ['reminder-date', 'reminder-time'].includes(event.target.id)) {
       if (event.target.value) reminderSheet[event.target.id === 'reminder-date' ? 'date' : 'time'] = event.target.value;
       const summary = popoverEl?.querySelector('[data-reminder-summary]');
-      if (summary) summary.textContent = tr('Remind me {date} at {time}', { date: relativeDateLabel(reminderSheet.date), time: reminderSheet.time });
+      if (summary) summary.textContent = tr('Remind me {date} at {time}', { date: lowerFirst(relativeDateLabel(reminderSheet.date)), time: reminderSheet.time });
       return;
     }
     if (callDomainHook('handleInput', event) !== undefined) return;

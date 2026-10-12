@@ -1183,6 +1183,15 @@
     "Could not save starter examples locally. Free up browser storage and try again.": "Početni primeri nisu sačuvani lokalno. Oslobodi prostor u pregledaču i pokušaj ponovo.",
     "Added {areas} Areas, {projects} Projects, {tasks} Tasks, {goals} Goals, {habits} Habits, {tags} Tags, {notes} Notes, {resources} Resources and {templates} Templates. All examples are editable.": "Dodato – oblasti: {areas}, projekti: {projects}, zadaci: {tasks}, ciljevi: {goals}, navike: {habits}, oznake: {tags}, beleške: {notes}, resursi: {resources}, šabloni: {templates}. Svi primeri mogu da se menjaju.",
     "Examples saved, but Habit metrics could not refresh. Reload to retry.": "Primeri su sačuvani, ali metrike navika nisu osvežene. Ponovo učitaj stranicu.",
+    // R30: third design pass, tasks side
+    "Added to Today": "Dodato u Danas",
+    "Task sorted": "Zadatak je razvrstan",
+    "That time has passed. Choose a later one.": "To vreme je prošlo. Izaberi kasnije.",
+    "These are examples": "Ovo su primeri",
+    "Dailo starts with a few example tasks so you can see how it works. Start empty, or keep them and change them as you like.": "Dailo počinje sa nekoliko primera da vidiš kako radi. Počni prazno ili ih zadrži i menjaj kako ti odgovara.",
+    "Start empty": "Počni prazno",
+    "Keep": "Zadrži",
+    "Examples removed": "Primeri su uklonjeni",
     // R29: the real-life example set (js/starter-examples.js)
     "Quick (5 min)": "Brzo (5 min)",
     "Waiting for": "Na čekanju",

@@ -1650,6 +1650,14 @@
       const days = Number(before) * QUICK_DAY_UNITS[last];
       return days >= 1 && days <= 366 ? { slot: 'plannedDate', value: addDays(today, days), consumed: 3 } : INVALID;
     }
+    // R30: Serbian writes an hour as "18h", "u 18h" or "u 18". After "u" any hour is a time; a bare "Nh" is a
+    // time from 9 to 23, while shorter ones and "24h" stay durations.
+    const hour = last.match(/^(\d{1,2})(h?)$/);
+    if (hour && (before === 'u' || before === 'at' || (hour[2] && Number(hour[1]) >= 9 && Number(hour[1]) <= 23))) {
+      const value = Number(hour[1]) <= 23 ? normalizeTime(`${hour[1].padStart(2, '0')}:00`) : null;
+      if (!value) return INVALID;
+      return { slot: 'plannedTime', value, consumed: before === 'u' || before === 'at' ? 2 : 1 };
+    }
     const time = last.match(/^(\d{1,2}):(\d{2})$/);
     if (time) {
       if (before === 'do') return { stop: true };
@@ -1658,6 +1666,8 @@
       return { slot: 'plannedTime', value, consumed: before === 'u' || before === 'at' ? 2 : 1 };
     }
     const duration = quickDuration(words);
+    // R30: "za 30 min" is a duration too; the "za" goes with it.
+    if (duration && lower[n - 1 - duration.consumed] === 'za') duration.consumed += 1;
     if (duration) return duration.value === INVALID ? INVALID : { slot: 'durationMinutes', value: duration.value, consumed: duration.consumed };
     const serbianWeekday = own(QUICK_WEEKDAYS_SR, last);
     const day = quickDay(last, today, serbianWeekday ? QUICK_WEEKDAYS_SR : QUICK_WEEKDAYS);

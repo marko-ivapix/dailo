@@ -133,7 +133,7 @@ test('the Quick Add preview lists what the title will set and hides when nothing
   const source = fs.readFileSync(require.resolve('../js/app.js'), 'utf8');
   const slice = (from, to) => source.slice(source.indexOf(from), source.indexOf(to));
   const context = { Core, state: { tags, projects, areas }, esc: value => String(value), getProject: id => projects.find(p => p.id === id), getArea: id => areas.find(a => a.id === id), getTag: id => tags.find(t => t.id === id),
-    relativeDateLabel: value => `D:${value}`, priorityLabel: value => `P:${value}` };
+    relativeDateLabel: value => `D:${value}`, priorityLabel: value => `P:${value}`, durationLabel: minutes => `${minutes} min` }; // R30: the preview shows durations through durationLabel
   vm.createContext(withI18n(context));
   vm.runInContext(`${slice('  function parseQuickAddTitle(', '  function nextOrder(')}\n${slice('  function quickParsePreview(', '  function renderQuickModal(')}`, context);
   const html = vm.runInContext("quickParsePreview(parseQuickAddTitle('Ponuda +Klijenti @Zdravlje #posao !visok rok petak 45min sutra u 9:30'))", context);
