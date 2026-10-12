@@ -119,7 +119,7 @@ ${native ? `
         ${shortcutError()?`<p class="validation" role="alert">${esc(shortcutError())}</p>`:''}
         ${SHORTCUT_ROWS(ctx)}
         <button class="btn btn-secondary" data-action="reset-shortcuts">${tr('Reset to defaults')}</button>
-        <div class="settings-row"><label class="settings-label" for="preference-density"><strong>${tr('Compact density')}</strong><span>${tr('Keep task rows and controls tight.')}</span></label><input id="preference-density" type="checkbox" ${state.settings.compactDensity !== false ? 'checked' : ''}></div>
+        <div class="settings-row settings-wide-only"><label class="settings-label" for="preference-density"><strong>${tr('Compact density')}</strong><span>${tr('Keep task rows and controls tight.')}</span></label><input id="preference-density" type="checkbox" ${state.settings.compactDensity !== false ? 'checked' : ''}></div>
       </section>`;
   }
 

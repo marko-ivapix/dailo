@@ -38,13 +38,13 @@ test('P-5: heights use the dynamic viewport where the browser supports it', () =
 
 test('P-5: form fields are 16 px on touch screens, so iOS does not zoom into them', () => {
   const block = css.slice(css.indexOf('/* Modernization M7'));
-  assert.match(block, /@media \(pointer: coarse\) \{[\s\S]*input:not\(\[type="checkbox"\]\):not\(\[type="radio"\]\):not\(\[type="range"\]\):not\(\[type="color"\]\), select, textarea \{ font-size: 16px; \}/);
+  assert.match(block, /@media \(pointer: coarse\) \{[\s\S]*input:not\(\[type="checkbox"\]\):not\(\[type="radio"\]\):not\(\[type="range"\]\):not\(\[type="color"\]\), select, textarea \{ font-size: var\(--text-input\); \}/);
 });
 
 test('A-1: the touch-target guard also applies to touch screens wider than a phone', () => {
   assert.match(css, /\/\* Keep primary compact actions touchable after all density rules\. \*\/\n@media \(max-width: 700px\), \(pointer: coarse\) \{/);
   const block = css.slice(css.indexOf('/* Keep primary compact actions touchable'));
-  assert.match(block, /\.sidebar-section-toggle[\s\S]*min-height: 44px/);
+  assert.match(block, /\.quick-chip, \.view-tabs \.btn \{ min-height: 44px; \}/, 'R34: the sidebar toggles left with the sidebar');
 });
 
 test('the toast sits above the bottom navigation and the home indicator; the add button moves up while it shows', () => {

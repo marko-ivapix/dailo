@@ -126,7 +126,7 @@ test('G2: the "+" menu opens over a dimmed scrim, and a tap on the scrim only cl
 
 test('G2: the menu lines its icons up above the "+", labels as pills on the left, rising one after another', () => {
   const scrim = rule('.mobile-quick-add-scrim');
-  for (const part of ['position: fixed', 'inset: 0', 'z-index: 85', 'background: rgba(5, 6, 8, .68)']) assert.ok(scrim.includes(part), part);
+  for (const part of ['position: fixed', 'inset: 0', 'z-index: 85', 'background: var(--scrim)']) assert.ok(scrim.includes(part), part);
   assert.doesNotMatch(scrim, /blur/, 'Quiet Graphite has no blur (V1.8)');
   assert.match(rule('.mobile-quick-add-scrim[hidden]'), /display: none;/);
   assert.match(rule('.mobile-quick-add-option'), /flex-direction: row;/);
@@ -148,7 +148,7 @@ test('I5: Inbox chips are visible pills under the title and keep a 44 px touch h
   assert.match(inbox, /<div class="task-main"[^>]*><div class="task-title">Check plugin update<\/div><div class="task-meta"><due [^>]+><\/div><\/div><div class="quick-actions">/, 'R22c: the chips sit beside the row button, not inside it');
   assert.ok(endsWithCheckbox(inbox), 'the checkbox stays at the far right');
   const chip = rule('.task-row--today .quick-chip');
-  for (const part of ['position: relative', 'isolation: isolate', 'min-height: 44px', 'font-size: 13px']) assert.ok(chip.includes(part), part);
+  for (const part of ['position: relative', 'isolation: isolate', 'min-height: 44px', 'font-size: var(--text-md)']) assert.ok(chip.includes(part), part);
   const pill = rule('.task-row--today .quick-chip::before');
   for (const part of ['inset: 6px 0', 'z-index: -1', 'border: 1px solid var(--line-2)', 'border-radius: 999px', 'background: var(--graphite-800)']) assert.ok(pill.includes(part), part);
 });

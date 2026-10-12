@@ -63,10 +63,10 @@ test('7: the project, "Bez projekta", tag, area and saved view screens have the 
 
 test('8: segments, the habit week table and the bottom bar fit a 320 px phone', () => {
   const narrow = layer.slice(layer.indexOf('@media (max-width: 400px)'));
-  assert.match(narrow, /\.habit-window-seg \.btn \{ flex: 1 1 0; min-width: 0; padding-inline: 2px; font-size: 13px; line-height: 1\.15; white-space: normal; \}/);
+  assert.match(narrow, /\.habit-window-seg \.btn \{ flex: 1 1 0; min-width: 0; padding-inline: 2px; font-size: var\(--text-md\); line-height: 1\.15; white-space: normal; \}/);
   assert.match(narrow, /\.habits-week-table \.habits-week-name \{ max-width: 64px; \}/);
   assert.match(narrow, /\.habit-cell \{ width: 32px; height: 32px; \}/);
-  assert.match(narrow, /\.mobile-bottom-nav-item \{ padding-inline: 1px; font-size: 10px; \}/);
+  assert.match(narrow, /\.mobile-bottom-nav-item \{ padding-inline: 1px; font-size: var\(--text-2xs\); \}/);
   assert.match(narrow, /\.mobile-bottom-nav-item span \{ max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; \}/);
 });
 

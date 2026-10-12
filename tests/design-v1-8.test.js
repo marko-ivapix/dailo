@@ -44,7 +44,7 @@ test('every V1.7 token name survives as an alias so adapters and inline styles k
     '--text-primary', '--text-secondary', '--text-muted', '--text-on-card-muted', '--border-subtle', '--border-default', '--border-strong',
     '--success', '--warning', '--danger', '--info', '--radius-sm', '--radius-md', '--radius-lg', '--radius-xl', '--radius-pill',
     '--motion-fast', '--motion-base', '--motion-slow', '--ease-standard', '--ease-enter', '--ease-exit',
-    '--sidebar-width', '--sidebar-width-collapsed', '--content-gutter', '--content-max-width', '--control-height', '--task-min-height',
+    '--content-gutter', '--content-max-width', '--control-height', '--task-min-height',
     '--modal-quick-width', '--modal-detail-width', '--focus-ring', '--font-display', '--font-ui'
   ]) assert.match(tokens, new RegExp(`${escape(token)}:`), token);
   assert.match(tokens, /--primary-focus:\s*var\(--blue-300\)/);
@@ -74,23 +74,17 @@ test('V1.8 layer restyles global controls without introducing blur or glow', () 
   assert.doesNotMatch(css, /backdrop-filter/);
 });
 
-// Phase 2 — desktop shell and sidebar
+// Phase 2 — desktop shell (R34: the sidebar widths left with the sidebar)
 
-test('the sidebar returns to the 240px / 72px brand geometry', () => {
-  assert.match(tokens, /--sidebar-width:\s*240px/);
-  assert.match(tokens, /--sidebar-width-collapsed:\s*72px/);
-  assert.doesNotMatch(css, /--sidebar-width:\s*220px/);
+test('the shell is one column; the sidebar widths are gone (R34)', () => {
+  assert.doesNotMatch(tokens, /--sidebar-width/);
+  assert.match(css, /\.app-shell \{ min-height: var\(--viewport-height\); display: grid; grid-template-columns: minmax\(0, 1fr\); \}/);
 });
 
-test('sidebar navigation uses a graphite rail with an accent active marker', () => {
-  assert.match(rule(v18, '.sidebar'), /background:\s*var\(--graphite-950\)/);
-  assert.match(rule(v18, '.sidebar'), /border-right-color:\s*var\(--line-1\)/);
-  const marker = rule(v18, '.nav-item.is-active::before, .project-item.is-active::before, .sidebar-action.is-active::before');
-  assert.match(marker, /width:\s*2px/);
-  assert.match(marker, /background:\s*var\(--blue-300\)/);
-  assert.match(rule(v18, '.nav-item.is-active i, .sidebar-action.is-active i'), /color:\s*var\(--blue-300\)/);
-  assert.match(rule(v18, '.sidebar-section-title'), /color:\s*var\(--ink-3\)/);
-  assert.match(rule(v18, '.nav-badge'), /font-variant-numeric:\s*tabular-nums/);
+// R34 removed the rules of classes no runtime file emits (the retired sidebar, the old rows, tabs and dashboards);
+// their assertions went with them, and tests/redesign-r34.test.js keeps the stylesheet free of such rules.
+test('the sidebar left with R10g, so its rail and markers are gone (R34)', () => {
+  assert.doesNotMatch(css, /\.sidebar[\s{.:-]|\.nav-item|\.nav-badge/);
 });
 
 // Phase 3 — mobile navigation and Quick Add
@@ -124,16 +118,6 @@ test('Today dashboard cards share the hairline panel language and pinned cards k
   assert.match(card, /border:\s*1px solid var\(--line-1\)/);
   assert.match(card, /background:\s*var\(--graphite-850\)/);
   assert.match(rule(v18, '.content > [data-dashboard-section].is-dashboard-pinned'), /box-shadow:\s*inset 2px 0 0 var\(--blue-300\)/);
-  assert.match(rule(v18, '.today-context:empty'), /display:\s*none/);
-  assert.match(rule(v18, '.today-focus-strip-count'), /font-variant-numeric:\s*tabular-nums/);
-});
-
-test('daily actions are compact icon-left tiles that fit one row on desktop and two columns on phones', () => {
-  assert.match(rule(v18, '.today-actions-grid'), /grid-template-columns:\s*repeat\(auto-fit, minmax\(128px, 1fr\)\)/);
-  assert.match(rule(v18, '.today-action'), /grid-template-columns:\s*20px minmax\(0, 1fr\)/);
-  const phone = media(v18, '(max-width: 700px)');
-  assert.match(rule(phone, '.today-actions-grid'), /grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
-  assert.match(rule(phone, '.today-action'), /min-height:\s*44px/);
 });
 
 test('task rows complete in mint without turning the 44px phone hit area into a filled square', () => {
@@ -146,20 +130,9 @@ test('task rows complete in mint without turning the 44px phone hit area into a 
   assert.match(phone, /\.task-row > \.complete-control\.is-completed::before[^{]*\{[^}]*background:\s*var\(--mint-400\)/);
 });
 
-test('milestone check buttons are real controls with a 44px phone hit area', () => {
-  assert.match(rule(v18, '.task-check, .check-toggle'), /border-radius:\s*var\(--radius-sm\)/);
-  assert.match(rule(media(v18, '(max-width: 700px)'), '.task-check::after, .check-toggle::after'), /inset:\s*-8px/);
-});
-
-test('Inbox filters become a segmented control and task metadata no longer needs an inline style', () => {
-  const tabs = rule(v18, '.inbox-filter-tabs');
-  assert.match(tabs, /background:\s*var\(--graphite-950\)/);
-  assert.match(tabs, /border-radius:\s*var\(--radius-md\)/);
-  assert.match(rule(v18, '.inbox-filter-tab.is-active'), /border-color:\s*var\(--line-2\)/);
+test('task metadata needs no inline style (the old Inbox tabs and row left with R34)', () => {
   const tasksUi = read('js/tasks-ui.js');
-  assert.match(tasksUi, /<span class="task-meta-project">/);
   assert.doesNotMatch(tasksUi, /style="display:inline-flex;align-items:center;gap:6px"/);
-  assert.match(rule(v18, '.task-meta-project'), /display:\s*inline-flex/);
 });
 
 // Phase 5 — Task Properties modal and overlays
@@ -181,7 +154,6 @@ test('Task Properties keeps collapsed disclosures and presents grouped key/value
   const r3 = css.slice(css.indexOf('/* Redesign R3'));
   assert.match(r3, /\.task-window-card \{[^}]*border: 1px solid var\(--line-1\)/);
   assert.match(r3, /\.task-window-card \{[^}]*background: var\(--graphite-850\)/);
-  assert.match(rule(v18, '.property-value'), /color:\s*var\(--ink-1\)/);
 });
 
 test('popovers keep focus rings visible and toasts distinguish alerts from confirmations', () => {
@@ -196,10 +168,10 @@ test('popovers keep focus rings visible and toasts distinguish alerts from confi
 // Phase 6 — Calendar
 
 test('Week/Month and template type switches share one segmented control', () => {
-  const group = rule(v18, '.list-tabs, .view-tabs');
+  const group = rule(v18, '.view-tabs');
   assert.match(group, /background:\s*var\(--graphite-950\)/);
   assert.match(group, /border-radius:\s*var\(--radius-md\)/);
-  assert.match(rule(v18, '.list-tabs .btn.is-active, .view-tabs .btn.btn-secondary'), /background:\s*var\(--graphite-750\)/);
+  assert.match(rule(v18, '.view-tabs .btn.btn-secondary'), /background:\s*var\(--graphite-750\)/);
 });
 
 test('calendar items carry type rails: tasks blue, habits mint, goals neutral, milestones yellow', () => {
@@ -223,35 +195,9 @@ test('calendar today/selection markers never hide the keyboard focus ring', () =
 
 // Phase 7 — Goals and Habits
 
-test('Goal and Habit groups are flat bands with a hairline instead of boxed headers', () => {
-  const band = rule(v18, '.goal-group-header, .habit-group-header');
-  assert.match(band, /border-bottom:\s*1px solid var\(--line-1\)/);
-  assert.match(band, /background:\s*transparent/);
-  assert.match(rule(v18, '.goal-group-heading .section-label, .habit-group-heading .section-label'), /font-family:\s*var\(--font-display\)/);
-});
-
-test('progress bars are 4px accent fills that turn mint for completed goals', () => {
+test('progress bars are 4px accent fills', () => {
   assert.match(rule(v18, '.goal-progress'), /height:\s*4px/);
   assert.match(rule(v18, '.goal-progress > span, .today-section--goals .goal-progress > span'), /background:\s*var\(--blue-300\)/);
-  assert.match(rule(v18, '.goal-open:has(.goal-status--completed) .goal-progress > span'), /background:\s*var\(--mint-400\)/);
-  assert.match(rule(v18, '.goal-status--completed, .goal-row .goal-status--completed'), /color:\s*var\(--mint-400\)/);
-});
-
-test('state rails on rows are positioned pseudo-elements so hover fills cannot hide them', () => {
-  assert.match(rule(v18, '.goal-row.is-overdue::before'), /background:\s*var\(--danger\)/);
-  assert.match(rule(v18, '.habit-row--done::before, .habit-row--missed::before'), /background:\s*var\(--mint-400\)/);
-  assert.match(rule(v18, '.goal-row.is-overdue::before, .habit-row--done::before, .habit-row--missed::before'), /position:\s*absolute/);
-  assert.match(rule(v18, '.habit-row--missed::before'), /background:\s*var\(--danger\)/);
-});
-
-test('the monthly tracker keeps its cell geometry and uses token colors per check-in state', () => {
-  assert.match(css, /\.habit-day-cell \{ width:20px; height:22px;/);
-  assert.match(rule(v18, '.habit-day-cell.is-done::after'), /background:\s*var\(--mint-400\)/);
-  assert.match(rule(v18, '.habit-day-cell.is-missed::after'), /background:\s*var\(--danger\)/);
-  assert.match(rule(v18, '.habit-day-cell.is-skipped::after'), /background:\s*var\(--warning\)/);
-  assert.match(rule(v18, '.habit-day-cell:not(:disabled):hover'), /transform:\s*none/);
-  assert.doesNotMatch(v18, /rgba\(107,\s*211,\s*155/);
-  assert.match(rule(v18, ':where(.insight-card) > strong'), /font-family:\s*var\(--font-display\)/);
 });
 
 // Phase 8 — Areas, Projects, Notes and Resources
@@ -264,13 +210,7 @@ test('Oblasti has no tabs; the archived areas fold behind an expandable trigger'
   assert.match(areasUi, /ctx\.foldButton\('areas-fold', tr\('Archived areas'\), archived\.length, open\)/);
 });
 
-test('organizational lists share the hairline card and display numerals', () => {
-  const card = rule(v18, '.area-row, .archived-project-row, .cleaning-room-card');
-  assert.match(card, /border-color:\s*var\(--line-1\)/);
-  assert.match(card, /border-radius:\s*var\(--radius-md\)/);
-  const stat = rule(v18, '.area-summary strong');
-  assert.match(stat, /font-family:\s*var\(--font-display\)/);
-  assert.match(stat, /font-variant-numeric:\s*tabular-nums/);
+test('tag dots are small squares', () => {
   assert.match(rule(v18, '.tag-dot'), /border-radius:\s*2px/);
 });
 
@@ -305,16 +245,14 @@ test('Settings cards are hairline panels and the Today cards fieldset drops the 
   const card = rule(v18, '.settings-card');
   assert.match(card, /border-color:\s*var\(--line-1\)/);
   assert.match(card, /border-radius:\s*var\(--radius-md\)/);
-  assert.match(rule(v18, '.settings-card h2'), /font-size:\s*15px/);
+  assert.match(rule(v18, '.settings-card h2'), /font-size:\s*var\(--text-body\)/);
   const fieldset = rule(v18, 'fieldset.settings-row');
   assert.match(fieldset, /margin:\s*0/);
   assert.match(fieldset, /border:\s*0/);
   assert.match(fieldset, /border-top:\s*1px solid var\(--line-1\)/);
 });
 
-test('backup and snapshot surfaces use the panel and warning-tint language', () => {
-  assert.match(rule(v18, '.backup-summary > div'), /background:\s*var\(--graphite-900\)/);
-  assert.match(rule(v18, '.backup-warning'), /background:\s*var\(--warning-tint\)/);
+test('snapshot groups use the hairline language', () => {
   assert.match(rule(v18, '.snapshot-group'), /border-bottom-color:\s*var\(--line-1\)/);
 });
 
@@ -339,7 +277,7 @@ test('empty and error states use a quiet mark, opaque warning band and danger ra
 });
 
 test('focus stays visible inside clipped and scrolling containers, high contrast and forced colors', () => {
-  const inset = rule(v18, '.goal-open:focus-visible, .habit-open:focus-visible, .area-open:focus-visible, .tag-select:focus-visible, .search-result:focus-visible, .mobile-more-route:focus-visible, .inbox-filter-tab:focus-visible, .list-tabs .btn:focus-visible, .view-tabs .btn:focus-visible, .habit-tracker-name:focus-visible, .property-row:focus-visible, .calendar-item-open:focus-visible, .goal-dashboard-spotlight:focus-visible');
+  const inset = rule(v18, '.search-result:focus-visible, .mobile-more-route:focus-visible, .view-tabs .btn:focus-visible, .calendar-item-open:focus-visible');
   assert.match(inset, /box-shadow:\s*var\(--focus-ring-inset\)/);
   assert.match(media(v18, '(prefers-contrast: more)'), /--line-1:\s*#3C434D/);
   const forced = media(v18, '(forced-colors: active)');
@@ -368,5 +306,5 @@ test('the phone touch-target guard is the final rule and covers V1.8 controls', 
   assert.match(guard, /^\/\* Keep primary compact actions touchable after all density rules\. \*\/\n@media \(max-width: 700px\), \(pointer: coarse\) \{\n[^@]*\n\}\n?$/);
   assert.match(guard, /\.task-actions \.btn-icon,\n  \.subtask-row \.btn-icon \{ width: 44px; height: 44px; min-height: 44px; \}/);
   assert.match(guard, /\.task-row > \.complete-control,\n  \.subtask-row > \.complete-control \{ width: 44px; height: 44px; min-width: 44px; min-height: 44px; \}/);
-  assert.match(guard, /\.inbox-filter-tab,\n  \.area-tabs button,\n  \.list-tabs \.btn,\n  \.view-tabs \.btn \{ min-height: 44px; \}/);
+  assert.match(guard, /\.quick-chip, \.view-tabs \.btn \{ min-height: 44px; \}/);
 });

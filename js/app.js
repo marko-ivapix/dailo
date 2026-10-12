@@ -202,13 +202,6 @@
     return DATE_TIME_FMT.format(date);
   }
 
-  function toLocalDateTimeValue(value) {
-    const date = value ? new Date(value) : new Date();
-    if (Number.isNaN(date.getTime())) return '';
-    const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
-    return local.toISOString().slice(0, 16);
-  }
-
   function fromLocalDateTimeValue(value) {
     if (!value) return null;
     const date = new Date(value);
@@ -718,7 +711,6 @@
       renderGoalListRow(goal) { return callDomainHook('renderRoute', { type: 'goal-list-row', goal }) || ''; },
       renderHabitListRow(habit) { return callDomainHook('renderRoute', { type: 'habit-list-row', habit }) || ''; },
       projectOverviewRow(project) { return projectOverviewRow(project, listTasks()); },
-      renderGoalRow, renderHabitRow,
       renderSavedViewItem(view, item, today) {
         // R10d (S8): the rows of their screens — Today rows, Ciljevi rows and compact habit rows.
         return view.type === 'tasks' ? taskRow(item, 'saved-view', { today: true }) : view.type === 'goals' ? callDomainHook('renderRoute', { type: 'goal-list-row', goal: item }) || '' : callDomainHook('renderRoute', { type: 'habit-list-row', habit: item }) || '';
@@ -1031,12 +1023,6 @@
     if (badge) { badge.textContent = count > 99 ? '99+' : String(count); badge.hidden = count === 0; }
   }
 
-  function navItem(route, icon, label, active, badge = '', attrs = '') {
-    return `<button class="nav-item ${active ? 'is-active' : ''}" type="button" data-route="${route}" ${attrs} title="${label}">
-      <i class="ph ${icon}"></i><span class="nav-label">${label}</span>${badge ? `<span class="nav-badge">${badge}</span>` : ''}
-    </button>`;
-  }
-
   function storageWarningHtml() {
     if (storageError) return `<div class="global-warning" role="alert">${tr("Changes couldn't be saved locally. Refreshing may cause data loss.")} <button class="btn btn-secondary" data-action="retry-save">${tr('Retry save')}</button></div>`;
     if (automaticSnapshotError) return `<div class="global-warning" role="alert">${tr('Automatic snapshot failed: {error}. Your last saved app data remains available.', { error: esc(trMessage(automaticSnapshotError)) })} <button class="btn btn-secondary" data-action="retry-snapshot">${tr('Retry snapshot')}</button></div>`;
@@ -1045,10 +1031,8 @@
 
   const LIBRARY_ROUTES = ['settings', 'account', 'goals', 'areas', 'notes', 'resources', 'tags', 'templates', 'saved-views', 'cleaning', 'review', 'journal', 'completed', 'archived'];
   function renderMain() {
-    const comfortable = state.settings.compactDensity === false;
-    document.documentElement.style.setProperty('--content-gutter', comfortable ? '24px' : '20px');
-    document.documentElement.style.setProperty('--control-height', comfortable ? '38px' : '32px');
-    document.documentElement.style.setProperty('--task-min-height', comfortable ? '52px' : '44px');
+    // R34 (finding 19): the density is a desktop choice; CSS applies it from 1024 px on, so phones keep their sizes.
+    document.documentElement.dataset.density = state.settings.compactDensity === false ? 'comfortable' : 'compact';
     const route = currentRoute();
     enterCalendarRoute(route);
     enterHabitsRoute(route);
@@ -1408,10 +1392,6 @@
     return html;
   }
 
-  function renderGoalRow(goal) {
-    return callDomainHook('renderRoute', { type: 'goal-row', goal }) || '';
-  }
-
   function readGoalDraft() {
     callDomainHook('handleAction', 'read-goal-draft', null);
   }
@@ -1431,10 +1411,6 @@
 
   function habitMetrics(habit) {
     return state.habitMetrics?.[habit.id] || { currentStreak: 0, longestStreak: 0, totalCheckins: 0, completionRate: 0, currentPeriodCount: 0, currentPeriodTarget: habit.frequencyType === 'timesPerWeek' ? Number(habit.timesPerWeek || 1) : 1 };
-  }
-
-  function renderHabitRow(habit, todayStatus = null) {
-    return callDomainHook('renderRoute', { type: 'habit-row', habit, todayStatus }) || '';
   }
 
   function renderHabitTodayRow(habit, todayStatus) {
@@ -3172,25 +3148,6 @@
     if (!asked && previous.isInbox) setUndo(projectId ? msg('Task moved to project') : msg('Task sorted'), () => { const current = getTask(taskId); if (!current) return; Object.assign(current, previous, { updatedAt: nowIso() }); saveState(); render(); renderModal(); });
   }
 
-  function setPlan(targetType, taskId, date) {
-    if (targetType === 'quick') {
-      modalState.draft.plannedDate = date || null;
-      modalState.draft.explicitPlan = true; modalState.draft.parsedPlanDate = null;
-      closePopover(); renderModal(); return;
-    }
-    const task = getTask(taskId); if (!task) return;
-    closePopover();requestTaskEdit(taskId,{plannedDate:date || null,...(date?{isInbox:false}:{})});
-  }
-
-  function setDue(targetType, taskId, date) {
-    if (targetType === 'quick') {
-      modalState.draft.dueDate = date || null;
-      closePopover(); renderModal(); return;
-    }
-    const task = getTask(taskId); if (!task) return;
-    closePopover();requestTaskEdit(taskId,{dueDate:date || null});
-  }
-
   function createTask(keepOpen = false, openWindow = false) {
     if (!modalState || modalState.type !== 'quick') return;
     syncQuickDraftFromDom();
@@ -4160,10 +4117,6 @@
     setUndo(status === 'paused' ? msg('Habit paused') : status === 'archived' ? msg('Habit archived') : msg('Habit restored'), () => { const current = getHabit(habitId); if (!current) return; Object.assign(current, snapshot); current.updatedAt = nowIso(); saveState(); return refreshHabitMetrics().then(render); });
   }
 
-  async function deleteHabit(habitId) {
-    requestDeleteEntity('habit', habitId);
-  }
-
   function snoozeHabit(habitId, kind) {
     const habit = getHabit(habitId); if (!habit) return;
     const next = Core.snoozeTarget(kind, new Date()); if (!next) return;
@@ -4608,10 +4561,6 @@
 
   async function inspectImportBackup(file) {
     if (file) await beginGlobalOperation('restore', file);
-  }
-
-  async function restoreImportedBackup() {
-    if (globalOperation?.reason === 'restore') await commitGlobalOperation(globalOperation);
   }
 
   function clearCompleted() {
@@ -5199,16 +5148,6 @@
     else if(action==='use-template')useTemplate(el.dataset.templateId);
     else if (action === 'quick-add') { const context = el.closest('#mobile-quick-add-menu') ? routeQuickAddContext() : { projectId: el.dataset.projectId || null, areaId: el.dataset.areaId || null, today: el.dataset.today === 'true', anytime: el.dataset.anytime === 'true' }; if (context) openQuickAdd(context); else setToastMessage(tr('Restore the project to add tasks.')); }
     else if (action === 'open-task') openTaskDetail(el.dataset.taskId);
-    else if (action === 'toggle-focus-task') {
-      const task = getTask(el.dataset.taskId); if (!task || task.isCompleted) return;
-      const ids = Core.selectFocusTasks(state.tasks, state.settings.focusTaskIds);
-      if (ids.includes(task.id)) state.settings.focusTaskIds = ids.filter(id => id !== task.id);
-      else if (ids.length < 3) state.settings.focusTaskIds = [...ids, task.id];
-      else { setToastMessage(tr('Daily focus has room for three tasks. Remove one first.')); return; }
-      saveAndRender(); if (modalState?.type === 'task') renderModal();
-    }
-    else if (action === 'open-focus') openFocusMode();
-    else if (action === 'open-focus-task') openFocusMode(el.dataset.taskId);
     else if (action === 'focus-complete') completeFocusTask(el.dataset.taskId);
     else if (action === 'focus-toggle-timer') toggleFocusTimer();
     else if (action === 'focus-reset-timer') resetFocusTimer();
@@ -5252,11 +5191,6 @@
     else if (action === 'task-duration-picker') openTaskDurationPicker(el, el.dataset.taskId);
     else if (action === 'quick-project-picker') openProjectPicker(el, { type: 'quick' });
     else if (action === 'quick-plan-picker') openPlanPicker(el, { type: 'quick' });
-    else if (action === 'quick-due-picker') openDuePicker(el, { type: 'quick' });
-    else if (action === 'quick-reminder-picker') openReminderPicker(el, { type: 'quick' });
-    else if (action === 'quick-repeat-picker') openRepeatPicker(el, { type: 'quick' });
-    else if (action === 'quick-tags-picker') openTagPicker(el, { type: 'quick' });
-    else if (action === 'quick-priority-picker') openPriorityPicker(el, { type: 'quick' });
     else if (action === 'quick-template') openQuickTemplatePicker(el);
     else if (action === 'quick-template-clear') { clearQuickTemplate(); renderModal(); requestAnimationFrame(() => $('[data-action="quick-template"]')?.focus()); }
     else if (action === 'quick-more-options') createTask(false, true);
@@ -5266,7 +5200,6 @@
     else if (action === 'toggle-subtask') toggleSubtask(el.dataset.taskId, el.dataset.subtaskId);
     else if (action === 'delete-subtask') deleteSubtask(el.dataset.taskId, el.dataset.subtaskId);
     else if (action === 'edit-subtask') editSubtask(el.dataset.taskId, el.dataset.subtaskId);
-    else if (action === 'delete-task') deleteTask(el.dataset.taskId);
     else if (action === 'duplicate-without-files') duplicateTask(el.dataset.taskId, false);
     else if (action === 'duplicate-with-files') duplicateTask(el.dataset.taskId, true);
     else if (action === 'select-tag-color') { modalState.draft.color = el.dataset.color; renderModal(); }
@@ -5293,7 +5226,6 @@
     else if (action === 'apply-app-update') applyAppUpdate();
     else if (action === 'request-storage-persistence') updateStoragePersistence(true).catch(console.error);
     else if (action === 'import-backup') chooseImportBackup();
-    else if (action === 'restore-backup') restoreImportedBackup();
     else if (action === 'clear-completed') clearCompleted();
     else if (action === 'completed-project') openCompletedProjectSheet(el);
     else if (action === 'completed-period') { state.ui.completedPeriod = [0, 7, 30].includes(Number(el.dataset.value)) ? Number(el.dataset.value) : 0; saveAndRender(); }
@@ -5349,11 +5281,7 @@
     else if (action === 'task-goals-apply') applyTaskGoals();
     else if (action === 'inbox-set-area') setInboxArea(button.dataset.inboxType, button.dataset.inboxId, button.dataset.areaId);
     else if (action === 'set-project') setProject(button.dataset.targetType, button.dataset.taskId, button.dataset.projectId);
-    else if (action === 'toggle-tag') toggleTag(button.dataset.targetType, button.dataset.taskId, button.dataset.tagId);
     else if (action === 'set-priority') setPriority(button.dataset.targetType, button.dataset.taskId, button.dataset.priority);
-    else if (action === 'set-plan') setPlan(button.dataset.targetType, button.dataset.taskId, button.dataset.date);
-    else if (action === 'set-due') setDue(button.dataset.targetType, button.dataset.taskId, button.dataset.date);
-    else if (action === 'set-reminder') setReminder(button.dataset.targetType, button.dataset.taskId, button.dataset.reminder);
     else if (['pause-recurrence','resume-recurrence','skip-recurrence','end-recurrence'].includes(action)) controlRecurrence(button.dataset.taskId,action);
     else if (action === 'inline-new-tag') inlineNewTag(button);
     else if (action === 'inline-select-tag-color') { $$('.color-swatch', popoverEl).forEach(s => s.classList.toggle('is-selected', s === button)); const create = $('[data-pop-action="inline-tag-create"]', popoverEl); if (create) create.dataset.color = button.dataset.color; }
@@ -5667,8 +5595,6 @@
     if (touchReorder) { event.preventDefault(); return; }
     const calendar = event.target.closest('[data-calendar-drag][draggable="true"]');
     if (calendar) { dragState = { type: `calendar-${calendar.dataset.calendarDrag}`, id: calendar.dataset.calendarItemId }; event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', dragState.id); calendar.classList.add('is-dragging'); return; }
-    const project = event.target.closest('.project-item[draggable="true"]');
-    if (project) { dragState = { type: 'project', id: project.dataset.projectId }; event.dataTransfer.effectAllowed = 'move'; return; }
     const sub = event.target.closest('.subtask-row[draggable="true"]');
     if (sub) { dragState = { type: 'subtask', id: sub.dataset.subtaskId, parentId: sub.dataset.parentTaskId }; event.dataTransfer.effectAllowed = 'move'; sub.classList.add('is-dragging'); return; }
     const row = event.target.closest('.task-row[draggable="true"]');
@@ -5682,9 +5608,6 @@
     const calendarTarget = event.target.closest('[data-calendar-time], [data-calendar-date]');
     if (calendarTarget && ['calendar-task'].includes(dragState.type)) { event.preventDefault(); calendarTarget.classList.add('is-drop-target'); return; }
     if (dragState.type.startsWith('calendar-')) return;
-    if (dragState.type === 'project') {
-      const target = event.target.closest('.project-item[draggable="true"]'); if (!target || target.dataset.projectId === dragState.id) return; event.preventDefault(); return;
-    }
     if (dragState.type === 'subtask') {
       const target = event.target.closest('.subtask-row[draggable="true"]'); if (!target || target.dataset.parentTaskId !== dragState.parentId || target.dataset.subtaskId === dragState.id) return; event.preventDefault(); target.classList.add('is-drop-target'); return;
     }
@@ -5710,8 +5633,6 @@
         const time = Core.normalizeTime(target.dataset.calendarTime);
         if (Core.parseDateOnly(date) && dragState.type === 'calendar-task') updateTask(dragState.id, { plannedDate: date, ...(time ? { plannedTime: time } : {}) });
       }
-    } else if (dragState.type === 'project') {
-      const target = event.target.closest('.project-item[draggable="true"]'); if (target) reorderProjects(dragState.id, target.dataset.projectId);
     } else if (dragState.type === 'subtask') {
       const target = event.target.closest('.subtask-row[draggable="true"]'); if (target && target.dataset.parentTaskId === dragState.parentId) reorderSubtasks(dragState.parentId, dragState.id, target.dataset.subtaskId);
     } else {
@@ -5734,11 +5655,6 @@
     const [moved] = ids.splice(from, 1); ids.splice(to, 0, moved);
     ids.forEach((id, index) => { const t = getTask(id); if (t) t[field] = index; });
     saveAndRender();
-  }
-
-  function reorderProjects(sourceId, targetId) {
-    const ids = sortedProjects().map(p => p.id); const from = ids.indexOf(sourceId); const to = ids.indexOf(targetId); if (from < 0 || to < 0) return;
-    const [moved] = ids.splice(from,1); ids.splice(to,0,moved); ids.forEach((id,i)=>{ const p=getProject(id); if(p)p.order=i; }); saveAndRender();
   }
 
   function reorderSubtasks(taskId, sourceId, targetId) {

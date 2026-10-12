@@ -74,7 +74,7 @@ test('task rows retain existing handlers through compact affordance hooks', () =
   const tasksUi = fs.readFileSync(require.resolve('../js/tasks-ui.js'), 'utf8');
   assert.match(tasksUi, /data-task-row-compact/);
   assert.match(tasksUi, /data-task-compact-actions/);
-  assert.match(tasksUi, /data-action="toggle-focus-task"/);
-  assert.match(tasksUi, /data-action="task-plan-picker"/);
+  assert.doesNotMatch(tasksUi, /toggle-focus-task/, 'R34: the old row and its focus star are gone');
+  assert.match(tasksUi, /row\('task-plan-picker'/);
   assert.match(tasksUi, /data-action="task-menu"/);
 });

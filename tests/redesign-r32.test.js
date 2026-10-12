@@ -75,7 +75,7 @@ test('18: Podešavanja has its own Podsetnici group; a notification button shows
   assert.doesNotMatch(settingsHtml({ native: { permission: 'denied' } }), /data-action="enable-notifications"/, 'blocked: the text says where to turn it on');
   const backup = html.slice(html.indexOf('<strong>Backup</strong>'), html.indexOf('data-action="export-backup"'));
   assert.doesNotMatch(backup, /Recovery snapshot|Validation|Last import/, 'only what is known');
-  assert.match(css, /\.settings-label span \{ font-size: 13px; line-height: 1\.4; \}/);
+  assert.match(css, /\.settings-label span \{ font-size: var\(--text-md\); line-height: 1\.4; \}/);
   assert.match(css, /\.settings-row:has\(> \.btn, > div > \.btn\) \{ flex-direction: column; align-items: stretch; gap: 8px; \}/);
 });
 
@@ -89,7 +89,7 @@ test('31: the install row speaks to the browser in use, with an "Instaliraj" but
 });
 
 test('20, 21: phone type sizes follow G5 and no text uses the low-contrast ink-4', () => {
-  assert.match(css, /@media \(max-width: 1023px\) \{\n\s+\.task-title \{ font-size: 15px; \}\n\s+\.task-meta \{ font-size: 12\.5px; \}\n\s+\.page-title \{ font-size: 26px; \}/);
+  assert.match(css, /@media \(max-width: 1023px\) \{\n\s+\.task-title \{ font-size: var\(--text-body\); \}\n\s+\.task-meta \{ font-size: var\(--text-meta\); \}\n\s+\.page-title \{ font-size: var\(--text-page\); \}/);
   assert.match(css, /\.task-window-row-value, \.quick-more-meta, \.task-window-more-meta, \.sheet-calendar-weekday, \.day-grid-label \{ color: var\(--ink-3\); \}/);
   assert.match(css, /\.quick-title-input::placeholder, \.search-input::placeholder, textarea::placeholder, \.input::placeholder \{ color: var\(--ink-3\); \}/);
 });

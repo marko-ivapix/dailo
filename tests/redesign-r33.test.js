@@ -201,8 +201,7 @@ test('36: an Inbox row moves only within its capture group, by touch and by mous
   assert.match(fn('handleDrop'), /target\.dataset\.listContext === dragState\.context && dropGroup\(target\) === dragState\.group/);
 });
 
-test('R33 is released as 2.0.0-alpha.59', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.59');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.59';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.59');
+test('R33 shipped as 2.0.0-alpha.59 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 99) >= 59);
 });

@@ -58,20 +58,21 @@ test('Add another retains implicit Today and resets explicit times before parsin
   assert.equal(context.modalState.draft.explicitPlan, true);
 });
 
-test('Task module renders duration, daily focus controls and inline Today completion', () => {
+// R34: the old row (with its daily-focus star) is gone; every list draws the compact R2 row.
+test('Task module renders the compact row with inline completion and the menu', () => {
   let module;
   runInNewContextWithI18n(fs.readFileSync(require.resolve('../js/tasks-ui.js'), 'utf8'), {
     window: { TodoDomainModules: { register(value) { module = value; } } },
   });
-  const task = { id: 'a', title: 'Read', durationMinutes: 30, tagIds: [] };
+  const task = { id: 'a', title: 'Read', durationMinutes: 30, plannedTime: '09:30', tagIds: [] };
   const html = module.renderTaskRow(task, 'today', {}, {
-    Core, esc: String, getProject: () => null, state: { settings: { focusTaskIds: ['a'] } },
+    Core, esc: String, getProject: () => null, todayDueLabel: () => '', state: { settings: { focusTaskIds: ['a'] } },
   });
-  assert.match(html, /30 min/);
+  assert.match(html, /class="task-row task-row--today /);
   assert.match(html, /data-inline-today-complete/);
-  assert.match(html, /data-action="toggle-focus-task"/);
-  assert.match(html, /aria-pressed="true"/);
-  assert.match(html, /data-action="task-plan-picker"/);
+  assert.match(html, /data-action="task-menu"/);
+  assert.match(html, /<div class="task-meta">09:30<\/div>/);
+  assert.doesNotMatch(html, /toggle-focus-task/);
 });
 
 // Redesign R2 (T2, T2a) replaced the Focus and Daily Review cards: "Planirano danas" keeps the user's order

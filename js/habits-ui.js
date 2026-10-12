@@ -37,25 +37,6 @@
     return `<div class="today-row area-habit-row"><button class="today-row-main" type="button" data-route="habit/${esc(habit.id)}"><span class="task-title">${esc(habit.name)}</span><span class="task-meta">${esc(habitFrequencyLabel(ctx, habit))}</span></button></div>`;
   }
 
-  function habitProgressLabel(ctx, habit, metrics = ctx.habitMetrics(habit)) {
-    // A numeric target describes one check-in; X/week is a separate weekly
-    // target and must remain visible when both are configured.
-    if (habit.frequencyType === 'timesPerWeek') return tr('{count} / {target} this week', { count: metrics.currentPeriodCount || 0, target: metrics.currentPeriodTarget || habit.timesPerWeek || 1 });
-    if (habit.trackingType === 'numeric') return `${metrics.currentPeriodCount || 0} / ${habit.targetValue || 0}${habit.unit ? ` ${habit.unit}` : ''}`;
-    return metrics.currentPeriodCount ? tr('Done') : tr('Not checked in');
-  }
-
-  function renderHabitRow(ctx, habit, todayStatus = null) {
-    const { habitMetrics, esc } = ctx;
-    const metrics = habitMetrics(habit);
-    const actions = !todayStatus ? '' : habit.trackingType === 'numeric'
-      ? `${(habit.quickValues || []).map(value => `<button class="btn btn-secondary" type="button" data-action="habit-quick-add" data-habit-id="${esc(habit.id)}" data-value="${esc(value)}">+${esc(value)}</button>`).join('')}<button class="btn btn-ghost" type="button" data-route="habit/${esc(habit.id)}">${tr('Edit total')}</button>`
-      : `<button class="btn btn-secondary" type="button" data-action="habit-checkin" data-habit-id="${esc(habit.id)}">${todayStatus.status === 'done' ? tr('Mark not done') : tr('Check in')}</button><button class="btn btn-ghost" type="button" data-action="habit-skip" data-habit-id="${esc(habit.id)}">${tr('Skip today')}</button>`;
-    const menu = `<button class="btn-icon" type="button" data-action="habit-menu" data-habit-id="${esc(habit.id)}" aria-label="${tr('Habit actions')}"><i class="ph ph-dots-three"></i></button>`;
-    const status = todayStatus?.status || habit.status;
-    return `<article class="habit-row habit-row--${esc(status)}"${todayStatus ? ' style="grid-template-columns:minmax(0,1fr) auto"' : ''}><button class="habit-open" type="button" data-route="habit/${esc(habit.id)}"><span><strong>${esc(habit.name)}</strong><small class="habit-row-meta"><span>${esc(routineLabel(habit.routine))}</span><span>${esc(habitFrequencyLabel(ctx, habit))}</span><span class="habit-status habit-status--${esc(status)}">${esc(statusLabel(status))}</span></small></span><span class="habit-progress">${esc(habitProgressLabel(ctx, habit, metrics))}</span></button>${todayStatus ? `<div class="habit-checkin-controls">${actions}${menu}</div>` : menu}</article>`;
-  }
-
   // Redesign R2 (T5, H6): the compact Today row. A round check (a tap checks in; numeric habits open the value
   // sheet), the name (opens the menu, as does a long press on the check) and the week or the value on the right.
   const number = value => Number(value || 0).toLocaleString(I18n.locale(), { maximumFractionDigits: 2 });
@@ -1000,9 +981,6 @@
     else if (action === 'habit-menu') openHabitMenu(ctx, el, el.dataset.habitId);
     else if (action === 'save-habit') saveHabitModal(ctx);
     else if (action === 'toggle-habit-more') { readHabitDraft(ctx); ctx.modalState.draft.moreOpen = !ctx.modalState.draft.moreOpen; renderModal(); requestAnimationFrame(() => $('[data-action="toggle-habit-more"]')?.focus?.()); }
-    else if (action === 'habit-checkin') { const habit = getHabit(el.dataset.habitId); const existing = state.habitLogCache?.[habit?.id]?.find(log => log.date === Core.dateOnly()); setHabitLog(el.dataset.habitId, Core.dateOnly(), existing?.status === 'done' ? 'missed' : 'done'); }
-    else if (action === 'habit-skip') setHabitLog(el.dataset.habitId, Core.dateOnly(), 'skipped');
-    else if (action === 'habit-quick-add') { const habit = getHabit(el.dataset.habitId); const existing = state.habitLogCache?.[habit?.id]?.find(log => log.date === Core.dateOnly()); setHabitLog(el.dataset.habitId, Core.dateOnly(), 'done', Number(existing?.value || 0) + Number(el.dataset.value || 0)); }
     else if (action === 'continue-habit') { const habit = getHabit(el.dataset.habitId || ctx.modalState?.habitId); if (habit) { const boundary = el.dataset.boundary || ctx.modalState?.boundary; const prior = habitMetrics(habit).periods?.filter(period => !period.isCurrent).at(-1); habit.lastContinuationPeriod = prior?.key || Core.habitPeriodKey(habit, Core.dateOnly(), Core.habitWeekRule(state.settings)); if (boundary === 'onePeriod') habit.continuation = 'automatic'; if (boundary === 'end') { habit.endType = 'never'; habit.endDate = null; habit.successfulPeriodsTarget = null; } habit.updatedAt = nowIso(); saveState(); } closeModal(); refreshHabitMetrics().then(render); }
     else if (action === 'pause-habit') updateHabitStatus(el.dataset.habitId || ctx.modalState?.habitId, 'paused');
     else if (action === 'archive-habit') { updateHabitStatus(el.dataset.habitId, 'archived'); if (ctx.modalState?.type === 'habit-details') ctx.closeModal(); }
@@ -1028,7 +1006,6 @@
     renderRoute(route, ctx) {
       if (route.type === 'habits') return renderHabits(ctx);
       if (route.type === 'habit') return renderHabits(ctx); // R8c: app.js opens the details window on top
-      if (route.type === 'habit-row') return renderHabitRow(ctx, route.habit, route.todayStatus);
       if (route.type === 'habit-list-row') return renderHabitListRow(ctx, route.habit);
       if (route.type === 'habit-today-row') return renderHabitTodayRow(ctx, route.habit, route.todayStatus);
       if (route.type !== 'modal') return false;

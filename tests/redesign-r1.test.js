@@ -65,8 +65,9 @@ test('Z1/Z3: Zadaci has a summary and a Kad stignem / Projekti switch remembered
 test('the phone shell at every width: no sidebar, a centered column, the bar always shown', () => {
   const layer = css.slice(css.indexOf('/* Redesign R1'));
   assert.ok(css.indexOf('/* Redesign R1') > 0);
-  assert.match(layer, /\.sidebar \{ display: none; \}/);
-  assert.match(layer, /\.app-shell, \.app-shell\.is-collapsed \{ grid-template-columns: minmax\(0, 1fr\); \}/);
+  // R34: the sidebar's rules left with it, and the shell is one column in its base rule.
+  assert.doesNotMatch(css, /\.sidebar \{/);
+  assert.match(css, /\.app-shell \{ min-height: var\(--viewport-height\); display: grid; grid-template-columns: minmax\(0, 1fr\); \}/);
   assert.match(layer, /\.content:not\(\.calendar-content\) \{ max-width: 760px; margin-inline: auto; \}/);
   assert.match(css, /\n\.mobile-bottom-nav \{\n\s+position: fixed;/, 'the bar is no longer only inside a max-width query');
   assert.doesNotMatch(css, /\.mobile-bottom-nav \{ display: none; \}/);

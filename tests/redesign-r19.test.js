@@ -21,14 +21,14 @@ test('the three chip rows are pills inside a 44 px touch height', () => {
   assert.ok(layerStart > css.indexOf('/* Redesign R18') || layerStart > css.indexOf('/* Redesign R17'), 'after the earlier layers');
   assert.match(rule(ROWS), /gap: 8px;/);
   const chip = rule(`${ROWS} .quick-chip`);
-  for (const part of ['position: relative', 'isolation: isolate', 'display: inline-flex', 'min-height: 44px', 'padding: 0 14px', 'border: 0', 'background: none', 'color: var(--ink-2)', 'font-size: 14px']) assert.ok(chip.includes(part), part);
+  for (const part of ['position: relative', 'isolation: isolate', 'display: inline-flex', 'min-height: 44px', 'padding: 0 14px', 'border: 0', 'background: none', 'color: var(--ink-2)', 'font-size: var(--text-base)']) assert.ok(chip.includes(part), part);
   const pill = rule(`${ROWS} .quick-chip::before`);
   for (const part of ['inset: 4px 0', 'z-index: -1', 'border: 1px solid var(--line-2)', 'border-radius: 999px', 'background: var(--graphite-850)']) assert.ok(pill.includes(part), part);
   assert.match(rule(`${ROWS} .quick-chip:hover::before`), /border-color: var\(--line-3\); background: var\(--graphite-800\);/);
 });
 
 test('the selected chip is filled with the accent and "+ Grupa" is dashed', () => {
-  assert.match(rule(`${ROWS} .quick-chip.is-selected`), /color: #fff;/);
+  assert.match(rule(`${ROWS} .quick-chip.is-selected`), /color: var\(--on-accent\);/);
   assert.match(rule(`${ROWS} .quick-chip.is-selected::before`), /border-color: var\(--blue-600\); background: var\(--blue-600\);/);
   assert.match(rule('.cleaning-chips .cleaning-add-group'), /color: var\(--blue-300\);/);
   assert.match(rule('.cleaning-chips .cleaning-add-group::before'), /border-style: dashed; border-color: var\(--blue-300\); background: none;/);

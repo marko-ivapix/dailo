@@ -26,36 +26,8 @@
   }
 
   function renderTaskRow(task, listContext, options, ctx) {
-    if (options?.today) return renderTodayTaskRow(task, listContext, options, ctx);
-    const project = ctx.getProject(task.projectId);
-    const today = ctx.Core.dateOnly();
-    const meta = [];
-    if (project) meta.push(`<span class="task-meta-project"><span class="project-dot" style="--project-color:${ctx.esc(project.color)}"></span>${ctx.esc(project.name)}</span>`);
-    if (task.dueDate) {
-      let cls = '';
-      let label = tr('Due {date}', { date: ctx.relativeDateLabel(task.dueDate, today) });
-      if (!task.isCompleted && task.dueDate < today) { cls = 'danger'; label = tr('Overdue · {date}', { date: ctx.relativeDateLabel(task.dueDate, today) }); }
-      else if (task.dueDate === today) cls = 'warning';
-      meta.push(`<span class="${cls}">${ctx.esc(label)}</span>`);
-    }
-    if (task.isImportant) meta.push(`<span class="warning"><i class="ph ph-warning-circle"></i> ${tr('Important')}</span>`);
-    if (task.isUrgent) meta.push(`<span class="danger"><i class="ph ph-lightning"></i> ${tr('Urgent')}</span>`);
-    if (task.durationMinutes) meta.push(`<span>${tr('{minutes} min', { minutes: ctx.esc(task.durationMinutes) })}</span>`);
-    if (options.upcomingReason === 'planned' && task.plannedDate) meta.push(`<span>${tr('Planned {date}', { date: ctx.esc(ctx.relativeDateLabel(task.plannedDate, today)) })}</span>`);
-    if (options.suggestionReason === 'missed-plan') meta.push(`<span>${tr('Missed {date}', { date: ctx.esc(ctx.relativeDateLabel(task.plannedDate, today)) })}</span>`);
-    if (task.isCompleted && task.completedAt) meta.push(`<span class="success">${tr('Completed {date}', { date: ctx.esc(ctx.relativeDateLabel(ctx.Core.localDateOf(String(task.completedAt)), today)) })}</span>`);
-    const combinedMeta = meta.map((m, i) => `${i ? '<span class="separator">·</span>' : ''}${m}`).join('');
-    const draggable = options.draggable && !task.isCompleted;
-    const rowClass = `task-row ${task.isCompleted ? 'is-completed' : ''}`;
-    return `<article class="${rowClass}" data-task-row-compact data-task-id="${ctx.esc(task.id)}" data-list-context="${ctx.esc(listContext)}" ${draggable ? 'draggable="true"' : ''}>
-      <button class="complete-control ${task.isCompleted ? 'is-completed' : ''}" type="button" data-action="toggle-complete" ${listContext === 'today' || listContext === 'focus' ? 'data-inline-today-complete' : ''} data-task-id="${ctx.esc(task.id)}" aria-label="${task.isCompleted ? tr('Mark incomplete') : tr('Complete task')}">${task.isCompleted ? '<i class="ph ph-check"></i>' : ''}</button>
-      <div class="task-main" data-action="open-task" data-task-id="${ctx.esc(task.id)}" role="button" tabindex="0">
-        <div class="task-title">${ctx.esc(task.title)}</div>
-        ${combinedMeta ? `<div class="task-meta">${combinedMeta}</div>` : ''}
-        ${options.inbox || options.upcoming || options.overdue ? `<div class="quick-actions">${options.inbox || options.overdue ? `<button class="quick-chip" type="button" data-action="inbox-today" data-task-id="${ctx.esc(task.id)}">${tr('Today')}</button>` : ''}${options.inbox || options.upcoming ? `<button class="quick-chip" type="button" data-action="inbox-tomorrow" data-task-id="${ctx.esc(task.id)}">${options.upcoming ? tr('Snooze 1 day') : tr('Tomorrow')}</button>` : ''}${options.inbox ? `<button class="quick-chip" type="button" data-action="inbox-anytime" data-task-id="${ctx.esc(task.id)}">${tr('Anytime')}</button><button class="quick-chip" type="button" data-action="task-project-picker" data-task-id="${ctx.esc(task.id)}">${tr('Project')}</button><button class="quick-chip" type="button" data-action="task-due-picker" data-task-id="${ctx.esc(task.id)}">${tr('Date')}</button>` : ''}</div>` : ''}
-      </div>
-      <div class="task-actions" data-task-compact-actions>${(listContext === 'today' || listContext === 'focus') && !task.isCompleted ? `<button class="btn-icon" type="button" data-action="toggle-focus-task" data-task-id="${ctx.esc(task.id)}" aria-label="${ctx.state.settings.focusTaskIds.includes(task.id) ? tr('Remove from daily focus') : tr('Add to daily focus')}" aria-pressed="${ctx.state.settings.focusTaskIds.includes(task.id)}"><i class="ph ph-crosshair"></i></button><button class="btn-icon" type="button" data-action="task-plan-picker" data-task-id="${ctx.esc(task.id)}" aria-label="${tr('Plan task')}"><i class="ph ph-calendar-check"></i></button>` : ''}<button class="btn-icon" type="button" data-action="task-menu" data-task-id="${ctx.esc(task.id)}" aria-label="${tr('Task actions')}"><i class="ph ph-dots-three"></i></button></div>
-    </article>`;
+    // R34: every list draws the compact row of the redesign (R2); the older row is gone.
+    return renderTodayTaskRow(task, listContext, options, ctx);
   }
 
   // R17: the title, ×, then the round check on the right, like task rows.

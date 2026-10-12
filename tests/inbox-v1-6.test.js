@@ -38,8 +38,8 @@ test('Inbox groups captured items by Today, Yesterday and This week', () => {
 });
 
 test('Inbox keeps one-at-a-time triage actions and supports Tomorrow', () => {
-  assert.match(tasksUi, /data-action="inbox-today"/);
-  assert.match(tasksUi, /data-action="inbox-anytime"/);
+  // R34: the chips of the Today-style row (the older row is gone).
+  assert.match(tasksUi, /chip\('inbox-today', tr\('Today'\)\)\}\$\{chip\('inbox-tomorrow', tr\('Tomorrow'\)\)\}\$\{chip\('inbox-anytime', tr\('Anytime'\)\)\}/);
   assert.match(app, /action === 'inbox-tomorrow'/);
 });
 

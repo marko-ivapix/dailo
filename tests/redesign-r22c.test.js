@@ -76,7 +76,7 @@ test('leftovers: #projects opens Zadaci → Projekti, long titles wrap, the habi
   assert.doesNotMatch(read('js/projects-ui.js'), /function renderProjects\(|route\.type === 'projects'/);
   assert.match(fn('render'), /if \(location\.hash === '#projects' && state\?\.ui\) \{ state\.ui\.tasksView = 'projects'; history\.replaceState\(null, '', '#tasks'\); \}/);
   has('.page-title { overflow-wrap: anywhere; }');
-  has('.habits-chart-axis { font-size: 11px; }');
+  has('.habits-chart-axis { font-size: var(--text-xs); }');
 });
 
 test('R22c shipped as 2.0.0-alpha.47 or later (the newest release test pins the exact version)', () => {

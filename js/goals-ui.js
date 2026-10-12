@@ -13,14 +13,6 @@
     return Object.hasOwn(HORIZONS, value) ? value : 'short';
   }
 
-  function renderGoalRow(ctx, goal) {
-    const { state, Core, esc, goalProgressLabel, goalStatusLabel, relativeDateLabel } = ctx;
-    const progress = Core.goalProgressSummary(goal, state, state.habitMetrics || {});
-    const overdue = Core.isGoalOverdue(goal, Core.dateOnly());
-    const target = goal.targetDate ? `<small class="goal-target ${overdue ? 'is-overdue' : ''}"><i class="ph ph-calendar"></i>${esc(relativeDateLabel(goal.targetDate))}</small>` : `<small class="goal-target is-undated">${tr('No target date')}</small>`;
-    return `<article class="goal-row ${overdue ? 'is-overdue' : ''}" data-goal-id="${esc(goal.id)}"><button class="goal-open" type="button" data-route="goal/${esc(goal.id)}"><span class="goal-row-top"><strong>${esc(goal.title)}</strong><small class="goal-status goal-status--${esc(goal.status)} ${overdue ? 'is-overdue' : ''}">${esc(goalStatusLabel(goal))}</small></span><span class="goal-progress"><span style="width:${Math.max(0, Math.min(100, progress.percent))}%"></span></span><span class="goal-row-meta"><small class="goal-progress-label">${esc(goalProgressLabel(goal))}</small>${target}</span></button><button class="btn-icon" type="button" data-action="goal-menu" data-goal-id="${esc(goal.id)}" aria-label="${tr('Goal actions')}"><i class="ph ph-dots-three"></i></button></article>`;
-  }
-
   // Redesign R9a (GO1–GO4): the Goals list. Health follows the shown percentage: complete at 100%, overdue once the
   // target date has passed, at risk within seven days below 75%.
   const HORIZON_ICONS = Object.freeze({ short: 'ph-flag', mid: 'ph-path', long: 'ph-mountains' });
@@ -583,7 +575,6 @@
     if (handleGoalDraftAction(action, el, ctx) || handleGoalDetailsAction(action, el, ctx)) return true;
     if (action === 'goals-group') { ctx.state.ui.goalGroup = el.dataset.view === 'date' ? 'date' : 'horizon'; saveAndRender(); }
     else if (action === 'goals-fold') { const key = { done: 'goalsDoneOpen', paused: 'goalsPausedOpen', archived: 'goalsArchivedOpen' }[el.dataset.fold]; if (key) { ctx.state.ui[key] = !ctx.state.ui[key]; saveAndRender(); } }
-    else if (action === 'calendar-new-goal') ctx.openGoalModal({ targetDate: el.dataset.date });
     else if (action === 'new-goal') ctx.openGoalModal({ inbox: Boolean(event?.target?.closest?.('#mobile-quick-add-menu')) });
     else if (action === 'toggle-goal-more') { readGoalDraft(ctx); ctx.modalState.draft.moreOpen = !ctx.modalState.draft.moreOpen; renderModal(); requestAnimationFrame(() => $('[data-action="toggle-goal-more"]')?.focus()); }
     else if (action === 'draft-goal-links') openGoalLinksModal(ctx);
@@ -643,7 +634,6 @@
     renderRoute(route, ctx) {
       if (route.type === 'goals') return renderGoals(ctx);
       if (route.type === 'goal') return renderGoals(ctx); // R9b: app.js opens the goal window on top
-      if (route.type === 'goal-row') return renderGoalRow(ctx, route.goal);
       if (route.type === 'goal-list-row') return renderGoalListRow(ctx, route.goal); // R10a: the Ciljevi row in an area
       if (route.type !== 'modal') return false;
       const renderers = { 'goal-details': renderGoalDetails, goal: renderGoalModal, 'goal-source': renderGoalSourceModal, milestone: renderMilestoneModal, 'goal-links': renderGoalLinksModal, 'goal-reminders': renderGoalRemindersModal, 'goal-reached': renderGoalReachedModal, 'goal-history': renderGoalHistoryModal };

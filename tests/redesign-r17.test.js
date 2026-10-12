@@ -36,7 +36,7 @@ test('1: "Bez projekta" has a route, and the domain context hands over taskRow',
 
 test('2, 3: the Još tile icon is 36 px square and the task title 22 px on touch phones', () => {
   assert.match(rule('.more-tiles > .more-row > .more-row-icon'), /width: 36px;/);
-  assert.match(rule('#detail-title'), /font-size: 22px;/);
+  assert.match(rule('#detail-title'), /font-size: var\(--text-heading\);/);
 });
 
 test('4: inside the phone app Dailo counts as installed', () => {
