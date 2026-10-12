@@ -159,7 +159,7 @@ test('the app routes, links, notices and records the weekly review', () => {
   // R12b added 'journal' after 'settings' in the route list.
   assert.match(app, /'completed', 'review', 'settings'(, 'journal')?(, 'account')?\]\.includes\(hash\)/); // R15 added 'account'
   // Redesign R1: the Još screen replaced the More sheet's route list.
-  assert.match(app, /moreRow\('review', 'ph-clipboard-text', tr\('Weekly review'\)\)/);
+  assert.match(app, /moreRow\('review', 'ph-clipboard-text', tr\('Weekly review'\), '', reviewNote\)/); // R32: with this week's state
   assert.match(app, /reviewTaskRow\(task, context, options = \{\}\) \{\s*return taskRow\(task, context, options\);/);
   const html = read('index.html');
   assert.ok(html.indexOf('src="js/review-ui.js"') > html.indexOf('src="js/domain-modules.js"'));

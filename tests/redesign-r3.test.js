@@ -40,11 +40,11 @@ test('D1–D4, E1: the task window has the title, the project link, Planiranje a
   const html = windowHtml(task);
   assert.match(html, /<span id="task-modal-title" class="task-window-kind">Task<\/span>/);
   assert.match(html, /<button class="btn-icon" type="button" data-action="task-menu" data-task-id="t1" aria-label="Task actions">/);
-  assert.match(html, /<input id="detail-title" class="modal-task-title task-window-title" type="text" maxlength="500" value="Report"/);
+  assert.match(html, /<textarea id="detail-title" class="modal-task-title task-window-title" rows="1" maxlength="500" data-autogrow aria-label="Task title">Report<\/textarea>/, 'R33: the title wraps');
   assert.match(html, /<button class="task-window-project" type="button" data-action="task-project-picker" data-task-id="t1"><i class="ph ph-folder-simple" aria-hidden="true"><\/i>Posao<\/button>/);
   const rows = [...html.matchAll(/<button class="task-window-row" type="button" data-action="([a-z-]+)" data-task-id="t1"><i class="ph (ph-[a-z-]+)" aria-hidden="true"><\/i><span class="task-window-row-label">([^<]+)<\/span><span class="task-window-row-value([^"]*)">(.*?)<\/span><i class="ph ph-caret-right task-window-row-caret" aria-hidden="true"><\/i><\/button>/g)];
-  assert.deepEqual(rows.map(row => row[1]), ['task-plan-picker', 'task-due-picker', 'task-reminder-picker', 'task-repeat-picker', 'task-duration-picker', 'task-tags-picker', 'task-priority-picker'], 'R22b: the project is the link under the title only');
-  assert.deepEqual(rows.map(row => row[3]), ['Planned', 'Due date', 'Reminder', 'Repeat', 'Duration', 'Tags', 'Priority']);
+  assert.deepEqual(rows.map(row => row[1]), ['task-plan-picker', 'task-due-picker', 'task-reminder-picker', 'task-repeat-picker', 'task-duration-picker', 'task-tags-picker', 'task-priority-picker', 'task-goals-picker'], 'R22b: the project is the link under the title only; R33: goals as a row');
+  assert.deepEqual(rows.map(row => row[3]), ['Planned', 'Due date', 'Reminder', 'Repeat', 'Duration', 'Tags', 'Priority', 'Goals']);
   assert.notEqual(rows[0][2], rows[1][2], 'D3: Rok has its own icon');
   assert.equal(rows[0][5], `R(${TODAY}) · 09:30`);
   assert.equal(rows[1][4], ' is-set is-overdue', 'G6 colors on the due value');
@@ -58,10 +58,10 @@ test('D1–D4, E1: the task window has the title, the project link, Planiranje a
   assert.match(html, /<h3 class="task-window-group">Subtasks · 1\/2<\/h3>/);
   assert.match(html, /<label class="task-window-group" for="detail-notes">Notes<\/label><textarea id="detail-notes"/);
   assert.match(html, /<attachments>/);
-  assert.match(html, /<details class="task-window-more"><summary><span>More options<\/span><span class="task-window-more-meta">Area, goals, importance<\/span>/);
-  assert.match(html, /data-task-goal="t1" value="g"/);
-  assert.match(html, /data-task-flag="isImportant"/);
-  assert.match(html, /data-task-flag="isUrgent"/);
+  assert.match(html, /<details class="task-window-more"><summary><span>More options<\/span><span class="task-window-more-meta">Area, goals<\/span>/);
+  assert.match(html, /<div class="task-window-row is-static"><i class="ph ph-squares-four" aria-hidden="true"><\/i><span class="task-window-row-label">Area<\/span>/, 'R33: a project task shows its area without a picker');
+  assert.match(html, /data-action="task-goals-picker" data-task-id="t1"/);
+  assert.doesNotMatch(html, /data-task-flag=/, 'R33: Važno and Hitno are gone from the window');
   assert.match(html, /<div class="task-window-footer"><button class="btn btn-primary task-complete-button" type="button" data-action="toggle-complete" data-task-id="t1">Complete task<\/button><\/div>/);
   assert.equal((html.match(/data-action="toggle-complete"/g) || []).length, 1, 'one completion control');
   for (const gone of ['data-task-time=', 'data-task-duration', 'toggle-focus-task', 'data-action="delete-task"', 'task-quick-properties', 'task-properties-disclosure']) assert.ok(!html.includes(gone), gone);
@@ -71,10 +71,10 @@ test('the window shows "Nije podešeno", the Inbox label, the area for a task wi
   const html = windowHtml({ id: 't2', title: 'Idea', isInbox: true, isCompleted: true, priority: 'none', tagIds: [], subtasks: [], goalIds: [], areaId: 'a' });
   assert.match(html, /<span id="task-modal-title" class="task-window-kind">Task in Inbox<\/span>/);
   assert.match(html, /data-action="task-project-picker" data-task-id="t2"><i class="ph ph-folder-simple" aria-hidden="true"><\/i>No project<\/button>/);
-  assert.equal((html.match(/<span class="task-window-row-value">Not set<\/span>/g) || []).length, 7, 'R22b: no project row');
-  assert.match(html, /<select id="detail-area" class="input task-property-select" data-task-area="t2">/);
+  assert.equal((html.match(/<span class="task-window-row-value">Not set<\/span>/g) || []).length, 8, 'R22b: no project row; R33: the goals row');
+  assert.match(html, /data-action="task-area-picker" data-task-id="t2"><i class="ph ph-squares-four" aria-hidden="true"><\/i><span class="task-window-row-label">Area<\/span><span class="task-window-row-value is-set">Kuća<\/span>/);
   assert.match(html, /<button class="btn btn-secondary task-complete-button" type="button" data-action="toggle-complete" data-task-id="t2">Reopen task<\/button>/);
-  for (const [key, value] of [['Reopen task', 'Vrati kao otvoren'], ['Task in Inbox', 'Zadatak · u Inbox-u'], ['More options', 'Više opcija'], ['Area, goals, importance', 'Oblast, ciljevi, važnost']]) assert.match(sr, new RegExp(`"${key}": "${value}"`), key);
+  for (const [key, value] of [['Reopen task', 'Vrati kao otvoren'], ['Task in Inbox', 'Zadatak · u Inbox-u'], ['More options', 'Više opcija'], ['Area, goals', 'Oblast, ciljevi']]) assert.match(sr, new RegExp(`"${key}": "${value}"`), key);
 });
 
 function sheetContext(extra = {}) {
@@ -96,10 +96,13 @@ function sheetContext(extra = {}) {
     requestTaskEdit: (id, changes) => calls.push(['edit', id, changes]),
     renderModal: () => calls.push(['renderModal']),
     $: () => null,
+    // R30: the picker hides past times and groups of Redovne obaveze; the clock is fixed so the dates above stay ahead.
+    taskRecurrence: task => task?.recurrence || null, lowerFirst: text => text,
+    Date: class extends Date { constructor(...args) { super(...(args.length ? args : ['2026-10-12T08:00:00'])); } static now() { return new Date('2026-10-12T08:00:00').getTime(); } },
     ...extra,
   };
   vm.createContext(withI18n(ctx));
-  vm.runInContext(`let dateSheet = null, reminderSheet = null, tagSheet = null;\n${['nextMonday', 'monthGrid', 'openDateSheet', 'dateSheetHtml', 'applyDateSheet', 'openPriorityPicker', 'openReminderPicker', 'reminderSheetHtml', 'applyReminderSheet', 'setReminder', 'openProjectPicker', 'openTagPicker', 'tagSheetHtml', 'toggleTagSheet', 'applyTagSheet', 'openTaskDurationPicker', 'setTaskDuration'].map(fn).join('')}`, ctx);
+  vm.runInContext(`let dateSheet = null, reminderSheet = null, tagSheet = null;\n${['nextMonday', 'monthGrid', 'openDateSheet', 'dateSheetHtml', 'applyDateSheet', 'openPriorityPicker', 'openReminderPicker', 'reminderSheetHtml', 'applyReminderSheet', 'setReminder', 'reminderStart', 'projectPickerGroups', 'openProjectPicker', 'openTagPicker', 'tagSheetHtml', 'toggleTagSheet', 'applyTagSheet', 'openTaskDurationPicker', 'setTaskDuration'].map(fn).join('')}`, ctx);
   return ctx;
 }
 
@@ -181,6 +184,7 @@ test('E6: reminder presets follow the planned time; the sheet has date, time, a 
   ctx.openReminderPicker({}, { type: 'task', taskId: 't1' });
   const html = ctx.calls.at(-1)[1];
   const presets = [...html.matchAll(/data-pop-action="reminder-preset" data-date="([\d-]+)" data-time="([\d:]+)"[^>]*>([^<]+)</g)].map(match => match.slice(1));
+  assert.equal(presets.shift()[2], 'In 1 hour', 'R36: "Za 1 h" comes first');
   assert.deepEqual(presets, [['2026-10-20', '10:30', 'At the planned time'], ['2026-10-20', '10:15', '15 min before'], ['2026-10-20', '09:30', '1 h before'], ['2026-10-19', '09:00', 'Day before at 09:00']]); // R18: the default reminder time
   assert.match(html, /<input id="reminder-date" class="input" type="date" value="2026-10-20">/);
   assert.match(html, /<input id="reminder-time" class="input" type="time" value="10:30">/);
@@ -279,7 +283,8 @@ test('opening a sheet keeps its own state', () => {
 
 test('the task menu offers "Započni fokus" for an open task', () => {
   const menu = fn('openTaskMenu');
-  assert.match(menu, /data-pop-action="task-start-focus" data-task-id="\$\{esc\(taskId\)\}"><i class="ph ph-timer"><\/i>\$\{tr\('Start focus'\)\}/);
+  assert.match(menu, /open \? item\('task-start-focus', 'ph-timer', tr\('Start focus'\)\) : ''/);
+  assert.match(menu, /const item = \(action, icon, label\) => `<button class="popover-option" type="button" data-pop-action="\$\{action\}" data-task-id="\$\{esc\(taskId\)\}"><i class="ph \$\{icon\}"><\/i>\$\{label\}<\/button>`;/);
   assert.match(app, /else if \(action === 'task-start-focus'\) \{ const id = button\.dataset\.taskId; closePopover\(\); openFocusMode\(id\); \}/);
 });
 

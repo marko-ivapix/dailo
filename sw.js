@@ -3,7 +3,7 @@
    a changed sw.js is how installed apps learn about a new version. */
 'use strict';
 
-const VERSION = '2.0.0-alpha.54';
+const VERSION = '2.0.0-alpha.65';
 const CACHE_PREFIX = 'dailo-shell-';
 const CACHE_NAME = `${CACHE_PREFIX}${VERSION}`;
 // Every runtime file index.html, its stylesheets and the manifest reference (tests keep this complete).
@@ -22,6 +22,7 @@ const SHELL_FILES = [
   'vendor/phosphor/Phosphor.woff2',
   'vendor/phosphor/fill.css',
   'vendor/phosphor/Phosphor-Fill.woff2',
+  'js/appearance.js',
   'js/release.js',
   'js/i18n.js',
   'js/i18n-sr.js',

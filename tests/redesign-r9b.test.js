@@ -107,7 +107,7 @@ test('GO5: linked tasks as Today rows with "Prikaži još", and habit contributi
   assert.match(html, /<row t4 goal today><button class="today-more" type="button" data-action="goal-details-all-tasks" aria-expanded="true">Show less<\/button>/);
   const habitCtx = goalCtx({ progressMode: 'linkedHabits', habitLinks: [{ habitId: 'h', metric: 'totalCheckins', target: 10 }] }, { state: { habits: [{ id: 'h', name: '<b>Walk</b>' }], habitMetrics: { h: { totalCheckins: 4 } } } });
   html = render(habitCtx);
-  assert.match(html, /<h3 class="goal-details-label">Habit contributions<\/h3><div class="today-card habits-bars"><div class="habits-bar"><span class="habits-bar-name">&lt;b>Walk&lt;\/b><\/span><span class="habits-bar-count">40%<\/span><span class="habits-bar-track" aria-hidden="true"><i style="width:40%"><\/i><\/span><span class="task-meta goal-habit-meta">4 \/ 10 Check-ins<\/span><\/div><\/div>/);
+  assert.match(html, /<h3 class="goal-details-label">Habit contributions<\/h3><div class="today-card habits-bars"><div class="habits-bar"><span class="habits-bar-name">&lt;b>Walk&lt;\/b><\/span><span class="habits-bar-count">40%<\/span><span class="habits-bar-track" aria-hidden="true"><i style="width:40%"><\/i><\/span><span class="task-meta goal-habit-meta">4 of 10 · check-ins<\/span><\/div><\/div>/);
   assert.match(html, /<p class="sheet-note">Each linked Habit has equal weight; its contribution is capped at 100%\.<\/p>/);
 });
 

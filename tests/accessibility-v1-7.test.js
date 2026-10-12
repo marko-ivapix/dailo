@@ -39,7 +39,7 @@ test('Oblasti folds archived areas behind aria-expanded; the area window choices
 
 test('aria-live is limited to status/toast output instead of the application shell', () => {
   assert.doesNotMatch(html, /<div id="app"[^>]*aria-live=/);
-  assert.match(html, /id="toast-root"[^>]*aria-live="assertive"/);
+  assert.match(html, /id="toast-root" class="toast-root"></);
   assert.match(html, /id="global-status"[^>]*aria-live="polite"/);
 });
 

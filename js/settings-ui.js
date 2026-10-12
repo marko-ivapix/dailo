@@ -12,23 +12,41 @@
   }
 
   // The browser shows reminders only while Dailo is open; the app schedules phone notifications (audit M6).
-  function reminderRows(native, notificationButtonLabel) {
-    const row = (title, text, action, label) => `<div class="settings-row"><div class="settings-label"><strong>${title}</strong><span>${text}</span></div><button class="btn btn-secondary" type="button" data-action="${action}">${label}</button></div>`;
-    if (!native) return row(tr('Browser reminders'), tr('Reminders appear while Dailo is open. Browser notifications are optional, and nothing arrives while the app is closed.'), 'enable-notifications', notificationButtonLabel());
+  // R32 (finding 18): a button appears only when it does something; otherwise the line says the state.
+  function reminderRows(native) {
+    const row = (title, text, action = '', label = '') => `<div class="settings-row"><div class="settings-label"><strong>${title}</strong><span>${text}</span></div>${label ? `<button class="btn btn-secondary" type="button" data-action="${action}">${label}</button>` : ''}</div>`;
+    if (!native) {
+      const permission = typeof Notification === 'undefined' ? 'unsupported' : Notification.permission;
+      const status = { granted: tr('Browser notifications are on.'), denied: tr('Browser notifications are blocked in this browser.'), unsupported: tr('This browser cannot show notifications.') }[permission];
+      return row(tr('Browser reminders'), `${tr('Reminders appear while Dailo is open. Browser notifications are optional, and nothing arrives while the app is closed.')}${status ? ` ${status}` : ''}`, 'enable-notifications', permission === 'default' ? tr('Enable') : '');
+    }
     const text = native.permission === 'granted' ? tr('Reminders arrive as notifications, even when Dailo is closed.')
       : native.permission === 'denied' ? tr('Notifications are off for Dailo. Turn them on in the phone settings.')
         : tr('Allow notifications so reminders arrive even when Dailo is closed.');
-    const label = native.permission === 'granted' ? tr('Enabled') : native.permission === 'denied' ? tr('Blocked') : tr('Enable');
     const exact = native.permission === 'granted' && native.exact === 'denied'
       ? row(tr('Exact time'), tr('Android may deliver reminders a few minutes late. Allow exact alarms for Dailo.'), 'allow-exact-alarms', tr('Allow')) : '';
-    return row(tr('Reminders'), text, 'enable-notifications', label) + exact;
+    return row(tr('Notifications'), text, 'enable-notifications', ['granted', 'denied'].includes(native.permission) ? '' : tr('Enable')) + exact;
+  }
+
+  // R37 (J): one line on the state of the data: what is kept, when the last backup was made, and a warning tone when
+  // there is no recent backup or the storage can be cleared.
+  function dataHealth(ctx, persistence, reminderDays) {
+    const { state } = ctx;
+    const count = list => (list || []).length;
+    const library = count(state.notes) + count(state.resources);
+    const parts = [trn(count(state.tasks), '{count} task', '{count} tasks'), trn(count(state.projects), '{count} project', '{count} projects'), trn(count(state.habits), '{count} habit', '{count} habits'), trn(library, '{count} note or resource', '{count} notes and resources')];
+    const last = Date.parse(state.settings.backupStatus?.lastExport || '');
+    const days = Number.isFinite(last) ? Math.max(0, Math.floor((Date.parse(ctx.nowIso?.() || new Date().toISOString()) - last) / 86400000)) : null;
+    const backup = days === null ? tr('no backup yet') : days === 0 ? tr('backup today') : trn(days, 'backup {count} day ago', 'backup {count} days ago');
+    const ok = days !== null && days <= Math.max(reminderDays || 7, 1) && ['granted', 'app'].includes(persistence.state);
+    return `<div class="settings-row settings-health is-${ok ? 'ok' : 'warning'}"><div class="settings-label"><strong>${tr('Data health')}</strong><span>${parts.join(' · ')} · ${backup}</span></div></div>`;
   }
 
   // Keyboard shortcut rows (Računar).
   const SHORTCUT_ROWS = ctx => { const { state, shortcutLabels, esc } = ctx; return Object.entries(shortcutLabels).map(([key,label])=>`<div class="settings-row shortcut-row"><label class="settings-label" for="shortcut-${key}"><strong>${esc(tr(label))}</strong></label><input class="input shortcut-input" id="shortcut-${key}" data-shortcut="${key}" aria-label="${esc(tr('{command} shortcut', { command: tr(label) }))}" placeholder="${tr('Disabled')}" value="${esc(state.settings.shortcuts[key] || '')}" /><button class="btn btn-secondary" data-action="save-shortcut" data-command="${key}">${tr('Save')}</button><button class="btn btn-ghost" data-action="disable-shortcut" data-command="${key}">${tr('Disable')}</button></div>`).join(''); };
 
   function renderSettings(ctx) {
-    const { state, pageHeader, shortcutError, notificationButtonLabel, esc } = ctx;
+    const { state, pageHeader, shortcutError, esc } = ctx;
     const backupStatus = state.settings.backupStatus || {};
     const statusTime = value => statusTimeHtml(esc, value);
     // Status sentences are stored in English; "Prefix: detail" failures translate their prefix.
@@ -42,10 +60,20 @@
     const megabytes = bytes => `${new Intl.NumberFormat(I18n.locale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(bytes / 1048576)} MB`;
     const usage = Number.isFinite(persistence.usage) && Number.isFinite(persistence.quota) ? ` ${tr('{used} of {total} used.', { used: megabytes(persistence.usage), total: megabytes(persistence.quota) })}` : '';
     const reminderDays = ctx.Core?.backupReminderDays ? ctx.Core.backupReminderDays(state.settings) : 7;
+    const theme = ctx.readTheme?.() || 'dark';
+    const themes = [['dark', tr('Dark')], ['light', tr('Light')], ['system', tr('Follow the system')]].map(([value, label]) => `<option value="${value}"${value === theme ? ' selected' : ''}>${label}</option>`).join('');
+    const textSize = ctx.readTextSize?.() || 'normal';
+    const textSizes = [['small', tr('Smaller')], ['normal', tr('Normal')], ['large', tr('Larger')], ['larger', tr('Largest')]].map(([value, label]) => `<option value="${value}"${value === textSize ? ' selected' : ''}>${label}</option>`).join('');
     const reminderOptions = [...new Set([0, 3, 7, 14, 30, reminderDays])].sort((a, b) => a - b)
       .map(days => `<option value="${days}"${days === reminderDays ? ' selected' : ''}>${days === 1 ? tr('Every day') : days ? trn(days, 'Every {count} day', 'Every {count} days') : tr('Off')}</option>`).join('');
     const release = ctx.release || {};
     const installed = Boolean(ctx.environmentInfo?.().standalone);
+    // R32 (finding 31): the steps for the browser in use; Chromium offers its own install through "Instaliraj".
+    const iPhone = /iPhone|iPad|iPod/.test(ctx.environmentInfo?.().userAgent || '');
+    const canPrompt = !iPhone && Boolean(ctx.installPrompt?.());
+    const installText = iPhone ? tr('On iPhone, in Safari tap Share, then Add to Home Screen, then Add. Install first and then start using Dailo: data in Safari and in the installed app are kept separately.')
+      : canPrompt ? tr('Dailo opens like an app and works without internet.') : tr('In the browser menu, choose Install or Add to Home Screen.');
+    const installButton = canPrompt ? `<button class="btn btn-secondary" type="button" data-action="install-app">${tr('Install')}</button>` : '';
     const reportHref = release.problemReportMailto?.({ email: release.REPORT_EMAIL, version: release.APP_VERSION, ...(ctx.environmentInfo?.() || {}) }) || null;
     const sundayFirst = state.settings.weekStartsOn === 0 || state.settings.weekStartsOn === 'sunday';
     const capacity = ctx.Core?.dailyCapacityMinutes ? ctx.Core.dailyCapacityMinutes(state.settings) : 360;
@@ -74,7 +102,13 @@
         <h2>${tr('General')}</h2>
         <div class="settings-row"><label class="settings-label" for="preference-week-start"><strong>${tr('Week starts on')}</strong><span>${tr('Used by weekly views and habit periods.')}</span></label><select class="input" id="preference-week-start"><option value="monday"${!sundayFirst ? ' selected' : ''}>${tr('Monday')}</option><option value="sunday"${sundayFirst ? ' selected' : ''}>${tr('Sunday')}</option></select></div>
         <div class="settings-row"><label class="settings-label" for="daily-capacity"><strong>${tr('Daily capacity')}</strong><span>${tr('Planned work per day, compared with task durations in the Calendar day view.')}</span></label><select class="input" id="daily-capacity">${capacityOptions}</select></div>
-        ${reminderRows(native, notificationButtonLabel)}
+        <div class="settings-row"><label class="settings-label" for="theme"><strong>${tr('Theme')}</strong><span>${tr('Only on this device.')}</span></label><select class="input" id="theme">${themes}</select></div>
+        <div class="settings-row"><label class="settings-label" for="text-size"><strong>${tr('Text size')}</strong><span>${tr('Only on this device.')}</span></label><select class="input" id="text-size">${textSizes}</select></div>
+      </section>
+      <section class="settings-card" data-settings-reminders>
+        <h2>${tr('Reminders')}</h2>
+        ${reminderRows(native)}
+        <div class="settings-row"><div class="settings-label"><strong>${tr('Test reminder')}</strong><span>${tr('A reminder arrives in five seconds, so you can see that notifications work.')}</span></div><button class="btn btn-secondary" type="button" data-action="test-reminder">${tr('Send')}</button></div>
         <div class="settings-row"><label class="settings-label" for="default-reminder-time"><strong>${tr('Default reminder time')}</strong><span>${tr('Used when Dailo proposes a reminder: tomorrow, the day before, new habits and goals.')}</span></label><select class="input" id="default-reminder-time">${defaultTimeOptions}</select></div>
         <div class="settings-row"><label class="settings-label" for="planned-time-reminders"><strong>${tr('Reminder at the planned time')}</strong><span>${tr('A task with a planned time reminds you then, even without its own reminder.')}</span></label><input id="planned-time-reminders" type="checkbox"${state.settings.plannedTimeReminders === true ? ' checked' : ''}></div>
         <div class="settings-row"><label class="settings-label" for="journal-reminder-time"><strong>${tr('Journal reminder')}</strong><span>${tr('When “Write down how the day went” appears on Today.')}</span></label><select class="input" id="journal-reminder-time">${journalOptions}</select></div>${native ? `
@@ -82,7 +116,8 @@
       </section>
       <section class="settings-card" data-settings-data>
         <h2>${tr('Data')}</h2>
-        <div class="settings-row"><div class="settings-label"><strong>${tr('Backup')}</strong><span>${tr('Last export:')} ${statusTime(backupStatus.lastExport)}<br>${tr('Last import:')} ${statusTime(backupStatus.lastImport)}<br>${tr('Recovery snapshot:')} ${backupStatus.snapshotAvailable ? tr('Available') : tr('None pending')}<br>${tr('Validation:')} ${esc(trMessage(backupStatus.validationResult || msg('Not yet validated')))}</span></div><button class="btn btn-secondary" type="button" data-action="export-backup"><i class="ph ph-download-simple"></i> ${tr('Export ZIP')}</button></div>
+        ${dataHealth(ctx, persistence, reminderDays)}
+        <div class="settings-row"><div class="settings-label"><strong>${tr('Backup')}</strong><span>${tr('Last export:')} ${statusTime(backupStatus.lastExport)}${backupStatus.lastImport ? `<br>${tr('Last import:')} ${statusTime(backupStatus.lastImport)}` : ''}${backupStatus.snapshotAvailable ? `<br>${tr('Recovery snapshot:')} ${tr('Available')}` : ''}${backupStatus.validationResult && backupStatus.validationResult !== msg('Not yet validated') ? `<br>${tr('Validation:')} ${esc(trMessage(backupStatus.validationResult))}` : ''}</span></div><button class="btn btn-secondary" type="button" data-action="export-backup"><i class="ph ph-download-simple"></i> ${tr('Export ZIP')}</button></div>
 ${native ? `
         <div class="settings-row"><label class="settings-label" for="auto-backup"><strong>${tr('Automatic backup')}</strong><span>${tr('Once a week to Documents/Dailo on this phone; the newest four are kept.')}${autoBackup.lastAt ? `<br>${tr('Last copy:')} ${statusTime(autoBackup.lastAt)}` : ''}${autoBackup.error ? `<br>${esc(tr('Last attempt failed: {error}', { error: autoBackup.error }))}` : ''}</span></label><input id="auto-backup" type="checkbox"${autoBackup.enabled ? ' checked' : ''}></div>` : ''}
         <div class="settings-row settings-sub"><label class="settings-label" for="backup-reminder-days"><strong>${tr('Backup reminder')}</strong><span>${tr('Today reminds you to export a backup when the last one is older than this.')}</span></label><select class="input" id="backup-reminder-days">${reminderOptions}</select></div>
@@ -96,7 +131,7 @@ ${native ? `
         <h2>${tr('Help')}</h2>
         <div class="settings-row"><div class="settings-label"><strong>${tr('Guide')}</strong><span>${tr('How to install Dailo, keep backups and report problems.')}</span></div><a class="btn btn-secondary" href="uputstvo.html" target="_blank" rel="noopener" data-beta-guide>${tr('Open guide')}</a></div>
         ${reportHref ? `<div class="settings-row"><div class="settings-label"><strong>${tr('Report a problem')}</strong><span>${tr('Opens an e-mail with the app version and device details. Your data is not attached.')}</span></div><a class="btn btn-secondary" href="${esc(reportHref)}" data-report-problem>${tr('Report a problem')}</a></div>` : ''}
-        ${installed ? '' : `<div class="settings-row"><div class="settings-label"><strong>${tr('Install app')}</strong><span data-install-status="browser">${tr('On iPhone, in Safari tap Share, then Add to Home Screen, then Add. Install first and then start using Dailo: data in Safari and in the installed app are kept separately.')}</span></div></div>`}
+        ${installed ? '' : `<div class="settings-row"><div class="settings-label"><strong>${tr('Install app')}</strong><span data-install-status="browser">${installText}</span></div>${installButton}</div>`}
         <div class="settings-row"><div class="settings-label"><strong>${tr('Privacy')}</strong><span data-privacy-note>${privacy}</span></div></div>
         <div class="settings-row"><div class="settings-label"><strong>${tr('About')}</strong><span>Dailo ${esc(release.APP_VERSION || '')}</span></div></div>
       </section>
@@ -106,7 +141,7 @@ ${native ? `
         ${shortcutError()?`<p class="validation" role="alert">${esc(shortcutError())}</p>`:''}
         ${SHORTCUT_ROWS(ctx)}
         <button class="btn btn-secondary" data-action="reset-shortcuts">${tr('Reset to defaults')}</button>
-        <div class="settings-row"><label class="settings-label" for="preference-density"><strong>${tr('Compact density')}</strong><span>${tr('Keep task rows and controls tight.')}</span></label><input id="preference-density" type="checkbox" ${state.settings.compactDensity !== false ? 'checked' : ''}></div>
+        <div class="settings-row settings-wide-only"><label class="settings-label" for="preference-density"><strong>${tr('Compact density')}</strong><span>${tr('Keep task rows and controls tight.')}</span></label><input id="preference-density" type="checkbox" ${state.settings.compactDensity !== false ? 'checked' : ''}></div>
       </section>`;
   }
 

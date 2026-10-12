@@ -136,7 +136,7 @@ test('N6: the frequency sheet with four choices, weekdays (Mon–Fri by default,
   let html = lastHtml(ctx);
   assert.equal(ctx.calls.at(-1)[2].type, 'habit-frequency');
   assert.match(html, /^<div class="popover-title">Frequency<\/div><p class="sheet-subtitle">Gym<\/p><div class="sheet-card" role="radiogroup" aria-label="Frequency">/);
-  assert.deepEqual([...html.matchAll(/role="radio" aria-checked="(true|false)" data-pop-action="habit-freq-type" data-value="(\w+)"><span class="sheet-radio[^"]*" aria-hidden="true"><\/span><span class="sheet-option-label">([^<]+)</g)].map(match => match.slice(1)), [['true', 'daily', 'Daily'], ['false', 'weekdays', 'Selected weekdays'], ['false', 'timesPerWeek', 'X times per week'], ['false', 'everyNDays', 'Every N days']]);
+  assert.deepEqual([...html.matchAll(/role="radio" aria-checked="(true|false)" data-pop-action="habit-freq-type" data-value="(\w+)"><span class="sheet-option-label">([^<]+)<\/span><span class="sheet-radio[^"]*" aria-hidden="true"><\/span>/g)].map(match => match.slice(1)), [['true', 'daily', 'Daily'], ['false', 'weekdays', 'Selected weekdays'], ['false', 'timesPerWeek', 'X times per week'], ['false', 'everyNDays', 'Every N days']]);
   assert.match(html, /<div class="sheet-footer"><span><\/span><button class="btn btn-primary" type="button" data-pop-action="habit-freq-apply">Apply<\/button><\/div>$/);
 
   act(module, ctx, 'habit-freq-type', { value: 'weekdays' });
@@ -205,7 +205,7 @@ test('N4: Kraj, Minimalna i idealna, Brze vrednosti, Oblast and Povezani ciljevi
   const ctx = windowCtx({ name: 'Water', trackingType: 'numeric', targetValue: 2, unit: 'l' });
   // Kraj
   act(module, ctx, 'habit-draft-end');
-  assert.deepEqual([...lastHtml(ctx).matchAll(/data-pop-action="habit-end-type" data-value="(\w+)"><span class="sheet-radio[^"]*" aria-hidden="true"><\/span><span class="sheet-option-label">([^<]+)</g)].map(match => match.slice(1)), [['never', 'Never'], ['date', 'On date'], ['successfulPeriods', 'After successful days']]);
+  assert.deepEqual([...lastHtml(ctx).matchAll(/data-pop-action="habit-end-type" data-value="(\w+)"><span class="sheet-option-label">([^<]+)<\/span><span class="sheet-radio[^"]*" aria-hidden="true"><\/span>/g)].map(match => match.slice(1)), [['never', 'Never'], ['date', 'On date'], ['successfulPeriods', 'After successful days']]);
   act(module, ctx, 'habit-end-type', { value: 'date' });
   assert.match(lastHtml(ctx), new RegExp(`<input id="habit-end-date" class="input" type="date" min="${TODAY}" value="">`));
   act(module, ctx, 'habit-end-apply');

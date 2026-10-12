@@ -46,6 +46,17 @@ const first = await boot(new Map());
 const { window } = first;
 if (!window.TodoApp.state) fail('no state after start');
 if (window.DailoPlatform?.kind !== 'web') fail(`platform is ${window.DailoPlatform?.kind}`);
+// R30: a new workspace says its examples are examples; "Počni prazno" empties it and Poništi brings them back.
+window.location.hash = '#today';
+await new Promise(resolve => setTimeout(resolve, 50));
+const sampleCount = window.TodoApp.state.tasks.length;
+if (!sampleCount || !window.document.querySelector('#main [data-sample-notice]')) fail('Danas did not say that the first tasks are examples');
+window.document.querySelector('#main [data-action="sample-start-empty"]').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+await new Promise(resolve => setTimeout(resolve, 20));
+if (window.TodoApp.state.tasks.length || window.document.querySelector('#main [data-sample-notice]')) fail('"Počni prazno" did not empty the workspace');
+window.document.querySelector('#toast-root [data-action="undo"]')?.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+await new Promise(resolve => setTimeout(resolve, 50));
+if (window.TodoApp.state.tasks.length !== sampleCount) fail('Poništi did not bring the examples back');
 const title = `Smoke ${Date.now()}`;
 window.TodoApp.openQuickAdd();
 const input = window.document.querySelector('#quick-title');
@@ -60,6 +71,15 @@ window.TodoApp.openQuickAdd();
 if (!window.document.querySelector('#quick-title')) fail('Quick Add did not reopen');
 if (window.TodoApp.handleBackButton() !== true || window.document.querySelector('#quick-title')) fail('Back did not close Quick Add');
 if (window.TodoApp.handleBackButton() !== false) fail('Back reported a closed overlay when none was open');
+// R32: with nothing open, Back steps from a tab to Danas, and a screen under Još starts with "‹ Još".
+window.location.hash = '#calendar';
+await new Promise(resolve => setTimeout(resolve, 50));
+if (window.TodoApp.handleBackButton() !== true) fail('Back on Kalendar did not step back');
+await new Promise(resolve => setTimeout(resolve, 50));
+if (window.location.hash !== '#today') fail(`Back on Kalendar went to ${window.location.hash}`);
+window.location.hash = '#settings';
+await new Promise(resolve => setTimeout(resolve, 50));
+if (!window.document.querySelector('#main .screen-back')) fail('Podešavanja has no "‹ Još"');
 // A-2 (M12): a route change names the page and focuses its heading; a re-render keeps the focused control.
 window.location.hash = '#inbox';
 await new Promise(resolve => setTimeout(resolve, 50));
@@ -140,8 +160,18 @@ const inboxTitle = window.document.querySelector('#quick-title');
 inboxTitle.value = `Smoke inbox ${Date.now()}`;
 inboxTitle.dispatchEvent(new window.Event('input', { bubbles: true }));
 window.document.querySelector('[data-action="create-task"]').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+// Redesign R36: the toast says where the task went and offers "Otvori".
+if (!/Inbox/.test(window.document.querySelector('#toast-root .toast-message')?.textContent || '') || !window.document.querySelector('#toast-root [data-action="toast-open-task"]')) fail('the new Inbox task had no "Dodato u Inbox · Otvori" toast');
 window.location.hash = '#inbox';
 await new Promise(resolve => setTimeout(resolve, 50));
+// Redesign R36: the Inbox add row files a title with Enter and stays ready for the next one.
+const inboxRowTitle = `Smoke red ${Date.now()}`;
+const inboxRow = window.document.querySelector('#inbox-add-title');
+inboxRow.value = inboxRowTitle;
+inboxRow.dispatchEvent(new window.Event('input', { bubbles: true }));
+inboxRow.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+await new Promise(resolve => setTimeout(resolve, 50));
+if (!window.TodoApp.state.tasks.find(task => task.title === inboxRowTitle)?.isInbox || window.document.querySelector('#inbox-add-title')?.value) fail('the Inbox add row did not file the title in Inbox');
 window.document.querySelector('#main [data-action="inbox-triage"]').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
 const triageToday = window.document.querySelector('#modal-root .inbox-triage-actions [data-action="inbox-today"]') || [...window.document.querySelectorAll('#modal-root .inbox-triage-actions [data-action="inbox-triage-skip"]')][0];
 const triaged = triageToday?.dataset.taskId;
@@ -259,6 +289,13 @@ click('#modal-root [data-action="save-goal"]');
 await new Promise(resolve => setTimeout(resolve, 50));
 const newGoal = window.TodoApp.state.goals.find(goal => goal.title === goalName);
 if (!newGoal || newGoal.progressType !== 'numeric' || newGoal.targetValue !== 12 || newGoal.unit !== 'knjiga' || newGoal.targetDate !== `${window.TodoCore.dateOnly().slice(0, 4)}-12-31` || window.document.querySelector('#modal-root .goal-window') || window.location.hash !== '#goals') fail('"Napravi cilj" did not create the numeric goal and stay on Ciljevi');
+// Redesign R38: "Etape" as the progress source opens the milestones in the new goal window.
+click('#mobile-quick-add-toggle');
+await new Promise(resolve => setTimeout(resolve, 20));
+click('#modal-root [data-action="goal-draft-mode"][data-value="milestones"]');
+if (window.document.querySelector('#modal-root [data-action="goal-draft-mode"][data-value="milestones"]')?.getAttribute('aria-pressed') !== 'true' || !window.document.querySelector('#modal-root .goal-details-milestones')) fail('"Etape" did not open the milestones in Novi cilj');
+click('#modal-root [data-action="close-modal"]');
+await new Promise(resolve => setTimeout(resolve, 20));
 // Redesign R10a: Još → Oblasti → "+ Nova oblast" → a name → Napravi oblast → the area → "+" of Zadaci files a task in it.
 click('#mobile-bottom-nav [data-route="more"]');
 await new Promise(resolve => setTimeout(resolve, 50));
@@ -303,6 +340,19 @@ if (!newNote || newNote.body !== 'Samo tekst' || newNote.linkUrls.length || !win
 click('#modal-root .knowledge-window [data-action="close-modal"]');
 await new Promise(resolve => setTimeout(resolve, 20));
 if (window.document.querySelector('#modal-root .knowledge-window') || !window.document.querySelector(`#main .knowledge-row [data-route="note/${newNote.id}"]`)) fail('the new note is not in the list after X');
+// Redesign R35: Beleške search their own notes; "Napravi zadatak" turns the note into an Inbox task and opens it.
+type('#knowledge-query', 'samo tekst');
+if (!window.document.querySelector(`#knowledge-results [data-route="note/${newNote.id}"]`) || window.document.querySelectorAll('#knowledge-results .knowledge-row').length !== 1) fail('the Beleške search did not find only the new note');
+type('#knowledge-query', '');
+click(`#main .knowledge-row [data-route="note/${newNote.id}"]`);
+await new Promise(resolve => setTimeout(resolve, 50));
+click('#modal-root .knowledge-window [data-action="knowledge-menu"]');
+click('.popover [data-pop-action="knowledge-make-task"]');
+await new Promise(resolve => setTimeout(resolve, 50));
+const noteTask = window.TodoApp.state.tasks.find(task => task.title === noteName);
+if (!noteTask?.isInbox || !window.TodoApp.state.notes.find(note => note.id === newNote.id).relatedTaskIds.includes(noteTask.id) || !window.document.querySelector('#modal-root .task-window')) fail('"Napravi zadatak" did not make an Inbox task from the note and open it');
+click('#modal-root [data-action="close-modal"]');
+await new Promise(resolve => setTimeout(resolve, 20));
 // Redesign R10c: Još → Oznake → "+" says "Nova oznaka" → a name → Napravi oznaku → the tag's row → its screen.
 click('#mobile-bottom-nav [data-route="more"]');
 await new Promise(resolve => setTimeout(resolve, 50));
@@ -500,7 +550,7 @@ await new Promise(resolve => setTimeout(resolve, 50));
 click('#main .more-row[data-route="settings"]');
 await new Promise(resolve => setTimeout(resolve, 50));
 const settingsGroups = [...window.document.querySelectorAll('#main .settings-card > h2')].map(heading => heading.textContent);
-if (settingsGroups.slice(0, 3).join() !== 'Opšte,Podaci,Pomoć' || window.document.querySelector('#sidebar')) fail(`Podešavanja has groups ${settingsGroups.join(', ')} or a sidebar`);
+if (settingsGroups.slice(0, 4).join() !== 'Opšte,Podsetnici,Podaci,Pomoć' || window.document.querySelector('#sidebar')) fail(`Podešavanja has groups ${settingsGroups.join(', ')} or a sidebar`);
 const weekStart = window.document.querySelector('#preference-week-start');
 weekStart.value = 'sunday';
 weekStart.dispatchEvent(new window.Event('change', { bubbles: true }));
@@ -516,6 +566,29 @@ if (window.TodoApp.state.settings.journalReminderTime !== null) fail('Podsetnik 
 const weekStartBack = window.document.querySelector('#preference-week-start');
 weekStartBack.value = 'monday';
 weekStartBack.dispatchEvent(new window.Event('change', { bubbles: true }));
+// Redesign R37: "Veličina teksta" applies at once on this device only, and "Stanje podataka" heads Podaci.
+await new Promise(resolve => setTimeout(resolve, 20));
+const textSize = window.document.querySelector('#text-size');
+textSize.value = 'large';
+textSize.dispatchEvent(new window.Event('change', { bubbles: true }));
+await new Promise(resolve => setTimeout(resolve, 20));
+if (window.document.documentElement.dataset.textSize !== 'large' || window.localStorage.getItem('dailoTextSize') !== 'large' || 'textSize' in window.TodoApp.state.settings) fail('Veličina teksta did not apply on this device only');
+if (!window.document.querySelector('#main [data-settings-data] .settings-health')) fail('Podaci has no "Stanje podataka" line');
+const textSizeBack = window.document.querySelector('#text-size');
+textSizeBack.value = 'normal';
+textSizeBack.dispatchEvent(new window.Event('change', { bubbles: true }));
+// Redesign R39: "Tema" → Svetla applies at once on this device only; back to Tamna.
+await new Promise(resolve => setTimeout(resolve, 20));
+const theme = window.document.querySelector('#theme');
+theme.value = 'light';
+theme.dispatchEvent(new window.Event('change', { bubbles: true }));
+await new Promise(resolve => setTimeout(resolve, 20));
+if (window.document.documentElement.dataset.theme !== 'light' || window.localStorage.getItem('dailoTheme') !== 'light' || window.document.querySelector('meta[name="color-scheme"]')?.getAttribute('content') !== 'light') fail('Tema → Svetla did not apply on this device');
+const themeBack = window.document.querySelector('#theme');
+themeBack.value = 'dark';
+themeBack.dispatchEvent(new window.Event('change', { bubbles: true }));
+await new Promise(resolve => setTimeout(resolve, 20));
+if (window.document.documentElement.dataset.theme || window.localStorage.getItem('dailoTheme')) fail('Tema → Tamna did not return to the default');
 // Redesign R14: Today has no weekly review notice; task rows end with their checkbox and show the due label under the
 // title; "+" opens its menu over the scrim and a tap on the scrim closes both; a task opens without focusing its title.
 window.location.hash = '#today';
@@ -544,7 +617,7 @@ const tiles = [...window.document.querySelectorAll('#main .more-tiles > .more-ro
 if (!tiles.length || tiles.some(tile => !tile.firstElementChild?.matches('.more-row-icon')) || window.document.querySelector('#main .more-row-caret')) fail('Još is not a grid of tiles with the icon on top');
 click('#main .more-tiles .more-row[data-route="account"]');
 await new Promise(resolve => setTimeout(resolve, 50));
-if (window.location.hash !== '#account' || window.document.querySelector('#main .page-title')?.textContent !== 'Nalog' || !window.document.querySelector('#main [data-account-local]')) fail('the Nalog tile did not open the Nalog screen');
+if (window.location.hash !== '#account' || window.document.querySelector('#main .page-title')?.textContent !== 'Nalog' || !window.document.querySelector('#main [data-account-local], #main [data-settings-sync] #sync-email')) fail('the Nalog tile did not open the Nalog screen');
 // Redesign R16: Detalji navike → Početak → Početak meseca → Primeni saves the habit's start at once.
 const startHabit = window.TodoApp.state.habits.find(habit => habit.status === 'active');
 window.location.hash = `#habit/${startHabit.id}`;
@@ -600,7 +673,8 @@ click('#modal-root [data-action="close-modal"]');
 await new Promise(resolve => setTimeout(resolve, 20));
 // Redesign R21: "Sačuvaj kao šablon" opens the template editor as a sheet; the weekdays are chips and one big button saves.
 const templateCount = window.TodoApp.state.templates.length;
-const kitHabit = window.TodoApp.state.habits.find(habit => habit.status === 'active');
+// R33: the weekday chips show only for a habit on selected weekdays.
+const kitHabit = window.TodoApp.state.habits.find(habit => habit.status === 'active' && habit.frequencyType === 'weekdays');
 window.location.hash = `#habit/${kitHabit.id}`;
 await new Promise(resolve => setTimeout(resolve, 50));
 click('#modal-root [data-action="habit-details-menu"]');
@@ -635,5 +709,5 @@ if (!found) fail('the task is missing after reopening');
 const errors = [...first.errors, ...second.errors];
 second.dom.window.close();
 if (errors.length) fail(`script errors: ${errors.join(' | ')}`);
-console.log(`smoke: OK — started, created "${title}", Back closed Quick Add, route change named the page and focused its heading, Još opened Ciljevi, focus survived a re-render, Today checked in a habit, the Zadaci switch showed the projects and opened one, the task window's date sheet planned a task, Quick Add filed a task under \"Bez projekta\", \"Razvrstaj redom\" planned an Inbox task for today, the Calendar listed a picked day and its Raspored, Navike opened a past day and Nedelja, the new habit window created a numeric weekday habit, Detalji navike changed a day and an old address opened the window, Ciljevi grouped by month, the goal window set a target date and an old address opened it, the \"+\" on Ciljevi created a numeric goal, Oblasti made an area and its \"+\" filed a task there, Beleške made a text-only note in its window, Oznake made a tag and opened its screen, Sačuvani prikazi saved a habits view and opened it, Završeni zadaci restored a task and Poništi completed it again, Search grouped the results and Fokus ticked a subtask, the repeat editor set \"Sredom i subotom\", a repeating task's title saved without a question and \"Ovo i buduća\" moved its rule until Poništi, Redovne obaveze made a group and its \"+ Dodaj obavezu\" scheduled a monthly chore, Dnevnik saved today's entry with a mood and its search found it, Nedeljni pregled showed seven columns and today's journal face and recorded the review, Podešavanja applied the week start and turned the journal reminder off at once, Today had no weekly review notice and task and habit rows ended with their checkbox or circle, the \"+\" scrim closed the menu, a task opened without focusing its title, Još showed tiles and Nalog opened its screen, Detalji navike moved a habit's start to the 1st of the month, \"Bez projekta\" opened its screen and \"Novi projekat\" was a sheet, the reminder settings applied, a task's ⋯ menu was a titled sheet and \"Iz šablona\" stayed away without templates, the template editor saved a weekday chip, a project opened from Danas said \"‹ Danas\", reopened and found it (tasks: ${second.window.TodoApp.state?.tasks?.length ?? 'n/a'})`);
+console.log(`smoke: OK — started, created "${title}", Back closed Quick Add and stepped from Kalendar to Danas, Podešavanja had \"‹ Još\", \"Počni prazno\" emptied the examples until Poništi, route change named the page and focused its heading, Još opened Ciljevi, focus survived a re-render, Today checked in a habit, the Zadaci switch showed the projects and opened one, the task window's date sheet planned a task, Quick Add filed a task under \"Bez projekta\", \"Razvrstaj redom\" planned an Inbox task for today, the new task said \"Dodato u Inbox\" with \"Otvori\", the Inbox add row filed a title, the Calendar listed a picked day and its Raspored, Navike opened a past day and Nedelja, the new habit window created a numeric weekday habit, Detalji navike changed a day and an old address opened the window, Ciljevi grouped by month, the goal window set a target date and an old address opened it, the \"+\" on Ciljevi created a numeric goal and \"Etape\" opened the milestones, Oblasti made an area and its \"+\" filed a task there, Beleške made a text-only note in its window, found it with its own search and turned it into an Inbox task, Oznake made a tag and opened its screen, Sačuvani prikazi saved a habits view and opened it, Završeni zadaci restored a task and Poništi completed it again, Search grouped the results and Fokus ticked a subtask, the repeat editor set \"Sredom i subotom\", a repeating task's title saved without a question and \"Ovo i buduća\" moved its rule until Poništi, Redovne obaveze made a group and its \"+ Dodaj obavezu\" scheduled a monthly chore, Dnevnik saved today's entry with a mood and its search found it, Nedeljni pregled showed seven columns and today's journal face and recorded the review, Podešavanja applied the week start and turned the journal reminder off at once, the text size and the light theme applied on this device only, Today had no weekly review notice and task and habit rows ended with their checkbox or circle, the \"+\" scrim closed the menu, a task opened without focusing its title, Još showed tiles and Nalog opened its screen, Detalji navike moved a habit's start to the 1st of the month, \"Bez projekta\" opened its screen and \"Novi projekat\" was a sheet, the reminder settings applied, a task's ⋯ menu was a titled sheet and \"Iz šablona\" stayed away without templates, the template editor saved a weekday chip, a project opened from Danas said \"‹ Danas\", reopened and found it (tasks: ${second.window.TodoApp.state?.tasks?.length ?? 'n/a'})`);
 process.exit(0);

@@ -29,7 +29,7 @@ test('segments: the Inbox filter is a row of pills, Zadaci\'s switch is full wid
   assert.doesNotMatch(app, /role="tablist"|class="inbox-filter-tab/);
   has('.tasks-view-switch { display: flex; width: 100%; }');
   has('.tasks-view-switch .btn { flex: 1 1 0; }');
-  has('.calendar-day-mode .btn { padding: 4px 14px; font-size: 14px; }');
+  has('.calendar-day-mode .btn { padding: 4px 14px; font-size: var(--text-base); }');
 });
 
 test('folds: one button everywhere — the label and count on the left, the caret on the right', () => {
@@ -45,16 +45,16 @@ test('folds: one button everywhere — the label and count on the left, the care
 });
 
 test('empty states and section labels share one look; project lists use the usual card', () => {
-  has(':is(.area-empty-hint, .area-empty-copy) { margin: 12px 10px; color: var(--ink-3); font-size: 14px; }');
+  has(':is(.area-empty-hint, .area-empty-copy) { margin: 12px 10px; color: var(--ink-3); font-size: var(--text-base); }');
   has('.inbox-empty::before { content: none; }');
-  has(':is(.cleaning-section-title, .review-card-title, .inbox-group-label strong, .settings-card h2) { color: var(--ink-3); font-family: var(--font-ui); font-size: 12px; font-weight: 600; letter-spacing: var(--tracking-label); text-transform: uppercase; }');
+  has(':is(.cleaning-section-title, .review-card-title, .inbox-group-label strong, .settings-card h2) { color: var(--ink-3); font-family: var(--font-ui); font-size: var(--text-sm); font-weight: 600; letter-spacing: var(--tracking-label); text-transform: uppercase; }');
   assert.doesNotMatch(app, /<div class="more-card"><button class="project-row"|`<div class="more-card">\$\{/);
   assert.match(app, /<div class="today-card project-list"><button class="project-row" type="button" data-route="project\/none">/);
   assert.match(read('js/areas-ui.js'), /`<div class="today-card project-list">\$\{projects\.map\(project => projectOverviewRow\(project\)\)\.join\(''\)\}<\/div>`/);
 });
 
 test('big buttons: 16 px everywhere, and the goal window\'s one fills the footer', () => {
-  has('.habit-window-save { font-size: 16px; }');
+  has('.habit-window-save { font-size: var(--text-lg); }');
   const goals = read('js/goals-ui.js');
   assert.doesNotMatch(goals, /quick-sheet-footer"><span><\/span>\$\{footer\}/);
   assert.match(goals, /class="btn btn-secondary habit-window-save goal-details-complete"/);
@@ -63,8 +63,9 @@ test('big buttons: 16 px everywhere, and the goal window\'s one fills the footer
 test('Settings on a phone: a select sits under its label, checkboxes are switches, "Pošalji kod" is the main button', () => {
   const narrow = layer.slice(layer.indexOf('@media (max-width: 520px)'));
   assert.match(narrow, /\.settings-row:has\(> select\.input\) \{ flex-direction: column; align-items: stretch; gap: 8px; padding: 10px 0; \}/);
-  has(':is(.settings-row, .task-flag-row) > input[type="checkbox"] { appearance: none;');
-  has(':is(.settings-row, .task-flag-row) > input[type="checkbox"]:checked { background: var(--blue-600); }');
+  // R34: the Važno/Hitno rows left the task window in R33, so the switch rule names only Settings rows.
+  has('.settings-row > input[type="checkbox"] { appearance: none;');
+  has('.settings-row > input[type="checkbox"]:checked { background: var(--blue-600); }');
   assert.match(read('js/settings-ui.js'), /<button class="btn btn-primary" type="button" data-action="sync-request-code"/);
 });
 
@@ -92,8 +93,9 @@ test('search: the journal field looks like the other search fields; project resu
 test('the task window: the project once, "Više opcija" rows like the others, attachments without "drop" on a phone', () => {
   const tasksUi = read('js/tasks-ui.js');
   assert.doesNotMatch(tasksUi, /row\('task-project-picker'/, 'the blue project link under the title is enough');
-  has('.task-window-more .property-row { min-height: 48px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 10px; }');
-  has('.task-window-attachments .detail-heading { margin: 16px 0 6px; color: var(--ink-3); font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }');
+  // R34: "Više opcija" holds task-window rows since R33, so the old property-row rule is gone.
+  assert.doesNotMatch(css, /\.property-row/);
+  has('.task-window-attachments .detail-heading { margin: 16px 0 6px; color: var(--ink-3); font-size: var(--text-sm); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }');
   const coarse = layer.slice(layer.indexOf('@media (pointer: coarse)'));
   assert.match(coarse, /\.attachment-drop-zone > span:not\(\.btn\) \{ display: none; \}/);
 });

@@ -30,7 +30,9 @@
     const count = template.type === 'task' && data.subtasks?.length ? trn(data.subtasks.length, '{count} subtask', '{count} subtasks')
       : template.type === 'project' && data.tasks?.length ? trn(data.tasks.length, '{count} task', '{count} tasks')
         : template.type === 'goal' && data.milestones?.length ? trn(data.milestones.length, '{count} milestone', '{count} milestones') : '';
-    return [data.title || data.name || '', count].filter(Boolean).join(' · ');
+    // R33 (finding 23): the item's title only when it differs from the template's name.
+    const title = data.title || data.name || '';
+    return [title !== template.name ? title : '', count].filter(Boolean).join(' · ');
   }
 
   function renderTemplates(ctx) {
@@ -86,34 +88,58 @@
     return `<label class="sheet-label"><span>${label}</span>${input}</label>`;
   }
 
+  // R33 (finding 23): the essentials first (the name, the item's title and its rows); everything else folds under
+  // "Više opcija", and a field shows only when it applies (the repeat's details, the day of automatic creation).
   function templateFields(ctx, type, data, prefix = '') {
     const { state, getGoal, esc } = ctx;
     const field = (key, label, kind, options) => templateField(ctx, data, key, label, kind, options, prefix);
-    const choices = key => [['', tr('None')], ...state[key].map(item => [item.id, item.name || item.title])];
-    let html = field(type === 'task' || type === 'goal' ? 'title' : 'name', type === 'task' || type === 'goal' ? tr('Title') : tr('Name')) + field('areaId', tr('Area'), 'text', choices('areas'));
-    if (type !== 'goal') html += field('goalIds', tr('Goal links'), 'ids', state.goals.map(goal => [goal.id, goal.title]));
+    const choices = (key, none) => [['', none], ...state[key].map(item => [item.id, item.name || item.title])];
+    const moreOpen = ctx.modalState?.templateMoreOpen ? ' open' : '';
+    let html = field(type === 'task' || type === 'goal' ? 'title' : 'name', type === 'task' || type === 'goal' ? tr('Title') : tr('Name'));
+    let more = field('areaId', tr('Area'), 'text', choices('areas', tr('No area')));
+    if (type !== 'goal') more += field('goalIds', tr('Goal links'), 'ids', state.goals.map(goal => [goal.id, goal.title]));
     if (type === 'task') {
-      html += field('notes', tr('Notes'), 'notes') + field('projectId', tr('Project'), 'text', choices('projects')) + field('tagIds', tr('Tags'), 'ids', state.tags.map(tag => [tag.id, tag.name])) + field('priority', tr('Priority'), 'text', [['none', tr('None')], ['low', tr('Low')], ['medium', tr('Medium')], ['high', tr('High')]]) + field('plannedOffsetDays', tr('Planned day offset (blank = none)'), 'number') + field('plannedTime', tr('Planned time'), 'time') + field('dueOffsetDays', tr('Due day offset (blank = none)'), 'number') + field('dueTime', tr('Due time'), 'time') + field('reminderOffsetDays', tr('Reminder day offset (blank = none)'), 'number') + field('reminderTime', tr('Reminder local time'), 'time') + field('scheduleEnabled', tr('Create automatically on date'), 'boolean') + field('scheduleDate', tr('Automatic creation date'), 'date');
-      html += field('durationMinutes', tr('Duration in minutes (blank = none)'), 'number');
-      const recurrence = data.recurrence || {};
-      html += templateField(ctx, recurrence, 'frequency', tr('Repeat'), 'text', [['', tr('Does not repeat')], ['daily', tr('Daily')], ['weekly', tr('Weekly')], ['monthly', tr('Monthly')], ['yearly', tr('Yearly')]], `${prefix}recurrence.`) + templateField(ctx, recurrence, 'interval', tr('Repeat interval'), 'number', null, `${prefix}recurrence.`);
-      html += templateField(ctx, recurrence, 'endType', tr('Repeat end condition'), 'text', [['never', tr('Never')], ['date', tr('On relative date')], ['afterOccurrences', tr('After N occurrences')]], `${prefix}recurrence.`) + templateField(ctx, recurrence, 'endOffsetDays', tr('Repeat end day offset'), 'number', null, `${prefix}recurrence.`) + templateField(ctx, recurrence, 'endAfterOccurrences', tr('Repeat total occurrences'), 'number', null, `${prefix}recurrence.`);
       html += templateRows(ctx, 'subtasks', data.subtasks || [], prefix, 'subtask');
-    } else if (type === 'project') html += field('color', tr('Color'), 'color') + templateRows(ctx, 'tasks', data.tasks || [], prefix, 'task');
-    else if (type === 'habit') {
-      html += field('minimumTarget', tr('Minimum target (blank = default)'), 'number') + field('idealTarget', tr('Ideal target (blank = default)'), 'number') + field('graceDays', tr('Grace days'), 'number');
-      html += field('trackingType', tr('Tracking'), 'text', [['checkbox', tr('Checkbox')], ['numeric', tr('Numeric')]]) + field('targetValue', tr('Target value'), 'number') + field('unit', tr('Unit')) + field('quickValues', tr('Quick values (comma separated)'), 'numbers') + field('frequencyType', tr('Frequency'), 'text', [['daily', tr('Daily')], ['weekdays', tr('Selected weekdays')], ['timesPerWeek', tr('X times per week')], ['everyNDays', tr('Every N days')]]) + field('weekdays', tr('Weekdays'), 'weekdays') + field('timesPerWeek', tr('Times per week'), 'number') + field('everyNDays', tr('Every N days'), 'number') + field('continuation', tr('Continuation'), 'text', [['automatic', tr('Repeat automatically')], ['askEachPeriod', tr('Ask each period')], ['onePeriod', tr('One period only')]]) + field('endType', tr('End condition'), 'text', [['never', tr('Never')], ['date', tr('On relative date')], ['successfulPeriods', tr('After successful periods')]]) + field('endOffsetDays', tr('End day offset (blank = none)'), 'number') + field('successfulPeriodsTarget', tr('Successful periods'), 'number') + templateRows(ctx, 'reminders', data.reminders || [], prefix, 'reminder');
+      more += field('notes', tr('Notes'), 'notes') + field('projectId', tr('Project'), 'text', choices('projects', tr('No project'))) + field('tagIds', tr('Tags'), 'ids', state.tags.map(tag => [tag.id, tag.name])) + field('priority', tr('Priority'), 'text', [['none', tr('No priority')], ['low', tr('Low')], ['medium', tr('Medium')], ['high', tr('High')]]);
+      more += field('plannedOffsetDays', tr('Planned: days after the day it is made (blank = no date)'), 'number') + field('plannedTime', tr('Planned time'), 'time') + field('dueOffsetDays', tr('Due: days after the day it is made (blank = no date)'), 'number') + field('dueTime', tr('Due time'), 'time');
+      more += field('reminderOffsetDays', tr('Reminder: days after the day it is made (blank = none)'), 'number') + (data.reminderOffsetDays != null ? field('reminderTime', tr('Reminder time'), 'time') : '');
+      more += field('durationMinutes', tr('Duration in minutes (blank = none)'), 'number');
+      const recurrence = data.recurrence || {};
+      more += templateField(ctx, recurrence, 'frequency', tr('Repeat'), 'text', [['', tr('Does not repeat')], ['daily', tr('Daily')], ['weekly', tr('Weekly')], ['monthly', tr('Monthly')], ['yearly', tr('Yearly')]], `${prefix}recurrence.`);
+      if (recurrence.frequency) {
+        more += templateField(ctx, recurrence, 'interval', tr('Repeat interval'), 'number', null, `${prefix}recurrence.`);
+        more += recurrence.frequency === 'weekly' ? templateField(ctx, recurrence, 'weekdays', tr('On these days'), 'weekdays', null, `${prefix}recurrence.`) : '';
+        more += templateField(ctx, recurrence, 'endType', tr('Repeat end condition'), 'text', [['never', tr('Never')], ['date', tr('On relative date')], ['afterOccurrences', tr('After N occurrences')]], `${prefix}recurrence.`);
+        more += recurrence.endType === 'date' ? templateField(ctx, recurrence, 'endOffsetDays', tr('Repeat end day offset'), 'number', null, `${prefix}recurrence.`) : '';
+        more += recurrence.endType === 'afterOccurrences' ? templateField(ctx, recurrence, 'endAfterOccurrences', tr('Repeat total occurrences'), 'number', null, `${prefix}recurrence.`) : '';
+      }
+      if (!prefix) more += field('scheduleEnabled', tr('Create automatically on date'), 'boolean') + (data.scheduleEnabled ? field('scheduleDate', tr('Automatic creation date'), 'date') : '');
+    } else if (type === 'project') {
+      html += templateRows(ctx, 'tasks', data.tasks || [], prefix, 'task');
+      more += field('color', tr('Color'), 'color');
+    } else if (type === 'habit') {
+      html += field('trackingType', tr('Tracking'), 'text', [['checkbox', tr('Checkbox')], ['numeric', tr('Numeric')]]);
+      if (data.trackingType === 'numeric') html += field('targetValue', tr('Target value'), 'number') + field('unit', tr('Unit'));
+      html += field('frequencyType', tr('Frequency'), 'text', [['daily', tr('Daily')], ['weekdays', tr('Selected weekdays')], ['timesPerWeek', tr('X times per week')], ['everyNDays', tr('Every N days')]]);
+      html += data.frequencyType === 'weekdays' ? field('weekdays', tr('Weekdays'), 'weekdays') : data.frequencyType === 'timesPerWeek' ? field('timesPerWeek', tr('Times per week'), 'number') : data.frequencyType === 'everyNDays' ? field('everyNDays', tr('Every N days'), 'number') : '';
+      more += (data.trackingType === 'numeric' ? field('quickValues', tr('Quick values (comma separated)'), 'numbers') : '') + field('minimumTarget', tr('Minimum target (blank = default)'), 'number') + field('idealTarget', tr('Ideal target (blank = default)'), 'number') + field('graceDays', tr('Grace days'), 'number');
+      more += field('continuation', tr('Continuation'), 'text', [['automatic', tr('Repeat automatically')], ['askEachPeriod', tr('Ask each period')], ['onePeriod', tr('One period only')]]) + field('endType', tr('End condition'), 'text', [['never', tr('Never')], ['date', tr('On relative date')], ['successfulPeriods', tr('After successful periods')]]);
+      more += data.endType === 'date' ? field('endOffsetDays', tr('End day offset (blank = none)'), 'number') : data.endType === 'successfulPeriods' ? field('successfulPeriodsTarget', tr('Successful periods'), 'number') : '';
+      more += templateRows(ctx, 'reminders', data.reminders || [], prefix, 'reminder');
     } else {
-      html += field('progressMode', tr('Progress source'), 'text', [['manual', tr('Manual')], ['linkedTasks', tr('Linked tasks')], ['linkedHabits', tr('Linked habits')]]) + field('progressType', tr('Progress type'), 'text', [['percentage', tr('Percentage')], ['numeric', tr('Numeric target')]]) + field('targetValue', tr('Target value'), 'number') + field('unit', tr('Unit')) + field('targetOffsetDays', tr('Target day offset (blank = none)'), 'number') + templateRows(ctx, 'milestones', data.milestones || [], prefix, 'milestone');
+      html += templateRows(ctx, 'milestones', data.milestones || [], prefix, 'milestone');
+      more += field('progressMode', tr('Progress source'), 'text', [['manual', tr('Manual')], ['linkedTasks', tr('Linked tasks')], ['linkedHabits', tr('Linked habits')], ['milestones', tr('Milestones')]]) + field('progressType', tr('Progress type'), 'text', [['percentage', tr('Percentage')], ['numeric', tr('Numeric target')]]);
+      if (data.progressType === 'numeric') more += field('targetValue', tr('Target value'), 'number') + field('unit', tr('Unit'));
+      more += field('targetOffsetDays', tr('Target day offset (blank = none)'), 'number');
       const reminders = data.reminders || {};
       const reminderLabels = [trn(7, '{count} day before', '{count} days before'), trn(3, '{count} day before', '{count} days before'), trn(1, '{count} day before', '{count} days before'), tr('On target date')];
-      html += ['sevenDaysBefore', 'threeDaysBefore', 'oneDayBefore', 'onTargetDate'].map((key, index) => templateField(ctx, reminders, key, reminderLabels[index], 'boolean', null, `${prefix}reminders.`)).join('') + templateField(ctx, reminders, 'time', tr('Reminder time'), 'time', null, `${prefix}reminders.`);
+      more += ['sevenDaysBefore', 'threeDaysBefore', 'oneDayBefore', 'onTargetDate'].map((key, index) => templateField(ctx, reminders, key, reminderLabels[index], 'boolean', null, `${prefix}reminders.`)).join('') + templateField(ctx, reminders, 'time', tr('Reminder time'), 'time', null, `${prefix}reminders.`);
     }
     if (type === 'project' || type === 'habit') {
       data.goalLinkConfigs = (data.goalIds || []).map(goalId => (data.goalLinkConfigs || []).find(config => config.goalId === goalId) || (type === 'project' ? { goalId, contributionMode: 'allTasks', selectedTaskIndices: [] } : { goalId, metric: 'totalCheckins', target: type === 'habit' && data.trackingType === 'numeric' ? data.targetValue || 1 : 1 }));
-      html += data.goalLinkConfigs.map((config, index) => `<fieldset class="template-rows"><legend>${esc(getGoal(config.goalId)?.title || tr('Linked Goal'))}</legend>${type === 'project' ? templateField(ctx, config, 'contributionMode', tr('Project contribution'), 'text', [['allTasks', tr('All predefined tasks')], ['selectedTasks', tr('Selected predefined tasks')]], `${prefix}goalLinkConfigs.${index}.`) + templateField(ctx, config, 'selectedTaskIndices', tr('Contributing tasks'), 'indices', (data.tasks || []).map((task, taskIndex) => [taskIndex, task.title || tr('Task {number}', { number: taskIndex + 1 })]), `${prefix}goalLinkConfigs.${index}.`) : templateField(ctx, config, 'metric', tr('Habit metric'), 'text', [['totalCheckins', tr('Check-ins')], ['streak', tr('Streak')], ['successfulPeriods', tr('Successful periods')]], `${prefix}goalLinkConfigs.${index}.`) + templateField(ctx, config, 'target', tr('Goal contribution target'), 'number', null, `${prefix}goalLinkConfigs.${index}.`)}</fieldset>`).join('');
+      more += data.goalLinkConfigs.map((config, index) => `<fieldset class="template-rows"><legend>${esc(getGoal(config.goalId)?.title || tr('Linked Goal'))}</legend>${type === 'project' ? templateField(ctx, config, 'contributionMode', tr('Project contribution'), 'text', [['allTasks', tr('All predefined tasks')], ['selectedTasks', tr('Selected predefined tasks')]], `${prefix}goalLinkConfigs.${index}.`) + templateField(ctx, config, 'selectedTaskIndices', tr('Contributing tasks'), 'indices', (data.tasks || []).map((task, taskIndex) => [taskIndex, task.title || tr('Task {number}', { number: taskIndex + 1 })]), `${prefix}goalLinkConfigs.${index}.`) : templateField(ctx, config, 'metric', tr('Habit metric'), 'text', [['totalCheckins', tr('Check-ins')], ['streak', tr('Streak')], ['successfulPeriods', tr('Successful periods')]], `${prefix}goalLinkConfigs.${index}.`) + templateField(ctx, config, 'target', tr('Goal contribution target'), 'number', null, `${prefix}goalLinkConfigs.${index}.`)}</fieldset>`).join('');
     }
-    return html;
+    return `${html}<details class="template-more"${moreOpen}><summary>${tr('More options')}</summary>${more}</details>`;
   }
 
   function templateRows(ctx, key, rows, prefix, kind) {
@@ -210,6 +236,15 @@
     renderRoute(route, ctx) {
       if (route.type === 'templates') return renderTemplates(ctx);
       if (route.type === 'modal' && route.modalType === 'template') return renderTemplateModal(ctx);
+    },
+    // R33 (finding 23): a choice that shows or hides other fields redraws the editor, keeping "Više opcija" open.
+    handleInput(event, ctx) {
+      if (ctx.modalState?.type !== 'template' || event.type !== 'change') return false;
+      const path = event.target?.dataset?.templateField || '';
+      if (!/(recurrence\.frequency|recurrence\.endType|scheduleEnabled|trackingType|frequencyType|endType|progressType|reminderOffsetDays)$/.test(path)) return false;
+      ctx.modalState.templateMoreOpen = !/(trackingType|frequencyType)$/.test(path) || ctx.modalState.templateMoreOpen === true;
+      readDraft(ctx); ctx.renderModal();
+      return true;
     },
     handleAction(action, event, ctx) {
       if (action === 'open-template-editor') { openEditor(ctx, null, event.templateType, event.snapshot); return true; }

@@ -20,11 +20,12 @@ Jednokratno podešavanje servera za sinhronizaciju (V2.0-a). Traje desetak minut
 1. **Authentication → Sign In / Providers → Email**: uključeno, sa **Confirm email**.
 2. **Authentication → Emails → Templates**: u šablonima **Magic Link** i **Confirm signup** zameni tekst ovim (oba šablona moraju da imaju `{{ .Token }}`):
 
-   ```text
-   Tvoj Dailo kod za prijavu: {{ .Token }}
-
-   Kod važi kratko. Ako prijava nije tražena sa tvog uređaja, ignoriši ovu poruku.
+   ```html
+   <p>Tvoj Dailo kod za prijavu: <strong>{{ .Token }}</strong></p>
+   <p>Kod važi kratko. Ako prijava nije tražena sa tvog uređaja, ignoriši ovu poruku.</p>
    ```
+
+   Oznake `<p>` drže dve rečenice u posebnim redovima; bez njih bi se u e-poruci spojile. Za **Subject** može `Dailo kod za prijavu`.
 
 3. **Authentication → URL Configuration → Site URL**: `https://marko-ivapix.github.io/dailo/`
 
@@ -46,4 +47,4 @@ Ta dva podatka su javna po dizajnu: nalaze se u svakoj aplikaciji koja koristi S
 
 ## 6. Provera
 
-Posle mog ažuriranja aplikacije otvori **Podešavanja → Sinhronizacija** i upiši e-adresu. Stiže ti kod, koji ukucaš u aplikaciju. Posle toga **Sinhronizuj sada** šalje podatke na server, a na drugom uređaju se posle prijave isti zadaci pojavljuju.
+Posle mog ažuriranja aplikacije otvori **Još → Nalog** i upiši e-adresu. Stiže ti kod, koji ukucaš u aplikaciju. Posle toga **Sinhronizuj sada** šalje podatke na server, a na drugom uređaju se posle prijave isti zadaci pojavljuju.

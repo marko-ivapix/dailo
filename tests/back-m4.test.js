@@ -16,6 +16,8 @@ function harness(onEscape) {
     globalOperation: null, mobileMoreOpen: false, popoverEl: null, modalState: null, goalPropertyEditor: null, habitPropertyEditor: null,
     $: () => null, KeyboardEvent: class { constructor(type, init) { Object.assign(this, { type }, init); } },
     document: { body, activeElement: body, dispatchEvent() { throw new Error('dispatch on an element'); } },
+    // R32: with nothing open Back steps through the screens; on Danas (the start) there is nowhere to go.
+    location: { hash: '#today' }, screenTrail: [], backTarget: () => null, navigate: () => {},
   };
   vm.createContext(ctx);
   vm.runInContext(region('  const overlaySnapshot =', '\n  // Native integration'), ctx);

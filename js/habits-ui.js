@@ -37,25 +37,6 @@
     return `<div class="today-row area-habit-row"><button class="today-row-main" type="button" data-route="habit/${esc(habit.id)}"><span class="task-title">${esc(habit.name)}</span><span class="task-meta">${esc(habitFrequencyLabel(ctx, habit))}</span></button></div>`;
   }
 
-  function habitProgressLabel(ctx, habit, metrics = ctx.habitMetrics(habit)) {
-    // A numeric target describes one check-in; X/week is a separate weekly
-    // target and must remain visible when both are configured.
-    if (habit.frequencyType === 'timesPerWeek') return tr('{count} / {target} this week', { count: metrics.currentPeriodCount || 0, target: metrics.currentPeriodTarget || habit.timesPerWeek || 1 });
-    if (habit.trackingType === 'numeric') return `${metrics.currentPeriodCount || 0} / ${habit.targetValue || 0}${habit.unit ? ` ${habit.unit}` : ''}`;
-    return metrics.currentPeriodCount ? tr('Done') : tr('Not checked in');
-  }
-
-  function renderHabitRow(ctx, habit, todayStatus = null) {
-    const { habitMetrics, esc } = ctx;
-    const metrics = habitMetrics(habit);
-    const actions = !todayStatus ? '' : habit.trackingType === 'numeric'
-      ? `${(habit.quickValues || []).map(value => `<button class="btn btn-secondary" type="button" data-action="habit-quick-add" data-habit-id="${esc(habit.id)}" data-value="${esc(value)}">+${esc(value)}</button>`).join('')}<button class="btn btn-ghost" type="button" data-route="habit/${esc(habit.id)}">${tr('Edit total')}</button>`
-      : `<button class="btn btn-secondary" type="button" data-action="habit-checkin" data-habit-id="${esc(habit.id)}">${todayStatus.status === 'done' ? tr('Mark not done') : tr('Check in')}</button><button class="btn btn-ghost" type="button" data-action="habit-skip" data-habit-id="${esc(habit.id)}">${tr('Skip today')}</button>`;
-    const menu = `<button class="btn-icon" type="button" data-action="habit-menu" data-habit-id="${esc(habit.id)}" aria-label="${tr('Habit actions')}"><i class="ph ph-dots-three"></i></button>`;
-    const status = todayStatus?.status || habit.status;
-    return `<article class="habit-row habit-row--${esc(status)}"${todayStatus ? ' style="grid-template-columns:minmax(0,1fr) auto"' : ''}><button class="habit-open" type="button" data-route="habit/${esc(habit.id)}"><span><strong>${esc(habit.name)}</strong><small class="habit-row-meta"><span>${esc(routineLabel(habit.routine))}</span><span>${esc(habitFrequencyLabel(ctx, habit))}</span><span class="habit-status habit-status--${esc(status)}">${esc(statusLabel(status))}</span></small></span><span class="habit-progress">${esc(habitProgressLabel(ctx, habit, metrics))}</span></button>${todayStatus ? `<div class="habit-checkin-controls">${actions}${menu}</div>` : menu}</article>`;
-  }
-
   // Redesign R2 (T5, H6): the compact Today row. A round check (a tap checks in; numeric habits open the value
   // sheet), the name (opens the menu, as does a long press on the check) and the week or the value on the right.
   const number = value => Number(value || 0).toLocaleString(I18n.locale(), { maximumFractionDigits: 2 });
@@ -90,9 +71,11 @@
     // R17: the week count or the value joins the meta line under the name instead of the right side.
     const metaText = [options.meta, right && !(options.count === false && !numeric) ? right : ''].filter(Boolean).join(' · ');
     const meta = metaText ? `<span class="task-meta">${esc(metaText)}</span>` : '';
+    // R37 (D): on Danas a numeric habit offers its first two quick values; a tap adds one at once (with Poništi).
+    const quick = numeric && !date ? (habit.quickValues || []).slice(0, 2).map(value => `<button class="quick-chip habit-quick-value" type="button" data-action="habit-quick-value" data-habit-id="${esc(habit.id)}" data-value="${esc(value)}" aria-label="${esc(tr('Add {value} to {habit}', { value: number(value), habit: habit.name }))}">+${esc(number(value))}</button>`).join('') : '';
     // R14b (T5 amended): like a task row, the name comes first and the circle closes the row on the right.
     const main = `<button class="today-row-main" type="button" data-action="habit-today-menu" data-habit-id="${esc(habit.id)}"${dateAttr} aria-haspopup="dialog"><span class="task-title">${esc(habit.name)}</span>${meta}</button>`;
-    return `<article class="today-row habit-today-row${status === 'done' ? ' is-done' : ''}${status === 'skipped' ? ' is-skipped' : ''}" data-habit-id="${esc(habit.id)}">${main}${check}${habitCircle(status, fraction)}</button></article>`;
+    return `<article class="today-row habit-today-row${status === 'done' ? ' is-done' : ''}${status === 'skipped' ? ' is-skipped' : ''}" data-habit-id="${esc(habit.id)}">${main}${quick}${check}${habitCircle(status, fraction)}</button></article>`;
   }
 
   function openTodayHabitMenu(ctx, anchor, habitId, date = ctx.Core.dateOnly()) {
@@ -102,7 +85,8 @@
     const dateAttr = other ? ` data-date="${esc(date)}"` : '';
     const skipped = state.habitLogCache?.[habitId]?.find(log => log.date === date)?.status === 'skipped';
     const value = habit.trackingType === 'numeric' ? `<button class="popover-option" type="button" data-pop-action="habit-today-value" data-habit-id="${esc(habitId)}"${dateAttr}><i class="ph ph-pencil-simple"></i>${tr('Enter value')}</button>` : '';
-    const skip = habit.trackingType === 'numeric' ? '' : `<button class="popover-option" type="button" data-pop-action="habit-today-skip" data-habit-id="${esc(habitId)}"${dateAttr}><i class="ph ph-arrow-bend-up-right"></i>${skipped ? tr('Undo skip') : other ? tr('Skip') : tr('Skip today')}</button>`;
+    // R31 (finding 9): numeric habits can be skipped too (a sick day keeps the streak).
+    const skip = `<button class="popover-option" type="button" data-pop-action="habit-today-skip" data-habit-id="${esc(habitId)}"${dateAttr}><i class="ph ph-arrow-bend-up-right"></i>${skipped ? tr('Undo skip') : other ? tr('Skip') : tr('Skip today')}</button>`;
     const details = `<button class="popover-option" type="button" data-pop-action="habit-today-details" data-habit-id="${esc(habitId)}"><i class="ph ph-chart-line-up"></i>${tr('Habit details')}</button>`;
     openPopover(anchor, `<div class="popover-title">${esc(habit.name)}</div>${other ? `<p class="sheet-subtitle">${esc(ctx.formatDate(date, 'full'))}</p>` : ''}${value}${skip}${details}`, { type: 'habit-today-menu', habitId });
   }
@@ -203,17 +187,20 @@
     for (const routine of ROUTINE_ORDER) {
       const habits = active.filter(habit => routineOf(habit) === routine);
       if (!habits.length) continue;
-      body += `<tr class="habits-week-group"><th scope="rowgroup" colspan="8">${esc(routineLabel(routine))}</th></tr>`;
-      body += habits.map(habit => `<tr><th scope="row" class="habits-week-name">${esc(habit.name)}</th>${week.days.map(date => {
+      body += `<tr class="habits-week-group"><th scope="rowgroup" colspan="7">${esc(routineLabel(routine))}</th></tr>`;
+      // R33 (finding 24): each name has its own full-width row (a button to the details) above its seven days.
+      body += habits.map(habit => `<tr class="habits-week-name-row"><th scope="rowgroup" colspan="7" class="habits-week-name"><button class="habits-week-name-button" type="button" data-route="habit/${esc(habit.id)}">${esc(habit.name)}</button></th></tr><tr class="habits-week-days">${week.days.map(date => {
         const day = Core.habitDayState(habit, state.habitLogCache?.[habit.id] || [], date, week.today, week.rule);
         const inactive = ['unscheduled', 'future'].includes(day.state);
+        // R37 (D): a numeric day short of its target shows how far it got as an arc.
+        const fraction = habit.trackingType === 'numeric' && day.state !== 'done' && Number(habit.targetValue) > 0 ? Math.min(1, Number(day.value || 0) / Number(habit.targetValue)) : 0;
         const label = `${habit.name}, ${ctx.formatDate(date, 'full')}: ${tr(CELL_LABELS[day.state])}`;
         const pressed = habit.trackingType === 'numeric' ? '' : ` aria-pressed="${day.state === 'done'}"`;
-        return `<td><button class="habit-cell is-${day.state}${date === week.today ? ' is-today' : ''}" type="button" data-action="habit-today-toggle" data-habit-id="${esc(habit.id)}" data-date="${date}"${inactive ? ' disabled' : ''} aria-label="${esc(label)}"${pressed}>${day.state === 'done' ? TICK : ''}</button></td>`;
+        return `<td><button class="habit-cell is-${day.state}${date === week.today ? ' is-today' : ''}${fraction > 0 ? ` is-partial" style="--fraction:${Math.round(fraction * 100) / 100}` : ''}" type="button" data-action="habit-today-toggle" data-habit-id="${esc(habit.id)}" data-date="${date}"${inactive ? ' disabled' : ''} aria-label="${esc(label)}"${pressed}>${day.state === 'done' ? TICK : ''}</button></td>`;
       }).join('')}</tr>`).join('');
     }
     const legend = ['done', 'missed', 'skipped', 'unscheduled'].map(key => `<span><i class="habit-cell-swatch is-${key}" aria-hidden="true"></i>${tr(CELL_LABELS[key])}</span>`).join('');
-    return `<h2 class="section-label habits-week-title">${esc(title)}</h2><div class="habits-week-scroll"><table class="habits-week-table"><thead><tr><th scope="col"><span class="sr-only">${tr('Habit')}</span></th>${head}</tr></thead><tbody>${body}</tbody></table></div><div class="habits-legend">${legend}</div>`;
+    return `<h2 class="section-label habits-week-title">${esc(title)}</h2><div class="habits-week-scroll"><table class="habits-week-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div><div class="habits-legend">${legend}</div>`;
   }
 
   // H7: each active habit's week, done days against the week's plan.
@@ -294,7 +281,9 @@
 
   // Redesign R8b (N1–N6): the new habit window. The draft lives in ctx.modalState.draft; the rows open small sheets
   // over the window that write the draft back with "Primeni", or at once for a single choice.
-  const plainNumber = value => Number(value || 0).toLocaleString(I18n.locale(), { maximumFractionDigits: 2, useGrouping: false });
+  // R33 (finding 24): numbers read the same everywhere ("10.000 koraka"); a field gets them without separators.
+  const plainNumber = value => Number(value || 0).toLocaleString(I18n.locale(), { maximumFractionDigits: 2 });
+  const inputNumber = value => String(Number(value || 0)).replace('.', I18n.locale().startsWith('sr') ? ',' : '.');
   function suggestedQuickValues(target) {
     const value = Number(target) || 0;
     if (!(value > 0)) return [];
@@ -378,7 +367,7 @@
     let html = `<div class="modal-header task-window-header"><span class="task-window-kind">${tr('Habit')}</span><div class="task-window-actions"><button class="btn-icon" type="button" data-action="habit-details-menu" data-habit-id="${id}" aria-label="${tr('Habit actions')}"><i class="ph ph-dots-three"></i></button><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div></div><h2 class="habit-details-title">${esc(habit.name)}</h2><p class="habit-details-meta">${esc([frequency, routineLabel(habit.routine), statusLabel(habit.status)].join(' · '))}</p>`;
     const today = Core.habitDayState(habit, logs, week.today, week.today, week.rule);
     if (active) {
-      const skip = !numeric && !['done', 'unscheduled'].includes(today.state) ? `<button class="btn btn-ghost" type="button" data-action="habit-today-skip" data-habit-id="${id}">${today.state === 'skipped' ? tr('Undo skip') : tr('Skip today')}</button>` : '';
+      const skip = !['done', 'unscheduled'].includes(today.state) ? `<button class="btn btn-ghost" type="button" data-action="habit-today-skip" data-habit-id="${id}">${today.state === 'skipped' ? tr('Undo skip') : tr('Skip today')}</button>` : '';
       html += `<div class="today-card habit-details-today">${renderHabitTodayRow(ctx, habit, { status: today.state === 'done' ? 'done' : today.state === 'skipped' ? 'skipped' : 'pending', value: today.value })}</div><div class="habit-details-today-line"><span>${esc(tr('Today: {status}', { status: tr(CELL_LABELS[today.state]) }))}</span>${skip}</div>`;
     } else html += `<p class="sheet-note">${tr('Paused and archived habits preserve history but cannot be checked in.')}</p>`;
     const progress = Core.habitWeekProgress(habit, logs, week.start, week.today, week.rule);
@@ -524,7 +513,8 @@
   // --- The sheets over the window (one at a time) ---------------------------------------------------------
   let sheet = null;
   const sheetSubtitle = ctx => `<p class="sheet-subtitle">${ctx.esc(ctx.modalState?.draft?.name?.trim() || tr('New habit'))}</p>`;
-  const radioOption = (action, value, label, on) => `<button class="popover-option sheet-option${on ? ' is-selected' : ''}" type="button" role="radio" aria-checked="${on}" data-pop-action="${action}" data-value="${value}"><span class="sheet-radio${on ? ' is-on' : ''}" aria-hidden="true"></span><span class="sheet-option-label">${label}</span></button>`;
+  // R33 (finding 24): the circle sits on the right, as in every other sheet.
+  const radioOption = (action, value, label, on) => `<button class="popover-option sheet-option${on ? ' is-selected' : ''}" type="button" role="radio" aria-checked="${on}" data-pop-action="${action}" data-value="${value}"><span class="sheet-option-label">${label}</span><span class="sheet-radio${on ? ' is-on' : ''}" aria-hidden="true"></span></button>`;
   const applyFooter = (action, left = '<span></span>', disabled = false) => `<div class="sheet-footer">${left}<button class="btn btn-primary" type="button" data-pop-action="${action}"${disabled ? ' disabled' : ''}>${tr('Apply')}</button></div>`;
   function showSheet(ctx, anchor, html, type) {
     if (anchor) ctx.openPopover(anchor, html, { type }); else ctx.refreshSheet(html);
@@ -639,7 +629,7 @@
   }
 
   function quickSheetHtml(ctx) {
-    const values = draftQuickValues(ctx.modalState.draft).map(plainNumber).join(' ');
+    const values = draftQuickValues(ctx.modalState.draft).map(inputNumber).join(' ');
     return `<div class="popover-title">${tr('Quick values')}</div>${sheetSubtitle(ctx)}<label class="sheet-field"><i class="ph ph-lightning" aria-hidden="true"></i><span>${tr('Quick values')}</span><input id="habit-quick-values" class="input" inputmode="decimal" value="${ctx.esc(values)}"></label><p class="sheet-note">${tr('Separate with spaces. They appear in the value sheet.')}</p>${applyFooter('habit-quick-apply', `<button class="btn btn-ghost" type="button" data-pop-action="habit-quick-suggest">${tr('Suggest')}</button>`)}`;
   }
 
@@ -780,26 +770,27 @@
     const samplePrefix = 'workspace-starter-v1';
     // Sample titles are created in the UI language; sampleKey markers stay stable so a later run
     // still recognizes examples added in another language, and name matching uses the same tr().
+    // R33 (finding 25): each example area has its own icon and color.
     const areas = [
-      ['family-friends', tr('Family & Friends')], ['work', tr('Work')], ['personal-growth', tr('Personal Growth')],
-      ['home', tr('Home')], ['travel', tr('Travel')], ['health', tr('Health')], ['career', tr('Career')], ['finance', tr('Finance')]
+      ['family-friends', tr('Family & Friends'), 'ph-users'], ['work', tr('Work'), 'ph-briefcase'], ['personal-growth', tr('Personal Growth'), 'ph-graduation-cap'],
+      ['home', tr('Home'), 'ph-house'], ['travel', tr('Travel'), 'ph-airplane'], ['health', tr('Health'), 'ph-heart'], ['career', tr('Career'), 'ph-chart-line-up'], ['finance', tr('Finance'), 'ph-wallet']
     ];
     const habits = [
       ['morning', 'cold-shower', tr('Cold shower')], ['morning', 'wim-hof-breathing', tr('Wim Hof breathing')],
       ['morning', '10-minute-workout', tr('10-minute workout')], ['morning', 'beard-balm', tr('Beard balm')],
-      ['daily', 'no-nut', tr('No-nut')], ['daily', 'training', tr('Training four times per week')],
+      ['daily', 'training', tr('Training four times per week')],
       ['daily', 'sleep-before-midnight', tr('Sleep before midnight')], ['daily', 'sleep-7-8-hours', tr('Sleep 7–8 hours')],
       ['daily', 'program-30-minutes', tr('Program 30 minutes')], ['daily', 'read-learn-30-minutes', tr('Read/learn 30 minutes')],
-      ['night', 'beard-balm', tr('Beard balm')], ['night', 'tomorrow-tasks', tr("Enter tomorrow's tasks")]
+      ['night', 'tomorrow-tasks', tr("Enter tomorrow's tasks")]
     ];
     const addedAreas = [], addedHabits = [], addedProjects = [], addedTasks = [], addedGoals = [], addedNotes = [], addedResources = [], addedTags = [], addedTemplates = [];
     const timestamp = nowIso(), today = Core.dateOnly();
     const hasSampleOrName = (collection, sampleKey, name, field = 'name') => collection.some(item => item.sampleKey === sampleKey || normalizeName(item[field]) === normalizeName(name));
     const byName = (collection, name, field = 'name') => collection.find(item => normalizeName(item[field]) === normalizeName(name));
-    for (const [key, name] of areas) {
+    for (const [key, name, areaIcon] of areas) {
       const sampleKey = 'area-routines-v1:area:' + key;
       if (hasSampleOrName(state.areas, sampleKey, name)) continue;
-      addedAreas.push({ id: uid('area'), sampleKey, name, ...areaDefaults, status: 'active', isPinned: false, createdAt: timestamp, updatedAt: timestamp });
+      addedAreas.push({ id: uid('area'), sampleKey, name, ...areaDefaults, icon: areaIcon, color: PROJECT_COLORS[(state.areas.length + addedAreas.length) % PROJECT_COLORS.length], status: 'active', isPinned: false, createdAt: timestamp, updatedAt: timestamp });
     }
     for (const [routine, key, name] of habits) {
       const sampleKey = 'area-routines-v1:habit:' + routine + ':' + key;
@@ -900,10 +891,10 @@
     }
     const noteName = tr('Weekly planning notes'), noteKey = `${samplePrefix}:note:weekly-planning`;
     if (!hasSampleOrName(state.notes, noteKey, noteName, 'title')) addedNotes.push({ id: uid('note'), sampleKey: noteKey, title: noteName, body: tr('Use this note to capture decisions, loose ends, and a short review for next week.'), areaId: workArea?.id || null, linkUrls: [], attachmentIds: [], createdAt: timestamp, updatedAt: timestamp });
-    const resourceName = tr('Starter workspace guide'), resourceKey = `${samplePrefix}:resource:workspace-guide`;
+    const resourceName = tr('How to plan your week'), resourceKey = `${samplePrefix}:resource:workspace-guide`;
     const weeklyRhythmGoal = byName(allGoals, goalName, 'title');
     const programHabit = byName(allHabits, tr('Program 30 minutes'));
-    if (!hasSampleOrName(state.resources, resourceKey, resourceName, 'title')) addedResources.push({ id: uid('resource'), sampleKey: resourceKey, title: resourceName, description: tr('A lightweight reference connected to the starter workspace. Edit or delete it whenever you are ready.'), areaId: workArea?.id || null, linkUrls: ['https://todoist.com/productivity-methods/weekly-planning'], attachmentIds: [], relatedTaskIds: linkedTask ? [linkedTask.id] : [], relatedProjectIds: weeklyPlan ? [weeklyPlan.id] : [], relatedGoalIds: weeklyRhythmGoal ? [weeklyRhythmGoal.id] : [], relatedHabitIds: programHabit ? [programHabit.id] : [], createdAt: timestamp, updatedAt: timestamp });
+    if (!hasSampleOrName(state.resources, resourceKey, resourceName, 'title')) addedResources.push({ id: uid('resource'), sampleKey: resourceKey, title: resourceName, description: tr('A short guide to weekly planning: look back at the week, then choose what matters next.'), areaId: workArea?.id || null, linkUrls: ['https://todoist.com/productivity-methods/weekly-planning'], attachmentIds: [], relatedTaskIds: linkedTask ? [linkedTask.id] : [], relatedProjectIds: weeklyPlan ? [weeklyPlan.id] : [], relatedGoalIds: weeklyRhythmGoal ? [weeklyRhythmGoal.id] : [], relatedHabitIds: programHabit ? [programHabit.id] : [], createdAt: timestamp, updatedAt: timestamp });
     // R29: the real-life set (js/starter-examples.js) sees this run's first-set items too, so it finds their Areas.
     const view = { areas: [...state.areas, ...addedAreas], tags: [...state.tags, ...addedTags], habits: [...state.habits, ...addedHabits], projects: [...state.projects, ...addedProjects], tasks: [...state.tasks, ...addedTasks], goals: [...state.goals, ...addedGoals], notes: [...state.notes, ...addedNotes], resources: [...state.resources, ...addedResources], templates: [...(state.templates || [])] };
     const realLife = window.DailoStarterExamples?.realLifeExamples(view, { Core, uid, today, timestamp, habitDraft, PROJECT_COLORS });
@@ -951,6 +942,13 @@
       else setHabitLog(habit.id, date, dayLog(habit.id)?.status === 'done' ? 'missed' : 'done');
       return true;
     }
+    if (action === 'habit-quick-value') {
+      const habit = getHabit(el.dataset.habitId); if (!habit || habit.trackingType !== 'numeric') return true;
+      const previous = dayLog(habit.id);
+      const total = Math.round((Number(previous?.value || 0) + Number(el.dataset.value || 0)) * 1000) / 1000;
+      setHabitLog(habit.id, today, 'done', total).then(() => ctx.setUndo(msg('Value added'), () => setHabitLog(habit.id, today, previous?.status === 'skipped' ? 'skipped' : 'done', previous ? previous.value : 0))).catch(console.error);
+      return true;
+    }
     if (action === 'habit-today-menu') { openTodayHabitMenu(ctx, el, el.dataset.habitId, date); return true; }
     if (action === 'habit-today-skip') { closePopover(); setHabitLog(el.dataset.habitId, date, dayLog(el.dataset.habitId)?.status === 'skipped' ? 'missed' : 'skipped'); return true; }
     if (action === 'habit-today-value') { closePopover(); ctx.openHabitValue(el.dataset.habitId, date); return true; }
@@ -975,9 +973,13 @@
       if (ctx.modalState?.type === 'habit-details') { ctx.modalState.month = month > current ? current : month; ctx.renderModal(); }
       return true;
     }
+    // R31 (finding 9): a quick value is saved at once, so closing the sheet never loses it.
     if (action === 'habit-value-add') {
       const total = Number(ctx.modalState?.total || 0) + Number(el.dataset.value || 0);
-      ctx.modalState.total = Math.round(total * 1000) / 1000; ctx.renderModal(); return true;
+      ctx.modalState.total = Math.round(total * 1000) / 1000;
+      const { habitId, date } = ctx.modalState;
+      setHabitLog(habitId, date, 'done', ctx.modalState.total).then(() => { if (ctx.modalState?.type === 'habit-value') ctx.renderModal(); }).catch(console.error);
+      ctx.renderModal(); return true;
     }
     if (action === 'habit-value-apply') {
       const { habitId, date } = ctx.modalState || {};
@@ -990,9 +992,6 @@
     else if (action === 'habit-menu') openHabitMenu(ctx, el, el.dataset.habitId);
     else if (action === 'save-habit') saveHabitModal(ctx);
     else if (action === 'toggle-habit-more') { readHabitDraft(ctx); ctx.modalState.draft.moreOpen = !ctx.modalState.draft.moreOpen; renderModal(); requestAnimationFrame(() => $('[data-action="toggle-habit-more"]')?.focus?.()); }
-    else if (action === 'habit-checkin') { const habit = getHabit(el.dataset.habitId); const existing = state.habitLogCache?.[habit?.id]?.find(log => log.date === Core.dateOnly()); setHabitLog(el.dataset.habitId, Core.dateOnly(), existing?.status === 'done' ? 'missed' : 'done'); }
-    else if (action === 'habit-skip') setHabitLog(el.dataset.habitId, Core.dateOnly(), 'skipped');
-    else if (action === 'habit-quick-add') { const habit = getHabit(el.dataset.habitId); const existing = state.habitLogCache?.[habit?.id]?.find(log => log.date === Core.dateOnly()); setHabitLog(el.dataset.habitId, Core.dateOnly(), 'done', Number(existing?.value || 0) + Number(el.dataset.value || 0)); }
     else if (action === 'continue-habit') { const habit = getHabit(el.dataset.habitId || ctx.modalState?.habitId); if (habit) { const boundary = el.dataset.boundary || ctx.modalState?.boundary; const prior = habitMetrics(habit).periods?.filter(period => !period.isCurrent).at(-1); habit.lastContinuationPeriod = prior?.key || Core.habitPeriodKey(habit, Core.dateOnly(), Core.habitWeekRule(state.settings)); if (boundary === 'onePeriod') habit.continuation = 'automatic'; if (boundary === 'end') { habit.endType = 'never'; habit.endDate = null; habit.successfulPeriodsTarget = null; } habit.updatedAt = nowIso(); saveState(); } closeModal(); refreshHabitMetrics().then(render); }
     else if (action === 'pause-habit') updateHabitStatus(el.dataset.habitId || ctx.modalState?.habitId, 'paused');
     else if (action === 'archive-habit') { updateHabitStatus(el.dataset.habitId, 'archived'); if (ctx.modalState?.type === 'habit-details') ctx.closeModal(); }
@@ -1018,7 +1017,6 @@
     renderRoute(route, ctx) {
       if (route.type === 'habits') return renderHabits(ctx);
       if (route.type === 'habit') return renderHabits(ctx); // R8c: app.js opens the details window on top
-      if (route.type === 'habit-row') return renderHabitRow(ctx, route.habit, route.todayStatus);
       if (route.type === 'habit-list-row') return renderHabitListRow(ctx, route.habit);
       if (route.type === 'habit-today-row') return renderHabitTodayRow(ctx, route.habit, route.todayStatus);
       if (route.type !== 'modal') return false;

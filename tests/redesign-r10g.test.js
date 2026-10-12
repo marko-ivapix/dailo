@@ -40,19 +40,23 @@ test('M5: Settings has Opšte, Podaci, Pomoć and Računar in that order (R15: N
   assert.deepEqual(groups(html), [
     // R12c (J6) adds "Podsetnik za dnevnik" at the end of Opšte.
     // R18 adds "Podrazumevano vreme podsetnika" and "Podsetnik u planirano vreme" after the reminders.
-    ['General', ['Week starts on', 'Daily capacity', 'Browser reminders', 'Default reminder time', 'Reminder at the planned time', 'Journal reminder']],
-    ['Data', ['Backup', 'Backup reminder', 'Restore from backup', 'Local snapshots', 'Persistent storage', 'Populate demo workspace', 'Reset app data']],
+    // R32: Podsetnici is its own group after Opšte.
+    // R37 (J): "Veličina teksta", "Probni podsetnik" and "Stanje podataka".
+    ['General', ['Week starts on', 'Daily capacity', 'Theme', 'Text size']], // R39: Tema
+    ['Reminders', ['Browser reminders', 'Test reminder', 'Default reminder time', 'Reminder at the planned time', 'Journal reminder']],
+    ['Data', ['Data health', 'Backup', 'Backup reminder', 'Restore from backup', 'Local snapshots', 'Persistent storage', 'Populate demo workspace', 'Reset app data']],
     ['Help', ['Guide', 'Report a problem', 'Install app', 'Privacy', 'About']],
     ['Computer', ['Search', 'Compact density']],
   ]);
-  assert.match(html, /<section class="settings-card" data-settings-data>[\s\S]*?<strong>Backup<\/strong><span>Last export: Never<br>Last import: Never<br>Recovery snapshot: None pending<br>Validation: Not yet validated<\/span><\/div><button class="btn btn-secondary" type="button" data-action="export-backup">/);
+  // R32: the backup line lists only what is known (no "Nema" or "Još nije provereno").
+  assert.match(html, /<section class="settings-card" data-settings-data>[\s\S]*?<strong>Backup<\/strong><span>Last export: Never<\/span><\/div><button class="btn btn-secondary" type="button" data-action="export-backup">/);
   assert.match(html, /<div class="settings-row settings-sub"><label class="settings-label" for="backup-reminder-days"><strong>Backup reminder<\/strong>/);
   assert.match(html, /<strong>Restore from backup<\/strong><span>Validate a ZIP first, then replace current data only after you confirm\.<\/span><\/div><div><button class="btn btn-secondary" type="button" data-action="import-backup">/);
   assert.match(html, /<section class="settings-card" data-settings-about>\s*<h2>Help<\/h2>[\s\S]*data-beta-guide[\s\S]*data-report-problem[\s\S]*data-install-status="browser"[\s\S]*data-privacy-note[\s\S]*<strong>About<\/strong><span>Dailo 2\.0\.0-alpha\.25<\/span>/);
   assert.match(html, /<section class="settings-card settings-desktop" data-settings-desktop>\s*<h2>Computer<\/h2>/);
   // R15 (M5 amended): Nalog moved to its own screen in Još, so Settings has the same groups with sync set up.
   const synced = renderSettings({ sync: { configured: true, signedIn: false, step: 'email', email: '', busy: false, error: '' } });
-  assert.deepEqual(groups(synced).map(group => group[0]), ['General', 'Data', 'Help', 'Computer']);
+  assert.deepEqual(groups(synced).map(group => group[0]), ['General', 'Reminders', 'Data', 'Help', 'Computer']);
   assert.doesNotMatch(synced, /data-settings-sync/);
 });
 
@@ -60,7 +64,8 @@ test('M5, M6: the install row only while not installed; no theme, personalizatio
   const installed = renderSettings({ installed: true });
   assert.doesNotMatch(installed, /data-install-status|Install app/);
   const html = renderSettings();
-  assert.doesNotMatch(html, /Theme|save-personalization|reset-personalization|clear-completed|<h2>Personalization<\/h2>|<h2>Notifications<\/h2>/);
+  // R39 reopened M6: "Tema" is back in Opšte as a choice for this device.
+  assert.doesNotMatch(html, /save-personalization|reset-personalization|clear-completed|<h2>Personalization<\/h2>|<h2>Notifications<\/h2>/);
   assert.match(css.slice(css.indexOf('/* Redesign R10g')), /@media \(max-width: 700px\), \(pointer: coarse\) \{\n  \.settings-desktop \{ display: none; \}\n\}/);
 });
 

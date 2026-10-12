@@ -4,5 +4,5 @@
 (function (root) {
   'use strict';
 
-  root.DailoSyncConfig = Object.freeze({ url: '', anonKey: '' });
+  root.DailoSyncConfig = Object.freeze({ url: 'https://qjfpnvjuqbrmdkjxxmsq.supabase.co', anonKey: 'sb_publishable_wuupzhwiIHkA_1Fe83oU5g_TzczTV3g' });
 })(typeof globalThis !== 'undefined' ? globalThis : this);

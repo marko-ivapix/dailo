@@ -18,17 +18,11 @@ test('V1.7 documentation identifies the stabilization release and its manual bro
   assert.match(claude, /V1\.7/);
 });
 
-test('V1.7 responsive polish has explicit compact surface hooks', () => {
+test('V1.7 responsive polish keeps its empty state and focus hooks (R34 removed the hooks no screen emits)', () => {
   const css = read('css/styles.css');
-  assert.match(css, /\.v17-mobile-filter/);
-  assert.match(css, /@media \(max-width: 700px\)[\s\S]*?\.v17-mobile-filter \{[\s\S]*?display: grid/);
-  assert.match(css, /\.v17-knowledge-list/);
-  assert.match(css, /\.v17-day-detail/);
-  assert.match(css, /\.v17-sticky-context/);
+  for (const gone of ['.v17-mobile-filter', '.v17-knowledge-list', '.v17-day-detail', '.v17-sticky-context', '.v17-area-list']) assert.ok(!css.includes(gone), gone);
   assert.match(css, /\.v17-empty-state/);
   assert.match(css, /:focus-visible/);
-  assert.match(css, /\.v17-area-list \{ gap: 2px; \}/);
-  assert.match(css, /\.v17-area-list \.area-row \{ min-height: 56px; \}/);
 });
 
 test('V1.7 retains Search semantics and explicitly has no bulk actions', () => {

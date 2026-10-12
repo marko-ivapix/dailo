@@ -86,7 +86,7 @@ test('in the app a fresh install offers to import a backup or sign in; the web n
 });
 
 test('Today shows the notice, its actions are wired, and a first sync from the examples skips the question', () => {
-  assert.match(app, /if \(globalThis\.DailoPlatform\?\.isNative\) html \+= transferNotice\(\);\n\s+html \+= backupReminderNotice\(\);/);
+  assert.match(app, /const transfer = globalThis\.DailoPlatform\?\.isNative \? transferNotice\(\) : '';\n\s+html \+= transfer;\n[^\n]*\n\s+if \(!transfer\) html \+= sampleNotice\(\);\n\s+html \+= backupReminderNotice\(\);/); // R30: the examples card waits for the transfer question
   assert.match(app, /action === 'dismiss-transfer-notice'\) \{ dismissTransferNotice\(\); render\(\); \}/);
   const run = fn('runSync');
   assert.match(run, /if \(result\.status === 'choose' && syncMeta === meta\) \{[\s\S]*?if \(untouchedSample\(\) && await TodoStorage\.createAutomaticSnapshot\(state, new Date\(\), \{ force: true \}\)[\s\S]*?return runSync\('server'\);[\s\S]*openSyncChoice\(\);/);

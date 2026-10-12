@@ -13,14 +13,6 @@
     return Object.hasOwn(HORIZONS, value) ? value : 'short';
   }
 
-  function renderGoalRow(ctx, goal) {
-    const { state, Core, esc, goalProgressLabel, goalStatusLabel, relativeDateLabel } = ctx;
-    const progress = Core.goalProgressSummary(goal, state, state.habitMetrics || {});
-    const overdue = Core.isGoalOverdue(goal, Core.dateOnly());
-    const target = goal.targetDate ? `<small class="goal-target ${overdue ? 'is-overdue' : ''}"><i class="ph ph-calendar"></i>${esc(relativeDateLabel(goal.targetDate))}</small>` : `<small class="goal-target is-undated">${tr('No target date')}</small>`;
-    return `<article class="goal-row ${overdue ? 'is-overdue' : ''}" data-goal-id="${esc(goal.id)}"><button class="goal-open" type="button" data-route="goal/${esc(goal.id)}"><span class="goal-row-top"><strong>${esc(goal.title)}</strong><small class="goal-status goal-status--${esc(goal.status)} ${overdue ? 'is-overdue' : ''}">${esc(goalStatusLabel(goal))}</small></span><span class="goal-progress"><span style="width:${Math.max(0, Math.min(100, progress.percent))}%"></span></span><span class="goal-row-meta"><small class="goal-progress-label">${esc(goalProgressLabel(goal))}</small>${target}</span></button><button class="btn-icon" type="button" data-action="goal-menu" data-goal-id="${esc(goal.id)}" aria-label="${tr('Goal actions')}"><i class="ph ph-dots-three"></i></button></article>`;
-  }
-
   // Redesign R9a (GO1–GO4): the Goals list. Health follows the shown percentage: complete at 100%, overdue once the
   // target date has passed, at risk within seven days below 75%.
   const HORIZON_ICONS = Object.freeze({ short: 'ph-flag', mid: 'ph-path', long: 'ph-mountains' });
@@ -37,8 +29,9 @@
   }
   function goalMeta(ctx, goal) {
     const progress = ctx.Core.computeGoalProgress(goal, ctx.state, ctx.state.habitMetrics || {});
-    if (goal.progressMode === 'linkedTasks') return tr('{current} of {target} tasks', { current: progress.current, target: progress.target });
+    if (goal.progressMode === 'linkedTasks') return trn(progress.target, '{current} of {target} task', '{current} of {target} tasks', { current: progress.current, target: progress.target });
     if (goal.progressMode === 'linkedHabits') return trn((goal.habitLinks || []).filter(link => link?.habitId).length, '{count} habit', '{count} habits');
+    if (goal.progressMode === 'milestones') return trn(progress.target, '{current} of {target} milestone', '{current} of {target} milestones', { current: progress.current, target: progress.target });
     if (goal.progressType === 'numeric') return `${tr('{current} of {target}', { current: plainNumber(progress.current), target: plainNumber(progress.target) })}${goal.unit ? ` ${goal.unit}` : ''}`;
     return tr('Manual');
   }
@@ -110,6 +103,7 @@
   function goalSourceLabel(goal) {
     if (goal.progressMode === 'linkedTasks') return tr('Linked tasks');
     if (goal.progressMode === 'linkedHabits') return tr('Linked habits');
+    if (goal.progressMode === 'milestones') return tr('Milestones');
     return `${tr('Manual')} · ${goal.progressType === 'numeric' ? `${plainNumber(goal.targetValue)}${goal.unit ? ` ${goal.unit}` : ''}` : tr('Percentage')}`;
   }
 
@@ -134,35 +128,37 @@
     const percent = goalPercent(ctx, goal);
     const tone = goalTone(ctx, goal, percent);
     const health = HEALTH[tone];
-    const manual = !['linkedTasks', 'linkedHabits'].includes(goal.progressMode);
+    const manual = !['linkedTasks', 'linkedHabits', 'milestones'].includes(goal.progressMode);
     const area = (state.areas || []).find(item => item.id === goal.areaId)?.name;
     let html = `<div class="modal-header task-window-header"><span class="task-window-kind">${tr('Goal')}</span><div class="task-window-actions"><button class="btn-icon" type="button" data-action="goal-details-menu" data-goal-id="${id}" aria-label="${tr('Goal actions')}"><i class="ph ph-dots-three"></i></button><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div></div>`;
     html += `<h2 class="goal-details-heading"><button class="goal-details-title" type="button" data-action="goal-details-rename" data-goal-id="${id}">${esc(goal.title)}</button></h2><button class="goal-details-area" type="button" data-action="goal-details-area" data-goal-id="${id}"><i class="ph ph-squares-four" aria-hidden="true"></i>${esc(area || tr('No area'))}</button>`;
-    const explain = goal.progressMode === 'linkedTasks' ? tr('Progress is calculated from linked tasks.') : tr('Each linked Habit has equal weight; its contribution is capped at 100%.');
-    html += `<div class="goal-details-progress"><div class="goal-details-big"><strong>${percent}%</strong><span>${esc(goalMeta(ctx, goal))}</span></div><span class="goal-list-bar is-${tone}" aria-hidden="true"><i style="width:${percent}%"></i></span><p class="goal-details-health" data-goal-health="${health.attr}"><span class="goal-details-dot is-${tone}" aria-hidden="true"></span><strong>${tr(health.label)}</strong> · ${tr(health.text)}</p>${manual ? `<button class="btn btn-secondary goal-details-update" type="button" data-action="goal-details-progress" data-goal-id="${id}">${tr('Update progress')}</button>` : `<p class="sheet-note">${explain}</p>`}</div>`;
+    const explain = goal.progressMode === 'linkedTasks' ? tr('Progress is calculated from linked tasks.') : goal.progressMode === 'milestones' ? tr('Progress is counted from completed milestones.') : tr('Each linked Habit has equal weight; its contribution is capped at 100%.');
+    html += `<div class="goal-details-progress"><div class="goal-details-big"><strong>${percent}%</strong><span>${esc(goalMeta(ctx, goal))}</span></div><span class="goal-list-bar is-${tone}" aria-hidden="true"><i style="width:${percent}%"></i></span><p class="goal-details-health" data-goal-health="${health.attr}"><span class="goal-details-dot is-${tone}" aria-hidden="true"></span><strong>${tr(health.label)}</strong> · ${(tone === 'ok' && !goal.targetDate ? tr('Progress is on track.') : tr(health.text))}</p>${manual ? `<button class="btn btn-secondary goal-details-update" type="button" data-action="goal-details-progress" data-goal-id="${id}">${tr('Update progress')}</button>` : `<p class="sheet-note">${explain}</p>`}</div>`;
     // Etape
-    const milestones = [...(goal.milestones || [])].sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
+    // R31 (finding 14): milestones follow their dates (undated last) and say when one falls after the target date.
+    const milestones = [...(goal.milestones || [])].sort((a, b) => (a.date || '9999').localeCompare(b.date || '9999') || Number(a.order || 0) - Number(b.order || 0));
     const done = milestones.filter(item => item.isCompleted).length;
     // R14c (GO5 amended): like a task row, the date sits under the title and the circle closes the row on the right.
     const milestoneRows = milestones.map(item => {
-      const date = item.isCompleted ? esc(ctx.formatDate(item.completedAt ? Core.localDateOf(String(item.completedAt)) : item.date)) : item.date ? ctx.todayDueLabel(item.date) : '';
+      const late = goal.targetDate && item.date && item.date > goal.targetDate && !item.isCompleted ? ` · ${tr('After the target date')}` : '';
+      const date = (item.isCompleted ? esc(ctx.formatDate(item.completedAt ? Core.localDateOf(String(item.completedAt)) : item.date)) : item.date ? ctx.todayDueLabel(item.date) : '') + late;
       return `<div class="today-row goal-milestone-row${item.isCompleted ? ' is-done' : ''}"><button class="today-row-main" type="button" data-action="edit-milestone" data-goal-id="${id}" data-milestone-id="${esc(item.id)}"><span class="task-title">${esc(item.title)}</span>${date ? `<span class="task-meta">${date}</span>` : ''}</button><button class="habit-check" type="button" data-action="toggle-milestone" data-goal-id="${id}" data-milestone-id="${esc(item.id)}" aria-pressed="${Boolean(item.isCompleted)}" aria-label="${esc(`${tr('Complete milestone')}: ${item.title}`)}">${roundCheck(item.isCompleted)}</button></div>`;
     }).join('');
-    html += `<h3 class="goal-details-label">${tr('Milestones')} · ${done}/${milestones.length}</h3><div class="today-card goal-details-milestones">${milestoneRows}<button class="inline-add" type="button" data-action="new-milestone" data-goal-id="${id}"><i class="ph ph-plus" aria-hidden="true"></i> ${tr('Add milestone')}</button></div>`;
+    html += `<h3 class="goal-details-label">${tr('Milestones')}${milestones.length ? ` · ${done}/${milestones.length}` : ''}</h3><div class="today-card goal-details-milestones">${milestoneRows}<button class="inline-add" type="button" data-action="new-milestone" data-goal-id="${id}"><i class="ph ph-plus" aria-hidden="true"></i> ${tr('Add milestone')}</button></div>`;
     // What feeds the goal
     if (goal.progressMode === 'linkedTasks') {
       const open = Core.goalTaskSet(goal, state).filter(task => !task.isCompleted);
       const all = ctx.modalState.showAllTasks === true;
       const shown = all ? open : open.slice(0, 3);
       const more = open.length > 3 ? `<button class="today-more" type="button" data-action="goal-details-all-tasks" aria-expanded="${all}">${all ? tr('Show less') : tr('Show {count} more', { count: open.length - 3 })}</button>` : '';
-      html += `<h3 class="goal-details-label">${tr('Tasks')} · ${esc(trn(open.length, '{count} open', '{count} open'))}</h3><div class="task-list today-card goal-details-tasks">${shown.map(task => ctx.reviewTaskRow(task, 'goal', { today: true })).join('')}${more}</div>`;
+      html += `<h3 class="goal-details-label">${tr('Tasks')} · ${esc(trn(open.length, '{count} open', '{count} open'))}</h3><div class="task-list today-card goal-details-tasks">${shown.length ? '' : `<p class="today-empty">${tr('No open tasks.')}</p>`}${shown.map(task => ctx.reviewTaskRow(task, 'goal', { today: true })).join('')}${more}</div>`;
     } else if (goal.progressMode === 'linkedHabits') {
       const bars = (goal.habitLinks || []).filter(link => link?.habitId).map(link => {
         const habit = (state.habits || []).find(item => item.id === link.habitId);
         const actual = Number(state.habitMetrics?.[link.habitId]?.[link.metric]) || 0;
         const target = Number(link.target) || 0;
         const share = target > 0 ? Math.round(Math.max(0, Math.min(100, actual / target * 100))) : 0;
-        return `<div class="habits-bar"><span class="habits-bar-name">${esc(habit?.name || tr('Unavailable habit'))}</span><span class="habits-bar-count">${share}%</span><span class="habits-bar-track" aria-hidden="true"><i style="width:${share}%"></i></span><span class="task-meta goal-habit-meta">${esc(`${plainNumber(actual)} / ${plainNumber(target)} ${HABIT_METRICS[link.metric] ? tr(HABIT_METRICS[link.metric]) : link.metric}`)}</span></div>`;
+        return `<div class="habits-bar"><span class="habits-bar-name">${esc(habit?.name || tr('Unavailable habit'))}</span><span class="habits-bar-count">${share}%</span><span class="habits-bar-track" aria-hidden="true"><i style="width:${share}%"></i></span><span class="task-meta goal-habit-meta">${esc(tr('{actual} of {target} · {metric}', { actual: plainNumber(actual), target: plainNumber(target), metric: (HABIT_METRICS[link.metric] ? tr(HABIT_METRICS[link.metric]) : link.metric).toLocaleLowerCase() }))}</span></div>`;
       }).join('');
       html += `<h3 class="goal-details-label">${tr('Habit contributions')}</h3><div class="today-card habits-bars">${bars || `<p class="today-empty">${tr('No linked Habits yet.')}</p>`}</div>`;
     }
@@ -318,15 +314,15 @@
     const area = (state.areas || []).find(item => item.id === d.areaId)?.name || '';
     const source = mode === 'manual'
       ? `${draftSegment('goal-draft-type', tr('Type'), [['percentage', tr('Percentage')], ['numeric', tr('Number')]], numeric ? 'numeric' : 'percentage')}${numeric ? `<div class="habit-window-target"><label for="goal-target">${tr('Target')}</label><input id="goal-target" class="input" type="number" min="0" step="any" value="${esc(d.targetValue)}"><input id="goal-unit" class="input" maxlength="40" value="${esc(d.unit)}" placeholder="${tr('unit')}" aria-label="${tr('Unit')}"></div>` : ''}`
-      : `<p class="sheet-note">${mode === 'linkedTasks' ? `${tr('Progress is calculated from linked tasks.')} ${tr('Link tasks or projects under “More settings”.')}` : `${tr('Each linked Habit has equal weight; its contribution is capped at 100%.')} ${tr('Link habits under “More settings”.')}`}</p>`;
-    const card = `<div class="habit-window-card">${draftRow(ctx, 'goal-draft-area', 'ph-squares-four', tr('Area'), area, tr('No area (optional)'))}<div class="habit-window-block"><span class="habit-window-label"><i class="ph ph-path" aria-hidden="true"></i>${tr('Horizon')}</span>${draftSegment('goal-draft-horizon', tr('Horizon'), Object.entries(HORIZONS).map(([value, label]) => [value, tr(label)]), normalizeHorizon(d.horizon))}</div><div class="habit-window-block"><span class="habit-window-label"><i class="ph ph-gauge" aria-hidden="true"></i>${tr('Progress')}</span>${draftSegment('goal-draft-mode', tr('Progress'), [['manual', tr('Manual')], ['linkedTasks', tr('Tasks')], ['linkedHabits', tr('Habits')]], mode)}${source}</div>${draftRow(ctx, 'goal-draft-date', 'ph-calendar-blank', tr('Target date'), d.targetDate ? ctx.formatDate(d.targetDate) : '', tr('No target date'))}</div>`;
+      : `<p class="sheet-note">${mode === 'linkedTasks' ? `${tr('Progress is calculated from linked tasks.')} ${tr('Link tasks or projects under “More settings”.')}` : mode === 'milestones' ? `${tr('Progress is counted from completed milestones.')} ${tr('Add them under “More settings”.')}` : `${tr('Each linked Habit has equal weight; its contribution is capped at 100%.')} ${tr('Link habits under “More settings”.')}`}</p>`;
+    const card = `<div class="habit-window-card">${draftRow(ctx, 'goal-draft-area', 'ph-squares-four', tr('Area'), area, tr('No area (optional)'))}<div class="habit-window-block"><span class="habit-window-label"><i class="ph ph-path" aria-hidden="true"></i>${tr('Horizon')}</span>${draftSegment('goal-draft-horizon', tr('Horizon'), Object.entries(HORIZONS).map(([value, label]) => [value, tr(label)]), normalizeHorizon(d.horizon))}</div><div class="habit-window-block"><span class="habit-window-label"><i class="ph ph-gauge" aria-hidden="true"></i>${tr('Progress')}</span>${draftSegment('goal-draft-mode', tr('Progress'), [['manual', tr('Manual')], ['linkedTasks', tr('Tasks')], ['linkedHabits', tr('Habits')], ['milestones', tr('Milestones')]], mode)}${source}</div>${draftRow(ctx, 'goal-draft-date', 'ph-calendar-blank', tr('Target date'), d.targetDate ? ctx.formatDate(d.targetDate) : '', tr('No target date'))}</div>`;
     const open = d.moreOpen === true;
     const milestones = (d.milestones || []).map(item => `<div class="today-row goal-draft-milestone"><button class="today-row-main" type="button" data-action="draft-goal-milestone" data-milestone-id="${esc(item.id)}"><span class="task-title">${esc(item.title)}</span>${item.date ? `<span class="task-meta">${esc(ctx.formatDate(item.date))}</span>` : ''}</button><button class="btn-icon" type="button" data-action="delete-draft-goal-milestone" data-milestone-id="${esc(item.id)}" aria-label="${esc(`${tr('Delete milestone')}: ${item.title}`)}"><i class="ph ph-x"></i></button></div>`).join('');
     const more = open ? `<h3 class="goal-details-label">${tr('Milestones')}</h3><div class="today-card goal-details-milestones">${milestones}<button class="inline-add" type="button" data-action="draft-goal-milestone"><i class="ph ph-plus" aria-hidden="true"></i> ${tr('Add milestone')}</button></div><div class="habit-window-card">${draftRow(ctx, 'draft-goal-reminders', 'ph-bell', tr('Reminder'), reminderSummary(d))}${draftRow(ctx, 'draft-goal-links', 'ph-link', tr('Linked'), linkedSummary(d), tr('None'))}</div>` : '';
     return modalFrame(`<div class="modal-inner quick-sheet habit-window goal-window"><div class="modal-header"><h2 class="modal-title">${tr('New goal')}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div><input id="goal-title" class="quick-title-input${error ? ' is-error' : ''}" type="text" maxlength="120" autocomplete="off" placeholder="${tr('What do you want to achieve?')}" value="${esc(d.title)}" aria-label="${tr('Goal name')}">${error ? `<div class="validation" role="alert">${esc(error)}</div>` : ''}${card}<button class="habit-window-more" type="button" data-action="toggle-goal-more" aria-expanded="${open}"><strong>${tr('More settings')}</strong><span>${open ? tr('Hide') : tr('Milestones, reminder, links')} <i class="ph ph-caret-${open ? 'up' : 'down'}" aria-hidden="true"></i></span></button>${more}<div class="quick-sheet-footer"><span></span><button class="btn btn-primary habit-window-save" type="button" data-action="save-goal">${tr('Create goal')}</button></div></div>`, 'quick');
   }
 
-  const PROGRESS_MODES = ['manual', 'linkedTasks', 'linkedHabits'];
+  const PROGRESS_MODES = ['manual', 'linkedTasks', 'linkedHabits', 'milestones'];
   const DRAFT_ACTIONS = new Set(['goal-draft-area', 'goal-draft-set-area', 'goal-draft-horizon', 'goal-draft-mode', 'goal-draft-type', 'goal-draft-date']);
   function handleGoalDraftAction(action, el, ctx) {
     if (sheet?.draft && ['goal-date-pick', 'goal-date-apply', 'goal-date-clear'].includes(action) && ctx.modalState?.type === 'goal') {
@@ -339,7 +335,7 @@
     const d = readGoalDraft(ctx);
     const subtitle = { title: d.title.trim() || tr('New goal') };
     if (action === 'goal-draft-horizon') d.horizon = normalizeHorizon(el.dataset.value);
-    else if (action === 'goal-draft-mode') d.progressMode = PROGRESS_MODES.includes(el.dataset.value) ? el.dataset.value : 'manual';
+    else if (action === 'goal-draft-mode') { d.progressMode = PROGRESS_MODES.includes(el.dataset.value) ? el.dataset.value : 'manual'; if (d.progressMode === 'milestones') d.moreOpen = true; }
     else if (action === 'goal-draft-type') d.progressType = el.dataset.value === 'numeric' ? 'numeric' : 'percentage';
     else if (action === 'goal-draft-date') { sheet = { kind: 'date', draft: true, date: d.targetDate || null }; ctx.openPopover(el, dateSheetHtml(ctx), { type: 'goal-date' }); return true; }
     else if (action === 'goal-draft-area') {
@@ -357,7 +353,7 @@
   // The source window's fields; a numeric manual goal also edits its target and unit (R9b).
   function goalSourceFields(ctx, d) {
     const { esc } = ctx;
-    return `<label class="sheet-label">${tr('Progress source')}<select id="goal-progress-mode" class="input">${[['manual',msg('Manual')],['linkedTasks',msg('Linked tasks')],['linkedHabits',msg('Linked habits')]].map(([v,l]) => `<option value="${v}" ${d.progressMode === v ? 'selected' : ''}>${tr(l)}</option>`).join('')}</select></label><div class="goal-modal-manual ${d.progressMode === 'manual' ? '' : 'is-hidden'}"><label class="sheet-label">${tr('Type')}<select id="goal-progress-type" class="input"><option value="percentage" ${d.progressType === 'percentage' ? 'selected' : ''}>${tr('Percentage')}</option><option value="numeric" ${d.progressType === 'numeric' ? 'selected' : ''}>${tr('Numeric target')}</option></select></label><div class="goal-form-grid"><label class="sheet-label">${tr('Target')}<input id="goal-target" class="input" type="number" step="any" value="${esc(d.targetValue)}" /></label><label class="sheet-label">${tr('Unit')}<input id="goal-unit" class="input" maxlength="40" value="${esc(d.unit)}" /></label></div></div>`;
+    return `<label class="sheet-label">${tr('Progress source')}<select id="goal-progress-mode" class="input">${[['manual',msg('Manual')],['linkedTasks',msg('Linked tasks')],['linkedHabits',msg('Linked habits')],['milestones',msg('Milestones')]].map(([v,l]) => `<option value="${v}" ${d.progressMode === v ? 'selected' : ''}>${tr(l)}</option>`).join('')}</select></label><div class="goal-modal-manual ${d.progressMode === 'manual' ? '' : 'is-hidden'}"><label class="sheet-label">${tr('Type')}<select id="goal-progress-type" class="input"><option value="percentage" ${d.progressType === 'percentage' ? 'selected' : ''}>${tr('Percentage')}</option><option value="numeric" ${d.progressType === 'numeric' ? 'selected' : ''}>${tr('Numeric target')}</option></select></label><div class="goal-form-grid"><label class="sheet-label">${tr('Target')}<input id="goal-target" class="input" type="number" step="any" value="${esc(d.targetValue)}" /></label><label class="sheet-label">${tr('Unit')}<input id="goal-unit" class="input" maxlength="40" value="${esc(d.unit)}" /></label></div></div>`;
   }
 
   function renderGoalSourceModal(ctx) {
@@ -369,8 +365,9 @@
   function renderMilestoneModal(ctx) {
     const { esc, modalFrame } = ctx;
     const d = ctx.modalState.draft;
+    const goal = ctx.modalState.previous?.draft || ctx.getGoal?.(ctx.modalState.goalId);
     const editing = Boolean(ctx.modalState.milestoneId);
-    return modalFrame(`<div class="modal-inner quick-sheet milestone-window"><div class="modal-header"><h2 class="modal-title">${editing ? tr('Edit milestone') : tr('New milestone')}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div><input id="milestone-title" class="input quick-title-input" maxlength="120" value="${esc(d.title)}" placeholder="${tr('Title')}" aria-label="${tr('Title')}" /><label class="sheet-field"><i class="ph ph-calendar-blank" aria-hidden="true"></i><span>${tr('Date')}</span><input id="milestone-date" class="input" type="date" value="${esc(d.date)}" /></label>${ctx.modalState.error ? `<p class="validation" role="alert">${esc(ctx.modalState.error)}</p>` : ''}<div class="quick-sheet-footer">${editing && !ctx.modalState.previous ? `<button class="btn btn-ghost is-danger goal-milestone-delete" type="button" data-action="delete-milestone" data-goal-id="${esc(ctx.modalState.goalId)}" data-milestone-id="${esc(ctx.modalState.milestoneId)}">${tr('Delete')}</button>` : ''}<button class="btn btn-primary habit-window-save" type="button" data-action="save-milestone">${editing ? tr('Save milestone') : tr('Add milestone')}</button></div></div>`, 'quick');
+    return modalFrame(`<div class="modal-inner quick-sheet milestone-window"><div class="modal-header"><h2 class="modal-title">${editing ? tr('Edit milestone') : tr('New milestone')}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div><input id="milestone-title" class="input quick-title-input" maxlength="120" value="${esc(d.title)}" placeholder="${tr('Title')}" aria-label="${tr('Title')}" /><label class="sheet-field"><i class="ph ph-calendar-blank" aria-hidden="true"></i><span>${tr('Date')}</span><input id="milestone-date" class="input" type="date" value="${esc(d.date)}"${goal?.targetDate ? ` max="${esc(goal.targetDate)}"` : ''} /></label>${ctx.modalState.error ? `<p class="validation" role="alert">${esc(ctx.modalState.error)}</p>` : ''}<div class="quick-sheet-footer">${editing && !ctx.modalState.previous ? `<button class="btn btn-ghost is-danger goal-milestone-delete" type="button" data-action="delete-milestone" data-goal-id="${esc(ctx.modalState.goalId)}" data-milestone-id="${esc(ctx.modalState.milestoneId)}">${tr('Delete')}</button>` : ''}<button class="btn btn-primary habit-window-save" type="button" data-action="save-milestone">${editing ? tr('Save milestone') : tr('Add milestone')}</button></div></div>`, 'quick');
   }
 
   function renderGoalLinksModal(ctx) {
@@ -518,7 +515,10 @@
   function toggleMilestone(ctx, goalId, milestoneId) {
     const { getGoal, render, renderModal, nowIso, saveState } = ctx;
     const goal = getGoal(goalId); const milestone = goal?.milestones.find(item => item.id === milestoneId); if (!milestone) return;
-    milestone.isCompleted = !milestone.isCompleted; milestone.completedAt = milestone.isCompleted ? nowIso() : null; goal.updatedAt = nowIso(); saveState(); render(); if (ctx.modalState?.type === 'goal-details') renderModal();
+    // R38: a goal counted from its milestones can reach 100 % here, so the change is evaluated like any progress.
+    const before = ctx.captureGoalProgress?.();
+    milestone.isCompleted = !milestone.isCompleted; milestone.completedAt = milestone.isCompleted ? nowIso() : null; goal.updatedAt = nowIso(); saveState();
+    if (before) ctx.evaluateGoalProgressChanges?.(before); render(); if (ctx.modalState?.type === 'goal-details') renderModal();
   }
 
   function readGoalLinkDraft(ctx) {
@@ -580,7 +580,6 @@
     if (handleGoalDraftAction(action, el, ctx) || handleGoalDetailsAction(action, el, ctx)) return true;
     if (action === 'goals-group') { ctx.state.ui.goalGroup = el.dataset.view === 'date' ? 'date' : 'horizon'; saveAndRender(); }
     else if (action === 'goals-fold') { const key = { done: 'goalsDoneOpen', paused: 'goalsPausedOpen', archived: 'goalsArchivedOpen' }[el.dataset.fold]; if (key) { ctx.state.ui[key] = !ctx.state.ui[key]; saveAndRender(); } }
-    else if (action === 'calendar-new-goal') ctx.openGoalModal({ targetDate: el.dataset.date });
     else if (action === 'new-goal') ctx.openGoalModal({ inbox: Boolean(event?.target?.closest?.('#mobile-quick-add-menu')) });
     else if (action === 'toggle-goal-more') { readGoalDraft(ctx); ctx.modalState.draft.moreOpen = !ctx.modalState.draft.moreOpen; renderModal(); requestAnimationFrame(() => $('[data-action="toggle-goal-more"]')?.focus()); }
     else if (action === 'draft-goal-links') openGoalLinksModal(ctx);
@@ -640,7 +639,6 @@
     renderRoute(route, ctx) {
       if (route.type === 'goals') return renderGoals(ctx);
       if (route.type === 'goal') return renderGoals(ctx); // R9b: app.js opens the goal window on top
-      if (route.type === 'goal-row') return renderGoalRow(ctx, route.goal);
       if (route.type === 'goal-list-row') return renderGoalListRow(ctx, route.goal); // R10a: the Ciljevi row in an area
       if (route.type !== 'modal') return false;
       const renderers = { 'goal-details': renderGoalDetails, goal: renderGoalModal, 'goal-source': renderGoalSourceModal, milestone: renderMilestoneModal, 'goal-links': renderGoalLinksModal, 'goal-reminders': renderGoalRemindersModal, 'goal-reached': renderGoalReachedModal, 'goal-history': renderGoalHistoryModal };

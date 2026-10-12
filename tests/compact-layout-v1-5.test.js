@@ -9,5 +9,5 @@ test('global compact density tokens keep the desktop workspace tight', () => {
   assert.match(css, /--control-height:\s*32px/);
   assert.match(css, /--task-min-height:\s*44px/);
   assert.match(css, /\.modal-inner\s*\{\s*padding:\s*14px/);
-  assert.match(css, /\.task-title\s*\{[^}]*font-size:\s*14px/);
+  assert.match(css, /\.task-title\s*\{[^}]*font-size:\s*var\(--text-base\)/);
 });

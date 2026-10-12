@@ -40,7 +40,7 @@ test('Add another retains implicit Today and resets explicit times before parsin
   const context = { Core, state: taskState([]), modalState: { type: 'quick', defaults,
     draft: { title: 'First today 09:30', explicitPlan: false, plannedDate: today, plannedTime: '14:00', dueTime: '15:00', explicitPlannedTime: true, subtasks: [] } },
     syncQuickDraftFromDom() {}, uid: () => 'task', nowIso: () => new Date().toISOString(), nextOrder: () => 0,
-    saveState() {}, closeModal() {}, render() {}, renderModal() {}, requestAnimationFrame() {}, $() {}, getProject: () => null };
+    saveState() {}, closeModal() {}, render() {}, renderModal() {}, requestAnimationFrame() {}, $() {}, getProject: () => null, setToastMessage() {}, lowerFirst: String, relativeDateLabel: String /* R36 */ };
   vm.createContext(withI18n(context));
   vm.runInContext(`${parse}\n${place}\n${create}\ncreateTask(true)`, context);
   assert.equal(context.modalState.draft.explicitPlan, false);
@@ -58,20 +58,21 @@ test('Add another retains implicit Today and resets explicit times before parsin
   assert.equal(context.modalState.draft.explicitPlan, true);
 });
 
-test('Task module renders duration, daily focus controls and inline Today completion', () => {
+// R34: the old row (with its daily-focus star) is gone; every list draws the compact R2 row.
+test('Task module renders the compact row with inline completion and the menu', () => {
   let module;
   runInNewContextWithI18n(fs.readFileSync(require.resolve('../js/tasks-ui.js'), 'utf8'), {
     window: { TodoDomainModules: { register(value) { module = value; } } },
   });
-  const task = { id: 'a', title: 'Read', durationMinutes: 30, tagIds: [] };
+  const task = { id: 'a', title: 'Read', durationMinutes: 30, plannedTime: '09:30', tagIds: [] };
   const html = module.renderTaskRow(task, 'today', {}, {
-    Core, esc: String, getProject: () => null, state: { settings: { focusTaskIds: ['a'] } },
+    Core, esc: String, getProject: () => null, todayDueLabel: () => '', state: { settings: { focusTaskIds: ['a'] } },
   });
-  assert.match(html, /30 min/);
+  assert.match(html, /class="task-row task-row--today /);
   assert.match(html, /data-inline-today-complete/);
-  assert.match(html, /data-action="toggle-focus-task"/);
-  assert.match(html, /aria-pressed="true"/);
-  assert.match(html, /data-action="task-plan-picker"/);
+  assert.match(html, /data-action="task-menu"/);
+  assert.match(html, /<div class="task-meta">09:30<\/div>/);
+  assert.doesNotMatch(html, /toggle-focus-task/);
 });
 
 // Redesign R2 (T2, T2a) replaced the Focus and Daily Review cards: "Planirano danas" keeps the user's order
@@ -85,7 +86,7 @@ test('Today lists planned tasks in their order with counts instead of the Focus 
   const fn = name => { const start = source.indexOf(`  function ${name}(`); return source.slice(start, source.indexOf('\n  }\n', start) + 4); };
   const context = { state, Core, esc: String, formatDate: String, formatPageToday: String,
     foldButton, // R22b: the one fold button from app.js
-    pageHeader: () => '', backupReminderNotice: () => '', callDomainHook: () => '' /* R12c: journal notice */, renderHabitTodayRow: () => '', taskRow: (task, view) => `<article data-view="${view}">${task.id}</article>` };
+    pageHeader: () => '', sampleNotice: () => '' /* R30 */, gestureHint: () => '' /* R36 */, backupReminderNotice: () => '', callDomainHook: () => '' /* R12c: journal notice */, renderHabitTodayRow: () => '', taskRow: (task, view) => `<article data-view="${view}">${task.id}</article>` };
   vm.createContext(withI18n(context));
   vm.runInContext(`const TODAY_LIMITS = { overdue: 3, today: 5, habits: 5 };\n${fn('todayLimited')}${fn('todayDueLabel')}${fn('deadlineRow')}${fn('listTasks')}${fn('renderToday')}`, context);
   const html = vm.runInContext('renderToday()', context);

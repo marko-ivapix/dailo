@@ -61,7 +61,7 @@ test('the choice windows are sheets with full-width buttons, the main one first'
   assert.match(duplicate, /<div class="sheet-actions"><button class="btn btn-primary" type="button" data-action="duplicate-with-files"[^>]*>\$\{tr\('Copy files'\)\}<\/button><button class="btn btn-secondary" type="button" data-action="duplicate-without-files"/);
   for (const source of [reached, finished, duplicate]) assert.doesNotMatch(source, /modal-footer|'small-modal'/);
   assert.match(rule('.sheet-actions'), /display: grid; gap: 8px;/);
-  assert.match(rule('.sheet-actions .btn'), /width: 100%; min-height: 48px; font-size: 16px;/);
+  assert.match(rule('.sheet-actions .btn'), /width: 100%; min-height: 48px; font-size: var\(--text-lg\);/);
 });
 
 test('the goal history and the finished sorting close with their X or one big button', () => {

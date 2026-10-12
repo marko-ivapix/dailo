@@ -35,8 +35,8 @@ test('daySchedule lays out timed tasks, estimates missing durations and flags ov
     ['a', 570, 660, false, true], ['b', 600, 630, false, true], ['d', 615, 675, false, false], ['c', 840, 870, true, false],
   ]);
   assert.deepEqual(schedule.unscheduled.map(item => item.id), ['u1', 'u2', 'u3']);
-  assert.deepEqual(json(schedule.range), { startHour: 6, endHour: 24 });
-  assert.deepEqual(json(Core.daySchedule([task('early', { plannedTime: '05:15', durationMinutes: 30 })], DAY).range), { startHour: 5, endHour: 24 });
+  assert.deepEqual(json(schedule.range), { startHour: 8, endHour: 21 }); // R31: 8–21, growing to fit the blocks
+  assert.deepEqual(json(Core.daySchedule([task('early', { plannedTime: '05:15', durationMinutes: 30 })], DAY).range), { startHour: 5, endHour: 21 });
   assert.equal(Core.daySchedule(tasks, DAY, { defaultMinutes: 60 }).blocks.find(block => block.task.id === 'c').endMinutes, 900);
 });
 
@@ -66,7 +66,8 @@ function calendarAdapter() {
 function renderDay(tasks, settings = {}) {
   const state = { tasks, habits: [], goals: [], settings: { weekStartsOn: 1, ...settings }, ui: { calendarView: 'week', calendarDayMode: 'schedule', calendarDate: DAY } };
   const ctx = {
-    state, Core, calendarDate: () => DAY, listTasks: () => state.tasks, parseLocalDate: value => { const [y, m, d] = value.split('-').map(Number); return new Date(y, m - 1, d); },
+    // R31: the clock is pinned to DAY, so it is today and not a past day.
+    state, Core: { ...Core, dateOnly: value => (value ? Core.dateOnly(value) : DAY) }, calendarDate: () => DAY, listTasks: () => state.tasks, parseLocalDate: value => { const [y, m, d] = value.split('-').map(Number); return new Date(y, m - 1, d); },
     formatDate: value => `F:${value}`, pageHeader: title => `<h1>${title}</h1>`, esc: value => String(value), durationLabel: minutes => `${minutes}m`,
     calendarTaskRow: item => `<row ${item.id}>`, deadlineRow: () => '',
   };
@@ -88,10 +89,11 @@ test('the calendar day view shows capacity, tasks without a time and an hour gri
   assert.match(html, /<input class="input task-time-input" type="time" data-task-time="plannedTime" data-task-id="u1" aria-label="Time for Bez vremena jedan">/);
   assert.match(html, /<div class="day-grid" data-calendar-date="2026-10-09"/);
   const rows = [...html.matchAll(/class="day-grid-hour" data-calendar-time="(\d\d:00)"/g)].map(match => match[1]);
-  assert.equal(rows.length, 18);
-  assert.equal(rows[0], '06:00');
-  assert.equal(rows[17], '23:00');
-  assert.match(html, /class="day-grid-block has-conflict"[^>]*data-action="open-task" data-task-id="a"[^>]*style="top:calc\(var\(--hour-height\) \* 3\.5\);height:calc\(var\(--hour-height\) \* 1\.5\)"[^>]*><strong>Pisanje<\/strong><span>09:30–11:00<\/span>/);
+  // R31: the hours run 8–21 (growing to fit), and overlapping blocks sit side by side in lanes.
+  assert.equal(rows.length, 13);
+  assert.equal(rows[0], '08:00');
+  assert.equal(rows[12], '20:00');
+  assert.match(html, /class="day-grid-block has-conflict"[^>]*data-action="open-task" data-task-id="a"[^>]*style="top:calc\(var\(--hour-height\) \* 1\.5\);height:calc\(var\(--hour-height\) \* 1\.5\);--lane:0;--lanes:2"[^>]*><strong>Pisanje<\/strong><span>09:30–11:00<\/span>/);
   assert.match(html, /class="day-grid-block is-estimated"[^>]*data-task-id="c"[^>]*height:calc\(var\(--hour-height\) \* 0\.5\)/);
   assert.match(html, /class="day-grid-block is-completed"[^>]*data-task-id="d"/);
 });

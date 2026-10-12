@@ -12,51 +12,96 @@
     return `<button class="btn-icon knowledge-favorite ${item.favorite ? 'is-favorite' : ''}" type="button" data-action="toggle-knowledge-favorite" data-owner-type="${type}" data-owner-id="${context.esc(item.id)}" aria-label="${item.favorite ? tr('Remove from favorites') : tr('Add to favorites')}" aria-pressed="${Boolean(item.favorite)}"><i class="${item.favorite ? 'ph-fill ph-star' : 'ph ph-star'}"></i></button>`;
   }
 
+  // R35 (H): a resource row shows the site of its first web link and opens that link.
+  function webLink(item) {
+    for (const url of item.linkUrls || []) {
+      try { const link = new URL(url); if (['http:', 'https:'].includes(link.protocol)) return { url, site: link.hostname.replace(/^www\./, '') }; } catch (_) { /* not a web address */ }
+    }
+    return null;
+  }
+
   // Redesign R10b (S3): one list per screen, newest first, with filter chips that open choice sheets.
   function renderKnowledgeRow(context, type, item) {
     const { esc, getArea, state } = context;
     const area = getArea(item.areaId)?.name;
+    const web = type === 'resource' ? webLink(item) : null;
     const meta = type === 'resource'
-      ? [`${tr(RESOURCE_TYPES[item.type] || 'Article')} · ${tr(RESOURCE_STATUSES[item.status] || 'Unread')}`, area]
+      ? [`${tr(RESOURCE_TYPES[item.type] || 'Article')} · ${tr(RESOURCE_STATUSES[item.status] || 'Unread')}`, web?.site, area]
       : [area || tr('No area'), item.linkUrls.length ? trn(item.linkUrls.length, '{count} link', '{count} links') : '', item.attachmentIds.length ? trn(item.attachmentIds.length, '{count} file', '{count} files') : ''];
     const dots = (item.tagIds || []).map(id => state.tags.find(tag => tag.id === id)).filter(Boolean).map(tag => `<span class="knowledge-tag-dot" style="--tag-color:${esc(tag.color)}" role="img" aria-label="${esc(tr('Tag: {name}', { name: tag.name }))}"></span>`).join('');
-    return `<div class="today-row knowledge-row"><i class="ph ${knowledgeIcon(type)} knowledge-row-icon" aria-hidden="true"></i><button class="today-row-main" type="button" data-route="${type}/${esc(item.id)}"><span class="task-title">${esc(item.title)}</span><span class="task-meta">${esc(meta.filter(Boolean).join(' · '))}${dots}</span></button>${favoriteButton(context, type, item)}</div>`;
+    return `<div class="today-row knowledge-row"><i class="ph ${knowledgeIcon(type)} knowledge-row-icon" aria-hidden="true"></i><button class="today-row-main" type="button" data-route="${type}/${esc(item.id)}"><span class="task-title">${esc(item.title)}</span><span class="task-meta">${esc(meta.filter(Boolean).join(' · '))}${dots}</span></button>${web ? `<a class="btn-icon knowledge-row-link" href="${esc(web.url)}" target="_blank" rel="noopener noreferrer" aria-label="${esc(tr('Open link: {site}', { site: web.site }))}"><i class="ph ph-arrow-square-out" aria-hidden="true"></i></a>` : ''}${favoriteButton(context, type, item)}</div>`;
   }
 
-  function filterOptions(context, field) {
+  // R35 (A): the area and tag sheets list only what the items of this screen use (and the one chosen now).
+  function filterOptions(context, field, type) {
     const { state } = context;
-    if (field === 'areaId') return [['', tr('All areas')], ['__none', tr('No area')], ...state.areas.map(area => [area.id, area.name])];
-    if (field === 'tagId') return [['', tr('All tags')], ...state.tags.map(tag => [tag.id, tag.name])];
+    const items = state[context.knowledgeCollection(type)] || [];
+    const current = state.ui.knowledgeFilters?.[type]?.[field] || '';
+    if (field === 'areaId') {
+      const used = new Set(items.map(item => item.areaId || '__none'));
+      return [['', tr('All areas')], ...(used.has('__none') || current === '__none' ? [['__none', tr('No area')]] : []), ...state.areas.filter(area => used.has(area.id) || area.id === current).map(area => [area.id, area.name])];
+    }
+    if (field === 'tagId') {
+      const used = new Set(items.flatMap(item => item.tagIds || []));
+      return [['', tr('All tags')], ...state.tags.filter(tag => used.has(tag.id) || tag.id === current).map(tag => [tag.id, tag.name])];
+    }
     if (field === 'type') return [['', tr('All types')], ...Object.entries(RESOURCE_TYPES).map(([key, label]) => [key, tr(label)])];
     return [['', tr('All statuses')], ...Object.entries(RESOURCE_STATUSES).map(([key, label]) => [key, tr(label)])];
   }
   const FILTER_TITLES = { areaId: msg('Area'), tagId: msg('Tag'), type: msg('Type'), status: msg('Status') };
 
-  function renderKnowledgeList(context, type) {
-    const { state, knowledgeCollection, pageHeader, esc, emptyState } = context;
+  // R35 (A): Beleške and Resursi search their own items (names, text, clip, author and links), every word in any
+  // order and without diacritics. The words live only on this screen; global Search is unchanged.
+  const queries = { note: '', resource: '' };
+  const fold = value => String(value || '').toLocaleLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd');
+  function matchesQuery(type, item, query) {
+    const words = fold(query).split(/\s+/).filter(Boolean);
+    if (!words.length) return true;
+    const text = fold([item.title, type === 'note' ? item.body : item.description, item.clip, item.author, ...(item.linkUrls || [])].join('\n'));
+    return words.every(word => text.includes(word));
+  }
+
+  function listView(context, type) {
+    const { state, knowledgeCollection } = context;
     const filters = state.ui.knowledgeFilters?.[type] || {};
     const collection = state[knowledgeCollection(type)];
     const items = collection.filter(item => (!filters.type || item.type === filters.type)
       && (!filters.status || item.status === filters.status)
       && (filters.favorite !== 'true' || item.favorite === true)
       && (!filters.areaId || (filters.areaId === '__none' ? !item.areaId : item.areaId === filters.areaId))
-      && (!filters.tagId || (item.tagIds || []).includes(filters.tagId)))
+      && (!filters.tagId || (item.tagIds || []).includes(filters.tagId))
+      && matchesQuery(type, item, queries[type]))
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
     const any = filters.favorite === 'true' || FILTER_FIELDS[type].some(field => filters[field]);
-    const summary = any
+    const narrowed = any || Boolean(queries[type].trim());
+    const summary = narrowed
       ? (type === 'note' ? trn(collection.length, '{shown} of {count} note', '{shown} of {count} notes', { shown: items.length }) : trn(collection.length, '{shown} of {count} resource', '{shown} of {count} resources', { shown: items.length }))
       : (type === 'note' ? trn(collection.length, '{count} note', '{count} notes') : trn(collection.length, '{count} resource', '{count} resources'));
+    return { filters, collection, items, any, summary };
+  }
+
+  function resultsHtml(context, type, view = listView(context, type)) {
+    const { items, collection } = view;
+    if (items.length) return `<div class="today-card knowledge-list">${items.map(item => renderKnowledgeRow(context, type, item)).join('')}</div>`;
+    if (queries[type].trim()) return `<p class="today-empty knowledge-empty">${tr('Nothing found. The search looks at names, text and links.')}</p>`;
+    return collection.length ? `<p class="today-empty knowledge-empty">${tr('No items match these filters.')}</p>`
+      : context.emptyState(type === 'note' ? tr('No notes yet') : tr('No resources yet'), tr('“+” at the bottom right adds a new one.'));
+  }
+
+  function renderKnowledgeList(context, type) {
+    const { pageHeader, esc } = context;
+    const view = listView(context, type);
+    const { filters, collection, any, summary } = view;
     const favorite = filters.favorite === 'true';
     const chip = field => {
       const value = filters[field] || '';
-      const label = value ? filterOptions(context, field).find(([key]) => key === value)?.[1] || tr(FILTER_TITLES[field]) : tr(FILTER_TITLES[field]);
+      const label = value ? filterOptions(context, field, type).find(([key]) => key === value)?.[1] || tr(FILTER_TITLES[field]) : tr(FILTER_TITLES[field]);
       return `<button class="quick-chip${value ? ' is-selected' : ''}" type="button" data-action="knowledge-filter" data-owner-type="${type}" data-field="${field}">${esc(label)} <i class="ph ph-caret-down" aria-hidden="true"></i></button>`;
     };
     const chips = `<div class="sheet-chips knowledge-chips"><button class="quick-chip${favorite ? ' is-selected' : ''}" type="button" data-action="knowledge-favorite-filter" data-owner-type="${type}" aria-pressed="${favorite}"><i class="${favorite ? 'ph-fill' : 'ph'} ph-star" aria-hidden="true"></i> ${tr('Favorites')}</button>${FILTER_FIELDS[type].map(chip).join('')}${any ? `<button class="quick-chip knowledge-clear" type="button" data-action="clear-knowledge-filters" data-owner-type="${type}">${tr('Clear filters')}</button>` : ''}</div>`;
-    const body = items.length ? `<div class="today-card knowledge-list">${items.map(item => renderKnowledgeRow(context, type, item)).join('')}</div>`
-      : collection.length ? `<p class="today-empty knowledge-empty">${tr('No items match these filters.')}</p>`
-        : emptyState(type === 'note' ? tr('No notes yet') : tr('No resources yet'), tr('“+” at the bottom right adds a new one.'));
-    return pageHeader(type === 'note' ? tr('Notes') : tr('Resources'), summary, { add: false }) + chips + body;
+    const label = type === 'note' ? tr('Search notes') : tr('Search resources');
+    const search = collection.length ? `<label class="sheet-search knowledge-search"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input id="knowledge-query" class="input" type="search" autocomplete="off" data-owner-type="${type}" placeholder="${label}" aria-label="${label}" value="${esc(queries[type])}"></label>` : '';
+    return pageHeader(type === 'note' ? tr('Notes') : tr('Resources'), summary, { add: false }) + search + chips + `<div id="knowledge-results">${resultsHtml(context, type, view)}</div>`;
   }
 
   function openFilterSheet(context, anchor, type, field) {
@@ -64,7 +109,7 @@
     const { esc } = context;
     const current = context.state.ui.knowledgeFilters?.[type]?.[field] || '';
     const title = tr(FILTER_TITLES[field]);
-    context.openPopover(anchor, `<div class="popover-title">${title}</div><div class="sheet-card" role="radiogroup" aria-label="${title}">${filterOptions(context, field).map(([value, label]) => `<button class="popover-option sheet-option${current === value ? ' is-selected' : ''}" type="button" role="radio" aria-checked="${current === value}" data-pop-action="knowledge-set-filter" data-owner-type="${type}" data-field="${field}" data-value="${esc(value)}"><span class="sheet-option-label">${esc(label)}</span><span class="sheet-radio${current === value ? ' is-on' : ''}" aria-hidden="true"></span></button>`).join('')}</div>`, { type: 'knowledge-filter' });
+    context.openPopover(anchor, `<div class="popover-title">${title}</div><div class="sheet-card" role="radiogroup" aria-label="${title}">${filterOptions(context, field, type).map(([value, label]) => `<button class="popover-option sheet-option${current === value ? ' is-selected' : ''}" type="button" role="radio" aria-checked="${current === value}" data-pop-action="knowledge-set-filter" data-owner-type="${type}" data-field="${field}" data-value="${esc(value)}"><span class="sheet-option-label">${esc(label)}</span><span class="sheet-radio${current === value ? ' is-on' : ''}" aria-hidden="true"></span></button>`).join('')}</div>`, { type: 'knowledge-filter' });
   }
 
   function setFilter(context, type, field, value) {
@@ -94,6 +139,8 @@
     const item = owner?.item;
     sheet = null;
     context.setModalState({ type: 'knowledge', ownerType: type, ownerId: id, source: item || null, inbox: Boolean(options.inbox), returnFocus: goalFocusTarget(), error: '', attachmentRecords: [], attachmentMessage: '', pendingFiles: [], draft: draftFrom(type, item, areaId) });
+    // R35 (H): a shared link arrives as a new resource with its name, link and text filled in.
+    if (!id && options.prefill) Object.assign(context.modalState.draft, { title: String(options.prefill.title || ''), linkUrls: [...(options.prefill.linkUrls || [])], text: String(options.prefill.description || '') });
     renderModal();
     if (!id) requestAnimationFrame(() => $('#knowledge-title')?.focus());
     if (id) loadOwnerAttachments({ ownerType: type, ownerId: id });
@@ -238,13 +285,14 @@
     html += `<input id="knowledge-title" class="quick-title-input${titleError ? ' is-error' : ''}" type="text" maxlength="120" autocomplete="off" placeholder="${resource ? tr('Resource name') : tr('Note name')}" value="${esc(d.title)}" aria-label="${tr('Name')}">`;
     html += `<button class="goal-details-area" type="button" data-action="knowledge-area"><i class="ph ph-squares-four" aria-hidden="true"></i>${esc(getArea(d.areaId)?.name || tr('No area'))}</button>`;
     if (resource) html += `<div class="habit-window-card">${windowRow(context, 'knowledge-type', 'ph-books', tr('Type'), tr(RESOURCE_TYPES[d.resourceType] || 'Article'))}${windowRow(context, 'knowledge-status', 'ph-book-open', tr('Reading status'), tr(RESOURCE_STATUSES[d.resourceStatus] || 'Unread'))}${windowRow(context, 'knowledge-author', 'ph-user', tr('Author'), d.author, tr('No author'))}${windowRow(context, 'knowledge-reviewed', 'ph-calendar-check', tr('Last reviewed'), d.reviewedAt ? context.formatDate(d.reviewedAt) : '', tr('Not reviewed yet'))}</div>`;
-    html += `<h3 class="goal-details-label">${resource ? tr('Description') : tr('Text')}</h3><textarea id="knowledge-text" class="input knowledge-text" rows="5" placeholder="${resource ? tr('Description') : tr('Note text')}">${esc(d.text)}</textarea>`;
+    html += `<h3 class="goal-details-label">${resource ? tr('Description') : tr('Text')}</h3><textarea id="knowledge-text" class="input knowledge-text" rows="5" data-autogrow placeholder="${resource ? tr('Description') : tr('Note text')}">${esc(d.text)}</textarea>`;
     if (d.clip) html += `<h3 class="goal-details-label">${tr('Clipped text')}</h3><blockquote class="knowledge-clip-quote">${esc(d.clip)}</blockquote>`;
     html += `<h3 class="goal-details-label">${tr('Links')} · ${d.linkUrls.length}</h3><div class="habit-window-card knowledge-links">${d.linkUrls.map((url, index) => `<div class="knowledge-link-row">${linkHtml(context, url)}<button class="btn-icon" type="button" data-action="remove-knowledge-link" data-link-index="${index}" aria-label="${tr('Remove link')}"><i class="ph ph-x"></i></button></div>`).join('')}<div class="knowledge-link-add"><input id="knowledge-link" class="input" type="url" inputmode="url" autocomplete="off" placeholder="https://…" value="${esc(d.linkDraft)}" aria-label="${tr('New link')}"><button class="btn btn-secondary" type="button" data-action="add-knowledge-link">${tr('Add')}</button></div></div>`;
     const tags = context.state.tags.filter(tag => d.tagIds.includes(tag.id)).map(tag => tag.name).join(', ');
     const relations = resource ? RELATIONS.map(([field, label, collection]) => windowRow(context, 'knowledge-relations', 'ph-link-simple', tr(label), names(context, collection, d[field]), tr('None'), ` data-field="${field}"`)).join('') : '';
     html += `<h3 class="goal-details-label">${tr('Organization')}</h3><div class="habit-window-card">${windowRow(context, 'knowledge-tags', 'ph-tag', tr('Tags'), tags, tr('None'))}${relations}${windowRow(context, 'knowledge-clip', 'ph-quotes', tr('Clipped text'), d.clip ? tr('Added') : '', tr('None'))}</div>`;
-    html += renderAttachmentsSection({ ownerType: type, ownerId: modalState.ownerId });
+    // R33 (finding 26): the attachments take the same group look as Tekst, Linkovi and Organizacija.
+    html += `<div class="task-window-attachments">${renderAttachmentsSection({ ownerType: type, ownerId: modalState.ownerId })}</div>`;
     if (isNew && modalState.pendingFiles.length) html += `<p class="sheet-note">${modalState.pendingFiles.map(file => esc(file.name)).join(' · ')} · ${tr('files are added when you save.')}</p>`;
     if (modalState.error) html += `<p class="validation" role="alert">${esc(modalState.error)}</p>`;
     if (isNew) html += `<div class="quick-sheet-footer"><span></span><button class="btn btn-primary habit-window-save" type="button" data-action="save-knowledge"${modalState.busy ? ' disabled' : ''}>${resource ? tr('Create resource') : tr('Create note')}</button></div>`;
@@ -259,13 +307,23 @@
     const { esc } = context;
     return `${sheetHead(context, title)}<div class="sheet-card" role="radiogroup" aria-label="${title}">${options.map(([value, label]) => `<button class="popover-option sheet-option${current === value ? ' is-selected' : ''}" type="button" role="radio" aria-checked="${current === value}" data-pop-action="${action}" data-${attr === 'value' ? 'value' : 'area-id'}="${esc(value)}"><span class="sheet-option-label">${esc(label)}</span><span class="sheet-radio${current === value ? ' is-on' : ''}" aria-hidden="true"></span></button>`).join('')}</div>`;
   }
+  function relationChoices(items, selectedIds) {
+    const chosen = new Set(selectedIds || []);
+    const name = item => String(item.title || item.name || '');
+    const finished = item => item.isCompleted === true || item.isArchived === true || item.status === 'archived' || item.status === 'completed';
+    const byName = (a, b) => name(a).localeCompare(name(b));
+    return [...(items || []).filter(item => chosen.has(item.id)).sort(byName), ...(items || []).filter(item => !chosen.has(item.id) && !finished(item)).sort(byName)];
+  }
+
   function multiSheetHtml(context) {
     const { esc, state } = context;
     if (sheet.kind === 'tags') {
       return `${sheetHead(context, tr('Tags'))}<div class="sheet-card">${state.tags.map(tag => `<button class="popover-option sheet-option" type="button" data-pop-action="knowledge-tag-toggle" data-tag-id="${esc(tag.id)}" aria-pressed="${sheet.ids.includes(tag.id)}"><span class="tag-dot" style="--tag-color:${esc(tag.color)}" aria-hidden="true"></span><span class="sheet-option-label">${esc(tag.name)}</span><span class="sheet-check${sheet.ids.includes(tag.id) ? ' is-on' : ''}" aria-hidden="true"></span></button>`).join('') || `<p class="sheet-note">${tr('No tags yet. Create tags from the Tags section.')}</p>`}</div>${applyFooter('knowledge-tags-apply')}`;
     }
     const [, label, collection] = RELATIONS.find(([field]) => field === sheet.field);
-    return `${sheetHead(context, tr(label))}<div class="sheet-card">${state[collection].map(item => `<button class="popover-option sheet-option" type="button" data-pop-action="knowledge-relation-toggle" data-id="${esc(item.id)}" aria-pressed="${sheet.ids.includes(item.id)}"><span class="sheet-option-label">${esc(item.title || item.name)}</span><span class="sheet-check${sheet.ids.includes(item.id) ? ' is-on' : ''}" aria-hidden="true"></span></button>`).join('') || `<p class="sheet-note">${tr('No items.')}</p>`}</div>${applyFooter('knowledge-relations-apply')}`;
+    // R33 (finding 27): the chosen items first, then open ones by name; a search field filters the rest.
+    const items = relationChoices(state[collection], sheet.ids);
+    return `${sheetHead(context, tr(label))}<label class="sheet-search"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input class="input" type="search" data-sheet-search placeholder="${tr('Search')}" aria-label="${tr('Search')}"></label><div class="sheet-card">${items.map(item => `<button class="popover-option sheet-option" type="button" data-sheet-item data-search="${esc(String(item.title || item.name || '').toLowerCase())}" data-pop-action="knowledge-relation-toggle" data-id="${esc(item.id)}" aria-pressed="${sheet.ids.includes(item.id)}"><span class="sheet-option-label">${esc(item.title || item.name)}</span><span class="sheet-check${sheet.ids.includes(item.id) ? ' is-on' : ''}" aria-hidden="true"></span></button>`).join('') || `<p class="sheet-note">${tr('No items.')}</p>`}</div>${applyFooter('knowledge-relations-apply')}`;
   }
   const WINDOW_ACTIONS = new Set(['knowledge-window-favorite', 'knowledge-menu', 'knowledge-area', 'knowledge-set-area', 'knowledge-type', 'knowledge-set-type', 'knowledge-status', 'knowledge-set-status', 'knowledge-author', 'knowledge-author-apply', 'knowledge-reviewed', 'knowledge-reviewed-apply', 'knowledge-reviewed-clear', 'knowledge-tags', 'knowledge-tag-toggle', 'knowledge-tags-apply', 'knowledge-relations', 'knowledge-relation-toggle', 'knowledge-relations-apply', 'knowledge-clip', 'knowledge-clip-apply']);
   function handleWindowAction(action, el, context) {
@@ -276,7 +334,9 @@
     const apply = mutate => { mutate(); sheet = null; commitKnowledge(context); context.closePopover(); return true; };
     if (action === 'knowledge-window-favorite') { d.favorite = !d.favorite; commitKnowledge(context); return true; }
     if (action === 'knowledge-menu') {
-      if (dialog.ownerId) context.openPopover(el, context.menuSheet(d.title, `<button class="popover-option is-danger" type="button" data-pop-action="delete-knowledge" data-owner-type="${type}" data-owner-id="${esc(dialog.ownerId)}"><i class="ph ph-trash"></i>${type === 'note' ? tr('Delete note') : tr('Delete resource')}</button>`), { type: 'knowledge-menu' });
+      // R35 (B): a note can become a task.
+      const makeTask = type === 'note' ? `<button class="popover-option" type="button" data-pop-action="knowledge-make-task" data-owner-id="${esc(dialog.ownerId)}"><i class="ph ph-check-square"></i>${tr('Make a task')}</button><div class="popover-separator"></div>` : '';
+      if (dialog.ownerId) context.openPopover(el, context.menuSheet(d.title, `${makeTask}<button class="popover-option is-danger" type="button" data-pop-action="delete-knowledge" data-owner-type="${type}" data-owner-id="${esc(dialog.ownerId)}"><i class="ph ph-trash"></i>${type === 'note' ? tr('Delete note') : tr('Delete resource')}</button>`), { type: 'knowledge-menu' });
       return true;
     }
     if (action === 'knowledge-area') {
@@ -322,12 +382,13 @@
     handleAction(action, event, context) {
       // Attachment selection/drop must capture the draft before app.js rerenders.
       if (action === 'read-knowledge-draft') { readKnowledgeDraft(context); return true; }
-      if (action === 'open-knowledge') { openKnowledgeModal(context, event?.ownerType, event?.ownerId || null); return true; }
+      if (action === 'open-knowledge') { openKnowledgeModal(context, event?.ownerType, event?.ownerId || null, null, { prefill: event?.prefill, inbox: event?.inbox }); return true; }
       const el = event?.target.closest('[data-action], [data-pop-action]');
       if (!el) return false;
       if (handleWindowAction(action, el, context)) return true;
       if (action === 'new-knowledge') openKnowledgeModal(context, el.dataset.ownerType, null, el.dataset.areaId, { inbox: Boolean(el.closest?.('#mobile-quick-add-menu')) });
       else if (action === 'save-knowledge') saveKnowledge(context);
+      else if (action === 'knowledge-make-task') { context.closePopover(); context.noteToTask(el.dataset.ownerId); }
       else if (action === 'toggle-knowledge-favorite') {
         const owner = context.attachmentOwner({ ownerType: el.dataset.ownerType, ownerId: el.dataset.ownerId });
         if (!owner || !['note', 'resource'].includes(el.dataset.ownerType)) return true;
@@ -351,6 +412,16 @@
       return true;
     },
     handleInput(event, context) {
+      // R35 (A): typing in the screen's own search redraws only its results and the count, so the field keeps focus.
+      if (event.target?.id === 'knowledge-query') {
+        const type = event.target.dataset?.ownerType;
+        if (!['note', 'resource'].includes(type)) return true;
+        queries[type] = event.target.value || '';
+        const view = listView(context, type);
+        const results = context.$('#knowledge-results'); if (results) results.innerHTML = resultsHtml(context, type, view);
+        const subtitle = context.$('#main .page-subtitle'); if (subtitle) subtitle.textContent = view.summary;
+        return true;
+      }
       const dialog = context.modalState;
       if (dialog?.type !== 'knowledge') return false;
       const id = event.target?.id;

@@ -66,7 +66,7 @@ test('standalone layout keeps content and sticky bars below the iOS status bar',
   const css = read('css/styles.css');
   const layer = css.slice(css.indexOf('V1.9 Beta-ready additions'));
   assert.match(layer, /\.app-shell \{ padding-top: env\(safe-area-inset-top\); \}/);
-  assert.match(layer, /\.sidebar, \.global-warning, \.v17-sticky-context \{ top: env\(safe-area-inset-top\); \}/);
+  assert.match(layer, /\.global-warning \{ top: env\(safe-area-inset-top\); \}/, 'R34: the sidebar and the V1.7 sticky context left');
   // Modernization M7 routes viewport heights through --viewport-height (100dvh where supported).
   assert.match(layer, /@media \(max-width: 700px\) \{\n  \.modal \{ max-height: calc\(var\(--viewport-height\) - 24px - env\(safe-area-inset-top\)\); \}/, 'phone sheets stay below the status bar');
 });

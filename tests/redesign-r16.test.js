@@ -34,14 +34,15 @@ function sheetCtx(kind, today = '2026-10-10') {
   vm.runInContext(`${fn('nextMonday')}${fn('parseLocalDate')}${fn('dateSheetHtml')}`, ctx);
   return ctx;
 }
-const chips = html => [...html.matchAll(/data-pop-action="date-sheet-pick" data-date="([^"]+)" aria-pressed="[a-z]+">([^<]+)</g)].map(match => [match[2], match[1]]);
+const chips = html => [...html.matchAll(/data-pop-action="date-sheet-pick" data-date="([^"]+)"(?: data-time="[^"]+")? aria-pressed="[a-z]+">([^<]+)</g)].map(match => [match[2], match[1]]);
 
 test('the start sheet offers "Početak meseca", "Danas" and "Sutra"; other date sheets keep theirs', () => {
   assert.deepEqual(chips(sheetCtx('start').dateSheetHtml()), [['Start of the month', '2026-10-01'], ['Today', '2026-10-10'], ['Tomorrow', '2026-10-11']]);
   assert.deepEqual(chips(sheetCtx('start', '2026-10-01').dateSheetHtml()).map(chip => chip[0]), ['Today', 'Tomorrow'], 'on the 1st, "Danas" is the start of the month');
   const plan = sheetCtx('plan');
   plan.dateSheet.target = { type: 'task', taskId: 't' };
-  assert.deepEqual(chips(plan.dateSheetHtml()).map(chip => chip[0]), ['Today', 'Tomorrow', 'Start of next week']);
+  // R36 (G): "Večeras" while 20:00 is ahead, and "Vikend".
+  assert.deepEqual(chips(plan.dateSheetHtml()).map(chip => chip[0]), ['Today', ...(new Date().getHours() < 20 ? ['Tonight'] : []), 'Tomorrow', 'Weekend', 'Start of next week']);
   assert.ok(sr.includes('"Start of the month": "Početak meseca"'));
 });
 

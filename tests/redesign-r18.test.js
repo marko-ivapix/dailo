@@ -99,7 +99,7 @@ test('a) the reminder sheet, new goals, habits and template reminders start at t
   assert.match(sheet, /const morning = Core\.defaultReminderTime\(state\.settings\);/);
   assert.match(sheet, /\[tr\('Day before at \{time\}', \{ time: morning \}\), \{ date: Core\.addDays\(task\.plannedDate, -1\), time: morning \}\]/);
   assert.match(sheet, /\[tr\('Tomorrow at \{time\}', \{ time: morning \}\), \{ date: Core\.addDays\(Core\.dateOnly\(\), 1\), time: morning \}\]/);
-  assert.match(sheet, /time: current\?\.time \|\| task\.plannedTime \|\| morning \}/);
+  assert.match(sheet, /reminderStart\(\{ date: task\.plannedDate \|\| Core\.dateOnly\(\), time: task\.plannedTime \|\| morning \}/); // R30: the start skips a passed time
   assert.doesNotMatch(app, /'Day before at 9:00'|'Tomorrow morning'/);
   // R21: the unused area name window that made the second goal draft is gone.
   assert.equal((app.match(/onTargetDate: false, time: Core\.defaultReminderTime\(state\.settings\)/g) || []).length, 1, 'the new goal draft; loading keeps stored times');

@@ -111,7 +111,7 @@ test('the R9a layer and the Serbian labels', () => {
   const layer = css.slice(css.indexOf('/* Redesign R9a'));
   assert.ok(layer.length > 20, 'R9a layer');
   for (const selector of ['.goals-summary .is-risk', '.goals-summary .is-overdue', '.goal-list-row', '.goal-list-bar.is-risk', '.goal-list-bar.is-overdue', '.goal-list-date.is-risk', '.goals-fold']) assert.ok(layer.includes(selector), selector);
-  for (const [en, value] of [['At risk · {date}', 'U riziku · {date}'], ['{current} of {target} tasks', '{current} od {target} zadataka'], ['Group goals', 'Grupisanje ciljeva'], ['Achieved goals', 'Ostvareni'], ['Paused goals', 'Pauzirani'], ['Archived goals', 'Arhivirani'], ['Achieved {date}', 'Ostvaren {date}']]) {
+  for (const [en, value] of [['At risk · {date}', 'U riziku · {date}'], ['Group goals', 'Grupisanje ciljeva'], ['Achieved goals', 'Ostvareni'], ['Paused goals', 'Pauzirani'], ['Archived goals', 'Arhivirani'], ['Achieved {date}', 'Ostvaren {date}']]) {
     assert.ok(sr.includes(`${JSON.stringify(en)}: ${JSON.stringify(value)}`), en);
   }
   assert.match(sr, /"\{count\} at risk": \{ one: "\{count\} u riziku", few: "\{count\} u riziku", other: "\{count\} u riziku" \}/);

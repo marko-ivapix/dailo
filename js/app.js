@@ -44,9 +44,13 @@
     },
   };
   const COLOR_NAMES = { '#5362FF': msg('Blue'), '#30CBAD': msg('Teal'), '#A879FF': msg('Purple'), '#4CC9F0': msg('Sky blue'), '#F5B942': msg('Yellow'), '#FF8A5B': msg('Orange'), '#F06A8A': msg('Pink'), '#8FD14F': msg('Green') };
-  const AREA_ICONS = ['ph-briefcase', 'ph-house', 'ph-heart', 'ph-chart-line-up', 'ph-graduation-cap', 'ph-palette', 'ph-plant', 'ph-airplane'];
+  const AREA_ICONS = ['ph-briefcase', 'ph-house', 'ph-heart', 'ph-chart-line-up', 'ph-graduation-cap', 'ph-palette', 'ph-plant', 'ph-airplane', 'ph-users', 'ph-wallet'];
+  // R33 (finding 26): each area icon has a name for screen readers.
+  const AREA_ICON_NAMES = { 'ph-briefcase': msg('Work'), 'ph-house': msg('Home'), 'ph-heart': msg('Health'), 'ph-chart-line-up': msg('Career'), 'ph-graduation-cap': msg('Learning'), 'ph-palette': msg('Creativity'), 'ph-plant': msg('Nature'), 'ph-airplane': msg('Travel'), 'ph-users': msg('Family & Friends'), 'ph-wallet': msg('Finance') };
   const DATE_FMT = new Intl.DateTimeFormat(I18n.locale(), { weekday: 'long', month: 'long', day: 'numeric' });
   const SHORT_DATE_FMT = new Intl.DateTimeFormat(I18n.locale(), { month: 'short', day: 'numeric' });
+  const DATE_YEAR_FMT = new Intl.DateTimeFormat(I18n.locale(), { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  const SHORT_DATE_YEAR_FMT = new Intl.DateTimeFormat(I18n.locale(), { month: 'short', day: 'numeric', year: 'numeric' });
   const WEEKDAY_FMT = new Intl.DateTimeFormat(I18n.locale(), { weekday: 'long' });
   const SHORTCUT_DEFAULTS = { newTask:'N', search:'Ctrl/Cmd+F', today:'T', inbox:'I', upcoming:'U', calendar:'C', goals:'G', habits:'H', templates:'Shift+T' };
   const SHORTCUT_LABELS = {newTask:msg('New task'),search:msg('Search'),today:msg('Today'),inbox:msg('Inbox'),upcoming:msg('Upcoming'),calendar:msg('Calendar'),goals:msg('Goals'),habits:msg('Habits'),templates:msg('Templates')};
@@ -78,6 +82,7 @@
   let undoHold = null;
   let toastMessage = null;
   let toastMessageTimer = null;
+  let toastLink = null;
   let staleDataNotice = null;
   let canonicalRaw = null;
   let textSaveTimer = null;
@@ -110,7 +115,7 @@
   // R9c–R10d (K12): on Ciljevi, Beleške, Resursi, Oznake, Šabloni and Sačuvani prikazi the floating "+" adds what belongs
   // there and its label says what;
   // elsewhere it opens the menu.
-  const QUICK_ADD_DIRECT = Object.freeze({ '#goals': [msg('New goal'), () => openGoalModal()], '#notes': [msg('New note'), () => openKnowledgeWindow('note')], '#resources': [msg('New resource'), () => openKnowledgeWindow('resource')], '#tags': [msg('New tag'), () => openTagModal()], '#templates': [msg('New template'), () => callDomainHook('handleAction', 'new-template', { target: $('#mobile-quick-add-toggle') })], '#saved-views': [msg('New saved view'), () => callDomainHook('handleAction', 'new-saved-view', { target: $('#mobile-quick-add-toggle') })], '#cleaning': [msg('New recurring task'), () => callDomainHook('handleAction', 'new-cleaning-chore', { target: $('#mobile-quick-add-toggle') })], '#journal': [msg('Today’s entry'), () => callDomainHook('handleAction', 'open-journal', { target: $('#mobile-quick-add-toggle') })] });
+  const QUICK_ADD_DIRECT = Object.freeze({ '#goals': [msg('New goal'), () => openGoalModal()], '#habits': [msg('New habit'), () => openHabitModal()], '#areas': [msg('New area'), () => callDomainHook('handleAction', 'new-area', { target: $('#mobile-quick-add-toggle') })], '#notes': [msg('New note'), () => openKnowledgeWindow('note')], '#resources': [msg('New resource'), () => openKnowledgeWindow('resource')], '#tags': [msg('New tag'), () => openTagModal()], '#templates': [msg('New template'), () => callDomainHook('handleAction', 'new-template', { target: $('#mobile-quick-add-toggle') })], '#saved-views': [msg('New saved view'), () => callDomainHook('handleAction', 'new-saved-view', { target: $('#mobile-quick-add-toggle') })], '#cleaning': [msg('New recurring task'), () => callDomainHook('handleAction', 'new-cleaning-chore', { target: $('#mobile-quick-add-toggle') })], '#journal': [msg('Today’s entry'), () => callDomainHook('handleAction', 'open-journal', { target: $('#mobile-quick-add-toggle') })] });
   const quickAddDirect = () => QUICK_ADD_DIRECT[location.hash] || null;
   function syncQuickAddToggle() {
     const toggle = $('#mobile-quick-add-toggle');
@@ -153,6 +158,7 @@
   }
   let calendarOpen = false;
   let habitsOpen = false;
+  let habitsEntryDay = null; // R37 (D): "Juče nije zabeleženo" opens Navike on yesterday
 
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -171,13 +177,18 @@
   function formatDate(value, mode = 'short') {
     const date = parseLocalDate(value);
     if (!date) return '';
-    return mode === 'full' ? DATE_FMT.format(date) : SHORT_DATE_FMT.format(date);
+    // R31 (finding 4): a date in another year says which, so a goal for next October does not look due today.
+    const otherYear = date.getFullYear() !== new Date().getFullYear();
+    if (mode === 'full') return (otherYear ? DATE_YEAR_FMT : DATE_FMT).format(date);
+    return (otherYear ? SHORT_DATE_YEAR_FMT : SHORT_DATE_FMT).format(date);
   }
 
   function formatPageToday(today) {
     return DATE_FMT.format(parseLocalDate(today));
   }
 
+  // R30 (finding 7): "danas" and "sutra" stay lowercase inside a sentence.
+  const lowerFirst = text => String(text).charAt(0).toLocaleLowerCase() + String(text).slice(1);
   function relativeDateLabel(value, today = Core.dateOnly()) {
     if (!value) return '';
     if (value === today) return tr('Today');
@@ -191,13 +202,6 @@
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return tr('No reminder');
     return DATE_TIME_FMT.format(date);
-  }
-
-  function toLocalDateTimeValue(value) {
-    const date = value ? new Date(value) : new Date();
-    if (Number.isNaN(date.getTime())) return '';
-    const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
-    return local.toISOString().slice(0, 16);
   }
 
   function fromLocalDateTimeValue(value) {
@@ -333,7 +337,7 @@
           { id: 'sub_link', title: tr('Send preview link'), isCompleted: false, order: 2 },
         ],
       }),
-      mkTask('task_invoice', tr('Send client invoice'), { projectId: 'project_client', dueDate: Core.addDays(today, -1), projectOrder: 1 }),
+      mkTask('task_invoice', tr('Send client invoice'), { projectId: 'project_client', dueDate: Core.addDays(today, 1), projectOrder: 1 }),
       mkTask('task_groceries', tr('Buy groceries'), { projectId: 'project_personal', plannedDate: today, todayOrder: 1, projectOrder: 0 }),
       mkTask('task_plugin', tr('Check plugin update'), { isInbox: true, dueDate: Core.addDays(today, 2), inboxOrder: 0 }),
       mkTask('task_accountant', tr('Call accountant'), { isInbox: true, inboxOrder: 1 }),
@@ -408,7 +412,7 @@
       title: String(goal.title || goal.name || '').trim(),
       areaId: goal.areaId || null,
       status: ['active', 'paused', 'completed', 'archived'].includes(goal.status) ? goal.status : 'active',
-      progressMode: ['manual', 'linkedTasks', 'linkedHabits'].includes(goal.progressMode) ? goal.progressMode : 'manual',
+      progressMode: ['manual', 'linkedTasks', 'linkedHabits', 'milestones'].includes(goal.progressMode) ? goal.progressMode : 'manual',
       progressType: goal.progressType === 'numeric' ? 'numeric' : 'percentage',
       projectLinks: Array.isArray(goal.projectLinks) ? goal.projectLinks : [], taskIds: Array.isArray(goal.taskIds) ? goal.taskIds : [],
       habitLinks: Array.isArray(goal.habitLinks) ? goal.habitLinks : [], milestones: Array.isArray(goal.milestones) ? goal.milestones : [],
@@ -665,7 +669,7 @@
       render, restoreGoalFocus, captureGoalProgress, evaluateGoalProgressChanges,
       putGoalHistory, goalDraft, openGoalModal, openPopover, templateMenuEntry, syncGoalLinks,
       maybePromptGoalReached, updateGoalStatus, saveAndRender,
-      $, $$, esc, PROJECT_COLORS, AREA_ICONS, knowledgeCollection, getArea, sortedAreas, attachmentOwner,
+      $, $$, esc, PROJECT_COLORS, AREA_ICONS, areaIconName: icon => (AREA_ICON_NAMES[icon] ? tr(AREA_ICON_NAMES[icon]) : tr('Select area icon')), knowledgeCollection, getArea, sortedAreas, attachmentOwner,
       pageHeader, modalFrame, renderMain, renderModal, currentRoute,
       knowledgeAttachmentCache, readOwnerAttachments, renderAttachmentRow,
       renderAttachmentsSection, loadOwnerAttachments, addAttachments,
@@ -682,7 +686,7 @@
       foldButton,
       colorName,
       journalLock,
-      readAutoBackup,
+      readAutoBackup, readTextSize, applyTextSize, readTheme,
       saveTextFile: (text, name, type) => globalThis.DailoPlatform.files.saveFile(new Blob([text], { type }), name, name),
       templateTypes: TEMPLATE_TYPES, templateLabel, openTemplateEditorFromSource, saveTemplateRecord, duplicateTemplateRecord, useTemplate,
       captureModalReturnFocus,
@@ -702,14 +706,13 @@
         saveAndRender();
       },
       openProjectModal, saveProjectModal, archiveProject, restoreProject, deleteProject,
-      openQuickAdd, openGoalModal, openHabitModal,
+      openQuickAdd, openGoalModal, openHabitModal, noteToTask,
       renderAreaTaskRow(task, areaId) { return taskRow(task, `area:${areaId}`, { today: true }); },
       repeatEditorState, repeatEditorHtml, repeatEditorUpdate, repeatEditorError, repeatEditorSetStart, repeatRuleFromSheet, repeatFocusSelector, readRepeatInputs,
       renderChoreRow(task, options = {}) { return taskRow(task, 'cleaning', { today: true, metaText: options.metaText, metaLead: options.metaLead }); },
       renderGoalListRow(goal) { return callDomainHook('renderRoute', { type: 'goal-list-row', goal }) || ''; },
       renderHabitListRow(habit) { return callDomainHook('renderRoute', { type: 'habit-list-row', habit }) || ''; },
       projectOverviewRow(project) { return projectOverviewRow(project, listTasks()); },
-      renderGoalRow, renderHabitRow,
       renderSavedViewItem(view, item, today) {
         // R10d (S8): the rows of their screens — Today rows, Ciljevi rows and compact habit rows.
         return view.type === 'tasks' ? taskRow(item, 'saved-view', { today: true }) : view.type === 'goals' ? callDomainHook('renderRoute', { type: 'goal-list-row', goal: item }) || '' : callDomainHook('renderRoute', { type: 'habit-list-row', habit: item }) || '';
@@ -738,6 +741,7 @@
         return { userAgent: navigator.userAgent || '', standalone: Boolean(globalThis.DailoPlatform?.isNative) || navigator.standalone === true || Boolean(window.matchMedia?.('(display-mode: standalone)').matches), persistence: storagePersistence.state };
       },
       storagePersistence: () => storagePersistence,
+      installPrompt: () => Boolean(installPromptEvent),
       shortcutError: () => shortcutError,
       // Native app: the notification permission and (Android) exact-alarm state; null on the web.
       notificationSettings: () => (globalThis.DailoPlatform?.isNative ? { permission: notificationPermission, exact: exactAlarmState } : null),
@@ -809,6 +813,8 @@
     if (knowledgeRoute) { openKnowledgeWindow(knowledgeRoute[1], decodeURIComponent(knowledgeRoute[2])); return; }
     const target = route.startsWith('#') ? route : `#${route}`;
     if (location.hash === target) render();
+    // R32 (finding 17): a tab and a step back replace the address, so Back does not walk through piled-up history.
+    else if (ROOT_ROUTES.includes(target) || screenTrail.at(-1)?.route === target) location.replace(target);
     else location.hash = target;
   }
 
@@ -935,17 +941,26 @@
     // Searched within its own region: the same data attributes can appear in another part of the page.
     return attrs ? `#${region.id} ${element.tagName.toLowerCase()}${attrs}` : null;
   }
+  let installPromptEvent = null;
   let renderedRoute = null;
   let renderedTitle = '';
   // Redesign R22a: the screens a detail screen was opened from, so its "‹ …" returns there. A tab on the bottom bar
   // starts the trail over, and going back pops it instead of adding a loop.
-  const ROOT_ROUTES = ['#today', '#inbox', '#tasks', '#calendar', '#more'];
+  const ROOT_ROUTES = ['#today', '#inbox', '#tasks', '#calendar', '#habits', '#more'];
   let screenTrail = [];
   function trackScreen(route) {
     if (renderedRoute === null || route === renderedRoute) return;
     if (ROOT_ROUTES.includes(route)) screenTrail = [];
     else if (screenTrail.at(-1)?.route === route) screenTrail.pop();
     else screenTrail = [...screenTrail, { route: renderedRoute, title: renderedTitle }].slice(-20);
+  }
+  // R32 (finding 17): where Back goes when no window is open — the screen this one was opened from, then the
+  // start of its tab, then Danas; null on Danas, where the phone minimizes the app.
+  function backTarget(route, trail) {
+    if (route === '#today') return null;
+    if (trail.length) return trail.at(-1).route;
+    if (ROOT_ROUTES.includes(route)) return '#today';
+    return /^#project\//.test(route) ? '#tasks' : '#more';
   }
   function backLink(fallbackRoute, fallbackLabel) {
     const previous = screenTrail.at(-1);
@@ -1010,23 +1025,16 @@
     if (badge) { badge.textContent = count > 99 ? '99+' : String(count); badge.hidden = count === 0; }
   }
 
-  function navItem(route, icon, label, active, badge = '', attrs = '') {
-    return `<button class="nav-item ${active ? 'is-active' : ''}" type="button" data-route="${route}" ${attrs} title="${label}">
-      <i class="ph ${icon}"></i><span class="nav-label">${label}</span>${badge ? `<span class="nav-badge">${badge}</span>` : ''}
-    </button>`;
-  }
-
   function storageWarningHtml() {
     if (storageError) return `<div class="global-warning" role="alert">${tr("Changes couldn't be saved locally. Refreshing may cause data loss.")} <button class="btn btn-secondary" data-action="retry-save">${tr('Retry save')}</button></div>`;
     if (automaticSnapshotError) return `<div class="global-warning" role="alert">${tr('Automatic snapshot failed: {error}. Your last saved app data remains available.', { error: esc(trMessage(automaticSnapshotError)) })} <button class="btn btn-secondary" data-action="retry-snapshot">${tr('Retry snapshot')}</button></div>`;
     return '';
   }
 
+  const LIBRARY_ROUTES = ['settings', 'account', 'goals', 'areas', 'notes', 'resources', 'tags', 'templates', 'saved-views', 'cleaning', 'review', 'journal', 'completed', 'archived'];
   function renderMain() {
-    const comfortable = state.settings.compactDensity === false;
-    document.documentElement.style.setProperty('--content-gutter', comfortable ? '24px' : '20px');
-    document.documentElement.style.setProperty('--control-height', comfortable ? '38px' : '32px');
-    document.documentElement.style.setProperty('--task-min-height', comfortable ? '52px' : '44px');
+    // R34 (finding 19): the density is a desktop choice; CSS applies it from 1024 px on, so phones keep their sizes.
+    document.documentElement.dataset.density = state.settings.compactDensity === false ? 'comfortable' : 'compact';
     const route = currentRoute();
     enterCalendarRoute(route);
     enterHabitsRoute(route);
@@ -1044,6 +1052,8 @@
       else if (route.type === 'completed') content = renderCompleted();
       else content = renderToday();
     }
+    // R32 (finding 17): every screen under Još starts with "‹ Još" (or the screen it was opened from).
+    if (LIBRARY_ROUTES.includes(route.type) && !content.includes('class="screen-back"')) content = backLink('more', tr('More')) + content;
     main.innerHTML = `${warning}<div class="content ${route.type === 'calendar' && state.ui.calendarView !== 'upcoming' ? 'calendar-content' : ''}">${content}</div>`;
     // An old #habit/<id> address shows the Habits screen with the details window on top (R8c).
     if (route.type === 'habit') { history.replaceState(null, '', '#habits'); openHabitDetails(route.id); }
@@ -1080,7 +1090,8 @@
   // Redesign R8a (H1, H4): the Habits screen opens on Dan, today and this month whenever it is opened from another screen.
   function enterHabitsRoute(route) {
     const open = route.type === 'habits';
-    if (open && !habitsOpen) Object.assign(state.ui, { habitsView: 'day', habitsDay: Core.dateOnly(), habitTrackerMonth: Core.dateOnly().slice(0, 7), habitChartDay: null });
+    if (open && !habitsOpen) Object.assign(state.ui, { habitsView: 'day', habitsDay: habitsEntryDay || Core.dateOnly(), habitTrackerMonth: Core.dateOnly().slice(0, 7), habitChartDay: null });
+    if (open) habitsEntryDay = null;
     habitsOpen = open;
   }
 
@@ -1136,7 +1147,10 @@
     const today = Core.dateOnly();
     const sections = Core.deriveTodayV3({ ...state, tasks: listTasks() }, Object.values(state.habitLogCache || {}).flat(), today);
     let html = pageHeader(tr('Today'), '', { add: false, eyebrow: formatPageToday(today) });
-    if (globalThis.DailoPlatform?.isNative) html += transferNotice();
+    const transfer = globalThis.DailoPlatform?.isNative ? transferNotice() : '';
+    html += transfer;
+    // R30 (finding 5): one first-run card at a time; the phone app's transfer question comes first.
+    if (!transfer) html += sampleNotice();
     html += backupReminderNotice();
     // R14 (T6 amended): the weekly review prompt left Today; the review stays in Još.
     html += callDomainHook('renderRoute', { type: 'journal-notice' }) || '';
@@ -1146,16 +1160,20 @@
       ...sections.overdueGoals.map(goal => deadlineRow({ goal }, today)),
       ...sections.overdueMilestones.map(item => deadlineRow(item, today)),
     ];
-    if (overdueRows.length) html += section('overdue', tr('Past due'), overdueRows.length, `<div class="task-list today-card">${todayLimited('overdue', overdueRows)}</div>`, true);
     const plannedRows = [
       ...sections.today.map(task => taskRow(task, 'today', { today: true, draggable: true })),
       ...sections.goals.map(goal => deadlineRow({ goal }, today)),
       ...sections.milestones.map(item => deadlineRow(item, today)),
     ];
+    html += gestureHint(overdueRows.length + plannedRows.length > 0);
+    if (overdueRows.length) html += section('overdue', tr('Past due'), overdueRows.length, `<div class="task-list today-card">${todayLimited('overdue', overdueRows)}</div>`, true);
     html += section('today', tr('Planned today'), plannedRows.length, `<div class="task-list today-card" data-list-context="today">${plannedRows.length ? todayLimited('today', plannedRows) : `<p class="today-empty">${tr('Nothing planned. “+” adds a task for today.')}</p>`}</div><button class="inline-add" type="button" data-action="quick-add" data-today="true"><i class="ph ph-plus"></i> ${tr('Add task')}</button>`);
+    // R30 (finding 8): tasks due today and missed plans wait in Zadaci → "Predlozi za danas"; Danas links there.
+    const suggestions = Core.deriveTodaySections(listTasks(), today).suggestions;
+    if (suggestions.length) html += `<button class="today-suggestions-link" type="button" data-action="open-today-suggestions"><i class="ph ph-lightbulb" aria-hidden="true"></i><span>${tr('Suggested for today')}</span><span class="today-suggestions-count">${suggestions.length}</span><i class="ph ph-caret-right" aria-hidden="true"></i></button>`;
     // Done habits move to the bottom (T5).
     const habits = [...sections.habits.filter(item => item.status.status !== 'done'), ...sections.habits.filter(item => item.status.status === 'done')];
-    if (habits.length) html += section('habits', tr('Habits'), `${habits.length - sections.habits.filter(item => item.status.status !== 'done').length}/${habits.length}`, `<div class="habit-list today-card">${todayLimited('habits', habits.map(item => renderHabitTodayRow(item.habit, item.status)))}</div>`);
+    if (habits.length) html += section('habits', tr('Habits'), `${habits.length - sections.habits.filter(item => item.status.status !== 'done').length}/${habits.length}`, `<div class="habit-list today-card">${todayLimited('habits', habits.map(item => renderHabitTodayRow(item.habit, item.status)))}</div>${yesterdayHabitsNote()}`);
     if (sections.completed.length) {
       const open = state.ui.todayCompletedExpanded === true;
       html += `<section class="section today-section today-section--completed" data-today-section="completed">${foldButton('toggle-today-completed', tr('Completed'), sections.completed.length, open)}`;
@@ -1172,6 +1190,8 @@
     const filter = present.some(([value]) => value === state.ui.inboxFilter) ? state.ui.inboxFilter : 'all';
     const records = activeInboxRecords(filter);
     let html = pageHeader(tr('Inbox'), all.length ? trn(all.length, '{count} item waiting to be organized', '{count} items waiting to be organized') : tr('Nothing is waiting'), {});
+    const addRow = `<div class="inbox-add"><input id="inbox-add-title" class="input" type="text" maxlength="500" autocomplete="off" enterkeyhint="done" placeholder="${tr('Add to Inbox…')}" aria-label="${tr('Add to Inbox')}"><button class="btn-icon" type="button" data-action="inbox-add" aria-label="${tr('Add')}"><i class="ph ph-plus" aria-hidden="true"></i></button></div>`;
+    html += addRow;
     if (!all.length) return html + `<div class="empty-state inbox-empty"><i class="ph ph-check-circle" aria-hidden="true"></i><h3>${tr('Inbox is empty')}</h3><p>${tr('Everything is sorted.')}</p></div>`;
     html += `<button class="inbox-triage-button" type="button" data-action="inbox-triage"><i class="ph ph-stack" aria-hidden="true"></i><span><strong>${tr('Sort one by one')}</strong> · ${tr('one at a time')}</span><i class="ph ph-caret-right" aria-hidden="true"></i></button>`;
     if (present.length > 1) html += `<div class="sheet-chips inbox-filter-chips" role="group" aria-label="${tr('Filter Inbox')}">${[INBOX_FILTERS[0], ...present].map(([value, label]) => `<button class="quick-chip${filter === value ? ' is-selected' : ''}" type="button" aria-pressed="${filter === value}" data-action="inbox-filter" data-inbox-filter="${value}">${tr(label)}<span class="inbox-filter-count">${value === 'all' ? all.length : activeInboxRecords(value).length}</span></button>`).join('')}</div>`;
@@ -1216,7 +1236,8 @@
     const attrs = `data-inbox-type="${esc(type)}" data-inbox-id="${esc(id)}"`;
     const button = (action, text, extra = '', primary = false) => `<button class="btn ${primary ? 'btn-primary' : 'btn-secondary'}" type="button" data-action="${action}" ${extra}>${text}</button>`;
     const actions = type === 'task'
-      ? ['inbox-today', 'inbox-tomorrow', 'inbox-anytime', 'inbox-project'].map((action, index) => button(action, [tr('Today'), tr('Tomorrow'), tr('Anytime'), tr('Project…')][index], `data-task-id="${esc(id)}"`)).join('')
+      // R36 (G): a task can also get a date or be opened (the task window comes back to the sorting).
+      ? ['inbox-today', 'inbox-tomorrow', 'inbox-anytime', 'inbox-date', 'inbox-project'].map((action, index) => button(action, [tr('Today'), tr('Tomorrow'), tr('Anytime'), tr('Date…'), tr('Project…')][index], `data-task-id="${esc(id)}"`)).join('') + button('inbox-triage-open', tr('Open it'), attrs)
       : button('inbox-triage-open', tr('Open details'), attrs) + button('inbox-area', tr('Area…'), attrs) + button('inbox-remove', tr('Sorted'), attrs, true);
     const due = type === 'task' && item.dueDate ? `<p class="inbox-triage-due">${todayDueLabel(item.dueDate)}</p>` : '';
     return modalFrame(`<div class="modal-inner">${header}<div class="inbox-triage-card"><p class="inbox-triage-meta">${esc(tr('{type} · added {when}', { type: tr(label), when: added }))}</p><p class="inbox-triage-title">${esc(item.title || item.name || '')}</p>${due}</div><div class="inbox-triage-actions">${actions}</div><div class="inbox-triage-footer"><span>${esc(tr('{current} of {total}', { current: queue.length - open.length + 1, total: queue.length }))}</span><button class="btn btn-ghost" type="button" data-action="inbox-triage-skip">${tr('Skip')}</button></div></div>`, 'quick inbox-triage-modal');
@@ -1238,8 +1259,13 @@
     const pinned = [
       ...sortedAreas().filter(area => area.status !== 'archived' && area.isPinned).map(area => moreRow(`area/${encodeURIComponent(area.id)}`, area.icon || 'ph-squares-four', area.name, '', tr('Area'))),
       ...(state.savedViews || []).filter(view => view.isPinned).map(view => moreRow(`saved-view/${encodeURIComponent(view.id)}`, 'ph-funnel', view.name, '', tr('Saved view'))),
+      // R35 (I): starred notes are pinned here too, the four most recent.
+      ...(state.notes || []).filter(note => note.favorite).sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt))).slice(0, 4).map(note => moreRow(`note/${encodeURIComponent(note.id)}`, 'ph-note', note.title, '', tr('Note'))),
     ];
     const count = list => (list || []).length;
+    // R32 (finding 37): the review tile says whether this week is done; the notice left Danas in R14.
+    const lastReview = Core.weeklyReviewLog(state.settings)[0];
+    const reviewNote = Core.weeklyReviewDue(state.settings, Core.dateOnly(), state.settings.weekStartsOn) ? tr('Time for this week\'s review') : lastReview ? tr('Last: {date}', { date: formatDate(Core.localDateOf(lastReview.completedAt)) }) : '';
     const sync = syncView();
     const accountText = sync.configured && sync.signedIn ? sync.email : sync.configured ? tr('Sign in') : tr('Data is on this device only');
     let html = pageHeader(tr('More'), '', { add: false });
@@ -1248,7 +1274,7 @@
       moreRow('goals', 'ph-target', tr('Goals'), count((state.goals || []).filter(goal => goal.status === 'active'))),
       moreRow('areas', 'ph-squares-four', tr('Areas'), count((state.areas || []).filter(area => area.status !== 'archived'))),
       moreRow('cleaning', 'ph-arrows-clockwise', tr('Recurring tasks'), count(state.tasks.filter(isOpenRepeating))),
-      moreRow('review', 'ph-clipboard-text', tr('Weekly review')),
+      moreRow('review', 'ph-clipboard-text', tr('Weekly review'), '', reviewNote),
     ]);
     html += card(tr('Library'), [
       moreRow('notes', 'ph-note', tr('Notes'), count(state.notes)),
@@ -1288,7 +1314,9 @@
     const tasks = listTasks();
     // R11d (S4): groups of Redovne obaveze stay out of Zadaci → Projekti.
     const projects = sortedProjects().filter(project => !project.isCleaningRoom);
-    const later = Core.deriveAnytime(tasks);
+    // R33 (finding 36): Kad stignem keeps the order set in each project (then the oldest first).
+    const byProjectOrder = (a, b) => clampOrder(a.projectOrder) - clampOrder(b.projectOrder) || String(a.createdAt || '').localeCompare(String(b.createdAt || ''));
+    const later = Core.deriveAnytime(tasks).sort(byProjectOrder);
     const open = tasks.filter(task => !task.isCompleted && !task.isInbox).length;
     const summary = `${trn(open, '{count} open task', '{count} open tasks')} · ${trn(projects.length, '{count} project', '{count} projects')}`;
     const tab = (key, label) => `<button class="btn ${view === key ? 'is-selected' : ''}" type="button" data-action="tasks-view" data-view="${key}" aria-pressed="${view === key}">${label}</button>`;
@@ -1299,13 +1327,13 @@
     if (suggestions.length) {
       const open = state.ui.suggestionsExpanded === true;
       html += `<section class="tasks-suggestions" data-tasks-suggestions>${foldButton('toggle-suggestions', tr('Suggested for today'), suggestions.length, open)}`;
-      if (open) html += `<div class="task-list today-card">${suggestions.map(item => taskRow(item.task, 'suggestion', { today: true, addToday: true, suggestionReason: item.reason })).join('')}</div><button class="btn btn-ghost" type="button" data-action="add-all-suggestions"><i class="ph ph-plus-circle"></i> ${tr('Add all to Today')}</button>`;
+      if (open) html += `<div class="task-list today-card">${suggestions.map(item => taskRow(item.task, 'suggestion', { today: true, addToday: true, suggestionReason: item.reason })).join('')}</div>${suggestions.some(item => !taskRecurrence(item.task)) ? `<button class="btn btn-ghost" type="button" data-action="add-all-suggestions"><i class="ph ph-plus-circle"></i> ${tr('Add all to Today')}</button>` : ''}`;
       html += `</section>`;
     }
     html += `<div class="view-tabs tasks-view-switch" role="group" aria-label="${tr('Tasks')}">${tab('anytime', `${tr('Anytime')} · ${later.length}`)}${tab('projects', tr('Projects'))}</div>`;
     if (view === 'projects') {
       const loose = tasks.filter(task => !task.projectId && !task.isInbox && !task.isCompleted).length;
-      html += `<div class="today-card project-list"><button class="project-row" type="button" data-route="project/none"><i class="ph ph-tray project-row-icon" aria-hidden="true"></i><span class="project-row-main"><span class="task-title">${tr('No project')}</span><span class="task-meta">${esc(trn(loose, '{count} open', '{count} open'))}</span></span></button></div>`;
+      html += `<div class="today-card project-list"><button class="project-row" type="button" data-route="project/none"><i class="ph ph-circle-dashed project-row-icon" aria-hidden="true"></i><span class="project-row-main"><span class="task-title">${tr('No project')}</span><span class="task-meta">${esc(trn(loose, '{count} open', '{count} open'))}</span></span></button></div>`;
       const areas = sortedAreas().filter(area => area.status !== 'archived');
       for (const area of areas) {
         const list = projects.filter(project => project.areaId === area.id);
@@ -1320,7 +1348,9 @@
     if (!later.length) return html + emptyState(tr('Nothing waiting in Anytime.'), tr('Processed tasks without a planned date will appear here.'), tr('Add task'), 'quick-add', { anytime: true });
     const loose = later.filter(task => !task.projectId);
     if (loose.length) html += group(tr('No project'), loose.length, `<div class="task-list today-card">${loose.map(task => taskRow(task, 'anytime', { today: true })).join('')}</div>`);
-    for (const project of projects) {
+    // R30 (finding 1): a task in a group of Redovne obaveze is listed under the group, so nothing disappears.
+    const anytimeGroups = sortedProjects();
+    for (const project of anytimeGroups) {
       const rows = later.filter(task => task.projectId === project.id);
       if (rows.length) html += group(project.name, rows.length, `<div class="task-list today-card">${rows.map(task => taskRow(task, 'anytime', { today: true, hidePlace: true })).join('')}</div>`, project.color);
     }
@@ -1371,10 +1401,6 @@
     return html;
   }
 
-  function renderGoalRow(goal) {
-    return callDomainHook('renderRoute', { type: 'goal-row', goal }) || '';
-  }
-
   function readGoalDraft() {
     callDomainHook('handleAction', 'read-goal-draft', null);
   }
@@ -1382,7 +1408,7 @@
   function goalProgressLabel(goal) {
     const progress = Core.computeGoalProgress(goal, state, state.habitMetrics || {});
     if (goal.progressMode === 'manual' && goal.progressType === 'numeric') return `${progress.current} / ${progress.target}${goal.unit ? ` ${esc(goal.unit)}` : ''}`;
-    if (goal.progressMode === 'linkedTasks') return tr('{current} / {target} tasks', { current: progress.current, target: progress.target });
+    if (goal.progressMode === 'linkedTasks') return trn(progress.target, '{current} / {target} task', '{current} / {target} tasks', { current: progress.current, target: progress.target });
     return `${Math.round(progress.percent)}%`;
   }
 
@@ -1394,10 +1420,6 @@
 
   function habitMetrics(habit) {
     return state.habitMetrics?.[habit.id] || { currentStreak: 0, longestStreak: 0, totalCheckins: 0, completionRate: 0, currentPeriodCount: 0, currentPeriodTarget: habit.frequencyType === 'timesPerWeek' ? Number(habit.timesPerWeek || 1) : 1 };
-  }
-
-  function renderHabitRow(habit, todayStatus = null) {
-    return callDomainHook('renderRoute', { type: 'habit-row', habit, todayStatus }) || '';
   }
 
   function renderHabitTodayRow(habit, todayStatus) {
@@ -1416,7 +1438,8 @@
     modalState = { type: 'habit-value', habitId, date, total: Number(existing?.value || 0) };
     if (previous) modalState.previous = previous;
     renderModal();
-    requestAnimationFrame(() => $('#habit-value-total')?.focus());
+    // R31 (finding 9): the sheet opens without the keyboard (R14); the first quick value or Close gets the focus.
+    requestAnimationFrame(() => $('#modal-root .habit-value-window .quick-chip, #modal-root .habit-value-window [data-action="close-modal"]')?.focus());
   }
 
   // Redesign R10e (S9, M6): project and period chips, groups by completion day with Today rows (the round check restores
@@ -1497,10 +1520,14 @@
   function openTaskDetail(taskId) {
     const task = getTask(taskId);
     if (!task) return;
-    if (modalState?.type === 'focus') stopFocusTimer();
-    captureModalReturnFocus();
+    // R33 (finding 33): from Fokus the task window returns to Fokus, whose timer runs on wall-clock time.
+    const focus = modalState?.type === 'focus' ? modalState : null;
+    if (focus) stopFocusTimer();
+    else captureModalReturnFocus();
     closePopover();
-    modalState = { type: 'task', taskId, titleDraft: task.title, notesDraft: task.notes || '', error: '', attachmentRecords: [], attachmentMessage: '' };
+    // R36 (G): opened from Razvrstaj redom it returns there too.
+    const back = focus || (modalState?.type === 'inbox-triage' ? modalState : null);
+    modalState = { type: 'task', taskId, titleDraft: task.title, notesDraft: task.notes || '', error: '', attachmentRecords: [], attachmentMessage: '', ...(back ? { returnTo: back } : {}) };
     renderModal();
     // R14: the window opens without the keyboard; a tap on the title edits it.
     requestAnimationFrame(() => $('#modal-root [data-action="close-modal"]')?.focus());
@@ -1675,9 +1702,55 @@
   }
 
   // Redesign R10b (S3): a note or a resource opens as a window like the task window; without an id it is a new one.
-  function openKnowledgeWindow(type, id = null) {
+  function openKnowledgeWindow(type, id = null, options = {}) {
     if (modalState?.type !== 'knowledge') captureModalReturnFocus();
-    callDomainHook('handleAction', 'open-knowledge', { ownerType: type, ownerId: id });
+    callDomainHook('handleAction', 'open-knowledge', { ownerType: type, ownerId: id, prefill: options.prefill || null, inbox: Boolean(options.inbox) });
+  }
+
+  // A new task with every field set; callers pass what differs.
+  function newTaskRecord(fields) {
+    const now = nowIso();
+    return {
+      id: uid('task'), title: '', notes: '', projectId: null, areaId: null, goalIds: [], plannedTime: null, dueTime: null, durationMinutes: null,
+      plannedDate: null, dueDate: null, reminderAt: null, reminderFiredAt: null, recurrence: null, tagIds: [], priority: 'none', attachmentIds: [], isInbox: false,
+      isImportant: false, isUrgent: false, isCompleted: false, completedAt: null, subtasks: [],
+      todayOrder: null, projectOrder: null, inboxOrder: null, createdAt: now, updatedAt: now, ...fields,
+    };
+  }
+
+  // R36 (C): the Inbox add row files a title straight into Inbox (#tags and !priority still count) and stays ready
+  // for the next one.
+  function addToInbox(rawTitle) {
+    const parsed = parseQuickAddTitle(String(rawTitle || ''), false);
+    const title = String(parsed.title || '').trim();
+    if (!title) return false;
+    state.tasks.push(newTaskRecord({ title, tagIds: [...(parsed.tagIds || [])], priority: parsed.priority || 'none', isInbox: true, inboxOrder: nextOrder('inbox', true) }));
+    saveState(); render();
+    requestAnimationFrame(() => $('#inbox-add-title')?.focus());
+    return true;
+  }
+
+  // R35 (B): "Napravi zadatak" turns a note into an Inbox task: the name is the title, list lines become subtasks and
+  // the rest stays as notes; it takes the note's area and tags, and the note links it. Poništi removes both again.
+  function noteToTask(noteId) {
+    const note = (state.notes || []).find(item => item.id === noteId); if (!note) return;
+    flushTextSave();
+    const draft = Core.noteTaskDraft(note);
+    const now = nowIso();
+    const task = newTaskRecord({
+      title: draft.title || tr('Task'), notes: draft.notes, areaId: note.areaId || null, tagIds: [...(note.tagIds || [])], isInbox: true, inboxOrder: nextOrder('inbox', true),
+      subtasks: draft.subtasks.map((item, order) => ({ id: uid('sub'), title: item.title, isCompleted: item.isCompleted, order })),
+    });
+    const previous = { relatedTaskIds: [...(note.relatedTaskIds || [])], updatedAt: note.updatedAt };
+    state.tasks.push(task);
+    note.relatedTaskIds = [...previous.relatedTaskIds, task.id]; note.updatedAt = now;
+    saveState(); render();
+    openTaskDetail(task.id);
+    setUndo(msg('Task made from the note'), () => {
+      state.tasks = state.tasks.filter(item => item.id !== task.id);
+      Object.assign(note, previous);
+      saveState(); render();
+    });
   }
 
   // Redesign R9b (GO5): a goal opens as a window like the task window.
@@ -1702,6 +1775,14 @@
     // R12b (J2): an entry emptied of text and mood leaves when its window closes.
     if (modalState?.type === 'journal') callDomainHook('handleAction', 'journal-closing', null);
     if (modalState?.type === 'habit-value' && modalState.previous) { modalState = modalState.previous; renderModal(); return; }
+    if (modalState?.type === 'task' && modalState.returnTo?.type === 'focus') {
+      if (flushTaskDraft(() => closeModal())) return;
+      const back = modalState.returnTo; modalState = back; renderModal(); startFocusTimer(); return;
+    }
+    if (modalState?.type === 'task' && modalState.returnTo?.type === 'inbox-triage') {
+      if (flushTaskDraft(() => closeModal())) return;
+      modalState = modalState.returnTo; renderModal(); return;
+    }
     if (modalState?.previous?.type === 'goal') {
       const target = modalState.returnFocus; modalState = modalState.previous; renderModal(); restoreGoalFocus(target); return;
     }
@@ -1744,9 +1825,17 @@
       $('.modal-header', root)?.insertAdjacentHTML('afterend', `<div class="quick-template-row"><button class="quick-chip" type="button" data-action="from-template"><i class="ph ph-copy" aria-hidden="true"></i>${tr('From template')}</button></div>`);
     }
     root.dataset.modalType = modalState.type;
+    root.querySelectorAll('textarea[data-autogrow]').forEach(autoGrow);
     if (focused && !root.contains(document.activeElement)) $(focused)?.focus({ preventScroll: true });
     if (!focused && ['confirm','recurrence-scope'].includes(modalState?.type)) requestAnimationFrame(() => root.querySelector('.modal button, .modal [href], .modal input, .modal select, .modal textarea, .modal [tabindex]:not([tabindex="-1"])')?.focus());
     if (!focused && ['goal', 'goal-source', 'goal-links', 'goal-reminders', 'goal-history', 'milestone'].includes(modalState?.type)) requestAnimationFrame(() => ([...root.querySelectorAll('input, select, textarea')].find(el => el.offsetParent !== null) || root.querySelector('.modal-footer [data-action="close-modal"]'))?.focus());
+  }
+
+  // R33 (finding 26): text fields that grow with their text; CSS field-sizing does it where supported.
+  function autoGrow(field) {
+    if (!field || globalThis.CSS?.supports?.('field-sizing', 'content')) return;
+    field.style.height = 'auto';
+    field.style.height = `${field.scrollHeight}px`;
   }
 
   function modalFrame(content, cls = '', dialogAttrs = '') {
@@ -1915,14 +2004,15 @@
     const items = [];
     if (parsed.plannedDate) items.push(item('ph-calendar-check', parsed.plannedTime ? `${relativeDateLabel(parsed.plannedDate)} ${parsed.plannedTime}` : relativeDateLabel(parsed.plannedDate)));
     else if (parsed.plannedTime) items.push(item('ph-clock', parsed.plannedTime));
-    if (parsed.dueDate) items.push(item('ph-flag', tr('Due {date}', { date: relativeDateLabel(parsed.dueDate) })));
-    if (parsed.durationMinutes) items.push(item('ph-timer', tr('{minutes} min', { minutes: parsed.durationMinutes })));
+    // R33 (finding 32): an hourglass is the due date and a flag the priority, as in the task window.
+    if (parsed.dueDate) items.push(item('ph-hourglass-medium', tr('Due {date}', { date: relativeDateLabel(parsed.dueDate) })));
+    if (parsed.durationMinutes) items.push(item('ph-timer', durationLabel(parsed.durationMinutes)));
     const project = parsed.projectId && getProject(parsed.projectId);
     if (project) items.push(item('ph-folder-simple', project.name));
     const area = !project && parsed.areaId && getArea(parsed.areaId);
     if (area) items.push(item('ph-squares-four', area.name));
     for (const tag of (parsed.tagIds || []).map(getTag).filter(Boolean)) items.push(item('ph-hash', tag.name));
-    if (parsed.priority) items.push(item('ph-arrow-fat-up', priorityLabel(parsed.priority)));
+    if (parsed.priority) items.push(item('ph-flag', priorityLabel(parsed.priority)));
     return items.length ? `<div class="quick-parse-preview" data-quick-preview role="group" aria-label="${tr('Recognized in title')}">${items.join('')}</div>` : '';
   }
 
@@ -1942,7 +2032,7 @@
       <div class="quick-selectors"><button class="quick-selector" type="button" data-action="quick-plan-picker"><i class="ph ph-calendar-check" aria-hidden="true"></i><span data-quick-plan-label>${esc(quickPlanLabel(plan, time))}</span><i class="ph ph-caret-right" aria-hidden="true"></i></button><button class="quick-selector" type="button" data-action="quick-project-picker"><i class="ph ph-folder-simple" aria-hidden="true"></i><span data-quick-place-label>${esc(quickPlace(d, parsed).label)}</span><i class="ph ph-caret-right" aria-hidden="true"></i></button></div>
       ${quickTemplateRow()}
       <button class="quick-more-options" type="button" data-action="quick-more-options"><span>${tr('More options')}</span><span class="quick-more-meta">${tr('Due date, reminder, tags')}</span><i class="ph ph-caret-right" aria-hidden="true"></i></button>
-      <div class="quick-sheet-footer"><span class="shortcut-hint">${tr('↵ Add · ⇧↵ Add another')}</span><button class="btn btn-primary quick-add-button" type="button" data-action="create-task">${tr('Add task')}</button></div>
+      <div class="quick-sheet-footer"><span class="shortcut-hint">${tr('↵ Add · ⇧↵ Add another')}</span><button class="btn btn-secondary quick-add-continue" type="button" data-action="create-task-continue">${tr('Add and continue')}</button><button class="btn btn-primary quick-add-button" type="button" data-action="create-task">${tr('Add task')}</button></div>
     </div>`, 'quick');
   }
 
@@ -2264,13 +2354,21 @@
     return PROJECT_COLORS[state.projects.length % PROJECT_COLORS.length];
   }
 
+  // R30 (finding 1): groups of Redovne obaveze are offered only to a repeating task or one already in a group;
+  // a one-off task put in a group used to vanish from Zadaci.
+  function projectPickerGroups(source) {
+    const all = sortedProjects();
+    const repeating = Boolean(taskRecurrence(source));
+    return { projects: all.filter(project => !project.isCleaningRoom), groups: all.filter(project => project.isCleaningRoom && (repeating || project.id === source?.projectId)) };
+  }
+
   // Redesign R3 (E8): projects grouped by area with "Oblast: …", a search field and "+ Novi projekat".
   // A tap applies the choice (E3).
   function openProjectPicker(anchor, target) {
     const source = target.type === 'quick' ? modalState?.draft : getTask(target.taskId);
     const currentId = source?.projectId || null;
     const attrs = `data-target-type="${target.type}"${target.taskId ? ` data-task-id="${esc(target.taskId)}"` : ''}`;
-    const projects = sortedProjects();
+    const { projects, groups } = projectPickerGroups(source);
     const activeAreas = sortedAreas().filter(area => area.status !== 'archived');
     const ordered = [...activeAreas.flatMap(area => projects.filter(project => project.areaId === area.id)), ...projects.filter(project => !activeAreas.some(area => area.id === project.areaId))];
     const option = project => {
@@ -2283,7 +2381,7 @@
     const none = !currentId && !inbox;
     const noneRow = `<button class="popover-option sheet-option${none ? ' is-selected' : ''}" type="button" ${quick ? 'data-pop-action="quick-place" data-place="none"' : `data-pop-action="set-project" data-project-id="" ${attrs}`}><span class="sheet-option-label">${tr('No project')}</span><span class="sheet-radio${none ? ' is-on' : ''}" aria-hidden="true"></span></button>`;
     const inboxRow = quick ? `<button class="popover-option sheet-option${inbox ? ' is-selected' : ''}" type="button" data-pop-action="quick-place" data-place="inbox"><i class="ph ph-tray" aria-hidden="true"></i><span class="sheet-option-label">${tr('Inbox')}<small>${tr('Sort it later')}</small></span><span class="sheet-radio${inbox ? ' is-on' : ''}" aria-hidden="true"></span></button>` : '';
-    const html = `<div class="popover-title">${quick ? tr('Where does the task go') : tr('Project')}</div>${source?.title ? `<p class="sheet-subtitle">${esc(source.title)}</p>` : ''}<label class="sheet-search"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input class="input" type="search" data-sheet-search placeholder="${tr('Search projects')}" aria-label="${tr('Search projects')}"></label><div class="sheet-card">${inboxRow}${noneRow}${ordered.map(option).join('')}<button class="popover-option sheet-option sheet-add" type="button" data-pop-action="inline-new-project" ${attrs}><i class="ph ph-plus" aria-hidden="true"></i>${tr('New project')}</button></div><p class="sheet-note">${tr("The task takes its project's area. A tap applies the choice.")}</p>`;
+    const html = `<div class="popover-title">${quick ? tr('Where does the task go') : tr('Project')}</div>${source?.title ? `<p class="sheet-subtitle">${esc(source.title)}</p>` : ''}<label class="sheet-search"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input class="input" type="search" data-sheet-search placeholder="${tr('Search projects')}" aria-label="${tr('Search projects')}"></label><div class="sheet-card">${inboxRow}${noneRow}${ordered.map(option).join('')}<button class="popover-option sheet-option sheet-add" type="button" data-pop-action="inline-new-project" ${attrs}><i class="ph ph-plus" aria-hidden="true"></i>${tr('New project')}</button></div>${groups.length ? `<h3 class="sheet-group-title">${tr('Recurring tasks')}</h3><div class="sheet-card">${groups.map(option).join('')}</div>` : ''}<p class="sheet-note">${tr("The task takes its project's area. A tap applies the choice.")}</p>`;
     openPopover(anchor, html, { type: 'project', target });
   }
 
@@ -2327,10 +2425,13 @@
     const today = Core.dateOnly();
     // R16: a habit's start offers the 1st of this month (unless that is today), so it is planned on every day of the month.
     const monthStart = `${today.slice(0, 8)}01`;
+    // R36 (G): "Večeras" plans for 20:00 today while it is still ahead; "Vikend" is the coming Saturday.
+    const evening = kind === 'plan' && new Date().getHours() < 20 ? [[tr('Tonight'), today, '20:00']] : [];
     const quick = kind === 'start'
       ? [...(monthStart < today ? [[tr('Start of the month'), monthStart]] : []), [tr('Today'), today], [tr('Tomorrow'), Core.addDays(today, 1)]]
-      : [[tr('Today'), today], [tr('Tomorrow'), Core.addDays(today, 1)], [tr('Start of next week'), nextMonday(today)]];
-    const chips = `<div class="sheet-chips">${quick.map(([label, value]) => `<button class="quick-chip${date === value ? ' is-selected' : ''}" type="button" data-pop-action="date-sheet-pick" data-date="${value}" aria-pressed="${date === value}">${esc(label)}</button>`).join('')}</div>`;
+      : [[tr('Today'), today], ...evening, [tr('Tomorrow'), Core.addDays(today, 1)], [tr('Weekend'), Core.weekendDate(today)], [tr('Start of next week'), nextMonday(today)]];
+    const picked = (value, at) => date === value && (at ? time === at : !quick.some(([, other, otherAt]) => otherAt && other === value && time === otherAt));
+    const chips = `<div class="sheet-chips">${quick.map(([label, value, at]) => `<button class="quick-chip${picked(value, at) ? ' is-selected' : ''}" type="button" data-pop-action="date-sheet-pick" data-date="${value}"${at ? ` data-time="${at}"` : ''} aria-pressed="${picked(value, at)}">${esc(label)}</button>`).join('')}</div>`;
     if (kind === 'start') return `<div class="popover-title">${tr('Start')}</div><p class="sheet-subtitle">${esc(source?.name?.trim() || tr('New habit'))}</p>${chips}${monthGrid(date, view, today)}<div class="sheet-footer"><span></span><button class="btn btn-primary" type="button" data-pop-action="date-sheet-apply">${tr('Apply')}</button></div>`;
     const otherDate = kind === 'plan' ? source?.dueDate : source?.plannedDate;
     const otherTime = kind === 'plan' ? source?.dueTime : source?.plannedTime;
@@ -2470,6 +2571,40 @@
     closePopover(); saveState(); evaluateGoalProgressChanges(before); render();
   }
 
+  // R33 (finding 22): the task window's Oblast and Ciljevi are rows that open sheets, like its other rows.
+  let taskGoalSheet = null;
+  function openTaskAreaSheet(anchor, taskId) {
+    const task = getTask(taskId); if (!task || task.projectId) return;
+    const areas = sortedAreas().filter(area => area.status !== 'archived' || area.id === task.areaId);
+    const option = (id, label, icon) => { const on = (task.areaId || '') === id; return `<button class="popover-option sheet-option${on ? ' is-selected' : ''}" type="button" role="radio" aria-checked="${on}" data-pop-action="task-set-area" data-task-id="${esc(task.id)}" data-area-id="${esc(id)}"><i class="ph ${esc(icon)}" aria-hidden="true"></i><span class="sheet-option-label">${esc(label)}</span><span class="sheet-radio${on ? ' is-on' : ''}" aria-hidden="true"></span></button>`; };
+    openPopover(anchor, `<div class="popover-title">${tr('Area')}</div><p class="sheet-subtitle">${esc(task.title)}</p><div class="sheet-card" role="radiogroup" aria-label="${tr('Area')}">${option('', tr('No area'), 'ph-minus-circle')}${areas.map(area => option(area.id, area.name, area.icon || 'ph-squares-four')).join('')}</div>`, { type: 'task-area', taskId });
+  }
+  function setTaskArea(taskId, areaId) {
+    const task = getTask(taskId); if (!task || task.projectId) return;
+    task.areaId = areaId && getArea(areaId) ? areaId : null; task.updatedAt = nowIso();
+    closePopover(); saveState(); render(); renderModal();
+  }
+  function openTaskGoalsSheet(anchor, taskId) {
+    const task = getTask(taskId); if (!task) return;
+    const goals = (state.goals || []).filter(goal => goal.status !== 'archived' || (task.goalIds || []).includes(goal.id));
+    taskGoalSheet = { taskId, ids: new Set(task.goalIds || []) };
+    const options = goals.map(goal => { const on = taskGoalSheet.ids.has(goal.id); return `<button class="popover-option sheet-option${on ? ' is-selected' : ''}" type="button" data-pop-action="task-goal-toggle" data-goal-id="${esc(goal.id)}" aria-pressed="${on}"><i class="ph ph-target" aria-hidden="true"></i><span class="sheet-option-label">${esc(goal.title)}</span><span class="sheet-check${on ? ' is-on' : ''}" aria-hidden="true">${on ? '<i class="ph ph-check"></i>' : ''}</span></button>`; }).join('');
+    openPopover(anchor, `<div class="popover-title">${tr('Goals')}</div><p class="sheet-subtitle">${esc(task.title)}</p><div class="sheet-card">${options || `<div class="popover-empty">${tr('No Goals yet.')}</div>`}</div><div class="sheet-footer"><span></span><button class="btn btn-primary" type="button" data-pop-action="task-goals-apply">${tr('Apply')}</button></div>`, { type: 'task-goals', taskId });
+  }
+  function applyTaskGoals() {
+    const sheet = taskGoalSheet; const task = sheet && getTask(sheet.taskId); if (!task) return;
+    const selected = [...sheet.ids]; const previous = new Set(task.goalIds || []);
+    const before = captureGoalProgress();
+    task.goalIds = selected;
+    for (const goal of state.goals || []) {
+      const ids = new Set(goal.taskIds || []);
+      if (selected.includes(goal.id)) ids.add(task.id); else if (previous.has(goal.id)) ids.delete(task.id);
+      goal.taskIds = [...ids];
+    }
+    task.updatedAt = nowIso(); taskGoalSheet = null;
+    closePopover(); saveState(); evaluateGoalProgressChanges(before); render(); renderModal();
+  }
+
   function toggleTag(targetType, taskId, tagId) {
     if (!getTag(tagId)) return;
     if (targetType === 'quick') {
@@ -2531,24 +2666,37 @@
       const later = Core.laterToday(new Date()); // null late in the evening: the option is not offered (audit H-2)
       presets = [...(later ? [[tr('Later today'), parts(later)]] : []), [tr('Tomorrow at {time}', { time: morning }), { date: Core.addDays(Core.dateOnly(), 1), time: morning }]];
     }
+    // R36 (G): "Za 1 h" comes first, rounded up to five minutes.
+    const soon = parts(Math.ceil((Date.now() + 3600000) / 300000) * 300000);
+    presets = [[tr('In 1 hour'), soon], ...presets];
+    // R30 (finding 7): a passed time is never proposed.
+    presets = presets.filter(([, value]) => new Date(`${value.date}T${value.time}:00`) > new Date());
     const current = task.reminderAt ? parts(task.reminderAt) : null;
-    const sheet = { target, presets, date: current?.date || task.plannedDate || Core.dateOnly(), time: current?.time || task.plannedTime || morning };
+    const start = current || reminderStart({ date: task.plannedDate || Core.dateOnly(), time: task.plannedTime || morning }, presets.map(([, value]) => value), new Date());
+    const sheet = { target, presets, date: start.date, time: start.time };
     reminderSheet = sheet;
     openPopover(anchor, reminderSheetHtml(), { type: 'reminder', target });
     reminderSheet = sheet;
+  }
+  // R30 (finding 7): the sheet starts at the task's own time while it is ahead, else at the first choice that is.
+  function reminderStart(candidate, options, now = new Date()) {
+    const ahead = value => Boolean(value?.date && value?.time) && new Date(`${value.date}T${value.time}:00`) > now;
+    if (ahead(candidate)) return candidate;
+    return options.find(ahead) || { date: Core.addDays(Core.dateOnly(now), 1), time: candidate.time };
   }
   function reminderSheetHtml() {
     const { target, presets, date, time } = reminderSheet;
     const task = target.type === 'quick' ? modalState?.draft : getTask(target.taskId);
     const when = (day, at) => (day ? `${relativeDateLabel(day)}${at ? ` · ${at}` : ''}` : '—');
     const chips = presets.map(([label, value]) => `<button class="quick-chip${value.date === date && value.time === time ? ' is-selected' : ''}" type="button" data-pop-action="reminder-preset" data-date="${value.date}" data-time="${value.time}" aria-pressed="${value.date === date && value.time === time}">${esc(label)}</button>`).join('');
-    return `<div class="popover-title">${tr('Reminder')}</div>${task?.title ? `<p class="sheet-subtitle">${esc(task.title)}</p>` : ''}<div class="sheet-chips">${chips}</div>${task?.plannedDate && task?.plannedTime ? '' : `<p class="sheet-note">${tr('Quick choices for the planned time appear when the task has one.')}</p>`}<label class="sheet-field"><i class="ph ph-calendar-blank" aria-hidden="true"></i><span>${tr('Date')}</span><input id="reminder-date" class="input" type="date" value="${esc(date)}"></label><label class="sheet-field"><i class="ph ph-clock" aria-hidden="true"></i><span>${tr('Time')}</span><input id="reminder-time" class="input" type="time" value="${esc(time)}"></label><p class="sheet-summary" data-reminder-summary>${esc(tr('Remind me {date} at {time}', { date: relativeDateLabel(date), time }))}</p><h3 class="sheet-group-title">${tr('Task dates')}</h3><div class="sheet-card"><div class="sheet-option"><i class="ph ph-calendar-check" aria-hidden="true"></i><span class="sheet-option-label">${tr('Planned')}</span><span class="sheet-option-value">${esc(when(task?.plannedDate, task?.plannedTime))}</span></div><div class="sheet-option"><i class="ph ph-hourglass-medium" aria-hidden="true"></i><span class="sheet-option-label">${tr('Due date')}</span><span class="sheet-option-value">${esc(when(task?.dueDate, task?.dueTime))}</span></div></div><div class="sheet-footer">${task?.reminderAt ? `<button class="btn btn-ghost" type="button" data-pop-action="reminder-clear">${tr('Clear reminder')}</button>` : '<span></span>'}<button class="btn btn-primary" type="button" data-pop-action="reminder-apply">${tr('Apply')}</button></div>`;
+    return `<div class="popover-title">${tr('Reminder')}</div>${task?.title ? `<p class="sheet-subtitle">${esc(task.title)}</p>` : ''}<div class="sheet-chips">${chips}</div>${task?.plannedDate && task?.plannedTime ? '' : `<p class="sheet-note">${tr('Quick choices for the planned time appear when the task has one.')}</p>`}<label class="sheet-field"><i class="ph ph-calendar-blank" aria-hidden="true"></i><span>${tr('Date')}</span><input id="reminder-date" class="input" type="date" value="${esc(date)}"></label><label class="sheet-field"><i class="ph ph-clock" aria-hidden="true"></i><span>${tr('Time')}</span><input id="reminder-time" class="input" type="time" value="${esc(time)}"></label><p class="sheet-summary" data-reminder-summary>${esc(tr('Remind me {date} at {time}', { date: lowerFirst(relativeDateLabel(date)), time }))}</p>${reminderSheet.error ? `<p class="validation" role="alert">${esc(tr(reminderSheet.error))}</p>` : ''}<h3 class="sheet-group-title">${tr('Task dates')}</h3><div class="sheet-card"><div class="sheet-option"><i class="ph ph-calendar-check" aria-hidden="true"></i><span class="sheet-option-label">${tr('Planned')}</span><span class="sheet-option-value">${esc(when(task?.plannedDate, task?.plannedTime))}</span></div><div class="sheet-option"><i class="ph ph-hourglass-medium" aria-hidden="true"></i><span class="sheet-option-label">${tr('Due date')}</span><span class="sheet-option-value">${esc(when(task?.dueDate, task?.dueTime))}</span></div></div><div class="sheet-footer">${task?.reminderAt ? `<button class="btn btn-ghost" type="button" data-pop-action="reminder-clear">${tr('Clear reminder')}</button>` : '<span></span>'}<button class="btn btn-primary" type="button" data-pop-action="reminder-apply">${tr('Apply')}</button></div>`;
   }
   function applyReminderSheet() {
     if (!reminderSheet) return;
     const date = $('#reminder-date', popoverEl)?.value || reminderSheet.date;
     const time = Core.normalizeTime($('#reminder-time', popoverEl)?.value || reminderSheet.time);
     const value = date && time ? fromLocalDateTimeValue(`${date}T${time}`) : null;
+    if (value && new Date(value) <= new Date()) { Object.assign(reminderSheet, { date, time, error: msg('That time has passed. Choose a later one.') }); refreshSheet(reminderSheetHtml()); return; }
     if (value) setReminder(reminderSheet.target.type, reminderSheet.target.taskId, value);
   }
 
@@ -2599,7 +2747,8 @@
   function repeatEditorHtml(s) {
     const rule = repeatRuleFromSheet(s);
     const pressed = on => `${on ? ' is-selected' : ''}" type="button"`;
-    const radio = (action, value, label, on, extra = '') => `<button class="popover-option sheet-option${on ? ' is-selected' : ''}" type="button" role="radio" aria-checked="${on}" data-pop-action="${action}" data-value="${value}"><span class="sheet-radio${on ? ' is-on' : ''}" aria-hidden="true"></span><span class="sheet-option-label">${label}</span>${extra}</button>`;
+    // R33 (finding 24): the circle sits on the right, as in every other sheet.
+    const radio = (action, value, label, on, extra = '') => `<button class="popover-option sheet-option${on ? ' is-selected' : ''}" type="button" role="radio" aria-checked="${on}" data-pop-action="${action}" data-value="${value}"><span class="sheet-option-label">${label}</span>${extra}<span class="sheet-radio${on ? ' is-on' : ''}" aria-hidden="true"></span></button>`;
     const dayButtons = (action, isOn) => `<div class="habit-weekdays">${REPEAT_DAY_ORDER.map(day => `<button class="habit-weekday${isOn(day) ? ' is-on' : ''}" type="button" data-pop-action="${action}" data-day="${day}" aria-pressed="${isOn(day)}">${tr(REPEAT_SHORT_DAYS[day])}</button>`).join('')}</div>`;
     const chips = REPEAT_PRESETS.map(([label], index) => { const on = repeatPresetOn(s, index); return `<button class="quick-chip${pressed(on)} data-pop-action="repeat-preset" data-preset="${index}" aria-pressed="${on}">${tr(label)}</button>`; }).join('');
     const segment = REPEAT_FREQUENCIES.map(([value, label]) => `<button class="btn${pressed(s.frequency === value)} data-pop-action="repeat-frequency" data-value="${value}" aria-pressed="${s.frequency === value}">${tr(label)}</button>`).join('');
@@ -2755,14 +2904,28 @@
     return `<button class="collapsible-trigger" type="button" data-action="${action}"${attrs} aria-expanded="${open}"><span class="left">${label} · ${count}</span><i class="ph ph-caret-${open ? 'up' : 'down'}" aria-hidden="true"></i></button>`;
   }
 
+  // R33 (finding 34): the menu fits where it opens. From the task window it leaves out what the window's rows do
+  // (plan, due date, project); a completed task gets no actions that move it; "Sačuvaj kao šablon" sits lower.
   function openTaskMenu(anchor, taskId) {
     const task = getTask(taskId); if (!task) return;
     const today = Core.dateOnly();
-    const todayAction = task.plannedDate === today ? '' : `<button class="popover-option" type="button" data-pop-action="task-add-today" data-task-id="${esc(taskId)}"><i class="ph ph-sun"></i>${tr('Add to Today')}</button>`;
-    const focus = task.isCompleted ? '' : `<button class="popover-option" type="button" data-pop-action="task-start-focus" data-task-id="${esc(taskId)}"><i class="ph ph-timer"></i>${tr('Start focus')}</button>`;
-    const html = `${focus}${todayAction}<button class="popover-option" type="button" data-pop-action="task-move-tomorrow" data-task-id="${esc(taskId)}"><i class="ph ph-arrow-right"></i>${tr('Move to Tomorrow')}</button><button class="popover-option" type="button" data-pop-action="task-move-anytime" data-task-id="${esc(taskId)}"><i class="ph ph-infinity"></i>${tr('Move to Anytime')}</button><button class="popover-option" type="button" data-pop-action="task-open-plan" data-task-id="${esc(taskId)}"><i class="ph ph-calendar-check"></i>${tr('Plan for...')}</button><button class="popover-option" type="button" data-pop-action="task-open-due" data-task-id="${esc(taskId)}"><i class="ph ph-flag"></i>${tr('Change due date')}</button><button class="popover-option" type="button" data-pop-action="task-open-project" data-task-id="${esc(taskId)}"><i class="ph ph-folder-simple"></i>${tr('Move to project')}</button><button class="popover-option" type="button" data-pop-action="task-duplicate" data-task-id="${esc(taskId)}"><i class="ph ph-copy"></i>${tr('Duplicate')}</button><div class="popover-separator"></div><button class="popover-option is-danger" type="button" data-pop-action="task-delete" data-task-id="${esc(taskId)}"><i class="ph ph-trash"></i>${tr('Delete')}</button>`;
-    openPopover(anchor, menuSheet(task.title, templateMenuEntry('task',taskId)+html), { type: 'task-menu', taskId });
+    const inWindow = modalState?.type === 'task' && modalState.taskId === taskId;
+    const open = !task.isCompleted;
+    const item = (action, icon, label) => `<button class="popover-option" type="button" data-pop-action="${action}" data-task-id="${esc(taskId)}"><i class="ph ${icon}"></i>${label}</button>`;
+    const html = [
+      open ? item('task-start-focus', 'ph-timer', tr('Start focus')) : '',
+      open && task.plannedDate !== today ? item('task-add-today', 'ph-sun', tr('Add to Today')) : '',
+      open ? item('task-move-tomorrow', 'ph-arrow-right', tr('Move to Tomorrow')) : '',
+      open ? item('task-move-anytime', 'ph-infinity', tr('Move to Anytime')) : '',
+      open && !inWindow ? item('task-open-plan', 'ph-calendar-check', tr('Plan for...')) : '',
+      open && !inWindow ? item('task-open-due', 'ph-hourglass-medium', tr('Change due date')) : '',
+      inWindow ? '' : item('task-open-project', 'ph-folder-simple', tr('Move to project')),
+      item('task-duplicate', 'ph-copy', tr('Duplicate')),
+      templateMenuEntry('task', taskId),
+    ].join('') + `<div class="popover-separator"></div><button class="popover-option is-danger" type="button" data-pop-action="task-delete" data-task-id="${esc(taskId)}"><i class="ph ph-trash"></i>${tr('Delete')}</button>`;
+    openPopover(anchor, menuSheet(task.title, html), { type: 'task-menu', taskId });
   }
+
 
   function openTagMenu(anchor, tagId) {
     const tag = getTag(tagId); if (!tag) return;
@@ -2779,6 +2942,19 @@
     if (title) header.appendChild(title);
     header.insertAdjacentHTML('beforeend', `<button class="btn-icon sheet-close" type="button" data-pop-action="close-sheet" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button>`);
     el.prepend(header);
+    // R33 (finding 29): the grabber works: dragging the header down more than 80 px closes the sheet.
+    header.addEventListener('pointerdown', event => {
+      if (event.target.closest?.('button') || (event.pointerType === 'mouse' && event.button !== 0)) return;
+      const startY = event.clientY; let drag = 0;
+      const move = moveEvent => { drag = Math.max(0, moveEvent.clientY - startY); el.style.transform = drag ? `translateY(${drag}px)` : ''; };
+      const end = () => {
+        header.removeEventListener('pointermove', move); header.removeEventListener('pointerup', end); header.removeEventListener('pointercancel', end);
+        el.style.transform = '';
+        if (drag > 80) closePopover();
+      };
+      header.setPointerCapture?.(event.pointerId);
+      header.addEventListener('pointermove', move); header.addEventListener('pointerup', end); header.addEventListener('pointercancel', end);
+    });
   }
 
   function sheetInitialFocus(el) {
@@ -2831,7 +3007,7 @@
     const returnFocus = popoverEl?.returnFocus || popoverReturnFocus;
     if (popoverEl) { popoverEl.backdrop?.remove(); popoverEl.remove(); }
     popoverEl = null;
-    dateSheet = null; reminderSheet = null; tagSheet = null; projectGoalSheet = null; repeatSheet = null;
+    dateSheet = null; reminderSheet = null; tagSheet = null; projectGoalSheet = null; repeatSheet = null; taskGoalSheet = null;
     popoverReturnFocus = null;
     restoreGoalFocus(target);
     if (!target && returnFocus) requestAnimationFrame(() => {
@@ -3034,27 +3210,9 @@
     // Redesign R6 (I6): moving a task out of Inbox into a project can be undone.
     const previous = { projectId: task.projectId ?? null, areaId: task.areaId ?? null, isInbox: task.isInbox };
     closePopover();
-    const asked = requestTaskEdit(taskId,{projectId:projectId || null,areaId:null,...(projectId?{isInbox:false}:{})});
-    if (!asked && previous.isInbox && projectId) setUndo(msg('Task moved to project'), () => { const current = getTask(taskId); if (!current) return; Object.assign(current, previous, { updatedAt: nowIso() }); saveState(); render(); renderModal(); });
-  }
-
-  function setPlan(targetType, taskId, date) {
-    if (targetType === 'quick') {
-      modalState.draft.plannedDate = date || null;
-      modalState.draft.explicitPlan = true; modalState.draft.parsedPlanDate = null;
-      closePopover(); renderModal(); return;
-    }
-    const task = getTask(taskId); if (!task) return;
-    closePopover();requestTaskEdit(taskId,{plannedDate:date || null,...(date?{isInbox:false}:{})});
-  }
-
-  function setDue(targetType, taskId, date) {
-    if (targetType === 'quick') {
-      modalState.draft.dueDate = date || null;
-      closePopover(); renderModal(); return;
-    }
-    const task = getTask(taskId); if (!task) return;
-    closePopover();requestTaskEdit(taskId,{dueDate:date || null});
+    // R30 (finding 6): "Bez projekta" sorts an Inbox task (as in Quick Add) and keeps its area; a project takes the area's place.
+    const asked = requestTaskEdit(taskId, projectId ? { projectId, areaId: null, isInbox: false } : { projectId: null, isInbox: false });
+    if (!asked && previous.isInbox) setUndo(projectId ? msg('Task moved to project') : msg('Task sorted'), () => { const current = getTask(taskId); if (!current) return; Object.assign(current, previous, { updatedAt: nowIso() }); saveState(); render(); renderModal(); });
   }
 
   function createTask(keepOpen = false, openWindow = false) {
@@ -3085,6 +3243,8 @@
     state.tasks.push(task);
     if(modalState.templateInstance)syncTemplateEntityGoalLinks('task',task);
     saveState();
+    // R36 (C): the toast says where the task went; "Otvori" opens it.
+    if (!openWindow) setToastMessage(addedMessage(task), { label: msg('Open it'), taskId: task.id });
     if (keepOpen) {
       const defaults = modalState.defaults;
       modalState = { type: 'quick', templateContext: modalState.templateContext, defaults, draft: { title: '', notes: '', projectId: defaults.projectId, areaId: defaults.areaId, plannedDate: defaults.plannedDate, parsedPlanDate: null, explicitPlan: Boolean(defaults.explicitPlan), dueDate: null, plannedTime: null, dueTime: null, explicitPlannedTime: false, reminderAt: null, reminderFiredAt: null, recurrence: null, tagIds: [], priority: 'none', subtasks: [] }, error: '' };
@@ -3093,6 +3253,16 @@
       closeModal(); render();
       if (openWindow) openTaskDetail(task.id);
     }
+  }
+
+  // R36 (C): where a new task went: Inbox, Danas, a date, its project or Kad stignem.
+  function addedMessage(task) {
+    if (task.isInbox) return tr('Added to Inbox');
+    if (task.plannedDate === Core.dateOnly()) return tr('Added to Today');
+    if (task.plannedDate) return tr('Added for {date}', { date: lowerFirst(relativeDateLabel(task.plannedDate)) });
+    const project = task.projectId && getProject(task.projectId);
+    if (project) return tr('Added to {place}', { place: project.name });
+    return tr('Added to Anytime');
   }
 
   function syncQuickDraftFromDom() {
@@ -3696,15 +3866,19 @@
   function renderToast() {
     const root = $('#toast-root');
     const status = $('#global-status');
-    if (status) status.textContent = toastMessage || globalRecoveryNotice?.message || '';
+    // R32 (finding 28): one polite announcement (the toast itself is not a live region), Undo messages included.
+    const spoken = toastMessage || (undoState ? tr(undoState.message) : '') || globalRecoveryNotice?.message || '';
+    if (status && status.textContent !== spoken) status.textContent = spoken;
     const undo = undoState ? `<div class="toast"><i class="ph-fill ph-check-circle toast-icon"></i><span class="toast-message">${esc(tr(undoState.message))}</span><button class="toast-action" type="button" data-action="undo">${tr('Undo')}</button></div>` : '';
-    const info = toastMessage ? `<div class="toast"><i class="ph ph-info toast-icon" style="color:var(--info)"></i><span class="toast-message">${esc(toastMessage)}</span></div>` : '';
+    const info = toastMessage ? `<div class="toast"><i class="ph ph-info toast-icon" style="color:var(--info)"></i><span class="toast-message">${esc(toastMessage)}</span>${toastLink ? `<button class="toast-action" type="button" data-action="toast-open-task" data-task-id="${esc(toastLink.taskId)}">${esc(tr(toastLink.label))}</button>` : ''}</div>` : '';
     const failed = [...failedDeleteSnapshots][0];
     const recoveryNotice = failed && !undoHold ? `<div class="toast" role="alert"><i class="ph ph-warning toast-icon"></i><span class="toast-message">${esc(trMessage(failed.recoveryError))} · ${tr('Snapshot retained')}</span><button class="toast-action" type="button" data-action="retry-delete-recovery">${tr('Retry recovery')}</button></div>` : '';
     const globalNotice = globalRecoveryNotice ? `<div class="toast" role="alert"><span class="toast-message">${esc(globalRecoveryNotice.message)}</span><button class="toast-action" data-action="retry-global-recovery">${tr('Retry')}</button></div>` : '';
     const staleNotice = staleDataNotice ? `<div class="toast" role="alert"><i class="ph ph-arrows-clockwise toast-icon"></i><span class="toast-message">${tr('This workspace changed in another tab. Refresh to load the latest data.')}</span><button class="toast-action" type="button" data-action="refresh-stale-data">${tr('Refresh')}</button></div>` : '';
     const updateNotice = waitingServiceWorker ? `<div class="toast" role="status"><i class="ph ph-arrow-circle-up toast-icon"></i><span class="toast-message">${tr('A new version of Dailo is available.')}</span><button class="toast-action" type="button" data-action="apply-app-update">${tr('Refresh')}</button></div>` : '';
     root.innerHTML = undo + info + recoveryNotice + globalNotice + staleNotice + updateNotice;
+    // R32 (finding 28): the "+" moves up by the toasts' real height, so a second toast does not cover it.
+    document.documentElement.style.setProperty('--toast-stack', `${root.offsetHeight}px`);
   }
 
   async function doUndo() {
@@ -3727,13 +3901,22 @@
     finally { work.busy = null; if (undoWork.has(work)) armUndo(work); }
   }
 
+  // R30 (finding 2): one explicit action with Undo; a repeating task keeps its own "+ Danas", which asks
+  // "Samo ovo / Ovo i buduća".
   function addAllSuggestions() {
-    const sections = Core.deriveTodaySections(listTasks(), Core.dateOnly());
+    const today = Core.dateOnly();
+    const tasks = Core.deriveTodaySections(listTasks(), today).suggestions.map(item => item.task).filter(task => !taskRecurrence(task));
+    if (!tasks.length) return;
+    const before = tasks.map(task => ({ task, plannedDate: task.plannedDate, isInbox: task.isInbox, todayOrder: task.todayOrder, updatedAt: task.updatedAt }));
     let order = nextOrder('today');
-    for (const { task } of sections.suggestions) {
-      task.plannedDate = Core.dateOnly(); task.isInbox = false; task.todayOrder = order++; task.updatedAt = nowIso();
+    for (const task of tasks) {
+      task.plannedDate = today; task.isInbox = false; task.todayOrder = order++; task.updatedAt = nowIso();
     }
     saveAndRender();
+    setUndo(msg('Added to Today'), () => {
+      for (const { task, ...fields } of before) Object.assign(task, fields);
+      saveState(); render();
+    });
   }
 
   function addTaskToToday(taskId) {
@@ -3930,7 +4113,8 @@
     if (!habit || !date || date > today || (date === today && habit.status !== 'active') || !(Core.habitScheduledOn(habit, date, { historical: true }) || existing || allowHistoricalBackfill)) return false;
     const before = captureGoalProgress();
     let status = requestedStatus; let value = requestedValue;
-    if (habit.trackingType === 'numeric') { const numeric = Core.numericHabitState(habit, requestedValue); status = numeric.status; value = numeric.value; }
+    // R31 (finding 9): a numeric habit can be skipped too; only a value decides done or missed.
+    if (habit.trackingType === 'numeric' && requestedStatus !== 'skipped') { const numeric = Core.numericHabitState(habit, requestedValue); status = numeric.status; value = numeric.value; }
     const record = { id: `${habitId}:${date}`, habitId, date, status: ['done', 'skipped', 'missed'].includes(status) ? status : 'done', value: value ?? null, createdAt: existing?.createdAt || nowIso(), updatedAt: nowIso() };
     const previousUpdatedAt = habit.updatedAt;
     habit.updatedAt = nowIso();
@@ -4010,10 +4194,6 @@
     }
     habit.status = status; habit.updatedAt = nowIso(); saveState(); closePopover(); if (modalState?.type === 'habit-finished') closeModal(); refreshHabitMetrics().then(render);
     setUndo(status === 'paused' ? msg('Habit paused') : status === 'archived' ? msg('Habit archived') : msg('Habit restored'), () => { const current = getHabit(habitId); if (!current) return; Object.assign(current, snapshot); current.updatedAt = nowIso(); saveState(); return refreshHabitMetrics().then(render); });
-  }
-
-  async function deleteHabit(habitId) {
-    requestDeleteEntity('habit', habitId);
   }
 
   function snoozeHabit(habitId, kind) {
@@ -4332,6 +4512,89 @@
     const signIn = syncClient && !loadSyncMeta().session?.accessToken ? `<button class="btn btn-secondary" type="button" data-route="account">${tr('Sign in')}</button>` : '';
     return `<section class="backup-reminder" data-transfer-notice role="status" aria-label="${tr('Data from the web version')}"><i class="ph ph-arrows-left-right backup-reminder-icon" aria-hidden="true"></i><div class="backup-reminder-copy"><strong>${tr('Do you have data in the web version?')}</strong><span>${tr('Export a backup there (Settings → Data) and import it here, or sign in if you use sync. Your data then replaces these examples.')}</span></div><div class="backup-reminder-actions"><button class="btn btn-primary" type="button" data-action="import-backup">${tr('Import backup')}</button><input id="backup-import-input" type="file" accept=".zip,application/zip" hidden />${signIn}<button class="btn btn-ghost" type="button" data-action="dismiss-transfer-notice">${tr('Not needed')}</button></div></section>`;
   }
+  // R30 (finding 5): a new workspace starts with examples, and Danas says so until the user keeps them, starts
+  // empty or changes them. The answer is device-local ("dailoSampleNotice"), outside state, sync and backups.
+  // R37 (D): until noon Danas says how many habits have no record of yesterday; the line opens yesterday on Navike.
+  function yesterdayHabitsNote() {
+    const now = new Date();
+    if (now.getHours() >= 12) return '';
+    const today = Core.dateOnly(now);
+    const count = Core.habitsMissedOn(state.habits, state.habitLogCache, Core.addDays(today, -1), today, Core.habitWeekRule(state.settings));
+    return count ? `<button class="today-habits-yesterday" type="button" data-action="habits-yesterday"><i class="ph ph-clock-counter-clockwise" aria-hidden="true"></i><span>${tr('Not recorded yesterday: {count}', { count })}</span><i class="ph ph-caret-right" aria-hidden="true"></i></button>` : '';
+  }
+
+  // R37 (J): the text size is a choice for this device (device-local key, outside state, backups and sync).
+  const TEXT_SIZES = ['small', 'normal', 'large', 'larger'];
+  function readTextSize() {
+    let value = null;
+    try { value = localStorage.getItem('dailoTextSize'); } catch (_) { /* the default size */ }
+    return TEXT_SIZES.includes(value) ? value : 'normal';
+  }
+  function applyTextSize(value) {
+    const size = TEXT_SIZES.includes(value) ? value : 'normal';
+    try { if (size === 'normal') localStorage.removeItem('dailoTextSize'); else localStorage.setItem('dailoTextSize', size); } catch (_) { /* this session only */ }
+    if (size === 'normal') delete document.documentElement.dataset.textSize; else document.documentElement.dataset.textSize = size;
+  }
+
+  // R39 (L): the theme is a choice for this device too: Tamna (the default), Svetla or Prati sistem. js/appearance.js
+  // applies the stored choice before the first paint; this applies a change at once.
+  const THEMES = ['dark', 'light', 'system'];
+  function readTheme() {
+    let value = null;
+    try { value = localStorage.getItem('dailoTheme'); } catch (_) { /* the default theme */ }
+    return THEMES.includes(value) ? value : 'dark';
+  }
+  function applyTheme(value) {
+    const theme = THEMES.includes(value) ? value : 'dark';
+    try { if (theme === 'dark') localStorage.removeItem('dailoTheme'); else localStorage.setItem('dailoTheme', theme); } catch (_) { /* this session only */ }
+    if (theme === 'dark') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = theme;
+    document.querySelector('meta[name="color-scheme"]')?.setAttribute('content', theme === 'light' ? 'light' : theme === 'system' ? 'dark light' : 'dark');
+  }
+
+  // R37 (J): "Probni podsetnik" shows a notification five seconds later, on the phone or in the browser.
+  async function sendTestReminder() {
+    const result = await globalThis.DailoPlatform?.notifications?.test?.({ title: tr('Dailo'), body: tr('This is how a reminder looks.'), seconds: 5 });
+    if (result?.status === 'ok') { setToastMessage(tr('The reminder arrives in five seconds.')); return; }
+    if (result?.status === 'permission' || result?.status === 'unavailable') { setToastMessage(tr('Notifications are off for Dailo. Turn them on in the phone settings.')); return; }
+    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') { setToastMessage(tr('Browser notifications are not on. Reminders appear in Dailo while it is open.')); return; }
+    setToastMessage(tr('The reminder arrives in five seconds.'));
+    setTimeout(() => { try { new Notification(tr('Dailo'), { body: tr('This is how a reminder looks.') }); } catch (_) { /* the browser refused it */ } }, 5000);
+  }
+
+  // R36 (K): once, on a touch screen, Danas explains the row gestures; "U redu" hides it on this device
+  // (device-local key, outside state, backups and sync).
+  function gestureHint(hasTasks) {
+    if (!hasTasks || !window.matchMedia?.('(pointer: coarse)').matches) return '';
+    try { if (localStorage.getItem('dailoGestureHint')) return ''; } catch (_) { return ''; }
+    return `<section class="gesture-hint" role="note"><i class="ph ph-hand-swipe-right gesture-hint-icon" aria-hidden="true"></i><p>${tr('Swipe a task right to complete it, left to pick its date. Hold a row, then drag it to change the order.')}</p><button class="btn btn-secondary" type="button" data-action="dismiss-gesture-hint">${tr('OK')}</button></section>`;
+  }
+  function dismissGestureHint() {
+    try { localStorage.setItem('dailoGestureHint', nowIso()); } catch (_) { /* shown again next time */ }
+  }
+
+  function sampleNotice() {
+    try { if (localStorage.getItem('dailoSampleNotice')) return ''; } catch (_) { return ''; }
+    if (!untouchedSample()) return '';
+    return `<section class="backup-reminder sample-notice" data-sample-notice role="status" aria-label="${tr('These are examples')}"><i class="ph ph-sparkle backup-reminder-icon" aria-hidden="true"></i><div class="backup-reminder-copy"><strong>${tr('These are examples')}</strong><span>${tr('Dailo starts with a few example tasks so you can see how it works. Start empty, or keep them and change them as you like.')}</span></div><div class="backup-reminder-actions"><button class="btn btn-primary" type="button" data-action="sample-start-empty">${tr('Start empty')}</button><button class="btn btn-secondary" type="button" data-action="sample-keep">${tr('Keep')}</button></div></section>`;
+  }
+  function dismissSampleNotice() {
+    try { localStorage.setItem('dailoSampleNotice', nowIso()); } catch (_) { /* shown again next time */ }
+  }
+  // Only untouched examples are removed (the fingerprint proves nothing is the user's); the button is the
+  // confirmation and Poništi brings them back.
+  function startEmpty() {
+    if (!untouchedSample()) return;
+    const keys = ['tasks', 'projects', 'tags', 'areas', 'goals', 'habits', 'notes', 'resources', 'templates', 'savedViews', 'journal'];
+    const before = Object.fromEntries(keys.map(key => [key, state[key]]));
+    for (const key of keys) state[key] = [];
+    dismissSampleNotice();
+    saveState(); render();
+    setUndo(msg('Examples removed'), () => {
+      Object.assign(state, before);
+      try { localStorage.removeItem('dailoSampleNotice'); } catch (_) { /* the card simply stays hidden */ }
+      saveState(); render();
+    });
+  }
   function dismissTransferNotice() {
     try { localStorage.setItem('dailoTransferDismissed', nowIso()); } catch (_) { /* shown again next time */ }
   }
@@ -4435,10 +4698,6 @@
 
   async function inspectImportBackup(file) {
     if (file) await beginGlobalOperation('restore', file);
-  }
-
-  async function restoreImportedBackup() {
-    if (globalOperation?.reason === 'restore') await commitGlobalOperation(globalOperation);
   }
 
   function clearCompleted() {
@@ -4943,26 +5202,32 @@
   }
 
   // Messages are English catalog keys or already translated text; tr() leaves the latter unchanged.
-  function setToastMessage(message) {
+  function setToastMessage(message, link = null) {
     clearTimeout(toastMessageTimer);
     toastMessage = message == null ? message : trMessage(message);
+    // R36 (C): an information toast may carry one action, "Otvori" for the task it is about.
+    toastLink = message == null ? null : link;
     renderToast();
     // Information has its own lifetime; it must never replace/finalize Undo.
     toastMessageTimer = setTimeout(() => {
       toastMessage = null;
+      toastLink = null;
       toastMessageTimer = null;
       renderToast();
-    }, 3000);
+    }, toastLink ? 5000 : 3000);
   }
 
   // Redesign R5 (Z7, S10): the floating "+" adds a task for the screen it is on; null on an archived project.
   function routeQuickAddContext() {
     const route = currentRoute();
     if (route.type === 'today') return { today: true };
+    // R33 (finding 25): on an area's screen "+" files the new task into that area.
+    if (route.type === 'area') return getArea(route.id) ? { areaId: route.id } : {};
     if (route.type === 'project' && route.id === 'none') return { anytime: true };
     if (route.type === 'project') return getProject(route.id)?.isArchived ? null : { projectId: route.id };
     if (route.type === 'tasks' && state.ui.tasksView !== 'projects') return { anytime: true };
-    if (route.type === 'calendar' && state.ui.calendarView !== 'upcoming') return { day: calendarDate() }; // R7 (C8)
+    // R7 (C8); R31 (finding 15): on a past day "+" plans for today, so a new task is not late at once.
+    if (route.type === 'calendar' && state.ui.calendarView !== 'upcoming') return { day: calendarDate() < Core.dateOnly() ? Core.dateOnly() : calendarDate() };
     return {};
   }
 
@@ -5023,16 +5288,10 @@
     else if(action==='use-template')useTemplate(el.dataset.templateId);
     else if (action === 'quick-add') { const context = el.closest('#mobile-quick-add-menu') ? routeQuickAddContext() : { projectId: el.dataset.projectId || null, areaId: el.dataset.areaId || null, today: el.dataset.today === 'true', anytime: el.dataset.anytime === 'true' }; if (context) openQuickAdd(context); else setToastMessage(tr('Restore the project to add tasks.')); }
     else if (action === 'open-task') openTaskDetail(el.dataset.taskId);
-    else if (action === 'toggle-focus-task') {
-      const task = getTask(el.dataset.taskId); if (!task || task.isCompleted) return;
-      const ids = Core.selectFocusTasks(state.tasks, state.settings.focusTaskIds);
-      if (ids.includes(task.id)) state.settings.focusTaskIds = ids.filter(id => id !== task.id);
-      else if (ids.length < 3) state.settings.focusTaskIds = [...ids, task.id];
-      else { setToastMessage(tr('Daily focus has room for three tasks. Remove one first.')); return; }
-      saveAndRender(); if (modalState?.type === 'task') renderModal();
-    }
-    else if (action === 'open-focus') openFocusMode();
-    else if (action === 'open-focus-task') openFocusMode(el.dataset.taskId);
+    else if (action === 'dismiss-gesture-hint') { dismissGestureHint(); render(); }
+    else if (action === 'habits-yesterday') { habitsEntryDay = Core.addDays(Core.dateOnly(), -1); navigate('habits'); }
+    else if (action === 'test-reminder') sendTestReminder().catch(console.error);
+    else if (action === 'toast-open-task') { const id = el.dataset.taskId; setToastMessage(null); openTaskDetail(id); }
     else if (action === 'focus-complete') completeFocusTask(el.dataset.taskId);
     else if (action === 'focus-toggle-timer') toggleFocusTimer();
     else if (action === 'focus-reset-timer') resetFocusTimer();
@@ -5053,18 +5312,24 @@
     else if (action === 'toggle-today-completed') { state.ui.todayCompletedExpanded = !state.ui.todayCompletedExpanded; saveAndRender(); }
     else if (action === 'today-expand') { const key = el.dataset.todayKey; if (Object.hasOwn(TODAY_LIMITS, key)) { state.ui.todayExpanded = { ...state.ui.todayExpanded, [key]: !state.ui.todayExpanded?.[key] }; saveAndRender(); } }
     else if (action === 'add-all-suggestions') addAllSuggestions();
+    else if (action === 'open-today-suggestions') { state.ui.suggestionsExpanded = true; navigate('#tasks'); }
     else if (action === 'inbox-filter') { state.ui.inboxFilter = INBOX_FILTERS.some(([value]) => value === el.dataset.inboxFilter) ? el.dataset.inboxFilter : 'all'; saveAndRender(); }
     else if (action === 'inbox-remove') removeInboxRecord(el.dataset.inboxType, el.dataset.inboxId);
     else if (action === 'inbox-area') openInboxAreaSheet(el, el.dataset.inboxType, el.dataset.inboxId);
+    else if (action === 'inbox-add') addToInbox($('#inbox-add-title')?.value);
+    else if (action === 'inbox-date') openPlanPicker(el, { type: 'task', taskId: el.dataset.taskId });
     else if (action === 'inbox-project') openProjectPicker(el, { type: 'task', taskId: el.dataset.taskId });
     else if (action === 'inbox-triage') openInboxTriage();
     else if (action === 'inbox-triage-skip') { modalState.index += 1; renderModal(); }
+    else if (action === 'inbox-triage-open' && el.dataset.inboxType === 'task') openTaskDetail(el.dataset.inboxId);
     else if (action === 'inbox-triage-open') { const route = `${el.dataset.inboxType}/${el.dataset.inboxId}`; closeModal(); navigate(route); }
     else if (action === 'inbox-today') { addTaskToToday(el.dataset.taskId); if (modalState?.type === 'inbox-triage') renderModal(); }
     else if (action === 'inbox-tomorrow') { moveTaskToTomorrow(el.dataset.taskId); if (modalState?.type === 'inbox-triage') renderModal(); }
     else if (action === 'inbox-anytime') { moveTaskToAnytime(el.dataset.taskId); if (modalState?.type === 'inbox-triage') renderModal(); }
     else if (action === 'task-project-picker') showTaskProjectPicker(el.dataset.taskId, el);
     else if (action === 'task-plan-picker') showTaskPlanPicker(el.dataset.taskId, el);
+    else if (action === 'task-area-picker') openTaskAreaSheet(el, el.dataset.taskId);
+    else if (action === 'task-goals-picker') openTaskGoalsSheet(el, el.dataset.taskId);
     else if (action === 'task-due-picker') showTaskDuePicker(el.dataset.taskId, el);
     else if (action === 'task-reminder-picker') showTaskReminderPicker(el.dataset.taskId, el);
     else if (action === 'task-repeat-picker') showTaskRepeatPicker(el.dataset.taskId, el);
@@ -5073,21 +5338,16 @@
     else if (action === 'task-duration-picker') openTaskDurationPicker(el, el.dataset.taskId);
     else if (action === 'quick-project-picker') openProjectPicker(el, { type: 'quick' });
     else if (action === 'quick-plan-picker') openPlanPicker(el, { type: 'quick' });
-    else if (action === 'quick-due-picker') openDuePicker(el, { type: 'quick' });
-    else if (action === 'quick-reminder-picker') openReminderPicker(el, { type: 'quick' });
-    else if (action === 'quick-repeat-picker') openRepeatPicker(el, { type: 'quick' });
-    else if (action === 'quick-tags-picker') openTagPicker(el, { type: 'quick' });
-    else if (action === 'quick-priority-picker') openPriorityPicker(el, { type: 'quick' });
     else if (action === 'quick-template') openQuickTemplatePicker(el);
     else if (action === 'quick-template-clear') { clearQuickTemplate(); renderModal(); requestAnimationFrame(() => $('[data-action="quick-template"]')?.focus()); }
     else if (action === 'quick-more-options') createTask(false, true);
     else if (action === 'create-task') createTask(false);
+    else if (action === 'create-task-continue') createTask(true);
     else if (action === 'close-modal') closeModal();
     else if (action === 'modal-backdrop' && event.target === el) closeModal();
     else if (action === 'toggle-subtask') toggleSubtask(el.dataset.taskId, el.dataset.subtaskId);
     else if (action === 'delete-subtask') deleteSubtask(el.dataset.taskId, el.dataset.subtaskId);
     else if (action === 'edit-subtask') editSubtask(el.dataset.taskId, el.dataset.subtaskId);
-    else if (action === 'delete-task') deleteTask(el.dataset.taskId);
     else if (action === 'duplicate-without-files') duplicateTask(el.dataset.taskId, false);
     else if (action === 'duplicate-with-files') duplicateTask(el.dataset.taskId, true);
     else if (action === 'select-tag-color') { modalState.draft.color = el.dataset.color; renderModal(); }
@@ -5105,13 +5365,15 @@
     else if (action === 'enable-notifications') enableBrowserNotifications();
     else if (action === 'allow-exact-alarms') allowExactAlarms();
     else if (action === 'export-backup') exportBackupAction();
+    else if (action === 'install-app' && installPromptEvent) { const prompt = installPromptEvent; installPromptEvent = null; prompt.prompt?.(); render(); }
     else if (action === 'snooze-backup-reminder') { snoozeBackupReminder(); render(); }
     else if (action === 'dismiss-transfer-notice') { dismissTransferNotice(); render(); }
+    else if (action === 'sample-start-empty') startEmpty();
+    else if (action === 'sample-keep') { dismissSampleNotice(); render(); }
     else if (action === 'complete-weekly-review') completeWeeklyReview();
     else if (action === 'apply-app-update') applyAppUpdate();
     else if (action === 'request-storage-persistence') updateStoragePersistence(true).catch(console.error);
     else if (action === 'import-backup') chooseImportBackup();
-    else if (action === 'restore-backup') restoreImportedBackup();
     else if (action === 'clear-completed') clearCompleted();
     else if (action === 'completed-project') openCompletedProjectSheet(el);
     else if (action === 'completed-period') { state.ui.completedPeriod = [0, 7, 30].includes(Number(el.dataset.value)) ? Number(el.dataset.value) : 0; saveAndRender(); }
@@ -5136,6 +5398,7 @@
     else if (action === 'date-sheet-pick' && dateSheet) {
       dateSheet.time = $('#date-sheet-time', popoverEl)?.value ?? dateSheet.time;
       dateSheet.date = button.dataset.date;
+      if (button.dataset.time) dateSheet.time = button.dataset.time;
       const picked = parseLocalDate(dateSheet.date);
       dateSheet.view = { y: picked.getFullYear(), m: picked.getMonth() };
       refreshSheet(dateSheetHtml(), `.sheet-calendar-day[data-date="${dateSheet.date}"]`);
@@ -5148,7 +5411,7 @@
     }
     else if (action === 'date-sheet-apply') applyDateSheet(false);
     else if (action === 'date-sheet-clear') applyDateSheet(true);
-    else if (action === 'reminder-preset' && reminderSheet) { Object.assign(reminderSheet, { date: button.dataset.date, time: button.dataset.time }); refreshSheet(reminderSheetHtml(), `[data-pop-action="reminder-preset"][data-date="${button.dataset.date}"][data-time="${button.dataset.time}"]`); }
+    else if (action === 'reminder-preset' && reminderSheet) { Object.assign(reminderSheet, { date: button.dataset.date, time: button.dataset.time, error: null }); refreshSheet(reminderSheetHtml(), `[data-pop-action="reminder-preset"][data-date="${button.dataset.date}"][data-time="${button.dataset.time}"]`); }
     else if (action === 'reminder-apply') applyReminderSheet();
     else if (action === 'reminder-clear' && reminderSheet) setReminder(reminderSheet.target.type, reminderSheet.target.taskId, '');
     else if (action === 'tag-sheet-toggle') toggleTagSheet(button);
@@ -5162,13 +5425,12 @@
     else if (action === 'project-goals') openProjectGoalsSheet(button, button.dataset.projectId);
     else if (action === 'project-goal-toggle' && projectGoalSheet) { const id = button.dataset.goalId; const on = !projectGoalSheet.ids.has(id); if (on) projectGoalSheet.ids.add(id); else projectGoalSheet.ids.delete(id); button.classList.toggle('is-selected', on); button.setAttribute('aria-pressed', String(on)); const check = button.querySelector('.sheet-check'); if (check) { check.classList.toggle('is-on', on); check.innerHTML = on ? '<i class="ph ph-check"></i>' : ''; } }
     else if (action === 'project-goals-apply') applyProjectGoals();
+    else if (action === 'task-set-area') setTaskArea(button.dataset.taskId, button.dataset.areaId);
+    else if (action === 'task-goal-toggle' && taskGoalSheet) { const id = button.dataset.goalId; const on = !taskGoalSheet.ids.has(id); if (on) taskGoalSheet.ids.add(id); else taskGoalSheet.ids.delete(id); button.classList.toggle('is-selected', on); button.setAttribute('aria-pressed', String(on)); const check = button.querySelector('.sheet-check'); if (check) { check.classList.toggle('is-on', on); check.innerHTML = on ? '<i class="ph ph-check"></i>' : ''; } }
+    else if (action === 'task-goals-apply') applyTaskGoals();
     else if (action === 'inbox-set-area') setInboxArea(button.dataset.inboxType, button.dataset.inboxId, button.dataset.areaId);
     else if (action === 'set-project') setProject(button.dataset.targetType, button.dataset.taskId, button.dataset.projectId);
-    else if (action === 'toggle-tag') toggleTag(button.dataset.targetType, button.dataset.taskId, button.dataset.tagId);
     else if (action === 'set-priority') setPriority(button.dataset.targetType, button.dataset.taskId, button.dataset.priority);
-    else if (action === 'set-plan') setPlan(button.dataset.targetType, button.dataset.taskId, button.dataset.date);
-    else if (action === 'set-due') setDue(button.dataset.targetType, button.dataset.taskId, button.dataset.date);
-    else if (action === 'set-reminder') setReminder(button.dataset.targetType, button.dataset.taskId, button.dataset.reminder);
     else if (['pause-recurrence','resume-recurrence','skip-recurrence','end-recurrence'].includes(action)) controlRecurrence(button.dataset.taskId,action);
     else if (action === 'inline-new-tag') inlineNewTag(button);
     else if (action === 'inline-select-tag-color') { $$('.color-swatch', popoverEl).forEach(s => s.classList.toggle('is-selected', s === button)); const create = $('[data-pop-action="inline-tag-create"]', popoverEl); if (create) create.dataset.color = button.dataset.color; }
@@ -5203,6 +5465,7 @@
 
   function handleInput(event) {
     if (globalOperation) return;
+    if (event.target.matches?.('textarea[data-autogrow]')) autoGrow(event.target);
     // Redesign R3 (E8, E9): the search field of a sheet filters its rows.
     if (event.target.matches?.('[data-sheet-search]')) {
       const query = event.target.value.trim().toLowerCase();
@@ -5212,7 +5475,7 @@
     if (reminderSheet && ['reminder-date', 'reminder-time'].includes(event.target.id)) {
       if (event.target.value) reminderSheet[event.target.id === 'reminder-date' ? 'date' : 'time'] = event.target.value;
       const summary = popoverEl?.querySelector('[data-reminder-summary]');
-      if (summary) summary.textContent = tr('Remind me {date} at {time}', { date: relativeDateLabel(reminderSheet.date), time: reminderSheet.time });
+      if (summary) summary.textContent = tr('Remind me {date} at {time}', { date: lowerFirst(relativeDateLabel(reminderSheet.date)), time: reminderSheet.time });
       return;
     }
     if (callDomainHook('handleInput', event) !== undefined) return;
@@ -5249,7 +5512,6 @@
     }
     if (callDomainHook('handleInput', event) !== undefined) return;
     if (event.target.matches('[data-task-time]')) { updateTask(event.target.dataset.taskId, { [event.target.dataset.taskTime]: Core.normalizeTime(event.target.value) }, false); render(); return; }
-    if (event.target.matches('[data-task-flag]')) { const task = getTask(event.target.dataset.taskId); const field = event.target.dataset.taskFlag; if (task && ['isImportant', 'isUrgent'].includes(field)) { task[field] = event.target.checked; task.updatedAt = nowIso(); saveState(); render(); } return; }
     if (['attachment-input', 'attachment-image-input'].includes(event.target.id)) { receiveAttachmentFiles(event.target.dataset, [...event.target.files]); event.target.value=''; return; }
     // R10g (M5): the week start and density apply at once; the week-start history is kept (M11).
     if (['preference-week-start', 'preference-density'].includes(event.target.id)) { savePersonalization(); return; }
@@ -5260,6 +5522,8 @@
     if (event.target.id === 'auto-backup') { writeAutoBackup({ enabled: event.target.checked }); if (event.target.checked) runAutoBackup({ announce: true }); render(); return; }
     if (event.target.id === 'planned-time-reminders') { state.settings.plannedTimeReminders = event.target.checked; saveAndRender(); return; }
     if (event.target.id === 'journal-notifications') { state.settings.journalNotifications = event.target.checked; saveAndRender(); return; }
+    if (event.target.id === 'text-size') { applyTextSize(event.target.value); render(); return; }
+    if (event.target.id === 'theme') { applyTheme(event.target.value); render(); return; }
     if (event.target.id === 'daily-capacity') { const minutes = Number(event.target.value); if (Number.isInteger(minutes) && minutes >= 0 && minutes <= 1440) { state.settings.dailyCapacityMinutes = minutes; saveAndRender(); } return; }
     if (event.target.id === 'backup-reminder-days') { const days = Number(event.target.value); if (Number.isInteger(days) && days >= 0 && days <= 90) { state.settings.backupReminderDays = days; saveAndRender(); } return; }
     if (event.target.id === 'backup-import-input') { const file=event.target.files?.[0]; event.target.value=''; if(file) inspectImportBackup(file); return; }
@@ -5323,6 +5587,8 @@
     if (modalState?.type === 'quick' && target?.id === 'quick-title' && event.key === 'Enter') {
       event.preventDefault(); createTask(event.shiftKey); return;
     }
+    // R36 (C): Enter in the Inbox add row files the title.
+    if (event.key === 'Enter' && event.target.id === 'inbox-add-title') { event.preventDefault(); addToInbox(event.target.value); return; }
     if (callDomainHook('handleInput', event) !== undefined) return;
 
 
@@ -5406,11 +5672,19 @@
 
   // R25 (E): touch reordering — hold a row for a moment, then drag it up or down within its own list. Moving before
   // the hold ends scrolls or swipes as before; while a row is dragged the page does not scroll.
+  // R33 (findings 35, 36): subtasks reorder the same way, and an Inbox row stays within its capture group.
+  const REORDER_ROWS = '.task-row[draggable="true"], .subtask-row[draggable="true"]';
+  const dropGroup = row => row?.closest('.inbox-group-items') || null;
+  function sameReorderList(reorder, over) {
+    if (reorder.subtask) return over.classList.contains('subtask-row') && over.dataset.parentTaskId === reorder.context;
+    return !over.classList.contains('subtask-row') && over.dataset.listContext === reorder.context && dropGroup(over) === reorder.group;
+  }
   function handleTouchReorderStart(event) {
     if (event.pointerType === 'mouse' || !event.isPrimary || touchReorder) return;
-    const row = event.target.closest?.('.task-row[draggable="true"]');
+    const row = event.target.closest?.(REORDER_ROWS);
     if (!row || event.target.closest('button, input, textarea, select, a, [contenteditable]')) return;
-    const reorder = { row, id: row.dataset.taskId, context: row.dataset.listContext, pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, active: false, target: null };
+    const subtask = row.classList.contains('subtask-row');
+    const reorder = { row, subtask, id: subtask ? row.dataset.subtaskId : row.dataset.taskId, context: subtask ? row.dataset.parentTaskId : row.dataset.listContext, group: dropGroup(row), pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, active: false, target: null };
     reorder.timer = setTimeout(() => startTouchReorder(reorder), 350);
     touchReorder = reorder;
   }
@@ -5432,8 +5706,8 @@
     if (!reorder.active) { if (Math.abs(dx) > 8 || Math.abs(dy) > 8) cancelTouchReorder(); return; }
     event.preventDefault();
     reorder.row.style.transform = `translateY(${dy}px)`;
-    const over = document.elementFromPoint(event.clientX, event.clientY)?.closest?.('.task-row[draggable="true"]');
-    const target = over && over !== reorder.row && over.dataset.listContext === reorder.context ? over : null;
+    const over = document.elementFromPoint(event.clientX, event.clientY)?.closest?.(REORDER_ROWS);
+    const target = over && over !== reorder.row && sameReorderList(reorder, over) ? over : null;
     if (target !== reorder.target) { reorder.target?.classList.remove('is-drop-target'); target?.classList.add('is-drop-target'); reorder.target = target; }
   }
 
@@ -5444,7 +5718,8 @@
     const wasActive = reorder.active;
     cancelTouchReorder();
     if (wasActive) { suppressTaskSwipeClick = true; setTimeout(() => { suppressTaskSwipeClick = false; }, 0); }
-    if (target) reorderTasks(reorder.context, reorder.id, target.dataset.taskId);
+    if (target && reorder.subtask) reorderSubtasks(reorder.context, reorder.id, target.dataset.subtaskId);
+    else if (target) reorderTasks(reorder.context, reorder.id, target.dataset.taskId);
   }
 
   function cancelTouchReorder() {
@@ -5473,12 +5748,10 @@
     if (touchReorder) { event.preventDefault(); return; }
     const calendar = event.target.closest('[data-calendar-drag][draggable="true"]');
     if (calendar) { dragState = { type: `calendar-${calendar.dataset.calendarDrag}`, id: calendar.dataset.calendarItemId }; event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', dragState.id); calendar.classList.add('is-dragging'); return; }
-    const project = event.target.closest('.project-item[draggable="true"]');
-    if (project) { dragState = { type: 'project', id: project.dataset.projectId }; event.dataTransfer.effectAllowed = 'move'; return; }
     const sub = event.target.closest('.subtask-row[draggable="true"]');
     if (sub) { dragState = { type: 'subtask', id: sub.dataset.subtaskId, parentId: sub.dataset.parentTaskId }; event.dataTransfer.effectAllowed = 'move'; sub.classList.add('is-dragging'); return; }
     const row = event.target.closest('.task-row[draggable="true"]');
-    if (row) { dragState = { type: 'task', id: row.dataset.taskId, context: row.dataset.listContext }; event.dataTransfer.effectAllowed = 'move'; row.classList.add('is-dragging'); document.body.classList.add('task-drag-active'); }
+    if (row) { dragState = { type: 'task', id: row.dataset.taskId, context: row.dataset.listContext, group: dropGroup(row) }; event.dataTransfer.effectAllowed = 'move'; row.classList.add('is-dragging'); document.body.classList.add('task-drag-active'); }
   }
 
   function handleDragOver(event) {
@@ -5488,14 +5761,11 @@
     const calendarTarget = event.target.closest('[data-calendar-time], [data-calendar-date]');
     if (calendarTarget && ['calendar-task'].includes(dragState.type)) { event.preventDefault(); calendarTarget.classList.add('is-drop-target'); return; }
     if (dragState.type.startsWith('calendar-')) return;
-    if (dragState.type === 'project') {
-      const target = event.target.closest('.project-item[draggable="true"]'); if (!target || target.dataset.projectId === dragState.id) return; event.preventDefault(); return;
-    }
     if (dragState.type === 'subtask') {
       const target = event.target.closest('.subtask-row[draggable="true"]'); if (!target || target.dataset.parentTaskId !== dragState.parentId || target.dataset.subtaskId === dragState.id) return; event.preventDefault(); target.classList.add('is-drop-target'); return;
     }
     const target = event.target.closest('.task-row[draggable="true"]');
-    if (!target || target.dataset.listContext !== dragState.context || target.dataset.taskId === dragState.id) return;
+    if (!target || target.dataset.listContext !== dragState.context || dropGroup(target) !== dragState.group || target.dataset.taskId === dragState.id) return;
     event.preventDefault(); target.classList.add('is-drop-target');
   }
 
@@ -5516,12 +5786,10 @@
         const time = Core.normalizeTime(target.dataset.calendarTime);
         if (Core.parseDateOnly(date) && dragState.type === 'calendar-task') updateTask(dragState.id, { plannedDate: date, ...(time ? { plannedTime: time } : {}) });
       }
-    } else if (dragState.type === 'project') {
-      const target = event.target.closest('.project-item[draggable="true"]'); if (target) reorderProjects(dragState.id, target.dataset.projectId);
     } else if (dragState.type === 'subtask') {
       const target = event.target.closest('.subtask-row[draggable="true"]'); if (target && target.dataset.parentTaskId === dragState.parentId) reorderSubtasks(dragState.parentId, dragState.id, target.dataset.subtaskId);
     } else {
-      const target = event.target.closest('.task-row[draggable="true"]'); if (target && target.dataset.listContext === dragState.context) reorderTasks(dragState.context, dragState.id, target.dataset.taskId);
+      const target = event.target.closest('.task-row[draggable="true"]'); if (target && target.dataset.listContext === dragState.context && dropGroup(target) === dragState.group) reorderTasks(dragState.context, dragState.id, target.dataset.taskId);
     }
     cleanupDrag();
   }
@@ -5542,11 +5810,6 @@
     saveAndRender();
   }
 
-  function reorderProjects(sourceId, targetId) {
-    const ids = sortedProjects().map(p => p.id); const from = ids.indexOf(sourceId); const to = ids.indexOf(targetId); if (from < 0 || to < 0) return;
-    const [moved] = ids.splice(from,1); ids.splice(to,0,moved); ids.forEach((id,i)=>{ const p=getProject(id); if(p)p.order=i; }); saveAndRender();
-  }
-
   function reorderSubtasks(taskId, sourceId, targetId) {
     const task = getTask(taskId); if (!task) return;
     const ordered = [...task.subtasks].sort((a,b)=>clampOrder(a.order)-clampOrder(b.order));
@@ -5562,7 +5825,12 @@
     const el = event.target.closest?.('[data-long-press]');
     if (!el) return;
     clearTimeout(longPressTimer); longPressFired = false;
-    longPressTimer = setTimeout(() => { longPressTimer = null; longPressFired = true; callDomainHook('handleAction', el.dataset.longPress, { target: el }); }, 500);
+    longPressTimer = setTimeout(() => { longPressTimer = null; longPressFired = true; runLongPress(el); }, 500);
+  }
+  // R36 (C): holding the "+" opens a new task at once, whatever the "+" does on a tap there.
+  function runLongPress(el) {
+    if (el.dataset.longPress === 'quick-add-task') { haptic('tick'); setMobileQuickAddOpen(false); const context = routeQuickAddContext(); if (context) openQuickAdd(context); else setToastMessage(tr('Restore the project to add tasks.')); return; }
+    callDomainHook('handleAction', el.dataset.longPress, { target: el });
   }
   function cancelLongPress() {
     clearTimeout(longPressTimer); longPressTimer = null;
@@ -5603,6 +5871,9 @@
     document.addEventListener('dragend', handleDragEnd);
     // The first-sync choice stays open across a route change: closing it would run its cancel, which signs out (audit P-3).
     window.addEventListener('hashchange', () => { closePopover(); if (modalState?.type !== 'sync-choice') closeModal(); render(); });
+    // R32 (finding 31): Chromium browsers offer their own install; Pomoć shows "Instaliraj" while they do.
+    window.addEventListener('beforeinstallprompt', event => { event.preventDefault(); installPromptEvent = event; if (currentRoute().type === 'settings') render(); });
+    window.addEventListener('appinstalled', () => { installPromptEvent = null; if (currentRoute().type === 'settings') render(); });
     window.addEventListener('storage', event => {
       if (globalOperation) return;
       if (event.key !== STORAGE_KEY) return;
@@ -5762,7 +6033,12 @@
     const target = document.activeElement || document.body; // an element: the key handler reads target.closest
     target.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
     const after = overlaySnapshot();
-    return before.some((value, index) => value !== after[index]);
+    if (before.some((value, index) => value !== after[index])) return true;
+    // R32 (finding 17): nothing was open, so Back steps through the screens like the "‹" links.
+    const step = backTarget(location.hash || '#today', screenTrail);
+    if (!step) return false;
+    navigate(step);
+    return true;
   }
 
   // Native integration (audit M3): resume, Back, links that leave the app, leftovers of an interrupted share.
@@ -5796,7 +6072,10 @@
     if (target === 'new-task') openQuickAdd({});
     else if (target === 'share') {
       const params = Object.fromEntries(['text', 'subject', 'title', 'url'].map(key => [key, link.searchParams.get(key) || '']));
-      openQuickAdd(Core.sharedTextDraft(params));
+      // R35 (H): a shared link becomes a resource in Inbox; other shared text becomes a task.
+      const resource = Core.sharedResourceDraft(params);
+      if (resource) openKnowledgeWindow('resource', null, { prefill: resource, inbox: true });
+      else openQuickAdd(Core.sharedTextDraft(params));
     } else navigate(`#${target}`);
     return true;
   }
@@ -5866,6 +6145,8 @@
   }
 
   async function init() {
+    applyTheme(readTheme());
+    applyTextSize(readTextSize());
     attachEvents();
     // Quick Add is an explicit disclosure: never restore it open on reload or route changes.
     if (typeof setMobileQuickAddOpen === 'function') setMobileQuickAddOpen(false);

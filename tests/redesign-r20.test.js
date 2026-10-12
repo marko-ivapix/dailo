@@ -29,7 +29,7 @@ test('the R20 layer comes after R19', () => {
 test('1: every option in a bottom sheet is 48 px tall with 15 px text', () => {
   const option = rule('.popover--sheet .popover-option');
   assert.match(option, /min-height: 48px;/);
-  assert.match(option, /font-size: 15px;/);
+  assert.match(option, /font-size: var\(--text-body\);/);
 });
 
 test('2: a ⋯ menu is a sheet with the item\'s name as its title and the options in one card', () => {
@@ -57,10 +57,10 @@ test('2: delete rows use the danger class instead of an inline color', () => {
 
 test('3: every chip is a pill inside its 44 px touch height, the selected one filled with the accent', () => {
   const chip = rule('.quick-chip');
-  for (const part of ['position: relative', 'isolation: isolate', 'display: inline-flex', 'min-height: 44px', 'padding: 0 14px', 'border: 0', 'background: none', 'color: var(--ink-2)', 'font-size: 14px']) assert.ok(chip.includes(part), part);
+  for (const part of ['position: relative', 'isolation: isolate', 'display: inline-flex', 'min-height: 44px', 'padding: 0 14px', 'border: 0', 'background: none', 'color: var(--ink-2)', 'font-size: var(--text-base)']) assert.ok(chip.includes(part), part);
   const pill = rule('.quick-chip::before');
   for (const part of ['inset: 4px 0', 'z-index: -1', 'border: 1px solid var(--line-2)', 'border-radius: 999px', 'background: var(--graphite-850)']) assert.ok(pill.includes(part), part);
-  assert.match(rule('.quick-chip.is-selected'), /color: #fff;/);
+  assert.match(rule('.quick-chip.is-selected'), /color: var\(--on-accent\);/);
   assert.match(rule('.quick-chip.is-selected::before'), /border-color: var\(--blue-600\); background: var\(--blue-600\);/);
   assert.match(rule('.quick-chip:disabled'), /opacity: \.5;/);
 });

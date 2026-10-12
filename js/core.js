@@ -941,7 +941,14 @@
     return [...new Set((focusTaskIds || []).filter(id => typeof id === 'string' && openIds.has(id)))].slice(0, maximum);
   }
 
+  // R38: a goal's progress can come from its milestones: the share of them that are completed.
+  function milestoneProgress(goal) {
+    const milestones = Array.isArray(goal?.milestones) ? goal.milestones.filter(Boolean) : [];
+    return { done: milestones.filter(item => item.isCompleted === true).length, total: milestones.length };
+  }
+
   function goalProgressFraction(goal) {
+    if (goal?.progressMode === 'milestones') { const { done, total } = milestoneProgress(goal); return total ? done / total : 0; }
     if (!goal || goal.progressMode === 'linkedTasks' || goal.progressMode === 'linkedHabits') return null;
     if (goal.progressType === 'numeric') {
       const target = safeNumber(goal.targetValue);
@@ -1000,10 +1007,23 @@
     }).sort((a, b) => a.startMinutes - b.startMinutes || String(a.task.id).localeCompare(String(b.task.id)));
     const overlaps = (block, other) => block.startMinutes < other.endMinutes && other.startMinutes < block.endMinutes;
     const withConflicts = blocks.map(block => ({ ...block, conflict: !block.task.isCompleted && blocks.some(other => other !== block && !other.task.isCompleted && overlaps(block, other)) }));
+    // R31: overlapping blocks sit side by side; each gets a lane within its group of overlaps.
+    let group = [], groupEnd = -1;
+    const closeGroup = () => { const lanes = Math.max(1, ...group.map(block => block.lane + 1)); for (const block of group) block.lanes = lanes; group = []; };
+    for (const block of withConflicts) {
+      if (group.length && block.startMinutes >= groupEnd) closeGroup();
+      const taken = new Set(group.filter(other => other.endMinutes > block.startMinutes).map(other => other.lane));
+      let lane = 0;
+      while (taken.has(lane)) lane += 1;
+      block.lane = lane; group.push(block); groupEnd = Math.max(groupEnd, block.endMinutes);
+    }
+    if (group.length) closeGroup();
     const unscheduled = planned.filter(task => !task.isCompleted && !normalizeTime(task.plannedTime))
       .sort((a, b) => byOrder('todayOrder')(a, b) || String(a.title).localeCompare(String(b.title)));
-    const earliest = blocks.length ? Math.floor(blocks[0].startMinutes / 60) : 6;
-    return { blocks: withConflicts, unscheduled, range: { startHour: Math.min(6, earliest), endHour: 24 } };
+    // R31: the hours run from 8 to 21 and grow only to fit the blocks.
+    const earliest = blocks.length ? Math.floor(blocks[0].startMinutes / 60) : 8;
+    const latest = blocks.length ? Math.ceil(Math.max(...blocks.map(block => block.endMinutes)) / 60) : 21;
+    return { blocks: withConflicts, unscheduled, range: { startHour: Math.min(8, earliest), endHour: Math.min(24, Math.max(21, latest)) } };
   }
 
   function getTimedTaskBlocks(tasks, date) {
@@ -1027,6 +1047,10 @@
 
   function computeGoalProgress(goal, state = {}, habitMetrics = {}) {
     const source = goal || {};
+    if (source.progressMode === 'milestones') {
+      const { done, total } = milestoneProgress(source);
+      return { current: done, target: total, percent: total ? done / total * 100 : 0 };
+    }
     if (source.progressMode === 'linkedTasks') {
       const tasks = goalTaskSet(source, state);
       const current = tasks.filter(task => Boolean(task.isCompleted)).length;
@@ -1233,7 +1257,8 @@
   function habitStatusForDate(habit, logs, date, today = dateOnly()) {
     const log = (logs || []).find(item => item && item.date === date && (!habit?.id || item.habitId === habit.id));
     if (log) {
-      if (habit?.trackingType === 'numeric') return numericHabitState(habit, log.value);
+      // R31: a skipped day of a numeric habit stays skipped; otherwise the value decides.
+      if (habit?.trackingType === 'numeric' && log.status !== 'skipped') return numericHabitState(habit, log.value);
       return { status: log.status, value: log.value ?? null, percent: log.status === 'done' ? 100 : 0 };
     }
     if (!habitScheduledOn(habit, date, { historical: true })) return { status: 'unscheduled', value: null, percent: 0 };
@@ -1466,6 +1491,70 @@
     return { title: name.replace(/\s+/g, ' ').slice(0, 200).trim(), notes: notes.join('\n') };
   }
 
+  // R37 (D): how many active habits have no record of a day they were planned on (skipped days are records).
+  function habitsMissedOn(habits, logsByHabit, date, today = dateOnly(), weekRule = 'monday') {
+    return (habits || []).filter(habit => habit?.status === 'active' && habitDayState(habit, logsByHabit?.[habit.id] || [], date, today, weekRule).state === 'missed').length;
+  }
+
+  // R37 (F): the coming dates of open repeating tasks, for the calendar only (nothing is stored): { date: [{ task,
+  // date }] } from `from` to `to`. The task's own date is not repeated, and a paused or ended rule shows nothing.
+  function calendarRepeats(tasks, from, to, limit = 400) {
+    const byDate = {};
+    let total = 0;
+    for (const task of tasks || []) {
+      if (!task || task.isCompleted || task.isInbox) continue;
+      const rule = normalizeRecurrenceV3(task.recurrenceBaseline?.recurrence || task.recurrence);
+      const anchor = task.plannedDate || task.dueDate;
+      if (!rule || rule.status !== 'active' || !anchor) continue;
+      const after = addDays(anchor, 1);
+      const skipped = rule.skipNext ? upcomingRecurrenceDates(anchor, rule, 1, after)[0] : null;
+      for (const date of upcomingRecurrenceDates(anchor, rule, 62, from > after ? from : after)) {
+        if (date === skipped) continue;
+        if (date > to) break;
+        if (date < from) continue;
+        (byDate[date] ||= []).push({ task, date });
+        if (++total >= limit) return byDate;
+      }
+    }
+    return Object.fromEntries(Object.entries(byDate).sort(([a], [b]) => a.localeCompare(b)));
+  }
+
+  // R36 (G): "Vikend" in the date sheet: the coming Saturday, or today on a Saturday.
+  function weekendDate(date) {
+    const day = parseDateOnly(date)?.getDay();
+    if (day == null) return null;
+    return addDays(date, day === 0 ? 6 : 6 - day);
+  }
+
+  // R35 (H): a shared link becomes a resource: the page title (or the one line shared with it, or the site) is its
+  // name, the link its link and any other shared text its description. Text without an http(s) link returns null and
+  // stays a task (sharedTextDraft).
+  function sharedResourceDraft({ text = '', subject = '', title = '', url = '' } = {}) {
+    const clean = value => String(value || '').replace(/\r\n?/g, '\n').trim();
+    const found = clean(url) || (clean(text).match(/https?:\/\/[^\s<>"]+/i) || [])[0] || '';
+    let link;
+    try { link = new URL(found); } catch (_) { return null; }
+    if (!['http:', 'https:'].includes(link.protocol)) return null;
+    const rest = clean(text).split('\n').map(line => line.split(found).join(' ').replace(/\s+/g, ' ').trim()).filter(Boolean);
+    let name = clean(subject) || clean(title);
+    if (!name && rest.length === 1 && rest[0].length <= 120) name = rest.shift();
+    if (!name) name = link.hostname.replace(/^www\./, '');
+    return { title: name.replace(/\s+/g, ' ').slice(0, 120).trim(), linkUrls: [found], description: rest.join('\n') };
+  }
+
+  // R35 (B): a note becomes a task: its name is the title, list lines ("- ", "* ", "• ", "[ ] ", "[x] ", "1. ")
+  // become subtasks ("[x]" ones already done) and the other lines stay as the task's notes.
+  function noteTaskDraft(note) {
+    const subtasks = [];
+    const rest = [];
+    for (const line of String(note?.body || '').replace(/\r\n?/g, '\n').split('\n')) {
+      const item = line.match(/^\s*(?:[-*•]\s+(\[[ xX]?\]\s*)?|(\[[ xX]?\])\s+|\d+[.)]\s+)(.*\S)\s*$/);
+      if (item) subtasks.push({ title: item[3].trim().slice(0, 500), isCompleted: /x/i.test(item[1] || item[2] || '') });
+      else rest.push(line);
+    }
+    return { title: String(note?.title || '').trim().slice(0, 500), notes: rest.join('\n').replace(/^\n+|\n+$/g, '').replace(/\n{3,}/g, '\n\n'), subtasks };
+  }
+
   function notificationPlan(state, now, { days = 14, limit = 60, logs = {}, plannedFired = {} } = {}) {
     const start = new Date(now).getTime();
     if (!state || !Number.isFinite(start)) return [];
@@ -1650,6 +1739,14 @@
       const days = Number(before) * QUICK_DAY_UNITS[last];
       return days >= 1 && days <= 366 ? { slot: 'plannedDate', value: addDays(today, days), consumed: 3 } : INVALID;
     }
+    // R30: Serbian writes an hour as "18h", "u 18h" or "u 18". After "u" any hour is a time; a bare "Nh" is a
+    // time from 9 to 23, while shorter ones and "24h" stay durations.
+    const hour = last.match(/^(\d{1,2})(h?)$/);
+    if (hour && (before === 'u' || before === 'at' || (hour[2] && Number(hour[1]) >= 9 && Number(hour[1]) <= 23))) {
+      const value = Number(hour[1]) <= 23 ? normalizeTime(`${hour[1].padStart(2, '0')}:00`) : null;
+      if (!value) return INVALID;
+      return { slot: 'plannedTime', value, consumed: before === 'u' || before === 'at' ? 2 : 1 };
+    }
     const time = last.match(/^(\d{1,2}):(\d{2})$/);
     if (time) {
       if (before === 'do') return { stop: true };
@@ -1658,6 +1755,8 @@
       return { slot: 'plannedTime', value, consumed: before === 'u' || before === 'at' ? 2 : 1 };
     }
     const duration = quickDuration(words);
+    // R30: "za 30 min" is a duration too; the "za" goes with it.
+    if (duration && lower[n - 1 - duration.consumed] === 'za') duration.consumed += 1;
     if (duration) return duration.value === INVALID ? INVALID : { slot: 'durationMinutes', value: duration.value, consumed: duration.consumed };
     const serbianWeekday = own(QUICK_WEEKDAYS_SR, last);
     const day = quickDay(last, today, serbianWeekday ? QUICK_WEEKDAYS_SR : QUICK_WEEKDAYS);
@@ -2266,6 +2365,11 @@
     notificationKey,
     notificationPlan,
     sharedTextDraft,
+    sharedResourceDraft,
+    weekendDate,
+    habitsMissedOn,
+    calendarRepeats,
+    noteTaskDraft,
     widgetSnapshot,
     snoozeTarget,
     laterToday,

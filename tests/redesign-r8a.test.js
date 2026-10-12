@@ -147,10 +147,11 @@ test('H3: Nedelja is a table of habits by days with inactive future and unschedu
   const html = render(screen({ habitsView: 'week' }));
   assert.match(html, /<button class="btn is-selected" type="button" data-action="habits-view" data-view="week" aria-pressed="true">Week<\/button>/);
   assert.doesNotMatch(html, /habits-ring[^>]*is-selected/, 'Nedelja selects no ring');
-  assert.match(html, /<table class="habits-week-table"><thead><tr><th scope="col"><span class="sr-only">Habit<\/span><\/th>/);
-  assert.equal((html.match(/<th scope="row" class="habits-week-name">/g) || []).length, 5, 'active habits only');
-  assert.match(html, /<tr class="habits-week-group"><th scope="rowgroup" colspan="8">Morning<\/th><\/tr>/);
-  const cell = (id, date) => html.match(new RegExp(`<button class="habit-cell ([^"]+)" type="button" data-action="habit-today-toggle" data-habit-id="${id}" data-date="${date}"([^>]*)>`));
+  assert.match(html, /<table class="habits-week-table"><thead><tr><th scope="col"/, 'R33: the names have their own rows, so the head has only the seven days');
+  assert.equal((html.match(/<th scope="rowgroup" colspan="7" class="habits-week-name">/g) || []).length, 5, 'active habits only');
+  assert.match(html, /<tr class="habits-week-group"><th scope="rowgroup" colspan="7">Morning<\/th><\/tr>/);
+  // R37 (D): a numeric day short of its target also carries is-partial and its fraction.
+  const cell = (id, date) => html.match(new RegExp(`<button class="habit-cell ([^"]+)"(?: style="[^"]*")? type="button" data-action="habit-today-toggle" data-habit-id="${id}" data-date="${date}"([^>]*)>`));
   assert.match(cell('m', TODAY)[1], /^is-done is-today$/);
   assert.doesNotMatch(cell('m', TODAY)[2], /disabled/);
   assert.match(cell('m', TODAY)[2], /aria-label="Meditate, F:[\d-]+: Done" aria-pressed="true"/);
@@ -253,7 +254,7 @@ test('the value sheet opens for a past day and names it; the screen opens on Dan
 
   const enter = { Core, state: { ui: { habitsView: 'week', habitsDay: '2026-01-05', habitTrackerMonth: '2026-01', habitChartDay: '2026-01-02' } } };
   vm.createContext(enter);
-  vm.runInContext(`let habitsOpen = false;\n${fn('enterHabitsRoute')}`, enter);
+  vm.runInContext(`let habitsOpen = false, habitsEntryDay = null; // R37: Juče nije zabeleženo\n${fn('enterHabitsRoute')}`, enter);
   enter.enterHabitsRoute({ type: 'habits' });
   assert.deepEqual(plain(enter.state.ui), { habitsView: 'day', habitsDay: TODAY, habitTrackerMonth: TODAY.slice(0, 7), habitChartDay: null });
   enter.state.ui.habitsView = 'week';
