@@ -16,7 +16,8 @@ const fn = name => { const start = app.search(new RegExp(`\\n  (async )?function
 const constLine = name => app.match(new RegExp(`\\n  const ${name} = [^\\n]+`))[0];
 
 test('16: an opaque strip covers the status bar, without blur', () => {
-  assert.match(css, /body::before \{ content: ""; position: fixed; inset: 0 0 auto; height: env\(safe-area-inset-top\); background: var\(--bg-primary\); z-index: 79; pointer-events: none; \}/);
+  // R39: the strip has its own token, dark in both themes.
+  assert.match(css, /body::before \{ content: ""; position: fixed; inset: 0 0 auto; height: env\(safe-area-inset-top\); background: var\(--status-strip\); z-index: 79; pointer-events: none; \}/);
   const layer = css.slice(css.indexOf('/* Redesign R32'));
   assert.doesNotMatch(layer.slice(0, layer.indexOf('/* Keep primary compact actions')), /backdrop-filter|blur\(/);
 });

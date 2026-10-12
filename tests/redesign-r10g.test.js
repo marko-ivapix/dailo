@@ -42,7 +42,7 @@ test('M5: Settings has Opšte, Podaci, Pomoć and Računar in that order (R15: N
     // R18 adds "Podrazumevano vreme podsetnika" and "Podsetnik u planirano vreme" after the reminders.
     // R32: Podsetnici is its own group after Opšte.
     // R37 (J): "Veličina teksta", "Probni podsetnik" and "Stanje podataka".
-    ['General', ['Week starts on', 'Daily capacity', 'Text size']],
+    ['General', ['Week starts on', 'Daily capacity', 'Theme', 'Text size']], // R39: Tema
     ['Reminders', ['Browser reminders', 'Test reminder', 'Default reminder time', 'Reminder at the planned time', 'Journal reminder']],
     ['Data', ['Data health', 'Backup', 'Backup reminder', 'Restore from backup', 'Local snapshots', 'Persistent storage', 'Populate demo workspace', 'Reset app data']],
     ['Help', ['Guide', 'Report a problem', 'Install app', 'Privacy', 'About']],
@@ -64,7 +64,8 @@ test('M5, M6: the install row only while not installed; no theme, personalizatio
   const installed = renderSettings({ installed: true });
   assert.doesNotMatch(installed, /data-install-status|Install app/);
   const html = renderSettings();
-  assert.doesNotMatch(html, /Theme|save-personalization|reset-personalization|clear-completed|<h2>Personalization<\/h2>|<h2>Notifications<\/h2>/);
+  // R39 reopened M6: "Tema" is back in Opšte as a choice for this device.
+  assert.doesNotMatch(html, /save-personalization|reset-personalization|clear-completed|<h2>Personalization<\/h2>|<h2>Notifications<\/h2>/);
   assert.match(css.slice(css.indexOf('/* Redesign R10g')), /@media \(max-width: 700px\), \(pointer: coarse\) \{\n  \.settings-desktop \{ display: none; \}\n\}/);
 });
 

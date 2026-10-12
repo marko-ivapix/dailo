@@ -60,6 +60,8 @@
     const megabytes = bytes => `${new Intl.NumberFormat(I18n.locale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(bytes / 1048576)} MB`;
     const usage = Number.isFinite(persistence.usage) && Number.isFinite(persistence.quota) ? ` ${tr('{used} of {total} used.', { used: megabytes(persistence.usage), total: megabytes(persistence.quota) })}` : '';
     const reminderDays = ctx.Core?.backupReminderDays ? ctx.Core.backupReminderDays(state.settings) : 7;
+    const theme = ctx.readTheme?.() || 'dark';
+    const themes = [['dark', tr('Dark')], ['light', tr('Light')], ['system', tr('Follow the system')]].map(([value, label]) => `<option value="${value}"${value === theme ? ' selected' : ''}>${label}</option>`).join('');
     const textSize = ctx.readTextSize?.() || 'normal';
     const textSizes = [['small', tr('Smaller')], ['normal', tr('Normal')], ['large', tr('Larger')], ['larger', tr('Largest')]].map(([value, label]) => `<option value="${value}"${value === textSize ? ' selected' : ''}>${label}</option>`).join('');
     const reminderOptions = [...new Set([0, 3, 7, 14, 30, reminderDays])].sort((a, b) => a - b)
@@ -100,6 +102,7 @@
         <h2>${tr('General')}</h2>
         <div class="settings-row"><label class="settings-label" for="preference-week-start"><strong>${tr('Week starts on')}</strong><span>${tr('Used by weekly views and habit periods.')}</span></label><select class="input" id="preference-week-start"><option value="monday"${!sundayFirst ? ' selected' : ''}>${tr('Monday')}</option><option value="sunday"${sundayFirst ? ' selected' : ''}>${tr('Sunday')}</option></select></div>
         <div class="settings-row"><label class="settings-label" for="daily-capacity"><strong>${tr('Daily capacity')}</strong><span>${tr('Planned work per day, compared with task durations in the Calendar day view.')}</span></label><select class="input" id="daily-capacity">${capacityOptions}</select></div>
+        <div class="settings-row"><label class="settings-label" for="theme"><strong>${tr('Theme')}</strong><span>${tr('Only on this device.')}</span></label><select class="input" id="theme">${themes}</select></div>
         <div class="settings-row"><label class="settings-label" for="text-size"><strong>${tr('Text size')}</strong><span>${tr('Only on this device.')}</span></label><select class="input" id="text-size">${textSizes}</select></div>
       </section>
       <section class="settings-card" data-settings-reminders>

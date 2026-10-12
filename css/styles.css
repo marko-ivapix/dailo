@@ -76,6 +76,8 @@
   --ink-wash: rgba(255, 255, 255, .025);
   --selection: rgba(133, 144, 255, .32);
   --scrim: rgba(5, 6, 8, .66);
+  /* The phone draws light status icons, so the strip under them stays dark in every theme. */
+  --status-strip: #0F1114;
 
   /* Calendar and record type rails */
   --cal-task: var(--blue-300);
@@ -157,6 +159,93 @@
   --viewport-height: 100vh;
 }
 @supports (height: 100dvh) { :root { --viewport-height: 100dvh; } }
+
+/* R39 (addition L, reopens M6): dark stays the default; this device can choose Svetla or Prati sistem (data-theme on
+   <html>, device-local). Every colour above is a token (R34), so the light palette redefines only the tokens. The
+   status bar strip stays dark in both themes (--status-strip). */
+:root { color-scheme: dark; }
+:root[data-theme="light"] {
+  color-scheme: light;
+  --graphite-950: #FFFFFF;
+  --graphite-900: #F4F5F7;
+  --graphite-850: #FFFFFF;
+  --graphite-800: #EEF0F3;
+  --graphite-750: #E4E7EB;
+  --graphite-700: #D9DDE3;
+  --line-1: #E2E5E9;
+  --line-2: #D3D8DE;
+  --line-3: #B8C0CA;
+  --ink-1: #14171B;
+  --ink-2: #2F353D;
+  --ink-3: #59616C;
+  --ink-4: #8C949E;
+  --blue-300: #3442D1;
+  --mint-300: #13917A;
+  --mint-400: #0D765F;
+  --mint-500: #0B6B57;
+  --yellow-400: #9A5B00;
+  --red-400: #C8282E;
+  --red-600: #C62828;
+  --text-on-card-muted: #4A525C;
+  --accent-tint: rgba(52, 66, 209, .08);
+  --success-tint: rgba(13, 118, 95, .10);
+  --warning-tint: rgba(154, 91, 0, .10);
+  --danger-tint: rgba(200, 40, 46, .08);
+  --danger-hover: #A91F24;
+  --danger-line: #F0B9BA;
+  --danger-ink: #7F1D1D;
+  --blue-tint: rgba(52, 66, 209, .08);
+  --ink-wash: rgba(20, 23, 27, .03);
+  --selection: rgba(52, 66, 209, .2);
+  --scrim: rgba(15, 17, 20, .36);
+  --shadow-overlay: 0 18px 48px rgba(16, 24, 40, .16), 0 2px 8px rgba(16, 24, 40, .08);
+  --shadow-popover: 0 12px 32px rgba(16, 24, 40, .14), 0 2px 6px rgba(16, 24, 40, .06);
+  --shadow-fab: 0 6px 18px rgba(16, 24, 40, .2);
+  --shadow-raised: 0 8px 20px rgba(16, 24, 40, .14);
+  --shadow-toggle: 0 10px 24px rgba(16, 24, 40, .16);
+}
+@media (prefers-color-scheme: light) {
+  :root[data-theme="system"] {
+    color-scheme: light;
+    --graphite-950: #FFFFFF;
+    --graphite-900: #F4F5F7;
+    --graphite-850: #FFFFFF;
+    --graphite-800: #EEF0F3;
+    --graphite-750: #E4E7EB;
+    --graphite-700: #D9DDE3;
+    --line-1: #E2E5E9;
+    --line-2: #D3D8DE;
+    --line-3: #B8C0CA;
+    --ink-1: #14171B;
+    --ink-2: #2F353D;
+    --ink-3: #59616C;
+    --ink-4: #8C949E;
+    --blue-300: #3442D1;
+    --mint-300: #13917A;
+    --mint-400: #0D765F;
+    --mint-500: #0B6B57;
+    --yellow-400: #9A5B00;
+    --red-400: #C8282E;
+    --red-600: #C62828;
+    --text-on-card-muted: #4A525C;
+    --accent-tint: rgba(52, 66, 209, .08);
+    --success-tint: rgba(13, 118, 95, .10);
+    --warning-tint: rgba(154, 91, 0, .10);
+    --danger-tint: rgba(200, 40, 46, .08);
+    --danger-hover: #A91F24;
+    --danger-line: #F0B9BA;
+    --danger-ink: #7F1D1D;
+    --blue-tint: rgba(52, 66, 209, .08);
+    --ink-wash: rgba(20, 23, 27, .03);
+    --selection: rgba(52, 66, 209, .2);
+    --scrim: rgba(15, 17, 20, .36);
+    --shadow-overlay: 0 18px 48px rgba(16, 24, 40, .16), 0 2px 8px rgba(16, 24, 40, .08);
+    --shadow-popover: 0 12px 32px rgba(16, 24, 40, .14), 0 2px 6px rgba(16, 24, 40, .06);
+    --shadow-fab: 0 6px 18px rgba(16, 24, 40, .2);
+    --shadow-raised: 0 8px 20px rgba(16, 24, 40, .14);
+    --shadow-toggle: 0 10px 24px rgba(16, 24, 40, .16);
+  }
+}
 
 * { box-sizing: border-box; }
 html, body { min-height: 100%; }
@@ -261,7 +350,7 @@ select:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .calendar-item--detail .calendar-item-open { padding-bottom: 8px; }
 .calendar-quick-actions { display: flex; gap: 8px; flex-wrap: wrap; padding: 0 10px 10px; }
 .calendar-quick-actions button:disabled { cursor: not-allowed; opacity: .5; }
-.task-time-input { width: 136px; color-scheme: dark; }
+.task-time-input { width: 136px; }
 @media (max-width: 800px) {
   .calendar-summary { align-items: flex-start; }
   .calendar-legend { width: 100%; margin-left: 0; }
@@ -2221,7 +2310,7 @@ h2.task-window-kind { margin: 0; font-size: var(--text-md); }
 
 /* Redesign R32 — the shell after the third design pass (2026-10-12). */
 /* An opaque strip under the status bar, so content never scrolls beneath it (no blur, V1.8). */
-body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top); background: var(--bg-primary); z-index: 79; pointer-events: none; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top); background: var(--status-strip); z-index: 79; pointer-events: none; }
 /* Phone type sizes (G5): rows and their meta line read at arm's length, and screens have a large title. */
 @media (max-width: 1023px) {
   .task-title { font-size: var(--text-body); }

@@ -686,7 +686,7 @@
       foldButton,
       colorName,
       journalLock,
-      readAutoBackup, readTextSize, applyTextSize,
+      readAutoBackup, readTextSize, applyTextSize, readTheme,
       saveTextFile: (text, name, type) => globalThis.DailoPlatform.files.saveFile(new Blob([text], { type }), name, name),
       templateTypes: TEMPLATE_TYPES, templateLabel, openTemplateEditorFromSource, saveTemplateRecord, duplicateTemplateRecord, useTemplate,
       captureModalReturnFocus,
@@ -4536,6 +4536,21 @@
     if (size === 'normal') delete document.documentElement.dataset.textSize; else document.documentElement.dataset.textSize = size;
   }
 
+  // R39 (L): the theme is a choice for this device too: Tamna (the default), Svetla or Prati sistem. js/appearance.js
+  // applies the stored choice before the first paint; this applies a change at once.
+  const THEMES = ['dark', 'light', 'system'];
+  function readTheme() {
+    let value = null;
+    try { value = localStorage.getItem('dailoTheme'); } catch (_) { /* the default theme */ }
+    return THEMES.includes(value) ? value : 'dark';
+  }
+  function applyTheme(value) {
+    const theme = THEMES.includes(value) ? value : 'dark';
+    try { if (theme === 'dark') localStorage.removeItem('dailoTheme'); else localStorage.setItem('dailoTheme', theme); } catch (_) { /* this session only */ }
+    if (theme === 'dark') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = theme;
+    document.querySelector('meta[name="color-scheme"]')?.setAttribute('content', theme === 'light' ? 'light' : theme === 'system' ? 'dark light' : 'dark');
+  }
+
   // R37 (J): "Probni podsetnik" shows a notification five seconds later, on the phone or in the browser.
   async function sendTestReminder() {
     const result = await globalThis.DailoPlatform?.notifications?.test?.({ title: tr('Dailo'), body: tr('This is how a reminder looks.'), seconds: 5 });
@@ -5508,6 +5523,7 @@
     if (event.target.id === 'planned-time-reminders') { state.settings.plannedTimeReminders = event.target.checked; saveAndRender(); return; }
     if (event.target.id === 'journal-notifications') { state.settings.journalNotifications = event.target.checked; saveAndRender(); return; }
     if (event.target.id === 'text-size') { applyTextSize(event.target.value); render(); return; }
+    if (event.target.id === 'theme') { applyTheme(event.target.value); render(); return; }
     if (event.target.id === 'daily-capacity') { const minutes = Number(event.target.value); if (Number.isInteger(minutes) && minutes >= 0 && minutes <= 1440) { state.settings.dailyCapacityMinutes = minutes; saveAndRender(); } return; }
     if (event.target.id === 'backup-reminder-days') { const days = Number(event.target.value); if (Number.isInteger(days) && days >= 0 && days <= 90) { state.settings.backupReminderDays = days; saveAndRender(); } return; }
     if (event.target.id === 'backup-import-input') { const file=event.target.files?.[0]; event.target.value=''; if(file) inspectImportBackup(file); return; }
@@ -6129,6 +6145,7 @@
   }
 
   async function init() {
+    applyTheme(readTheme());
     applyTextSize(readTextSize());
     attachEvents();
     // Quick Add is an explicit disclosure: never restore it open on reload or route changes.
