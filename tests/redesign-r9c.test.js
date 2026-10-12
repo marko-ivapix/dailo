@@ -66,7 +66,7 @@ test('GO7: "Novi cilj" is a tall sheet with the big name field, the rows and seg
   assert.deepEqual(rowsOf(html), [['goal-draft-area', 'Area', 'No area (optional)'], ['goal-draft-date', 'Target date', 'No target date']]);
   assert.match(html, /<div class="habit-window-block"><span class="habit-window-label"><i class="ph ph-path" aria-hidden="true"><\/i>Horizon<\/span><div class="view-tabs habit-window-seg" role="group" aria-label="Horizon">/);
   assert.deepEqual(segment(html, 'goal-draft-horizon'), [['short', 'Short-term', true], ['mid', 'Mid-term', false], ['long', 'Long-term', false]]);
-  assert.deepEqual(segment(html, 'goal-draft-mode'), [['manual', 'Manual', true], ['linkedTasks', 'Tasks', false], ['linkedHabits', 'Habits', false]]);
+  assert.deepEqual(segment(html, 'goal-draft-mode'), [['manual', 'Manual', true], ['linkedTasks', 'Tasks', false], ['linkedHabits', 'Habits', false], ['milestones', 'Milestones', false]], 'R38: Etape too');
   assert.deepEqual(segment(html, 'goal-draft-type'), [['percentage', 'Percentage', true], ['numeric', 'Number', false]]);
   assert.doesNotMatch(html, /<select|id="goal-target"|id="goal-current"|id="goal-target-date"/);
   assert.match(html, /<button class="habit-window-more" type="button" data-action="toggle-goal-more" aria-expanded="false"><strong>More settings<\/strong><span>Milestones, reminder, links <i class="ph ph-caret-down" aria-hidden="true"><\/i><\/span><\/button><div class="quick-sheet-footer"><span><\/span><button class="btn btn-primary habit-window-save" type="button" data-action="save-goal">Create goal<\/button><\/div><\/div><\/frame>$/);

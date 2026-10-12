@@ -941,7 +941,14 @@
     return [...new Set((focusTaskIds || []).filter(id => typeof id === 'string' && openIds.has(id)))].slice(0, maximum);
   }
 
+  // R38: a goal's progress can come from its milestones: the share of them that are completed.
+  function milestoneProgress(goal) {
+    const milestones = Array.isArray(goal?.milestones) ? goal.milestones.filter(Boolean) : [];
+    return { done: milestones.filter(item => item.isCompleted === true).length, total: milestones.length };
+  }
+
   function goalProgressFraction(goal) {
+    if (goal?.progressMode === 'milestones') { const { done, total } = milestoneProgress(goal); return total ? done / total : 0; }
     if (!goal || goal.progressMode === 'linkedTasks' || goal.progressMode === 'linkedHabits') return null;
     if (goal.progressType === 'numeric') {
       const target = safeNumber(goal.targetValue);
@@ -1040,6 +1047,10 @@
 
   function computeGoalProgress(goal, state = {}, habitMetrics = {}) {
     const source = goal || {};
+    if (source.progressMode === 'milestones') {
+      const { done, total } = milestoneProgress(source);
+      return { current: done, target: total, percent: total ? done / total * 100 : 0 };
+    }
     if (source.progressMode === 'linkedTasks') {
       const tasks = goalTaskSet(source, state);
       const current = tasks.filter(task => Boolean(task.isCompleted)).length;

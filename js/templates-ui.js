@@ -128,7 +128,7 @@
       more += templateRows(ctx, 'reminders', data.reminders || [], prefix, 'reminder');
     } else {
       html += templateRows(ctx, 'milestones', data.milestones || [], prefix, 'milestone');
-      more += field('progressMode', tr('Progress source'), 'text', [['manual', tr('Manual')], ['linkedTasks', tr('Linked tasks')], ['linkedHabits', tr('Linked habits')]]) + field('progressType', tr('Progress type'), 'text', [['percentage', tr('Percentage')], ['numeric', tr('Numeric target')]]);
+      more += field('progressMode', tr('Progress source'), 'text', [['manual', tr('Manual')], ['linkedTasks', tr('Linked tasks')], ['linkedHabits', tr('Linked habits')], ['milestones', tr('Milestones')]]) + field('progressType', tr('Progress type'), 'text', [['percentage', tr('Percentage')], ['numeric', tr('Numeric target')]]);
       if (data.progressType === 'numeric') more += field('targetValue', tr('Target value'), 'number') + field('unit', tr('Unit'));
       more += field('targetOffsetDays', tr('Target day offset (blank = none)'), 'number');
       const reminders = data.reminders || {};

@@ -412,7 +412,7 @@
       title: String(goal.title || goal.name || '').trim(),
       areaId: goal.areaId || null,
       status: ['active', 'paused', 'completed', 'archived'].includes(goal.status) ? goal.status : 'active',
-      progressMode: ['manual', 'linkedTasks', 'linkedHabits'].includes(goal.progressMode) ? goal.progressMode : 'manual',
+      progressMode: ['manual', 'linkedTasks', 'linkedHabits', 'milestones'].includes(goal.progressMode) ? goal.progressMode : 'manual',
       progressType: goal.progressType === 'numeric' ? 'numeric' : 'percentage',
       projectLinks: Array.isArray(goal.projectLinks) ? goal.projectLinks : [], taskIds: Array.isArray(goal.taskIds) ? goal.taskIds : [],
       habitLinks: Array.isArray(goal.habitLinks) ? goal.habitLinks : [], milestones: Array.isArray(goal.milestones) ? goal.milestones : [],

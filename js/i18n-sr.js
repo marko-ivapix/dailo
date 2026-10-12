@@ -1167,6 +1167,9 @@
     "Examples saved, but Habit metrics could not refresh. Reload to retry.": "Primeri su sačuvani, ali metrike navika nisu osvežene. Ponovo učitaj stranicu.",
     // R33: third design pass, windows and screens
     "Area, goals": "Oblast, ciljevi",
+    "{current} of {target} milestones": { one: "{current} od {target} etape", few: "{current} od {target} etape", other: "{current} od {target} etapa" },
+    "Progress is counted from completed milestones.": "Napredak se računa iz završenih etapa.",
+    "Add them under “More settings”.": "Dodaj ih pod „Više“.",
     "Value added": "Vrednost dodata",
     "Add {value} to {habit}": "Dodaj {value}: {habit}",
     "Not recorded yesterday: {count}": "Juče nije zabeleženo: {count}",
