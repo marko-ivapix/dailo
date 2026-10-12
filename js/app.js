@@ -4307,7 +4307,7 @@
 
   function syncView() {
     const meta = syncMeta || loadSyncMeta();
-    return { configured: Boolean(syncClient), signedIn: Boolean(meta.session?.accessToken), email: meta.session?.user?.email || '', name: meta.session?.user?.name || '',
+    return { configured: Boolean(syncClient), signedIn: Boolean(meta.session?.accessToken), email: meta.session?.user?.email || '', name: meta.session?.user?.name || '', serverCheck,
       running: syncRunning, lastSyncAt: meta.lastSyncAt || null, lastError: meta.lastError || '' };
   }
 
@@ -4390,6 +4390,17 @@
     delete meta.cursor;
     syncMeta = meta;
     saveSyncMeta();
+  }
+
+  // R42: "Proveri server" on Nalog — the key, the tables and the sign-in settings, so a missing Supabase step shows.
+  let serverCheck = null;
+  async function runServerCheck() {
+    if (!syncClient || serverCheck?.running) return;
+    serverCheck = { running: true };
+    render();
+    try { serverCheck = { result: await syncClient.checkServer() }; }
+    catch (error) { serverCheck = { error: error?.message || String(error) }; }
+    render();
   }
 
   // R40: the welcome screen (first launch, and "Prijavi se" / "Napravi nalog" on Nalog). Sign-in is by e-mail and
@@ -4491,10 +4502,9 @@
     return '';
   }
 
+  // R42: the client already turns Supabase's answers into sentences; a refused code reads the same whatever its cause.
   function welcomeErrorText(error, mode) {
-    if (error?.status === 429) return msg('Too many requests. Wait a minute and try again.');
-    if (mode === 'sign-in' && error?.status === 400) return msg('Wrong e-mail address or password.');
-    if (['confirm', 'reset-code'].includes(mode) && error?.status >= 400 && error?.status < 500 && error?.reason !== 'weak_password') return msg('The code is wrong or has expired.');
+    if (['confirm', 'reset-code'].includes(mode) && error?.status >= 400 && error?.status < 500 && ![429, 422].includes(error.status)) return msg('The code is wrong or has expired.');
     return error?.message || String(error);
   }
 
@@ -5541,6 +5551,7 @@
     else if (action === 'welcome-resend') welcomeResend();
     else if (action === 'welcome-toggle-password') toggleWelcomePassword();
     else if (action === 'sync-now') runSync().catch(console.error);
+    else if (action === 'sync-check-server') runServerCheck();
     else if (action === 'sync-sign-out') signOutSync();
     else if (action === 'sync-delete-account') deleteSyncAccount();
     else if (action === 'sync-choose') chooseSyncMode(el.dataset.mode);

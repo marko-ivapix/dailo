@@ -55,6 +55,41 @@
     return root.btoa(String.fromCharCode(...digest)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   }
 
+  // R42: Supabase's answers as sentences the app translates. Auth sends error_code (older servers error and
+  // error_description), PostgREST a Postgres or PGRST code; anything else keeps "Server error: <detail>".
+  const TOO_MANY = msg('Too many requests. Wait a minute and try again.');
+  const ACCOUNT_EXISTS = msg('An account with this e-mail address already exists. Sign in.');
+  const METHOD_OFF = msg('This sign-in method is turned off on the server.');
+  const MISSING_TABLES = msg('The sync tables are missing on the server. Run 0001_sync.sql and 0002_journal.sql in Supabase.');
+  const AUTH_MESSAGES = Object.freeze({
+    invalid_credentials: msg('Wrong e-mail address or password.'),
+    email_not_confirmed: msg('The e-mail address is not confirmed yet.'),
+    user_already_exists: ACCOUNT_EXISTS,
+    email_exists: ACCOUNT_EXISTS,
+    weak_password: msg('The password is too weak for the server. Use a longer one with digits and letters.'),
+    over_email_send_rate_limit: TOO_MANY,
+    over_request_rate_limit: TOO_MANY,
+    otp_expired: msg('The code is wrong or has expired.'),
+    email_address_not_authorized: msg('The server cannot send e-mail to this address yet: its SMTP is not set up.'),
+    signup_disabled: msg('Registration is turned off on the server.'),
+    email_address_invalid: msg('Enter a valid e-mail address.'),
+    same_password: msg('The new password must differ from the old one.'),
+    provider_disabled: METHOD_OFF,
+    email_provider_disabled: METHOD_OFF,
+  });
+  function serverMessage(status, reason, detail) {
+    if (AUTH_MESSAGES[reason]) return AUTH_MESSAGES[reason];
+    if (/invalid login credentials/i.test(detail)) return AUTH_MESSAGES.invalid_credentials;
+    if (/email not confirmed/i.test(detail)) return AUTH_MESSAGES.email_not_confirmed;
+    if (status === 429) return TOO_MANY;
+    if (/error sending .*email/i.test(detail)) return msg('The server could not send the e-mail. Try again later.');
+    if (/email address.*(invalid format|is invalid)/i.test(detail)) return AUTH_MESSAGES.email_address_invalid;
+    if (/(invalid|no) api key/i.test(detail)) return msg('The server does not accept the app key.');
+    if (['PGRST205', 'PGRST202', '42P01', '42883'].includes(reason)) return MISSING_TABLES;
+    if (reason === '23514' && /records_type_check/.test(detail)) return msg('The server does not accept Dnevnik yet. Run 0002_journal.sql in Supabase.');
+    return detail ? `${msg('Server error')}: ${detail}` : msg('Server error');
+  }
+
   const keyOf = (type, id) => `${type}/${id}`;
   const own = (object, key) => Object.prototype.hasOwnProperty.call(object || {}, key);
   const clone = value => (value === undefined ? undefined : JSON.parse(JSON.stringify(value)));
@@ -212,7 +247,7 @@
       try {
         response = await fetchImpl(`${base}${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
       } catch (error) {
-        throw new SyncError(`${msg('Network unavailable')}: ${error?.message || error}`, 0);
+        throw new SyncError(msg('Network unavailable'), 0);
       }
       if (!response.ok) {
         let detail = '';
@@ -220,9 +255,9 @@
         try {
           const data = await response.json();
           detail = data?.msg || data?.message || data?.error_description || data?.error || '';
-          reason = data?.error_code || (typeof data?.error === 'string' ? data.error : '');
+          reason = String(data?.error_code || (typeof data?.code === 'string' ? data.code : '') || (typeof data?.error === 'string' ? data.error : ''));
         } catch (_) { /* no body */ }
-        throw new SyncError(detail ? `${msg('Server error')}: ${detail}` : msg('Server error'), response.status, reason);
+        throw new SyncError(serverMessage(response.status, reason, String(detail)), response.status, reason);
       }
       if (response.status === 204) return null;
       const text = await response.text();
@@ -254,7 +289,7 @@
         const data = { ...(String(fullName).trim() ? { full_name: String(fullName).trim() } : {}), ...(termsAcceptedAt ? { terms_accepted_at: termsAcceptedAt } : {}) };
         const result = await request('/auth/v1/signup', { method: 'POST', body: { email: address(email), password: String(password || ''), data } });
         if (result?.access_token) return { session: toSession(result) };
-        if (Array.isArray(result?.identities) && !result.identities.length) throw new SyncError(msg('An account with this e-mail address already exists. Sign in.'), 422, 'user_already_exists');
+        if (Array.isArray(result?.identities) && !result.identities.length) throw new SyncError(ACCOUNT_EXISTS, 422, 'user_already_exists');
         return { confirm: true };
       },
       async signIn(email, password) {
@@ -278,6 +313,16 @@
       },
       authorizeUrl({ provider, redirectTo, codeChallenge: challenge }) {
         return `${base}/auth/v1/authorize?${new URLSearchParams({ provider, redirect_to: redirectTo, code_challenge: challenge, code_challenge_method: 's256' })}`;
+      },
+      // R42: what "Proveri server" on Nalog reports. E-mail templates and SMTP are not visible through the public API.
+      async checkServer() {
+        const result = { key: false, tables: 'unknown', signup: false, confirm: false, google: false, apple: false };
+        let settings;
+        try { settings = await request('/auth/v1/settings'); } catch (error) { if (error.status === 401) return result; throw error; }
+        Object.assign(result, { key: true, signup: !settings?.disable_signup, confirm: !settings?.mailer_autoconfirm, google: Boolean(settings?.external?.google), apple: Boolean(settings?.external?.apple) });
+        try { await request('/rest/v1/records?select=id&limit=1'); result.tables = 'ok'; }
+        catch (error) { result.tables = error.message === MISSING_TABLES ? 'missing' : [401, 403].includes(error.status) ? 'ok' : 'unknown'; }
+        return result;
       },
       async exchangeCode(code, verifier) {
         return toSession(await request('/auth/v1/token?grant_type=pkce', { method: 'POST', body: { auth_code: String(code || ''), code_verifier: String(verifier || '') } }));

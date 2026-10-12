@@ -145,6 +145,27 @@ ${native ? `
       </section>`;
   }
 
+  // R42: "Proveri server" — what is set up on the server for sign-in and sync, and what is missing.
+  function serverCheckHtml(esc, check) {
+    const icons = { ok: 'check-circle', bad: 'warning-circle', info: 'info' };
+    const item = (kind, text) => `<li class="is-${kind}"><i class="ph ph-${icons[kind]}" aria-hidden="true"></i><span>${tr(text)}</span></li>`;
+    const result = check?.result;
+    const items = !result ? [] : [
+      result.key ? item('ok', msg('The server accepts the app key.')) : item('bad', msg('The server does not accept the app key.')),
+      result.tables === 'ok' ? item('ok', msg('The sync tables are in place.')) : result.tables === 'missing' ? item('bad', msg('The sync tables are missing on the server. Run 0001_sync.sql and 0002_journal.sql in Supabase.')) : item('info', msg('The sync tables could not be checked.')),
+      ...(result.key ? [
+        result.signup ? item('ok', msg('Registration is on.')) : item('bad', msg('Registration is turned off on the server.')),
+        item('info', result.confirm ? msg('New accounts confirm their e-mail address with a code.') : msg('New accounts are confirmed without an e-mail.')),
+        result.google ? item('ok', msg('Sign-in with Google is on.')) : item('info', msg('Sign-in with Google is not turned on yet.')),
+        result.apple ? item('ok', msg('Sign-in with Apple is on.')) : item('info', msg('Sign-in with Apple is not turned on yet.')),
+      ] : []),
+      item('info', msg('The e-mail templates and SMTP cannot be checked from the app; the setup guide lists them.')),
+    ];
+    const running = Boolean(check?.running);
+    const error = check?.error ? `<p class="validation" role="alert">${esc(trMessage(check.error))}</p>` : '';
+    return `<div class="server-check" data-server-check><div class="settings-row"><div class="settings-label"><strong>${tr('Server')}</strong><span>${tr('Check that the server is ready for sign-in and sync.')}</span></div><button class="btn btn-secondary" type="button" data-action="sync-check-server"${running ? ' disabled' : ''}>${running ? tr('Checking…') : tr('Check the server')}</button></div>${error}${items.length ? `<ul class="server-check-list">${items.join('')}</ul>` : ''}</div>`;
+  }
+
   // R15 (M5 amended): the Nalog screen, opened from its tile in Još. With sync set up it holds the sign-in, the last
   // sync and the account actions that used to sit in Podešavanja; without it, it says the data stays on this device.
   function renderAccount(ctx) {
@@ -166,6 +187,7 @@ ${native ? `
         <div class="sync-actions"><button class="btn btn-secondary" type="button" data-action="sync-sign-out">${tr('Sign out')}</button><button class="btn btn-ghost is-danger" type="button" data-action="sync-delete-account">${tr('Delete account')}</button></div>`
         : `<p class="area-empty-copy">${tr('Sign in to have your tasks, habits and goals on all your devices. Without an account, everything stays only on this device.')}</p>
         <div class="sync-actions"><button class="btn btn-primary" type="button" data-action="open-welcome" data-mode="sign-in">${tr('Log in')}</button><button class="btn btn-secondary" type="button" data-action="open-welcome" data-mode="sign-up">${tr('Create account')}</button></div>`}
+        ${serverCheckHtml(esc, sync.serverCheck)}
       </section>`;
     return `${pageHeader(tr('Account'), subtitle, { add: false })}${card}`;
   }

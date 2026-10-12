@@ -2454,6 +2454,15 @@ textarea[data-autogrow] { field-sizing: content; min-height: 0; resize: none; ov
 .welcome-skip { min-height: 44px; border: 0; background: transparent; color: var(--ink-2); font-size: var(--text-body); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .welcome-note { margin: -8px 0 0; color: var(--ink-3); font-size: var(--text-sm); text-align: center; }
 
+/* Redesign R42: "Proveri server" on Nalog lists what is set up (check), missing (warning) or for information. */
+.server-check { margin-top: 12px; padding-top: 4px; border-top: 1px solid var(--line-1); }
+.server-check-list { display: grid; gap: 8px; margin: 4px 0 0; padding: 0; list-style: none; }
+.server-check-list li { display: flex; align-items: flex-start; gap: 10px; color: var(--ink-2); font-size: var(--text-md); line-height: 1.45; }
+.server-check-list .ph { flex: none; margin-top: 1px; font-size: var(--text-lg); }
+.server-check-list .is-ok .ph { color: var(--success); }
+.server-check-list .is-bad .ph { color: var(--danger); }
+.server-check-list .is-info .ph { color: var(--ink-3); }
+
 /* Keep primary compact actions touchable after all density rules. */
 @media (max-width: 700px), (pointer: coarse) {
   .task-actions .btn-icon,

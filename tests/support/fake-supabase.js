@@ -4,7 +4,7 @@
 'use strict';
 const nodeCrypto = require('node:crypto');
 
-function createFakeSupabase({ url = 'https://fake.supabase.co', anonKey = 'anon-key', code = '123456', autoconfirm = false, providers = { google: true, apple: false } } = {}) {
+function createFakeSupabase({ url = 'https://fake.supabase.co', anonKey = 'anon-key', code = '123456', autoconfirm = false, providers = { google: true, apple: false }, tables = true } = {}) {
   const users = new Map(); // email -> { id, email, password, confirmed }
   const tokens = new Map(); // access token -> { userId, expiresAt }
   const refreshTokens = new Map(); // refresh token -> userId
@@ -52,7 +52,7 @@ function createFakeSupabase({ url = 'https://fake.supabase.co', anonKey = 'anon-
     const addUser = (email, fields) => { const user = { id: `user-${users.size + 1}`, email, password: null, confirmed: false, ...fields }; users.set(email, user); return user; };
     const sendCode = (email, kind) => { (kind === 'recovery' ? recoveryCodes : pendingCodes).set(email, code); sentCodes.push({ email, code }); mail.push({ email, kind }); };
     if (path === '/auth/v1/settings' && method === 'GET') {
-      return json(200, { external: { email: true, google: Boolean(providers.google), apple: Boolean(providers.apple) }, mailer_autoconfirm: autoconfirm });
+      return json(200, { external: { email: true, google: Boolean(providers.google), apple: Boolean(providers.apple) }, disable_signup: false, mailer_autoconfirm: autoconfirm });
     }
     if (path === '/auth/v1/otp' && method === 'POST') {
       if (!validEmail(body?.email)) return json(400, { msg: 'Unable to validate email address: invalid format' });
@@ -128,6 +128,8 @@ function createFakeSupabase({ url = 'https://fake.supabase.co', anonKey = 'anon-
       } else if (entry) { tokens.delete(auth); refreshTokens.delete(entry.refreshToken); }
       return json(204, null);
     }
+    // Before 0001_sync.sql runs, PostgREST knows neither the table nor the function.
+    if (!tables && path.startsWith('/rest/v1/')) return json(404, { code: 'PGRST205', message: "Could not find the table 'public.records' in the schema cache" });
     if (path === '/rest/v1/rpc/delete_my_account' && method === 'POST') {
       const who = userFor(headers);
       if (who.error) return who.error;

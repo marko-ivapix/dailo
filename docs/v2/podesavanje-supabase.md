@@ -81,6 +81,8 @@ Ta dva podatka su javna po dizajnu: nalaze se u svakoj aplikaciji koja koristi S
 
 Na prvom pokretanju aplikacija otvara ekran za prijavu (posle toga: **Još → Nalog → Prijavi se**).
 
+Prvo u **Još → Nalog** dodirni **Proveri server**. Aplikacija pokazuje da li server prihvata ključ, da li postoje tabele (migracije iz koraka 2), da li je registracija uključena i da li su uključeni Google i Apple. Šablone e-poruka i SMTP aplikacija ne može da proveri, pa njih proveri ručno (koraci 3 i 5).
+
 1. **Registruj se**: ime (nije obavezno), e-adresa, lozinka dva puta i saglasnost sa uslovima → **Napravi nalog**. Stiže kod; upiši ga i dodirni **Potvrdi**.
 2. **Sinhronizuj sada** u **Još → Nalog** šalje podatke na server, a na drugom uređaju se posle prijave istom e-adresom i lozinkom pojavljuju isti zadaci.
 3. **Zaboravljena lozinka?** šalje kod; sa njim se postavlja nova lozinka.

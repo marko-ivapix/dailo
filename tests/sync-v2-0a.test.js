@@ -78,10 +78,11 @@ test('applyRemote keeps local attachments and device settings, removes tombstone
 test('e-mail one-time code sign-in, wrong codes, refresh of an expired session and sign-out', async () => {
   const fake = createFakeSupabase();
   const client = Sync.createClient({ url: fake.url, anonKey: fake.anonKey, fetch: fake.fetch, now: fake.now });
-  await assert.rejects(client.requestCode('not-an-email'), error => error instanceof Sync.SyncError && /invalid format/.test(error.message));
+  // R42: Supabase's answer reads as a sentence the app translates.
+  await assert.rejects(client.requestCode('not-an-email'), error => error instanceof Sync.SyncError && error.message === 'Enter a valid e-mail address.');
   await client.requestCode('ana@example.com');
   assert.deepEqual(fake.sentCodes, [{ email: 'ana@example.com', code: '123456' }]);
-  await assert.rejects(client.verifyCode('ana@example.com', '000000'), /invalid/i);
+  await assert.rejects(client.verifyCode('ana@example.com', '000000'), /The code is wrong or has expired\./);
   await client.requestCode('ana@example.com');
   const session = await client.verifyCode('ana@example.com', '123456');
   assert.equal(session.user.email, 'ana@example.com');
@@ -205,7 +206,7 @@ test('pulls are paged, errors are reported without losing the pending changes, a
     readLocal: async () => ({ state: phone.store.state, habitLogs: [] }), writeLocal: async () => { throw new Error('must not write'); } });
   const result = await offline;
   assert.equal(result.status, 'error');
-  assert.match(result.error, /Failed to fetch/);
+  assert.equal(result.error, 'Network unavailable', 'R42: no English detail');
   await phone.sync();
   await mac.sync();
   assert.ok(mac.store.state.tasks.some(item => item.id === 'offline'), 'the change waits for the next successful sync');
