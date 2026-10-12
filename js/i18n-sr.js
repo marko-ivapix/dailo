@@ -966,6 +966,13 @@
     "Calendar events imported": "Događaji iz kalendara su uvezeni",
     "Untitled event": "Događaj bez naslova",
     "{count} more events were left out. Import them with another file.": "Izostavljeno još događaja: {count}. Uvezi ih drugim fajlom.",
+    // R53: voice input in Quick Add.
+    "Dictate the task": "Izgovori zadatak",
+    "Stop dictation": "Zaustavi diktiranje",
+    "The microphone is not allowed. Allow it in the browser settings.": "Mikrofon nije dozvoljen. Dozvoli ga u podešavanjima pregledača.",
+    "Nothing was heard. Try again.": "Ništa se nije čulo. Pokušaj ponovo.",
+    "No microphone was found.": "Mikrofon nije pronađen.",
+    "Speech recognition is not available right now.": "Prepoznavanje govora trenutno nije dostupno.",
     // R41: paging through weeks on Navike.
     "Current week": "Ova nedelja",
     "Last week": "Prošla nedelja",

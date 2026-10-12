@@ -112,8 +112,7 @@ test('Serbian', () => {
   }
 });
 
-test('R52 is released as 2.0.0-alpha.79', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.79');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.79';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.79');
+test('R52 shipped as 2.0.0-alpha.79 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 99) >= 79);
 });

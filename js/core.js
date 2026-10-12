@@ -2472,10 +2472,21 @@
     return { drafts, past, recurring, duplicates, overLimit };
   }
 
+  // R53: Serbian Cyrillic to Latin; speech recognition may answer in Cyrillic while the app is written in Latin.
+  const CYRILLIC_LATIN = { А: 'A', Б: 'B', В: 'V', Г: 'G', Д: 'D', Ђ: 'Đ', Е: 'E', Ж: 'Ž', З: 'Z', И: 'I', Ј: 'J', К: 'K', Л: 'L', Љ: 'Lj', М: 'M', Н: 'N', Њ: 'Nj', О: 'O', П: 'P', Р: 'R', С: 'S', Т: 'T', Ћ: 'Ć', У: 'U', Ф: 'F', Х: 'H', Ц: 'C', Ч: 'Č', Џ: 'Dž', Ш: 'Š' };
+  function cyrillicToLatin(text) {
+    return String(text ?? '').replace(/[\u0400-\u04FF]/g, char => {
+      if (CYRILLIC_LATIN[char]) return CYRILLIC_LATIN[char];
+      const upper = CYRILLIC_LATIN[char.toUpperCase()];
+      return upper ? upper.toLowerCase() : char;
+    });
+  }
+
   return {
     dateOnly,
     parseDateOnly,
     localDateOf,
+    cyrillicToLatin,
     calendarIcs,
     parseIcsEvents,
     icsImportTasks,

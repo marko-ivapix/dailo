@@ -1603,6 +1603,48 @@
     return `<div class="recovery"><div class="recovery-card"><h1>${unsupported ? tr('This data is from a newer version.') : tr("We couldn't load your local data.")}</h1><p>${unsupported ? tr("Dailo can't safely read this saved format.") : tr('Your saved data appears to be invalid. Nothing has been overwritten.')}</p><div class="recovery-actions"><button class="btn btn-secondary" type="button" data-action="retry-load">${tr('Retry')}</button><button class="btn btn-danger" type="button" data-action="recovery-reset">${tr('Reset local data')}</button></div></div></div>`;
   }
 
+  // R53: voice input in Quick Add where the browser recognizes speech (Chrome, Edge, Safari). The phone apps keep the
+  // keyboard's own dictation key, since their WebViews have no speech recognition.
+  const SpeechRecognitionImpl = globalThis.SpeechRecognition || globalThis.webkitSpeechRecognition || null;
+  const DICTATION_ERRORS = { 'not-allowed': msg('The microphone is not allowed. Allow it in the browser settings.'), 'service-not-allowed': msg('The microphone is not allowed. Allow it in the browser settings.'), 'no-speech': msg('Nothing was heard. Try again.'), 'audio-capture': msg('No microphone was found.'), network: msg('Speech recognition is not available right now.') };
+  let dictation = null;
+
+  // A tap listens once; the words join the title live (Cyrillic becomes Latin) and the preview of dates and tags
+  // follows. A second tap stops.
+  function toggleDictation() {
+    if (dictation) { dictation.stop(); return; }
+    const field = $('#quick-title');
+    if (!SpeechRecognitionImpl || !field) return;
+    const recognition = new SpeechRecognitionImpl();
+    recognition.lang = I18n.locale().startsWith('sr') ? 'sr-RS' : I18n.locale();
+    recognition.interimResults = true;
+    recognition.continuous = false;
+    const base = field.value.trim();
+    recognition.onresult = event => {
+      const heard = Core.cyrillicToLatin(Array.from(event.results, result => result[0]?.transcript || '').join('')).replace(/\s+/g, ' ').trim();
+      field.value = [base, heard].filter(Boolean).join(' ');
+      field.dispatchEvent(new Event('input', { bubbles: true }));
+    };
+    recognition.onerror = event => { if (DICTATION_ERRORS[event.error]) setToastMessage(tr(DICTATION_ERRORS[event.error])); };
+    recognition.onend = () => { dictation = null; setDictationState(false); $('#quick-title')?.focus(); };
+    dictation = recognition;
+    setDictationState(true);
+    try { recognition.start(); } catch (_) { dictation = null; setDictationState(false); }
+  }
+
+  function setDictationState(on) {
+    const button = $('#quick-dictation');
+    if (!button) return;
+    button.classList.toggle('is-listening', on);
+    button.setAttribute('aria-pressed', String(on));
+    button.setAttribute('aria-label', on ? tr('Stop dictation') : tr('Dictate the task'));
+  }
+
+  function stopDictation() {
+    dictation?.abort();
+    dictation = null;
+  }
+
   function openQuickAdd(context = {}) {
     captureModalReturnFocus();
     closePopover();
@@ -1883,6 +1925,7 @@
   }
 
   function closeModal() {
+    stopDictation();
     if (modalState?.type === 'focus') stopFocusTimer();
     // R12b (J2): an entry emptied of text and mood leaves when its window closes.
     if (modalState?.type === 'journal') callDomainHook('handleAction', 'journal-closing', null);
@@ -2135,9 +2178,12 @@
     const parsed = parseQuickAddTitle(d.title, !d.explicitPlan);
     const plan = d.explicitPlan ? d.plannedDate : (parsed.plannedDate || d.plannedDate);
     const time = d.explicitPlannedTime ? d.plannedTime : (d.plannedTime || parsed.plannedTime);
+    const titleInput = `<input id="quick-title" class="quick-title-input${modalState.error ? ' is-error' : ''}" type="text" maxlength="500" autocomplete="off" placeholder="${tr('What needs to be done?')}" value="${esc(d.title)}" aria-label="${tr('Task title')}" />`;
+    // R53: the microphone, where the browser recognizes speech.
+    const dictate = SpeechRecognitionImpl ? `<button id="quick-dictation" class="btn-icon quick-dictation" type="button" data-action="quick-dictate" aria-pressed="false" aria-label="${tr('Dictate the task')}"><i class="ph ph-microphone" aria-hidden="true"></i></button>` : '';
     return modalFrame(`<div class="modal-inner quick-sheet">
       <div class="modal-header"><h2 class="modal-title">${tr('New task')}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div>
-      <input id="quick-title" class="quick-title-input${modalState.error ? ' is-error' : ''}" type="text" maxlength="500" autocomplete="off" placeholder="${tr('What needs to be done?')}" value="${esc(d.title)}" aria-label="${tr('Task title')}" />
+      ${dictate ? `<div class="quick-title-row">${titleInput}${dictate}</div>` : titleInput}
       ${modalState.error ? `<div class="validation">${esc(modalState.error)}</div>` : ''}
       ${modalState.draft.notes ? `<p class="quick-shared-note"><i class="ph ph-link" aria-hidden="true"></i><span>${esc(modalState.draft.notes)}</span></p>` : ''}
       <div class="quick-parse-slot" data-quick-preview-slot aria-live="polite">${quickParsePreview(parsed)}</div>
@@ -6014,6 +6060,7 @@
     else if (action === 'request-storage-persistence') updateStoragePersistence(true).catch(console.error);
     else if (action === 'import-backup') chooseImportBackup();
     else if (action === 'export-ics') exportIcsAction();
+    else if (action === 'quick-dictate') toggleDictation();
     else if (action === 'import-ics') $('#ics-import-input')?.click();
     else if (action === 'clear-completed') clearCompleted();
     else if (action === 'completed-project') openCompletedProjectSheet(el);

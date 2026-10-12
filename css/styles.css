@@ -2568,6 +2568,13 @@ textarea[data-autogrow] { field-sizing: content; min-height: 0; resize: none; ov
 .journal-cipher-note { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 8px 0 12px; padding: 12px 14px; }
 .journal-cipher-note p { margin: 0; color: var(--ink-2); font-size: var(--text-md); }
 
+/* R53: the microphone next to the Quick Add title, where the browser recognizes speech. */
+.quick-title-row { display: flex; align-items: center; gap: 8px; }
+.quick-title-row .quick-title-input { flex: 1; min-width: 0; }
+.quick-dictation.is-listening { border-radius: 50%; background: var(--danger); color: var(--on-accent); animation: dictation-pulse 1.2s ease-in-out infinite; }
+@keyframes dictation-pulse { 50% { opacity: .6; } }
+@media (prefers-reduced-motion: reduce) { .quick-dictation.is-listening { animation: none; } }
+
 /* Keep primary compact actions touchable after all density rules. */
 @media (max-width: 700px), (pointer: coarse) {
   .task-actions .btn-icon,
