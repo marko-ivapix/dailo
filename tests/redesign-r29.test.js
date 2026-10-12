@@ -241,10 +241,9 @@ test('R29: the examples load before the habits module, work offline and the Sett
   assert.match(read('js/settings-ui.js'), /tr\('Add missing editable examples from everyday life: habits, goals, a bucket list, a camping packing list, recurring chores, tags, notes, resources and templates\. Existing items and edits stay intact\.'\)/);
 });
 
-test('R29 is released as 2.0.0-alpha.54', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.54');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.54';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.54');
+test('R29 shipped as 2.0.0-alpha.54 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 99) >= 54);
 });
 
 test('R29: the first set\'s goals save a valid progress type, and an invalid stored one reads as a percentage', async () => {

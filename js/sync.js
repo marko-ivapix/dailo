@@ -185,7 +185,9 @@
     const base = String(url || '').replace(/\/+$/, '');
 
     async function request(path, { method = 'GET', body, token, prefer } = {}) {
-      const headers = { apikey: anonKey, Authorization: `Bearer ${token || anonKey}`, 'Content-Type': 'application/json' };
+      // The publishable key goes only in `apikey`; it is not a JWT, so Supabase refuses it as a Bearer token.
+      const headers = { apikey: anonKey, 'Content-Type': 'application/json' };
+      if (token) headers.Authorization = `Bearer ${token}`;
       if (prefer) headers.Prefer = prefer;
       let response;
       try {

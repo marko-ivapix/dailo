@@ -89,3 +89,18 @@ Checks (Node v22.22.0, Python 3.13.16):
 - `git diff --check` passed.
 
 Real sign-in, e-mail delivery, two-device sync, iPhone resume and account deletion are **manual-pending** until the Supabase project exists. Node checks against the fake server do not replace them.
+
+**Configuration — 2026-10-12, `2.0.0-alpha.55`.**
+- **The project:** the user created the Supabase project and sent its public keys. `js/sync-config.js` now holds the project URL `https://qjfpnvjuqbrmdkjxxmsq.supabase.co`, taken from the `ref` inside the anon key the user sent, and the **publishable** key (`sb_publishable_…`). No secret or `service_role` key was sent or stored.
+- **Header fix in `js/sync.js`:** requests used to send `Authorization: Bearer <key>` when no user was signed in. Supabase refuses a publishable key as a Bearer token because it is not a JWT. Now the key goes only in `apikey`, and `Authorization` carries only a signed-in user's token. The legacy anon JWT works the same way.
+- **Guide (`docs/v2/podesavanje-supabase.md`):**
+  - the code e-mail template is two `<p>` paragraphs;
+  - the check step now points to **Još → Nalog** (since R15), no longer to "Podešavanja → Sinhronizacija".
+- **Smoke test:** the Nalog check now accepts the sign-in card that a configured app shows.
+- **Test:** `tests/sync-project.test.js` covers the config, the headers, the guide and the version, and pins `2.0.0-alpha.55`.
+- **Checks:**
+  - syntax 149/149;
+  - Node 915/915;
+  - `npm run smoke` OK.
+- **Not checked live:** the cloud session's network policy blocks `*.supabase.co`, so the project could not be reached from here.
+- **Manual-pending:** whether migrations `0001_sync.sql` and `0002_journal.sql` ran, the e-mail templates, a real sign-in and the two-device checks B31–B36. They stay with the user.

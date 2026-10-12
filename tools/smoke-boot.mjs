@@ -544,7 +544,7 @@ const tiles = [...window.document.querySelectorAll('#main .more-tiles > .more-ro
 if (!tiles.length || tiles.some(tile => !tile.firstElementChild?.matches('.more-row-icon')) || window.document.querySelector('#main .more-row-caret')) fail('Još is not a grid of tiles with the icon on top');
 click('#main .more-tiles .more-row[data-route="account"]');
 await new Promise(resolve => setTimeout(resolve, 50));
-if (window.location.hash !== '#account' || window.document.querySelector('#main .page-title')?.textContent !== 'Nalog' || !window.document.querySelector('#main [data-account-local]')) fail('the Nalog tile did not open the Nalog screen');
+if (window.location.hash !== '#account' || window.document.querySelector('#main .page-title')?.textContent !== 'Nalog' || !window.document.querySelector('#main [data-account-local], #main [data-settings-sync] #sync-email')) fail('the Nalog tile did not open the Nalog screen');
 // Redesign R16: Detalji navike → Početak → Početak meseca → Primeni saves the habit's start at once.
 const startHabit = window.TodoApp.state.habits.find(habit => habit.status === 'active');
 window.location.hash = `#habit/${startHabit.id}`;
