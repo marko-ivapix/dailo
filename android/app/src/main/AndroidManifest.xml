@@ -30,6 +30,14 @@
                 <data android:mimeType="text/plain" />
             </intent-filter>
 
+            <!-- Redesign R40: a Google or Apple sign-in returns to the app as dailo://auth from the browser. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="dailo" android:host="auth" />
+            </intent-filter>
+
             <!-- Redesign R24: Novi zadatak, Danas and Dnevnik on a long press of the icon. -->
             <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
 

@@ -55,15 +55,18 @@ Rezultati se upisuju u `docs/superpowers/progress-v1-9.md` (tabela „Manual iPh
 
 Dok Supabase nije podešen (`docs/v2/podesavanje-supabase.md`), kartica **Sinhronizacija** se ne vidi i ove stavke se preskaču.
 
-- [ ] **B31.** Podešavanja → **Sinhronizacija**: upiši e-adresu i dodirni **Pošalji kod**. Kod stiže e-poštom; upiši ga i dodirni **Potvrdi**. Vide se nalog i vreme poslednje sinhronizacije.
+- [ ] **B31.** Na prvom pokretanju (ili **Još → Nalog → Napravi nalog**) dodirni **Registruj se**, upiši e-adresu i lozinku dva puta, prihvati uslove i dodirni **Napravi nalog**. Kod stiže e-poštom; upiši ga i dodirni **Potvrdi**. U **Još → Nalog** se vide nalog i vreme poslednje sinhronizacije.
 - [ ] **B32.** Na Mac-u se prijavi istom e-adresom. Ako oba uređaja već imaju podatke, pojavi se izbor; izaberi **Spoji**. Posle toga su isti zadaci na oba uređaja.
 - [ ] **B33.** Napravi zadatak na iPhone-u. Na Mac-u se pojavi posle **Sinhronizuj sada**, ili sam za najviše 5 minuta.
 - [ ] **B34.** Izmeni jedan i obriši drugi zadatak na Mac-u. Kad se vratiš u aplikaciju na iPhone-u, obe promene su i tu.
 - [ ] **B35.** U avionskom režimu napravi zadatak. Isključi avionski režim i vrati se u aplikaciju: zadatak stiže na drugi uređaj.
 - [ ] **B36.** **Odjavi se**: podaci ostaju na uređaju. Zatim se prijavi ponovo i dodirni **Obriši nalog** (traži da upišeš `OBRIŠI`): nalog i podaci na serveru su obrisani, a podaci na uređaju ostaju.
+- [ ] **B37.** Novi uređaj (ili posle brisanja aplikacije): prvi ekran je ekran za prijavu. **Nastavi bez naloga** ga zatvara i ne pojavljuje se ponovo; aplikacija radi bez naloga.
+- [ ] **B38.** **Zaboravljena lozinka?**: upiši e-adresu, upiši kod iz e-poruke i novu lozinku dva puta. Posle toga prijava novom lozinkom radi.
+- [ ] **B39.** Kad su Google ili Apple uključeni u Supabase-u: dugme otvara prijavu u pregledaču, a posle odobrenja se vraća u Dailo prijavljen (veb, Android, iPhone).
 
 ## Na kraju
 
 - [ ] **B24.** **Resetuj podatke aplikacije** (samo na Mac-u, ili posle izvoza): traži da upišeš `RESET`, pravi sigurnosnu kopiju i briše podatke. Posle toga **Uvezi rezervnu kopiju** vraća sve.
 
-Kad su B6–B30 prošli (i B31–B36, kad je sinhronizacija uključena), ili su greške popravljene, Dailo je spreman za prve testere: pošalji im link na uputstvo `https://marko-ivapix.github.io/dailo/uputstvo.html`.
+Kad su B6–B30 prošli (i B31–B39, kad je sinhronizacija uključena), ili su greške popravljene, Dailo je spreman za prve testere: pošalji im link na uputstvo `https://marko-ivapix.github.io/dailo/uputstvo.html`.

@@ -95,7 +95,6 @@
   let popoverReturnFocus = null;
   const knowledgeAttachmentCache = new Map();
   let syncMeta = null;
-  let syncUi = { step: 'email', email: '', busy: false, error: '' };
   let syncTimer = null;
   let syncRunning = false;
   let applyingSync = false;
@@ -4308,7 +4307,7 @@
 
   function syncView() {
     const meta = syncMeta || loadSyncMeta();
-    return { configured: Boolean(syncClient), signedIn: Boolean(meta.session?.accessToken), ...syncUi, email: meta.session?.user?.email || syncUi.email,
+    return { configured: Boolean(syncClient), signedIn: Boolean(meta.session?.accessToken), email: meta.session?.user?.email || '', name: meta.session?.user?.name || '',
       running: syncRunning, lastSyncAt: meta.lastSyncAt || null, lastError: meta.lastError || '' };
   }
 
@@ -4393,42 +4392,225 @@
     saveSyncMeta();
   }
 
-  async function requestSyncCode() {
-    if (!syncClient || syncUi.busy) return;
-    const email = String($('#sync-email')?.value ?? syncUi.email).trim();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { syncUi = { ...syncUi, email, error: msg('Enter a valid e-mail address.') }; render(); return; }
-    syncUi = { ...syncUi, email, busy: true, error: '' };
-    render();
-    try {
-      await syncClient.requestCode(email);
-      syncUi = { step: 'code', email, busy: false, error: '' };
-    } catch (error) {
-      syncUi = { ...syncUi, busy: false, error: error.status === 429 ? msg('Too many requests. Wait a minute and try again.') : error.message };
-    }
-    render();
-    if (syncUi.step === 'code') requestAnimationFrame(() => $('#sync-code')?.focus());
+  // R40: the welcome screen (first launch, and "Prijavi se" / "Napravi nalog" on Nalog). Sign-in is by e-mail and
+  // password, with a code from the e-mail to confirm a new account or set a new password, or with Google or Apple
+  // through the browser (PKCE). The device-local key "dailoWelcome" (outside state, backups and sync) remembers that
+  // the first screen was answered.
+  const WELCOME_KEY = 'dailoWelcome';
+  const WELCOME_MODES = ['sign-in', 'sign-up', 'confirm', 'reset', 'reset-code'];
+  const AUTH_REDIRECT_APP = 'dailo://auth';
+
+  function welcomeDue() {
+    if (!syncClient || loadSyncMeta().session?.accessToken) return false;
+    try { return !localStorage.getItem(WELCOME_KEY); } catch (_) { return false; }
   }
 
-  async function verifySyncCode() {
-    if (!syncClient || syncUi.busy) return;
-    const code = String($('#sync-code')?.value || '').replace(/\s+/g, '');
-    if (!/^\d{6,10}$/.test(code)) { syncUi = { ...syncUi, error: msg('Enter the code from the e-mail.') }; render(); return; }
-    syncUi = { ...syncUi, busy: true, error: '' };
-    render();
-    let session;
-    try { session = await syncClient.verifyCode(syncUi.email, code); }
-    catch (error) {
-      syncUi = { ...syncUi, busy: false, error: error.status >= 400 && error.status < 500 ? msg('The code is wrong or has expired.') : error.message };
-      render();
-      return;
+  function rememberWelcome() {
+    try { localStorage.setItem(WELCOME_KEY, '1'); } catch (_) { /* the screen comes back at the next start */ }
+  }
+
+  function openWelcome(mode = 'sign-in', { firstRun = false } = {}) {
+    if (!syncClient || (modalState && modalState.type !== 'welcome')) return;
+    if (!modalState) { captureModalReturnFocus(); closePopover(); }
+    modalState = { type: 'welcome', mode: WELCOME_MODES.includes(mode) ? mode : 'sign-in', name: '', email: '', password: '', confirm: '', code: '', terms: false,
+      showPassword: false, busy: false, error: '', firstRun, onCancel: closeWelcome };
+    renderModal();
+  }
+
+  // At start: a Google or Apple sign-in coming back to the web page, otherwise the first screen when it is due.
+  function startWelcome() {
+    const returning = consumeAuthRedirect();
+    if (returning) return returning;
+    if (welcomeDue() && state && !recovery && !storageError && !staleDataNotice && !globalOperation && !modalState) openWelcome('sign-in', { firstRun: true });
+  }
+
+  // Back and Escape step from the other steps to sign-in, then close the screen like "Nastavi bez naloga".
+  function closeWelcome() {
+    if (modalState?.type !== 'welcome') return;
+    if (modalState.mode !== 'sign-in') { welcomeMode('sign-in'); return; }
+    if (modalState.firstRun) rememberWelcome();
+    dismissWelcome();
+  }
+
+  function skipWelcome() {
+    rememberWelcome();
+    dismissWelcome();
+  }
+
+  function dismissWelcome() {
+    if (modalState?.type === 'welcome') { modalState = null; renderModal(); }
+    const target = modalReturnFocus;
+    modalReturnFocus = null;
+    if (target) restoreModalReturnFocus(target);
+  }
+
+  function setWelcome(changes) {
+    if (modalState?.type !== 'welcome') return;
+    modalState = { ...modalState, ...changes };
+    renderModal();
+  }
+
+  // What is typed stays in the window's state, so a redraw (an error, the eye, another step) keeps it.
+  function welcomeFields() {
+    const welcome = modalState;
+    const fields = { name: 'welcome-name', email: 'welcome-email', password: 'welcome-password', confirm: 'welcome-password-confirm', code: 'welcome-code' };
+    for (const [key, id] of Object.entries(fields)) {
+      const field = $(`#${id}`);
+      if (field) welcome[key] = ['password', 'confirm'].includes(key) ? String(field.value ?? '') : String(field.value ?? '').trim();
     }
-    // The shadow describes one account; another account on this device starts again with the first-sync choice.
+    const terms = $('#welcome-terms');
+    if (terms) welcome.terms = Boolean(terms.checked);
+    return welcome;
+  }
+
+  function welcomeMode(mode) {
+    if (modalState?.type !== 'welcome' || !WELCOME_MODES.includes(mode)) return;
+    welcomeFields();
+    setWelcome({ mode, password: '', confirm: '', code: '', error: '', busy: false });
+  }
+
+  function toggleWelcomePassword() {
+    if (modalState?.type !== 'welcome') return;
+    welcomeFields();
+    setWelcome({ showPassword: !modalState.showPassword });
+  }
+
+  const welcomeCode = welcome => String(welcome.code || '').replace(/\s+/g, '');
+
+  function welcomeProblem(welcome) {
+    const { mode } = welcome;
+    if (['sign-in', 'sign-up', 'reset'].includes(mode) && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(welcome.email)) return msg('Enter a valid e-mail address.');
+    if (mode === 'sign-in' && !welcome.password) return msg('Enter your password.');
+    if (['confirm', 'reset-code'].includes(mode) && !/^\d{6,10}$/.test(welcomeCode(welcome))) return msg('Enter the code from the e-mail.');
+    if (['sign-up', 'reset-code'].includes(mode)) {
+      const weak = Sync.passwordProblem(welcome.password);
+      if (weak) return weak;
+      if (welcome.confirm !== welcome.password) return msg('The passwords do not match.');
+    }
+    if (mode === 'sign-up' && !welcome.terms) return msg('Accept the Terms of Use and the Privacy Policy to continue.');
+    return '';
+  }
+
+  function welcomeErrorText(error, mode) {
+    if (error?.status === 429) return msg('Too many requests. Wait a minute and try again.');
+    if (mode === 'sign-in' && error?.status === 400) return msg('Wrong e-mail address or password.');
+    if (['confirm', 'reset-code'].includes(mode) && error?.status >= 400 && error?.status < 500 && error?.reason !== 'weak_password') return msg('The code is wrong or has expired.');
+    return error?.message || String(error);
+  }
+
+  async function welcomeSubmit() {
+    if (!syncClient || modalState?.type !== 'welcome' || modalState.busy) return;
+    const welcome = welcomeFields();
+    const problem = welcomeProblem(welcome);
+    if (problem) { setWelcome({ error: problem }); return; }
+    const { mode, email } = welcome;
+    setWelcome({ busy: true, error: '' });
+    try {
+      if (mode === 'sign-in') await finishWelcome(await syncClient.signIn(email, welcome.password));
+      else if (mode === 'sign-up') {
+        const result = await syncClient.signUp(email, welcome.password, { fullName: welcome.name, termsAcceptedAt: nowIso() });
+        if (result.session) await finishWelcome(result.session);
+        else setWelcome({ mode: 'confirm', busy: false, code: '' });
+      } else if (mode === 'confirm') await finishWelcome(await syncClient.verifyCode(email, welcomeCode(welcome)));
+      else if (mode === 'reset') {
+        await syncClient.requestPasswordReset(email);
+        setWelcome({ mode: 'reset-code', busy: false, code: '', password: '', confirm: '' });
+      } else if (mode === 'reset-code') {
+        const session = await syncClient.verifyRecovery(email, welcomeCode(welcome));
+        await syncClient.updatePassword(session, welcome.password);
+        await finishWelcome(session, true);
+      }
+    } catch (error) {
+      // An address that was never confirmed gets a new code; an address that has an account goes to sign-in.
+      if (mode === 'sign-in' && (error?.reason === 'email_not_confirmed' || /not confirmed/i.test(error?.message || ''))) {
+        try { await syncClient.resendSignUp(email); } catch (_) { /* "Pošalji novi kod" asks again */ }
+        setWelcome({ mode: 'confirm', busy: false, code: '', error: msg('Confirm the e-mail address first. We sent a new code.') });
+      } else if (mode === 'sign-up' && error?.reason === 'user_already_exists') {
+        setWelcome({ mode: 'sign-in', busy: false, password: '', confirm: '', error: msg('An account with this e-mail address already exists. Sign in.') });
+      } else setWelcome({ busy: false, error: welcomeErrorText(error, mode) });
+    }
+  }
+
+  async function welcomeResend() {
+    if (!syncClient || modalState?.type !== 'welcome' || modalState.busy) return;
+    const welcome = welcomeFields();
+    setWelcome({ busy: true, error: '' });
+    try {
+      if (welcome.mode === 'reset-code') await syncClient.requestPasswordReset(welcome.email);
+      else await syncClient.resendSignUp(welcome.email);
+      setWelcome({ busy: false });
+      setToastMessage(tr('A new code was sent.'));
+    } catch (error) { setWelcome({ busy: false, error: welcomeErrorText(error, welcome.mode) }); }
+  }
+
+  // The shadow describes one account; another account on this device starts again with the first-sync choice.
+  function completeSignIn(session) {
     const previous = loadSyncMeta();
     syncMeta = previous.userId === session.user.id ? { ...previous, session, lastError: null } : { userId: session.user.id, session };
+    delete syncMeta.pkce;
     saveSyncMeta();
-    syncUi = { step: 'email', email: '', busy: false, error: '' };
+  }
+
+  async function finishWelcome(session, passwordSaved = false) {
+    completeSignIn(session);
+    rememberWelcome();
+    dismissWelcome();
     render();
+    const email = session.user?.email || '';
+    setToastMessage(passwordSaved ? tr('Password saved. Signed in: {email}', { email }) : tr('Signed in: {email}', { email }));
     await runSync();
+  }
+
+  // Google and Apple: the provider is checked first, the code verifier stays in the device-local sync record, and
+  // the provider returns to this page (web) or to dailo://auth through the system browser (app).
+  async function startProviderSignIn(provider) {
+    if (!syncClient || !['google', 'apple'].includes(provider) || modalState?.type !== 'welcome' || modalState.busy) return;
+    welcomeFields();
+    setWelcome({ busy: true, error: '' });
+    try {
+      const settings = await syncClient.authSettings();
+      if (!settings?.external?.[provider]) {
+        setWelcome({ busy: false, error: provider === 'google' ? msg('Sign-in with Google is not turned on yet.') : msg('Sign-in with Apple is not turned on yet.') });
+        return;
+      }
+      const verifier = Sync.createCodeVerifier();
+      const codeChallenge = await Sync.codeChallenge(verifier);
+      const platform = globalThis.DailoPlatform;
+      const redirectTo = platform?.isNative ? AUTH_REDIRECT_APP : `${location.origin}${location.pathname}`;
+      syncMeta = { ...loadSyncMeta(), pkce: { verifier, provider, at: Date.now() } };
+      saveSyncMeta();
+      const url = syncClient.authorizeUrl({ provider, redirectTo, codeChallenge });
+      if (platform?.isNative) { setWelcome({ busy: false }); platform.links.openExternal(url); }
+      else location.assign(url);
+    } catch (error) { setWelcome({ busy: false, error: welcomeErrorText(error, 'provider') }); }
+  }
+
+  async function finishProviderSignIn(params) {
+    if (!syncClient) return;
+    globalThis.DailoPlatform?.links?.closeExternal?.();
+    const pending = loadSyncMeta().pkce;
+    const failure = params.get('error_description') || params.get('error');
+    const code = params.get('code');
+    let problem = failure ? `${msg('Sign-in did not finish')}: ${failure}` : !code || !pending?.verifier ? msg('Sign-in did not finish. Try again.') : '';
+    if (!problem) {
+      try { await finishWelcome(await syncClient.exchangeCode(code, pending.verifier)); return; }
+      catch (error) { problem = error?.message || String(error); }
+    }
+    syncMeta = loadSyncMeta();
+    delete syncMeta.pkce;
+    saveSyncMeta();
+    if (modalState?.type !== 'welcome') openWelcome('sign-in');
+    if (modalState?.type === 'welcome') setWelcome({ busy: false, error: problem });
+    else setToastMessage(trMessage(problem));
+  }
+
+  // The web page comes back from Google or Apple with ?code= (or ?error=). Only a sign-in this device started counts.
+  function consumeAuthRedirect() {
+    const params = new URLSearchParams(location.search);
+    if (!params.has('code') && !params.has('error')) return false;
+    if (!syncClient || !loadSyncMeta().pkce) return false;
+    history.replaceState(null, '', location.pathname + location.hash);
+    return finishProviderSignIn(params);
   }
 
   async function signOutSync() {
@@ -4436,7 +4618,6 @@
     clearTimeout(syncTimer);
     syncMeta = {};
     try { localStorage.removeItem(SYNC_META_KEY); } catch (error) { console.error(error); }
-    syncUi = { step: 'email', email: '', busy: false, error: '' };
     render();
     if (meta.session && syncClient) await syncClient.signOut(meta.session);
   }
@@ -5353,9 +5534,12 @@
     else if (action === 'select-tag-color') { modalState.draft.color = el.dataset.color; renderModal(); }
     else if (action === 'save-tag') saveTagModal();
     else if (action === 'confirm-action') { const fn = modalState.onConfirm; if (typeof fn === 'function') fn(); }
-    else if (action === 'sync-request-code') requestSyncCode();
-    else if (action === 'sync-verify-code') verifySyncCode();
-    else if (action === 'sync-change-email') { syncUi = { step: 'email', email: syncUi.email, busy: false, error: '' }; render(); }
+    else if (action === 'open-welcome') openWelcome(el.dataset.mode);
+    else if (action === 'welcome-mode') welcomeMode(el.dataset.mode);
+    else if (action === 'welcome-skip') skipWelcome();
+    else if (action === 'welcome-provider') startProviderSignIn(el.dataset.provider);
+    else if (action === 'welcome-resend') welcomeResend();
+    else if (action === 'welcome-toggle-password') toggleWelcomePassword();
     else if (action === 'sync-now') runSync().catch(console.error);
     else if (action === 'sync-sign-out') signOutSync();
     else if (action === 'sync-delete-account') deleteSyncAccount();
@@ -5594,7 +5778,6 @@
 
     if (modalState?.type === 'task' && ['detail-title', 'detail-duration-minutes'].includes(target?.id) && event.key === 'Enter') { event.preventDefault(); target.blur(); return; }
     if (modalState?.type === 'task' && target?.id === 'detail-subtask' && event.key === 'Enter') { event.preventDefault(); addDetailSubtask(target.dataset.taskId, target.value); return; }
-    if (['sync-email', 'sync-code'].includes(target?.id) && event.key === 'Enter' && !event.isComposing) { event.preventDefault(); if (target.id === 'sync-email') requestSyncCode(); else verifySyncCode(); return; }
   }
 
   function handleDblKeyActivation(event) {
@@ -5859,6 +6042,12 @@
     document.addEventListener('touchmove', blockTouchScroll, { passive: false });
     document.addEventListener('contextmenu', event => { if (touchReorder) event.preventDefault(); });
     document.addEventListener('click', handleClick);
+    // R40: the welcome screen is a form, so Enter and the phone's "Go" key send it and password managers see it.
+    document.addEventListener('submit', event => {
+      if (!event.target?.matches?.('[data-welcome-form]')) return;
+      event.preventDefault();
+      welcomeSubmit();
+    });
     document.addEventListener('input', handleInput);
     document.addEventListener('change', handleChange);
     document.addEventListener('blur', handleBlur, true);
@@ -5870,7 +6059,8 @@
     document.addEventListener('drop', handleDrop);
     document.addEventListener('dragend', handleDragEnd);
     // The first-sync choice stays open across a route change: closing it would run its cancel, which signs out (audit P-3).
-    window.addEventListener('hashchange', () => { closePopover(); if (modalState?.type !== 'sync-choice') closeModal(); render(); });
+    // R40: the welcome screen stays over a change of address too (the first start replaces an empty one with #today).
+    window.addEventListener('hashchange', () => { closePopover(); if (!['sync-choice', 'welcome'].includes(modalState?.type)) closeModal(); render(); });
     // R32 (finding 31): Chromium browsers offer their own install; Pomoć shows "Instaliraj" while they do.
     window.addEventListener('beforeinstallprompt', event => { event.preventDefault(); installPromptEvent = event; if (currentRoute().type === 'settings') render(); });
     window.addEventListener('appinstalled', () => { installPromptEvent = null; if (currentRoute().type === 'settings') render(); });
@@ -6048,7 +6238,7 @@
     platform.lifecycle.onResume(resumeApp);
     platform.lifecycle.onPause(lockJournalAgain);
     platform.backButton.setHandler(handleBackButton);
-    platform.links.interceptExternalLinks(document, { onlinePages: { 'uputstvo.html': Release.GUIDE_URL } });
+    platform.links.interceptExternalLinks(document, { onlinePages: { 'uputstvo.html': Release.GUIDE_URL, 'uslovi.html': Release.TERMS_URL, 'privatnost.html': Release.PRIVACY_URL } });
     platform.files.cleanupSharedFiles().catch(console.error);
     platform.notifications.setActionTypes?.(notificationActionTypes());
     platform.notifications.onOpen(openNotificationTarget);
@@ -6066,9 +6256,13 @@
     try { link = new URL(String(href || '')); } catch (_) { return false; }
     if (link.protocol !== 'dailo:' || !state || globalOperation || recovery) return false;
     const target = link.hostname || link.pathname.replace(/^\/+/, '');
-    if (!['new-task', 'today', 'journal', 'share'].includes(target)) return false;
+    if (!['new-task', 'today', 'journal', 'share', 'auth'].includes(target)) return false;
+    // R40: a Google or Apple sign-in comes back as dailo://auth?code=… (or ?error=…).
+    if (target === 'auth') { finishProviderSignIn(link.searchParams); return true; }
     closePopover();
-    if (modalState) { flushTextSave(); closeModal(); }
+    // A shortcut or shared text puts the welcome screen away; it comes back at the next start.
+    if (modalState?.type === 'welcome') dismissWelcome();
+    else if (modalState) { flushTextSave(); closeModal(); }
     if (target === 'new-task') openQuickAdd({});
     else if (target === 'share') {
       const params = Object.fromEntries(['text', 'subject', 'title', 'url'].map(key => [key, link.searchParams.get(key) || '']));
@@ -6159,6 +6353,7 @@
     updateStoragePersistence(false).catch(console.error);
     registerServiceWorker();
     startPlatform();
+    startWelcome();
     // replace, not assign: the first screen must not leave an extra step for Back.
     if (!location.hash) location.replace('#today');
     setInterval(() => {

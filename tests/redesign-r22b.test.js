@@ -60,13 +60,14 @@ test('big buttons: 16 px everywhere, and the goal window\'s one fills the footer
   assert.match(goals, /class="btn btn-secondary habit-window-save goal-details-complete"/);
 });
 
-test('Settings on a phone: a select sits under its label, checkboxes are switches, "Pošalji kod" is the main button', () => {
+test('Settings on a phone: a select sits under its label, checkboxes are switches, "Prijavi se" is the main button', () => {
   const narrow = layer.slice(layer.indexOf('@media (max-width: 520px)'));
   assert.match(narrow, /\.settings-row:has\(> select\.input\) \{ flex-direction: column; align-items: stretch; gap: 8px; padding: 10px 0; \}/);
   // R34: the Važno/Hitno rows left the task window in R33, so the switch rule names only Settings rows.
   has('.settings-row > input[type="checkbox"] { appearance: none;');
   has('.settings-row > input[type="checkbox"]:checked { background: var(--blue-600); }');
-  assert.match(read('js/settings-ui.js'), /<button class="btn btn-primary" type="button" data-action="sync-request-code"/);
+  // R40: Nalog's main button opens the welcome screen (it replaced "Pošalji kod").
+  assert.match(read('js/settings-ui.js'), /<button class="btn btn-primary" type="button" data-action="open-welcome" data-mode="sign-in">/);
 });
 
 test('the confirm dialog is a sheet with the red button first and a Serbian word to type', () => {

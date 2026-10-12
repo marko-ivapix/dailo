@@ -47,7 +47,8 @@ test('the app registers the Back handler and starts on #today without an extra h
 });
 
 test('a route change keeps the first-sync choice open instead of signing out', () => {
-  assert.match(app, /window\.addEventListener\('hashchange', \(\) => \{ closePopover\(\); if \(modalState\?\.type !== 'sync-choice'\) closeModal\(\); render\(\); \}\);/);
+  // R40: the welcome screen stays over a change of address as well.
+  assert.match(app, /window\.addEventListener\('hashchange', \(\) => \{ closePopover\(\); if \(!\['sync-choice', 'welcome'\]\.includes\(modalState\?\.type\)\) closeModal\(\); render\(\); \}\);/);
   const calls = [];
   const ctx = { modalState: { type: 'sync-choice' }, closePopover: () => calls.push('popover'), closeModal: () => calls.push('modal'), render: () => calls.push('render') };
   vm.createContext(ctx);

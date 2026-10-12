@@ -29,11 +29,30 @@
   const knownRow = row => KNOWN_TYPES.has(row?.type);
 
   class SyncError extends Error {
-    constructor(message, status = 0) {
+    constructor(message, status = 0, reason = '') {
       super(message);
       this.name = 'SyncError';
       this.status = status;
+      // Supabase's error_code (R40), e.g. invalid_credentials, email_not_confirmed or user_already_exists.
+      this.reason = reason;
     }
+  }
+
+  // R40: a new password has at least 8 characters with a digit and a letter (any alphabet).
+  function passwordProblem(password) {
+    const value = String(password || '');
+    return value.length >= 8 && /\d/.test(value) && /\p{L}/u.test(value) ? '' : msg('The password needs at least 8 characters, with a digit and a letter.');
+  }
+
+  // R40: Google and Apple sign-in use PKCE (RFC 7636). The verifier stays on the device; the provider sees only
+  // its S256 challenge.
+  const VERIFIER_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
+  function createCodeVerifier(cryptoImpl = root.crypto) {
+    return Array.from(cryptoImpl.getRandomValues(new Uint8Array(64)), byte => VERIFIER_CHARS[byte % VERIFIER_CHARS.length]).join('');
+  }
+  async function codeChallenge(verifier, cryptoImpl = root.crypto) {
+    const digest = new Uint8Array(await cryptoImpl.subtle.digest('SHA-256', new TextEncoder().encode(verifier)));
+    return root.btoa(String.fromCharCode(...digest)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   }
 
   const keyOf = (type, id) => `${type}/${id}`;
@@ -197,30 +216,71 @@
       }
       if (!response.ok) {
         let detail = '';
+        let reason = '';
         try {
           const data = await response.json();
           detail = data?.msg || data?.message || data?.error_description || data?.error || '';
+          reason = data?.error_code || (typeof data?.error === 'string' ? data.error : '');
         } catch (_) { /* no body */ }
-        throw new SyncError(detail ? `${msg('Server error')}: ${detail}` : msg('Server error'), response.status);
+        throw new SyncError(detail ? `${msg('Server error')}: ${detail}` : msg('Server error'), response.status, reason);
       }
       if (response.status === 204) return null;
       const text = await response.text();
       return text ? JSON.parse(text) : null;
     }
 
-    const toSession = data => ({
-      accessToken: data.access_token,
-      refreshToken: data.refresh_token,
-      expiresAt: now() + Number(data.expires_in || 3600) * 1000,
-      user: { id: data.user?.id, email: data.user?.email },
-    });
+    const toSession = data => {
+      const name = String(data.user?.user_metadata?.full_name || data.user?.user_metadata?.name || '').trim();
+      return {
+        accessToken: data.access_token,
+        refreshToken: data.refresh_token,
+        expiresAt: now() + Number(data.expires_in || 3600) * 1000,
+        user: { id: data.user?.id, email: data.user?.email, ...(name ? { name } : {}) },
+      };
+    };
+    const address = email => String(email || '').trim();
 
     return {
       async requestCode(email) {
         await request('/auth/v1/otp', { method: 'POST', body: { email: String(email || '').trim(), create_user: true } });
       },
+      // Also confirms a new account with the code from its e-mail (R40).
       async verifyCode(email, code) {
         return toSession(await request('/auth/v1/verify', { method: 'POST', body: { type: 'email', email: String(email || '').trim(), token: String(code || '').trim() } }));
+      },
+      // R40: e-mail and password. Sign-up returns a session when the project confirms automatically; otherwise the
+      // address gets a code. An address that already has an account gets a stand-in user without identities.
+      async signUp(email, password, { fullName = '', termsAcceptedAt = '' } = {}) {
+        const data = { ...(String(fullName).trim() ? { full_name: String(fullName).trim() } : {}), ...(termsAcceptedAt ? { terms_accepted_at: termsAcceptedAt } : {}) };
+        const result = await request('/auth/v1/signup', { method: 'POST', body: { email: address(email), password: String(password || ''), data } });
+        if (result?.access_token) return { session: toSession(result) };
+        if (Array.isArray(result?.identities) && !result.identities.length) throw new SyncError(msg('An account with this e-mail address already exists. Sign in.'), 422, 'user_already_exists');
+        return { confirm: true };
+      },
+      async signIn(email, password) {
+        return toSession(await request('/auth/v1/token?grant_type=password', { method: 'POST', body: { email: address(email), password: String(password || '') } }));
+      },
+      async resendSignUp(email) {
+        await request('/auth/v1/resend', { method: 'POST', body: { type: 'signup', email: address(email) } });
+      },
+      async requestPasswordReset(email) {
+        await request('/auth/v1/recover', { method: 'POST', body: { email: address(email) } });
+      },
+      async verifyRecovery(email, code) {
+        return toSession(await request('/auth/v1/verify', { method: 'POST', body: { type: 'recovery', email: address(email), token: String(code || '').trim() } }));
+      },
+      async updatePassword(session, password) {
+        await request('/auth/v1/user', { method: 'PUT', token: session?.accessToken, body: { password: String(password || '') } });
+      },
+      // Which providers the project has turned on ({ external: { google, apple, … } }).
+      async authSettings() {
+        return (await request('/auth/v1/settings')) || {};
+      },
+      authorizeUrl({ provider, redirectTo, codeChallenge: challenge }) {
+        return `${base}/auth/v1/authorize?${new URLSearchParams({ provider, redirect_to: redirectTo, code_challenge: challenge, code_challenge_method: 's256' })}`;
+      },
+      async exchangeCode(code, verifier) {
+        return toSession(await request('/auth/v1/token?grant_type=pkce', { method: 'POST', body: { auth_code: String(code || ''), code_verifier: String(verifier || '') } }));
       },
       async refresh(session) {
         return toSession(await request('/auth/v1/token?grant_type=refresh_token', { method: 'POST', body: { refresh_token: session?.refreshToken } }));
@@ -354,5 +414,5 @@
     return Boolean(config && /^https:\/\/[^\s/]+/.test(config.url || '') && typeof config.anonKey === 'string' && config.anonKey.length > 20);
   }
 
-  return Object.freeze({ COLLECTIONS, DEVICE_SETTINGS, SyncError, collectRecords, hashRecord, recordFingerprint, untouchedSample, diffRecords, applyRemote, createClient, syncOnce, isConfigured });
+  return Object.freeze({ COLLECTIONS, DEVICE_SETTINGS, SyncError, passwordProblem, createCodeVerifier, codeChallenge, collectRecords, hashRecord, recordFingerprint, untouchedSample, diffRecords, applyRemote, createClient, syncOnce, isConfigured });
 });

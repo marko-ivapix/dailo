@@ -82,8 +82,9 @@ test('M5: #account shows the account card, or explains that the data stays on th
   assert.match(local, /Sync is not set up yet, so there is no account to sign in to\./);
   assert.match(local, /<button class="btn btn-secondary" type="button" data-route="settings">Settings<\/button>/);
   assert.doesNotMatch(local, /data-settings-sync/);
-  const email = adapter.renderRoute({ type: 'account' }, baseCtx({ configured: true, signedIn: false, step: 'email', email: '', busy: false, error: '' }));
-  assert.match(email, /<section class="settings-card" data-settings-sync>\s*<h2>Account<\/h2>[\s\S]*id="sync-email"/);
+  const signedOut = adapter.renderRoute({ type: 'account' }, baseCtx({ configured: true, signedIn: false, email: '' }));
+  // R40: signing in happens on the welcome screen, which Nalog opens.
+  assert.match(signedOut, /<section class="settings-card" data-settings-sync>\s*<h2>Account<\/h2>[\s\S]*data-action="open-welcome" data-mode="sign-in"/);
   const signedIn = adapter.renderRoute({ type: 'account' }, baseCtx({ configured: true, signedIn: true, email: 'ana@example.com', lastSyncAt: null }));
   assert.match(signedIn, /^<header title="Account" subtitle="ana@example\.com"><\/header>/);
   assert.match(signedIn, /data-action="sync-now"[\s\S]*data-action="sync-sign-out"[\s\S]*data-action="sync-delete-account"/);

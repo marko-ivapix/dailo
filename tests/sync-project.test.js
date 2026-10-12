@@ -44,9 +44,12 @@ test('requests without a sign-in send only the apikey; signed-in requests carry 
   assert.equal(signedIn.headers.apikey, 'sb_publishable_example_key_123456');
 });
 
-test('the setup guide points to Još → Nalog and shows the code template as paragraphs', () => {
+test('the setup guide points to Još → Nalog and shows the code templates as paragraphs', () => {
   const guide = read('docs/v2/podesavanje-supabase.md');
-  assert.match(guide, /<p>Tvoj Dailo kod za prijavu: <strong>\{\{ \.Token \}\}<\/strong><\/p>/);
+  // R40: the codes confirm an account and set a new password; the guide also covers the redirect URLs.
+  assert.match(guide, /<p>Tvoj Dailo kod za potvrdu naloga: <strong>\{\{ \.Token \}\}<\/strong><\/p>/);
+  assert.match(guide, /<p>Tvoj Dailo kod za novu lozinku: <strong>\{\{ \.Token \}\}<\/strong><\/p>/);
+  assert.match(guide, /`dailo:\/\/auth`/);
   assert.match(guide, /\*\*Još → Nalog\*\*/);
   assert.doesNotMatch(guide, /Podešavanja → Sinhronizacija/);
 });
