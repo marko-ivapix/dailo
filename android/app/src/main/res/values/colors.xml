@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- The app's background (--graphite-900), behind the WebView. -->
+    <!-- The app's background (the graphite-900 token of css/styles.css), behind the WebView. -->
     <color name="dailoBackground">#0F1114</color>
 </resources>
