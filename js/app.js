@@ -89,6 +89,9 @@
   let lastToday = Core.dateOnly();
   let dragState = null;
   let taskSwipeState = null;
+  // R44: a horizontal swipe over the week bar or the rings on Navike (start point), and the click it must swallow.
+  let weekSwipe = null;
+  let suppressWeekSwipeClick = false;
   let suppressTaskSwipeClick = false;
   let touchReorder = null;
   let modalReturnFocus = null;
@@ -6038,6 +6041,35 @@
     if (touchReorder?.active) event.preventDefault();
   }
 
+  // R44: on Navike a horizontal swipe over the week bar or the rings pages the week, like ‹ and ›: to the left is
+  // the next week, to the right the previous one. It presses the arrow, so its limits and disabled state apply.
+  function handleWeekSwipeStart(event) {
+    weekSwipe = null;
+    if (!['touch', 'pen'].includes(event.pointerType) || event.isPrimary === false) return;
+    if (!event.target?.closest?.('.habit-rings, .habits-week-nav')) return;
+    weekSwipe = { x: event.clientX, y: event.clientY };
+  }
+  function finishWeekSwipe(event) {
+    const start = weekSwipe;
+    weekSwipe = null;
+    if (!start) return;
+    const dx = event.clientX - start.x;
+    const dy = event.clientY - start.y;
+    if (Math.abs(dx) < 48 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    const arrow = document.querySelector(`#main [data-action="habits-week"][data-shift="${dx < 0 ? '1' : '-1'}"]`);
+    if (arrow && !arrow.disabled) arrow.click();
+    // Then the click the browser sends after the swipe must not open the ring under the finger (pressing the arrow
+    // first keeps that guard off its own click); a swipe that ends without a click clears it shortly.
+    suppressWeekSwipeClick = true;
+    setTimeout(() => { suppressWeekSwipeClick = false; }, 400);
+  }
+  function handleWeekSwipeClick(event) {
+    if (!suppressWeekSwipeClick) return;
+    suppressWeekSwipeClick = false;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }
+
   function handleTaskSwipeClick(event) {
     if (!suppressTaskSwipeClick) return;
     suppressTaskSwipeClick = false;
@@ -6153,6 +6185,10 @@
     document.addEventListener('pointerup', finishTaskSwipe);
     document.addEventListener('pointercancel', finishTaskSwipe);
     document.addEventListener('click', handleTaskSwipeClick, true);
+    document.addEventListener('pointerdown', handleWeekSwipeStart);
+    document.addEventListener('pointerup', finishWeekSwipe);
+    document.addEventListener('pointercancel', () => { weekSwipe = null; });
+    document.addEventListener('click', handleWeekSwipeClick, true);
     document.addEventListener('pointerdown', handleTouchReorderStart);
     document.addEventListener('pointermove', handleTouchReorderMove, { passive: false });
     document.addEventListener('pointerup', finishTouchReorder);
