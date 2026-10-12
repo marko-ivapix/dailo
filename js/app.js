@@ -6798,7 +6798,8 @@
     const target = link.hostname || link.pathname.replace(/^\/+/, '');
     if (!['new-task', 'today', 'journal', 'share', 'auth', 'habits', 'habit-done'].includes(target)) return false;
     // R40: a Google or Apple sign-in comes back as dailo://auth?code=… (or ?error=…).
-    if (target === 'auth') { finishProviderSignIn(link.searchParams); return true; }
+    // R58: only a sign-in this device started counts, so a crafted link cannot put text into the sign-in screen.
+    if (target === 'auth') { if (!loadSyncMeta().pkce) return false; finishProviderSignIn(link.searchParams); return true; }
     closePopover();
     // A shortcut or shared text puts the welcome screen away; it comes back at the next start.
     if (modalState?.type === 'welcome') dismissWelcome();
@@ -6835,7 +6836,8 @@
     const shared = ['share_text', 'share_title', 'share_url'].some(key => params.get(key));
     if (!shortcut && !shared) return;
     history.replaceState(null, '', location.pathname + location.hash);
-    if (shortcut) handleIncomingLink(`dailo://${shortcut}`);
+    // R58: only the manifest's three shortcuts; any other target from a web link is ignored.
+    if (shortcut) { if (['new-task', 'today', 'journal'].includes(shortcut)) handleIncomingLink(`dailo://${shortcut}`); }
     else handleIncomingLink(`dailo://share?${new URLSearchParams({ text: params.get('share_text') || '', title: params.get('share_title') || '', url: params.get('share_url') || '' })}`);
   }
 

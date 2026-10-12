@@ -204,7 +204,7 @@
     const numeric = goal.progressType === 'numeric';
     const target = Number(goal.targetValue) || 0;
     const steps = numeric ? [1, 5, 10].map(value => value * Math.max(1, Math.round(target / 40))) : [5, 10, 25];
-    const unit = goal.unit ? ` ${goal.unit}` : '';
+    const unit = goal.unit ? ` ${ctx.esc(goal.unit)}` : '';
     return `${sheetHead(ctx, tr('Update progress'), goal)}<div class="sheet-chips">${steps.map(value => `<button class="quick-chip" type="button" data-pop-action="goal-progress-add" data-value="${value}">+${numeric ? `${plainNumber(value)}${unit}` : `${value}%`}</button>`).join('')}</div><label class="sheet-field"><span>${numeric ? tr('Current value') : tr('Progress percentage')}</span><input id="goal-current-value" class="input" type="number" min="0" step="any" value="${ctx.esc(sheet.value)}"><span>${numeric ? ctx.esc(tr('of {target}', { target: `${plainNumber(target)}${unit}` })) : '%'}</span></label><p class="sheet-note">${tr('Every change is kept in the goal history.')}</p>${applyFooter('save-goal-progress" data-goal-id="' + ctx.esc(goal.id))}`;
   }
 

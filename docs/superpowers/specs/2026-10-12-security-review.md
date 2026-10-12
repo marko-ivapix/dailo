@@ -1,6 +1,6 @@
 # Security review — 2026-10-12
 
-**Status:** review only; nothing is fixed yet. The fixes wait for the user's go-ahead (proposed as one step, R58). · **Scope:** the user's checklist (keys, RLS, IDOR and user isolation, git secrets, storage buckets, input validation, injection, logs, auth sessions, dependencies, "attack your own app"), read-only, at `0c44289` (alpha.83) plus R57.
+**Status:** findings 2–6, 8 and 9 are fixed in R58 (`2.0.0-alpha.85`, `docs/superpowers/specs/2026-10-12-r58-security-fixes.md`); finding 1 waits for a custom domain and finding 7 is accepted for testing. · **Scope:** the user's checklist (keys, RLS, IDOR and user isolation, git secrets, storage buckets, input validation, injection, logs, auth sessions, dependencies, "attack your own app"), read-only, at `0c44289` (alpha.83) plus R57.
 
 A read-only review agent did the review. The findings marked "confirmed" were then checked in the source by hand.
 

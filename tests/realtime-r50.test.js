@@ -48,7 +48,8 @@ test('connect opens the Realtime socket and joins the records channel for this a
   const join = h.sockets[0].sent[0];
   assert.equal(join.topic, 'realtime:dailo-records');
   assert.equal(join.event, 'phx_join');
-  assert.deepEqual(join.payload.config.postgres_changes, [{ event: '*', schema: 'public', table: 'records', filter: 'user_id=eq.user-1' }]);
+  // R58: the channel listens to the opaque per-account row of 0006_security.sql instead of records.
+  assert.deepEqual(join.payload.config.postgres_changes, [{ event: '*', schema: 'public', table: 'record_pokes', filter: 'user_id=eq.user-1' }]);
   assert.equal(join.payload.access_token, 'jwt-1');
   h.sockets[0].receive({ topic: 'realtime:dailo-records', event: 'phx_reply', ref: join.ref, payload: { status: 'ok', response: {} } });
   assert.equal(h.live.status(), 'live');
@@ -135,7 +136,8 @@ test('the app: a change pokes a sync; the socket opens after a sync, closes in t
   assert.match(fn('signOutSync'), /liveSync\?\.disconnect\(\);/);
   assert.match(app, /clearTimeout\(syncTimer\);\n\s+liveSync\?\.disconnect\(\);\n(\s+forgetJournalKey\(\);\n)?\s+syncMeta = \{\};/);
   assert.match(fn('syncView'), /live: liveSync\?\.status\(\) === 'live'/);
-  assert.match(read('index.html'), /connect-src 'self' https:\/\/\*\.supabase\.co wss:\/\/\*\.supabase\.co;/);
+  // R58: the CSP names this project's host only (tests/security-r58.test.js keeps it equal to js/sync-config.js).
+  assert.match(read('index.html'), /connect-src 'self' https:\/\/[a-z0-9]+\.supabase\.co wss:\/\/[a-z0-9]+\.supabase\.co;/);
 });
 
 test('Nalog says when changes arrive at once; the migration adds records to the Realtime publication', () => {

@@ -85,8 +85,7 @@ test('npm run check:links runs it; a weekly workflow checks the outside links', 
   assert.match(workflow, /run: node tools\/check-links\.mjs --external/);
 });
 
-test('R57 is released as 2.0.0-alpha.84', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.84');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.84';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.84');
+test('R57 shipped as 2.0.0-alpha.84 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 99) >= 84);
 });

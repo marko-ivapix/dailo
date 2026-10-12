@@ -22,7 +22,7 @@ Dailo is a local-first personal productivity app. It covers tasks, projects, Inb
 - **Web:** it installs and starts offline as a PWA (`manifest.webmanifest`, `sw.js`). GitHub Pages serves `main` at `https://marko-ivapix.github.io/dailo/`.
 - **Phone apps:** the same files run in a Capacitor 8 app for Android and iPhone (`cloud.ivapix.dailo`; `android/`, `ios/`). `js/platform.js` is the only code that knows whether it runs on the web or natively.
 - **Sync (optional):**
-  - It uses Supabase (`js/sync.js`, `supabase/migrations/0001`–`0005`).
+  - It uses Supabase (`js/sync.js`, `supabase/migrations/0001`–`0006`).
   - Sign-in is by e-mail and password, Google or Apple.
   - Changes arrive in real time, and the journal can be encrypted.
   - Without an account everything stays on the device.
@@ -121,9 +121,11 @@ python3 -m http.server 8080
 
 *Update this section on every merge.*
 
-- **Branch:** `2.0.0-alpha.84` (R57: description, sharing preview, `404.html`, link check), not merged yet.
+- **Branch:** `2.0.0-alpha.85`, not merged yet:
+  - R57: description, sharing preview, `404.html`, link check;
+  - R58: security fixes, privacy policy and terms completed, migration `0006_security.sql`.
 - **`main`:** `5af3326` (PR #25, R48–R56); GitHub Pages serves `2.0.0-alpha.83`.
-- **Sync:** `js/sync-config.js` holds the user's project `https://qjfpnvjuqbrmdkjxxmsq.supabase.co` and its publishable key. The user still has to apply migrations `0001_sync.sql` to `0005_journal_history.sql` and set up SMTP, the e-mail templates, the redirect URLs and the Google/Apple providers (`docs/v2/podesavanje-supabase.md`).
+- **Sync:** `js/sync-config.js` holds the user's project `https://qjfpnvjuqbrmdkjxxmsq.supabase.co` and its publishable key. The user still has to apply migrations `0001_sync.sql` to `0006_security.sql` and set up SMTP, the e-mail templates, the redirect URLs and the Google/Apple providers (`docs/v2/podesavanje-supabase.md`).
 - **Reported by the user:**
   - iPhone B1–B5 (2026-10-08);
   - Android debug APKs `2.0.0-alpha.41`, `.53`, `.54` and `.65` installed and working ("instalirao sam, sve radi");
@@ -137,8 +139,9 @@ python3 -m http.server 8080
   - **Two devices:** real sign-ins and sync, realtime and the encrypted journal.
   - **Browser and visual checks:** the desktop layer in a wide window, the light theme, `.ics` in real calendar apps, dictation in Chrome and Safari, and the link preview in messengers.
 - **Open review items:**
-  - The 2026-10-12 security review has findings that are not fixed yet: `docs/superpowers/specs/2026-10-12-security-review.md`.
-  - Legal gaps in `privatnost.html`: the controller's identity, a minimum age, a breach notice, user rights and the EU server location. They wait for the user's details.
+  - Security finding 1: the shared `github.io` origin waits for a custom domain (`docs/superpowers/specs/2026-10-12-security-review.md`).
+  - The privacy policy says the Supabase project runs in Frankfurt; the user has to confirm the region.
+  - The controller named in `privatnost.html` and `uslovi.html` is Marko Radičević, as the user gave it.
 - **Device-local keys** (outside state and backups):
   - `dailoSync`, `dailoNotified`, `dailoNotifyAsked`, `dailoSample`, `dailoTransferDismissed`;
   - `dailoJournalLater`, `dailoPlannedFired`, `dailoJournalLock`, `dailoAutoBackup`, `dailoSampleNotice`;
