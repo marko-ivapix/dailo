@@ -23,7 +23,7 @@ function renderSettings(syncView, type = 'settings') {
   runInNewContextWithI18n(read('js/settings-ui.js'), { window: { TodoDomainModules: { register: value => { adapter = value; } } } });
   return adapter.renderRoute({ type }, {
     state: { settings: { shortcuts: {}, compactDensity: true, todayFocusFilter: 'all', todayVisibleSections: [] } },
-    pageHeader: () => '', shortcutLabels: {}, shortcutError: () => '', notificationButtonLabel: () => 'Enable', esc,
+    pageHeader: () => '', shortcutLabels: {}, shortcutError: () => '', notificationButtonLabel: () => 'Enable', esc, journalCipherStatus: () => 'off' /* R51 */, 
     release: Release, environmentInfo: () => ({}), ...(syncView ? { syncView } : {}),
   });
 }

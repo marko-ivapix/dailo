@@ -129,11 +129,11 @@ test('without WebSocket or a session nothing opens', () => {
 
 test('the app: a change pokes a sync; the socket opens after a sync, closes in the background and on sign-out', () => {
   assert.match(app, /const liveSync = syncClient && Sync\.createRealtime \? Sync\.createRealtime\(\{ url: syncConfig\.url, key: syncConfig\.anonKey, onChange: \(\) => scheduleSync\(800\), onStatus: \(\) => refreshSyncCard\(\) \}\) : null;/);
-  assert.match(fn('runSync'), /if \(result\.status === 'ok'\) connectLiveSync\(\);/);
+  assert.match(fn('runSync'), /if \(result\.status === 'ok'\) \{? ?connectLiveSync\(\);/, 'R51 adds the journal step after it');
   assert.match(fn('connectLiveSync'), /if \(liveSync && document\.visibilityState !== 'hidden' && session\?\.accessToken\) liveSync\.connect\(session\);/);
   assert.match(fn('startSync'), /if \(document\.visibilityState === 'visible'\) scheduleSync\(500\); else liveSync\?\.disconnect\(\);/);
   assert.match(fn('signOutSync'), /liveSync\?\.disconnect\(\);/);
-  assert.match(app, /clearTimeout\(syncTimer\);\n\s+liveSync\?\.disconnect\(\);\n\s+syncMeta = \{\};/);
+  assert.match(app, /clearTimeout\(syncTimer\);\n\s+liveSync\?\.disconnect\(\);\n(\s+forgetJournalKey\(\);\n)?\s+syncMeta = \{\};/);
   assert.match(fn('syncView'), /live: liveSync\?\.status\(\) === 'live'/);
   assert.match(read('index.html'), /connect-src 'self' https:\/\/\*\.supabase\.co wss:\/\/\*\.supabase\.co;/);
 });
@@ -147,8 +147,7 @@ test('Nalog says when changes arrive at once; the migration adds records to the 
   assert.match(read('docs/v2/podesavanje-supabase.md'), /0004_realtime\.sql/);
 });
 
-test('R50 is released as 2.0.0-alpha.77', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.77');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.77';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.77');
+test('R50 shipped as 2.0.0-alpha.77 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 99) >= 77);
 });

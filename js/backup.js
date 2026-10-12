@@ -298,6 +298,14 @@
         || state.settings.todayVisibleSections.some(section => !['focus', 'review', 'actions'].includes(section))
         || new Set(state.settings.todayVisibleSections).size !== state.settings.todayVisibleSections.length)) fail('todayVisibleSections');
       if (state.settings.weekStartsOn != null && ![0, 1, 'monday', 'sunday'].includes(state.settings.weekStartsOn)) fail('weekStartsOn');
+      // R51: the shared, non-secret part of the encrypted journal (salt, iterations, check); the key never enters a backup.
+      if (state.settings.journalCipher != null) {
+        const base64 = (value, length) => typeof value === 'string' && value.length % 4 === 0 && /^[A-Za-z0-9+/]+={0,2}$/.test(value)
+          && (length == null || Math.floor(value.length * 3 / 4) - (value.endsWith('==') ? 2 : value.endsWith('=') ? 1 : 0) === length);
+        const cipher = state.settings.journalCipher;
+        if (!object(cipher) || cipher.v !== 1 || !base64(cipher.salt, 16) || !Number.isInteger(cipher.iterations) || cipher.iterations < 1000 || cipher.iterations > 10000000
+          || !object(cipher.check) || cipher.check.v !== 1 || !base64(cipher.check.iv, 12) || !base64(cipher.check.ct)) fail('journalCipher');
+      }
       if (state.settings.weekStartHistory != null && (!Array.isArray(state.settings.weekStartHistory) || state.settings.weekStartHistory.length > 52
         || state.settings.weekStartHistory.some(entry => !object(entry) || !date(entry.before) || !['monday', 'sunday'].includes(entry.weekStartsOn) || entry.changedOn != null && !date(entry.changedOn)))) fail('weekStartHistory');
       if (state.settings.backupReminderDays != null && !(Number.isInteger(state.settings.backupReminderDays) && state.settings.backupReminderDays >= 0 && state.settings.backupReminderDays <= 90)) fail('backupReminderDays');

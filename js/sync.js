@@ -208,7 +208,7 @@
   function diffRecords(records, shadow = {}, skipTypes = []) {
     const upserts = [];
     const deletes = [];
-    for (const [key, record] of records) if (shadow[key] !== hashRecord(record.data)) upserts.push(record);
+    for (const [key, record] of records) if (!skipTypes.includes(record.type) && shadow[key] !== hashRecord(record.data)) upserts.push(record);
     for (const key of Object.keys(shadow)) {
       if (records.has(key)) continue;
       const [type, ...rest] = key.split('/');
@@ -404,6 +404,12 @@
         }
         await request('/rest/v1/rpc/delete_my_account', { method: 'POST', token: session.accessToken, body: {} });
       },
+      // R51: deletes the account's journal versions from the server history (0005_journal_history.sql) and returns
+      // how many went; null when the function is not there yet.
+      async purgeJournalHistory(session) {
+        try { return Number(await request('/rest/v1/rpc/purge_journal_history', { method: 'POST', token: session.accessToken, body: {} })) || 0; }
+        catch (error) { if (error?.status === 404) return null; throw error; }
+      },
       // R46: the attachments bucket in Supabase Storage (0003_attachments.sql); each user has the folder "<user id>".
       async filesAvailable(session) {
         try { await request('/storage/v1/object/list/attachments', { method: 'POST', token: session?.accessToken, body: { prefix: session.user.id, limit: 1, offset: 0 } }); return true; }
@@ -454,10 +460,30 @@
   // One sync round: push local changes, then pull and apply what changed elsewhere.
   // `meta` is the device-local sync record ({ session, shadow, cursor, lastSyncAt, lastError }) and is updated in place.
   // The first sync on a device returns { status: 'choose' } when both sides have data and no `mode` is given.
-  async function syncOnce({ client, meta, readLocal, writeLocal, files = null, mode = null, now = () => Date.now() }) {
+  async function syncOnce({ client, meta, readLocal, writeLocal, files = null, mode = null, journal = null, now = () => Date.now() }) {
     try {
       meta.session = await client.ensureSession(meta.session);
       const session = meta.session;
+      // R51: with the journal key, journal records are sealed on the way out and opened on the way in, so everything
+      // between (shadow, comparison, last-write-wins) sees the readable entry. A sealed row that does not open stays
+      // out. A locked device (encryption on, no key) neither pushes nor deletes journal records.
+      const journalKey = journal?.key || null;
+      const journalLocked = Boolean(journal?.locked) && !journalKey;
+      const net = {
+        async pull(token, since) {
+          const opened = [];
+          for (const row of await client.pull(token, since)) {
+            if (row.type !== 'journal' || row.deleted || !row.data?.sealed) { opened.push(row); continue; }
+            const data = journalKey ? await openJournalData(journalKey, row.data) : null;
+            if (data) opened.push({ ...row, data });
+          }
+          return opened;
+        },
+        async push(token, records) {
+          const sealed = journalKey ? await Promise.all(records.map(record => (record.type === 'journal' && !record.deleted && record.data ? sealJournalRecord(journalKey, record) : record))) : records;
+          return client.push(token, sealed);
+        },
+      };
       // R46: attachments take part when the app hands over its files and the server has their bucket. A file that
       // arrived as a record but is not downloaded yet waits in `pending` and counts as present, so no deletion goes out.
       const withFiles = Boolean(files) && await client.filesAvailable(session);
@@ -502,7 +528,7 @@
       let cursor = meta.cursor || null;
 
       if (!shadow) {
-        const remoteRows = await client.pull(session, null);
+        const remoteRows = await net.pull(session, null);
         const live = remoteRows.filter(row => !row.deleted && usable(row));
         const remoteHasData = live.some(row => row.type !== 'settings');
         const localHasData = [...records.values()].some(record => record.type !== 'settings');
@@ -510,7 +536,7 @@
         if (!chosen) return { status: 'choose' };
         if (chosen === 'server') {
           const liveKeys = new Set(live.map(row => keyOf(row.type, row.id)));
-          const localOnly = [...records.values()].filter(record => record.type !== 'settings' && !liveKeys.has(keyOf(record.type, record.id)))
+          const localOnly = [...records.values()].filter(record => record.type !== 'settings' && !(journalLocked && record.type === 'journal') && !liveKeys.has(keyOf(record.type, record.id)))
             .map(record => ({ type: record.type, id: record.id, data: null, deleted: true, updated_at: '' }));
           await apply(local, [...localOnly, ...live]);
           meta.shadow = Object.fromEntries(live.map(row => [keyOf(row.type, row.id), hashRecord(remoteData(row))]));
@@ -536,7 +562,7 @@
         }
       }
 
-      const diff = diffRecords(records, shadow, withFiles ? [] : ['attachments']);
+      const diff = diffRecords(records, shadow, [...(withFiles ? [] : ['attachments']), ...(journalLocked ? ['journal'] : [])]);
       // A file goes to Storage before its record, so no device sees a record without its file; one that fails waits.
       const sent = [];
       for (const record of diff.upserts) {
@@ -549,7 +575,7 @@
         sent.push(record);
       }
       const outgoing = [...sent, ...diff.deletes.map(record => ({ ...record, deleted: true }))];
-      if (outgoing.length) await client.push(session, outgoing);
+      if (outgoing.length) await net.push(session, outgoing);
       const goneFiles = diff.deletes.filter(record => record.type === 'attachments').map(record => record.id);
       if (goneFiles.length) {
         try { await client.removeFiles(session, goneFiles); } catch (_) { /* a leftover file costs space, not data */ }
@@ -561,7 +587,7 @@
       meta.cursor = cursor;
 
       const since = cursor ? new Date(Date.parse(cursor) - PULL_OVERLAP_MS).toISOString() : null;
-      const pulled = await client.pull(session, since);
+      const pulled = await net.pull(session, since);
       const current = await readLocal();
       const currentRecords = gather(current);
       const incoming = pulled.filter(row => {
@@ -587,6 +613,67 @@
       meta.lastError = error?.message || String(error);
       return { status: 'error', error: meta.lastError, code: error?.status || 0 };
     }
+  }
+
+  // R51: the encrypted journal (docs/superpowers/specs/2026-10-12-r51-journal-encryption.md). A key from the journal
+  // password (PBKDF2-SHA-256) seals each entry with AES-GCM; settings.journalCipher shares the salt, the iteration
+  // count and a check, never the key.
+  const JOURNAL_ITERATIONS = 600000;
+  const JOURNAL_CHECK = 'dailo-journal-v1';
+  const BASE64 = /^[A-Za-z0-9+/]+={0,2}$/;
+  const subtle = () => {
+    if (!root.crypto?.subtle) throw new Error(msg('This device cannot encrypt.'));
+    return root.crypto.subtle;
+  };
+  const toBase64 = buffer => { let text = ''; for (const byte of new Uint8Array(buffer)) text += String.fromCharCode(byte); return root.btoa(text); };
+  const fromBase64 = text => Uint8Array.from(root.atob(text), char => char.charCodeAt(0));
+  const base64Length = text => Math.floor(text.length * 3 / 4) - (text.endsWith('==') ? 2 : text.endsWith('=') ? 1 : 0);
+  const base64Of = (value, length) => typeof value === 'string' && value.length % 4 === 0 && BASE64.test(value) && (length == null || base64Length(value) === length);
+  const sealedValid = sealed => Boolean(sealed && typeof sealed === 'object' && sealed.v === 1 && base64Of(sealed.iv, 12) && base64Of(sealed.ct));
+  function journalCipherValid(cipher) {
+    return Boolean(cipher && typeof cipher === 'object' && cipher.v === 1 && base64Of(cipher.salt, 16)
+      && Number.isInteger(cipher.iterations) && cipher.iterations >= 1000 && cipher.iterations <= 10000000 && sealedValid(cipher.check));
+  }
+  async function deriveJournalKey(passphrase, salt, iterations) {
+    const material = await subtle().importKey('raw', new TextEncoder().encode(String(passphrase).normalize('NFC')), 'PBKDF2', false, ['deriveKey']);
+    return subtle().deriveKey({ name: 'PBKDF2', salt: fromBase64(salt), iterations, hash: 'SHA-256' }, material, { name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
+  }
+  async function sealText(key, text) {
+    const iv = root.crypto.getRandomValues(new Uint8Array(12));
+    return { v: 1, iv: toBase64(iv), ct: toBase64(await subtle().encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(text))) };
+  }
+  async function openText(key, sealed) {
+    if (!sealedValid(sealed)) return null;
+    try { return new TextDecoder().decode(await subtle().decrypt({ name: 'AES-GCM', iv: fromBase64(sealed.iv) }, key, fromBase64(sealed.ct))); } catch (_) { return null; }
+  }
+  async function createJournalCipher(passphrase, { iterations = JOURNAL_ITERATIONS } = {}) {
+    const salt = toBase64(root.crypto.getRandomValues(new Uint8Array(16)));
+    const key = await deriveJournalKey(passphrase, salt, iterations);
+    return { cipher: { v: 1, salt, iterations, check: await sealText(key, JOURNAL_CHECK) }, key };
+  }
+  // The key for this password, or null when it is wrong.
+  async function unlockJournalCipher(cipher, passphrase) {
+    if (!journalCipherValid(cipher)) return null;
+    const key = await deriveJournalKey(passphrase, cipher.salt, cipher.iterations);
+    return (await openText(key, cipher.check)) === JOURNAL_CHECK ? key : null;
+  }
+  const exportJournalKey = async key => toBase64(await subtle().exportKey('raw', key));
+  const importJournalKey = async raw => subtle().importKey('raw', fromBase64(raw), { name: 'AES-GCM' }, true, ['encrypt', 'decrypt']);
+  // The id and the date stay readable (one record per day); the whole entry travels sealed with a fresh IV.
+  async function sealJournalRecord(key, record) {
+    return { ...record, data: { id: record.data.id, date: record.data.date, sealed: await sealText(key, JSON.stringify(record.data)) } };
+  }
+  async function openJournalData(key, data) {
+    const text = await openText(key, data?.sealed);
+    if (text == null) return null;
+    try {
+      const entry = JSON.parse(text);
+      return entry && typeof entry === 'object' && entry.id === data.id && entry.date === data.date ? entry : null;
+    } catch (_) { return null; }
+  }
+  // Turning encryption on or off pushes every journal entry again (sealed or readable).
+  function forgetJournalShadow(meta) {
+    if (meta?.shadow) meta.shadow = Object.fromEntries(Object.entries(meta.shadow).filter(([key]) => !key.startsWith('journal/')));
   }
 
   // R50: Supabase Realtime (Phoenix channels, protocol 1.0.0) tells a signed-in device that a record of its account
@@ -683,5 +770,5 @@
     return Boolean(config && /^https:\/\/[^\s/]+/.test(config.url || '') && typeof config.anonKey === 'string' && config.anonKey.length > 20);
   }
 
-  return Object.freeze({ COLLECTIONS, DEVICE_SETTINGS, SyncError, safeAttachmentData, passwordProblem, createCodeVerifier, codeChallenge, collectRecords, hashRecord, recordFingerprint, untouchedSample, diffRecords, applyRemote, createClient, createRealtime, syncOnce, isConfigured });
+  return Object.freeze({ COLLECTIONS, DEVICE_SETTINGS, SyncError, safeAttachmentData, passwordProblem, createCodeVerifier, codeChallenge, collectRecords, hashRecord, recordFingerprint, untouchedSample, diffRecords, applyRemote, createClient, createRealtime, syncOnce, isConfigured, JOURNAL_ITERATIONS, journalCipherValid, createJournalCipher, unlockJournalCipher, exportJournalKey, importJournalKey, forgetJournalShadow });
 });

@@ -695,6 +695,7 @@
       menuSheet,
       backLink,
       foldButton,
+      journalCipherStatus,
       colorName,
       journalLock,
       readAutoBackup, readTextSize, applyTextSize, readTheme,
@@ -4440,6 +4441,9 @@
   // Optional sync (V2.0-a). The session, shadow and cursor stay on this device under their own key, never in state or backups.
   const SYNC_META_KEY = 'dailoSync';
   const SYNC_DEFERRED = 'sync-deferred';
+  // R51: this device's journal key ({ salt, key }), outside state, sync and backups like the session.
+  const JOURNAL_KEY_KEY = 'dailoJournalKey';
+  let journalKeyCache = null;
 
   function loadSyncMeta() {
     try {
@@ -4455,7 +4459,7 @@
   function syncView() {
     const meta = syncMeta || loadSyncMeta();
     return { configured: Boolean(syncClient), signedIn: Boolean(meta.session?.accessToken), email: meta.session?.user?.email || '', name: meta.session?.user?.name || '', serverCheck,
-      running: syncRunning, lastSyncAt: meta.lastSyncAt || null, lastError: meta.lastError || '', fileError: meta.fileError || '', live: liveSync?.status() === 'live' };
+      running: syncRunning, lastSyncAt: meta.lastSyncAt || null, lastError: meta.lastError || '', fileError: meta.fileError || '', live: liveSync?.status() === 'live', journalPurgeError: meta.journalPurgeError || '' };
   }
 
   function editingText() {
@@ -4494,6 +4498,7 @@
         readLocal: async () => { const habitLogs = await TodoStorage.habitLogs.listAll(); return { state, habitLogs, attachments: await syncAttachmentList() }; },
         writeLocal: applySyncResult,
         files: syncFiles,
+        journal: await journalSyncOptions(),
       });
       if (result.status === 'error' && result.error === SYNC_DEFERRED) { meta.lastError = null; scheduleSync(15000); }
       else if (result.status === 'error' && result.code === 401) { delete meta.session; liveSync?.disconnect(); }
@@ -4502,7 +4507,7 @@
       // A sign-out during the round replaced the record; never bring the old one back.
       if (syncMeta === meta) saveSyncMeta();
     }
-    if (result.status === 'ok') connectLiveSync();
+    if (result.status === 'ok') { connectLiveSync(); await afterJournalSync(meta); }
     if (result.status === 'choose' && syncMeta === meta) {
       // Only the first-run examples are here: the account's data replaces them without the question (audit M9),
       // after the same recovery copy the question takes. If that copy fails, the question is asked as before.
@@ -4625,6 +4630,7 @@
   }
 
   async function accountSubmit() {
+    if (modalState?.type === 'journal-cipher') return journalCipherSubmit();
     if (!syncClient || !['account-password', 'account-email'].includes(modalState?.type) || modalState.busy) return;
     const windowState = accountFields();
     return windowState.type === 'account-password' ? accountPasswordSubmit(windowState) : accountEmailSubmit(windowState);
@@ -4908,6 +4914,7 @@
     const meta = loadSyncMeta();
     clearTimeout(syncTimer);
     liveSync?.disconnect();
+    forgetJournalKey();
     syncMeta = {};
     try { localStorage.removeItem(SYNC_META_KEY); } catch (error) { console.error(error); }
     render();
@@ -4925,6 +4932,7 @@
         catch (error) { setToastMessage(tr('The account could not be deleted: {error}', { error: trMessage(error.message) })); return; }
         clearTimeout(syncTimer);
         liveSync?.disconnect();
+        forgetJournalKey();
         syncMeta = {};
         try { localStorage.removeItem(SYNC_META_KEY); } catch (error) { console.error(error); }
         render();
@@ -4956,6 +4964,120 @@
     try { await TodoStorage.createAutomaticSnapshot(state, new Date(), { force: true }); }
     catch (error) { setToastMessage(tr('Sync did not start because the recovery copy failed: {error}', { error: trMessage(error.message) })); return; }
     await runSync(mode);
+  }
+
+  // R51: the encrypted journal (docs/superpowers/specs/2026-10-12-r51-journal-encryption.md). The key counts only for
+  // the account's current cipher; without it a device with encryption on is locked and leaves the journal alone.
+  function journalCipherStored() {
+    try { return JSON.parse(localStorage.getItem(JOURNAL_KEY_KEY) || 'null'); } catch (_) { return null; }
+  }
+
+  function journalCipherStatus() {
+    const cipher = state?.settings?.journalCipher;
+    if (!cipher) return 'off';
+    const stored = journalCipherStored();
+    return stored?.salt === cipher.salt ? 'on' : 'locked';
+  }
+
+  async function deviceJournalKey() {
+    const cipher = state?.settings?.journalCipher;
+    if (!Sync?.journalCipherValid?.(cipher)) return null;
+    if (journalKeyCache?.salt === cipher.salt) return journalKeyCache.key;
+    const stored = journalCipherStored();
+    if (stored?.salt !== cipher.salt || typeof stored.key !== 'string') return null;
+    try { journalKeyCache = { salt: stored.salt, key: await Sync.importJournalKey(stored.key) }; } catch (_) { return null; }
+    return journalKeyCache.key;
+  }
+
+  async function storeJournalKey(salt, key) {
+    journalKeyCache = { salt, key };
+    try { localStorage.setItem(JOURNAL_KEY_KEY, JSON.stringify({ salt, key: await Sync.exportJournalKey(key) })); } catch (error) { console.error(error); }
+  }
+
+  function forgetJournalKey() {
+    journalKeyCache = null;
+    try { localStorage.removeItem(JOURNAL_KEY_KEY); } catch (error) { console.error(error); }
+  }
+
+  async function journalSyncOptions() {
+    const key = await deviceJournalKey();
+    return { key, locked: Boolean(state?.settings?.journalCipher) && !key };
+  }
+
+  // After a sync: a device forgets its key when encryption was turned off on another one, and once the journal went
+  // sealed, the readable versions leave the server history (0005_journal_history.sql).
+  async function afterJournalSync(meta) {
+    if (!state?.settings?.journalCipher) { if (journalCipherStored()) forgetJournalKey(); return; }
+    if (!meta.purgeJournalHistory || journalCipherStatus() !== 'on') return;
+    try {
+      const gone = await syncClient.purgeJournalHistory(meta.session);
+      if (gone === null) meta.journalPurgeError = msg('Run 0005_journal_history.sql in Supabase to remove the earlier readable journal from the server.');
+      else { delete meta.purgeJournalHistory; delete meta.journalPurgeError; }
+    } catch (error) { meta.journalPurgeError = error.message; }
+    if (syncMeta === meta) saveSyncMeta();
+    refreshSyncCard();
+  }
+
+  function openJournalCipherWindow(mode) {
+    const status = journalCipherStatus();
+    const allowed = { enable: 'off', unlock: 'locked', disable: 'on' };
+    if (!syncClient || !loadSyncMeta().session?.accessToken || modalState || allowed[mode] !== status) return;
+    captureModalReturnFocus(); closePopover();
+    modalState = { type: 'journal-cipher', mode, password: '', confirm: '', busy: false, error: '' };
+    renderModal();
+  }
+
+  function setJournalWindow(changes) {
+    if (modalState?.type !== 'journal-cipher') return;
+    modalState = { ...modalState, ...changes };
+    renderModal();
+  }
+
+  async function journalCipherSubmit() {
+    if (modalState?.type !== 'journal-cipher' || modalState.busy) return;
+    const windowState = modalState;
+    windowState.password = String($('#journal-password')?.value ?? windowState.password);
+    windowState.confirm = String($('#journal-password-confirm')?.value ?? windowState.confirm);
+    if (windowState.mode === 'enable') {
+      const problem = Sync.passwordProblem(windowState.password);
+      if (problem) { setJournalWindow({ error: problem }); return; }
+      if (windowState.password !== windowState.confirm) { setJournalWindow({ error: msg('The passwords do not match.') }); return; }
+    }
+    setJournalWindow({ busy: true, error: '' });
+    if (syncRunning) { setJournalWindow({ busy: false, error: msg('Sync is running. Try again in a moment.') }); return; }
+    const meta = loadSyncMeta();
+    let message;
+    try {
+      if (windowState.mode === 'enable') {
+        const { cipher, key } = await Sync.createJournalCipher(windowState.password);
+        state.settings.journalCipher = cipher;
+        if (!saveState()) { delete state.settings.journalCipher; throw new Error(msg('Changes could not be saved locally. Try again.')); }
+        await storeJournalKey(cipher.salt, key);
+        // Every entry goes again, sealed; then the readable versions leave the server history.
+        Sync.forgetJournalShadow(meta);
+        meta.purgeJournalHistory = true;
+        message = tr('The journal is encrypted. The server sees only ciphertext.');
+      } else if (windowState.mode === 'unlock') {
+        const key = await Sync.unlockJournalCipher(state.settings.journalCipher, windowState.password);
+        if (!key) { setJournalWindow({ busy: false, error: msg('The journal password is wrong.') }); return; }
+        await storeJournalKey(state.settings.journalCipher.salt, key);
+        // The next pull fetches the sealed entries this device left out while it was locked.
+        meta.cursor = null;
+        message = tr('The journal is unlocked on this device.');
+      } else {
+        delete state.settings.journalCipher;
+        if (!saveState()) throw new Error(msg('Changes could not be saved locally. Try again.'));
+        forgetJournalKey();
+        // Every entry goes again, readable.
+        Sync.forgetJournalShadow(meta);
+        delete meta.purgeJournalHistory; delete meta.journalPurgeError;
+        message = tr('Journal encryption is off.');
+      }
+    } catch (error) { setJournalWindow({ busy: false, error: error.message }); return; }
+    syncMeta = meta;
+    saveSyncMeta();
+    closeAccountWindow(message);
+    scheduleSync(300);
   }
 
   // R50: the socket follows the account and the screen: it opens after a successful sync while the app is in front,
@@ -5847,6 +5969,7 @@
     else if (action === 'sync-check-server') runServerCheck();
     else if (action === 'account-change-password') openAccountWindow('password');
     else if (action === 'account-change-email') openAccountWindow('email');
+    else if (['journal-cipher-enable', 'journal-cipher-unlock', 'journal-cipher-disable'].includes(action)) openJournalCipherWindow(action.slice('journal-cipher-'.length));
     else if (action === 'sync-sign-out') signOutSync();
     else if (action === 'sync-delete-account') deleteSyncAccount();
     else if (action === 'sync-choose') chooseSyncMode(el.dataset.mode);

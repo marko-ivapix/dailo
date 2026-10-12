@@ -4,7 +4,7 @@
 'use strict';
 const nodeCrypto = require('node:crypto');
 
-function createFakeSupabase({ url = 'https://fake.supabase.co', anonKey = 'anon-key', code = '123456', autoconfirm = false, providers = { google: true, apple: false }, tables = true, reauthentication = false, requireCurrentPassword = false, secureEmailChange = true, files = true, maxFileBytes = 10 * 1024 * 1024 } = {}) {
+function createFakeSupabase({ url = 'https://fake.supabase.co', anonKey = 'anon-key', code = '123456', autoconfirm = false, providers = { google: true, apple: false }, tables = true, reauthentication = false, requireCurrentPassword = false, secureEmailChange = true, files = true, maxFileBytes = 10 * 1024 * 1024, journalPurge = true } = {}) {
   const users = new Map(); // email -> { id, email, password, confirmed }
   const tokens = new Map(); // access token -> { userId, expiresAt }
   const refreshTokens = new Map(); // refresh token -> userId
@@ -210,6 +210,15 @@ function createFakeSupabase({ url = 'https://fake.supabase.co', anonKey = 'anon-
     }
     // Before 0001_sync.sql runs, PostgREST knows neither the table nor the function.
     if (!tables && path.startsWith('/rest/v1/')) return json(404, { code: 'PGRST205', message: "Could not find the table 'public.records' in the schema cache" });
+    // R51: 0005_journal_history.sql deletes the caller's journal versions from the history.
+    if (path === '/rest/v1/rpc/purge_journal_history' && method === 'POST') {
+      if (!journalPurge) return json(404, { code: 'PGRST202', message: 'Could not find the function public.purge_journal_history without parameters in the schema cache' });
+      const who = userFor(headers);
+      if (who.error) return who.error;
+      const before = history.length;
+      for (let index = history.length - 1; index >= 0; index -= 1) if (history[index].user_id === who.userId && history[index].type === 'journal') history.splice(index, 1);
+      return json(200, before - history.length);
+    }
     if (path === '/rest/v1/rpc/delete_my_account' && method === 'POST') {
       const who = userFor(headers);
       if (who.error) return who.error;

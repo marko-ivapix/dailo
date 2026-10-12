@@ -16,6 +16,7 @@ Jednokratno podešavanje servera za sinhronizaciju (V2.0-a). Traje desetak minut
 4. Otvori novi upit (**New query**), nalepi ceo sadržaj fajla `supabase/migrations/0002_journal.sql` i klikni **Run**. On dozvoljava sinhronizaciju Dnevnika. Treba ponovo da piše „Success“.
 5. Isto uradi sa `supabase/migrations/0003_attachments.sql`. On pravi privatno skladište **attachments** za priloge (do 10 MB po fajlu, svaki nalog vidi samo svoju fasciklu). Bez njega se prilozi ne sinhronizuju, a **Još → Nalog** to i kaže.
 6. Isto uradi sa `supabase/migrations/0004_realtime.sql`. On uključuje Realtime za tabelu `records`, pa drugi uređaj dobije promenu odmah, a ne tek na sledećoj sinhronizaciji (na 5 minuta). U **Još → Nalog** pored poslednje sinhronizacije tada piše „promene stižu odmah”. Bez ovog koraka sinhronizacija radi kao i pre.
+7. Isto uradi sa `supabase/migrations/0005_journal_history.sql`. Kad u **Još → Nalog** uključiš **Šifrovan dnevnik**, aplikacija njime briše sa servera ranije, nešifrovane verzije dnevnika. Bez ovog koraka dnevnik se ipak šifruje, ali stare verzije ostaju dok ga ne pokreneš, a Nalog to i kaže.
 
 ## 3. Prijava e-poštom i lozinkom
 

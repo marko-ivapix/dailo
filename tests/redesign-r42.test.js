@@ -76,7 +76,7 @@ test('checkServer reads the key, the tables and the sign-in settings', async () 
 function account(view) {
   let adapter;
   runInNewContextWithI18n(read('js/settings-ui.js'), { window: { TodoDomainModules: { register: value => { adapter = value; } } } });
-  return adapter.renderRoute({ type: 'account' }, { state: { settings: {} }, esc, pageHeader: title => `<h1>${title}</h1>`, syncView: () => ({ configured: true, signedIn: false, email: '', ...view }) });
+  return adapter.renderRoute({ type: 'account' }, { state: { settings: {} }, esc, journalCipherStatus: () => 'off' /* R51 */, pageHeader: title => `<h1>${title}</h1>`, syncView: () => ({ configured: true, signedIn: false, email: '', ...view }) });
 }
 
 test('Nalog: "Proveri server" lists what is set up and what is missing', () => {
