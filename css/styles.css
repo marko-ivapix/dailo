@@ -2281,6 +2281,21 @@ textarea[data-autogrow] { field-sizing: content; min-height: 0; resize: none; ov
 .knowledge-row-link { color: var(--ink-3); text-decoration: none; }
 .knowledge-row-link:hover { color: var(--blue-300); }
 
+/* Redesign R36 — capture and triage additions after the third design pass (2026-10-12). */
+/* Quick Add: "Dodaj i nastavi" beside "Dodaj zadatak"; the two buttons share the row on a phone. */
+.quick-sheet-footer:has(.quick-add-continue) { flex-wrap: wrap; gap: 8px; }
+.quick-add-continue { margin-left: auto; }
+@media (pointer: coarse) { .quick-sheet-footer:has(.quick-add-continue) .btn { flex: 1 1 0; min-height: 48px; } .quick-add-continue { margin-left: 0; } }
+/* The Inbox add row. */
+.inbox-add { display: flex; align-items: center; gap: 6px; margin: 10px 0 12px; padding: 0 4px 0 12px; border: 1px solid var(--line-2); border-radius: var(--radius-md); background: var(--graphite-850); }
+.inbox-add .input { flex: 1; min-width: 0; border: 0; background: none; padding-inline: 0; }
+.inbox-add .btn-icon { width: 44px; height: 44px; color: var(--blue-300); }
+/* The one-time gesture hint on Danas. */
+.gesture-hint { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 8px 12px; margin: 0 0 12px; padding: 12px; border: 1px solid var(--line-2); border-radius: var(--radius-md); background: var(--graphite-850); }
+.gesture-hint p { margin: 0; color: var(--ink-2); font-size: var(--text-md); line-height: 1.4; }
+.gesture-hint .btn { grid-column: 1 / -1; justify-self: end; }
+.gesture-hint-icon { color: var(--blue-300); font-size: var(--text-xl); }
+
 /* Keep primary compact actions touchable after all density rules. */
 @media (max-width: 700px), (pointer: coarse) {
   .task-actions .btn-icon,

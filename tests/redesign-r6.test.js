@@ -44,7 +44,7 @@ test('I1, I3, I4: the top line, "Razvrstaj redom", only present types as filters
     notes: [{ id: 'n1', title: 'Link from Ana', isInbox: true, createdAt: at }],
   });
   const html = ctx.renderInbox();
-  assert.match(html, /^<header title="Inbox" subtitle="2 items waiting to be organized"><\/header><button class="inbox-triage-button" type="button" data-action="inbox-triage"><i class="ph ph-stack" aria-hidden="true"><\/i><span><strong>Sort one by one<\/strong> · one at a time<\/span><i class="ph ph-caret-right" aria-hidden="true"><\/i><\/button>/);
+  assert.match(html, /^<header title="Inbox" subtitle="2 items waiting to be organized"><\/header><div class="inbox-add">[\s\S]*?<\/div><button class="inbox-triage-button" type="button" data-action="inbox-triage"><i class="ph ph-stack" aria-hidden="true"><\/i><span><strong>Sort one by one<\/strong> · one at a time<\/span><i class="ph ph-caret-right" aria-hidden="true"><\/i><\/button>/);
   const tabs = [...html.matchAll(/data-inbox-filter="(\w+)">([^<]+)<span class="inbox-filter-count">(\d+)<\/span>/g)].map(match => match.slice(1));
   assert.deepEqual(tabs, [['all', 'All', '2'], ['tasks', 'Tasks', '1'], ['notes', 'Notes', '1']]);
   assert.match(html, /<strong>Today<\/strong><span>2<\/span>/);
@@ -58,7 +58,7 @@ test('I1, I3, I4: the top line, "Razvrstaj redom", only present types as filters
 
 test('I6: an empty Inbox shows a check, "Inbox je prazan" and "Sve je razvrstano."', () => {
   const html = inboxContext().renderInbox();
-  assert.match(html, /<header title="Inbox" subtitle="Nothing is waiting"><\/header><div class="empty-state inbox-empty"><i class="ph ph-check-circle" aria-hidden="true"><\/i><h3>Inbox is empty<\/h3><p>Everything is sorted\.<\/p><\/div>$/);
+  assert.match(html, /<header title="Inbox" subtitle="Nothing is waiting"><\/header><div class="inbox-add">[\s\S]*?<\/div><div class="empty-state inbox-empty"><i class="ph ph-check-circle" aria-hidden="true"><\/i><h3>Inbox is empty<\/h3><p>Everything is sorted\.<\/p><\/div>$/);
   for (const [key, value] of [['Inbox is empty', 'Inbox je prazan'], ['Everything is sorted\\.', 'Sve je razvrstano\\.'], ['Nothing is waiting', 'Ništa ne čeka'], ['Sort one by one', 'Razvrstaj redom'], ['one at a time', 'jednu po jednu']]) assert.match(sr, new RegExp(`"${key}": "${value}"`), key);
 });
 
@@ -115,7 +115,7 @@ test('I2: "Razvrstaj redom" shows one item with large buttons, a counter and Pre
   let html = ctx.renderInboxTriage();
   assert.match(html, /^<frame quick inbox-triage-modal><div class="modal-inner"><div class="modal-header"><h2 class="modal-title">Sorting<\/h2>/);
   assert.match(html, /<p class="inbox-triage-meta">Task · added today<\/p><p class="inbox-triage-title">Call the bank<\/p><p class="inbox-triage-due"><span class="task-due is-today">Due today<\/span><\/p>/);
-  assert.match(html, /<div class="inbox-triage-actions"><button class="btn btn-secondary" type="button" data-action="inbox-today" data-task-id="t1">Today<\/button><button class="btn btn-secondary" type="button" data-action="inbox-tomorrow" data-task-id="t1">Tomorrow<\/button><button class="btn btn-secondary" type="button" data-action="inbox-anytime" data-task-id="t1">Anytime<\/button><button class="btn btn-secondary" type="button" data-action="inbox-project" data-task-id="t1">Project…<\/button><\/div>/);
+  assert.match(html, /<div class="inbox-triage-actions"><button class="btn btn-secondary" type="button" data-action="inbox-today" data-task-id="t1">Today<\/button><button class="btn btn-secondary" type="button" data-action="inbox-tomorrow" data-task-id="t1">Tomorrow<\/button><button class="btn btn-secondary" type="button" data-action="inbox-anytime" data-task-id="t1">Anytime<\/button><button class="btn btn-secondary" type="button" data-action="inbox-date" data-task-id="t1">Date…<\/button><button class="btn btn-secondary" type="button" data-action="inbox-project" data-task-id="t1">Project…<\/button><button class="btn btn-secondary" type="button" data-action="inbox-triage-open" data-inbox-type="task" data-inbox-id="t1">Open it<\/button><\/div>/, 'R36: "Datum…" and "Otvori" too');
   assert.match(html, /<div class="inbox-triage-footer"><span>1 of 2<\/span><button class="btn btn-ghost" type="button" data-action="inbox-triage-skip">Skip<\/button><\/div>/);
   assert.doesNotMatch(html, /delete/i, 'no deleting here');
   ctx.state.tasks[0].isInbox = false;

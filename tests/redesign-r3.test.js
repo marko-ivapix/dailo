@@ -184,6 +184,7 @@ test('E6: reminder presets follow the planned time; the sheet has date, time, a 
   ctx.openReminderPicker({}, { type: 'task', taskId: 't1' });
   const html = ctx.calls.at(-1)[1];
   const presets = [...html.matchAll(/data-pop-action="reminder-preset" data-date="([\d-]+)" data-time="([\d:]+)"[^>]*>([^<]+)</g)].map(match => match.slice(1));
+  assert.equal(presets.shift()[2], 'In 1 hour', 'R36: "Za 1 h" comes first');
   assert.deepEqual(presets, [['2026-10-20', '10:30', 'At the planned time'], ['2026-10-20', '10:15', '15 min before'], ['2026-10-20', '09:30', '1 h before'], ['2026-10-19', '09:00', 'Day before at 09:00']]); // R18: the default reminder time
   assert.match(html, /<input id="reminder-date" class="input" type="date" value="2026-10-20">/);
   assert.match(html, /<input id="reminder-time" class="input" type="time" value="10:30">/);

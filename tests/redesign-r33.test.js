@@ -118,7 +118,8 @@ test('32: an hourglass is the due date and a flag the priority everywhere; Bez p
 
 test('33: Fokus → Detalji comes back to Fokus with its timer', () => {
   assert.match(fn('openTaskDetail'), /const focus = modalState\?\.type === 'focus' \? modalState : null;/);
-  assert.match(fn('openTaskDetail'), /\.\.\.\(focus \? \{ returnTo: focus \} : \{\}\)/);
+  assert.match(fn('openTaskDetail'), /const back = focus \|\| \(modalState\?\.type === 'inbox-triage' \? modalState : null\);/, 'R36: Razvrstaj redom too');
+  assert.match(fn('openTaskDetail'), /\.\.\.\(back \? \{ returnTo: back \} : \{\}\)/);
   assert.match(fn('closeModal'), /if \(modalState\?\.type === 'task' && modalState\.returnTo\?\.type === 'focus'\) \{/);
   assert.match(fn('closeModal'), /startFocusTimer\(\);/);
 });

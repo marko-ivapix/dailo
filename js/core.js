@@ -1480,6 +1480,13 @@
     return { title: name.replace(/\s+/g, ' ').slice(0, 200).trim(), notes: notes.join('\n') };
   }
 
+  // R36 (G): "Vikend" in the date sheet: the coming Saturday, or today on a Saturday.
+  function weekendDate(date) {
+    const day = parseDateOnly(date)?.getDay();
+    if (day == null) return null;
+    return addDays(date, day === 0 ? 6 : 6 - day);
+  }
+
   // R35 (H): a shared link becomes a resource: the page title (or the one line shared with it, or the site) is its
   // name, the link its link and any other shared text its description. Text without an http(s) link returns null and
   // stays a task (sharedTextDraft).
@@ -2320,6 +2327,7 @@
     notificationPlan,
     sharedTextDraft,
     sharedResourceDraft,
+    weekendDate,
     noteTaskDraft,
     widgetSnapshot,
     snoozeTarget,

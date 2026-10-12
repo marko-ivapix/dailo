@@ -38,6 +38,7 @@ function quickContext(draft = {}, extra = {}) {
     openTaskDetail: id => calls.push(['openTask', id]), syncTemplateEntityGoalLinks: () => calls.push(['goalLinks']),
     openPopover: (anchor, html, meta) => calls.push(['open', html, meta]), closePopover: () => calls.push(['close']),
     requestAnimationFrame: () => {}, $: () => null,
+    setToastMessage: (message, link) => calls.push(['toast', message, link]), addedMessage: () => 'added', // R36: where the task went
     ...extra,
   };
   vm.createContext(withI18n(ctx));

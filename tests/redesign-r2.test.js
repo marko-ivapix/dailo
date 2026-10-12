@@ -124,7 +124,7 @@ function renderTodayWith(stateExtra = {}, stubs = {}) {
   const ctx = todayContext(state, {
     foldButton, // R22b: the one fold button from app.js
     pageHeader: (title, subtitle, options) => `<header title="${title}" eyebrow="${options.eyebrow}" add="${options.add}"></header>`,
-    transferNotice: () => '<transfer>', sampleNotice: () => '' /* R30 */, backupReminderNotice: () => '<backup>', callDomainHook: () => '<journal>', // R12c: the journal notice comes from journal-ui.js; R14: no weekly-review notice
+    transferNotice: () => '<transfer>', sampleNotice: () => '' /* R30 */, gestureHint: () => '' /* R36 */, backupReminderNotice: () => '<backup>', callDomainHook: () => '<journal>', // R12c: the journal notice comes from journal-ui.js; R14: no weekly-review notice
     taskRow: (task, context, options) => `<task ${task.id} ${context}${options.today ? ' today' : ''}${options.draggable ? ' drag' : ''}>`,
     renderHabitTodayRow: (habit, status) => `<habit ${habit.id} ${status.status}>`,
     globalThis: { DailoPlatform: stubs.native ? { isNative: true } : undefined },
@@ -281,7 +281,7 @@ test('a long press runs the element\'s long-press action once and swallows the c
     callDomainHook: (...args) => calls.push(args),
   };
   vm.createContext(ctx);
-  vm.runInContext(`let longPressTimer = null, longPressFired = false;\n${fn('handleLongPressStart')}${fn('cancelLongPress')}${fn('handleLongPressClick')}`, ctx);
+  vm.runInContext(`let longPressTimer = null, longPressFired = false;\n${fn('handleLongPressStart')}${fn('runLongPress')}${fn('cancelLongPress')}${fn('handleLongPressClick')}`, ctx); // R36: runLongPress
   ctx.handleLongPressStart({ isPrimary: true, button: 0, target: { closest: () => el } });
   assert.equal(timers[0][1], 500);
   timers[0][0]();

@@ -82,6 +82,7 @@
   let undoHold = null;
   let toastMessage = null;
   let toastMessageTimer = null;
+  let toastLink = null;
   let staleDataNotice = null;
   let canonicalRaw = null;
   let textSaveTimer = null;
@@ -1157,12 +1158,13 @@
       ...sections.overdueGoals.map(goal => deadlineRow({ goal }, today)),
       ...sections.overdueMilestones.map(item => deadlineRow(item, today)),
     ];
-    if (overdueRows.length) html += section('overdue', tr('Past due'), overdueRows.length, `<div class="task-list today-card">${todayLimited('overdue', overdueRows)}</div>`, true);
     const plannedRows = [
       ...sections.today.map(task => taskRow(task, 'today', { today: true, draggable: true })),
       ...sections.goals.map(goal => deadlineRow({ goal }, today)),
       ...sections.milestones.map(item => deadlineRow(item, today)),
     ];
+    html += gestureHint(overdueRows.length + plannedRows.length > 0);
+    if (overdueRows.length) html += section('overdue', tr('Past due'), overdueRows.length, `<div class="task-list today-card">${todayLimited('overdue', overdueRows)}</div>`, true);
     html += section('today', tr('Planned today'), plannedRows.length, `<div class="task-list today-card" data-list-context="today">${plannedRows.length ? todayLimited('today', plannedRows) : `<p class="today-empty">${tr('Nothing planned. “+” adds a task for today.')}</p>`}</div><button class="inline-add" type="button" data-action="quick-add" data-today="true"><i class="ph ph-plus"></i> ${tr('Add task')}</button>`);
     // R30 (finding 8): tasks due today and missed plans wait in Zadaci → "Predlozi za danas"; Danas links there.
     const suggestions = Core.deriveTodaySections(listTasks(), today).suggestions;
@@ -1186,6 +1188,8 @@
     const filter = present.some(([value]) => value === state.ui.inboxFilter) ? state.ui.inboxFilter : 'all';
     const records = activeInboxRecords(filter);
     let html = pageHeader(tr('Inbox'), all.length ? trn(all.length, '{count} item waiting to be organized', '{count} items waiting to be organized') : tr('Nothing is waiting'), {});
+    const addRow = `<div class="inbox-add"><input id="inbox-add-title" class="input" type="text" maxlength="500" autocomplete="off" enterkeyhint="done" placeholder="${tr('Add to Inbox…')}" aria-label="${tr('Add to Inbox')}"><button class="btn-icon" type="button" data-action="inbox-add" aria-label="${tr('Add')}"><i class="ph ph-plus" aria-hidden="true"></i></button></div>`;
+    html += addRow;
     if (!all.length) return html + `<div class="empty-state inbox-empty"><i class="ph ph-check-circle" aria-hidden="true"></i><h3>${tr('Inbox is empty')}</h3><p>${tr('Everything is sorted.')}</p></div>`;
     html += `<button class="inbox-triage-button" type="button" data-action="inbox-triage"><i class="ph ph-stack" aria-hidden="true"></i><span><strong>${tr('Sort one by one')}</strong> · ${tr('one at a time')}</span><i class="ph ph-caret-right" aria-hidden="true"></i></button>`;
     if (present.length > 1) html += `<div class="sheet-chips inbox-filter-chips" role="group" aria-label="${tr('Filter Inbox')}">${[INBOX_FILTERS[0], ...present].map(([value, label]) => `<button class="quick-chip${filter === value ? ' is-selected' : ''}" type="button" aria-pressed="${filter === value}" data-action="inbox-filter" data-inbox-filter="${value}">${tr(label)}<span class="inbox-filter-count">${value === 'all' ? all.length : activeInboxRecords(value).length}</span></button>`).join('')}</div>`;
@@ -1230,7 +1234,8 @@
     const attrs = `data-inbox-type="${esc(type)}" data-inbox-id="${esc(id)}"`;
     const button = (action, text, extra = '', primary = false) => `<button class="btn ${primary ? 'btn-primary' : 'btn-secondary'}" type="button" data-action="${action}" ${extra}>${text}</button>`;
     const actions = type === 'task'
-      ? ['inbox-today', 'inbox-tomorrow', 'inbox-anytime', 'inbox-project'].map((action, index) => button(action, [tr('Today'), tr('Tomorrow'), tr('Anytime'), tr('Project…')][index], `data-task-id="${esc(id)}"`)).join('')
+      // R36 (G): a task can also get a date or be opened (the task window comes back to the sorting).
+      ? ['inbox-today', 'inbox-tomorrow', 'inbox-anytime', 'inbox-date', 'inbox-project'].map((action, index) => button(action, [tr('Today'), tr('Tomorrow'), tr('Anytime'), tr('Date…'), tr('Project…')][index], `data-task-id="${esc(id)}"`)).join('') + button('inbox-triage-open', tr('Open it'), attrs)
       : button('inbox-triage-open', tr('Open details'), attrs) + button('inbox-area', tr('Area…'), attrs) + button('inbox-remove', tr('Sorted'), attrs, true);
     const due = type === 'task' && item.dueDate ? `<p class="inbox-triage-due">${todayDueLabel(item.dueDate)}</p>` : '';
     return modalFrame(`<div class="modal-inner">${header}<div class="inbox-triage-card"><p class="inbox-triage-meta">${esc(tr('{type} · added {when}', { type: tr(label), when: added }))}</p><p class="inbox-triage-title">${esc(item.title || item.name || '')}</p>${due}</div><div class="inbox-triage-actions">${actions}</div><div class="inbox-triage-footer"><span>${esc(tr('{current} of {total}', { current: queue.length - open.length + 1, total: queue.length }))}</span><button class="btn btn-ghost" type="button" data-action="inbox-triage-skip">${tr('Skip')}</button></div></div>`, 'quick inbox-triage-modal');
@@ -1518,7 +1523,9 @@
     if (focus) stopFocusTimer();
     else captureModalReturnFocus();
     closePopover();
-    modalState = { type: 'task', taskId, titleDraft: task.title, notesDraft: task.notes || '', error: '', attachmentRecords: [], attachmentMessage: '', ...(focus ? { returnTo: focus } : {}) };
+    // R36 (G): opened from Razvrstaj redom it returns there too.
+    const back = focus || (modalState?.type === 'inbox-triage' ? modalState : null);
+    modalState = { type: 'task', taskId, titleDraft: task.title, notesDraft: task.notes || '', error: '', attachmentRecords: [], attachmentMessage: '', ...(back ? { returnTo: back } : {}) };
     renderModal();
     // R14: the window opens without the keyboard; a tap on the title edits it.
     requestAnimationFrame(() => $('#modal-root [data-action="close-modal"]')?.focus());
@@ -1698,6 +1705,29 @@
     callDomainHook('handleAction', 'open-knowledge', { ownerType: type, ownerId: id, prefill: options.prefill || null, inbox: Boolean(options.inbox) });
   }
 
+  // A new task with every field set; callers pass what differs.
+  function newTaskRecord(fields) {
+    const now = nowIso();
+    return {
+      id: uid('task'), title: '', notes: '', projectId: null, areaId: null, goalIds: [], plannedTime: null, dueTime: null, durationMinutes: null,
+      plannedDate: null, dueDate: null, reminderAt: null, reminderFiredAt: null, recurrence: null, tagIds: [], priority: 'none', attachmentIds: [], isInbox: false,
+      isImportant: false, isUrgent: false, isCompleted: false, completedAt: null, subtasks: [],
+      todayOrder: null, projectOrder: null, inboxOrder: null, createdAt: now, updatedAt: now, ...fields,
+    };
+  }
+
+  // R36 (C): the Inbox add row files a title straight into Inbox (#tags and !priority still count) and stays ready
+  // for the next one.
+  function addToInbox(rawTitle) {
+    const parsed = parseQuickAddTitle(String(rawTitle || ''), false);
+    const title = String(parsed.title || '').trim();
+    if (!title) return false;
+    state.tasks.push(newTaskRecord({ title, tagIds: [...(parsed.tagIds || [])], priority: parsed.priority || 'none', isInbox: true, inboxOrder: nextOrder('inbox', true) }));
+    saveState(); render();
+    requestAnimationFrame(() => $('#inbox-add-title')?.focus());
+    return true;
+  }
+
   // R35 (B): "Napravi zadatak" turns a note into an Inbox task: the name is the title, list lines become subtasks and
   // the rest stays as notes; it takes the note's area and tags, and the note links it. Poništi removes both again.
   function noteToTask(noteId) {
@@ -1705,13 +1735,10 @@
     flushTextSave();
     const draft = Core.noteTaskDraft(note);
     const now = nowIso();
-    const task = {
-      id: uid('task'), title: draft.title || tr('Task'), notes: draft.notes, projectId: null, areaId: note.areaId || null, goalIds: [], plannedTime: null, dueTime: null, durationMinutes: null,
-      plannedDate: null, dueDate: null, reminderAt: null, reminderFiredAt: null, recurrence: null, tagIds: [...(note.tagIds || [])], priority: 'none', attachmentIds: [], isInbox: true,
-      isImportant: false, isUrgent: false, isCompleted: false, completedAt: null,
+    const task = newTaskRecord({
+      title: draft.title || tr('Task'), notes: draft.notes, areaId: note.areaId || null, tagIds: [...(note.tagIds || [])], isInbox: true, inboxOrder: nextOrder('inbox', true),
       subtasks: draft.subtasks.map((item, order) => ({ id: uid('sub'), title: item.title, isCompleted: item.isCompleted, order })),
-      todayOrder: null, projectOrder: null, inboxOrder: nextOrder('inbox', true), createdAt: now, updatedAt: now,
-    };
+    });
     const previous = { relatedTaskIds: [...(note.relatedTaskIds || [])], updatedAt: note.updatedAt };
     state.tasks.push(task);
     note.relatedTaskIds = [...previous.relatedTaskIds, task.id]; note.updatedAt = now;
@@ -1749,6 +1776,10 @@
     if (modalState?.type === 'task' && modalState.returnTo?.type === 'focus') {
       if (flushTaskDraft(() => closeModal())) return;
       const back = modalState.returnTo; modalState = back; renderModal(); startFocusTimer(); return;
+    }
+    if (modalState?.type === 'task' && modalState.returnTo?.type === 'inbox-triage') {
+      if (flushTaskDraft(() => closeModal())) return;
+      modalState = modalState.returnTo; renderModal(); return;
     }
     if (modalState?.previous?.type === 'goal') {
       const target = modalState.returnFocus; modalState = modalState.previous; renderModal(); restoreGoalFocus(target); return;
@@ -1999,7 +2030,7 @@
       <div class="quick-selectors"><button class="quick-selector" type="button" data-action="quick-plan-picker"><i class="ph ph-calendar-check" aria-hidden="true"></i><span data-quick-plan-label>${esc(quickPlanLabel(plan, time))}</span><i class="ph ph-caret-right" aria-hidden="true"></i></button><button class="quick-selector" type="button" data-action="quick-project-picker"><i class="ph ph-folder-simple" aria-hidden="true"></i><span data-quick-place-label>${esc(quickPlace(d, parsed).label)}</span><i class="ph ph-caret-right" aria-hidden="true"></i></button></div>
       ${quickTemplateRow()}
       <button class="quick-more-options" type="button" data-action="quick-more-options"><span>${tr('More options')}</span><span class="quick-more-meta">${tr('Due date, reminder, tags')}</span><i class="ph ph-caret-right" aria-hidden="true"></i></button>
-      <div class="quick-sheet-footer"><span class="shortcut-hint">${tr('↵ Add · ⇧↵ Add another')}</span><button class="btn btn-primary quick-add-button" type="button" data-action="create-task">${tr('Add task')}</button></div>
+      <div class="quick-sheet-footer"><span class="shortcut-hint">${tr('↵ Add · ⇧↵ Add another')}</span><button class="btn btn-secondary quick-add-continue" type="button" data-action="create-task-continue">${tr('Add and continue')}</button><button class="btn btn-primary quick-add-button" type="button" data-action="create-task">${tr('Add task')}</button></div>
     </div>`, 'quick');
   }
 
@@ -2392,10 +2423,13 @@
     const today = Core.dateOnly();
     // R16: a habit's start offers the 1st of this month (unless that is today), so it is planned on every day of the month.
     const monthStart = `${today.slice(0, 8)}01`;
+    // R36 (G): "Večeras" plans for 20:00 today while it is still ahead; "Vikend" is the coming Saturday.
+    const evening = kind === 'plan' && new Date().getHours() < 20 ? [[tr('Tonight'), today, '20:00']] : [];
     const quick = kind === 'start'
       ? [...(monthStart < today ? [[tr('Start of the month'), monthStart]] : []), [tr('Today'), today], [tr('Tomorrow'), Core.addDays(today, 1)]]
-      : [[tr('Today'), today], [tr('Tomorrow'), Core.addDays(today, 1)], [tr('Start of next week'), nextMonday(today)]];
-    const chips = `<div class="sheet-chips">${quick.map(([label, value]) => `<button class="quick-chip${date === value ? ' is-selected' : ''}" type="button" data-pop-action="date-sheet-pick" data-date="${value}" aria-pressed="${date === value}">${esc(label)}</button>`).join('')}</div>`;
+      : [[tr('Today'), today], ...evening, [tr('Tomorrow'), Core.addDays(today, 1)], [tr('Weekend'), Core.weekendDate(today)], [tr('Start of next week'), nextMonday(today)]];
+    const picked = (value, at) => date === value && (at ? time === at : !quick.some(([, other, otherAt]) => otherAt && other === value && time === otherAt));
+    const chips = `<div class="sheet-chips">${quick.map(([label, value, at]) => `<button class="quick-chip${picked(value, at) ? ' is-selected' : ''}" type="button" data-pop-action="date-sheet-pick" data-date="${value}"${at ? ` data-time="${at}"` : ''} aria-pressed="${picked(value, at)}">${esc(label)}</button>`).join('')}</div>`;
     if (kind === 'start') return `<div class="popover-title">${tr('Start')}</div><p class="sheet-subtitle">${esc(source?.name?.trim() || tr('New habit'))}</p>${chips}${monthGrid(date, view, today)}<div class="sheet-footer"><span></span><button class="btn btn-primary" type="button" data-pop-action="date-sheet-apply">${tr('Apply')}</button></div>`;
     const otherDate = kind === 'plan' ? source?.dueDate : source?.plannedDate;
     const otherTime = kind === 'plan' ? source?.dueTime : source?.plannedTime;
@@ -2630,6 +2664,9 @@
       const later = Core.laterToday(new Date()); // null late in the evening: the option is not offered (audit H-2)
       presets = [...(later ? [[tr('Later today'), parts(later)]] : []), [tr('Tomorrow at {time}', { time: morning }), { date: Core.addDays(Core.dateOnly(), 1), time: morning }]];
     }
+    // R36 (G): "Za 1 h" comes first, rounded up to five minutes.
+    const soon = parts(Math.ceil((Date.now() + 3600000) / 300000) * 300000);
+    presets = [[tr('In 1 hour'), soon], ...presets];
     // R30 (finding 7): a passed time is never proposed.
     presets = presets.filter(([, value]) => new Date(`${value.date}T${value.time}:00`) > new Date());
     const current = task.reminderAt ? parts(task.reminderAt) : null;
@@ -3204,6 +3241,8 @@
     state.tasks.push(task);
     if(modalState.templateInstance)syncTemplateEntityGoalLinks('task',task);
     saveState();
+    // R36 (C): the toast says where the task went; "Otvori" opens it.
+    if (!openWindow) setToastMessage(addedMessage(task), { label: msg('Open it'), taskId: task.id });
     if (keepOpen) {
       const defaults = modalState.defaults;
       modalState = { type: 'quick', templateContext: modalState.templateContext, defaults, draft: { title: '', notes: '', projectId: defaults.projectId, areaId: defaults.areaId, plannedDate: defaults.plannedDate, parsedPlanDate: null, explicitPlan: Boolean(defaults.explicitPlan), dueDate: null, plannedTime: null, dueTime: null, explicitPlannedTime: false, reminderAt: null, reminderFiredAt: null, recurrence: null, tagIds: [], priority: 'none', subtasks: [] }, error: '' };
@@ -3212,6 +3251,16 @@
       closeModal(); render();
       if (openWindow) openTaskDetail(task.id);
     }
+  }
+
+  // R36 (C): where a new task went: Inbox, Danas, a date, its project or Kad stignem.
+  function addedMessage(task) {
+    if (task.isInbox) return tr('Added to Inbox');
+    if (task.plannedDate === Core.dateOnly()) return tr('Added to Today');
+    if (task.plannedDate) return tr('Added for {date}', { date: lowerFirst(relativeDateLabel(task.plannedDate)) });
+    const project = task.projectId && getProject(task.projectId);
+    if (project) return tr('Added to {place}', { place: project.name });
+    return tr('Added to Anytime');
   }
 
   function syncQuickDraftFromDom() {
@@ -3819,7 +3868,7 @@
     const spoken = toastMessage || (undoState ? tr(undoState.message) : '') || globalRecoveryNotice?.message || '';
     if (status && status.textContent !== spoken) status.textContent = spoken;
     const undo = undoState ? `<div class="toast"><i class="ph-fill ph-check-circle toast-icon"></i><span class="toast-message">${esc(tr(undoState.message))}</span><button class="toast-action" type="button" data-action="undo">${tr('Undo')}</button></div>` : '';
-    const info = toastMessage ? `<div class="toast"><i class="ph ph-info toast-icon" style="color:var(--info)"></i><span class="toast-message">${esc(toastMessage)}</span></div>` : '';
+    const info = toastMessage ? `<div class="toast"><i class="ph ph-info toast-icon" style="color:var(--info)"></i><span class="toast-message">${esc(toastMessage)}</span>${toastLink ? `<button class="toast-action" type="button" data-action="toast-open-task" data-task-id="${esc(toastLink.taskId)}">${esc(tr(toastLink.label))}</button>` : ''}</div>` : '';
     const failed = [...failedDeleteSnapshots][0];
     const recoveryNotice = failed && !undoHold ? `<div class="toast" role="alert"><i class="ph ph-warning toast-icon"></i><span class="toast-message">${esc(trMessage(failed.recoveryError))} · ${tr('Snapshot retained')}</span><button class="toast-action" type="button" data-action="retry-delete-recovery">${tr('Retry recovery')}</button></div>` : '';
     const globalNotice = globalRecoveryNotice ? `<div class="toast" role="alert"><span class="toast-message">${esc(globalRecoveryNotice.message)}</span><button class="toast-action" data-action="retry-global-recovery">${tr('Retry')}</button></div>` : '';
@@ -4463,6 +4512,17 @@
   }
   // R30 (finding 5): a new workspace starts with examples, and Danas says so until the user keeps them, starts
   // empty or changes them. The answer is device-local ("dailoSampleNotice"), outside state, sync and backups.
+  // R36 (K): once, on a touch screen, Danas explains the row gestures; "U redu" hides it on this device
+  // (device-local key, outside state, backups and sync).
+  function gestureHint(hasTasks) {
+    if (!hasTasks || !window.matchMedia?.('(pointer: coarse)').matches) return '';
+    try { if (localStorage.getItem('dailoGestureHint')) return ''; } catch (_) { return ''; }
+    return `<section class="gesture-hint" role="note"><i class="ph ph-hand-swipe-right gesture-hint-icon" aria-hidden="true"></i><p>${tr('Swipe a task right to complete it, left to pick its date. Hold a row, then drag it to change the order.')}</p><button class="btn btn-secondary" type="button" data-action="dismiss-gesture-hint">${tr('OK')}</button></section>`;
+  }
+  function dismissGestureHint() {
+    try { localStorage.setItem('dailoGestureHint', nowIso()); } catch (_) { /* shown again next time */ }
+  }
+
   function sampleNotice() {
     try { if (localStorage.getItem('dailoSampleNotice')) return ''; } catch (_) { return ''; }
     if (!untouchedSample()) return '';
@@ -5093,16 +5153,19 @@
   }
 
   // Messages are English catalog keys or already translated text; tr() leaves the latter unchanged.
-  function setToastMessage(message) {
+  function setToastMessage(message, link = null) {
     clearTimeout(toastMessageTimer);
     toastMessage = message == null ? message : trMessage(message);
+    // R36 (C): an information toast may carry one action, "Otvori" for the task it is about.
+    toastLink = message == null ? null : link;
     renderToast();
     // Information has its own lifetime; it must never replace/finalize Undo.
     toastMessageTimer = setTimeout(() => {
       toastMessage = null;
+      toastLink = null;
       toastMessageTimer = null;
       renderToast();
-    }, 3000);
+    }, toastLink ? 5000 : 3000);
   }
 
   // Redesign R5 (Z7, S10): the floating "+" adds a task for the screen it is on; null on an archived project.
@@ -5176,6 +5239,8 @@
     else if(action==='use-template')useTemplate(el.dataset.templateId);
     else if (action === 'quick-add') { const context = el.closest('#mobile-quick-add-menu') ? routeQuickAddContext() : { projectId: el.dataset.projectId || null, areaId: el.dataset.areaId || null, today: el.dataset.today === 'true', anytime: el.dataset.anytime === 'true' }; if (context) openQuickAdd(context); else setToastMessage(tr('Restore the project to add tasks.')); }
     else if (action === 'open-task') openTaskDetail(el.dataset.taskId);
+    else if (action === 'dismiss-gesture-hint') { dismissGestureHint(); render(); }
+    else if (action === 'toast-open-task') { const id = el.dataset.taskId; setToastMessage(null); openTaskDetail(id); }
     else if (action === 'focus-complete') completeFocusTask(el.dataset.taskId);
     else if (action === 'focus-toggle-timer') toggleFocusTimer();
     else if (action === 'focus-reset-timer') resetFocusTimer();
@@ -5200,9 +5265,12 @@
     else if (action === 'inbox-filter') { state.ui.inboxFilter = INBOX_FILTERS.some(([value]) => value === el.dataset.inboxFilter) ? el.dataset.inboxFilter : 'all'; saveAndRender(); }
     else if (action === 'inbox-remove') removeInboxRecord(el.dataset.inboxType, el.dataset.inboxId);
     else if (action === 'inbox-area') openInboxAreaSheet(el, el.dataset.inboxType, el.dataset.inboxId);
+    else if (action === 'inbox-add') addToInbox($('#inbox-add-title')?.value);
+    else if (action === 'inbox-date') openPlanPicker(el, { type: 'task', taskId: el.dataset.taskId });
     else if (action === 'inbox-project') openProjectPicker(el, { type: 'task', taskId: el.dataset.taskId });
     else if (action === 'inbox-triage') openInboxTriage();
     else if (action === 'inbox-triage-skip') { modalState.index += 1; renderModal(); }
+    else if (action === 'inbox-triage-open' && el.dataset.inboxType === 'task') openTaskDetail(el.dataset.inboxId);
     else if (action === 'inbox-triage-open') { const route = `${el.dataset.inboxType}/${el.dataset.inboxId}`; closeModal(); navigate(route); }
     else if (action === 'inbox-today') { addTaskToToday(el.dataset.taskId); if (modalState?.type === 'inbox-triage') renderModal(); }
     else if (action === 'inbox-tomorrow') { moveTaskToTomorrow(el.dataset.taskId); if (modalState?.type === 'inbox-triage') renderModal(); }
@@ -5223,6 +5291,7 @@
     else if (action === 'quick-template-clear') { clearQuickTemplate(); renderModal(); requestAnimationFrame(() => $('[data-action="quick-template"]')?.focus()); }
     else if (action === 'quick-more-options') createTask(false, true);
     else if (action === 'create-task') createTask(false);
+    else if (action === 'create-task-continue') createTask(true);
     else if (action === 'close-modal') closeModal();
     else if (action === 'modal-backdrop' && event.target === el) closeModal();
     else if (action === 'toggle-subtask') toggleSubtask(el.dataset.taskId, el.dataset.subtaskId);
@@ -5278,6 +5347,7 @@
     else if (action === 'date-sheet-pick' && dateSheet) {
       dateSheet.time = $('#date-sheet-time', popoverEl)?.value ?? dateSheet.time;
       dateSheet.date = button.dataset.date;
+      if (button.dataset.time) dateSheet.time = button.dataset.time;
       const picked = parseLocalDate(dateSheet.date);
       dateSheet.view = { y: picked.getFullYear(), m: picked.getMonth() };
       refreshSheet(dateSheetHtml(), `.sheet-calendar-day[data-date="${dateSheet.date}"]`);
@@ -5464,6 +5534,8 @@
     if (modalState?.type === 'quick' && target?.id === 'quick-title' && event.key === 'Enter') {
       event.preventDefault(); createTask(event.shiftKey); return;
     }
+    // R36 (C): Enter in the Inbox add row files the title.
+    if (event.key === 'Enter' && event.target.id === 'inbox-add-title') { event.preventDefault(); addToInbox(event.target.value); return; }
     if (callDomainHook('handleInput', event) !== undefined) return;
 
 
@@ -5700,7 +5772,12 @@
     const el = event.target.closest?.('[data-long-press]');
     if (!el) return;
     clearTimeout(longPressTimer); longPressFired = false;
-    longPressTimer = setTimeout(() => { longPressTimer = null; longPressFired = true; callDomainHook('handleAction', el.dataset.longPress, { target: el }); }, 500);
+    longPressTimer = setTimeout(() => { longPressTimer = null; longPressFired = true; runLongPress(el); }, 500);
+  }
+  // R36 (C): holding the "+" opens a new task at once, whatever the "+" does on a tap there.
+  function runLongPress(el) {
+    if (el.dataset.longPress === 'quick-add-task') { haptic('tick'); setMobileQuickAddOpen(false); const context = routeQuickAddContext(); if (context) openQuickAdd(context); else setToastMessage(tr('Restore the project to add tasks.')); return; }
+    callDomainHook('handleAction', el.dataset.longPress, { target: el });
   }
   function cancelLongPress() {
     clearTimeout(longPressTimer); longPressTimer = null;

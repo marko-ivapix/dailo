@@ -126,7 +126,7 @@ test('B: "Napravi zadatak" files an Inbox task with the note\'s area and tags, l
     openTaskDetail: id => calls.push(['open', id]), setUndo: (message, undo) => { calls.push(['undo', message]); ctx.undo = undo; },
   });
   vm.createContext(ctx);
-  vm.runInContext(fn('noteToTask'), ctx);
+  vm.runInContext(`${fn('newTaskRecord')}\n${fn('noteToTask')}`, ctx); // R36: the shared task record
   ctx.noteToTask('n1');
   const task = ctx.state.tasks[0];
   assert.equal(task.title, 'Packing list');
@@ -170,8 +170,7 @@ test('I: favorite notes are pinned to Još', () => {
   assert.match(fn('renderMoreScreen'), /\.\.\.\(state\.notes \|\| \[\]\)\.filter\(note => note\.favorite\)\.sort\(\(a, b\) => String\(b\.updatedAt\)\.localeCompare\(String\(a\.updatedAt\)\)\)\.slice\(0, 4\)\.map\(note => moreRow\(`note\/\$\{encodeURIComponent\(note\.id\)\}`, 'ph-note', note\.title, '', tr\('Note'\)\)\),/);
 });
 
-test('R35 is released as 2.0.0-alpha.61', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.61');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.61';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.61');
+test('R35 shipped as 2.0.0-alpha.61 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 99) >= 61);
 });

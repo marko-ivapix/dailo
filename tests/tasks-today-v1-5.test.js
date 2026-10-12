@@ -40,7 +40,7 @@ test('Add another retains implicit Today and resets explicit times before parsin
   const context = { Core, state: taskState([]), modalState: { type: 'quick', defaults,
     draft: { title: 'First today 09:30', explicitPlan: false, plannedDate: today, plannedTime: '14:00', dueTime: '15:00', explicitPlannedTime: true, subtasks: [] } },
     syncQuickDraftFromDom() {}, uid: () => 'task', nowIso: () => new Date().toISOString(), nextOrder: () => 0,
-    saveState() {}, closeModal() {}, render() {}, renderModal() {}, requestAnimationFrame() {}, $() {}, getProject: () => null };
+    saveState() {}, closeModal() {}, render() {}, renderModal() {}, requestAnimationFrame() {}, $() {}, getProject: () => null, setToastMessage() {}, lowerFirst: String, relativeDateLabel: String /* R36 */ };
   vm.createContext(withI18n(context));
   vm.runInContext(`${parse}\n${place}\n${create}\ncreateTask(true)`, context);
   assert.equal(context.modalState.draft.explicitPlan, false);
@@ -86,7 +86,7 @@ test('Today lists planned tasks in their order with counts instead of the Focus 
   const fn = name => { const start = source.indexOf(`  function ${name}(`); return source.slice(start, source.indexOf('\n  }\n', start) + 4); };
   const context = { state, Core, esc: String, formatDate: String, formatPageToday: String,
     foldButton, // R22b: the one fold button from app.js
-    pageHeader: () => '', sampleNotice: () => '' /* R30 */, backupReminderNotice: () => '', callDomainHook: () => '' /* R12c: journal notice */, renderHabitTodayRow: () => '', taskRow: (task, view) => `<article data-view="${view}">${task.id}</article>` };
+    pageHeader: () => '', sampleNotice: () => '' /* R30 */, gestureHint: () => '' /* R36 */, backupReminderNotice: () => '', callDomainHook: () => '' /* R12c: journal notice */, renderHabitTodayRow: () => '', taskRow: (task, view) => `<article data-view="${view}">${task.id}</article>` };
   vm.createContext(withI18n(context));
   vm.runInContext(`const TODAY_LIMITS = { overdue: 3, today: 5, habits: 5 };\n${fn('todayLimited')}${fn('todayDueLabel')}${fn('deadlineRow')}${fn('listTasks')}${fn('renderToday')}`, context);
   const html = vm.runInContext('renderToday()', context);
