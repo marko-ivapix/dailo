@@ -35,12 +35,13 @@ test('K: the app sends the widget Serbian texts, only on Android', () => {
   ctx.globalThis = ctx;
   ctx.DailoPlatform = { kind: 'android', widget: { update: snapshot => { sent.push(snapshot); return Promise.resolve(true); } } };
   vm.createContext(ctx);
-  vm.runInContext(fn('updateWidget'), ctx);
+  vm.runInContext(`${fn('updateWidget')}${fn('habitsWidgetPart')}`, ctx); // R45: the "Navike" part rides along
   ctx.updateWidget();
   assert.deepEqual(JSON.parse(JSON.stringify(sent[0])), {
     date: TODAY, title: 'Today', summary: '1 planned · 1 late',
     items: [{ text: 'LATE', overdue: true }, { text: '09:30 · A', overdue: false }],
     more: '', empty: 'Nothing planned for today', stale: 'Open Dailo for today’s plan',
+    habits: { title: 'Habits', summary: '', items: [], more: '', empty: 'No habits planned for today', stale: 'Open Dailo for today’s habits' },
   });
   ctx.DailoPlatform.kind = 'ios';
   ctx.updateWidget();

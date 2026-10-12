@@ -4160,7 +4160,7 @@
       reportStorageFailure(rollbackError ? new AggregateError([error, rollbackError], msg('Habit check-in failed and rollback needs attention.')) : error);
       return null;
     }
-    evaluateGoalProgressChanges(before); await evaluateHabitBoundaries(); render(); if (modalState?.type === 'habit-details') renderModal(); return true;
+    evaluateGoalProgressChanges(before); await evaluateHabitBoundaries(); render(); if (modalState?.type === 'habit-details') renderModal(); updateWidget(); return true;
   }
 
   async function evaluateHabitBoundaries() {
@@ -6277,7 +6277,20 @@
       items: snap.items.map(item => ({ text: item.time ? `${item.time} · ${item.title}` : item.title, overdue: item.overdue })),
       more: snap.more ? tr('+ {count} more', { count: snap.more }) : '',
       empty: tr('Nothing planned for today'), stale: tr('Open Dailo for today’s plan'),
+      habits: habitsWidgetPart(today),
     });
+  }
+  // R45: the "Navike" widget's part of the same snapshot — the count and ready-made rows; a row's id lets a tap check
+  // that habit in (dailo://habit-done).
+  function habitsWidgetPart(today) {
+    const snap = Core.habitsWidgetSnapshot(state.habits, state.habitLogCache || {}, today, Core.habitWeekRule(state.settings));
+    const number = value => Number(value || 0).toLocaleString(I18n.locale(), { maximumFractionDigits: 2 });
+    return {
+      title: tr('Habits'), summary: snap.planned ? tr('{done} of {total} today', { done: snap.done, total: snap.planned }) : '',
+      items: snap.items.map(item => ({ id: item.id, done: item.done, text: `${item.done ? '✓' : '○'}  ${item.name}${item.numeric ? ` · ${number(item.value)}/${number(item.target)}${item.unit ? ` ${item.unit}` : ''}` : ''}` })),
+      more: snap.more ? tr('+ {count} more', { count: snap.more }) : '',
+      empty: tr('No habits planned for today'), stale: tr('Open Dailo for today’s habits'),
+    };
   }
   // Only fills a missing store; the normal start-up load then validates and migrates the text as usual.
   async function restoreDurableMirror() {
@@ -6412,7 +6425,7 @@
     try { link = new URL(String(href || '')); } catch (_) { return false; }
     if (link.protocol !== 'dailo:' || !state || globalOperation || recovery) return false;
     const target = link.hostname || link.pathname.replace(/^\/+/, '');
-    if (!['new-task', 'today', 'journal', 'share', 'auth'].includes(target)) return false;
+    if (!['new-task', 'today', 'journal', 'share', 'auth', 'habits', 'habit-done'].includes(target)) return false;
     // R40: a Google or Apple sign-in comes back as dailo://auth?code=… (or ?error=…).
     if (target === 'auth') { finishProviderSignIn(link.searchParams); return true; }
     closePopover();
@@ -6426,8 +6439,21 @@
       const resource = Core.sharedResourceDraft(params);
       if (resource) openKnowledgeWindow('resource', null, { prefill: resource, inbox: true });
       else openQuickAdd(Core.sharedTextDraft(params));
-    } else navigate(`#${target}`);
+    } else if (target === 'habit-done') checkInHabitFromLink(link.searchParams.get('id') || '');
+    else navigate(`#${target}`);
     return true;
+  }
+
+  // R45: a habit row of the "Navike" widget checks that habit in for today, with Undo; a numeric habit opens its
+  // value sheet. Navike opens either way.
+  async function checkInHabitFromLink(id) {
+    navigate('#habits');
+    const habit = getHabit(id);
+    if (!habit || habit.status !== 'active') return;
+    const today = Core.dateOnly();
+    if ((state.habitLogCache?.[id] || []).some(log => log.date === today && log.status === 'done')) { setToastMessage(tr('Already recorded today: {name}', { name: habit.name })); return; }
+    if (habit.trackingType === 'numeric') { openHabitValue(id, today); return; }
+    if (await setHabitLog(id, today, 'done') === true) setUndo(msg('Habit recorded'), () => setHabitLog(id, today, 'missed'));
   }
 
   // R24: the web app gets the same from its manifest — ?shortcut= from a shortcut, share_* from the share target.

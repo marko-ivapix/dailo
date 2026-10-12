@@ -353,7 +353,7 @@ test('Google in the phone app: the system browser, dailo://auth, and a refusal s
   // The app's link handler hands dailo://auth to the sign-in before it closes any window.
   const link = fn('handleIncomingLink');
   assert.match(link, /if \(target === 'auth'\) \{ finishProviderSignIn\(link\.searchParams\); return true; \}\n    closePopover\(\);/);
-  assert.match(link, /\['new-task', 'today', 'journal', 'share', 'auth'\]\.includes\(target\)/);
+  assert.match(link, /\['new-task', 'today', 'journal', 'share', 'auth'(, '[a-z-]+')*\]\.includes\(target\)/);
   assert.match(link, /if \(modalState\?\.type === 'welcome'\) dismissWelcome\(\);\n    else if \(modalState\) \{ flushTextSave\(\); closeModal\(\); \}/, 'a shortcut puts the screen away without answering it');
   assert.match(read('js/platform.js'), /function closeExternal\(\) \{\n      if \(!isNative\) return;\n      Promise\.resolve\(plugin\('Browser'\)\?\.close\?\.\(\)\)/);
   assert.match(read('js/platform.js'), /links: Object\.freeze\(\{ openExternal, closeExternal, interceptExternalLinks, onAppLink \}\)/);

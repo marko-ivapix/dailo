@@ -903,6 +903,11 @@
     "We sent a code to {email}. If the server also asks to confirm the current address, a code arrives there too.": "Poslali smo kod na {email}. Ako server traži i potvrdu trenutne adrese, kod stiže i tamo.",
     "Change the password": "Promeni lozinku",
     "Change the e-mail address": "Promeni e-adresu",
+    // R45: the "Navike" widget.
+    "No habits planned for today": "Danas nema planiranih navika",
+    "Open Dailo for today’s habits": "Otvori Dailo za današnje navike",
+    "Habit recorded": "Navika je zabeležena",
+    "Already recorded today: {name}": "Već zabeleženo danas: {name}",
     // R41: paging through weeks on Navike.
     "Current week": "Ova nedelja",
     "Last week": "Prošla nedelja",
