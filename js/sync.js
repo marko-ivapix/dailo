@@ -589,10 +589,99 @@
     }
   }
 
+  // R50: Supabase Realtime (Phoenix channels, protocol 1.0.0) tells a signed-in device that a record of its account
+  // changed. It only pokes a sync, and the pull does the work, so a missed message costs nothing but time. Row Level
+  // Security applies to the channel, which also filters by the account.
+  const REALTIME_TOPIC = 'realtime:dailo-records';
+  const HEARTBEAT_MS = 25000;
+  const RECONNECT_MS = [1000, 2000, 5000, 10000, 30000];
+  function createRealtime({ url, key, WebSocket: Socket = root.WebSocket, timers = root, onChange, onStatus } = {}) {
+    let socket = null;
+    let heartbeat = null;
+    let retry = null;
+    let attempt = 0;
+    let ref = 0;
+    let joinRef = null;
+    let token = null;
+    let current = null;
+    let stopped = true;
+    let state = 'off';
+    const setState = next => { if (state !== next) { state = next; onStatus?.(next); } };
+    const nextRef = () => String(++ref);
+    const send = message => { if (socket && socket.readyState === (Socket?.OPEN ?? 1)) socket.send(JSON.stringify(message)); };
+    function clearTimers() {
+      timers.clearInterval(heartbeat); heartbeat = null;
+      timers.clearTimeout(retry); retry = null;
+    }
+    function open() {
+      clearTimers();
+      if (stopped || !current) return;
+      const ws = new Socket(`${String(url).replace(/^http/, 'ws').replace(/\/+$/, '')}/realtime/v1/websocket?apikey=${encodeURIComponent(key)}&vsn=1.0.0`);
+      socket = ws;
+      setState('connecting');
+      ws.onopen = () => {
+        if (socket !== ws) return;
+        joinRef = nextRef();
+        token = current.accessToken;
+        const changes = [{ event: '*', schema: 'public', table: 'records', filter: `user_id=eq.${current.user.id}` }];
+        send({ topic: REALTIME_TOPIC, event: 'phx_join', ref: joinRef, join_ref: joinRef, payload: { config: { broadcast: { self: false }, presence: { key: '' }, postgres_changes: changes }, access_token: token } });
+        heartbeat = timers.setInterval(() => send({ topic: 'phoenix', event: 'heartbeat', payload: {}, ref: nextRef() }), HEARTBEAT_MS);
+      };
+      ws.onmessage = event => {
+        if (socket !== ws) return;
+        let message;
+        try { message = JSON.parse(event.data); } catch (_) { return; }
+        if (message?.topic !== REALTIME_TOPIC) return;
+        if (message.event === 'phx_reply' && message.ref === joinRef) {
+          if (message.payload?.status === 'ok') { attempt = 0; setState('live'); } else ws.close();
+        } else if (message.event === 'postgres_changes') onChange?.();
+        else if (message.event === 'phx_error' || message.event === 'phx_close') ws.close();
+      };
+      // A closed socket (network, sleep, a refused join) comes back after a growing pause; onclose follows onerror.
+      ws.onerror = () => {};
+      ws.onclose = () => {
+        if (socket !== ws) return;
+        socket = null;
+        clearTimers();
+        if (stopped) return;
+        setState('connecting');
+        retry = timers.setTimeout(open, RECONNECT_MS[Math.min(attempt++, RECONNECT_MS.length - 1)]);
+      };
+    }
+    function connect(session) {
+      if (!Socket || !url || !key || !session?.accessToken || !session.user?.id) return;
+      const sameAccount = current?.user?.id === session.user.id;
+      current = session;
+      stopped = false;
+      if ((socket || retry) && sameAccount) {
+        // An access token lasts an hour; the open channel gets the refreshed one instead of reconnecting.
+        if (socket && state === 'live' && token && token !== session.accessToken) {
+          token = session.accessToken;
+          send({ topic: REALTIME_TOPIC, event: 'access_token', ref: nextRef(), payload: { access_token: token } });
+        }
+        return;
+      }
+      if (socket) { const old = socket; socket = null; old.close(); }
+      attempt = 0;
+      open();
+    }
+    function disconnect() {
+      stopped = true;
+      current = null;
+      token = null;
+      clearTimers();
+      const old = socket;
+      socket = null;
+      old?.close();
+      setState('off');
+    }
+    return Object.freeze({ connect, disconnect, status: () => state });
+  }
+
   // Sync is offered only when the deployment has a project URL and public key (js/sync-config.js).
   function isConfigured(config) {
     return Boolean(config && /^https:\/\/[^\s/]+/.test(config.url || '') && typeof config.anonKey === 'string' && config.anonKey.length > 20);
   }
 
-  return Object.freeze({ COLLECTIONS, DEVICE_SETTINGS, SyncError, safeAttachmentData, passwordProblem, createCodeVerifier, codeChallenge, collectRecords, hashRecord, recordFingerprint, untouchedSample, diffRecords, applyRemote, createClient, syncOnce, isConfigured });
+  return Object.freeze({ COLLECTIONS, DEVICE_SETTINGS, SyncError, safeAttachmentData, passwordProblem, createCodeVerifier, codeChallenge, collectRecords, hashRecord, recordFingerprint, untouchedSample, diffRecords, applyRemote, createClient, createRealtime, syncOnce, isConfigured });
 });

@@ -152,7 +152,7 @@ function harness({ fake = createFakeSupabase(), meta = null, storage: entries = 
   const calls = { renders: 0, modals: 0, toasts: [], assigned: [], opened: [], closedBrowser: 0, replaced: [] };
   const context = {
     console, JSON, Date, Promise, Error, Object, Array, String, Number, Boolean, Set, Map, URL, URLSearchParams,
-    Sync, syncClient: clientFor(fake), syncMeta: null, syncTimer: null, syncRunning: false, applyingSync: false,
+    Sync, syncClient: clientFor(fake), syncMeta: null, syncTimer: null, syncRunning: false, applyingSync: false, liveSync: null /* R50 */,
     state: { version: 3, tasks: [], projects: [], tags: [], areas: [], goals: [], habits: [], notes: [], resources: [], templates: [], savedViews: [], settings: {}, ui: {} },
     recovery: null, globalOperation: null, startupPromise: null, storageError: false, staleDataNotice: null,
     modalState: null, undoState: null, undoHold: null, textSaveTimer: null, dragState: null, modalReturnFocus: null,

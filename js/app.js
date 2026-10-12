@@ -12,6 +12,8 @@
   const Sync = window.DailoSync || null;
   const syncConfig = window.DailoSyncConfig || {};
   const syncClient = Sync?.isConfigured(syncConfig) ? Sync.createClient({ url: syncConfig.url, anonKey: syncConfig.anonKey }) : null;
+  // R50: Supabase Realtime pokes a sync when a record of the account changes; the five-minute round stays as a fallback.
+  const liveSync = syncClient && Sync.createRealtime ? Sync.createRealtime({ url: syncConfig.url, key: syncConfig.anonKey, onChange: () => scheduleSync(800), onStatus: () => refreshSyncCard() }) : null;
   const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
   const MAX_ATTACHMENTS_PER_TASK = 10;
   const STORAGE_KEY = 'todoAppData';
@@ -4453,7 +4455,7 @@
   function syncView() {
     const meta = syncMeta || loadSyncMeta();
     return { configured: Boolean(syncClient), signedIn: Boolean(meta.session?.accessToken), email: meta.session?.user?.email || '', name: meta.session?.user?.name || '', serverCheck,
-      running: syncRunning, lastSyncAt: meta.lastSyncAt || null, lastError: meta.lastError || '', fileError: meta.fileError || '' };
+      running: syncRunning, lastSyncAt: meta.lastSyncAt || null, lastError: meta.lastError || '', fileError: meta.fileError || '', live: liveSync?.status() === 'live' };
   }
 
   function editingText() {
@@ -4494,12 +4496,13 @@
         files: syncFiles,
       });
       if (result.status === 'error' && result.error === SYNC_DEFERRED) { meta.lastError = null; scheduleSync(15000); }
-      else if (result.status === 'error' && result.code === 401) delete meta.session;
+      else if (result.status === 'error' && result.code === 401) { delete meta.session; liveSync?.disconnect(); }
     } finally {
       syncRunning = false;
       // A sign-out during the round replaced the record; never bring the old one back.
       if (syncMeta === meta) saveSyncMeta();
     }
+    if (result.status === 'ok') connectLiveSync();
     if (result.status === 'choose' && syncMeta === meta) {
       // Only the first-run examples are here: the account's data replaces them without the question (audit M9),
       // after the same recovery copy the question takes. If that copy fails, the question is asked as before.
@@ -4904,6 +4907,7 @@
   async function signOutSync() {
     const meta = loadSyncMeta();
     clearTimeout(syncTimer);
+    liveSync?.disconnect();
     syncMeta = {};
     try { localStorage.removeItem(SYNC_META_KEY); } catch (error) { console.error(error); }
     render();
@@ -4920,6 +4924,7 @@
         try { await syncClient.deleteAccount(await syncClient.ensureSession(loadSyncMeta().session)); }
         catch (error) { setToastMessage(tr('The account could not be deleted: {error}', { error: trMessage(error.message) })); return; }
         clearTimeout(syncTimer);
+        liveSync?.disconnect();
         syncMeta = {};
         try { localStorage.removeItem(SYNC_META_KEY); } catch (error) { console.error(error); }
         render();
@@ -4953,9 +4958,16 @@
     await runSync(mode);
   }
 
+  // R50: the socket follows the account and the screen: it opens after a successful sync while the app is in front,
+  // and the sync that runs when the app comes back opens it again.
+  function connectLiveSync() {
+    const session = loadSyncMeta().session;
+    if (liveSync && document.visibilityState !== 'hidden' && session?.accessToken) liveSync.connect(session);
+  }
+
   function startSync() {
     if (!syncClient) return;
-    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') scheduleSync(500); });
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') scheduleSync(500); else liveSync?.disconnect(); });
     window.addEventListener('online', () => scheduleSync(500));
     setInterval(() => scheduleSync(0), 5 * 60 * 1000);
     scheduleSync(1000);

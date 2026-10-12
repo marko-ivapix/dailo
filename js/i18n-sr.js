@@ -925,6 +925,8 @@
     "+{count} more": "+{count} još",
     "Add a task for {date}": "Dodaj zadatak za {date}",
     "Task moved to another day": "Zadatak je premešten na drugi dan",
+    // R50: Supabase Realtime.
+    "changes arrive at once": "promene stižu odmah",
     // R41: paging through weeks on Navike.
     "Current week": "Ova nedelja",
     "Last week": "Prošla nedelja",
