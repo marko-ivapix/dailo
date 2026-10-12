@@ -90,8 +90,7 @@ test('K3: list rows light up under the mouse on a wide screen', () => {
   assert.match(block, /@media \(min-width: 1024px\) and \(hover: hover\) \{\n  :is\(\.today-row, \.goal-list-row, \.area-list-row, \.tag-list-row, \.view-list-row, \.journal-row, \.review-row, \.cleaning-archived-row\):hover \{ background: var\(--graphite-800\); \}/);
 });
 
-test('R47b is released as 2.0.0-alpha.74', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.74');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.74';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.74');
+test('R47b shipped as 2.0.0-alpha.74 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 99) >= 74);
 });

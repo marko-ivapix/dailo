@@ -9,6 +9,7 @@ const Core = require('../js/core.js');
 const Release = require('../js/release.js');
 const { runInNewContextWithI18n } = require('./support/i18n.js');
 const { foldButton } = require('./support/fold.js');
+const { screenColumns } = require('./support/columns.js');
 
 const read = file => fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
 const app = read('js/app.js');
@@ -43,7 +44,7 @@ function screen(ui = {}, { startDate = '2026-01-01' } = {}) {
     ui: { habitsView: 'day', habitsDay: TODAY, habitTrackerMonth: TODAY.slice(0, 7), ...ui },
   };
   return {
-    calls, state, Core, esc, foldButton,
+    calls, state, Core, esc, foldButton, screenColumns,
     getHabit: id => habits.find(habit => habit.id === id),
     habitMetrics: () => ({ currentStreak: 1, currentPeriodCount: 0, currentPeriodTarget: 1 }),
     pageHeader: (title, subtitle) => `<header title="${title}" subtitle="${subtitle}"></header>`,
@@ -61,7 +62,7 @@ const act = (ctx, shift) => {
 
 test('this week: ‹ week › above the rings, named "Ova nedelja", without the way back', () => {
   const html = render(screen());
-  assert.match(html, new RegExp(`^<header title="Habits"[^>]*></header><div class="habits-week-nav"><button class="btn-icon" type="button" data-action="habits-week" data-shift="-1" aria-label="Previous week"><i class="ph ph-caret-left" aria-hidden="true"></i></button><div class="habits-week-range"><strong>${range(THIS)}</strong><span>Current week</span></div><button class="btn-icon" type="button" data-action="habits-week" data-shift="1" aria-label="Next week"><i class="ph ph-caret-right" aria-hidden="true"></i></button></div><div class="habit-rings" role="group" aria-label="This week, done of planned">`));
+  assert.match(html, new RegExp(`^<header title="Habits"[^>]*></header><div class="screen-columns has-side"><div class="screen-main"><div class="habits-week-nav"><button class="btn-icon" type="button" data-action="habits-week" data-shift="-1" aria-label="Previous week"><i class="ph ph-caret-left" aria-hidden="true"></i></button><div class="habits-week-range"><strong>${range(THIS)}</strong><span>Current week</span></div><button class="btn-icon" type="button" data-action="habits-week" data-shift="1" aria-label="Next week"><i class="ph ph-caret-right" aria-hidden="true"></i></button></div><div class="habit-rings" role="group" aria-label="This week, done of planned">`));
   assert.deepEqual(rings(html).map(([date]) => date), daysOf(THIS));
   assert.doesNotMatch(html, /habits-week-today/);
 });

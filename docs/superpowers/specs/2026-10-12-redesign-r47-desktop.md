@@ -10,7 +10,7 @@ The layer applies only from 1024 px on. Below that the phone design stays exactl
 | --- | --- | --- |
 | R47a | `2.0.0-alpha.73` | K1 sidebar, K2 widths, K10 keys, K12 labelled "+" |
 | R47b | `2.0.0-alpha.74` | K4 centered windows, K6 pickers next to their row, K3 hover |
-| R47c | next | K7 two columns on Danas and Navike |
+| R47c | `2.0.0-alpha.75` | K7 two columns on Danas and Navike |
 | R47d | next | K8 calendar week and month, K9 drag and drop onto the sidebar |
 
 K5 is not used in the decision log. K11 (Settings → Računar with "Prečice na tastaturi" and "Zbijeniji prikaz", shown only on wide screens) already exists since R10g and R34.
@@ -114,3 +114,34 @@ K10's "Q new item" stays the editable "Novi zadatak" shortcut (default N), so ex
   - the version.
 - **Smoke:** with a wide `matchMedia`, a task's ⋯ menu opens next to its button over a clear backdrop.
 - **Manual-pending:** the look and the placement in a real wide browser window.
+
+## R47c — two columns where there is room (K7)
+
+- **The wrapper:** `screenColumns(main, side, rest)` in `js/app.js` (also on the domain context) draws `.screen-columns` with three parts:
+  - `.screen-main`, the main part;
+  - `.screen-side`, the side part, only when there is one (the wrapper then has `.has-side`);
+  - `.screen-rest`, what follows the main part.
+  A phone reads main, side and rest in that order, which is the order the screens had before.
+- **Danas:**
+  - **Main part:** Prekoračeno, Planirano danas with "+ Dodaj zadatak", and "Predlozi za danas".
+  - **Side part:** Navike.
+  - **Rest:** Završeno.
+  - **Unchanged:** the header and the notices stay above both columns. Without habits Danas stays one column.
+- **Navike:**
+  - **Main part:** the week arrows, the rings, Dan / Nedelja and its view.
+  - **Side part:** Napredak.
+  - **Rest:** the paused and archived folds.
+- **Where there is room:** from 1280 px on, the parts stand side by side: the main part and the rest on the left, the side part (300–360 px) on the right, with a 32 px gap.
+  - **Width:** the content column widens from 760 px to 1120 px for such a screen.
+  - **Rows:** the side part spans both rows, and its extra height goes to the second row, so Završeno and the folds stay right under the main part.
+  - **Narrower windows:** below 1280 px everything stays one column.
+
+## Checks (R47c)
+
+- **Node:** `tests/redesign-r47c.test.js`, written first; it failed 5/5. It covers:
+  - the wrapper;
+  - the Danas and Navike parts;
+  - the CSS;
+  - the version.
+- **Helper:** `tests/support/columns.js` hands the wrapper to the tests that run `renderToday` or `renderHabits` with stubs: R2, R8a, R41, V1.5 and V1.6. Two of their patterns now expect it.
+- **Manual-pending:** the two columns in a real wide browser window.

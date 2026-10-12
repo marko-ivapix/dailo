@@ -9,6 +9,7 @@ const Core = require('../js/core.js');
 const Release = require('../js/release.js');
 const { withI18n, runInNewContextWithI18n } = require('./support/i18n.js');
 const { foldButton } = require('./support/fold.js');
+const { screenColumns } = require('./support/columns.js');
 
 const read = file => fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
 const app = read('js/app.js');
@@ -123,6 +124,7 @@ function renderTodayWith(stateExtra = {}, stubs = {}) {
   state.habitLogCache = stubs.logs || {};
   const ctx = todayContext(state, {
     foldButton, // R22b: the one fold button from app.js
+    screenColumns, // R47c: the two-column wrapper from app.js
     pageHeader: (title, subtitle, options) => `<header title="${title}" eyebrow="${options.eyebrow}" add="${options.add}"></header>`,
     transferNotice: () => '<transfer>', sampleNotice: () => '' /* R30 */, gestureHint: () => '' /* R36 */, yesterdayHabitsNote: () => '' /* R37 */, backupReminderNotice: () => '<backup>', callDomainHook: () => '<journal>', // R12c: the journal notice comes from journal-ui.js; R14: no weekly-review notice
     taskRow: (task, context, options) => `<task ${task.id} ${context}${options.today ? ' today' : ''}${options.draggable ? ' drag' : ''}>`,

@@ -679,7 +679,7 @@
       putGoalHistory, goalDraft, openGoalModal, openPopover, templateMenuEntry, syncGoalLinks,
       maybePromptGoalReached, updateGoalStatus, saveAndRender,
       $, $$, esc, PROJECT_COLORS, AREA_ICONS, areaIconName: icon => (AREA_ICON_NAMES[icon] ? tr(AREA_ICON_NAMES[icon]) : tr('Select area icon')), knowledgeCollection, getArea, sortedAreas, attachmentOwner,
-      pageHeader, modalFrame, renderMain, renderModal, currentRoute,
+      pageHeader, modalFrame, renderMain, renderModal, currentRoute, screenColumns,
       knowledgeAttachmentCache, readOwnerAttachments, renderAttachmentRow,
       renderAttachmentsSection, loadOwnerAttachments, addAttachments,
       closePopover, flushTextSave, scheduleTextSave, goalFocusTarget, closeModal,
@@ -1177,21 +1177,30 @@
       ...sections.milestones.map(item => deadlineRow(item, today)),
     ];
     html += gestureHint(overdueRows.length + plannedRows.length > 0);
-    if (overdueRows.length) html += section('overdue', tr('Past due'), overdueRows.length, `<div class="task-list today-card">${todayLimited('overdue', overdueRows)}</div>`, true);
-    html += section('today', tr('Planned today'), plannedRows.length, `<div class="task-list today-card" data-list-context="today">${plannedRows.length ? todayLimited('today', plannedRows) : `<p class="today-empty">${tr('Nothing planned. “+” adds a task for today.')}</p>`}</div><button class="inline-add" type="button" data-action="quick-add" data-today="true"><i class="ph ph-plus"></i> ${tr('Add task')}</button>`);
+    // R47c (K7): the tasks on the left and the habits on the right where there is room; a phone reads them in turn.
+    let main = '';
+    if (overdueRows.length) main += section('overdue', tr('Past due'), overdueRows.length, `<div class="task-list today-card">${todayLimited('overdue', overdueRows)}</div>`, true);
+    main += section('today', tr('Planned today'), plannedRows.length, `<div class="task-list today-card" data-list-context="today">${plannedRows.length ? todayLimited('today', plannedRows) : `<p class="today-empty">${tr('Nothing planned. “+” adds a task for today.')}</p>`}</div><button class="inline-add" type="button" data-action="quick-add" data-today="true"><i class="ph ph-plus"></i> ${tr('Add task')}</button>`);
     // R30 (finding 8): tasks due today and missed plans wait in Zadaci → "Predlozi za danas"; Danas links there.
     const suggestions = Core.deriveTodaySections(listTasks(), today).suggestions;
-    if (suggestions.length) html += `<button class="today-suggestions-link" type="button" data-action="open-today-suggestions"><i class="ph ph-lightbulb" aria-hidden="true"></i><span>${tr('Suggested for today')}</span><span class="today-suggestions-count">${suggestions.length}</span><i class="ph ph-caret-right" aria-hidden="true"></i></button>`;
+    if (suggestions.length) main += `<button class="today-suggestions-link" type="button" data-action="open-today-suggestions"><i class="ph ph-lightbulb" aria-hidden="true"></i><span>${tr('Suggested for today')}</span><span class="today-suggestions-count">${suggestions.length}</span><i class="ph ph-caret-right" aria-hidden="true"></i></button>`;
     // Done habits move to the bottom (T5).
     const habits = [...sections.habits.filter(item => item.status.status !== 'done'), ...sections.habits.filter(item => item.status.status === 'done')];
-    if (habits.length) html += section('habits', tr('Habits'), `${habits.length - sections.habits.filter(item => item.status.status !== 'done').length}/${habits.length}`, `<div class="habit-list today-card">${todayLimited('habits', habits.map(item => renderHabitTodayRow(item.habit, item.status)))}</div>${yesterdayHabitsNote()}`);
+    const side = habits.length ? section('habits', tr('Habits'), `${habits.length - sections.habits.filter(item => item.status.status !== 'done').length}/${habits.length}`, `<div class="habit-list today-card">${todayLimited('habits', habits.map(item => renderHabitTodayRow(item.habit, item.status)))}</div>${yesterdayHabitsNote()}`) : '';
+    let rest = '';
     if (sections.completed.length) {
       const open = state.ui.todayCompletedExpanded === true;
-      html += `<section class="section today-section today-section--completed" data-today-section="completed">${foldButton('toggle-today-completed', tr('Completed'), sections.completed.length, open)}`;
-      if (open) html += `<div class="task-list today-card">${sections.completed.map(task => taskRow(task, 'completed', { today: true })).join('')}</div>`;
-      html += `</section>`;
+      rest += `<section class="section today-section today-section--completed" data-today-section="completed">${foldButton('toggle-today-completed', tr('Completed'), sections.completed.length, open)}`;
+      if (open) rest += `<div class="task-list today-card">${sections.completed.map(task => taskRow(task, 'completed', { today: true })).join('')}</div>`;
+      rest += `</section>`;
     }
-    return html;
+    return html + screenColumns(main, side, rest);
+  }
+
+  // R47c (K7): two columns where there is room (CSS, from 1280 px on): the main part with what follows it on the left
+  // and the side part on the right. A phone reads the main part, the side part and the rest in that order.
+  function screenColumns(main, side = '', rest = '') {
+    return `<div class="screen-columns${side ? ' has-side' : ''}"><div class="screen-main">${main}</div>${side ? `<div class="screen-side">${side}</div>` : ''}${rest ? `<div class="screen-rest">${rest}</div>` : ''}</div>`;
   }
 
   // Redesign R6 (I1–I6): the waiting count, "Razvrstaj redom", filters only for the types present, the capture groups.
