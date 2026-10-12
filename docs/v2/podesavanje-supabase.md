@@ -36,6 +36,19 @@ Od verzije `2.0.0-alpha.66` (R40) prijava je e-adresom i lozinkom. Kod iz e-poru
    <p>Ako nova lozinka nije tražena sa tvog uređaja, ignoriši ovu poruku.</p>
    ```
 
+   **Change Email Address** (Subject: `Dailo — nova e-adresa`), za **Još → Nalog → E-adresa → Promeni**:
+
+   ```html
+   <p>Tvoj Dailo kod za promenu e-adrese: <strong>{{ .Token }}</strong></p>
+   <p>Ako promena nije tražena sa tvog uređaja, ignoriši ovu poruku.</p>
+   ```
+
+   **Reauthentication** (samo ako uključiš **Secure password change**):
+
+   ```html
+   <p>Tvoj Dailo kod za promenu lozinke: <strong>{{ .Token }}</strong></p>
+   ```
+
    Oznake `<p>` drže rečenice u posebnim redovima; bez njih bi se u e-poruci spojile. Šablon **Magic Link** više nije potreban.
 
 3. **Authentication → URL Configuration**:

@@ -4403,6 +4403,111 @@
     render();
   }
 
+  // R43: Nalog → "Promeni lozinku" and "Promeni e-adresu", each a sheet with a form. The password step may turn into
+  // the current password or a code the server e-mails; the new address is confirmed by its code (and, with secure
+  // e-mail change on the server, by one sent to the current address).
+  function openAccountWindow(kind) {
+    const session = loadSyncMeta().session;
+    if (!syncClient || !session?.accessToken || modalState) return;
+    captureModalReturnFocus(); closePopover();
+    modalState = { type: kind === 'email' ? 'account-email' : 'account-password', step: kind === 'email' ? 'email' : 'new', currentEmail: session.user?.email || '',
+      password: '', confirm: '', current: '', code: '', email: '', pending: false, busy: false, error: '' };
+    renderModal();
+  }
+
+  function setAccountWindow(changes) {
+    if (!['account-password', 'account-email'].includes(modalState?.type)) return;
+    modalState = { ...modalState, ...changes };
+    renderModal();
+  }
+
+  function accountFields() {
+    const windowState = modalState;
+    for (const [key, id] of [['password', 'account-password'], ['confirm', 'account-password-confirm'], ['current', 'account-current'], ['code', 'account-code'], ['email', 'account-email']]) {
+      const field = $(`#${id}`);
+      if (field) windowState[key] = ['code', 'email'].includes(key) ? String(field.value ?? '').trim() : String(field.value ?? '');
+    }
+    return windowState;
+  }
+
+  // The session for an account change, refreshed and stored when it was about to expire.
+  async function currentSession() {
+    const meta = loadSyncMeta();
+    const session = await syncClient.ensureSession(meta.session);
+    if (session !== meta.session) { syncMeta = { ...meta, session }; saveSyncMeta(); }
+    return session;
+  }
+
+  function closeAccountWindow(message) {
+    modalState = null;
+    renderModal();
+    const target = modalReturnFocus;
+    modalReturnFocus = null;
+    if (target) restoreModalReturnFocus(target);
+    render();
+    setToastMessage(message);
+  }
+
+  async function accountSubmit() {
+    if (!syncClient || !['account-password', 'account-email'].includes(modalState?.type) || modalState.busy) return;
+    const windowState = accountFields();
+    return windowState.type === 'account-password' ? accountPasswordSubmit(windowState) : accountEmailSubmit(windowState);
+  }
+
+  async function accountPasswordSubmit(windowState) {
+    const code = windowState.code.replace(/\s+/g, '');
+    const problem = Sync.passwordProblem(windowState.password) || (windowState.confirm !== windowState.password ? msg('The passwords do not match.') : '')
+      || (windowState.step === 'current' && !windowState.current ? msg('Enter your password.') : '')
+      || (windowState.step === 'nonce' && !/^\d{6,10}$/.test(code) ? msg('Enter the code from the e-mail.') : '');
+    if (problem) { setAccountWindow({ error: problem }); return; }
+    setAccountWindow({ busy: true, error: '' });
+    let session;
+    try {
+      session = await currentSession();
+      await syncClient.updatePassword(session, windowState.password, { nonce: windowState.step === 'nonce' ? code : '', currentPassword: windowState.step === 'current' ? windowState.current : '' });
+      closeAccountWindow(tr('Password changed. Other devices will sign in again.'));
+    } catch (error) {
+      if (error?.reason === 'reauthentication_needed') {
+        try { await syncClient.reauthenticate(session); setAccountWindow({ step: 'nonce', code: '', busy: false }); }
+        catch (sent) { setAccountWindow({ busy: false, error: sent?.message || String(sent) }); }
+      } else if (error?.reason === 'current_password_required') setAccountWindow({ step: 'current', busy: false });
+      else setAccountWindow({ busy: false, error: error?.message || String(error) });
+    }
+  }
+
+  async function accountEmailSubmit(windowState) {
+    if (windowState.step === 'email') {
+      const email = windowState.email;
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setAccountWindow({ error: msg('Enter a valid e-mail address.') }); return; }
+      if (email.toLowerCase() === windowState.currentEmail.toLowerCase()) { setAccountWindow({ error: msg('This is already your e-mail address.') }); return; }
+      setAccountWindow({ busy: true, error: '' });
+      try {
+        await syncClient.changeEmail(await currentSession(), email);
+        setAccountWindow({ step: 'code', code: '', pending: false, busy: false });
+      } catch (error) {
+        setAccountWindow({ busy: false, error: error?.reason === 'email_exists' ? msg('Another account already uses this e-mail address.') : error?.message || String(error) });
+      }
+      return;
+    }
+    const code = windowState.code.replace(/\s+/g, '');
+    if (!/^\d{6,10}$/.test(code)) { setAccountWindow({ error: msg('Enter the code from the e-mail.') }); return; }
+    setAccountWindow({ busy: true, error: '' });
+    // The code may come from the new address or, with secure e-mail change, from the current one.
+    let result = null;
+    let failure = null;
+    for (const address of [windowState.email, windowState.currentEmail]) {
+      try { result = await syncClient.verifyEmailChange(address, code); break; }
+      catch (error) { failure = error; if (!(error?.status >= 400 && error?.status < 500) || error.status === 429) break; }
+    }
+    if (!result) {
+      setAccountWindow({ busy: false, error: failure?.status === 429 || !(failure?.status >= 400) ? failure?.message || String(failure) : msg('The code is wrong or has expired.') });
+      return;
+    }
+    if (result.pending) { setAccountWindow({ busy: false, pending: true, code: '' }); return; }
+    completeSignIn(result.session);
+    closeAccountWindow(tr('E-mail address changed: {email}', { email: result.session.user.email }));
+  }
+
   // R40: the welcome screen (first launch, and "Prijavi se" / "Napravi nalog" on Nalog). Sign-in is by e-mail and
   // password, with a code from the e-mail to confirm a new account or set a new password, or with Google or Apple
   // through the browser (PKCE). The device-local key "dailoWelcome" (outside state, backups and sync) remembers that
@@ -5552,6 +5657,8 @@
     else if (action === 'welcome-toggle-password') toggleWelcomePassword();
     else if (action === 'sync-now') runSync().catch(console.error);
     else if (action === 'sync-check-server') runServerCheck();
+    else if (action === 'account-change-password') openAccountWindow('password');
+    else if (action === 'account-change-email') openAccountWindow('email');
     else if (action === 'sync-sign-out') signOutSync();
     else if (action === 'sync-delete-account') deleteSyncAccount();
     else if (action === 'sync-choose') chooseSyncMode(el.dataset.mode);
@@ -6055,9 +6162,11 @@
     document.addEventListener('click', handleClick);
     // R40: the welcome screen is a form, so Enter and the phone's "Go" key send it and password managers see it.
     document.addEventListener('submit', event => {
-      if (!event.target?.matches?.('[data-welcome-form]')) return;
+      const form = event.target?.closest?.('[data-welcome-form], [data-account-form]');
+      if (!form) return;
       event.preventDefault();
-      welcomeSubmit();
+      if (form.matches('[data-welcome-form]')) welcomeSubmit();
+      else accountSubmit();
     });
     document.addEventListener('input', handleInput);
     document.addEventListener('change', handleChange);

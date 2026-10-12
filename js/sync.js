@@ -70,6 +70,8 @@
     over_email_send_rate_limit: TOO_MANY,
     over_request_rate_limit: TOO_MANY,
     otp_expired: msg('The code is wrong or has expired.'),
+    reauthentication_not_valid: msg('The code is wrong or has expired.'),
+    current_password_invalid: msg('The current password is not right.'),
     email_address_not_authorized: msg('The server cannot send e-mail to this address yet: its SMTP is not set up.'),
     signup_disabled: msg('Registration is turned off on the server.'),
     email_address_invalid: msg('Enter a valid e-mail address.'),
@@ -304,8 +306,22 @@
       async verifyRecovery(email, code) {
         return toSession(await request('/auth/v1/verify', { method: 'POST', body: { type: 'recovery', email: address(email), token: String(code || '').trim() } }));
       },
-      async updatePassword(session, password) {
-        await request('/auth/v1/user', { method: 'PUT', token: session?.accessToken, body: { password: String(password || '') } });
+      // R43: the server may ask for a code it e-mails (reauthenticate) or for the current password first.
+      // A new password ends the account's other sessions.
+      async updatePassword(session, password, { nonce = '', currentPassword = '' } = {}) {
+        const body = { password: String(password || ''), ...(nonce ? { nonce: String(nonce) } : {}), ...(currentPassword ? { current_password: String(currentPassword) } : {}) };
+        await request('/auth/v1/user', { method: 'PUT', token: session?.accessToken, body });
+      },
+      async reauthenticate(session) {
+        await request('/auth/v1/reauthenticate', { token: session?.accessToken });
+      },
+      // A new address gets a code; with secure e-mail change the current address gets one too, and both confirm.
+      async changeEmail(session, email) {
+        await request('/auth/v1/user', { method: 'PUT', token: session?.accessToken, body: { email: address(email) } });
+      },
+      async verifyEmailChange(email, code) {
+        const data = await request('/auth/v1/verify', { method: 'POST', body: { type: 'email_change', email: address(email), token: String(code || '').trim() } });
+        return data?.access_token ? { session: toSession(data) } : { pending: true };
       },
       // Which providers the project has turned on ({ external: { google, apple, … } }).
       async authSettings() {

@@ -182,6 +182,7 @@ ${native ? `
       <section class="settings-card" data-settings-sync>
         <h2>${tr('Account')}</h2>
         ${sync.signedIn ? `<div class="settings-row"><div class="settings-label"><strong>${tr('Account')}</strong><span>${sync.name ? `${esc(sync.name)} · ` : ''}${esc(sync.email)}</span></div></div>
+        <div class="settings-row"><div class="settings-label"><strong>${tr('Password')}</strong><span>${tr('Changing it signs out your other devices.')}</span></div><button class="btn btn-secondary" type="button" data-action="account-change-password">${tr('Change')}</button></div><div class="settings-row"><div class="settings-label"><strong>${tr('E-mail address')}</strong><span>${esc(sync.email)}</span></div><button class="btn btn-secondary" type="button" data-action="account-change-email">${tr('Change')}</button></div>
         <div class="settings-row"><div class="settings-label"><strong>${tr('Last sync')}</strong><span data-sync-status>${sync.running ? tr('Syncing…') : statusTime(sync.lastSyncAt)}${sync.lastError ? `<br><span class="validation" role="alert">${esc(trMessage(sync.lastError))}</span>` : ''}</span></div><button class="btn btn-secondary" type="button" data-action="sync-now"${sync.running ? ' disabled' : ''}><i class="ph ph-arrows-clockwise"></i> ${tr('Sync now')}</button></div>
         <p class="area-empty-copy">${tr('Tasks, projects, goals, habits, notes and settings sync between your devices. Attachments stay on the device where they were added.')}</p>
         <div class="sync-actions"><button class="btn btn-secondary" type="button" data-action="sync-sign-out">${tr('Sign out')}</button><button class="btn btn-ghost is-danger" type="button" data-action="sync-delete-account">${tr('Delete account')}</button></div>`
@@ -238,12 +239,38 @@ ${native ? `
     return ctx.modalFrame(`<div class="welcome-waves" aria-hidden="true"></div><div class="welcome-column">${back}<div class="welcome-brand"><img class="welcome-logo" src="icons/icon.svg" alt="" width="72" height="72" /><p class="welcome-wordmark">Dailo</p><p class="welcome-tagline">${tr('Plan. Focus. Do more.')}</p></div>${intro}<form class="welcome-form" data-welcome-form novalidate>${fields}${error}<button class="btn btn-primary welcome-submit" type="submit"${welcome.busy ? ' disabled' : ''}>${tr(submit)}</button></form>${after}</div>`, 'welcome-screen', 'aria-labelledby="welcome-title"');
   }
 
+  // R43: "Promeni lozinku" and "Promeni e-adresu" as sheets with a form (Enter sends it, password managers see it).
+  function renderAccountWindow(ctx) {
+    const { esc, modalState: win } = ctx;
+    const field = (id, icon, label, attrs, value) => `<label class="sheet-field"><i class="ph ph-${icon}" aria-hidden="true"></i><span>${label}</span><input id="${id}" class="input" ${attrs} value="${esc(value)}" /></label>`;
+    const code = field('account-code', 'key', tr('Code from the e-mail'), 'inputmode="numeric" autocomplete="one-time-code" maxlength="10"', win.code);
+    const error = win.error ? `<p class="validation" role="alert">${esc(trMessage(win.error))}</p>` : '';
+    const isPassword = win.type === 'account-password';
+    let copy; let fields; let submit;
+    if (isPassword) {
+      copy = tr('Other devices will need to sign in again.');
+      fields = `${win.step === 'current' ? field('account-current', 'lock-simple', tr('Current password'), 'type="password" autocomplete="current-password"', win.current) : ''}${field('account-password', 'lock-simple', tr('New password'), 'type="password" autocomplete="new-password" aria-describedby="account-password-hint"', win.password)}<p class="sheet-note" id="account-password-hint">${tr('At least 8 characters, with a digit and a letter')}</p>${field('account-password-confirm', 'lock-simple', tr('Confirm password'), 'type="password" autocomplete="new-password"', win.confirm)}${win.step === 'nonce' ? `<p class="sheet-note">${tr('We sent a code to {email} to confirm the change.', { email: esc(win.currentEmail) })}</p>${code}` : ''}`;
+      submit = tr('Save the password');
+    } else if (win.step === 'email') {
+      copy = tr('Current address: {email}', { email: esc(win.currentEmail) });
+      fields = field('account-email', 'envelope-simple', tr('New e-mail address'), 'type="email" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false"', win.email);
+      submit = tr('Send code');
+    } else {
+      copy = win.pending ? tr('One address is confirmed. Enter the code from the other message.') : tr('We sent a code to {email}. If the server also asks to confirm the current address, a code arrives there too.', { email: esc(win.email) });
+      fields = code;
+      submit = tr('Confirm');
+    }
+    const title = isPassword ? tr('Change the password') : tr('Change the e-mail address');
+    return ctx.modalFrame(`<div class="modal-inner quick-sheet"><div class="modal-header"><h2 class="modal-title">${title}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div><p class="dialog-copy">${copy}</p><form class="account-form" data-account-form novalidate>${fields}${error}<div class="quick-sheet-footer"><button class="btn btn-primary habit-window-save" type="submit"${win.busy ? ' disabled' : ''}>${submit}</button></div></form></div>`, 'quick');
+  }
+
   window.TodoDomainModules?.register({
     name: 'settings',
     renderRoute(route, ctx) {
       if (route.type === 'settings') return renderSettings(ctx);
       if (route.type === 'account') return renderAccount(ctx);
       if (route.type === 'modal' && route.modalType === 'welcome') return renderWelcome(ctx);
+      if (route.type === 'modal' && ['account-password', 'account-email'].includes(route.modalType)) return renderAccountWindow(ctx);
     },
     handleAction(action, event, ctx) {
       const element = event?.target.closest('[data-action]');

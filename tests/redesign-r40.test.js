@@ -363,7 +363,8 @@ test('wiring: start, the form, the actions, Nalog and the old e-mail code', () =
   assert.match(fn('init'), /startPlatform\(\);\n    startWelcome\(\);/);
   // The first start replaces an empty address with #today; that change of address must not close the screen.
   assert.ok(app.includes("window.addEventListener('hashchange', () => { closePopover(); if (!['sync-choice', 'welcome'].includes(modalState?.type)) closeModal(); render(); });"));
-  assert.match(app, /document\.addEventListener\('submit', event => \{\n      if \(!event\.target\?\.matches\?\.\('\[data-welcome-form\]'\)\) return;\n      event\.preventDefault\(\);\n      welcomeSubmit\(\);\n    \}\);/);
+  // R43: the account sheets share the listener.
+  assert.match(app, /document\.addEventListener\('submit', event => \{\n      const form = event\.target\?\.closest\?\.\('\[data-welcome-form\], \[data-account-form\]'\);\n      if \(!form\) return;\n      event\.preventDefault\(\);\n      if \(form\.matches\('\[data-welcome-form\]'\)\) welcomeSubmit\(\);/);
   for (const [action, call] of [['open-welcome', 'openWelcome(el.dataset.mode)'], ['welcome-mode', 'welcomeMode(el.dataset.mode)'], ['welcome-skip', 'skipWelcome()'], ['welcome-provider', 'startProviderSignIn(el.dataset.provider)'], ['welcome-resend', 'welcomeResend()'], ['welcome-toggle-password', 'toggleWelcomePassword()']]) {
     assert.ok(app.includes(`else if (action === '${action}') ${call};`), action);
   }

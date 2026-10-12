@@ -2463,6 +2463,9 @@ textarea[data-autogrow] { field-sizing: content; min-height: 0; resize: none; ov
 .server-check-list .is-bad .ph { color: var(--danger); }
 .server-check-list .is-info .ph { color: var(--ink-3); }
 
+/* Redesign R43: the password and e-mail sheets on Nalog keep the sheet fields in one column. */
+.account-form { display: grid; gap: 10px; }
+
 /* Keep primary compact actions touchable after all density rules. */
 @media (max-width: 700px), (pointer: coarse) {
   .task-actions .btn-icon,

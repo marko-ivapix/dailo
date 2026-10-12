@@ -4,13 +4,15 @@
 'use strict';
 const nodeCrypto = require('node:crypto');
 
-function createFakeSupabase({ url = 'https://fake.supabase.co', anonKey = 'anon-key', code = '123456', autoconfirm = false, providers = { google: true, apple: false }, tables = true } = {}) {
+function createFakeSupabase({ url = 'https://fake.supabase.co', anonKey = 'anon-key', code = '123456', autoconfirm = false, providers = { google: true, apple: false }, tables = true, reauthentication = false, requireCurrentPassword = false, secureEmailChange = true } = {}) {
   const users = new Map(); // email -> { id, email, password, confirmed }
   const tokens = new Map(); // access token -> { userId, expiresAt }
   const refreshTokens = new Map(); // refresh token -> userId
   const pendingCodes = new Map(); // email -> code (sign-in or sign-up confirmation)
   const recoveryCodes = new Map(); // email -> code
   const authCodes = new Map(); // PKCE auth code -> { challenge, email }
+  const reauthCodes = new Map(); // user id -> code
+  const emailChanges = new Map(); // user id -> { email, current: code | null, next: code | null }
   const rows = new Map(); // `${userId}|${type}|${id}` -> row
   const history = [];
   const sentCodes = [];
@@ -80,6 +82,19 @@ function createFakeSupabase({ url = 'https://fake.supabase.co', anonKey = 'anon-
       if (users.has(body.email)) sendCode(body.email, 'recovery');
       return json(200, {});
     }
+    // A new address is confirmed by a code sent to it and, with secure e-mail change, by one sent to the current address.
+    if (path === '/auth/v1/verify' && method === 'POST' && body?.type === 'email_change') {
+      const user = [...users.values()].find(item => { const change = emailChanges.get(item.id); return change && ((change.email === body.email && change.next === body.token) || (item.email === body.email && change.current === body.token)); });
+      if (!user) return json(403, { msg: 'Token has expired or is invalid', error_code: 'otp_expired' });
+      const change = emailChanges.get(user.id);
+      if (change.email === body.email && change.next === body.token) change.next = null; else change.current = null;
+      if (change.next || change.current) return json(200, { msg: 'Confirmation link accepted. Please proceed to confirm link sent to the other email', code: 200 });
+      emailChanges.delete(user.id);
+      users.delete(user.email);
+      user.email = change.email;
+      users.set(user.email, user);
+      return json(200, issueSession(user));
+    }
     if (path === '/auth/v1/verify' && method === 'POST') {
       const store = body?.type === 'recovery' ? recoveryCodes : body?.type === 'email' ? pendingCodes : null;
       if (!store || store.get(body.email) !== body.token) return json(403, { msg: 'Token has expired or is invalid', error_code: 'otp_expired' });
@@ -102,12 +117,43 @@ function createFakeSupabase({ url = 'https://fake.supabase.co', anonKey = 'anon-
       const user = users.get(pending.email) || addUser(pending.email, { confirmed: true });
       return json(200, issueSession(user));
     }
+    if (path === '/auth/v1/reauthenticate' && method === 'GET') {
+      const who = userFor(headers);
+      if (who.error) return who.error;
+      const user = [...users.values()].find(item => item.id === who.userId);
+      reauthCodes.set(user.id, code);
+      mail.push({ email: user.email, kind: 'reauthentication' });
+      return json(200, {});
+    }
     if (path === '/auth/v1/user' && method === 'PUT') {
       const who = userFor(headers);
       if (who.error) return who.error;
-      if (String(body?.password || '').length < 6) return json(422, { msg: 'Password should be at least 6 characters.', error_code: 'weak_password' });
       const user = [...users.values()].find(item => item.id === who.userId);
+      if (body?.email !== undefined) {
+        if (!validEmail(body.email)) return json(400, { msg: 'Unable to validate email address: invalid format', error_code: 'email_address_invalid' });
+        if (users.has(body.email) && users.get(body.email) !== user) return json(422, { msg: 'A user with this email address has already been registered', error_code: 'email_exists' });
+        const secure = secureEmailChange && Boolean(user.email);
+        emailChanges.set(user.id, { email: body.email, next: code, current: secure ? code : null });
+        mail.push({ email: body.email, kind: 'email_change_new' });
+        if (secure) mail.push({ email: user.email, kind: 'email_change_current' });
+        return json(200, { id: user.id, email: user.email, new_email: body.email });
+      }
+      if (String(body?.password || '').length < 6) return json(422, { msg: 'Password should be at least 6 characters.', error_code: 'weak_password' });
+      if (reauthentication) {
+        if (!body.nonce) return json(400, { msg: 'Password update requires reauthentication', error_code: 'reauthentication_needed' });
+        if (reauthCodes.get(user.id) !== body.nonce) return json(400, { msg: 'Requested nonce is invalid', error_code: 'reauthentication_not_valid' });
+        reauthCodes.delete(user.id);
+      }
+      if (requireCurrentPassword && user.password) {
+        if (!body.current_password) return json(400, { msg: 'Current password required when setting new password.', error_code: 'current_password_required' });
+        if (body.current_password !== user.password) return json(400, { msg: 'Current password required when setting new password.', error_code: 'current_password_invalid' });
+      }
       user.password = body.password;
+      // Like Supabase Auth: a new password ends every other session of the user.
+      const auth = (headers.Authorization || '').replace(/^Bearer /, '');
+      for (const [token, item] of tokens) if (item.userId === user.id && token !== auth) { tokens.delete(token); refreshTokens.delete(item.refreshToken); }
+      const own = tokens.get(auth);
+      for (const [token, userId] of refreshTokens) if (userId === user.id && token !== own?.refreshToken) refreshTokens.delete(token);
       return json(200, { id: user.id, email: user.email });
     }
     if (path === '/auth/v1/token' && target.searchParams.get('grant_type') === 'refresh_token' && method === 'POST') {
