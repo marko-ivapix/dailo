@@ -2209,11 +2209,15 @@ a.btn { text-decoration: none; }
 .day-grid-hour.is-drop-target { background: color-mix(in srgb, var(--primary-focus) 12%, transparent); }
 .day-grid-label { position: absolute; top: 4px; left: 0; width: 48px; color: var(--ink-4); font-size: 11px; font-variant-numeric: tabular-nums; }
 .day-grid-blocks { position: absolute; inset: 0 0 0 56px; pointer-events: none; }
-.day-grid-block { position: absolute; left: 0; right: 0; display: flex; flex-direction: column; gap: 2px; min-height: 22px; padding: 4px 8px; overflow: hidden; border: 1px solid color-mix(in srgb, var(--primary-focus) 45%, transparent); border-left: 3px solid var(--primary-focus); border-radius: var(--radius-sm); background: color-mix(in srgb, var(--primary-focus) 14%, var(--graphite-850)); color: var(--ink-1); font-size: 12px; text-align: left; pointer-events: auto; cursor: pointer; }
+.day-grid-block { position: absolute; left: calc(100% * var(--lane, 0) / var(--lanes, 1)); width: calc(100% / var(--lanes, 1) - 4px); display: flex; flex-direction: column; gap: 2px; min-height: 22px; padding: 4px 8px; overflow: hidden; border: 1px solid color-mix(in srgb, var(--primary-focus) 45%, transparent); border-left: 3px solid var(--primary-focus); border-radius: var(--radius-sm); background: color-mix(in srgb, var(--primary-focus) 14%, var(--graphite-850)); color: var(--ink-1); font-size: 12px; text-align: left; pointer-events: auto; cursor: pointer; }
 .day-grid-block span { color: var(--ink-3); font-variant-numeric: tabular-nums; }
 .day-grid-block.is-estimated { border-style: dashed; }
 .day-grid-block.has-conflict { border-left-color: var(--warning); }
 .day-grid-block.is-completed { opacity: 0.55; text-decoration: line-through; }
+/* R31: the current time on today's schedule, and the deadlines above it. */
+.day-grid-now { position: absolute; left: 52px; right: 0; height: 2px; border-radius: 1px; background: var(--danger); pointer-events: none; }
+.day-deadlines { margin-bottom: 12px; }
+.calendar-day-done { margin-top: 8px; }
 .today-capacity { color: var(--ink-3); font-variant-numeric: tabular-nums; }
 .today-capacity.is-over { color: var(--warning); font-weight: 600; }
 

@@ -268,7 +268,8 @@ test('C1: the Calendar starts on today when it is opened from another screen', (
 });
 
 test('C8: the floating "+" plans for the selected day in Nedelja and Mesec', () => {
-  const ctx = { state: { ui: { tasksView: 'anytime', calendarView: 'week', calendarDate: DAY } }, route: { type: 'calendar' }, getProject: () => null };
+  // R31: a past day plans for today, so the clock sits before DAY.
+  const ctx = { state: { ui: { tasksView: 'anytime', calendarView: 'week', calendarDate: DAY } }, route: { type: 'calendar' }, getProject: () => null, Core: { dateOnly: () => '2000-01-01' } };
   ctx.currentRoute = () => ctx.route;
   ctx.calendarDate = () => ctx.state.ui.calendarDate;
   vm.createContext(ctx);

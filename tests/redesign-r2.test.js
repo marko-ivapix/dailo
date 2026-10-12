@@ -233,7 +233,7 @@ test('T5: a tap checks in, a long press or the name opens skip and details', asy
   assert.doesNotMatch(menu, /habit-today-value/);
   module.handleAction('habit-today-menu', { target: target({ habitId: 'h2' }) }, ctx);
   assert.match(ctx.calls.at(-1)[1], /data-pop-action="habit-today-value" data-habit-id="h2">.*Enter value/s);
-  assert.doesNotMatch(ctx.calls.at(-1)[1], /habit-today-skip/, 'a numeric day cannot be skipped');
+  assert.match(ctx.calls.at(-1)[1], /habit-today-skip/, 'R31: a numeric day can be skipped too');
 
   module.handleAction('habit-today-skip', { target: target({ habitId: 'h1' }) }, ctx);
   assert.deepEqual(ctx.calls.slice(-2), [['close'], ['log', 'h1', TODAY, 'missed']], 'undo skip');
@@ -262,10 +262,12 @@ test('H6: the value sheet has the quick values, the total and "Primeni"', async 
   assert.match(html, /data-action="habit-value-apply"[^>]*>Apply<\/button>/);
   module.handleAction('habit-value-add', { target: { closest: () => ({ dataset: { value: '0.25' } }) } }, ctx);
   assert.equal(ctx.modalState.total, 1.75);
-  assert.deepEqual(ctx.calls.at(-1), ['renderModal']);
+  assert.deepEqual(ctx.calls.slice(-2), [['log', 'h2', TODAY, 'done', 1.75], ['renderModal']], 'R31: a quick value is saved at once');
   module.handleAction('habit-value-apply', { target: { closest: () => ({ dataset: {} }) } }, ctx);
   await new Promise(resolve => setImmediate(resolve));
-  assert.deepEqual(ctx.calls.slice(-2), [['log', 'h2', TODAY, 'done', 1.75], ['closeModal']]);
+  // R31: the chip's own save redraws the sheet in between, so the order is checked by kind.
+  assert.deepEqual(ctx.calls.filter(call => call[0] === 'log').at(-1), ['log', 'h2', TODAY, 'done', 1.75]);
+  assert.deepEqual(ctx.calls.at(-1), ['closeModal']);
   // R8a: the sheet takes the day (today by default) so the Habits screen can fix a past day.
   assert.match(fn('openHabitValue'), /modalState = \{ type: 'habit-value', habitId, date, total: Number\(existing\?\.value \|\| 0\) \}/);
   assert.match(fn('openHabitValue'), /function openHabitValue\(habitId, date = Core\.dateOnly\(\)\)/);

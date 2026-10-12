@@ -162,6 +162,6 @@ test('Goal habit contributions cap each link and escape names', () => {
   f.state.habitMetrics.h = { totalCheckins: 4 };
   const html = goalWindow(f)();
   assert.match(html, /data-goal-health="complete"/);
-  assert.match(html, /<span class="habits-bar-count">100%<\/span>[\s\S]*4 \/ 2 Check-ins/);
+  assert.match(html, /<span class="habits-bar-count">100%<\/span>[\s\S]*4 of 2 · check-ins/); // R31: "4 od 2 · unosi"
   assert.doesNotMatch(html, /<img src=x>/);
 });

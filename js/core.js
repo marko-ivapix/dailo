@@ -1000,10 +1000,23 @@
     }).sort((a, b) => a.startMinutes - b.startMinutes || String(a.task.id).localeCompare(String(b.task.id)));
     const overlaps = (block, other) => block.startMinutes < other.endMinutes && other.startMinutes < block.endMinutes;
     const withConflicts = blocks.map(block => ({ ...block, conflict: !block.task.isCompleted && blocks.some(other => other !== block && !other.task.isCompleted && overlaps(block, other)) }));
+    // R31: overlapping blocks sit side by side; each gets a lane within its group of overlaps.
+    let group = [], groupEnd = -1;
+    const closeGroup = () => { const lanes = Math.max(1, ...group.map(block => block.lane + 1)); for (const block of group) block.lanes = lanes; group = []; };
+    for (const block of withConflicts) {
+      if (group.length && block.startMinutes >= groupEnd) closeGroup();
+      const taken = new Set(group.filter(other => other.endMinutes > block.startMinutes).map(other => other.lane));
+      let lane = 0;
+      while (taken.has(lane)) lane += 1;
+      block.lane = lane; group.push(block); groupEnd = Math.max(groupEnd, block.endMinutes);
+    }
+    if (group.length) closeGroup();
     const unscheduled = planned.filter(task => !task.isCompleted && !normalizeTime(task.plannedTime))
       .sort((a, b) => byOrder('todayOrder')(a, b) || String(a.title).localeCompare(String(b.title)));
-    const earliest = blocks.length ? Math.floor(blocks[0].startMinutes / 60) : 6;
-    return { blocks: withConflicts, unscheduled, range: { startHour: Math.min(6, earliest), endHour: 24 } };
+    // R31: the hours run from 8 to 21 and grow only to fit the blocks.
+    const earliest = blocks.length ? Math.floor(blocks[0].startMinutes / 60) : 8;
+    const latest = blocks.length ? Math.ceil(Math.max(...blocks.map(block => block.endMinutes)) / 60) : 21;
+    return { blocks: withConflicts, unscheduled, range: { startHour: Math.min(8, earliest), endHour: Math.min(24, Math.max(21, latest)) } };
   }
 
   function getTimedTaskBlocks(tasks, date) {
@@ -1233,7 +1246,8 @@
   function habitStatusForDate(habit, logs, date, today = dateOnly()) {
     const log = (logs || []).find(item => item && item.date === date && (!habit?.id || item.habitId === habit.id));
     if (log) {
-      if (habit?.trackingType === 'numeric') return numericHabitState(habit, log.value);
+      // R31: a skipped day of a numeric habit stays skipped; otherwise the value decides.
+      if (habit?.trackingType === 'numeric' && log.status !== 'skipped') return numericHabitState(habit, log.value);
       return { status: log.status, value: log.value ?? null, percent: log.status === 'done' ? 100 : 0 };
     }
     if (!habitScheduledOn(habit, date, { historical: true })) return { status: 'unscheduled', value: null, percent: 0 };

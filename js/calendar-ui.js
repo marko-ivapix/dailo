@@ -94,8 +94,16 @@
     return [...items.timed.map(task => ctx.calendarTaskRow(task)), ...items.deadlines.map(item => ctx.deadlineRow(item)), ...items.untimed.map(task => ctx.calendarTaskRow(task))].join('');
   }
 
-  function emptyDay() {
-    return `<p class="today-empty">${tr('No tasks for this day. “+” adds a task for this day.')}</p>`;
+  function emptyDay(past = false) {
+    return `<p class="today-empty">${past ? tr('Nothing open on this day.') : tr('No tasks for this day. “+” adds a task for this day.')}</p>`;
+  }
+
+  // R31 (finding 15): a past day also shows what was completed on it, folded.
+  function pastDayDone(ctx, date) {
+    const done = ctx.listTasks().filter(task => task.isCompleted && task.completedAt && ctx.Core.localDateOf(String(task.completedAt)) === date);
+    if (!done.length) return '';
+    const open = ctx.state.ui.calendarDoneExpanded === true;
+    return `<section class="section calendar-day-done">${ctx.foldButton('toggle-calendar-done', tr('Completed this day'), done.length, open)}${open ? `<div class="task-list today-card" data-list-context="calendar">${done.map(task => ctx.calendarTaskRow(task)).join('')}</div>` : ''}</section>`;
   }
 
   function renderDayPanel(ctx, date) {
@@ -106,8 +114,9 @@
     if (mode === 'schedule') body = renderDayView(ctx, date);
     else {
       const items = ctx.Core.calendarDayItems(listed(ctx), date);
-      body = items.count ? `<div class="task-list today-card" data-list-context="calendar">${dayRows(ctx, items)}</div>` : `<div class="today-card">${emptyDay()}</div>`;
+      body = items.count ? `<div class="task-list today-card" data-list-context="calendar">${dayRows(ctx, items)}</div>` : `<div class="today-card">${emptyDay(date < ctx.Core.dateOnly())}</div>`;
     }
+    if (date < ctx.Core.dateOnly()) body += pastDayDone(ctx, date);
     return `<section class="calendar-day-panel" data-calendar-day="${date}">${head}${body}</section>`;
   }
 
@@ -143,6 +152,10 @@
     const { state, Core, esc } = ctx;
     const tasks = ctx.listTasks();
     const schedule = Core.daySchedule(tasks, date);
+    // R31 (finding 10): Raspored also lists the day's deadlines that Lista shows (tasks due that day, goals, milestones).
+    const items = Core.calendarDayItems(listed(ctx), date);
+    const dueTasks = items.untimed.filter(task => !task.plannedDate);
+    const dueRows = [...items.deadlines.map(item => ctx.deadlineRow(item)), ...dueTasks.map(task => ctx.calendarTaskRow(task))];
     const load = Core.dayLoad(tasks, date);
     const capacity = Core.dailyCapacityMinutes(state.settings);
     let html = '<div class="day-view">';
@@ -151,7 +164,9 @@
       const percent = Math.min(100, Math.round(load.minutes / capacity * 100));
       html += `<div class="day-capacity${over ? ' is-over' : ''}" data-day-capacity role="status"><span>${esc(tr('Planned {planned} of {capacity}', { planned: ctx.durationLabel(load.minutes), capacity: ctx.durationLabel(capacity) }))}</span><span class="day-capacity-bar" aria-hidden="true"><span style="width:${percent}%"></span></span>${over ? `<strong>${esc(tr('Over capacity by {over}', { over: ctx.durationLabel(load.minutes - capacity) }))}</strong>` : ''}</div>`;
     }
-    if (!schedule.blocks.length && !schedule.unscheduled.length) return `${html}${emptyDay()}</div>`;
+    if (!schedule.blocks.length && !schedule.unscheduled.length && !dueRows.length) return `${html}${emptyDay(date < Core.dateOnly())}</div>`;
+    if (dueRows.length) html += `<section class="section day-deadlines"><div class="section-header"><h2 class="section-label">${tr('Due this day')}</h2><span class="section-count">${dueRows.length}</span></div><div class="task-list today-card" data-list-context="calendar">${dueRows.join('')}</div></section>`;
+    if (!schedule.blocks.length && !schedule.unscheduled.length) return `${html}</div>`;
     if (schedule.unscheduled.length) {
       html += `<section class="section day-unscheduled" data-calendar-date="${esc(date)}"><div class="section-header"><h2 class="section-label">${tr('No time yet')}</h2><span class="section-count">${schedule.unscheduled.length}</span></div>${schedule.unscheduled.map(task => `<div class="day-unscheduled-item" draggable="true" data-calendar-drag="task" data-calendar-item-id="${esc(task.id)}"><button class="day-unscheduled-title" type="button" data-action="open-task" data-task-id="${esc(task.id)}">${esc(task.title)}</button><input class="input task-time-input" type="time" data-task-time="plannedTime" data-task-id="${esc(task.id)}" aria-label="${esc(tr('Time for {title}', { title: task.title }))}"></div>`).join('')}</section>`;
     }
@@ -162,9 +177,13 @@
       const classes = ['day-grid-block', block.conflict ? 'has-conflict' : '', block.estimated ? 'is-estimated' : '', block.task.isCompleted ? 'is-completed' : ''].filter(Boolean).join(' ');
       const top = (block.startMinutes - startHour * 60) / 60;
       const height = block.durationMinutes / 60;
-      return `<button class="${classes}" type="button" draggable="true" data-calendar-drag="task" data-calendar-item-id="${esc(block.task.id)}" data-action="open-task" data-task-id="${esc(block.task.id)}" style="top:calc(var(--hour-height) * ${top});height:calc(var(--hour-height) * ${height})"><strong>${esc(block.task.title)}</strong><span>${minutesLabel(block.startMinutes)}–${minutesLabel(block.endMinutes)}</span></button>`;
+      return `<button class="${classes}" type="button" draggable="true" data-calendar-drag="task" data-calendar-item-id="${esc(block.task.id)}" data-action="open-task" data-task-id="${esc(block.task.id)}" style="top:calc(var(--hour-height) * ${top});height:calc(var(--hour-height) * ${height});--lane:${block.lane};--lanes:${block.lanes}"><strong>${esc(block.task.title)}</strong><span>${minutesLabel(block.startMinutes)}–${minutesLabel(block.endMinutes)}</span></button>`;
     }).join('');
-    return `${html}<div class="day-grid" data-calendar-date="${esc(date)}"><div class="day-grid-rows">${rows}</div><div class="day-grid-blocks">${blocks}</div></div></div>`;
+    // R31: today has a line at the current time.
+    const now = new Date();
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+    const nowLine = date === Core.dateOnly() && nowMinutes >= startHour * 60 && nowMinutes < endHour * 60 ? `<span class="day-grid-now" style="top:calc(var(--hour-height) * ${(nowMinutes - startHour * 60) / 60})" aria-hidden="true"></span>` : '';
+    return `${html}<div class="day-grid" data-calendar-date="${esc(date)}"><div class="day-grid-rows">${rows}</div><div class="day-grid-blocks">${blocks}</div>${nowLine}</div></div>`;
   }
 
   window.TodoDomainModules?.register({
@@ -185,6 +204,7 @@
       else if (action === 'calendar-pick') {
         if (ctx.Core.parseDateOnly(element.dataset.date)) { ctx.state.ui.calendarDate = element.dataset.date; ctx.saveAndRender(); }
       } else if (action === 'calendar-day-mode') { ctx.state.ui.calendarDayMode = element.dataset.mode === 'schedule' ? 'schedule' : 'list'; ctx.saveAndRender(); }
+      else if (action === 'toggle-calendar-done') { ctx.state.ui.calendarDoneExpanded = ctx.state.ui.calendarDoneExpanded !== true; ctx.saveAndRender(); }
       else return false;
       return true;
     }

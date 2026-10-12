@@ -212,7 +212,7 @@ test('R29: a second run adds nothing, a deleted example comes back alone, and ow
 test('R29: the toast counts templates too; a failed save removes every new example', async () => {
   const { toasts, run } = harness();
   await run();
-  assert.match(toasts.at(-1), /^Added 8 Areas, \d+ Projects, \d+ Tasks, \d+ Goals, 22 Habits, 13 Tags, 6 Notes, 6 Resources and 2 Templates\. All examples are editable\.$/);
+  assert.match(toasts.at(-1), /^Added 8 Areas, \d+ Projects, \d+ Tasks, \d+ Goals, 20 Habits, 13 Tags, 6 Notes, 6 Resources and 2 Templates\. All examples are editable\.$/);
   const failing = harness(emptyState(), { saveOk: false });
   await failing.run();
   assert.deepEqual(counts(failing.state), { areas: 0, tags: 0, habits: 0, projects: 0, tasks: 0, goals: 0, notes: 0, resources: 0, templates: 0 });

@@ -47,6 +47,8 @@
   const AREA_ICONS = ['ph-briefcase', 'ph-house', 'ph-heart', 'ph-chart-line-up', 'ph-graduation-cap', 'ph-palette', 'ph-plant', 'ph-airplane'];
   const DATE_FMT = new Intl.DateTimeFormat(I18n.locale(), { weekday: 'long', month: 'long', day: 'numeric' });
   const SHORT_DATE_FMT = new Intl.DateTimeFormat(I18n.locale(), { month: 'short', day: 'numeric' });
+  const DATE_YEAR_FMT = new Intl.DateTimeFormat(I18n.locale(), { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  const SHORT_DATE_YEAR_FMT = new Intl.DateTimeFormat(I18n.locale(), { month: 'short', day: 'numeric', year: 'numeric' });
   const WEEKDAY_FMT = new Intl.DateTimeFormat(I18n.locale(), { weekday: 'long' });
   const SHORTCUT_DEFAULTS = { newTask:'N', search:'Ctrl/Cmd+F', today:'T', inbox:'I', upcoming:'U', calendar:'C', goals:'G', habits:'H', templates:'Shift+T' };
   const SHORTCUT_LABELS = {newTask:msg('New task'),search:msg('Search'),today:msg('Today'),inbox:msg('Inbox'),upcoming:msg('Upcoming'),calendar:msg('Calendar'),goals:msg('Goals'),habits:msg('Habits'),templates:msg('Templates')};
@@ -110,7 +112,7 @@
   // R9c–R10d (K12): on Ciljevi, Beleške, Resursi, Oznake, Šabloni and Sačuvani prikazi the floating "+" adds what belongs
   // there and its label says what;
   // elsewhere it opens the menu.
-  const QUICK_ADD_DIRECT = Object.freeze({ '#goals': [msg('New goal'), () => openGoalModal()], '#notes': [msg('New note'), () => openKnowledgeWindow('note')], '#resources': [msg('New resource'), () => openKnowledgeWindow('resource')], '#tags': [msg('New tag'), () => openTagModal()], '#templates': [msg('New template'), () => callDomainHook('handleAction', 'new-template', { target: $('#mobile-quick-add-toggle') })], '#saved-views': [msg('New saved view'), () => callDomainHook('handleAction', 'new-saved-view', { target: $('#mobile-quick-add-toggle') })], '#cleaning': [msg('New recurring task'), () => callDomainHook('handleAction', 'new-cleaning-chore', { target: $('#mobile-quick-add-toggle') })], '#journal': [msg('Today’s entry'), () => callDomainHook('handleAction', 'open-journal', { target: $('#mobile-quick-add-toggle') })] });
+  const QUICK_ADD_DIRECT = Object.freeze({ '#goals': [msg('New goal'), () => openGoalModal()], '#habits': [msg('New habit'), () => openHabitModal()], '#notes': [msg('New note'), () => openKnowledgeWindow('note')], '#resources': [msg('New resource'), () => openKnowledgeWindow('resource')], '#tags': [msg('New tag'), () => openTagModal()], '#templates': [msg('New template'), () => callDomainHook('handleAction', 'new-template', { target: $('#mobile-quick-add-toggle') })], '#saved-views': [msg('New saved view'), () => callDomainHook('handleAction', 'new-saved-view', { target: $('#mobile-quick-add-toggle') })], '#cleaning': [msg('New recurring task'), () => callDomainHook('handleAction', 'new-cleaning-chore', { target: $('#mobile-quick-add-toggle') })], '#journal': [msg('Today’s entry'), () => callDomainHook('handleAction', 'open-journal', { target: $('#mobile-quick-add-toggle') })] });
   const quickAddDirect = () => QUICK_ADD_DIRECT[location.hash] || null;
   function syncQuickAddToggle() {
     const toggle = $('#mobile-quick-add-toggle');
@@ -171,7 +173,10 @@
   function formatDate(value, mode = 'short') {
     const date = parseLocalDate(value);
     if (!date) return '';
-    return mode === 'full' ? DATE_FMT.format(date) : SHORT_DATE_FMT.format(date);
+    // R31 (finding 4): a date in another year says which, so a goal for next October does not look due today.
+    const otherYear = date.getFullYear() !== new Date().getFullYear();
+    if (mode === 'full') return (otherYear ? DATE_YEAR_FMT : DATE_FMT).format(date);
+    return (otherYear ? SHORT_DATE_YEAR_FMT : SHORT_DATE_FMT).format(date);
   }
 
   function formatPageToday(today) {
@@ -1392,7 +1397,7 @@
   function goalProgressLabel(goal) {
     const progress = Core.computeGoalProgress(goal, state, state.habitMetrics || {});
     if (goal.progressMode === 'manual' && goal.progressType === 'numeric') return `${progress.current} / ${progress.target}${goal.unit ? ` ${esc(goal.unit)}` : ''}`;
-    if (goal.progressMode === 'linkedTasks') return tr('{current} / {target} tasks', { current: progress.current, target: progress.target });
+    if (goal.progressMode === 'linkedTasks') return trn(progress.target, '{current} / {target} task', '{current} / {target} tasks', { current: progress.current, target: progress.target });
     return `${Math.round(progress.percent)}%`;
   }
 
@@ -1426,7 +1431,8 @@
     modalState = { type: 'habit-value', habitId, date, total: Number(existing?.value || 0) };
     if (previous) modalState.previous = previous;
     renderModal();
-    requestAnimationFrame(() => $('#habit-value-total')?.focus());
+    // R31 (finding 9): the sheet opens without the keyboard (R14); the first quick value or Close gets the focus.
+    requestAnimationFrame(() => $('#modal-root .habit-value-window .quick-chip, #modal-root .habit-value-window [data-action="close-modal"]')?.focus());
   }
 
   // Redesign R10e (S9, M6): project and period chips, groups by completion day with Today rows (the round check restores
@@ -3968,7 +3974,8 @@
     if (!habit || !date || date > today || (date === today && habit.status !== 'active') || !(Core.habitScheduledOn(habit, date, { historical: true }) || existing || allowHistoricalBackfill)) return false;
     const before = captureGoalProgress();
     let status = requestedStatus; let value = requestedValue;
-    if (habit.trackingType === 'numeric') { const numeric = Core.numericHabitState(habit, requestedValue); status = numeric.status; value = numeric.value; }
+    // R31 (finding 9): a numeric habit can be skipped too; only a value decides done or missed.
+    if (habit.trackingType === 'numeric' && requestedStatus !== 'skipped') { const numeric = Core.numericHabitState(habit, requestedValue); status = numeric.status; value = numeric.value; }
     const record = { id: `${habitId}:${date}`, habitId, date, status: ['done', 'skipped', 'missed'].includes(status) ? status : 'done', value: value ?? null, createdAt: existing?.createdAt || nowIso(), updatedAt: nowIso() };
     const previousUpdatedAt = habit.updatedAt;
     habit.updatedAt = nowIso();
@@ -5025,7 +5032,8 @@
     if (route.type === 'project' && route.id === 'none') return { anytime: true };
     if (route.type === 'project') return getProject(route.id)?.isArchived ? null : { projectId: route.id };
     if (route.type === 'tasks' && state.ui.tasksView !== 'projects') return { anytime: true };
-    if (route.type === 'calendar' && state.ui.calendarView !== 'upcoming') return { day: calendarDate() }; // R7 (C8)
+    // R7 (C8); R31 (finding 15): on a past day "+" plans for today, so a new task is not late at once.
+    if (route.type === 'calendar' && state.ui.calendarView !== 'upcoming') return { day: calendarDate() < Core.dateOnly() ? Core.dateOnly() : calendarDate() };
     return {};
   }
 

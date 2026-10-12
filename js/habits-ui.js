@@ -102,7 +102,8 @@
     const dateAttr = other ? ` data-date="${esc(date)}"` : '';
     const skipped = state.habitLogCache?.[habitId]?.find(log => log.date === date)?.status === 'skipped';
     const value = habit.trackingType === 'numeric' ? `<button class="popover-option" type="button" data-pop-action="habit-today-value" data-habit-id="${esc(habitId)}"${dateAttr}><i class="ph ph-pencil-simple"></i>${tr('Enter value')}</button>` : '';
-    const skip = habit.trackingType === 'numeric' ? '' : `<button class="popover-option" type="button" data-pop-action="habit-today-skip" data-habit-id="${esc(habitId)}"${dateAttr}><i class="ph ph-arrow-bend-up-right"></i>${skipped ? tr('Undo skip') : other ? tr('Skip') : tr('Skip today')}</button>`;
+    // R31 (finding 9): numeric habits can be skipped too (a sick day keeps the streak).
+    const skip = `<button class="popover-option" type="button" data-pop-action="habit-today-skip" data-habit-id="${esc(habitId)}"${dateAttr}><i class="ph ph-arrow-bend-up-right"></i>${skipped ? tr('Undo skip') : other ? tr('Skip') : tr('Skip today')}</button>`;
     const details = `<button class="popover-option" type="button" data-pop-action="habit-today-details" data-habit-id="${esc(habitId)}"><i class="ph ph-chart-line-up"></i>${tr('Habit details')}</button>`;
     openPopover(anchor, `<div class="popover-title">${esc(habit.name)}</div>${other ? `<p class="sheet-subtitle">${esc(ctx.formatDate(date, 'full'))}</p>` : ''}${value}${skip}${details}`, { type: 'habit-today-menu', habitId });
   }
@@ -378,7 +379,7 @@
     let html = `<div class="modal-header task-window-header"><span class="task-window-kind">${tr('Habit')}</span><div class="task-window-actions"><button class="btn-icon" type="button" data-action="habit-details-menu" data-habit-id="${id}" aria-label="${tr('Habit actions')}"><i class="ph ph-dots-three"></i></button><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div></div><h2 class="habit-details-title">${esc(habit.name)}</h2><p class="habit-details-meta">${esc([frequency, routineLabel(habit.routine), statusLabel(habit.status)].join(' · '))}</p>`;
     const today = Core.habitDayState(habit, logs, week.today, week.today, week.rule);
     if (active) {
-      const skip = !numeric && !['done', 'unscheduled'].includes(today.state) ? `<button class="btn btn-ghost" type="button" data-action="habit-today-skip" data-habit-id="${id}">${today.state === 'skipped' ? tr('Undo skip') : tr('Skip today')}</button>` : '';
+      const skip = !['done', 'unscheduled'].includes(today.state) ? `<button class="btn btn-ghost" type="button" data-action="habit-today-skip" data-habit-id="${id}">${today.state === 'skipped' ? tr('Undo skip') : tr('Skip today')}</button>` : '';
       html += `<div class="today-card habit-details-today">${renderHabitTodayRow(ctx, habit, { status: today.state === 'done' ? 'done' : today.state === 'skipped' ? 'skipped' : 'pending', value: today.value })}</div><div class="habit-details-today-line"><span>${esc(tr('Today: {status}', { status: tr(CELL_LABELS[today.state]) }))}</span>${skip}</div>`;
     } else html += `<p class="sheet-note">${tr('Paused and archived habits preserve history but cannot be checked in.')}</p>`;
     const progress = Core.habitWeekProgress(habit, logs, week.start, week.today, week.rule);
@@ -787,10 +788,10 @@
     const habits = [
       ['morning', 'cold-shower', tr('Cold shower')], ['morning', 'wim-hof-breathing', tr('Wim Hof breathing')],
       ['morning', '10-minute-workout', tr('10-minute workout')], ['morning', 'beard-balm', tr('Beard balm')],
-      ['daily', 'no-nut', tr('No-nut')], ['daily', 'training', tr('Training four times per week')],
+      ['daily', 'training', tr('Training four times per week')],
       ['daily', 'sleep-before-midnight', tr('Sleep before midnight')], ['daily', 'sleep-7-8-hours', tr('Sleep 7–8 hours')],
       ['daily', 'program-30-minutes', tr('Program 30 minutes')], ['daily', 'read-learn-30-minutes', tr('Read/learn 30 minutes')],
-      ['night', 'beard-balm', tr('Beard balm')], ['night', 'tomorrow-tasks', tr("Enter tomorrow's tasks")]
+      ['night', 'tomorrow-tasks', tr("Enter tomorrow's tasks")]
     ];
     const addedAreas = [], addedHabits = [], addedProjects = [], addedTasks = [], addedGoals = [], addedNotes = [], addedResources = [], addedTags = [], addedTemplates = [];
     const timestamp = nowIso(), today = Core.dateOnly();
@@ -900,10 +901,10 @@
     }
     const noteName = tr('Weekly planning notes'), noteKey = `${samplePrefix}:note:weekly-planning`;
     if (!hasSampleOrName(state.notes, noteKey, noteName, 'title')) addedNotes.push({ id: uid('note'), sampleKey: noteKey, title: noteName, body: tr('Use this note to capture decisions, loose ends, and a short review for next week.'), areaId: workArea?.id || null, linkUrls: [], attachmentIds: [], createdAt: timestamp, updatedAt: timestamp });
-    const resourceName = tr('Starter workspace guide'), resourceKey = `${samplePrefix}:resource:workspace-guide`;
+    const resourceName = tr('How to plan your week'), resourceKey = `${samplePrefix}:resource:workspace-guide`;
     const weeklyRhythmGoal = byName(allGoals, goalName, 'title');
     const programHabit = byName(allHabits, tr('Program 30 minutes'));
-    if (!hasSampleOrName(state.resources, resourceKey, resourceName, 'title')) addedResources.push({ id: uid('resource'), sampleKey: resourceKey, title: resourceName, description: tr('A lightweight reference connected to the starter workspace. Edit or delete it whenever you are ready.'), areaId: workArea?.id || null, linkUrls: ['https://todoist.com/productivity-methods/weekly-planning'], attachmentIds: [], relatedTaskIds: linkedTask ? [linkedTask.id] : [], relatedProjectIds: weeklyPlan ? [weeklyPlan.id] : [], relatedGoalIds: weeklyRhythmGoal ? [weeklyRhythmGoal.id] : [], relatedHabitIds: programHabit ? [programHabit.id] : [], createdAt: timestamp, updatedAt: timestamp });
+    if (!hasSampleOrName(state.resources, resourceKey, resourceName, 'title')) addedResources.push({ id: uid('resource'), sampleKey: resourceKey, title: resourceName, description: tr('A short guide to weekly planning: look back at the week, then choose what matters next.'), areaId: workArea?.id || null, linkUrls: ['https://todoist.com/productivity-methods/weekly-planning'], attachmentIds: [], relatedTaskIds: linkedTask ? [linkedTask.id] : [], relatedProjectIds: weeklyPlan ? [weeklyPlan.id] : [], relatedGoalIds: weeklyRhythmGoal ? [weeklyRhythmGoal.id] : [], relatedHabitIds: programHabit ? [programHabit.id] : [], createdAt: timestamp, updatedAt: timestamp });
     // R29: the real-life set (js/starter-examples.js) sees this run's first-set items too, so it finds their Areas.
     const view = { areas: [...state.areas, ...addedAreas], tags: [...state.tags, ...addedTags], habits: [...state.habits, ...addedHabits], projects: [...state.projects, ...addedProjects], tasks: [...state.tasks, ...addedTasks], goals: [...state.goals, ...addedGoals], notes: [...state.notes, ...addedNotes], resources: [...state.resources, ...addedResources], templates: [...(state.templates || [])] };
     const realLife = window.DailoStarterExamples?.realLifeExamples(view, { Core, uid, today, timestamp, habitDraft, PROJECT_COLORS });
@@ -975,9 +976,13 @@
       if (ctx.modalState?.type === 'habit-details') { ctx.modalState.month = month > current ? current : month; ctx.renderModal(); }
       return true;
     }
+    // R31 (finding 9): a quick value is saved at once, so closing the sheet never loses it.
     if (action === 'habit-value-add') {
       const total = Number(ctx.modalState?.total || 0) + Number(el.dataset.value || 0);
-      ctx.modalState.total = Math.round(total * 1000) / 1000; ctx.renderModal(); return true;
+      ctx.modalState.total = Math.round(total * 1000) / 1000;
+      const { habitId, date } = ctx.modalState;
+      setHabitLog(habitId, date, 'done', ctx.modalState.total).then(() => { if (ctx.modalState?.type === 'habit-value') ctx.renderModal(); }).catch(console.error);
+      ctx.renderModal(); return true;
     }
     if (action === 'habit-value-apply') {
       const { habitId, date } = ctx.modalState || {};
