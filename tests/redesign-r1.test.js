@@ -70,7 +70,8 @@ test('the phone shell at every width: no sidebar, a centered column, the bar alw
   assert.match(css, /\.app-shell \{ min-height: var\(--viewport-height\); display: grid; grid-template-columns: minmax\(0, 1fr\); \}/);
   assert.match(layer, /\.content:not\(\.calendar-content\) \{ max-width: 760px; margin-inline: auto; \}/);
   assert.match(css, /\n\.mobile-bottom-nav \{\n\s+position: fixed;/, 'the bar is no longer only inside a max-width query');
-  assert.doesNotMatch(css, /\.mobile-bottom-nav \{ display: none; \}/);
+  // R47a (K1): from 1024 px on the desktop sidebar takes the bar's place; nowhere else is the bar hidden.
+  assert.doesNotMatch(css.slice(0, css.indexOf('/* Redesign R47a')), /\.mobile-bottom-nav \{ display: none; \}/);
   assert.match(layer, /\.page-header \[data-action="quick-add"\] \{ display: none; \}/, 'G2: no + in headers');
   assert.match(layer, /\.mobile-bottom-nav-badge \{ background: var\(--graphite-700\);/, 'I1: gray badge');
 });

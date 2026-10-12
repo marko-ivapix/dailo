@@ -633,6 +633,41 @@ if (!tiles.length || tiles.some(tile => !tile.firstElementChild?.matches('.more-
 click('#main .more-tiles .more-row[data-route="account"]');
 await new Promise(resolve => setTimeout(resolve, 50));
 if (window.location.hash !== '#account' || window.document.querySelector('#main .page-title')?.textContent !== 'Nalog' || !window.document.querySelector('#main [data-account-local], #main [data-settings-sync] [data-action="open-welcome"]')) fail('the Nalog tile did not open the Nalog screen');
+// R47a (K1): the desktop sidebar is in the page (CSS shows it from 1024 px on): the main screens with Danas's count,
+// the projects, the folding groups, and the button that folds it to icons and is remembered on this device.
+const sidebar = window.document.querySelector('#desktop-sidebar');
+if (!sidebar?.querySelector('[data-route="today"]') || !sidebar.querySelector('[data-route="habits"]') || !sidebar.querySelector('[data-route="settings"]') || !sidebar.querySelector('[data-sidebar-drop="tomorrow"]')) fail('the desktop sidebar is missing its main screens');
+if (!sidebar.querySelector('[data-route^="project/"]')) fail('the desktop sidebar lists no projects');
+click('#desktop-sidebar [data-action="sidebar-fold"][data-group="library"]');
+if (window.document.querySelector('#desktop-sidebar [data-route="tags"]') || JSON.parse(window.localStorage.getItem('dailoSidebarFolds') || '{}').library !== true) fail('Biblioteka did not fold in the sidebar');
+click('#desktop-sidebar [data-action="sidebar-fold"][data-group="library"]');
+click('#desktop-sidebar [data-action="toggle-sidebar"]');
+if (window.document.documentElement.dataset.sidebar !== 'collapsed' || window.localStorage.getItem('dailoSidebar') !== 'collapsed') fail('the sidebar did not fold to icons');
+click('#desktop-sidebar [data-action="toggle-sidebar"]');
+click('#desktop-sidebar [data-route="calendar"]');
+await new Promise(resolve => setTimeout(resolve, 30));
+if (window.location.hash !== '#calendar' || !window.document.querySelector('#desktop-sidebar [data-route="calendar"].is-active')) fail('a sidebar item did not open its screen');
+// R47d (K9): a task row dragged from Danas onto "Prevuci ovde za sutra" in the sidebar moves to tomorrow; Poništi brings it back.
+window.location.hash = '#today';
+await new Promise(resolve => setTimeout(resolve, 50));
+const dragRow = window.document.querySelector('#main .task-row[draggable="true"][data-list-context="today"]');
+if (!dragRow) fail('Danas has no draggable task row for the sidebar drag check');
+const dragEvent = (type, target) => {
+  const event = new window.Event(type, { bubbles: true, cancelable: true });
+  Object.defineProperty(event, 'dataTransfer', { value: { effectAllowed: '', types: [], setData() {} } });
+  target.dispatchEvent(event);
+  return event;
+};
+const dragId = dragRow.dataset.taskId;
+const dropZone = window.document.querySelector('#desktop-sidebar [data-sidebar-drop="tomorrow"]');
+dragEvent('dragstart', dragRow);
+const accepted = dragEvent('dragover', dropZone).defaultPrevented;
+dragEvent('drop', dropZone);
+const tomorrowDate = window.TodoApp.state.tasks.find(task => task.id === dragId)?.plannedDate;
+if (!accepted || tomorrowDate !== tomorrow || !window.document.querySelector('.toast [data-action="undo"]')) fail('a task dropped on "Sutra" in the sidebar did not move with Poništi');
+click('.toast [data-action="undo"]');
+await new Promise(resolve => setTimeout(resolve, 30));
+if (window.TodoApp.state.tasks.find(task => task.id === dragId)?.plannedDate === tomorrowDate) fail('Poništi did not bring the dragged task back');
 // R41: Navike pages to next week (› with its rings inactive) and "Ova nedelja" comes back.
 window.location.hash = '#habits';
 await new Promise(resolve => setTimeout(resolve, 50));
@@ -690,6 +725,18 @@ click(`#main .task-row--today[data-task-id="${menuTask.id}"] [data-action="task-
 const menu = window.document.querySelector('.popover--sheet');
 if (menu?.querySelector('.popover-title')?.textContent !== menuTask.title || !menu.querySelector('.sheet-card.sheet-menu [data-pop-action="task-delete"].is-danger')) fail('the task menu is not a titled sheet with one card and a red Obriši');
 click('.popover [data-pop-action="close-sheet"]');
+// R47b (K6): on a wide screen the same menu opens next to its button, over a clear backdrop.
+const narrowMedia = window.matchMedia;
+const realRect = window.Element.prototype.getBoundingClientRect;
+window.matchMedia = query => ({ ...narrowMedia(query), matches: query === '(min-width: 1024px)' });
+window.Element.prototype.getBoundingClientRect = () => ({ left: 600, top: 200, right: 640, bottom: 240, width: 40, height: 40 });
+click(`#main .task-row--today[data-task-id="${menuTask.id}"] [data-action="task-menu"]`);
+const wideMenu = window.document.querySelector('.popover--sheet');
+const wideMenuPlaced = wideMenu?.classList.contains('popover--anchored') && wideMenu.style.top === '246px' && wideMenu.style.left === '600px' && window.document.querySelector('.sheet-backdrop.is-clear');
+click('.popover [data-pop-action="close-sheet"]');
+window.matchMedia = narrowMedia;
+window.Element.prototype.getBoundingClientRect = realRect;
+if (!wideMenuPlaced) fail('on a wide screen the task menu did not open next to its button');
 window.TodoApp.state.templates = window.TodoApp.state.templates.filter(template => template.type !== 'habit');
 click('#mobile-quick-add-toggle');
 click('#mobile-quick-add-menu [data-action="new-habit"]');
@@ -736,5 +783,5 @@ if (second.window.document.querySelector('#modal-root .welcome-screen')) fail('t
 const errors = [...first.errors, ...second.errors];
 second.dom.window.close();
 if (errors.length) fail(`script errors: ${errors.join(' | ')}`);
-console.log(`smoke: OK — started on the welcome screen (an invalid address refused, registration and back, "Nastavi bez naloga" remembered), created "${title}", Back closed Quick Add and stepped from Kalendar to Danas, Podešavanja had \"‹ Još\", \"Počni prazno\" emptied the examples until Poništi, route change named the page and focused its heading, Još opened Ciljevi, focus survived a re-render, Today checked in a habit, the Zadaci switch showed the projects and opened one, the task window's date sheet planned a task, Quick Add filed a task under \"Bez projekta\", \"Razvrstaj redom\" planned an Inbox task for today, the new task said \"Dodato u Inbox\" with \"Otvori\", the Inbox add row filed a title, the Calendar listed a picked day and its Raspored, Navike opened a past day and Nedelja, the new habit window created a numeric weekday habit, Detalji navike changed a day and an old address opened the window, Ciljevi grouped by month, the goal window set a target date and an old address opened it, the \"+\" on Ciljevi created a numeric goal and \"Etape\" opened the milestones, Oblasti made an area and its \"+\" filed a task there, Beleške made a text-only note in its window, found it with its own search and turned it into an Inbox task, Oznake made a tag and opened its screen, Sačuvani prikazi saved a habits view and opened it, Završeni zadaci restored a task and Poništi completed it again, Search grouped the results and Fokus ticked a subtask, the repeat editor set \"Sredom i subotom\", a repeating task's title saved without a question and \"Ovo i buduća\" moved its rule until Poništi, Redovne obaveze made a group and its \"+ Dodaj obavezu\" scheduled a monthly chore, Dnevnik saved today's entry with a mood and its search found it, Nedeljni pregled showed seven columns and today's journal face and recorded the review, Podešavanja applied the week start and turned the journal reminder off at once, the text size and the light theme applied on this device only, Today had no weekly review notice and task and habit rows ended with their checkbox or circle, the \"+\" scrim closed the menu, a task opened without focusing its title, Još showed tiles and Nalog opened its screen, Detalji navike moved a habit's start to the 1st of the month, \"Bez projekta\" opened its screen and \"Novi projekat\" was a sheet, the reminder settings applied, a task's ⋯ menu was a titled sheet and \"Iz šablona\" stayed away without templates, the template editor saved a weekday chip, a project opened from Danas said \"‹ Danas\", reopened and found it (tasks: ${second.window.TodoApp.state?.tasks?.length ?? 'n/a'})`);
+console.log(`smoke: OK — started on the welcome screen (an invalid address refused, registration and back, "Nastavi bez naloga" remembered), created "${title}", Back closed Quick Add and stepped from Kalendar to Danas, Podešavanja had \"‹ Još\", \"Počni prazno\" emptied the examples until Poništi, route change named the page and focused its heading, Još opened Ciljevi, focus survived a re-render, Today checked in a habit, the Zadaci switch showed the projects and opened one, the task window's date sheet planned a task, Quick Add filed a task under \"Bez projekta\", \"Razvrstaj redom\" planned an Inbox task for today, the new task said \"Dodato u Inbox\" with \"Otvori\", the Inbox add row filed a title, the Calendar listed a picked day and its Raspored, Navike opened a past day and Nedelja, the new habit window created a numeric weekday habit, Detalji navike changed a day and an old address opened the window, Ciljevi grouped by month, the goal window set a target date and an old address opened it, the \"+\" on Ciljevi created a numeric goal and \"Etape\" opened the milestones, Oblasti made an area and its \"+\" filed a task there, Beleške made a text-only note in its window, found it with its own search and turned it into an Inbox task, Oznake made a tag and opened its screen, Sačuvani prikazi saved a habits view and opened it, Završeni zadaci restored a task and Poništi completed it again, Search grouped the results and Fokus ticked a subtask, the repeat editor set \"Sredom i subotom\", a repeating task's title saved without a question and \"Ovo i buduća\" moved its rule until Poništi, Redovne obaveze made a group and its \"+ Dodaj obavezu\" scheduled a monthly chore, Dnevnik saved today's entry with a mood and its search found it, Nedeljni pregled showed seven columns and today's journal face and recorded the review, Podešavanja applied the week start and turned the journal reminder off at once, the text size and the light theme applied on this device only, Today had no weekly review notice and task and habit rows ended with their checkbox or circle, the \"+\" scrim closed the menu, a task opened without focusing its title, Još showed tiles and Nalog opened its screen, Detalji navike moved a habit's start to the 1st of the month, \"Bez projekta\" opened its screen and \"Novi projekat\" was a sheet, the reminder settings applied, a task's ⋯ menu was a titled sheet (next to its button on a wide screen) and \"Iz šablona\" stayed away without templates, the template editor saved a weekday chip, a task dragged onto \"Sutra\" in the sidebar moved until Poništi, a project opened from Danas said \"‹ Danas\", reopened and found it (tasks: ${second.window.TodoApp.state?.tasks?.length ?? 'n/a'})`);
 process.exit(0);

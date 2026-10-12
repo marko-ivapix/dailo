@@ -261,7 +261,7 @@ test('S13: the menu, pause / resume / restore, the value sheet return and the op
   assert.match(fn('openHabitDetails'), /modalState = \{ type: 'habit-details', habitId, month: Core\.dateOnly\(\)\.slice\(0, 7\), draft: null \};/);
   assert.match(fn('openHabitValue'), /const previous = modalState\?\.type === 'habit-details' \? modalState : null;/);
   assert.match(fn('closeModal'), /if \(modalState\?\.type === 'habit-value' && modalState\.previous\) \{ modalState = modalState\.previous; renderModal\(\); return; \}/);
-  assert.match(fn('setHabitLog'), /render\(\); if \(modalState\?\.type === 'habit-details'\) renderModal\(\); return true;/);
+  assert.match(fn('setHabitLog'), /render\(\); if \(modalState\?\.type === 'habit-details'\) renderModal\(\);( updateWidget\(\);)? return true;/); // R45 refreshes the widget
   assert.doesNotMatch(app, /habitPropertyEditor|'habit-settings'|data-habit-property\]/);
   for (const old of ['renderHabitInsights', 'renderHabitAnalytics', 'heatmapHtml', 'renderHabitProperty', 'saveHabitSettings', 'renderHabitSettingsModal']) assert.doesNotMatch(habitsUi, new RegExp(`function ${old}\\(`), old);
 });

@@ -14,6 +14,7 @@ Jednokratno podešavanje servera za sinhronizaciju (V2.0-a). Traje desetak minut
 2. Nalepi ceo sadržaj fajla `supabase/migrations/0001_sync.sql` iz repozitorijuma i klikni **Run**.
 3. Treba da piše „Success“. Napravljene su tabele `records` i `record_history`, pravila po kojima svaki korisnik vidi samo svoje podatke, i funkcija za brisanje naloga.
 4. Otvori novi upit (**New query**), nalepi ceo sadržaj fajla `supabase/migrations/0002_journal.sql` i klikni **Run**. On dozvoljava sinhronizaciju Dnevnika. Treba ponovo da piše „Success“.
+5. Isto uradi sa `supabase/migrations/0003_attachments.sql`. On pravi privatno skladište **attachments** za priloge (do 10 MB po fajlu, svaki nalog vidi samo svoju fasciklu). Bez njega se prilozi ne sinhronizuju, a **Još → Nalog** to i kaže.
 
 ## 3. Prijava e-poštom i lozinkom
 
@@ -34,6 +35,19 @@ Od verzije `2.0.0-alpha.66` (R40) prijava je e-adresom i lozinkom. Kod iz e-poru
    ```html
    <p>Tvoj Dailo kod za novu lozinku: <strong>{{ .Token }}</strong></p>
    <p>Ako nova lozinka nije tražena sa tvog uređaja, ignoriši ovu poruku.</p>
+   ```
+
+   **Change Email Address** (Subject: `Dailo — nova e-adresa`), za **Još → Nalog → E-adresa → Promeni**:
+
+   ```html
+   <p>Tvoj Dailo kod za promenu e-adrese: <strong>{{ .Token }}</strong></p>
+   <p>Ako promena nije tražena sa tvog uređaja, ignoriši ovu poruku.</p>
+   ```
+
+   **Reauthentication** (samo ako uključiš **Secure password change**):
+
+   ```html
+   <p>Tvoj Dailo kod za promenu lozinke: <strong>{{ .Token }}</strong></p>
    ```
 
    Oznake `<p>` drže rečenice u posebnim redovima; bez njih bi se u e-poruci spojile. Šablon **Magic Link** više nije potreban.
@@ -80,6 +94,8 @@ Ta dva podatka su javna po dizajnu: nalaze se u svakoj aplikaciji koja koristi S
 ## 6. Provera
 
 Na prvom pokretanju aplikacija otvara ekran za prijavu (posle toga: **Još → Nalog → Prijavi se**).
+
+Prvo u **Još → Nalog** dodirni **Proveri server**. Aplikacija pokazuje da li server prihvata ključ, da li postoje tabele (migracije iz koraka 2), da li je registracija uključena i da li su uključeni Google i Apple. Šablone e-poruka i SMTP aplikacija ne može da proveri, pa njih proveri ručno (koraci 3 i 5).
 
 1. **Registruj se**: ime (nije obavezno), e-adresa, lozinka dva puta i saglasnost sa uslovima → **Napravi nalog**. Stiže kod; upiši ga i dodirni **Potvrdi**.
 2. **Sinhronizuj sada** u **Još → Nalog** šalje podatke na server, a na drugom uređaju se posle prijave istom e-adresom i lozinkom pojavljuju isti zadaci.

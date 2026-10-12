@@ -81,8 +81,8 @@ test('Nalog shows the sync card only when sync is configured: the way to sign in
   assert.match(signedIn, /<span data-sync-status><time datetime="2026-10-08T10:00:00\.000Z">/);
   assert.match(signedIn, /<span class="validation" role="alert">Network unavailable: offline<\/span>/);
   for (const action of ['sync-now', 'sync-sign-out', 'sync-delete-account']) assert.match(signedIn, new RegExp(`data-action="${action}"`));
-  assert.match(signedIn, /Attachments stay on the device where they were added\./);
-  assert.match(renderSettings(view({ signedIn: true, email: 'ana@example.com' })), /<span data-privacy-note>Your data is on this device and in your sync account on a server in the EU\. Attachments stay only on this device\.<\/span>/);
+  assert.match(signedIn, /Tasks, projects, goals, habits, notes, attachments and settings sync between your devices\./); // R46
+  assert.match(renderSettings(view({ signedIn: true, email: 'ana@example.com' })), /<span data-privacy-note>Your data, attachments included, is on this device and in your sync account on a server in the EU\.<\/span>/);
   assert.match(renderAccount(view({ signedIn: true, email: 'ana@example.com', running: true })), /<span data-sync-status>Syncing…<\/span>[\s\S]*data-action="sync-now" disabled>/);
   assert.match(renderAccount(view({ signedIn: true, email: 'ana@example.com' })), /<span data-sync-status>Never<\/span>/);
 });
@@ -107,6 +107,8 @@ function syncHarness({ state = baseState(), habitLogs = [], meta = null, fake = 
     setTimeout: (fn, delay) => { calls.timers.push(delay); return calls.timers.length; }, clearTimeout() {},
     requestAnimationFrame: fn => fn(),
     TodoStorage: {
+      // R46: the sync also lists this device's attachments (none here).
+      attachments: { listAll: async () => [], get: async () => null, put: async () => {}, deleteMany: async () => {} },
       habitLogs: {
         listAll: async () => [...logs.values()].map(clone),
         deleteMany: async ids => { for (const id of ids) logs.delete(id); },

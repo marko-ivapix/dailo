@@ -12,4 +12,8 @@
     <string name="widget_name">Dailo · Danas</string>
     <string name="widget_description">Današnji zadaci i „+“ za novi zadatak.</string>
     <string name="widget_open">Otvori Dailo</string>
+    <!-- Redesign R45: the "Navike" widget. -->
+    <string name="widget_habits_name">Dailo · Navike</string>
+    <string name="widget_habits_title">Navike</string>
+    <string name="widget_habits_description">Današnje navike; dodir na naviku je beleži.</string>
 </resources>

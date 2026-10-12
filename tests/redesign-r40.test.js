@@ -159,7 +159,7 @@ function harness({ fake = createFakeSupabase(), meta = null, storage: entries = 
     document: { activeElement: null },
     localStorage: { getItem: key => (storage.has(key) ? storage.get(key) : null), setItem: (key, value) => storage.set(key, String(value)), removeItem: key => storage.delete(key) },
     setTimeout: () => 1, clearTimeout() {}, requestAnimationFrame: run => run(),
-    TodoStorage: { habitLogs: { listAll: async () => [], deleteMany: async () => {}, put: async () => {} }, createAutomaticSnapshot: async () => 'snap' },
+    TodoStorage: { habitLogs: { listAll: async () => [], deleteMany: async () => {}, put: async () => {} }, attachments: { listAll: async () => [] }, createAutomaticSnapshot: async () => 'snap' },
     normalizeState: value => clone(value),
     Core: { pruneDanglingReferences: require('../js/core.js').pruneDanglingReferences, settleArrivedReminders: require('../js/core.js').settleArrivedReminders },
     nowIso: () => '2026-10-12T08:00:00.000Z',
@@ -353,7 +353,7 @@ test('Google in the phone app: the system browser, dailo://auth, and a refusal s
   // The app's link handler hands dailo://auth to the sign-in before it closes any window.
   const link = fn('handleIncomingLink');
   assert.match(link, /if \(target === 'auth'\) \{ finishProviderSignIn\(link\.searchParams\); return true; \}\n    closePopover\(\);/);
-  assert.match(link, /\['new-task', 'today', 'journal', 'share', 'auth'\]\.includes\(target\)/);
+  assert.match(link, /\['new-task', 'today', 'journal', 'share', 'auth'(, '[a-z-]+')*\]\.includes\(target\)/);
   assert.match(link, /if \(modalState\?\.type === 'welcome'\) dismissWelcome\(\);\n    else if \(modalState\) \{ flushTextSave\(\); closeModal\(\); \}/, 'a shortcut puts the screen away without answering it');
   assert.match(read('js/platform.js'), /function closeExternal\(\) \{\n      if \(!isNative\) return;\n      Promise\.resolve\(plugin\('Browser'\)\?\.close\?\.\(\)\)/);
   assert.match(read('js/platform.js'), /links: Object\.freeze\(\{ openExternal, closeExternal, interceptExternalLinks, onAppLink \}\)/);
@@ -363,7 +363,8 @@ test('wiring: start, the form, the actions, Nalog and the old e-mail code', () =
   assert.match(fn('init'), /startPlatform\(\);\n    startWelcome\(\);/);
   // The first start replaces an empty address with #today; that change of address must not close the screen.
   assert.ok(app.includes("window.addEventListener('hashchange', () => { closePopover(); if (!['sync-choice', 'welcome'].includes(modalState?.type)) closeModal(); render(); });"));
-  assert.match(app, /document\.addEventListener\('submit', event => \{\n      if \(!event\.target\?\.matches\?\.\('\[data-welcome-form\]'\)\) return;\n      event\.preventDefault\(\);\n      welcomeSubmit\(\);\n    \}\);/);
+  // R43: the account sheets share the listener.
+  assert.match(app, /document\.addEventListener\('submit', event => \{\n      const form = event\.target\?\.closest\?\.\('\[data-welcome-form\], \[data-account-form\]'\);\n      if \(!form\) return;\n      event\.preventDefault\(\);\n      if \(form\.matches\('\[data-welcome-form\]'\)\) welcomeSubmit\(\);/);
   for (const [action, call] of [['open-welcome', 'openWelcome(el.dataset.mode)'], ['welcome-mode', 'welcomeMode(el.dataset.mode)'], ['welcome-skip', 'skipWelcome()'], ['welcome-provider', 'startProviderSignIn(el.dataset.provider)'], ['welcome-resend', 'welcomeResend()'], ['welcome-toggle-password', 'toggleWelcomePassword()']]) {
     assert.ok(app.includes(`else if (action === '${action}') ${call};`), action);
   }

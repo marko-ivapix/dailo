@@ -200,7 +200,7 @@ test('the floating "+" adds a task for the screen it is on', () => {
   assert.deepEqual(at({ type: 'project', id: 'none' }), { anytime: true });
   assert.deepEqual(at({ type: 'tasks' }), { anytime: true });
   assert.deepEqual(at({ type: 'inbox' }), {});
-  assert.match(app, /else if \(action === 'quick-add'\) \{ const context = el\.closest\('#mobile-quick-add-menu'\) \? routeQuickAddContext\(\) : \{ projectId: el\.dataset\.projectId \|\| null, areaId: el\.dataset\.areaId \|\| null, today: el\.dataset\.today === 'true', anytime: el\.dataset\.anytime === 'true' \}; if \(context\) openQuickAdd\(context\); else setToastMessage\(tr\('Restore the project to add tasks\.'\)\); \}/);
+  assert.match(app, /else if \(action === 'quick-add'\) \{ const context = el\.closest\('#mobile-quick-add-menu'\) \? routeQuickAddContext\(\) : \{ projectId: el\.dataset\.projectId \|\| null, areaId: el\.dataset\.areaId \|\| null, today: el\.dataset\.today === 'true', anytime: el\.dataset\.anytime === 'true', plannedDate: Core\.parseDateOnly\(el\.dataset\.date\) \? el\.dataset\.date : null \}; if \(context\) openQuickAdd\(context\); else setToastMessage\(tr\('Restore the project to add tasks\.'\)\); \}/);
   assert.match(sr, /"Restore the project to add tasks\.": "Vrati projekat da bi dodao zadatke\."/);
 });
 

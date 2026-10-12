@@ -62,7 +62,7 @@ test('focus stays on the control after a window redraws', () => {
   assert.match(render, /const focused = root\.dataset\.modalType === modalState\.type \? focusDescriptor\(document\.activeElement, '#modal-root'\) : null;/);
   assert.match(render, /root\.dataset\.modalType = modalState\.type;/);
   assert.match(render, /if \(focused && !root\.contains\(document\.activeElement\)\) \$\(focused\)\?\.focus\(\{ preventScroll: true \}\);/);
-  assert.match(fn('focusDescriptor'), /function focusDescriptor\(element, regions = '#main, #mobile-bottom-nav'\)/);
+  assert.match(fn('focusDescriptor'), /function focusDescriptor\(element, regions = '#main, #mobile-bottom-nav, #desktop-sidebar'\)/); // R47a
 });
 
 test('wording: one name for finishing a goal, "Više opcija", the ellipsis, "Završeni zadaci" on the tile', () => {

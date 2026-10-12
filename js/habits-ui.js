@@ -307,23 +307,26 @@
     const todayShare = Core.habitDayPercent(active, state.habitLogCache || {}, thisWeek.today, thisWeek.today, thisWeek.rule);
     let html = pageHeader(tr('Habits'), active.length ? tr('{done} of {total} today', { done: todayShare.done, total: todayShare.planned }) : '', { add: false });
     if (!habits.length) return html + emptyState(tr('No habits yet.'), tr('Track a repeatable behavior without turning it into a task.'), tr('New habit'), 'new-habit');
+    // R47c (K7): the list on the left and Napredak on the right where there is room; a phone reads them in turn.
+    let main = '';
+    let side = '';
     if (active.length) {
       const view = state.ui.habitsView === 'week' ? 'week' : 'day';
       const week = shownWeek(ctx, active);
       const day = shownDay(ctx, week);
-      html += weekNav(ctx, week);
-      html += habitRings(ctx, active, week, view === 'day' ? day : null);
-      html += `<div class="view-tabs habits-view-switch" role="group" aria-label="${tr('Habit view')}">${[['day', tr('Day')], ['week', tr('Week')]].map(([key, label]) => `<button class="btn${view === key ? ' is-selected' : ''}" type="button" data-action="habits-view" data-view="${key}" aria-pressed="${view === key}">${label}</button>`).join('')}</div>`;
-      if (view === 'week') html += renderHabitsWeek(ctx, active, week);
-      else html += day ? renderHabitsDay(ctx, active, week, day) : `<p class="today-empty">${tr('This week has not started yet. The Week view shows what is planned.')}</p>`;
+      main = weekNav(ctx, week);
+      main += habitRings(ctx, active, week, view === 'day' ? day : null);
+      main += `<div class="view-tabs habits-view-switch" role="group" aria-label="${tr('Habit view')}">${[['day', tr('Day')], ['week', tr('Week')]].map(([key, label]) => `<button class="btn${view === key ? ' is-selected' : ''}" type="button" data-action="habits-view" data-view="${key}" aria-pressed="${view === key}">${label}</button>`).join('')}</div>`;
+      if (view === 'week') main += renderHabitsWeek(ctx, active, week);
+      else main += day ? renderHabitsDay(ctx, active, week, day) : `<p class="today-empty">${tr('This week has not started yet. The Week view shows what is planned.')}</p>`;
       // The bars follow a past week; next week has nothing done yet, so they stay on this one.
       const barsWeek = week.start > week.current ? thisWeek : week;
       const barsTitle = barsWeek.start === week.current ? tr('By habit · this week') : tr('By habit · {range}', { range: weekRange(ctx, barsWeek.days) });
-      html += `<section class="section habits-progress"><div class="section-header"><h2 class="section-label">${tr('Progress')}</h2></div><div class="today-card habits-bars"><p class="habits-bars-title">${ctx.esc(barsTitle)}</p>${habitBars(ctx, active, barsWeek)}</div>${habitChart(ctx, active, thisWeek)}</section>`;
-    } else html += `<p class="today-empty">${tr('No active habits.')}</p>`;
-    html += habitFold(ctx, 'paused', tr('Paused habits'), habits.filter(habit => habit.status === 'paused'), 'resume-habit', tr('Resume'));
-    html += habitFold(ctx, 'archived', tr('Archived habits'), habits.filter(habit => habit.status === 'archived'), 'restore-habit', tr('Restore'));
-    return html;
+      side = `<section class="section habits-progress"><div class="section-header"><h2 class="section-label">${tr('Progress')}</h2></div><div class="today-card habits-bars"><p class="habits-bars-title">${ctx.esc(barsTitle)}</p>${habitBars(ctx, active, barsWeek)}</div>${habitChart(ctx, active, thisWeek)}</section>`;
+    } else main = `<p class="today-empty">${tr('No active habits.')}</p>`;
+    let rest = habitFold(ctx, 'paused', tr('Paused habits'), habits.filter(habit => habit.status === 'paused'), 'resume-habit', tr('Resume'));
+    rest += habitFold(ctx, 'archived', tr('Archived habits'), habits.filter(habit => habit.status === 'archived'), 'restore-habit', tr('Restore'));
+    return html + ctx.screenColumns(main, side, rest);
   }
 
   // Redesign R8b (N1–N6): the new habit window. The draft lives in ctx.modalState.draft; the rows open small sheets

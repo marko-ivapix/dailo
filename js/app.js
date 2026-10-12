@@ -53,6 +53,8 @@
   const SHORT_DATE_YEAR_FMT = new Intl.DateTimeFormat(I18n.locale(), { month: 'short', day: 'numeric', year: 'numeric' });
   const WEEKDAY_FMT = new Intl.DateTimeFormat(I18n.locale(), { weekday: 'long' });
   const SHORTCUT_DEFAULTS = { newTask:'N', search:'Ctrl/Cmd+F', today:'T', inbox:'I', upcoming:'U', calendar:'C', goals:'G', habits:'H', templates:'Shift+T' };
+  // R47a (K10): fixed keys on top of the editable shortcuts — 1–5 open the main screens.
+  const DESKTOP_KEYS = Object.freeze({ 1: 'today', 2: 'inbox', 3: 'tasks', 4: 'calendar', 5: 'habits' });
   const SHORTCUT_LABELS = {newTask:msg('New task'),search:msg('Search'),today:msg('Today'),inbox:msg('Inbox'),upcoming:msg('Upcoming'),calendar:msg('Calendar'),goals:msg('Goals'),habits:msg('Habits'),templates:msg('Templates')};
   const INBOX_FILTERS = [['all', msg('All')], ['tasks', msg('Tasks')], ['goals', msg('Goals')], ['habits', msg('Habits')], ['notes', msg('Notes')], ['resources', msg('Resources')]];
   let shortcutError = '';
@@ -89,6 +91,9 @@
   let lastToday = Core.dateOnly();
   let dragState = null;
   let taskSwipeState = null;
+  // R44: a horizontal swipe over the week bar or the rings on Navike (start point), and the click it must swallow.
+  let weekSwipe = null;
+  let suppressWeekSwipeClick = false;
   let suppressTaskSwipeClick = false;
   let touchReorder = null;
   let modalReturnFocus = null;
@@ -115,10 +120,15 @@
   // there and its label says what;
   // elsewhere it opens the menu.
   const QUICK_ADD_DIRECT = Object.freeze({ '#goals': [msg('New goal'), () => openGoalModal()], '#habits': [msg('New habit'), () => openHabitModal()], '#areas': [msg('New area'), () => callDomainHook('handleAction', 'new-area', { target: $('#mobile-quick-add-toggle') })], '#notes': [msg('New note'), () => openKnowledgeWindow('note')], '#resources': [msg('New resource'), () => openKnowledgeWindow('resource')], '#tags': [msg('New tag'), () => openTagModal()], '#templates': [msg('New template'), () => callDomainHook('handleAction', 'new-template', { target: $('#mobile-quick-add-toggle') })], '#saved-views': [msg('New saved view'), () => callDomainHook('handleAction', 'new-saved-view', { target: $('#mobile-quick-add-toggle') })], '#cleaning': [msg('New recurring task'), () => callDomainHook('handleAction', 'new-cleaning-chore', { target: $('#mobile-quick-add-toggle') })], '#journal': [msg('Today’s entry'), () => callDomainHook('handleAction', 'open-journal', { target: $('#mobile-quick-add-toggle') })] });
-  const quickAddDirect = () => QUICK_ADD_DIRECT[location.hash] || null;
+  // R47a (K12): on a wide screen the "+" never opens the menu: where nothing else belongs it adds a task.
+  const DESKTOP_NEW_TASK = Object.freeze([msg('New task'), () => openQuickAdd({})]);
+  const wideScreen = () => Boolean(globalThis.matchMedia?.('(min-width: 1024px)').matches);
+  const quickAddDirect = () => QUICK_ADD_DIRECT[location.hash] || (wideScreen() ? DESKTOP_NEW_TASK : null);
   function syncQuickAddToggle() {
     const toggle = $('#mobile-quick-add-toggle');
     if (toggle && (quickAddDirect() || !toggle.hasAttribute('aria-expanded'))) setMobileQuickAddOpen(false);
+    const label = $('#quick-add-label');
+    if (label) label.textContent = tr(quickAddDirect()?.[0] || msg('New task'));
   }
 
   function setMobileQuickAddOpen(open) {
@@ -669,7 +679,7 @@
       putGoalHistory, goalDraft, openGoalModal, openPopover, templateMenuEntry, syncGoalLinks,
       maybePromptGoalReached, updateGoalStatus, saveAndRender,
       $, $$, esc, PROJECT_COLORS, AREA_ICONS, areaIconName: icon => (AREA_ICON_NAMES[icon] ? tr(AREA_ICON_NAMES[icon]) : tr('Select area icon')), knowledgeCollection, getArea, sortedAreas, attachmentOwner,
-      pageHeader, modalFrame, renderMain, renderModal, currentRoute,
+      pageHeader, modalFrame, renderMain, renderModal, currentRoute, screenColumns,
       knowledgeAttachmentCache, readOwnerAttachments, renderAttachmentRow,
       renderAttachmentsSection, loadOwnerAttachments, addAttachments,
       closePopover, flushTextSave, scheduleTextSave, goalFocusTarget, closeModal,
@@ -930,7 +940,7 @@
   // Focus survives a re-render (audit A-2): the focused control in the main view or bottom navigation is
   // found again by its id or data attributes. A route change names the page and moves focus to its heading.
   const FOCUS_KEYS = ['action', 'route', 'taskId', 'projectId', 'goalId', 'habitId', 'areaId', 'tagId', 'ownerType', 'ownerId', 'date', 'goalProperty', 'habitProperty', 'milestoneId', 'section', 'filter', 'value'];
-  function focusDescriptor(element, regions = '#main, #mobile-bottom-nav') {
+  function focusDescriptor(element, regions = '#main, #mobile-bottom-nav, #desktop-sidebar') {
     const region = element instanceof HTMLElement && element !== document.body ? element.closest(regions) : null;
     if (!region) return null;
     // Rendering must never fail on focus bookkeeping, so a missing CSS.escape (old WebViews, jsdom) has a fallback.
@@ -993,10 +1003,12 @@
     if (recovery) {
       $('#main').innerHTML = renderRecovery();
       renderMobileBottomNav();
+      renderSidebar();
       return;
     }
     renderMain();
     renderMobileBottomNav();
+    renderSidebar();
   }
 
   // Redesign R1 (G1, M4): six bottom items; every other route lights up the item it lives under.
@@ -1165,21 +1177,30 @@
       ...sections.milestones.map(item => deadlineRow(item, today)),
     ];
     html += gestureHint(overdueRows.length + plannedRows.length > 0);
-    if (overdueRows.length) html += section('overdue', tr('Past due'), overdueRows.length, `<div class="task-list today-card">${todayLimited('overdue', overdueRows)}</div>`, true);
-    html += section('today', tr('Planned today'), plannedRows.length, `<div class="task-list today-card" data-list-context="today">${plannedRows.length ? todayLimited('today', plannedRows) : `<p class="today-empty">${tr('Nothing planned. “+” adds a task for today.')}</p>`}</div><button class="inline-add" type="button" data-action="quick-add" data-today="true"><i class="ph ph-plus"></i> ${tr('Add task')}</button>`);
+    // R47c (K7): the tasks on the left and the habits on the right where there is room; a phone reads them in turn.
+    let main = '';
+    if (overdueRows.length) main += section('overdue', tr('Past due'), overdueRows.length, `<div class="task-list today-card">${todayLimited('overdue', overdueRows)}</div>`, true);
+    main += section('today', tr('Planned today'), plannedRows.length, `<div class="task-list today-card" data-list-context="today">${plannedRows.length ? todayLimited('today', plannedRows) : `<p class="today-empty">${tr('Nothing planned. “+” adds a task for today.')}</p>`}</div><button class="inline-add" type="button" data-action="quick-add" data-today="true"><i class="ph ph-plus"></i> ${tr('Add task')}</button>`);
     // R30 (finding 8): tasks due today and missed plans wait in Zadaci → "Predlozi za danas"; Danas links there.
     const suggestions = Core.deriveTodaySections(listTasks(), today).suggestions;
-    if (suggestions.length) html += `<button class="today-suggestions-link" type="button" data-action="open-today-suggestions"><i class="ph ph-lightbulb" aria-hidden="true"></i><span>${tr('Suggested for today')}</span><span class="today-suggestions-count">${suggestions.length}</span><i class="ph ph-caret-right" aria-hidden="true"></i></button>`;
+    if (suggestions.length) main += `<button class="today-suggestions-link" type="button" data-action="open-today-suggestions"><i class="ph ph-lightbulb" aria-hidden="true"></i><span>${tr('Suggested for today')}</span><span class="today-suggestions-count">${suggestions.length}</span><i class="ph ph-caret-right" aria-hidden="true"></i></button>`;
     // Done habits move to the bottom (T5).
     const habits = [...sections.habits.filter(item => item.status.status !== 'done'), ...sections.habits.filter(item => item.status.status === 'done')];
-    if (habits.length) html += section('habits', tr('Habits'), `${habits.length - sections.habits.filter(item => item.status.status !== 'done').length}/${habits.length}`, `<div class="habit-list today-card">${todayLimited('habits', habits.map(item => renderHabitTodayRow(item.habit, item.status)))}</div>${yesterdayHabitsNote()}`);
+    const side = habits.length ? section('habits', tr('Habits'), `${habits.length - sections.habits.filter(item => item.status.status !== 'done').length}/${habits.length}`, `<div class="habit-list today-card">${todayLimited('habits', habits.map(item => renderHabitTodayRow(item.habit, item.status)))}</div>${yesterdayHabitsNote()}`) : '';
+    let rest = '';
     if (sections.completed.length) {
       const open = state.ui.todayCompletedExpanded === true;
-      html += `<section class="section today-section today-section--completed" data-today-section="completed">${foldButton('toggle-today-completed', tr('Completed'), sections.completed.length, open)}`;
-      if (open) html += `<div class="task-list today-card">${sections.completed.map(task => taskRow(task, 'completed', { today: true })).join('')}</div>`;
-      html += `</section>`;
+      rest += `<section class="section today-section today-section--completed" data-today-section="completed">${foldButton('toggle-today-completed', tr('Completed'), sections.completed.length, open)}`;
+      if (open) rest += `<div class="task-list today-card">${sections.completed.map(task => taskRow(task, 'completed', { today: true })).join('')}</div>`;
+      rest += `</section>`;
     }
-    return html;
+    return html + screenColumns(main, side, rest);
+  }
+
+  // R47c (K7): two columns where there is room (CSS, from 1280 px on): the main part with what follows it on the left
+  // and the side part on the right. A phone reads the main part, the side part and the rest in that order.
+  function screenColumns(main, side = '', rest = '') {
+    return `<div class="screen-columns${side ? ' has-side' : ''}"><div class="screen-main">${main}</div>${side ? `<div class="screen-side">${side}</div>` : ''}${rest ? `<div class="screen-rest">${rest}</div>` : ''}</div>`;
   }
 
   // Redesign R6 (I1–I6): the waiting count, "Razvrstaj redom", filters only for the types present, the capture groups.
@@ -1253,6 +1274,95 @@
     const rule = taskRecurrence(task);
     return Boolean(rule && rule.status !== 'ended' && !task.isCompleted && !task.isInbox && !getProject(task.projectId)?.isArchived);
   }
+  // R47a (K1): on a wide screen the sidebar replaces the bottom bar and "Još" (CSS shows it from 1024 px on): the brand
+  // and sync state, Pretraga, the main screens with Danas's count and the Inbox badge, Zakačeno, Projekti by area,
+  // the groups of "Još" (they fold, remembered on this device) and, at the bottom, Podešavanja and Nalog.
+  function renderSidebar() {
+    const aside = $('#desktop-sidebar');
+    if (!aside) return;
+    aside.hidden = Boolean(recovery) || !state;
+    if (aside.hidden) return;
+    const route = currentRoute();
+    const active = (location.hash || '#today').replace(/^#/, '');
+    const folds = readSidebarFolds();
+    const collapsed = document.documentElement.dataset.sidebar === 'collapsed';
+    const isActive = target => target === active || (['today', 'inbox', 'tasks', 'calendar', 'habits'].includes(target) && bottomNavRoute(route) === target);
+    const sidebarItem = (target, icon, label, count = '', badge = false) => {
+      const on = isActive(target);
+      return `<button class="sidebar-item${on ? ' is-active' : ''}" type="button" data-route="${esc(target)}"${on ? ' aria-current="page"' : ''} title="${esc(label)}"><i class="ph ${esc(icon)}" aria-hidden="true"></i><span class="sidebar-label">${esc(label)}</span>${count ? `<span class="sidebar-count${badge ? ' is-badge' : ''}">${esc(count)}</span>` : ''}</button>`;
+    };
+    // A folded group still shows the screen that is open.
+    const sidebarGroup = (key, title, items, foldable = true) => {
+      if (!items.length) return '';
+      const open = !foldable || folds[key] !== true;
+      const head = foldable ? `<button class="sidebar-group-title" type="button" data-action="sidebar-fold" data-group="${key}" aria-expanded="${open}"><span class="sidebar-label">${title}</span><i class="ph ph-caret-${open ? 'down' : 'right'}" aria-hidden="true"></i></button>` : `<h2 class="sidebar-group-title"><span class="sidebar-label">${title}</span></h2>`;
+      return `<section class="sidebar-group">${head}${(open ? items : items.filter(item => item.includes('is-active'))).join('')}</section>`;
+    };
+    const sections = Core.deriveTodaySections(listTasks(), Core.dateOnly());
+    const todayCount = sections.overdue.length + sections.today.length || '';
+    const inboxCount = activeInboxRecords('all').length || '';
+    const sync = syncView();
+    const syncLine = !sync.configured ? tr('Data is on this device only') : !sync.signedIn ? tr('Not signed in') : sync.running ? tr('Syncing…')
+      : sync.lastSyncAt ? tr('Synced {time}', { time: new Date(sync.lastSyncAt).toLocaleTimeString(I18n.locale(), { hour: '2-digit', minute: '2-digit' }) }) : sync.email;
+    const pinned = [
+      ...sortedAreas().filter(area => area.status !== 'archived' && area.isPinned).map(area => sidebarItem(`area/${encodeURIComponent(area.id)}`, area.icon || 'ph-squares-four', area.name)),
+      ...(state.savedViews || []).filter(view => view.isPinned).map(view => sidebarItem(`saved-view/${encodeURIComponent(view.id)}`, 'ph-funnel', view.name)),
+      ...(state.notes || []).filter(note => note.favorite).sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt))).slice(0, 4).map(note => sidebarItem(`note/${encodeURIComponent(note.id)}`, 'ph-note', note.title)),
+    ];
+    const projectItems = sidebarProjectGroups().flatMap(group => [`<p class="sidebar-subtitle">${esc(group.title)}</p>`, ...group.projects.map(project => sidebarItem(`project/${encodeURIComponent(project.id)}`, 'ph-folder', project.name, project.open || ''))]);
+    aside.innerHTML = `<div class="sidebar-top"><span class="sidebar-brand"><img src="icons/icon.svg" alt="" width="28" height="28" /><span class="sidebar-label">Dailo</span></span><button class="btn-icon sidebar-collapse" type="button" data-action="toggle-sidebar" aria-label="${collapsed ? tr('Unfold the sidebar') : tr('Fold the sidebar')}" aria-expanded="${!collapsed}"><i class="ph ph-sidebar-simple" aria-hidden="true"></i></button></div>`
+      + `<p class="sidebar-sync">${esc(syncLine)}</p>`
+      + `<button class="sidebar-item" type="button" data-action="open-search" title="${tr('Search')}"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><span class="sidebar-label">${tr('Search')}</span><kbd class="sidebar-key">/</kbd></button>`
+      + `<nav class="sidebar-nav" aria-label="${tr('Main screens')}">${sidebarItem('today', 'ph-sun', tr('Today'), todayCount)}<div class="sidebar-drop" data-sidebar-drop="tomorrow"><i class="ph ph-arrow-bend-down-right" aria-hidden="true"></i><span class="sidebar-label">${tr('Drag here for tomorrow')}</span></div>${sidebarItem('inbox', 'ph-tray', tr('Inbox'), inboxCount, true)}${sidebarItem('tasks', 'ph-list-checks', tr('Tasks'))}${sidebarItem('calendar', 'ph-calendar-blank', tr('Calendar'))}${sidebarItem('habits', 'ph-repeat', tr('Habits'))}</nav>`
+      + sidebarGroup('pinned', tr('Pinned'), pinned, false)
+      + sidebarGroup('projects', tr('Projects'), projectItems, false)
+      + sidebarGroup('planning', tr('Planning'), [sidebarItem('goals', 'ph-target', tr('Goals')), sidebarItem('areas', 'ph-squares-four', tr('Areas')), sidebarItem('cleaning', 'ph-arrows-clockwise', tr('Recurring tasks')), sidebarItem('review', 'ph-clipboard-text', tr('Weekly review'))])
+      + sidebarGroup('library', tr('Library'), [sidebarItem('notes', 'ph-note', tr('Notes')), sidebarItem('journal', 'ph-book-open', tr('Journal')), sidebarItem('resources', 'ph-link', tr('Resources')), sidebarItem('tags', 'ph-tag', tr('Tags')), sidebarItem('templates', 'ph-copy', tr('Templates')), sidebarItem('saved-views', 'ph-funnel', tr('Saved Views'))])
+      + sidebarGroup('archives', tr('Archives'), [sidebarItem('completed', 'ph-check-circle', tr('Completed tasks')), sidebarItem('archived', 'ph-archive', tr('Archived Projects'))])
+      + `<div class="sidebar-bottom">${sidebarItem('settings', 'ph-gear', tr('Settings'))}${sidebarItem('account', 'ph-user-circle', tr('Account'))}</div>`;
+  }
+
+  // R47a (K1): the sidebar's projects, grouped by area in the areas' order and then those without one, with open counts.
+  function sidebarProjectGroups() {
+    const projects = sortedProjects().filter(project => !project.isCleaningRoom);
+    const entry = project => ({ id: project.id, name: project.name, open: projectTasks(project.id).filter(task => !task.isCompleted).length });
+    const areas = sortedAreas();
+    const groups = areas.map(area => ({ title: area.name, projects: projects.filter(project => project.areaId === area.id).map(entry) })).filter(group => group.projects.length);
+    const known = new Set(areas.map(area => area.id));
+    const loose = projects.filter(project => !project.areaId || !known.has(project.areaId)).map(entry);
+    return loose.length ? [...groups, { title: tr('Without area'), projects: loose }] : groups;
+  }
+
+  function readSidebarFolds() {
+    try {
+      const value = JSON.parse(localStorage.getItem('dailoSidebarFolds') || '{}');
+      return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+    } catch (_) { return {}; }
+  }
+
+  function toggleSidebarFold(group) {
+    if (!['planning', 'library', 'archives'].includes(group)) return;
+    const folds = readSidebarFolds();
+    folds[group] = !folds[group];
+    try { localStorage.setItem('dailoSidebarFolds', JSON.stringify(folds)); } catch (_) { /* this session only */ }
+    renderSidebar();
+  }
+
+  // The sidebar folds to a strip of icons (the button at its top, or "["); the choice is remembered on this device.
+  function toggleSidebar() {
+    const collapsed = document.documentElement.dataset.sidebar !== 'collapsed';
+    if (collapsed) document.documentElement.dataset.sidebar = 'collapsed';
+    else delete document.documentElement.dataset.sidebar;
+    try { localStorage.setItem('dailoSidebar', collapsed ? 'collapsed' : 'open'); } catch (_) { /* this session only */ }
+    renderSidebar();
+  }
+
+  // R47a (K10): T in Kalendar selects today.
+  function calendarToday() {
+    state.ui.calendarDate = Core.dateOnly();
+    saveAndRender();
+  }
+
   function renderMoreScreen() {
     const card = (title, rows) => `<section class="more-group">${title ? `<h2 class="more-group-title">${title}</h2>` : ''}<div class="more-card more-tiles">${rows.join('')}</div></section>`;
     const pinned = [
@@ -2624,6 +2734,7 @@
     if (!popoverEl) return;
     popoverEl.innerHTML = html;
     decorateSheet(popoverEl);
+    placePopover(popoverEl);
     const title = popoverEl.querySelector('.popover-title');
     if (title) {
       title.id = title.id || `popover-title-${Date.now().toString(36)}`;
@@ -2943,7 +3054,7 @@
     el.prepend(header);
     // R33 (finding 29): the grabber works: dragging the header down more than 80 px closes the sheet.
     header.addEventListener('pointerdown', event => {
-      if (event.target.closest?.('button') || (event.pointerType === 'mouse' && event.button !== 0)) return;
+      if (wideScreen() || event.target.closest?.('button') || (event.pointerType === 'mouse' && event.button !== 0)) return;
       const startY = event.clientY; let drag = 0;
       const move = moveEvent => { drag = Math.max(0, moveEvent.clientY - startY); el.style.transform = drag ? `translateY(${drag}px)` : ''; };
       const end = () => {
@@ -2977,16 +3088,49 @@
     popoverEl.innerHTML = html;
     decorateSheet(popoverEl);
     labelSheet(popoverEl);
+    placePopover(popoverEl);
     requestAnimationFrame(() => ((focusSelector && popoverEl?.querySelector(focusSelector)) || (popoverEl && sheetInitialFocus(popoverEl)))?.focus());
+  }
+
+  // R47b (K6): on a wide screen a picker opens under the row that opened it, or above it when it fits only there, or
+  // shifted to fit the window; a row wider than the picker lines up with its value on the right.
+  const POPOVER_WIDTH = 380;
+  function anchoredPopoverPosition(rect, size, viewport, gap = 6, margin = 12) {
+    const width = Math.min(size.width, viewport.width - 2 * margin);
+    const height = Math.min(size.height, viewport.height - 2 * margin);
+    const below = viewport.height - rect.bottom - gap - margin;
+    const above = rect.top - gap - margin;
+    const top = height <= below ? rect.bottom + gap : height <= above ? rect.top - gap - height : Math.max(margin, viewport.height - margin - height);
+    const left = rect.width > width ? rect.right - width : rect.left;
+    return { left: Math.round(Math.min(Math.max(margin, left), viewport.width - width - margin)), top: Math.round(top), maxHeight: Math.round(viewport.height - 2 * margin) };
+  }
+
+  // Places a sheet for the screen width: a bottom sheet on a phone; on a wide screen a popover next to its row (kept
+  // in place when the row is redrawn) or, for the repeat editor and pickers without a row, a centered window.
+  function placePopover(el) {
+    el.classList.remove('popover--anchored', 'popover--center');
+    el.backdrop?.classList.remove('is-clear');
+    el.style.left = el.style.top = el.style.maxHeight = '';
+    if (!wideScreen()) return;
+    const box = el.anchor?.isConnected ? el.anchor.getBoundingClientRect?.() : null;
+    if (box && (box.width || box.height)) el.anchorRect = { left: box.left, top: box.top, right: box.right, bottom: box.bottom, width: box.width, height: box.height };
+    if (el.dataset.popoverType === 'repeat' || !el.anchorRect) { el.classList.add('popover--center'); return; }
+    el.classList.add('popover--anchored');
+    el.backdrop?.classList.add('is-clear');
+    const place = anchoredPopoverPosition(el.anchorRect, { width: el.offsetWidth || POPOVER_WIDTH, height: el.scrollHeight }, { width: innerWidth, height: innerHeight });
+    Object.assign(el.style, { left: `${place.left}px`, top: `${place.top}px`, maxHeight: `${place.maxHeight}px` });
   }
 
   function openPopover(anchor, html, meta = {}) {
     closePopover();
     const backdrop = document.createElement('div');
     backdrop.className = 'sheet-backdrop';
+    // The page under a picker does not scroll away from it.
+    backdrop.addEventListener('wheel', event => event.preventDefault(), { passive: false });
     const el = document.createElement('div');
     el.className = 'popover popover--sheet';
     el.dataset.popoverType = meta.type || '';
+    el.anchor = anchor;
     el.innerHTML = html;
     el.setAttribute('role', 'dialog');
     labelSheet(el);
@@ -2997,6 +3141,7 @@
     el.backdrop = backdrop;
     document.body.appendChild(backdrop);
     document.body.appendChild(el);
+    placePopover(el);
     popoverEl = el;
     requestAnimationFrame(() => sheetInitialFocus(el)?.focus());
   }
@@ -4157,7 +4302,7 @@
       reportStorageFailure(rollbackError ? new AggregateError([error, rollbackError], msg('Habit check-in failed and rollback needs attention.')) : error);
       return null;
     }
-    evaluateGoalProgressChanges(before); await evaluateHabitBoundaries(); render(); if (modalState?.type === 'habit-details') renderModal(); return true;
+    evaluateGoalProgressChanges(before); await evaluateHabitBoundaries(); render(); if (modalState?.type === 'habit-details') renderModal(); updateWidget(); return true;
   }
 
   async function evaluateHabitBoundaries() {
@@ -4307,8 +4452,8 @@
 
   function syncView() {
     const meta = syncMeta || loadSyncMeta();
-    return { configured: Boolean(syncClient), signedIn: Boolean(meta.session?.accessToken), email: meta.session?.user?.email || '', name: meta.session?.user?.name || '',
-      running: syncRunning, lastSyncAt: meta.lastSyncAt || null, lastError: meta.lastError || '' };
+    return { configured: Boolean(syncClient), signedIn: Boolean(meta.session?.accessToken), email: meta.session?.user?.email || '', name: meta.session?.user?.name || '', serverCheck,
+      running: syncRunning, lastSyncAt: meta.lastSyncAt || null, lastError: meta.lastError || '', fileError: meta.fileError || '' };
   }
 
   function editingText() {
@@ -4344,8 +4489,9 @@
     try {
       result = await Sync.syncOnce({
         client: syncClient, meta, mode,
-        readLocal: async () => { const habitLogs = await TodoStorage.habitLogs.listAll(); return { state, habitLogs }; },
+        readLocal: async () => { const habitLogs = await TodoStorage.habitLogs.listAll(); return { state, habitLogs, attachments: await syncAttachmentList() }; },
         writeLocal: applySyncResult,
+        files: syncFiles,
       });
       if (result.status === 'error' && result.error === SYNC_DEFERRED) { meta.lastError = null; scheduleSync(15000); }
       else if (result.status === 'error' && result.code === 401) delete meta.session;
@@ -4376,6 +4522,8 @@
       if (!saveState()) { state = previous; throw new Error(msg('Changes could not be saved locally. Try again.')); }
     } finally { applyingSync = false; }
     if (result.habitLogDeletes.length) await TodoStorage.habitLogs.deleteMany(result.habitLogDeletes);
+    // R46: files deleted on another device leave this one (their owners already dropped them above).
+    if (result.fileDeletes?.length) await TodoStorage.attachments.deleteMany(result.fileDeletes);
     for (const log of result.habitLogPuts) await TodoStorage.habitLogs.put(log);
     await refreshHabitMetrics();
     render();
@@ -4390,6 +4538,147 @@
     delete meta.cursor;
     syncMeta = meta;
     saveSyncMeta();
+  }
+
+  // R46: what the sync needs of this device's attachments: the list (without files in the Undo window), a file to
+  // upload, and a place for a downloaded one under its owner. An owner that has not arrived yet makes the file wait.
+  async function syncAttachmentList() {
+    return (await TodoStorage.attachments.listAll()).filter(record => !record.pendingDeleteUntil);
+  }
+  const syncFiles = {
+    async read(id) {
+      const record = await TodoStorage.attachments.get(id);
+      return record && !record.pendingDeleteUntil ? record.blob : null;
+    },
+    async store(data, blob) {
+      if (!state || syncWaiting() || globalOperation || recovery) return false;
+      const owner = attachmentOwner({ ownerType: data.ownerType, ownerId: data.ownerId });
+      if (!owner) return false;
+      const ids = owner.item.attachmentIds || [];
+      // A full owner on this device keeps the file only in the account.
+      if (!ids.includes(data.id) && ids.length >= MAX_ATTACHMENTS_PER_TASK) return true;
+      const identity = data.ownerType === 'task' ? { taskId: data.ownerId } : { ownerType: data.ownerType, ownerId: data.ownerId };
+      await TodoStorage.attachments.put({ id: data.id, ...identity, fileName: data.fileName, mimeType: data.mimeType, size: blob.size, blob, createdAt: data.createdAt, updatedAt: data.updatedAt, pendingDeleteUntil: null });
+      if (!ids.includes(data.id)) { owner.item.attachmentIds = [...ids, data.id]; saveState(); }
+      knowledgeAttachmentCache.delete(`${owner.type}:${owner.item.id}`);
+      return true;
+    },
+  };
+
+  // R42: "Proveri server" on Nalog — the key, the tables and the sign-in settings, so a missing Supabase step shows.
+  let serverCheck = null;
+  async function runServerCheck() {
+    if (!syncClient || serverCheck?.running) return;
+    serverCheck = { running: true };
+    render();
+    try { serverCheck = { result: await syncClient.checkServer() }; }
+    catch (error) { serverCheck = { error: error?.message || String(error) }; }
+    render();
+  }
+
+  // R43: Nalog → "Promeni lozinku" and "Promeni e-adresu", each a sheet with a form. The password step may turn into
+  // the current password or a code the server e-mails; the new address is confirmed by its code (and, with secure
+  // e-mail change on the server, by one sent to the current address).
+  function openAccountWindow(kind) {
+    const session = loadSyncMeta().session;
+    if (!syncClient || !session?.accessToken || modalState) return;
+    captureModalReturnFocus(); closePopover();
+    modalState = { type: kind === 'email' ? 'account-email' : 'account-password', step: kind === 'email' ? 'email' : 'new', currentEmail: session.user?.email || '',
+      password: '', confirm: '', current: '', code: '', email: '', pending: false, busy: false, error: '' };
+    renderModal();
+  }
+
+  function setAccountWindow(changes) {
+    if (!['account-password', 'account-email'].includes(modalState?.type)) return;
+    modalState = { ...modalState, ...changes };
+    renderModal();
+  }
+
+  function accountFields() {
+    const windowState = modalState;
+    for (const [key, id] of [['password', 'account-password'], ['confirm', 'account-password-confirm'], ['current', 'account-current'], ['code', 'account-code'], ['email', 'account-email']]) {
+      const field = $(`#${id}`);
+      if (field) windowState[key] = ['code', 'email'].includes(key) ? String(field.value ?? '').trim() : String(field.value ?? '');
+    }
+    return windowState;
+  }
+
+  // The session for an account change, refreshed and stored when it was about to expire.
+  async function currentSession() {
+    const meta = loadSyncMeta();
+    const session = await syncClient.ensureSession(meta.session);
+    if (session !== meta.session) { syncMeta = { ...meta, session }; saveSyncMeta(); }
+    return session;
+  }
+
+  function closeAccountWindow(message) {
+    modalState = null;
+    renderModal();
+    const target = modalReturnFocus;
+    modalReturnFocus = null;
+    if (target) restoreModalReturnFocus(target);
+    render();
+    setToastMessage(message);
+  }
+
+  async function accountSubmit() {
+    if (!syncClient || !['account-password', 'account-email'].includes(modalState?.type) || modalState.busy) return;
+    const windowState = accountFields();
+    return windowState.type === 'account-password' ? accountPasswordSubmit(windowState) : accountEmailSubmit(windowState);
+  }
+
+  async function accountPasswordSubmit(windowState) {
+    const code = windowState.code.replace(/\s+/g, '');
+    const problem = Sync.passwordProblem(windowState.password) || (windowState.confirm !== windowState.password ? msg('The passwords do not match.') : '')
+      || (windowState.step === 'current' && !windowState.current ? msg('Enter your password.') : '')
+      || (windowState.step === 'nonce' && !/^\d{6,10}$/.test(code) ? msg('Enter the code from the e-mail.') : '');
+    if (problem) { setAccountWindow({ error: problem }); return; }
+    setAccountWindow({ busy: true, error: '' });
+    let session;
+    try {
+      session = await currentSession();
+      await syncClient.updatePassword(session, windowState.password, { nonce: windowState.step === 'nonce' ? code : '', currentPassword: windowState.step === 'current' ? windowState.current : '' });
+      closeAccountWindow(tr('Password changed. Other devices will sign in again.'));
+    } catch (error) {
+      if (error?.reason === 'reauthentication_needed') {
+        try { await syncClient.reauthenticate(session); setAccountWindow({ step: 'nonce', code: '', busy: false }); }
+        catch (sent) { setAccountWindow({ busy: false, error: sent?.message || String(sent) }); }
+      } else if (error?.reason === 'current_password_required') setAccountWindow({ step: 'current', busy: false });
+      else setAccountWindow({ busy: false, error: error?.message || String(error) });
+    }
+  }
+
+  async function accountEmailSubmit(windowState) {
+    if (windowState.step === 'email') {
+      const email = windowState.email;
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setAccountWindow({ error: msg('Enter a valid e-mail address.') }); return; }
+      if (email.toLowerCase() === windowState.currentEmail.toLowerCase()) { setAccountWindow({ error: msg('This is already your e-mail address.') }); return; }
+      setAccountWindow({ busy: true, error: '' });
+      try {
+        await syncClient.changeEmail(await currentSession(), email);
+        setAccountWindow({ step: 'code', code: '', pending: false, busy: false });
+      } catch (error) {
+        setAccountWindow({ busy: false, error: error?.reason === 'email_exists' ? msg('Another account already uses this e-mail address.') : error?.message || String(error) });
+      }
+      return;
+    }
+    const code = windowState.code.replace(/\s+/g, '');
+    if (!/^\d{6,10}$/.test(code)) { setAccountWindow({ error: msg('Enter the code from the e-mail.') }); return; }
+    setAccountWindow({ busy: true, error: '' });
+    // The code may come from the new address or, with secure e-mail change, from the current one.
+    let result = null;
+    let failure = null;
+    for (const address of [windowState.email, windowState.currentEmail]) {
+      try { result = await syncClient.verifyEmailChange(address, code); break; }
+      catch (error) { failure = error; if (!(error?.status >= 400 && error?.status < 500) || error.status === 429) break; }
+    }
+    if (!result) {
+      setAccountWindow({ busy: false, error: failure?.status === 429 || !(failure?.status >= 400) ? failure?.message || String(failure) : msg('The code is wrong or has expired.') });
+      return;
+    }
+    if (result.pending) { setAccountWindow({ busy: false, pending: true, code: '' }); return; }
+    completeSignIn(result.session);
+    closeAccountWindow(tr('E-mail address changed: {email}', { email: result.session.user.email }));
   }
 
   // R40: the welcome screen (first launch, and "Prijavi se" / "Napravi nalog" on Nalog). Sign-in is by e-mail and
@@ -4491,10 +4780,9 @@
     return '';
   }
 
+  // R42: the client already turns Supabase's answers into sentences; a refused code reads the same whatever its cause.
   function welcomeErrorText(error, mode) {
-    if (error?.status === 429) return msg('Too many requests. Wait a minute and try again.');
-    if (mode === 'sign-in' && error?.status === 400) return msg('Wrong e-mail address or password.');
-    if (['confirm', 'reset-code'].includes(mode) && error?.status >= 400 && error?.status < 500 && error?.reason !== 'weak_password') return msg('The code is wrong or has expired.');
+    if (['confirm', 'reset-code'].includes(mode) && error?.status >= 400 && error?.status < 500 && ![429, 422].includes(error.status)) return msg('The code is wrong or has expired.');
     return error?.message || String(error);
   }
 
@@ -5467,7 +5755,7 @@
     else if(action==='choose-template')chooseTemplate(el.dataset.templateId);
     else if(action==='template-picker-back'){if(modalState.previous?.type==='goal')closeModal();else{modalState=modalState.previous;renderModal();}}
     else if(action==='use-template')useTemplate(el.dataset.templateId);
-    else if (action === 'quick-add') { const context = el.closest('#mobile-quick-add-menu') ? routeQuickAddContext() : { projectId: el.dataset.projectId || null, areaId: el.dataset.areaId || null, today: el.dataset.today === 'true', anytime: el.dataset.anytime === 'true' }; if (context) openQuickAdd(context); else setToastMessage(tr('Restore the project to add tasks.')); }
+    else if (action === 'quick-add') { const context = el.closest('#mobile-quick-add-menu') ? routeQuickAddContext() : { projectId: el.dataset.projectId || null, areaId: el.dataset.areaId || null, today: el.dataset.today === 'true', anytime: el.dataset.anytime === 'true', plannedDate: Core.parseDateOnly(el.dataset.date) ? el.dataset.date : null }; if (context) openQuickAdd(context); else setToastMessage(tr('Restore the project to add tasks.')); }
     else if (action === 'open-task') openTaskDetail(el.dataset.taskId);
     else if (action === 'dismiss-gesture-hint') { dismissGestureHint(); render(); }
     else if (action === 'habits-yesterday') { habitsEntryDay = Core.addDays(Core.dateOnly(), -1); navigate('habits'); }
@@ -5481,6 +5769,9 @@
     else if (action === 'focus-next') focusNextTask(el.dataset.taskId);
     else if (action === 'toggle-complete') toggleComplete(el.dataset.taskId);
     else if (action === 'open-search') openSearch();
+    else if (action === 'toggle-sidebar') toggleSidebar();
+    else if (action === 'calendar-today') calendarToday();
+    else if (action === 'sidebar-fold') toggleSidebarFold(el.dataset.group);
     else if (action === 'tasks-view') { state.ui.tasksView = el.dataset.view === 'projects' ? 'projects' : 'anytime'; saveAndRender(); }
     else if (action === 'delete-draft-goal-milestone') deleteDraftGoalMilestone(el.dataset.milestoneId);
     else if (action === 'delete-milestone') deleteMilestone(el.dataset.goalId, el.dataset.milestoneId);
@@ -5541,6 +5832,9 @@
     else if (action === 'welcome-resend') welcomeResend();
     else if (action === 'welcome-toggle-password') toggleWelcomePassword();
     else if (action === 'sync-now') runSync().catch(console.error);
+    else if (action === 'sync-check-server') runServerCheck();
+    else if (action === 'account-change-password') openAccountWindow('password');
+    else if (action === 'account-change-email') openAccountWindow('email');
     else if (action === 'sync-sign-out') signOutSync();
     else if (action === 'sync-delete-account') deleteSyncAccount();
     else if (action === 'sync-choose') chooseSyncMode(el.dataset.mode);
@@ -5762,10 +6056,17 @@
       // Alt/Option can turn a letter into a glyph (for example Y → ¥).
       const physicalKey = /^Key[A-Z]$/.test(event.code || '') ? event.code.slice(3) : /^Digit[0-9]$/.test(event.code || '') ? event.code.slice(5) : event.key;
       const combination=Core.normalizeShortcut([event.ctrlKey || event.metaKey?'Ctrl/Cmd':null,event.altKey?'Alt':null,event.shiftKey?'Shift':null,physicalKey].filter(Boolean).join('+'));
+      // R47a (K10): in Kalendar ← → move the week or month and T selects today; [ folds the sidebar.
+      if (currentRoute().type === 'calendar' && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey) {
+        if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); navigateCalendar(event.key === 'ArrowLeft' ? -1 : 1); return; }
+        if (event.key.toLowerCase() === 't') { event.preventDefault(); calendarToday(); return; }
+      }
+      if (event.key === '[' && !event.ctrlKey && !event.metaKey && !event.altKey && wideScreen()) { event.preventDefault(); toggleSidebar(); return; }
       const command=Object.keys(SHORTCUT_DEFAULTS).find(key=>combination && state.settings.shortcuts[key]===combination);
       if(command){event.preventDefault();if(command==='newTask'){const direct=quickAddDirect();if(direct)direct[1]();else openQuickAdd();}else if(command==='search')openSearch();else navigate(command);return;}
       // Preserve the existing convenient Search alias, without bypassing suppression.
       if(state.settings.shortcuts.search !== null && event.key==='/' && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey){event.preventDefault();openSearch();return;}
+      if (!event.ctrlKey && !event.metaKey && !event.altKey && DESKTOP_KEYS[event.key]) { event.preventDefault(); navigate(DESKTOP_KEYS[event.key]); return; }
     }
 
     if (modalState?.type === 'quick' && target?.id === 'quick-title' && event.key === 'Enter') {
@@ -5920,6 +6221,35 @@
     if (touchReorder?.active) event.preventDefault();
   }
 
+  // R44: on Navike a horizontal swipe over the week bar or the rings pages the week, like ‹ and ›: to the left is
+  // the next week, to the right the previous one. It presses the arrow, so its limits and disabled state apply.
+  function handleWeekSwipeStart(event) {
+    weekSwipe = null;
+    if (!['touch', 'pen'].includes(event.pointerType) || event.isPrimary === false) return;
+    if (!event.target?.closest?.('.habit-rings, .habits-week-nav')) return;
+    weekSwipe = { x: event.clientX, y: event.clientY };
+  }
+  function finishWeekSwipe(event) {
+    const start = weekSwipe;
+    weekSwipe = null;
+    if (!start) return;
+    const dx = event.clientX - start.x;
+    const dy = event.clientY - start.y;
+    if (Math.abs(dx) < 48 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    const arrow = document.querySelector(`#main [data-action="habits-week"][data-shift="${dx < 0 ? '1' : '-1'}"]`);
+    if (arrow && !arrow.disabled) arrow.click();
+    // Then the click the browser sends after the swipe must not open the ring under the finger (pressing the arrow
+    // first keeps that guard off its own click); a swipe that ends without a click clears it shortly.
+    suppressWeekSwipeClick = true;
+    setTimeout(() => { suppressWeekSwipeClick = false; }, 400);
+  }
+  function handleWeekSwipeClick(event) {
+    if (!suppressWeekSwipeClick) return;
+    suppressWeekSwipeClick = false;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }
+
   function handleTaskSwipeClick(event) {
     if (!suppressTaskSwipeClick) return;
     suppressTaskSwipeClick = false;
@@ -5930,7 +6260,7 @@
   function handleDragStart(event) {
     if (touchReorder) { event.preventDefault(); return; }
     const calendar = event.target.closest('[data-calendar-drag][draggable="true"]');
-    if (calendar) { dragState = { type: `calendar-${calendar.dataset.calendarDrag}`, id: calendar.dataset.calendarItemId }; event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', dragState.id); calendar.classList.add('is-dragging'); return; }
+    if (calendar) { dragState = { type: `calendar-${calendar.dataset.calendarDrag}`, id: calendar.dataset.calendarItemId }; event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', dragState.id); calendar.classList.add('is-dragging'); document.body.classList.add('task-drag-active'); return; }
     const sub = event.target.closest('.subtask-row[draggable="true"]');
     if (sub) { dragState = { type: 'subtask', id: sub.dataset.subtaskId, parentId: sub.dataset.parentTaskId }; event.dataTransfer.effectAllowed = 'move'; sub.classList.add('is-dragging'); return; }
     const row = event.target.closest('.task-row[draggable="true"]');
@@ -5941,6 +6271,9 @@
     const dropZone = event.target.closest?.('.attachment-drop-zone');
     if (dropZone && event.dataTransfer?.types?.includes('Files')) { event.preventDefault(); dropZone.classList.add('is-dragover'); return; }
     if (!dragState) return;
+    // R47d (K9): a task row or a calendar card can land on Danas, "Sutra" or a project in the sidebar.
+    const sidebarTarget = ['task', 'calendar-task'].includes(dragState.type) && sidebarDropTarget(event.target);
+    if (sidebarTarget) { event.preventDefault(); sidebarTarget.element.classList.add('is-drop-target'); return; }
     const calendarTarget = event.target.closest('[data-calendar-time], [data-calendar-date]');
     if (calendarTarget && ['calendar-task'].includes(dragState.type)) { event.preventDefault(); calendarTarget.classList.add('is-drop-target'); return; }
     if (dragState.type.startsWith('calendar-')) return;
@@ -5962,12 +6295,14 @@
     if (dropZone && event.dataTransfer?.files?.length) { event.preventDefault(); dropZone.classList.remove('is-dragover'); receiveAttachmentFiles(dropZone.dataset, [...event.dataTransfer.files]); return; }
     if (!dragState) return;
     event.preventDefault();
-    if (dragState.type.startsWith('calendar-')) {
+    const sidebarTarget = ['task', 'calendar-task'].includes(dragState.type) && sidebarDropTarget(event.target);
+    if (sidebarTarget) dropTaskOnSidebar(dragState.id, sidebarTarget);
+    else if (dragState.type.startsWith('calendar-')) {
       const target = event.target.closest('[data-calendar-time], [data-calendar-date]');
       if (target) {
         const date = target.closest('[data-calendar-date]')?.dataset.calendarDate;
         const time = Core.normalizeTime(target.dataset.calendarTime);
-        if (Core.parseDateOnly(date) && dragState.type === 'calendar-task') updateTask(dragState.id, { plannedDate: date, ...(time ? { plannedTime: time } : {}) });
+        if (Core.parseDateOnly(date) && dragState.type === 'calendar-task') dropTaskOnDay(dragState.id, date, time);
       }
     } else if (dragState.type === 'subtask') {
       const target = event.target.closest('.subtask-row[draggable="true"]'); if (target && target.dataset.parentTaskId === dragState.parentId) reorderSubtasks(dragState.parentId, dragState.id, target.dataset.subtaskId);
@@ -5975,6 +6310,44 @@
       const target = event.target.closest('.task-row[draggable="true"]'); if (target && target.dataset.listContext === dragState.context && dropGroup(target) === dragState.group) reorderTasks(dragState.context, dragState.id, target.dataset.taskId);
     }
     cleanupDrag();
+  }
+
+  // R47d (K9): the sidebar's drop targets: Danas, "Prevuci ovde za sutra" and the projects.
+  function sidebarDropTarget(element) {
+    const target = element?.closest?.('#desktop-sidebar [data-sidebar-drop], #desktop-sidebar [data-route="today"], #desktop-sidebar [data-route^="project/"]');
+    if (!target) return null;
+    if (target.dataset.sidebarDrop === 'tomorrow') return { element: target, kind: 'tomorrow' };
+    if (target.dataset.route === 'today') return { element: target, kind: 'today' };
+    return { element: target, kind: 'project', projectId: decodeURIComponent(target.dataset.route.slice('project/'.length)) };
+  }
+
+  // Each move says what it did and offers Poništi; a repeating task's date asks "Samo ovo / Ovo i buduća" first (S14).
+  function dropTaskOnSidebar(taskId, target) {
+    if (target.kind === 'today') addTaskToToday(taskId);
+    else if (target.kind === 'tomorrow') moveTaskToTomorrow(taskId);
+    else moveTaskToProject(taskId, target.projectId);
+  }
+
+  function moveTaskToProject(taskId, projectId) {
+    const task = getTask(taskId);
+    if (!task || !getProject(projectId) || (task.projectId === projectId && !task.isInbox)) return;
+    const previous = { projectId: task.projectId ?? null, areaId: task.areaId ?? null, isInbox: task.isInbox };
+    if (requestTaskEdit(taskId, { projectId, areaId: null, isInbox: false })) return;
+    setUndo(msg('Task moved to project'), () => { const current = getTask(taskId); if (!current) return; Object.assign(current, previous, { updatedAt: nowIso() }); saveState(); render(); });
+  }
+
+  // R47d (K9): a task dropped on a calendar day (or an hour of Raspored) is planned there, with Poništi; the
+  // "Samo ovo / Ovo i buduća" question of a repeating task has its own.
+  function dropTaskOnDay(taskId, date, time) {
+    const task = getTask(taskId);
+    if (!task || (task.plannedDate === date && (!time || task.plannedTime === time) && !task.isInbox)) return;
+    const previous = { plannedDate: task.plannedDate ?? null, plannedTime: task.plannedTime ?? null, isInbox: task.isInbox, todayOrder: task.todayOrder ?? null };
+    if (requestTaskEdit(taskId, { plannedDate: date, ...(time ? { plannedTime: time } : {}), isInbox: false })) return;
+    const today = Core.dateOnly();
+    setUndo(date === today ? msg('Task moved to Today') : date === Core.addDays(today, 1) ? msg('Task moved to Tomorrow') : msg('Task moved to another day'), () => {
+      const current = getTask(taskId); if (!current) return;
+      Object.assign(current, previous, { updatedAt: nowIso() }); saveState(); render();
+    });
   }
 
   function handleDragEnd() { cleanupDrag(); }
@@ -6035,6 +6408,10 @@
     document.addEventListener('pointerup', finishTaskSwipe);
     document.addEventListener('pointercancel', finishTaskSwipe);
     document.addEventListener('click', handleTaskSwipeClick, true);
+    document.addEventListener('pointerdown', handleWeekSwipeStart);
+    document.addEventListener('pointerup', finishWeekSwipe);
+    document.addEventListener('pointercancel', () => { weekSwipe = null; });
+    document.addEventListener('click', handleWeekSwipeClick, true);
     document.addEventListener('pointerdown', handleTouchReorderStart);
     document.addEventListener('pointermove', handleTouchReorderMove, { passive: false });
     document.addEventListener('pointerup', finishTouchReorder);
@@ -6044,9 +6421,11 @@
     document.addEventListener('click', handleClick);
     // R40: the welcome screen is a form, so Enter and the phone's "Go" key send it and password managers see it.
     document.addEventListener('submit', event => {
-      if (!event.target?.matches?.('[data-welcome-form]')) return;
+      const form = event.target?.closest?.('[data-welcome-form], [data-account-form]');
+      if (!form) return;
       event.preventDefault();
-      welcomeSubmit();
+      if (form.matches('[data-welcome-form]')) welcomeSubmit();
+      else accountSubmit();
     });
     document.addEventListener('input', handleInput);
     document.addEventListener('change', handleChange);
@@ -6121,7 +6500,20 @@
       items: snap.items.map(item => ({ text: item.time ? `${item.time} · ${item.title}` : item.title, overdue: item.overdue })),
       more: snap.more ? tr('+ {count} more', { count: snap.more }) : '',
       empty: tr('Nothing planned for today'), stale: tr('Open Dailo for today’s plan'),
+      habits: habitsWidgetPart(today),
     });
+  }
+  // R45: the "Navike" widget's part of the same snapshot — the count and ready-made rows; a row's id lets a tap check
+  // that habit in (dailo://habit-done).
+  function habitsWidgetPart(today) {
+    const snap = Core.habitsWidgetSnapshot(state.habits, state.habitLogCache || {}, today, Core.habitWeekRule(state.settings));
+    const number = value => Number(value || 0).toLocaleString(I18n.locale(), { maximumFractionDigits: 2 });
+    return {
+      title: tr('Habits'), summary: snap.planned ? tr('{done} of {total} today', { done: snap.done, total: snap.planned }) : '',
+      items: snap.items.map(item => ({ id: item.id, done: item.done, text: `${item.done ? '✓' : '○'}  ${item.name}${item.numeric ? ` · ${number(item.value)}/${number(item.target)}${item.unit ? ` ${item.unit}` : ''}` : ''}` })),
+      more: snap.more ? tr('+ {count} more', { count: snap.more }) : '',
+      empty: tr('No habits planned for today'), stale: tr('Open Dailo for today’s habits'),
+    };
   }
   // Only fills a missing store; the normal start-up load then validates and migrates the text as usual.
   async function restoreDurableMirror() {
@@ -6256,7 +6648,7 @@
     try { link = new URL(String(href || '')); } catch (_) { return false; }
     if (link.protocol !== 'dailo:' || !state || globalOperation || recovery) return false;
     const target = link.hostname || link.pathname.replace(/^\/+/, '');
-    if (!['new-task', 'today', 'journal', 'share', 'auth'].includes(target)) return false;
+    if (!['new-task', 'today', 'journal', 'share', 'auth', 'habits', 'habit-done'].includes(target)) return false;
     // R40: a Google or Apple sign-in comes back as dailo://auth?code=… (or ?error=…).
     if (target === 'auth') { finishProviderSignIn(link.searchParams); return true; }
     closePopover();
@@ -6270,8 +6662,21 @@
       const resource = Core.sharedResourceDraft(params);
       if (resource) openKnowledgeWindow('resource', null, { prefill: resource, inbox: true });
       else openQuickAdd(Core.sharedTextDraft(params));
-    } else navigate(`#${target}`);
+    } else if (target === 'habit-done') checkInHabitFromLink(link.searchParams.get('id') || '');
+    else navigate(`#${target}`);
     return true;
+  }
+
+  // R45: a habit row of the "Navike" widget checks that habit in for today, with Undo; a numeric habit opens its
+  // value sheet. Navike opens either way.
+  async function checkInHabitFromLink(id) {
+    navigate('#habits');
+    const habit = getHabit(id);
+    if (!habit || habit.status !== 'active') return;
+    const today = Core.dateOnly();
+    if ((state.habitLogCache?.[id] || []).some(log => log.date === today && log.status === 'done')) { setToastMessage(tr('Already recorded today: {name}', { name: habit.name })); return; }
+    if (habit.trackingType === 'numeric') { openHabitValue(id, today); return; }
+    if (await setHabitLog(id, today, 'done') === true) setUndo(msg('Habit recorded'), () => setHabitLog(id, today, 'missed'));
   }
 
   // R24: the web app gets the same from its manifest — ?shortcut= from a shortcut, share_* from the share target.

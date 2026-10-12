@@ -1,0 +1,193 @@
+# Redesign R47 — the desktop layer (K1–K12)
+
+**Date:** 2026-10-12 · **Status:** point 3 of the next-steps list ("moze 1 i 3": "Izgled za računar: široki ekran sa bočnim menijem"). · **Decisions:** K1–K12 in `docs/superpowers/specs/2026-10-08-redesign-decisions.md` (decided 2026-10-09, deferred until now).
+
+The layer applies only from 1024 px on. Below that the phone design stays exactly as it is. Nothing in the data model changes. The only new device-local keys are `dailoSidebar` and `dailoSidebarFolds`, which live outside state and backups.
+
+## Steps
+
+| Step | Release | Decisions |
+| --- | --- | --- |
+| R47a | `2.0.0-alpha.73` | K1 sidebar, K2 widths, K10 keys, K12 labelled "+" |
+| R47b | `2.0.0-alpha.74` | K4 centered windows, K6 pickers next to their row, K3 hover |
+| R47c | `2.0.0-alpha.75` | K7 two columns on Danas and Navike |
+| R47d | `2.0.0-alpha.76` | K8 calendar week and month, K9 drag and drop onto the sidebar |
+
+K5 is not used in the decision log. K11 (Settings → Računar with "Prečice na tastaturi" and "Zbijeniji prikaz", shown only on wide screens) already exists since R10g and R34.
+
+## R47a — the sidebar, widths, keys and the "+"
+
+### The sidebar (K1)
+
+- **Placement:** `index.html` has `<aside id="desktop-sidebar">` before `<main>`. From 1024 px on the shell is a grid of `var(--sidebar-width)` (264 px) and the content, and the bottom bar is hidden. Below 1024 px the sidebar is hidden.
+- **What `renderSidebar()` draws (on every `renderView`):**
+  - **Top:** the brand and the fold button.
+  - **Sync line:** "Podaci su samo na ovom uređaju", "Nema prijave na nalog", "Sinhronizacija u toku…", "Sinhronizovano HH:MM" or the account e-mail.
+  - **Main items:** Pretraga with its `/` key; Danas with its count (overdue + today); a "Prevuci ovde za sutra" drop zone (`data-sidebar-drop="tomorrow"`, wired in R47d); Inbox with its badge; Zadaci, Kalendar and Navike.
+  - **Zakačeno:** pinned areas, pinned saved views and up to four starred notes. It is hidden when empty.
+  - **Projekti:** grouped by area, sorted by the area's name (`sidebarProjectGroups`), then "Bez oblasti". Each project shows its open count; archived projects and the cleaning room are left out.
+  - **Groups from "Još":** Planiranje, Biblioteka and Arhiva, the same screens as on "Još".
+  - **Bottom:** Podešavanja and Nalog.
+- **Active item:** the item of the open screen is marked with `aria-current="page"`. A screen under a main item (a project under Zadaci, a day under Kalendar) lights that item, like the bottom bar does.
+- **Folding groups:** Planiranje, Biblioteka and Arhiva fold on their title, remembered in `dailoSidebarFolds`. A folded group still shows the open screen. Zakačeno and Projekti do not fold.
+- **Folding the sidebar:** the button at the top or "[" shrinks the sidebar to a 60 px strip of icons. Every item keeps its name as a tooltip, and the Inbox badge stays. The choice is remembered in `dailoSidebar` and applied before the first paint by `js/appearance.js`.
+- **No "‹ Još" back link:** screens reached from the sidebar need none, so the topbar whose only content is that link is hidden on wide screens. Other back links (a project to Zadaci, a tag to Oznake) stay.
+- **Focus:** it survives a redraw of the sidebar like it does in the main view (`focusDescriptor` regions).
+
+### Widths (K2)
+
+Lists keep their centered column of at most 760 px (since R1). The calendar keeps its own width (up to 1200 px). The content gets more room only because the sidebar replaces the bottom bar.
+
+### Keys (K10)
+
+These keys work only when no text field has focus. They are fixed, on top of the editable shortcuts:
+
+| Key | Action |
+| --- | --- |
+| 1–5 | Danas, Inbox, Zadaci, Kalendar, Navike |
+| `[` | Folds the sidebar (wide screens only) |
+| ← → in Kalendar | Previous or next week, month or day, like the arrows |
+| T in Kalendar | Selects today; elsewhere T still opens Danas |
+
+K10's "Q new item" stays the editable "Novi zadatak" shortcut (default N), so existing settings do not change.
+
+### The "+" (K12)
+
+- **Wide screens:** the floating "+" sits at the bottom right of the content as a pill with a label: "Novi zadatak", or what the screen adds ("Nova navika", "Novi cilj", …). It never opens the phone's "+" menu; where the screen has nothing of its own it opens Quick Add for a task. The Novi zadatak shortcut does the same.
+- **Phones:** unchanged.
+
+## Checks (R47a)
+
+- **Node:** `tests/redesign-r47a.test.js`, written first; it failed 8/8. It covers:
+  - the markup;
+  - the sidebar's parts;
+  - projects by area;
+  - the CSS from 1024 px on and the folded width;
+  - the "+" and its label;
+  - the keys;
+  - the Serbian strings;
+  - the version.
+- **Updated tests:** the tests of R1, R9c, R10g, R22c and V1.8 that required "no sidebar" now allow this one.
+- **Smoke:** `tools/smoke-boot.mjs` checks the sidebar in jsdom: it is drawn, a group folds, the sidebar folds, and an item navigates.
+- **Manual-pending:** the look on a real wide screen (Mac browser) and the keys.
+
+## R47b — centered windows, pickers next to their row, hover
+
+### Windows (K4)
+
+- **Placement:** from 1024 px on, every window is a dialog in the middle of the dimmed screen, with rounded corners all around. On a phone it stays a bottom window (D1).
+- **Widths:**
+  - **Tall (640 px):** the task, goal, habit and note windows, the new habit, the new goal, the new recurring task, Fokus, the journal entry and the template editor.
+  - **Short (560 px):** Quick Add, Pretraga, Razvrstaj redom, the saved view window and the small windows.
+  - **Confirm:** 480 px.
+- **Height:** at most the window height minus 64 px; longer content scrolls inside, and the sticky footers stay.
+- **Welcome screen:** it stays full-screen.
+- **Esc:** closes a window, as before.
+
+### Pickers (K6)
+
+- **Next to the row:** on a wide screen a picker (`openPopover`) opens as a 380 px popover next to the row or button that opened it.
+  - **Where (`anchoredPopoverPosition`):** under the row when it fits. Otherwise it goes above the row, or, when neither side has room, it is shifted to fit the window.
+  - **Alignment:** a row wider than the picker (a row in the task window) lines it up with the value on the right; a smaller control lines up its left edge.
+  - **Edges:** the picker always stays 12 px inside the window. A picker taller than the window scrolls inside.
+- **Centered pickers:** the repeat editor (S15) is too long for a popover and opens as a 440 px centered window over the dimmed screen. A picker whose row is not on the screen opens the same way.
+- **Redraws:** when the picker's content is redrawn (`refreshSheet`, `setPopoverContent`) it is placed again. If the row itself was redrawn, the remembered place is kept.
+- **Backdrop:** behind a popover it is clear, and a click on it still closes the picker. The page under it does not scroll.
+- **What does not change:**
+  - a change of the window width still closes the picker;
+  - the grabber is hidden, and dragging the header does nothing on a wide screen;
+  - on a phone every picker stays a bottom sheet.
+
+### Hover (K3)
+
+- **Rows:** with a mouse on a wide screen, list rows get the hover background that task and project rows already had: Danas and habit rows, goals, areas, tags, saved views, journal, review and archived chores.
+- **Already there:** the 44 px rows and 14 px text come from the density setting (R34, Settings → Računar → "Zbijeniji prikaz").
+
+## Checks (R47b)
+
+- **Node:** `tests/redesign-r47b.test.js`, written first; it failed 6/6. It covers:
+  - the window CSS and widths;
+  - the six positioning cases;
+  - `placePopover` (anchored, kept after a redraw, centered for the repeat editor and without a row, untouched on a phone);
+  - the wiring;
+  - hover;
+  - the version.
+- **Smoke:** with a wide `matchMedia`, a task's ⋯ menu opens next to its button over a clear backdrop.
+- **Manual-pending:** the look and the placement in a real wide browser window.
+
+## R47c — two columns where there is room (K7)
+
+- **The wrapper:** `screenColumns(main, side, rest)` in `js/app.js` (also on the domain context) draws `.screen-columns` with three parts:
+  - `.screen-main`, the main part;
+  - `.screen-side`, the side part, only when there is one (the wrapper then has `.has-side`);
+  - `.screen-rest`, what follows the main part.
+  A phone reads main, side and rest in that order, which is the order the screens had before.
+- **Danas:**
+  - **Main part:** Prekoračeno, Planirano danas with "+ Dodaj zadatak", and "Predlozi za danas".
+  - **Side part:** Navike.
+  - **Rest:** Završeno.
+  - **Unchanged:** the header and the notices stay above both columns. Without habits Danas stays one column.
+- **Navike:**
+  - **Main part:** the week arrows, the rings, Dan / Nedelja and its view.
+  - **Side part:** Napredak.
+  - **Rest:** the paused and archived folds.
+- **Where there is room:** from 1280 px on, the parts stand side by side: the main part and the rest on the left, the side part (300–360 px) on the right, with a 32 px gap.
+  - **Width:** the content column widens from 760 px to 1120 px for such a screen.
+  - **Rows:** the side part spans both rows, and its extra height goes to the second row, so Završeno and the folds stay right under the main part.
+  - **Narrower windows:** below 1280 px everything stays one column.
+
+## Checks (R47c)
+
+- **Node:** `tests/redesign-r47c.test.js`, written first; it failed 5/5. It covers:
+  - the wrapper;
+  - the Danas and Navike parts;
+  - the CSS;
+  - the version.
+- **Helper:** `tests/support/columns.js` hands the wrapper to the tests that run `renderToday` or `renderHabits` with stubs: R2, R8a, R41, V1.5 and V1.6. Two of their patterns now expect it.
+- **Manual-pending:** the two columns in a real wide browser window.
+
+## R47d — the calendar on a wide screen (K8) and dragging onto the sidebar (K9)
+
+### Calendar (K8)
+
+What was already there since R7 (C3): Nedelja's seven columns of cards with the time and duration, dashed goal and milestone deadlines, dragging a card to another day, and a click on a date that shows the day below with "Lista / Raspored". R47d adds the rest of K8 from 1024 px on; a phone shows none of it, since CSS hides it there (C1).
+
+- **Load bar:** each week day has a thin bar of its planned time against the daily capacity (`dayLoadBar`, `Core.dayLoad`, `Core.dailyCapacityMinutes`). Over capacity it turns yellow, and its tooltip reads "Planirano X od Y". There is no bar with the capacity off or without planned time.
+- **"+ Dodaj":** each day from today on has "+ Dodaj" at the bottom of its column. It opens Quick Add planned for that day; the `quick-add` action now reads `data-date`.
+- **Mesec:** a day lists up to three titles in the day list's order (timed tasks, deadlines, then the others by title), then "+N još" (`monthTitles`). The dot is hidden there, and the selected day's list stays below the grid.
+- **"Danas":** sits next to the arrows (`calendar-today`, the same as T).
+- **Predstojeće:** the phone list, unchanged.
+
+### Dragging (K9)
+
+- **What can be dragged:** the task rows that could already be dragged (Danas, Inbox, a project) and the calendar's cards and Raspored blocks.
+- **Where they can go:**
+  - onto Danas in the sidebar: `addTaskToToday`;
+  - onto "Prevuci ovde za sutra": `moveTaskToTomorrow`;
+  - onto a project in the sidebar: the new `moveTaskToProject`, which also files an Inbox task.
+  The target lights up while the task is over it, and while a task is dragged the "Sutra" zone shows a blue border.
+- **Calendar drops:** a card dropped on a day or an hour now goes through `dropTaskOnDay`. It plans the task there (leaving Inbox) and says "Zadatak je premešten u Danas / za sutra / na drugi dan".
+- **Poništi:** every move offers it.
+- **Repeating tasks:** a repeating task's new date first asks "Samo ovo / Ovo i buduća" (S14), and that question has its own Poništi.
+- **Phones:** this is mouse dragging, so nothing changes there. The sidebar exists only on a wide screen, and R25's touch reorder is untouched.
+
+## Checks (R47d)
+
+- **Node:** `tests/redesign-r47d.test.js`, written first; it failed 10/10. It covers:
+  - the load bar and "+ Dodaj" (with the capacity on and off);
+  - the month titles and "+N još";
+  - the actions;
+  - the CSS;
+  - the sidebar targets;
+  - moving into a project with Poništi;
+  - planning on a day with Poništi, and the repeating task's question;
+  - the drag wiring;
+  - Serbian;
+  - the version.
+- **Updated tests:** R7's phone tests now allow "Danas" and the month titles in the markup (hidden by CSS on a phone). R5's `quick-add` pattern now includes the day.
+- **Smoke:** a task row dragged from Danas onto "Prevuci ovde za sutra" moves to tomorrow, and Poništi brings it back.
+- **Manual-pending:** dragging with a real mouse, the calendar in a wide browser window, and the look of the bars and titles.
+
+## The desktop layer as a whole
+
+K1–K12 are implemented as R47a–R47d. K5 does not exist in the decision log, and K11 was already there. Every part applies only from 1024 px on (the two columns from 1280 px on); the phone design and its tests are unchanged.

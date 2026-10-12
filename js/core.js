@@ -239,6 +239,24 @@
     };
   }
 
+  // R45: the Android "Navike" widget — today's planned habits (as Navike counts them), open ones first in routine
+  // order, then the done ones; numeric habits carry their value and target.
+  function habitsWidgetSnapshot(habits, logsByHabit, today, weekRule = 'monday', limit = 5) {
+    const routines = ['morning', 'daily', 'night'];
+    const rank = habit => (routines.includes(habit.routine) ? routines.indexOf(habit.routine) : 1);
+    const rows = (habits || []).filter(habit => habit?.status === 'active')
+      .map((habit, index) => ({ habit, index, day: habitDayState(habit, logsByHabit?.[habit.id] || [], today, today, weekRule) }))
+      .filter(({ day }) => day.planned)
+      .sort((a, b) => Number(a.day.state === 'done') - Number(b.day.state === 'done') || rank(a.habit) - rank(b.habit) || a.index - b.index);
+    const numeric = habit => habit.trackingType === 'numeric';
+    return {
+      date: today, done: rows.filter(({ day }) => day.state === 'done').length, planned: rows.length,
+      items: rows.slice(0, limit).map(({ habit, day }) => ({ id: String(habit.id), name: String(habit.name || ''), done: day.state === 'done', numeric: numeric(habit),
+        value: numeric(habit) ? Number(day.value || 0) : null, target: numeric(habit) ? Number(habit.targetValue || 0) : null, unit: numeric(habit) ? String(habit.unit || '') : '' })),
+      more: Math.max(0, rows.length - limit),
+    };
+  }
+
   function futureRelevant(task, today) {
     if (task.isCompleted || isOverdue(task, today) || task.plannedDate === today) return null;
     const candidates = [];
@@ -2371,6 +2389,7 @@
     calendarRepeats,
     noteTaskDraft,
     widgetSnapshot,
+    habitsWidgetSnapshot,
     snoozeTarget,
     laterToday,
     filterCompleted,
