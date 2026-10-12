@@ -4311,7 +4311,7 @@
   function syncView() {
     const meta = syncMeta || loadSyncMeta();
     return { configured: Boolean(syncClient), signedIn: Boolean(meta.session?.accessToken), email: meta.session?.user?.email || '', name: meta.session?.user?.name || '', serverCheck,
-      running: syncRunning, lastSyncAt: meta.lastSyncAt || null, lastError: meta.lastError || '' };
+      running: syncRunning, lastSyncAt: meta.lastSyncAt || null, lastError: meta.lastError || '', fileError: meta.fileError || '' };
   }
 
   function editingText() {
@@ -4347,8 +4347,9 @@
     try {
       result = await Sync.syncOnce({
         client: syncClient, meta, mode,
-        readLocal: async () => { const habitLogs = await TodoStorage.habitLogs.listAll(); return { state, habitLogs }; },
+        readLocal: async () => { const habitLogs = await TodoStorage.habitLogs.listAll(); return { state, habitLogs, attachments: await syncAttachmentList() }; },
         writeLocal: applySyncResult,
+        files: syncFiles,
       });
       if (result.status === 'error' && result.error === SYNC_DEFERRED) { meta.lastError = null; scheduleSync(15000); }
       else if (result.status === 'error' && result.code === 401) delete meta.session;
@@ -4379,6 +4380,8 @@
       if (!saveState()) { state = previous; throw new Error(msg('Changes could not be saved locally. Try again.')); }
     } finally { applyingSync = false; }
     if (result.habitLogDeletes.length) await TodoStorage.habitLogs.deleteMany(result.habitLogDeletes);
+    // R46: files deleted on another device leave this one (their owners already dropped them above).
+    if (result.fileDeletes?.length) await TodoStorage.attachments.deleteMany(result.fileDeletes);
     for (const log of result.habitLogPuts) await TodoStorage.habitLogs.put(log);
     await refreshHabitMetrics();
     render();
@@ -4394,6 +4397,31 @@
     syncMeta = meta;
     saveSyncMeta();
   }
+
+  // R46: what the sync needs of this device's attachments: the list (without files in the Undo window), a file to
+  // upload, and a place for a downloaded one under its owner. An owner that has not arrived yet makes the file wait.
+  async function syncAttachmentList() {
+    return (await TodoStorage.attachments.listAll()).filter(record => !record.pendingDeleteUntil);
+  }
+  const syncFiles = {
+    async read(id) {
+      const record = await TodoStorage.attachments.get(id);
+      return record && !record.pendingDeleteUntil ? record.blob : null;
+    },
+    async store(data, blob) {
+      if (!state || syncWaiting() || globalOperation || recovery) return false;
+      const owner = attachmentOwner({ ownerType: data.ownerType, ownerId: data.ownerId });
+      if (!owner) return false;
+      const ids = owner.item.attachmentIds || [];
+      // A full owner on this device keeps the file only in the account.
+      if (!ids.includes(data.id) && ids.length >= MAX_ATTACHMENTS_PER_TASK) return true;
+      const identity = data.ownerType === 'task' ? { taskId: data.ownerId } : { ownerType: data.ownerType, ownerId: data.ownerId };
+      await TodoStorage.attachments.put({ id: data.id, ...identity, fileName: data.fileName, mimeType: data.mimeType, size: blob.size, blob, createdAt: data.createdAt, updatedAt: data.updatedAt, pendingDeleteUntil: null });
+      if (!ids.includes(data.id)) { owner.item.attachmentIds = [...ids, data.id]; saveState(); }
+      knowledgeAttachmentCache.delete(`${owner.type}:${owner.item.id}`);
+      return true;
+    },
+  };
 
   // R42: "Proveri server" on Nalog — the key, the tables and the sign-in settings, so a missing Supabase step shows.
   let serverCheck = null;

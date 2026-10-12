@@ -113,7 +113,7 @@ Each phase gets its plan, failing tests first, and a ledger, as V1.x did.
 1. **Platforms.** **Decided 2026-10-08:** iPhone and Android together (TestFlight and Play internal testing in parallel).
 2. ~~**Sign-in method.**~~ **Decided 2026-10-08:** e-mail without a password (one-time code), and only with V2.0. **Amended 2026-10-12 (R40):** e-mail and password, plus Google and Apple, on a welcome screen at the first start; the codes remain for confirming an account and for a new password.
 3. **Conflict policy.** **Decided 2026-10-08:** last-write-wins per record. The replaced version is kept on the server in `record_history`; local recovery snapshots stay available on each device.
-4. **Attachments.** **Decided 2026-10-08:** sync records first; attachments follow in V2.1.
+4. **Attachments.** **Decided 2026-10-08:** sync records first; attachments follow in V2.1. **Done 2026-10-12 (R46, `2026-10-12-redesign-r46-attachment-sync.md`):** files in the private Storage bucket `attachments`, their metadata as `attachments` records, migration `0003_attachments.sql`.
 5. **App name and identifier.** **Decided 2026-10-08:** "Dailo", bundle/application id `cloud.ivapix.dailo`.
 6. **Privacy page.** **Decided 2026-10-08:** it is written and published later, before the store release (phase V2.0-c); it is not needed for V2.0-a and V2.0-b.
 

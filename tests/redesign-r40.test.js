@@ -159,7 +159,7 @@ function harness({ fake = createFakeSupabase(), meta = null, storage: entries = 
     document: { activeElement: null },
     localStorage: { getItem: key => (storage.has(key) ? storage.get(key) : null), setItem: (key, value) => storage.set(key, String(value)), removeItem: key => storage.delete(key) },
     setTimeout: () => 1, clearTimeout() {}, requestAnimationFrame: run => run(),
-    TodoStorage: { habitLogs: { listAll: async () => [], deleteMany: async () => {}, put: async () => {} }, createAutomaticSnapshot: async () => 'snap' },
+    TodoStorage: { habitLogs: { listAll: async () => [], deleteMany: async () => {}, put: async () => {} }, attachments: { listAll: async () => [] }, createAutomaticSnapshot: async () => 'snap' },
     normalizeState: value => clone(value),
     Core: { pruneDanglingReferences: require('../js/core.js').pruneDanglingReferences, settleArrivedReminders: require('../js/core.js').settleArrivedReminders },
     nowIso: () => '2026-10-12T08:00:00.000Z',

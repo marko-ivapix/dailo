@@ -66,9 +66,10 @@ Dok Supabase nije podešen (`docs/v2/podesavanje-supabase.md`), kartica **Sinhro
 - [ ] **B39.** Kad su Google ili Apple uključeni u Supabase-u: dugme otvara prijavu u pregledaču, a posle odobrenja se vraća u Dailo prijavljen (veb, Android, iPhone).
 - [ ] **B40.** **Još → Nalog → Lozinka → Promeni**: nova lozinka dva puta. Prijava novom lozinkom radi, a drugi uređaj traži ponovnu prijavu.
 - [ ] **B41.** **Još → Nalog → E-adresa → Promeni**: upiši novu adresu, pa kod (i kod sa stare adrese, ako ga server traži). Nalog pokazuje novu adresu, a prijava njom radi.
+- [ ] **B42.** Posle migracije `0003_attachments.sql`: dodaj prilog zadatku na telefonu i sinhronizuj; na drugom uređaju se prilog otvara. Obriši ga na drugom uređaju: posle sinhronizacije nestaje i sa telefona.
 
 ## Na kraju
 
 - [ ] **B24.** **Resetuj podatke aplikacije** (samo na Mac-u, ili posle izvoza): traži da upišeš `RESET`, pravi sigurnosnu kopiju i briše podatke. Posle toga **Uvezi rezervnu kopiju** vraća sve.
 
-Kad su B6–B30 prošli (i B31–B41, kad je sinhronizacija uključena), ili su greške popravljene, Dailo je spreman za prve testere: pošalji im link na uputstvo `https://marko-ivapix.github.io/dailo/uputstvo.html`.
+Kad su B6–B30 prošli (i B31–B42, kad je sinhronizacija uključena), ili su greške popravljene, Dailo je spreman za prve testere: pošalji im link na uputstvo `https://marko-ivapix.github.io/dailo/uputstvo.html`.

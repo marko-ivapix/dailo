@@ -93,7 +93,7 @@
       .map(minutes => `<option value="${minutes}"${minutes === capacity ? ' selected' : ''}>${minutes ? tr('{hours} h', { hours: new Intl.NumberFormat(I18n.locale(), { maximumFractionDigits: 1 }).format(minutes / 60) }) : tr('Off')}</option>`).join('');
     const sync = ctx.syncView?.() || { configured: false };
     const privacy = !sync.configured ? tr('Your data stays only on this device. Dailo has no server or account.')
-      : sync.signedIn ? tr('Your data is on this device and in your sync account on a server in the EU. Attachments stay only on this device.')
+      : sync.signedIn ? tr('Your data, attachments included, is on this device and in your sync account on a server in the EU.')
         : tr('Your data stays only on this device until you sign in to sync.');
     // Redesign R10g (M5, M6): Opšte, Podaci, Pomoć and Računar (desktop only); a choice applies at once. R15 moved Nalog
     // to its own screen (renderAccount).
@@ -183,8 +183,8 @@ ${native ? `
         <h2>${tr('Account')}</h2>
         ${sync.signedIn ? `<div class="settings-row"><div class="settings-label"><strong>${tr('Account')}</strong><span>${sync.name ? `${esc(sync.name)} · ` : ''}${esc(sync.email)}</span></div></div>
         <div class="settings-row"><div class="settings-label"><strong>${tr('Password')}</strong><span>${tr('Changing it signs out your other devices.')}</span></div><button class="btn btn-secondary" type="button" data-action="account-change-password">${tr('Change')}</button></div><div class="settings-row"><div class="settings-label"><strong>${tr('E-mail address')}</strong><span>${esc(sync.email)}</span></div><button class="btn btn-secondary" type="button" data-action="account-change-email">${tr('Change')}</button></div>
-        <div class="settings-row"><div class="settings-label"><strong>${tr('Last sync')}</strong><span data-sync-status>${sync.running ? tr('Syncing…') : statusTime(sync.lastSyncAt)}${sync.lastError ? `<br><span class="validation" role="alert">${esc(trMessage(sync.lastError))}</span>` : ''}</span></div><button class="btn btn-secondary" type="button" data-action="sync-now"${sync.running ? ' disabled' : ''}><i class="ph ph-arrows-clockwise"></i> ${tr('Sync now')}</button></div>
-        <p class="area-empty-copy">${tr('Tasks, projects, goals, habits, notes and settings sync between your devices. Attachments stay on the device where they were added.')}</p>
+        <div class="settings-row"><div class="settings-label"><strong>${tr('Last sync')}</strong><span data-sync-status>${sync.running ? tr('Syncing…') : statusTime(sync.lastSyncAt)}${sync.lastError ? `<br><span class="validation" role="alert">${esc(trMessage(sync.lastError))}</span>` : ''}${sync.fileError ? `<br><span class="validation" role="alert">${tr('Attachments: {error}', { error: esc(trMessage(sync.fileError)) })}</span>` : ''}</span></div><button class="btn btn-secondary" type="button" data-action="sync-now"${sync.running ? ' disabled' : ''}><i class="ph ph-arrows-clockwise"></i> ${tr('Sync now')}</button></div>
+        <p class="area-empty-copy">${tr('Tasks, projects, goals, habits, notes, attachments and settings sync between your devices.')}</p>
         <div class="sync-actions"><button class="btn btn-secondary" type="button" data-action="sync-sign-out">${tr('Sign out')}</button><button class="btn btn-ghost is-danger" type="button" data-action="sync-delete-account">${tr('Delete account')}</button></div>`
         : `<p class="area-empty-copy">${tr('Sign in to have your tasks, habits and goals on all your devices. Without an account, everything stays only on this device.')}</p>
         <div class="sync-actions"><button class="btn btn-primary" type="button" data-action="open-welcome" data-mode="sign-in">${tr('Log in')}</button><button class="btn btn-secondary" type="button" data-action="open-welcome" data-mode="sign-up">${tr('Create account')}</button></div>`}

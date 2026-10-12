@@ -14,6 +14,7 @@ Jednokratno podešavanje servera za sinhronizaciju (V2.0-a). Traje desetak minut
 2. Nalepi ceo sadržaj fajla `supabase/migrations/0001_sync.sql` iz repozitorijuma i klikni **Run**.
 3. Treba da piše „Success“. Napravljene su tabele `records` i `record_history`, pravila po kojima svaki korisnik vidi samo svoje podatke, i funkcija za brisanje naloga.
 4. Otvori novi upit (**New query**), nalepi ceo sadržaj fajla `supabase/migrations/0002_journal.sql` i klikni **Run**. On dozvoljava sinhronizaciju Dnevnika. Treba ponovo da piše „Success“.
+5. Isto uradi sa `supabase/migrations/0003_attachments.sql`. On pravi privatno skladište **attachments** za priloge (do 10 MB po fajlu, svaki nalog vidi samo svoju fasciklu). Bez njega se prilozi ne sinhronizuju, a **Još → Nalog** to i kaže.
 
 ## 3. Prijava e-poštom i lozinkom
 

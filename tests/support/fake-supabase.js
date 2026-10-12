@@ -4,7 +4,7 @@
 'use strict';
 const nodeCrypto = require('node:crypto');
 
-function createFakeSupabase({ url = 'https://fake.supabase.co', anonKey = 'anon-key', code = '123456', autoconfirm = false, providers = { google: true, apple: false }, tables = true, reauthentication = false, requireCurrentPassword = false, secureEmailChange = true } = {}) {
+function createFakeSupabase({ url = 'https://fake.supabase.co', anonKey = 'anon-key', code = '123456', autoconfirm = false, providers = { google: true, apple: false }, tables = true, reauthentication = false, requireCurrentPassword = false, secureEmailChange = true, files = true, maxFileBytes = 10 * 1024 * 1024 } = {}) {
   const users = new Map(); // email -> { id, email, password, confirmed }
   const tokens = new Map(); // access token -> { userId, expiresAt }
   const refreshTokens = new Map(); // refresh token -> userId
@@ -18,6 +18,8 @@ function createFakeSupabase({ url = 'https://fake.supabase.co', anonKey = 'anon-
   const sentCodes = [];
   const mail = []; // { email, kind: 'otp' | 'signup' | 'recovery' }
   const logoutScopes = [];
+  const objects = new Map(); // Storage path in the attachments bucket -> { blob, type }
+  let downloadFailures = 0;
   let clock = Date.parse('2026-10-08T10:00:00.000Z');
   let tokenCounter = 0;
   const tick = () => new Date(clock += 7).toISOString();
@@ -46,7 +48,7 @@ function createFakeSupabase({ url = 'https://fake.supabase.co', anonKey = 'anon-
     const headers = init.headers || {};
     if (target.origin !== new URL(url).origin) throw new TypeError('Failed to fetch');
     if (headers.apikey !== anonKey) return json(401, { message: 'Invalid API key' });
-    const body = init.body ? JSON.parse(init.body) : null;
+    const body = typeof init.body === 'string' && init.body ? JSON.parse(init.body) : null;
     const method = init.method || 'GET';
     const path = target.pathname;
 
@@ -174,6 +176,38 @@ function createFakeSupabase({ url = 'https://fake.supabase.co', anonKey = 'anon-
       } else if (entry) { tokens.delete(auth); refreshTokens.delete(entry.refreshToken); }
       return json(204, null);
     }
+    // Supabase Storage, bucket "attachments" (0003_attachments.sql): each user reads and writes only "<user id>/…".
+    if (path.startsWith('/storage/v1/')) {
+      const who = userFor(headers);
+      if (who.error) return who.error;
+      if (!files) return json(400, { statusCode: '404', error: 'Bucket not found', message: 'Bucket not found' });
+      const mine = objectPath => objectPath.split('/')[0] === who.userId;
+      if (path === '/storage/v1/object/list/attachments' && method === 'POST') {
+        const prefix = `${String(body?.prefix || '').replace(/\/+$/, '')}/`;
+        return json(200, [...objects.keys()].filter(key => mine(key) && key.startsWith(prefix)).sort().slice(Number(body?.offset || 0), Number(body?.offset || 0) + Number(body?.limit || 100)).map(key => ({ name: key.slice(prefix.length) })));
+      }
+      if (path === '/storage/v1/object/attachments' && method === 'DELETE') {
+        for (const key of body?.prefixes || []) if (mine(key)) objects.delete(key);
+        return json(200, []);
+      }
+      const upload = /^\/storage\/v1\/object\/attachments\/(.+)$/.exec(path);
+      if (upload && ['POST', 'PUT'].includes(method)) {
+        const key = decodeURIComponent(upload[1]);
+        if (!mine(key)) return json(400, { statusCode: '403', error: 'Unauthorized', message: 'new row violates row-level security policy' });
+        if (init.body.size > maxFileBytes) return json(413, { statusCode: '413', error: 'Payload too large', message: 'The object exceeded the maximum allowed size' });
+        objects.set(key, { blob: init.body, type: headers['Content-Type'] });
+        return json(200, { Key: `attachments/${key}` });
+      }
+      const download = /^\/storage\/v1\/object\/authenticated\/attachments\/(.+)$/.exec(path);
+      if (download && method === 'GET') {
+        const key = decodeURIComponent(download[1]);
+        if (!mine(key) || !objects.has(key)) return json(400, { statusCode: '404', error: 'not_found', message: 'Object not found' });
+        if (downloadFailures > 0) { downloadFailures -= 1; return json(500, { message: 'download failed' }); }
+        const blob = objects.get(key).blob;
+        return { ok: true, status: 200, blob: async () => blob, json: async () => ({}), text: async () => '' };
+      }
+      return json(400, { statusCode: '404', error: 'not_found', message: `No route ${method} ${path}` });
+    }
     // Before 0001_sync.sql runs, PostgREST knows neither the table nor the function.
     if (!tables && path.startsWith('/rest/v1/')) return json(404, { code: 'PGRST205', message: "Could not find the table 'public.records' in the schema cache" });
     if (path === '/rest/v1/rpc/delete_my_account' && method === 'POST') {
@@ -190,6 +224,7 @@ function createFakeSupabase({ url = 'https://fake.supabase.co', anonKey = 'anon-
       if (method === 'POST') {
         if (target.searchParams.get('on_conflict') !== 'user_id,type,id' || !/resolution=merge-duplicates/.test(headers.Prefer || '')) return json(409, { message: 'duplicate key value violates unique constraint' });
         for (const row of body) {
+          if (row.type === 'attachments' && !files) return json(400, { code: '23514', message: 'new row for relation "records" violates check constraint "records_type_check"' });
           if (row.user_id !== who.userId) return json(403, { message: 'new row violates row-level security policy for table "records"' });
           if (row.deleted ? row.data !== null : row.data == null) return json(400, { message: 'violates check constraint' });
         }
@@ -228,6 +263,9 @@ function createFakeSupabase({ url = 'https://fake.supabase.co', anonKey = 'anon-
       return authCode;
     },
     passwordOf: email => users.get(email)?.password ?? null,
+    filesOf: userId => [...objects.keys()].filter(key => key.startsWith(`${userId}/`)).sort(),
+    fileText: key => objects.get(key)?.blob.text(),
+    failDownloads: count => { downloadFailures = count; },
     metadataOf: email => users.get(email)?.metadata ?? null,
     isConfirmed: email => Boolean(users.get(email)?.confirmed),
     rowsFor: email => { const user = users.get(email); return user ? [...rows.values()].filter(row => row.user_id === user.id) : []; },

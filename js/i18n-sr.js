@@ -908,6 +908,12 @@
     "Open Dailo for today’s habits": "Otvori Dailo za današnje navike",
     "Habit recorded": "Navika je zabeležena",
     "Already recorded today: {name}": "Već zabeleženo danas: {name}",
+    // R46: attachment sync.
+    "Your data, attachments included, is on this device and in your sync account on a server in the EU.": "Tvoji podaci, zajedno sa prilozima, su na ovom uređaju i na nalogu za sinhronizaciju, na serveru u EU.",
+    "Tasks, projects, goals, habits, notes, attachments and settings sync between your devices.": "Zadaci, projekti, ciljevi, navike, beleške, prilozi i podešavanja se sinhronizuju između tvojih uređaja.",
+    "Attachments: {error}": "Prilozi: {error}",
+    "The file is larger than the server allows.": "Fajl je veći nego što server dozvoljava.",
+    "The server has no place for attachments yet. Run 0003_attachments.sql in Supabase.": "Server još nema mesta za priloge. U Supabase-u pokreni 0003_attachments.sql.",
     // R41: paging through weeks on Navike.
     "Current week": "Ova nedelja",
     "Last week": "Prošla nedelja",
@@ -1836,7 +1842,6 @@
     "Last sync": "Poslednja sinhronizacija",
     "Syncing…": "Sinhronizacija u toku…",
     "Sync now": "Sinhronizuj sada",
-    "Tasks, projects, goals, habits, notes and settings sync between your devices. Attachments stay on the device where they were added.": "Zadaci, projekti, ciljevi, navike, beleške i podešavanja se sinhronizuju između tvojih uređaja. Prilozi ostaju na uređaju na kom su dodati.",
     "Sign out": "Odjavi se",
     "Code from the e-mail": "Kod iz e-poruke",
     "Confirm": "Potvrdi",
@@ -1892,7 +1897,6 @@
     "Back to sign-in": "Nazad na prijavu",
     "Plan. Focus. Do more.": "Planiraj. Fokusiraj se. Uradi više.",
     "The password needs at least 8 characters, with a digit and a letter.": "Lozinka mora imati najmanje 8 znakova, sa bar jednim brojem i slovom.",
-    "Your data is on this device and in your sync account on a server in the EU. Attachments stay only on this device.": "Tvoji podaci su na ovom uređaju i na nalogu za sinhronizaciju, na serveru u EU. Prilozi ostaju samo na ovom uređaju.",
     "Your data stays only on this device until you sign in to sync.": "Tvoji podaci ostaju samo na ovom uređaju dok se ne prijaviš za sinhronizaciju.",
 
     // Data, storage, backup and recovery errors shown to the user (js/backup.js, js/storage.js, js/core.js, js/app.js)
