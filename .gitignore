@@ -16,3 +16,7 @@ www/
 *.jks
 *.keystore
 !android/app/debug.keystore
+
+# Personal Claude Code overrides (the shared ones are .claude/settings.json and CLAUDE.md)
+CLAUDE.local.md
+.claude/settings.local.json
