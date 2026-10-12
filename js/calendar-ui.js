@@ -39,8 +39,14 @@
     return ctx.esc(items.count ? `${ctx.formatDate(date, 'full')}, ${trn(items.count, '{count} planned', '{count} planned')}` : ctx.formatDate(date, 'full'));
   }
 
-  function dot(items) {
-    return `<i class="calendar-dot${items.count ? '' : ' is-empty'}" aria-hidden="true"></i>`;
+  // R37 (F): a day with only coming repeats gets a hollow dot.
+  function dot(items, repeats = []) {
+    return `<i class="calendar-dot${items.count ? '' : repeats.length ? ' is-repeat' : ' is-empty'}" aria-hidden="true"></i>`;
+  }
+
+  // R37 (F): the coming dates of repeating tasks, shown and never stored; a row opens the task that repeats.
+  function repeatRows(ctx, date, repeats) {
+    return (repeats[date] || []).map(({ task }) => `<button class="today-row calendar-repeat-row" type="button" data-action="open-task" data-task-id="${ctx.esc(task.id)}"><i class="ph ph-arrows-clockwise calendar-repeat-icon" aria-hidden="true"></i><span class="today-row-main"><span class="task-title">${ctx.esc(task.title)}</span><span class="task-meta">${ctx.esc([tr('Repeats'), task.plannedTime].filter(Boolean).join(' · '))}</span></span></button>`).join('');
   }
 
   // Wide screens show each week day as a column of cards; a task card drags to another day (C3).
@@ -80,11 +86,12 @@
     const label = capitalized(new Intl.DateTimeFormat(I18n.locale(), { month: 'long', year: 'numeric' }).format(first));
     const names = Array.from({ length: 7 }, (_, index) => `<span class="calendar-grid-weekday">${tr(WEEKDAYS[(firstWeekday + index) % 7])}</span>`).join('');
     const blanks = '<span class="calendar-grid-blank" aria-hidden="true"></span>'.repeat(offset);
+    const repeats = Core.calendarRepeats(source.tasks, Core.addDays(today, 1), Core.addDays(Core.dateOnly(first), length - 1));
     const cells = Array.from({ length }, (_, index) => {
       const date = Core.addDays(Core.dateOnly(first), index);
       const items = Core.calendarDayItems(source, date);
       const classes = `${date === today ? ' is-today' : ''}${date === selected ? ' is-selected' : ''}`;
-      return `<button class="calendar-month-cell${classes}" type="button" data-action="calendar-pick" data-date="${date}" aria-pressed="${date === selected}" aria-label="${dayLabel(ctx, date, items)}"><span>${index + 1}</span>${dot(items)}</button>`;
+      return `<button class="calendar-month-cell${classes}" type="button" data-action="calendar-pick" data-date="${date}" aria-pressed="${date === selected}" aria-label="${dayLabel(ctx, date, items)}"><span>${index + 1}</span>${dot(items, repeats[date])}</button>`;
     }).join('');
     return `${periodBar(ctx, label, 'month')}<div class="calendar-month-grid">${names}${blanks}${cells}</div>`;
   }
@@ -113,8 +120,11 @@
     let body;
     if (mode === 'schedule') body = renderDayView(ctx, date);
     else {
-      const items = ctx.Core.calendarDayItems(listed(ctx), date);
-      body = items.count ? `<div class="task-list today-card" data-list-context="calendar">${dayRows(ctx, items)}</div>` : `<div class="today-card">${emptyDay(date < ctx.Core.dateOnly())}</div>`;
+      const source = listed(ctx);
+      const items = ctx.Core.calendarDayItems(source, date);
+      const repeats = date > ctx.Core.dateOnly() ? ctx.Core.calendarRepeats(source.tasks, date, date) : {};
+      const rows = dayRows(ctx, items) + repeatRows(ctx, date, repeats);
+      body = rows ? `<div class="task-list today-card" data-list-context="calendar">${rows}</div>` : `<div class="today-card">${emptyDay(date < ctx.Core.dateOnly())}</div>`;
     }
     if (date < ctx.Core.dateOnly()) body += pastDayDone(ctx, date);
     return `<section class="calendar-day-panel" data-calendar-day="${date}">${head}${body}</section>`;
@@ -126,13 +136,14 @@
     const source = listed(ctx);
     const today = Core.dateOnly();
     const weekday = new Intl.DateTimeFormat(I18n.locale(), { weekday: 'long' });
+    const repeats = Core.calendarRepeats(source.tasks, Core.addDays(today, 1), Core.addDays(today, UPCOMING_DAYS));
     let html = '';
     for (let offset = 1; offset <= UPCOMING_DAYS; offset += 1) {
       const date = Core.addDays(today, offset);
       const items = Core.calendarDayItems(source, date);
-      if (!items.count) continue;
+      if (!items.count && !repeats[date]) continue;
       const label = offset === 1 ? tr('Tomorrow') : capitalized(weekday.format(ctx.parseLocalDate(date)));
-      html += `<section class="calendar-upcoming-day" data-upcoming-date="${date}"><h2 class="section-label calendar-upcoming-label">${ctx.esc(label)} <span>· ${ctx.esc(ctx.formatDate(date))}</span></h2><div class="task-list today-card" data-list-context="calendar">${dayRows(ctx, items)}</div></section>`;
+      html += `<section class="calendar-upcoming-day" data-upcoming-date="${date}"><h2 class="section-label calendar-upcoming-label">${ctx.esc(label)} <span>· ${ctx.esc(ctx.formatDate(date))}</span></h2><div class="task-list today-card" data-list-context="calendar">${dayRows(ctx, items)}${repeatRows(ctx, date, repeats)}</div></section>`;
     }
     // R17: the usual empty state.
     return html || ctx.emptyState(tr('Nothing in the coming days'), tr('Planned tasks, due dates and deadlines of the next three weeks appear here.'));

@@ -158,6 +158,7 @@
   }
   let calendarOpen = false;
   let habitsOpen = false;
+  let habitsEntryDay = null; // R37 (D): "Juče nije zabeleženo" opens Navike on yesterday
 
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -685,7 +686,7 @@
       foldButton,
       colorName,
       journalLock,
-      readAutoBackup,
+      readAutoBackup, readTextSize, applyTextSize,
       saveTextFile: (text, name, type) => globalThis.DailoPlatform.files.saveFile(new Blob([text], { type }), name, name),
       templateTypes: TEMPLATE_TYPES, templateLabel, openTemplateEditorFromSource, saveTemplateRecord, duplicateTemplateRecord, useTemplate,
       captureModalReturnFocus,
@@ -1089,7 +1090,8 @@
   // Redesign R8a (H1, H4): the Habits screen opens on Dan, today and this month whenever it is opened from another screen.
   function enterHabitsRoute(route) {
     const open = route.type === 'habits';
-    if (open && !habitsOpen) Object.assign(state.ui, { habitsView: 'day', habitsDay: Core.dateOnly(), habitTrackerMonth: Core.dateOnly().slice(0, 7), habitChartDay: null });
+    if (open && !habitsOpen) Object.assign(state.ui, { habitsView: 'day', habitsDay: habitsEntryDay || Core.dateOnly(), habitTrackerMonth: Core.dateOnly().slice(0, 7), habitChartDay: null });
+    if (open) habitsEntryDay = null;
     habitsOpen = open;
   }
 
@@ -1171,7 +1173,7 @@
     if (suggestions.length) html += `<button class="today-suggestions-link" type="button" data-action="open-today-suggestions"><i class="ph ph-lightbulb" aria-hidden="true"></i><span>${tr('Suggested for today')}</span><span class="today-suggestions-count">${suggestions.length}</span><i class="ph ph-caret-right" aria-hidden="true"></i></button>`;
     // Done habits move to the bottom (T5).
     const habits = [...sections.habits.filter(item => item.status.status !== 'done'), ...sections.habits.filter(item => item.status.status === 'done')];
-    if (habits.length) html += section('habits', tr('Habits'), `${habits.length - sections.habits.filter(item => item.status.status !== 'done').length}/${habits.length}`, `<div class="habit-list today-card">${todayLimited('habits', habits.map(item => renderHabitTodayRow(item.habit, item.status)))}</div>`);
+    if (habits.length) html += section('habits', tr('Habits'), `${habits.length - sections.habits.filter(item => item.status.status !== 'done').length}/${habits.length}`, `<div class="habit-list today-card">${todayLimited('habits', habits.map(item => renderHabitTodayRow(item.habit, item.status)))}</div>${yesterdayHabitsNote()}`);
     if (sections.completed.length) {
       const open = state.ui.todayCompletedExpanded === true;
       html += `<section class="section today-section today-section--completed" data-today-section="completed">${foldButton('toggle-today-completed', tr('Completed'), sections.completed.length, open)}`;
@@ -4512,6 +4514,38 @@
   }
   // R30 (finding 5): a new workspace starts with examples, and Danas says so until the user keeps them, starts
   // empty or changes them. The answer is device-local ("dailoSampleNotice"), outside state, sync and backups.
+  // R37 (D): until noon Danas says how many habits have no record of yesterday; the line opens yesterday on Navike.
+  function yesterdayHabitsNote() {
+    const now = new Date();
+    if (now.getHours() >= 12) return '';
+    const today = Core.dateOnly(now);
+    const count = Core.habitsMissedOn(state.habits, state.habitLogCache, Core.addDays(today, -1), today, Core.habitWeekRule(state.settings));
+    return count ? `<button class="today-habits-yesterday" type="button" data-action="habits-yesterday"><i class="ph ph-clock-counter-clockwise" aria-hidden="true"></i><span>${tr('Not recorded yesterday: {count}', { count })}</span><i class="ph ph-caret-right" aria-hidden="true"></i></button>` : '';
+  }
+
+  // R37 (J): the text size is a choice for this device (device-local key, outside state, backups and sync).
+  const TEXT_SIZES = ['small', 'normal', 'large', 'larger'];
+  function readTextSize() {
+    let value = null;
+    try { value = localStorage.getItem('dailoTextSize'); } catch (_) { /* the default size */ }
+    return TEXT_SIZES.includes(value) ? value : 'normal';
+  }
+  function applyTextSize(value) {
+    const size = TEXT_SIZES.includes(value) ? value : 'normal';
+    try { if (size === 'normal') localStorage.removeItem('dailoTextSize'); else localStorage.setItem('dailoTextSize', size); } catch (_) { /* this session only */ }
+    if (size === 'normal') delete document.documentElement.dataset.textSize; else document.documentElement.dataset.textSize = size;
+  }
+
+  // R37 (J): "Probni podsetnik" shows a notification five seconds later, on the phone or in the browser.
+  async function sendTestReminder() {
+    const result = await globalThis.DailoPlatform?.notifications?.test?.({ title: tr('Dailo'), body: tr('This is how a reminder looks.'), seconds: 5 });
+    if (result?.status === 'ok') { setToastMessage(tr('The reminder arrives in five seconds.')); return; }
+    if (result?.status === 'permission' || result?.status === 'unavailable') { setToastMessage(tr('Notifications are off for Dailo. Turn them on in the phone settings.')); return; }
+    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') { setToastMessage(tr('Browser notifications are not on. Reminders appear in Dailo while it is open.')); return; }
+    setToastMessage(tr('The reminder arrives in five seconds.'));
+    setTimeout(() => { try { new Notification(tr('Dailo'), { body: tr('This is how a reminder looks.') }); } catch (_) { /* the browser refused it */ } }, 5000);
+  }
+
   // R36 (K): once, on a touch screen, Danas explains the row gestures; "U redu" hides it on this device
   // (device-local key, outside state, backups and sync).
   function gestureHint(hasTasks) {
@@ -5240,6 +5274,8 @@
     else if (action === 'quick-add') { const context = el.closest('#mobile-quick-add-menu') ? routeQuickAddContext() : { projectId: el.dataset.projectId || null, areaId: el.dataset.areaId || null, today: el.dataset.today === 'true', anytime: el.dataset.anytime === 'true' }; if (context) openQuickAdd(context); else setToastMessage(tr('Restore the project to add tasks.')); }
     else if (action === 'open-task') openTaskDetail(el.dataset.taskId);
     else if (action === 'dismiss-gesture-hint') { dismissGestureHint(); render(); }
+    else if (action === 'habits-yesterday') { habitsEntryDay = Core.addDays(Core.dateOnly(), -1); navigate('habits'); }
+    else if (action === 'test-reminder') sendTestReminder().catch(console.error);
     else if (action === 'toast-open-task') { const id = el.dataset.taskId; setToastMessage(null); openTaskDetail(id); }
     else if (action === 'focus-complete') completeFocusTask(el.dataset.taskId);
     else if (action === 'focus-toggle-timer') toggleFocusTimer();
@@ -5471,6 +5507,7 @@
     if (event.target.id === 'auto-backup') { writeAutoBackup({ enabled: event.target.checked }); if (event.target.checked) runAutoBackup({ announce: true }); render(); return; }
     if (event.target.id === 'planned-time-reminders') { state.settings.plannedTimeReminders = event.target.checked; saveAndRender(); return; }
     if (event.target.id === 'journal-notifications') { state.settings.journalNotifications = event.target.checked; saveAndRender(); return; }
+    if (event.target.id === 'text-size') { applyTextSize(event.target.value); render(); return; }
     if (event.target.id === 'daily-capacity') { const minutes = Number(event.target.value); if (Number.isInteger(minutes) && minutes >= 0 && minutes <= 1440) { state.settings.dailyCapacityMinutes = minutes; saveAndRender(); } return; }
     if (event.target.id === 'backup-reminder-days') { const days = Number(event.target.value); if (Number.isInteger(days) && days >= 0 && days <= 90) { state.settings.backupReminderDays = days; saveAndRender(); } return; }
     if (event.target.id === 'backup-import-input') { const file=event.target.files?.[0]; event.target.value=''; if(file) inspectImportBackup(file); return; }
@@ -6092,6 +6129,7 @@
   }
 
   async function init() {
+    applyTextSize(readTextSize());
     attachEvents();
     // Quick Add is an explicit disclosure: never restore it open on reload or route changes.
     if (typeof setMobileQuickAddOpen === 'function') setMobileQuickAddOpen(false);

@@ -41,9 +41,10 @@ test('M5: Settings has Opšte, Podaci, Pomoć and Računar in that order (R15: N
     // R12c (J6) adds "Podsetnik za dnevnik" at the end of Opšte.
     // R18 adds "Podrazumevano vreme podsetnika" and "Podsetnik u planirano vreme" after the reminders.
     // R32: Podsetnici is its own group after Opšte.
-    ['General', ['Week starts on', 'Daily capacity']],
-    ['Reminders', ['Browser reminders', 'Default reminder time', 'Reminder at the planned time', 'Journal reminder']],
-    ['Data', ['Backup', 'Backup reminder', 'Restore from backup', 'Local snapshots', 'Persistent storage', 'Populate demo workspace', 'Reset app data']],
+    // R37 (J): "Veličina teksta", "Probni podsetnik" and "Stanje podataka".
+    ['General', ['Week starts on', 'Daily capacity', 'Text size']],
+    ['Reminders', ['Browser reminders', 'Test reminder', 'Default reminder time', 'Reminder at the planned time', 'Journal reminder']],
+    ['Data', ['Data health', 'Backup', 'Backup reminder', 'Restore from backup', 'Local snapshots', 'Persistent storage', 'Populate demo workspace', 'Reset app data']],
     ['Help', ['Guide', 'Report a problem', 'Install app', 'Privacy', 'About']],
     ['Computer', ['Search', 'Compact density']],
   ]);

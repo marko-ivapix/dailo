@@ -83,26 +83,27 @@
   --cal-goal: var(--ink-2);
   --cal-milestone: var(--yellow-400);
 
-  /* Typography scale (R34: every font size in this file comes from here) */
-  --text-3xs: 9px;
-  --text-2xs: 10px;
-  --text-xs: 11px;
-  --text-sm: 12px;
-  --text-meta: 12.5px;
-  --text-md: 13px;
-  --text-base: 14px;
-  --text-body: 15px;
-  --text-lg: 16px;
-  --text-title: 17px;
-  --text-lead: 18px;
-  --text-xl: 20px;
-  --text-heading: 22px;
-  --text-2xl: 24px;
-  --text-page: 26px;
-  --text-display: 28px;
-  --text-hero: 40px;
-  /* Fields stay at 16 px: a smaller font makes phones zoom in. */
-  --text-input: 16px;
+  /* Typography scale (R34: every font size in this file comes from here; R37: scaled by the text size) */
+  --text-scale: 1;
+  --text-3xs: calc(9px * var(--text-scale));
+  --text-2xs: calc(10px * var(--text-scale));
+  --text-xs: calc(11px * var(--text-scale));
+  --text-sm: calc(12px * var(--text-scale));
+  --text-meta: calc(12.5px * var(--text-scale));
+  --text-md: calc(13px * var(--text-scale));
+  --text-base: calc(14px * var(--text-scale));
+  --text-body: calc(15px * var(--text-scale));
+  --text-lg: calc(16px * var(--text-scale));
+  --text-title: calc(17px * var(--text-scale));
+  --text-lead: calc(18px * var(--text-scale));
+  --text-xl: calc(20px * var(--text-scale));
+  --text-heading: calc(22px * var(--text-scale));
+  --text-2xl: calc(24px * var(--text-scale));
+  --text-page: calc(26px * var(--text-scale));
+  --text-display: calc(28px * var(--text-scale));
+  --text-hero: calc(40px * var(--text-scale));
+  /* Fields stay at 16 px or more: a smaller font makes phones zoom in. */
+  --text-input: max(16px, calc(16px * var(--text-scale)));
   --tracking-label: .08em;
   --tracking-display: -.02em;
 
@@ -2295,6 +2296,28 @@ textarea[data-autogrow] { field-sizing: content; min-height: 0; resize: none; ov
 .gesture-hint p { margin: 0; color: var(--ink-2); font-size: var(--text-md); line-height: 1.4; }
 .gesture-hint .btn { grid-column: 1 / -1; justify-self: end; }
 .gesture-hint-icon { color: var(--blue-300); font-size: var(--text-xl); }
+
+/* Redesign R37 — habits, calendar and settings additions after the third design pass (2026-10-12). */
+/* The text size of this device scales the type scale. */
+:root[data-text-size="small"] { --text-scale: .92; }
+:root[data-text-size="large"] { --text-scale: 1.12; }
+:root[data-text-size="larger"] { --text-scale: 1.25; }
+/* One-tap quick values on a numeric habit row. */
+.habit-quick-value { flex: none; margin-left: 4px; }
+/* Nedelja: how far a numeric day got. */
+.habit-cell.is-partial { background: conic-gradient(var(--blue-300) calc(var(--fraction) * 1turn), transparent 0); }
+/* "Juče nije zabeleženo" under the habits on Danas. */
+.today-habits-yesterday { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; margin-top: 6px; padding: 0 8px; border: 0; background: none; color: var(--ink-2); font: inherit; font-size: var(--text-md); text-align: left; cursor: pointer; }
+.today-habits-yesterday > span { flex: 1; }
+.today-habits-yesterday > i:first-child { color: var(--warning); }
+/* The coming dates of repeating tasks in the calendar. */
+.calendar-dot.is-repeat { background: transparent; box-shadow: inset 0 0 0 1px var(--ink-3); }
+.calendar-repeat-row { width: 100%; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.calendar-repeat-row .task-title { color: var(--ink-2); }
+.calendar-repeat-icon { color: var(--ink-3); }
+/* Settings → Podaci: the data health line. */
+.settings-health.is-ok strong { color: var(--success); }
+.settings-health.is-warning strong { color: var(--warning); }
 
 /* Keep primary compact actions touchable after all density rules. */
 @media (max-width: 700px), (pointer: coarse) {

@@ -1480,6 +1480,34 @@
     return { title: name.replace(/\s+/g, ' ').slice(0, 200).trim(), notes: notes.join('\n') };
   }
 
+  // R37 (D): how many active habits have no record of a day they were planned on (skipped days are records).
+  function habitsMissedOn(habits, logsByHabit, date, today = dateOnly(), weekRule = 'monday') {
+    return (habits || []).filter(habit => habit?.status === 'active' && habitDayState(habit, logsByHabit?.[habit.id] || [], date, today, weekRule).state === 'missed').length;
+  }
+
+  // R37 (F): the coming dates of open repeating tasks, for the calendar only (nothing is stored): { date: [{ task,
+  // date }] } from `from` to `to`. The task's own date is not repeated, and a paused or ended rule shows nothing.
+  function calendarRepeats(tasks, from, to, limit = 400) {
+    const byDate = {};
+    let total = 0;
+    for (const task of tasks || []) {
+      if (!task || task.isCompleted || task.isInbox) continue;
+      const rule = normalizeRecurrenceV3(task.recurrenceBaseline?.recurrence || task.recurrence);
+      const anchor = task.plannedDate || task.dueDate;
+      if (!rule || rule.status !== 'active' || !anchor) continue;
+      const after = addDays(anchor, 1);
+      const skipped = rule.skipNext ? upcomingRecurrenceDates(anchor, rule, 1, after)[0] : null;
+      for (const date of upcomingRecurrenceDates(anchor, rule, 62, from > after ? from : after)) {
+        if (date === skipped) continue;
+        if (date > to) break;
+        if (date < from) continue;
+        (byDate[date] ||= []).push({ task, date });
+        if (++total >= limit) return byDate;
+      }
+    }
+    return Object.fromEntries(Object.entries(byDate).sort(([a], [b]) => a.localeCompare(b)));
+  }
+
   // R36 (G): "Vikend" in the date sheet: the coming Saturday, or today on a Saturday.
   function weekendDate(date) {
     const day = parseDateOnly(date)?.getDay();
@@ -2328,6 +2356,8 @@
     sharedTextDraft,
     sharedResourceDraft,
     weekendDate,
+    habitsMissedOn,
+    calendarRepeats,
     noteTaskDraft,
     widgetSnapshot,
     snoozeTarget,

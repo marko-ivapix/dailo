@@ -251,6 +251,7 @@
         for (const entry of pending) {
           const id = Number(entry.id), at = Date.parse(entry.schedule?.at);
           if (Number.isFinite(at) && at <= now) continue; // already shown (Android lists those too)
+          if (entry.extra?.test) continue; // R37: the test notification is not a reminder
           const want = desired.get(id);
           if (want && entry.extra?.key === want.key && entry.extra?.sig === want.sig) kept.add(id);
           else cancel.push({ id });
@@ -268,6 +269,17 @@
       };
       reconcileQueue = reconcileQueue.catch(() => {}).then(run);
       return reconcileQueue;
+    }
+    // R37 (J): a test notification a few seconds from now, so the user sees that notifications work. It has its own
+    // id and reconcile leaves it alone.
+    const TEST_NOTIFICATION_ID = 2147483646;
+    async function testNotification({ title = 'Dailo', body = '', seconds = 5 } = {}) {
+      if (!isNative) return { status: 'web' };
+      if (!ln()) return { status: 'unavailable' };
+      const permission = await notificationPermission();
+      if (permission !== 'granted') return { status: 'permission', permission };
+      await ln().schedule({ notifications: [{ id: TEST_NOTIFICATION_ID, title, body, schedule: { at: new Date(Date.now() + seconds * 1000), allowWhileIdle: true }, extra: { test: true } }] });
+      return { status: 'ok' };
     }
     // A tapped notification. The plugin keeps the event until a listener exists, so a tap that started the app
     // is delivered once the app registers this after loading its data. R23: the handler also hears which button
@@ -338,7 +350,7 @@
       links: Object.freeze({ openExternal, interceptExternalLinks, onAppLink }),
       storage: Object.freeze({ status: storageStatus }),
       durable: Object.freeze({ write: writeMirror, read: readMirror }),
-      notifications: Object.freeze({ permission: notificationPermission, requestPermission: requestNotificationPermission, exactAlarms, allowExactAlarms, reconcile, onOpen: onNotificationOpen, setActionTypes, notificationId }),
+      notifications: Object.freeze({ permission: notificationPermission, requestPermission: requestNotificationPermission, exactAlarms, allowExactAlarms, reconcile, test: testNotification, onOpen: onNotificationOpen, setActionTypes, notificationId }),
       haptics,
       security: Object.freeze({ available: lockAvailable, unlock }),
       widget: Object.freeze({ update: updateWidget }),

@@ -51,7 +51,9 @@ test('38: colors are tokens: no hex or rgb() value outside :root', () => {
 
 test('38: font sizes come from the type scale; fields stay at 16 px so phones do not zoom', () => {
   assert.deepEqual(outsideRoot.match(/font-size:\s*[\d.]+px/g) || [], []);
-  for (const [token, value] of [['--text-3xs', '9px'], ['--text-2xs', '10px'], ['--text-xs', '11px'], ['--text-sm', '12px'], ['--text-meta', '12.5px'], ['--text-md', '13px'], ['--text-base', '14px'], ['--text-body', '15px'], ['--text-lg', '16px'], ['--text-title', '17px'], ['--text-lead', '18px'], ['--text-xl', '20px'], ['--text-heading', '22px'], ['--text-2xl', '24px'], ['--text-page', '26px'], ['--text-display', '28px'], ['--text-hero', '40px'], ['--text-input', '16px']]) assert.match(css, new RegExp(`\\n  ${token}: ${value.replace('.', '\\.')};`), token);
+  // R37 (J): each step is scaled by the device's text size; fields never go under 16 px.
+  for (const [token, value] of [['--text-3xs', '9px'], ['--text-2xs', '10px'], ['--text-xs', '11px'], ['--text-sm', '12px'], ['--text-meta', '12.5px'], ['--text-md', '13px'], ['--text-base', '14px'], ['--text-body', '15px'], ['--text-lg', '16px'], ['--text-title', '17px'], ['--text-lead', '18px'], ['--text-xl', '20px'], ['--text-heading', '22px'], ['--text-2xl', '24px'], ['--text-page', '26px'], ['--text-display', '28px'], ['--text-hero', '40px']]) assert.ok(css.includes(`\n  ${token}: calc(${value} * var(--text-scale));`), token);
+  assert.ok(css.includes('\n  --text-input: max(16px, calc(16px * var(--text-scale)));'));
   assert.match(plainCss, /select, textarea \{ font-size: var\(--text-input\); \}/);
 });
 

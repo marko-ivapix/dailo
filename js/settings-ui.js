@@ -28,6 +28,20 @@
     return row(tr('Notifications'), text, 'enable-notifications', ['granted', 'denied'].includes(native.permission) ? '' : tr('Enable')) + exact;
   }
 
+  // R37 (J): one line on the state of the data: what is kept, when the last backup was made, and a warning tone when
+  // there is no recent backup or the storage can be cleared.
+  function dataHealth(ctx, persistence, reminderDays) {
+    const { state } = ctx;
+    const count = list => (list || []).length;
+    const library = count(state.notes) + count(state.resources);
+    const parts = [trn(count(state.tasks), '{count} task', '{count} tasks'), trn(count(state.projects), '{count} project', '{count} projects'), trn(count(state.habits), '{count} habit', '{count} habits'), trn(library, '{count} note or resource', '{count} notes and resources')];
+    const last = Date.parse(state.settings.backupStatus?.lastExport || '');
+    const days = Number.isFinite(last) ? Math.max(0, Math.floor((Date.parse(ctx.nowIso?.() || new Date().toISOString()) - last) / 86400000)) : null;
+    const backup = days === null ? tr('no backup yet') : days === 0 ? tr('backup today') : trn(days, 'backup {count} day ago', 'backup {count} days ago');
+    const ok = days !== null && days <= Math.max(reminderDays || 7, 1) && ['granted', 'app'].includes(persistence.state);
+    return `<div class="settings-row settings-health is-${ok ? 'ok' : 'warning'}"><div class="settings-label"><strong>${tr('Data health')}</strong><span>${parts.join(' · ')} · ${backup}</span></div></div>`;
+  }
+
   // Keyboard shortcut rows (Računar).
   const SHORTCUT_ROWS = ctx => { const { state, shortcutLabels, esc } = ctx; return Object.entries(shortcutLabels).map(([key,label])=>`<div class="settings-row shortcut-row"><label class="settings-label" for="shortcut-${key}"><strong>${esc(tr(label))}</strong></label><input class="input shortcut-input" id="shortcut-${key}" data-shortcut="${key}" aria-label="${esc(tr('{command} shortcut', { command: tr(label) }))}" placeholder="${tr('Disabled')}" value="${esc(state.settings.shortcuts[key] || '')}" /><button class="btn btn-secondary" data-action="save-shortcut" data-command="${key}">${tr('Save')}</button><button class="btn btn-ghost" data-action="disable-shortcut" data-command="${key}">${tr('Disable')}</button></div>`).join(''); };
 
@@ -46,6 +60,8 @@
     const megabytes = bytes => `${new Intl.NumberFormat(I18n.locale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(bytes / 1048576)} MB`;
     const usage = Number.isFinite(persistence.usage) && Number.isFinite(persistence.quota) ? ` ${tr('{used} of {total} used.', { used: megabytes(persistence.usage), total: megabytes(persistence.quota) })}` : '';
     const reminderDays = ctx.Core?.backupReminderDays ? ctx.Core.backupReminderDays(state.settings) : 7;
+    const textSize = ctx.readTextSize?.() || 'normal';
+    const textSizes = [['small', tr('Smaller')], ['normal', tr('Normal')], ['large', tr('Larger')], ['larger', tr('Largest')]].map(([value, label]) => `<option value="${value}"${value === textSize ? ' selected' : ''}>${label}</option>`).join('');
     const reminderOptions = [...new Set([0, 3, 7, 14, 30, reminderDays])].sort((a, b) => a - b)
       .map(days => `<option value="${days}"${days === reminderDays ? ' selected' : ''}>${days === 1 ? tr('Every day') : days ? trn(days, 'Every {count} day', 'Every {count} days') : tr('Off')}</option>`).join('');
     const release = ctx.release || {};
@@ -84,10 +100,12 @@
         <h2>${tr('General')}</h2>
         <div class="settings-row"><label class="settings-label" for="preference-week-start"><strong>${tr('Week starts on')}</strong><span>${tr('Used by weekly views and habit periods.')}</span></label><select class="input" id="preference-week-start"><option value="monday"${!sundayFirst ? ' selected' : ''}>${tr('Monday')}</option><option value="sunday"${sundayFirst ? ' selected' : ''}>${tr('Sunday')}</option></select></div>
         <div class="settings-row"><label class="settings-label" for="daily-capacity"><strong>${tr('Daily capacity')}</strong><span>${tr('Planned work per day, compared with task durations in the Calendar day view.')}</span></label><select class="input" id="daily-capacity">${capacityOptions}</select></div>
+        <div class="settings-row"><label class="settings-label" for="text-size"><strong>${tr('Text size')}</strong><span>${tr('Only on this device.')}</span></label><select class="input" id="text-size">${textSizes}</select></div>
       </section>
       <section class="settings-card" data-settings-reminders>
         <h2>${tr('Reminders')}</h2>
         ${reminderRows(native)}
+        <div class="settings-row"><div class="settings-label"><strong>${tr('Test reminder')}</strong><span>${tr('A reminder arrives in five seconds, so you can see that notifications work.')}</span></div><button class="btn btn-secondary" type="button" data-action="test-reminder">${tr('Send')}</button></div>
         <div class="settings-row"><label class="settings-label" for="default-reminder-time"><strong>${tr('Default reminder time')}</strong><span>${tr('Used when Dailo proposes a reminder: tomorrow, the day before, new habits and goals.')}</span></label><select class="input" id="default-reminder-time">${defaultTimeOptions}</select></div>
         <div class="settings-row"><label class="settings-label" for="planned-time-reminders"><strong>${tr('Reminder at the planned time')}</strong><span>${tr('A task with a planned time reminds you then, even without its own reminder.')}</span></label><input id="planned-time-reminders" type="checkbox"${state.settings.plannedTimeReminders === true ? ' checked' : ''}></div>
         <div class="settings-row"><label class="settings-label" for="journal-reminder-time"><strong>${tr('Journal reminder')}</strong><span>${tr('When “Write down how the day went” appears on Today.')}</span></label><select class="input" id="journal-reminder-time">${journalOptions}</select></div>${native ? `
@@ -95,6 +113,7 @@
       </section>
       <section class="settings-card" data-settings-data>
         <h2>${tr('Data')}</h2>
+        ${dataHealth(ctx, persistence, reminderDays)}
         <div class="settings-row"><div class="settings-label"><strong>${tr('Backup')}</strong><span>${tr('Last export:')} ${statusTime(backupStatus.lastExport)}${backupStatus.lastImport ? `<br>${tr('Last import:')} ${statusTime(backupStatus.lastImport)}` : ''}${backupStatus.snapshotAvailable ? `<br>${tr('Recovery snapshot:')} ${tr('Available')}` : ''}${backupStatus.validationResult && backupStatus.validationResult !== msg('Not yet validated') ? `<br>${tr('Validation:')} ${esc(trMessage(backupStatus.validationResult))}` : ''}</span></div><button class="btn btn-secondary" type="button" data-action="export-backup"><i class="ph ph-download-simple"></i> ${tr('Export ZIP')}</button></div>
 ${native ? `
         <div class="settings-row"><label class="settings-label" for="auto-backup"><strong>${tr('Automatic backup')}</strong><span>${tr('Once a week to Documents/Dailo on this phone; the newest four are kept.')}${autoBackup.lastAt ? `<br>${tr('Last copy:')} ${statusTime(autoBackup.lastAt)}` : ''}${autoBackup.error ? `<br>${esc(tr('Last attempt failed: {error}', { error: autoBackup.error }))}` : ''}</span></label><input id="auto-backup" type="checkbox"${autoBackup.enabled ? ' checked' : ''}></div>` : ''}

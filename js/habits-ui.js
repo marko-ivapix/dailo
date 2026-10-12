@@ -71,9 +71,11 @@
     // R17: the week count or the value joins the meta line under the name instead of the right side.
     const metaText = [options.meta, right && !(options.count === false && !numeric) ? right : ''].filter(Boolean).join(' · ');
     const meta = metaText ? `<span class="task-meta">${esc(metaText)}</span>` : '';
+    // R37 (D): on Danas a numeric habit offers its first two quick values; a tap adds one at once (with Poništi).
+    const quick = numeric && !date ? (habit.quickValues || []).slice(0, 2).map(value => `<button class="quick-chip habit-quick-value" type="button" data-action="habit-quick-value" data-habit-id="${esc(habit.id)}" data-value="${esc(value)}" aria-label="${esc(tr('Add {value} to {habit}', { value: number(value), habit: habit.name }))}">+${esc(number(value))}</button>`).join('') : '';
     // R14b (T5 amended): like a task row, the name comes first and the circle closes the row on the right.
     const main = `<button class="today-row-main" type="button" data-action="habit-today-menu" data-habit-id="${esc(habit.id)}"${dateAttr} aria-haspopup="dialog"><span class="task-title">${esc(habit.name)}</span>${meta}</button>`;
-    return `<article class="today-row habit-today-row${status === 'done' ? ' is-done' : ''}${status === 'skipped' ? ' is-skipped' : ''}" data-habit-id="${esc(habit.id)}">${main}${check}${habitCircle(status, fraction)}</button></article>`;
+    return `<article class="today-row habit-today-row${status === 'done' ? ' is-done' : ''}${status === 'skipped' ? ' is-skipped' : ''}" data-habit-id="${esc(habit.id)}">${main}${quick}${check}${habitCircle(status, fraction)}</button></article>`;
   }
 
   function openTodayHabitMenu(ctx, anchor, habitId, date = ctx.Core.dateOnly()) {
@@ -190,9 +192,11 @@
       body += habits.map(habit => `<tr class="habits-week-name-row"><th scope="rowgroup" colspan="7" class="habits-week-name"><button class="habits-week-name-button" type="button" data-route="habit/${esc(habit.id)}">${esc(habit.name)}</button></th></tr><tr class="habits-week-days">${week.days.map(date => {
         const day = Core.habitDayState(habit, state.habitLogCache?.[habit.id] || [], date, week.today, week.rule);
         const inactive = ['unscheduled', 'future'].includes(day.state);
+        // R37 (D): a numeric day short of its target shows how far it got as an arc.
+        const fraction = habit.trackingType === 'numeric' && day.state !== 'done' && Number(habit.targetValue) > 0 ? Math.min(1, Number(day.value || 0) / Number(habit.targetValue)) : 0;
         const label = `${habit.name}, ${ctx.formatDate(date, 'full')}: ${tr(CELL_LABELS[day.state])}`;
         const pressed = habit.trackingType === 'numeric' ? '' : ` aria-pressed="${day.state === 'done'}"`;
-        return `<td><button class="habit-cell is-${day.state}${date === week.today ? ' is-today' : ''}" type="button" data-action="habit-today-toggle" data-habit-id="${esc(habit.id)}" data-date="${date}"${inactive ? ' disabled' : ''} aria-label="${esc(label)}"${pressed}>${day.state === 'done' ? TICK : ''}</button></td>`;
+        return `<td><button class="habit-cell is-${day.state}${date === week.today ? ' is-today' : ''}${fraction > 0 ? ` is-partial" style="--fraction:${Math.round(fraction * 100) / 100}` : ''}" type="button" data-action="habit-today-toggle" data-habit-id="${esc(habit.id)}" data-date="${date}"${inactive ? ' disabled' : ''} aria-label="${esc(label)}"${pressed}>${day.state === 'done' ? TICK : ''}</button></td>`;
       }).join('')}</tr>`).join('');
     }
     const legend = ['done', 'missed', 'skipped', 'unscheduled'].map(key => `<span><i class="habit-cell-swatch is-${key}" aria-hidden="true"></i>${tr(CELL_LABELS[key])}</span>`).join('');
@@ -936,6 +940,13 @@
       const habit = getHabit(el.dataset.habitId); if (!habit || date > today) return true;
       if (habit.trackingType === 'numeric') ctx.openHabitValue(habit.id, date);
       else setHabitLog(habit.id, date, dayLog(habit.id)?.status === 'done' ? 'missed' : 'done');
+      return true;
+    }
+    if (action === 'habit-quick-value') {
+      const habit = getHabit(el.dataset.habitId); if (!habit || habit.trackingType !== 'numeric') return true;
+      const previous = dayLog(habit.id);
+      const total = Math.round((Number(previous?.value || 0) + Number(el.dataset.value || 0)) * 1000) / 1000;
+      setHabitLog(habit.id, today, 'done', total).then(() => ctx.setUndo(msg('Value added'), () => setHabitLog(habit.id, today, previous?.status === 'skipped' ? 'skipped' : 'done', previous ? previous.value : 0))).catch(console.error);
       return true;
     }
     if (action === 'habit-today-menu') { openTodayHabitMenu(ctx, el, el.dataset.habitId, date); return true; }

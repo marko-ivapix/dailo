@@ -124,7 +124,7 @@ function renderTodayWith(stateExtra = {}, stubs = {}) {
   const ctx = todayContext(state, {
     foldButton, // R22b: the one fold button from app.js
     pageHeader: (title, subtitle, options) => `<header title="${title}" eyebrow="${options.eyebrow}" add="${options.add}"></header>`,
-    transferNotice: () => '<transfer>', sampleNotice: () => '' /* R30 */, gestureHint: () => '' /* R36 */, backupReminderNotice: () => '<backup>', callDomainHook: () => '<journal>', // R12c: the journal notice comes from journal-ui.js; R14: no weekly-review notice
+    transferNotice: () => '<transfer>', sampleNotice: () => '' /* R30 */, gestureHint: () => '' /* R36 */, yesterdayHabitsNote: () => '' /* R37 */, backupReminderNotice: () => '<backup>', callDomainHook: () => '<journal>', // R12c: the journal notice comes from journal-ui.js; R14: no weekly-review notice
     taskRow: (task, context, options) => `<task ${task.id} ${context}${options.today ? ' today' : ''}${options.draggable ? ' drag' : ''}>`,
     renderHabitTodayRow: (habit, status) => `<habit ${habit.id} ${status.status}>`,
     globalThis: { DailoPlatform: stubs.native ? { isNative: true } : undefined },
