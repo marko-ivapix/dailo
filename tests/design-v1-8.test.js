@@ -76,15 +76,17 @@ test('V1.8 layer restyles global controls without introducing blur or glow', () 
 
 // Phase 2 — desktop shell (R34: the sidebar widths left with the sidebar)
 
-test('the shell is one column; the sidebar widths are gone (R34)', () => {
-  assert.doesNotMatch(tokens, /--sidebar-width/);
+test('the shell is one column; the old sidebar widths are gone (R34), the R47a desktop sidebar has its own width', () => {
+  assert.doesNotMatch(tokens, /--sidebar-(collapsed|expanded)/);
+  assert.match(tokens, /--sidebar-width: 264px;/, 'R47a (K1)');
   assert.match(css, /\.app-shell \{ min-height: var\(--viewport-height\); display: grid; grid-template-columns: minmax\(0, 1fr\); \}/);
 });
 
 // R34 removed the rules of classes no runtime file emits (the retired sidebar, the old rows, tabs and dashboards);
 // their assertions went with them, and tests/redesign-r34.test.js keeps the stylesheet free of such rules.
 test('the sidebar left with R10g, so its rail and markers are gone (R34)', () => {
-  assert.doesNotMatch(css, /\.sidebar[\s{.:-]|\.nav-item|\.nav-badge/);
+  // R47a's desktop sidebar uses its own .desktop-sidebar and .sidebar-* classes.
+  assert.doesNotMatch(css, /\.sidebar[\s{.:]|\.nav-item|\.nav-badge/);
 });
 
 // Phase 3 — mobile navigation and Quick Add

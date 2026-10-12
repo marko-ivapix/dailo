@@ -633,6 +633,20 @@ if (!tiles.length || tiles.some(tile => !tile.firstElementChild?.matches('.more-
 click('#main .more-tiles .more-row[data-route="account"]');
 await new Promise(resolve => setTimeout(resolve, 50));
 if (window.location.hash !== '#account' || window.document.querySelector('#main .page-title')?.textContent !== 'Nalog' || !window.document.querySelector('#main [data-account-local], #main [data-settings-sync] [data-action="open-welcome"]')) fail('the Nalog tile did not open the Nalog screen');
+// R47a (K1): the desktop sidebar is in the page (CSS shows it from 1024 px on): the main screens with Danas's count,
+// the projects, the folding groups, and the button that folds it to icons and is remembered on this device.
+const sidebar = window.document.querySelector('#desktop-sidebar');
+if (!sidebar?.querySelector('[data-route="today"]') || !sidebar.querySelector('[data-route="habits"]') || !sidebar.querySelector('[data-route="settings"]') || !sidebar.querySelector('[data-sidebar-drop="tomorrow"]')) fail('the desktop sidebar is missing its main screens');
+if (!sidebar.querySelector('[data-route^="project/"]')) fail('the desktop sidebar lists no projects');
+click('#desktop-sidebar [data-action="sidebar-fold"][data-group="library"]');
+if (window.document.querySelector('#desktop-sidebar [data-route="tags"]') || JSON.parse(window.localStorage.getItem('dailoSidebarFolds') || '{}').library !== true) fail('Biblioteka did not fold in the sidebar');
+click('#desktop-sidebar [data-action="sidebar-fold"][data-group="library"]');
+click('#desktop-sidebar [data-action="toggle-sidebar"]');
+if (window.document.documentElement.dataset.sidebar !== 'collapsed' || window.localStorage.getItem('dailoSidebar') !== 'collapsed') fail('the sidebar did not fold to icons');
+click('#desktop-sidebar [data-action="toggle-sidebar"]');
+click('#desktop-sidebar [data-route="calendar"]');
+await new Promise(resolve => setTimeout(resolve, 30));
+if (window.location.hash !== '#calendar' || !window.document.querySelector('#desktop-sidebar [data-route="calendar"].is-active')) fail('a sidebar item did not open its screen');
 // R41: Navike pages to next week (› with its rings inactive) and "Ova nedelja" comes back.
 window.location.hash = '#habits';
 await new Promise(resolve => setTimeout(resolve, 50));

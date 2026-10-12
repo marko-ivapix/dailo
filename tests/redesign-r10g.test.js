@@ -78,7 +78,8 @@ test('M5: week start and density apply on change; the week-start history stays (
 
 test('the sidebar is retired: no markup, render function, actions or UI keys', () => {
   assert.doesNotMatch(read('index.html'), /id="sidebar"/);
-  assert.doesNotMatch(app, /function renderSidebar\(|toggle-sidebar|sidebarCollapsed|sidebarSections|function openMoreMenu\(|'more-menu'|#sidebar/);
+  // R47a brought back a different, desktop-only sidebar (#desktop-sidebar, renderSidebar, toggle-sidebar).
+  assert.doesNotMatch(app, /sidebarCollapsed|sidebarSections|function openMoreMenu\(|'more-menu'|#sidebar/);
 });
 
 test('the R10g layer and the Serbian labels', () => {

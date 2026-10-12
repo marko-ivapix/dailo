@@ -914,6 +914,13 @@
     "Attachments: {error}": "Prilozi: {error}",
     "The file is larger than the server allows.": "Fajl je veći nego što server dozvoljava.",
     "The server has no place for attachments yet. Run 0003_attachments.sql in Supabase.": "Server još nema mesta za priloge. U Supabase-u pokreni 0003_attachments.sql.",
+    // R47a: the desktop sidebar.
+    "Drag here for tomorrow": "Prevuci ovde za sutra",
+    "Without area": "Bez oblasti",
+    "Fold the sidebar": "Skupi bočni meni",
+    "Unfold the sidebar": "Raširi bočni meni",
+    "Synced {time}": "Sinhronizovano {time}",
+    "Main screens": "Glavni ekrani",
     // R41: paging through weeks on Navike.
     "Current week": "Ova nedelja",
     "Last week": "Prošla nedelja",
