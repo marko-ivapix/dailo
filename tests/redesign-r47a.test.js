@@ -7,6 +7,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 const Release = require('../js/release.js');
 const { withI18n } = require('./support/i18n.js');
+const { functionSource } = require('./support/source.js'); // R56: the sidebar moved to js/sidebar-ui.js
 
 const read = file => fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
 const app = read('js/app.js');
@@ -23,7 +24,7 @@ test('K1: the page has a sidebar next to the content; the "+" carries a label fo
 });
 
 test('K1: what the sidebar holds', () => {
-  const sidebar = fn('renderSidebar');
+  const sidebar = functionSource('sidebarHtml').source;
   for (const part of [
     'class="sidebar-brand"', 'data-action="toggle-sidebar"', 'class="sidebar-sync"', 'data-action="open-search"',
     "sidebarItem('today', 'ph-sun', tr('Today'), todayCount)", 'data-sidebar-drop="tomorrow"', "tr('Drag here for tomorrow')",
@@ -32,14 +33,13 @@ test('K1: what the sidebar holds', () => {
     "sidebarItem('settings', 'ph-gear', tr('Settings'))", "sidebarItem('account', 'ph-user-circle', tr('Account'))",
   ]) assert.ok(sidebar.includes(part), part);
   // Projects are grouped by area with their open counts; folds are remembered on this device.
-  assert.match(app, /function sidebarProjectGroups\(\)/);
-  assert.match(fn('toggleSidebarFold'), /localStorage\.setItem\('dailoSidebarFolds', JSON\.stringify\(folds\)\)/);
-  assert.match(fn('toggleSidebar'), /localStorage\.setItem\('dailoSidebar', collapsed \? 'collapsed' : 'open'\)/);
+  assert.match(functionSource('sidebarProjectGroups').source, /function sidebarProjectGroups\(ctx\)/);
+  assert.match(functionSource('toggleSidebarFold').source, /localStorage\.setItem\('dailoSidebarFolds', JSON\.stringify\(folds\)\)/);
+  assert.match(functionSource('toggleSidebar').source, /localStorage\.setItem\('dailoSidebar', collapsed \? 'collapsed' : 'open'\)/);
 });
 
 test('K1: projects grouped by area with open counts, archived ones left out', () => {
-  const start = app.indexOf('\n  function sidebarProjectGroups(') + 1;
-  const body = app.slice(start, app.indexOf('\n  }\n', start) + 4);
+  const body = functionSource('sidebarProjectGroups').source;
   const context = withI18n({
     sortedProjects: () => [{ id: 'p1', name: 'Kuhinja', areaId: 'a1' }, { id: 'p2', name: 'Posao', areaId: null }, { id: 'p3', name: 'Bašta', areaId: 'a1' }, { id: 'p4', name: 'Stari', areaId: 'a9' }],
     sortedAreas: () => [{ id: 'a1', name: 'Kuća', status: 'active' }, { id: 'a9', name: 'Gotovo', status: 'archived' }],
@@ -47,7 +47,7 @@ test('K1: projects grouped by area with open counts, archived ones left out', ()
   });
   vm.createContext(context);
   vm.runInContext(body, context);
-  assert.deepEqual(JSON.parse(JSON.stringify(context.sidebarProjectGroups())), [
+  assert.deepEqual(JSON.parse(JSON.stringify(context.sidebarProjectGroups(context))), [
     { title: 'Kuća', projects: [{ id: 'p1', name: 'Kuhinja', open: 1 }, { id: 'p3', name: 'Bašta', open: 2 }] },
     { title: 'Gotovo', projects: [{ id: 'p4', name: 'Stari', open: 1 }] },
     { title: 'Without area', projects: [{ id: 'p2', name: 'Posao', open: 0 }] },
@@ -82,7 +82,7 @@ test('K10: 1–5 open the main screens, [ folds the sidebar; ← → and T move 
   const keys = fn('handleKeydown');
   assert.match(app, /const DESKTOP_KEYS = Object\.freeze\(\{ 1: 'today', 2: 'inbox', 3: 'tasks', 4: 'calendar', 5: 'habits' \}\);/);
   assert.match(keys, /if \(!event\.ctrlKey && !event\.metaKey && !event\.altKey && DESKTOP_KEYS\[event\.key\]\) \{ event\.preventDefault\(\); navigate\(DESKTOP_KEYS\[event\.key\]\); return; \}/);
-  assert.match(keys, /if \(event\.key === '\[' && !event\.ctrlKey && !event\.metaKey && !event\.altKey && wideScreen\(\)\) \{ event\.preventDefault\(\); toggleSidebar\(\); return; \}/);
+  assert.match(keys, /if \(event\.key === '\[' && !event\.ctrlKey && !event\.metaKey && !event\.altKey && wideScreen\(\)\) \{ event\.preventDefault\(\); callDomainHook\('handleAction', 'toggle-sidebar', null\); return; \}/);
   assert.match(keys, /if \(currentRoute\(\)\.type === 'calendar' && !event\.ctrlKey && !event\.metaKey && !event\.altKey && !event\.shiftKey\) \{\n        if \(event\.key === 'ArrowLeft' \|\| event\.key === 'ArrowRight'\) \{ event\.preventDefault\(\); navigateCalendar\(event\.key === 'ArrowLeft' \? -1 : 1\); return; \}\n        if \(event\.key\.toLowerCase\(\) === 't'\) \{ event\.preventDefault\(\); calendarToday\(\); return; \}\n      \}/);
 });
 
