@@ -1,0 +1,58 @@
+name: Android release
+
+# R49: the signed AAB (Google Play) and APK, by hand (Actions → Android release → Run workflow) or from a v* tag.
+# The upload key comes from repository secrets (docs/v2/android-izdanje.md); it is decoded to the runner's temp folder
+# for the build and deleted afterwards.
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: Signed AAB and APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+      - run: npm ci
+      - run: npm run verify
+      - run: npm run cap:sync
+      - name: Upload key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.DAILO_UPLOAD_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error::Add the DAILO_UPLOAD_* secrets first (docs/v2/android-izdanje.md)."
+            exit 1
+          fi
+          echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/upload.jks"
+          echo "DAILO_UPLOAD_STORE_FILE=$RUNNER_TEMP/upload.jks" >> "$GITHUB_ENV"
+      - run: ./gradlew bundleRelease assembleRelease --no-daemon
+        working-directory: android
+        env:
+          DAILO_UPLOAD_STORE_PASSWORD: ${{ secrets.DAILO_UPLOAD_STORE_PASSWORD }}
+          DAILO_UPLOAD_KEY_ALIAS: ${{ secrets.DAILO_UPLOAD_KEY_ALIAS }}
+          DAILO_UPLOAD_KEY_PASSWORD: ${{ secrets.DAILO_UPLOAD_KEY_PASSWORD }}
+      - name: Remove the upload key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/upload.jks"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dailo-release
+          path: |
+            android/app/build/outputs/bundle/release/app-release.aab
+            android/app/build/outputs/apk/release/app-release.apk
+          retention-days: 30

@@ -20,7 +20,7 @@ test('the debug keystore is in the repository and unchanged', () => {
   assert.doesNotMatch(fs.readFileSync(path.join(root, 'android/.gitignore'), 'utf8'), /^\*\.keystore$/m, 'not ignored');
 });
 
-test('debug builds are signed with it, release builds are not', () => {
+test('debug builds are signed with it, release builds never are', () => {
   const signing = gradle.match(/signingConfigs \{\n\s+debug \{([\s\S]*?)\n\s+\}\n\s+\}/);
   assert.ok(signing, 'a signingConfigs.debug block');
   assert.match(signing[1], /storeFile file\('debug\.keystore'\)/);
@@ -29,5 +29,7 @@ test('debug builds are signed with it, release builds are not', () => {
   assert.match(signing[1], /keyPassword 'android'/);
   assert.match(gradle, /buildTypes \{\n\s+debug \{\n\s+signingConfig signingConfigs\.debug\n\s+\}/);
   const release = gradle.match(/\n\s+release \{([\s\S]*?)\n\s+\}/)[1];
-  assert.doesNotMatch(release, /signingConfig/, 'the release key is separate and never in the repository');
+  assert.doesNotMatch(release, /signingConfigs\.debug/, 'the release key is separate and never in the repository');
+  // R49: the release uses the upload key from the environment only (tests/android-release-r49.test.js).
+  assert.match(release, /signingConfig dailoReleaseSigning \? signingConfigs\.upload : null/);
 });

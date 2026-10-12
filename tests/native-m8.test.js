@@ -158,8 +158,8 @@ test('the native projects carry the version, the dark style and the store settin
   assert.equal((project.match(/MARKETING_VERSION = 2\.0\.0;/g) || []).length, 2, 'Debug and Release');
   assert.doesNotMatch(project, /MARKETING_VERSION = 1\.0;/);
   const gradle = read('android/app/build.gradle');
-  assert.match(gradle, /versionCode 1\n/);
-  assert.match(gradle, /versionName "2\.0\.0"/);
+  // R49: the version comes from package.json (tests/android-release-r49.test.js).
+  assert.match(gradle, /versionCode dailoVersionCode\(dailoVersion\)\n\s+versionName dailoVersion\n/);
   assert.match(read('android/app/src/main/res/values/styles.xml'), /<item name="windowSplashScreenBackground">#0F1114<\/item>/);
   assert.match(read('tools/generate-icons.py'), /--native/);
 });
