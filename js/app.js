@@ -2725,6 +2725,7 @@
     if (!popoverEl) return;
     popoverEl.innerHTML = html;
     decorateSheet(popoverEl);
+    placePopover(popoverEl);
     const title = popoverEl.querySelector('.popover-title');
     if (title) {
       title.id = title.id || `popover-title-${Date.now().toString(36)}`;
@@ -3044,7 +3045,7 @@
     el.prepend(header);
     // R33 (finding 29): the grabber works: dragging the header down more than 80 px closes the sheet.
     header.addEventListener('pointerdown', event => {
-      if (event.target.closest?.('button') || (event.pointerType === 'mouse' && event.button !== 0)) return;
+      if (wideScreen() || event.target.closest?.('button') || (event.pointerType === 'mouse' && event.button !== 0)) return;
       const startY = event.clientY; let drag = 0;
       const move = moveEvent => { drag = Math.max(0, moveEvent.clientY - startY); el.style.transform = drag ? `translateY(${drag}px)` : ''; };
       const end = () => {
@@ -3078,16 +3079,49 @@
     popoverEl.innerHTML = html;
     decorateSheet(popoverEl);
     labelSheet(popoverEl);
+    placePopover(popoverEl);
     requestAnimationFrame(() => ((focusSelector && popoverEl?.querySelector(focusSelector)) || (popoverEl && sheetInitialFocus(popoverEl)))?.focus());
+  }
+
+  // R47b (K6): on a wide screen a picker opens under the row that opened it, or above it when it fits only there, or
+  // shifted to fit the window; a row wider than the picker lines up with its value on the right.
+  const POPOVER_WIDTH = 380;
+  function anchoredPopoverPosition(rect, size, viewport, gap = 6, margin = 12) {
+    const width = Math.min(size.width, viewport.width - 2 * margin);
+    const height = Math.min(size.height, viewport.height - 2 * margin);
+    const below = viewport.height - rect.bottom - gap - margin;
+    const above = rect.top - gap - margin;
+    const top = height <= below ? rect.bottom + gap : height <= above ? rect.top - gap - height : Math.max(margin, viewport.height - margin - height);
+    const left = rect.width > width ? rect.right - width : rect.left;
+    return { left: Math.round(Math.min(Math.max(margin, left), viewport.width - width - margin)), top: Math.round(top), maxHeight: Math.round(viewport.height - 2 * margin) };
+  }
+
+  // Places a sheet for the screen width: a bottom sheet on a phone; on a wide screen a popover next to its row (kept
+  // in place when the row is redrawn) or, for the repeat editor and pickers without a row, a centered window.
+  function placePopover(el) {
+    el.classList.remove('popover--anchored', 'popover--center');
+    el.backdrop?.classList.remove('is-clear');
+    el.style.left = el.style.top = el.style.maxHeight = '';
+    if (!wideScreen()) return;
+    const box = el.anchor?.isConnected ? el.anchor.getBoundingClientRect?.() : null;
+    if (box && (box.width || box.height)) el.anchorRect = { left: box.left, top: box.top, right: box.right, bottom: box.bottom, width: box.width, height: box.height };
+    if (el.dataset.popoverType === 'repeat' || !el.anchorRect) { el.classList.add('popover--center'); return; }
+    el.classList.add('popover--anchored');
+    el.backdrop?.classList.add('is-clear');
+    const place = anchoredPopoverPosition(el.anchorRect, { width: el.offsetWidth || POPOVER_WIDTH, height: el.scrollHeight }, { width: innerWidth, height: innerHeight });
+    Object.assign(el.style, { left: `${place.left}px`, top: `${place.top}px`, maxHeight: `${place.maxHeight}px` });
   }
 
   function openPopover(anchor, html, meta = {}) {
     closePopover();
     const backdrop = document.createElement('div');
     backdrop.className = 'sheet-backdrop';
+    // The page under a picker does not scroll away from it.
+    backdrop.addEventListener('wheel', event => event.preventDefault(), { passive: false });
     const el = document.createElement('div');
     el.className = 'popover popover--sheet';
     el.dataset.popoverType = meta.type || '';
+    el.anchor = anchor;
     el.innerHTML = html;
     el.setAttribute('role', 'dialog');
     labelSheet(el);
@@ -3098,6 +3132,7 @@
     el.backdrop = backdrop;
     document.body.appendChild(backdrop);
     document.body.appendChild(el);
+    placePopover(el);
     popoverEl = el;
     requestAnimationFrame(() => sheetInitialFocus(el)?.focus());
   }

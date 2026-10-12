@@ -2513,6 +2513,24 @@ textarea[data-autogrow] { field-sizing: content; min-height: 0; resize: none; ov
   :root[data-sidebar="collapsed"] .sidebar-count.is-badge { position: absolute; top: 0; right: 2px; min-width: 16px; padding: 0 4px; font-size: var(--text-2xs); }
 }
 
+/* Redesign R47b — the desktop layer, part 2 (K3, K4, K6). From 1024 px on every window is a centered dialog over the
+   dimmed screen (640 px for the tall ones), a picker opens next to the row that opened it (the repeat editor and
+   pickers without a row are centered, 440 px), and list rows light up under the mouse. */
+@media (min-width: 1024px) {
+  .modal-backdrop:not(.modal-backdrop-welcome-screen) { place-items: center; padding: 32px 24px; }
+  .modal-backdrop-quick .modal { width: min(560px, 100%); max-height: calc(var(--viewport-height) - 64px); border-bottom: 1px solid var(--line-2); border-radius: var(--radius-lg); animation: modal-in var(--motion-slow) var(--ease-enter); }
+  .modal-backdrop-quick .modal:has(> .modal-inner:is(.task-window, .goal-details, .habit-details, .knowledge-window, .habit-window, .focus-window, .journal-window, .template-window)) { width: min(640px, 100%); }
+  .modal-backdrop-quick .modal:has(> .confirm-window) { width: min(480px, 100%); }
+  .popover.popover--sheet.popover--anchored { bottom: auto; width: min(380px, calc(100vw - 24px)); max-height: none; transform: none; padding: 0 16px 16px; border-bottom: 1px solid var(--line-2); border-radius: var(--radius-lg); animation: popover-in var(--motion-base) var(--ease-enter); }
+  .popover.popover--sheet.popover--center { top: 50%; bottom: auto; width: min(440px, calc(100vw - 24px)); max-height: calc(var(--viewport-height) - 64px); transform: translate(-50%, -50%); padding: 0 16px 16px; border-bottom: 1px solid var(--line-2); border-radius: var(--radius-lg); animation: fade-in var(--motion-base) var(--ease-enter); }
+  .sheet-backdrop.is-clear { background: transparent; animation: none; }
+  :is(.popover--anchored, .popover--center) .sheet-grabber { display: none; }
+  :is(.popover--anchored, .popover--center) .sheet-header { padding-top: 12px; }
+}
+@media (min-width: 1024px) and (hover: hover) {
+  :is(.today-row, .goal-list-row, .area-list-row, .tag-list-row, .view-list-row, .journal-row, .review-row, .cleaning-archived-row):hover { background: var(--graphite-800); }
+}
+
 /* Keep primary compact actions touchable after all density rules. */
 @media (max-width: 700px), (pointer: coarse) {
   .task-actions .btn-icon,

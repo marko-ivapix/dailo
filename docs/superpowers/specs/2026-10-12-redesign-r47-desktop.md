@@ -9,7 +9,7 @@ The layer applies only from 1024 px on. Below that the phone design stays exactl
 | Step | Release | Decisions |
 | --- | --- | --- |
 | R47a | `2.0.0-alpha.73` | K1 sidebar, K2 widths, K10 keys, K12 labelled "+" |
-| R47b | next | K4 centered windows, K6 pickers next to their row, K3 hover |
+| R47b | `2.0.0-alpha.74` | K4 centered windows, K6 pickers next to their row, K3 hover |
 | R47c | next | K7 two columns on Danas and Navike |
 | R47d | next | K8 calendar week and month, K9 drag and drop onto the sidebar |
 
@@ -70,3 +70,47 @@ K10's "Q new item" stays the editable "Novi zadatak" shortcut (default N), so ex
 - **Updated tests:** the tests of R1, R9c, R10g, R22c and V1.8 that required "no sidebar" now allow this one.
 - **Smoke:** `tools/smoke-boot.mjs` checks the sidebar in jsdom: it is drawn, a group folds, the sidebar folds, and an item navigates.
 - **Manual-pending:** the look on a real wide screen (Mac browser) and the keys.
+
+## R47b — centered windows, pickers next to their row, hover
+
+### Windows (K4)
+
+- **Placement:** from 1024 px on, every window is a dialog in the middle of the dimmed screen, with rounded corners all around. On a phone it stays a bottom window (D1).
+- **Widths:**
+  - **Tall (640 px):** the task, goal, habit and note windows, the new habit, the new goal, the new recurring task, Fokus, the journal entry and the template editor.
+  - **Short (560 px):** Quick Add, Pretraga, Razvrstaj redom, the saved view window and the small windows.
+  - **Confirm:** 480 px.
+- **Height:** at most the window height minus 64 px; longer content scrolls inside, and the sticky footers stay.
+- **Welcome screen:** it stays full-screen.
+- **Esc:** closes a window, as before.
+
+### Pickers (K6)
+
+- **Next to the row:** on a wide screen a picker (`openPopover`) opens as a 380 px popover next to the row or button that opened it.
+  - **Where (`anchoredPopoverPosition`):** under the row when it fits. Otherwise it goes above the row, or, when neither side has room, it is shifted to fit the window.
+  - **Alignment:** a row wider than the picker (a row in the task window) lines it up with the value on the right; a smaller control lines up its left edge.
+  - **Edges:** the picker always stays 12 px inside the window. A picker taller than the window scrolls inside.
+- **Centered pickers:** the repeat editor (S15) is too long for a popover and opens as a 440 px centered window over the dimmed screen. A picker whose row is not on the screen opens the same way.
+- **Redraws:** when the picker's content is redrawn (`refreshSheet`, `setPopoverContent`) it is placed again. If the row itself was redrawn, the remembered place is kept.
+- **Backdrop:** behind a popover it is clear, and a click on it still closes the picker. The page under it does not scroll.
+- **What does not change:**
+  - a change of the window width still closes the picker;
+  - the grabber is hidden, and dragging the header does nothing on a wide screen;
+  - on a phone every picker stays a bottom sheet.
+
+### Hover (K3)
+
+- **Rows:** with a mouse on a wide screen, list rows get the hover background that task and project rows already had: Danas and habit rows, goals, areas, tags, saved views, journal, review and archived chores.
+- **Already there:** the 44 px rows and 14 px text come from the density setting (R34, Settings → Računar → "Zbijeniji prikaz").
+
+## Checks (R47b)
+
+- **Node:** `tests/redesign-r47b.test.js`, written first; it failed 6/6. It covers:
+  - the window CSS and widths;
+  - the six positioning cases;
+  - `placePopover` (anchored, kept after a redraw, centered for the repeat editor and without a row, untouched on a phone);
+  - the wiring;
+  - hover;
+  - the version.
+- **Smoke:** with a wide `matchMedia`, a task's ⋯ menu opens next to its button over a clear backdrop.
+- **Manual-pending:** the look and the placement in a real wide browser window.
