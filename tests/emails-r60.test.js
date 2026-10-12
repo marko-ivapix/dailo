@@ -83,8 +83,7 @@ test('Serbian templates with the code, ready to paste, and a guide that explains
   for (const part of ['supabase/templates/confirm-signup.html', 'supabase/templates/reset-password.html', 'supabase/templates/change-email.html', 'supabase/templates/reauthentication.html', 'localhost', 'Site URL']) assert.ok(guide.includes(part), part);
 });
 
-test('R60 is released as 2.0.0-alpha.87', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.87');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.87';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.87');
+test('R60 shipped as 2.0.0-alpha.87 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 99) >= 87);
 });

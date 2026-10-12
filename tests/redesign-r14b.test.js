@@ -34,7 +34,8 @@ test('T5: a habit row is the name, the progress text and the circle at the far r
   const daily = row({ id: 'h1', name: 'Read', trackingType: 'checkbox', frequencyType: 'daily', status: 'active' }, { status: 'done' });
   assert.match(daily, /^<article class="today-row habit-today-row is-done" data-habit-id="h1"><button class="today-row-main" type="button" data-action="habit-today-menu"/);
   assert.ok(endsWithCircle(daily), 'the row ends with the circle');
-  assert.match(daily, /<button class="habit-check" type="button" data-action="habit-today-toggle" data-habit-id="h1" data-long-press="habit-today-menu" aria-pressed="true" aria-label="Read">/);
+  // R61: the circle's name also says the day's state.
+  assert.match(daily, /<button class="habit-check" type="button" data-action="habit-today-toggle" data-habit-id="h1" data-long-press="habit-today-menu" aria-pressed="true" aria-label="Read: Done">/);
   const numeric = row({ id: 'h2', name: 'Water', trackingType: 'numeric', targetValue: 2, unit: 'l', frequencyType: 'daily', status: 'active' }, { status: 'pending', value: 1.5 });
   const [main, count, check] = order(numeric);
   assert.ok(main < count && count < check, 'name, then "1.5 / 2 l", then the circle');

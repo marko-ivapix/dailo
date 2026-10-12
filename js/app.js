@@ -4235,11 +4235,14 @@
     // live check-in is controlled by the current lifecycle state.
     const allowHistoricalBackfill = Boolean(options.allowHistoricalBackfill && date < today);
     if (!habit || !date || date > today || (date === today && habit.status !== 'active') || !(Core.habitScheduledOn(habit, date, { historical: true }) || existing || allowHistoricalBackfill)) return false;
+    // R61: null clears the day (no log at all), the empty state of a yes/no habit.
+    const clearing = requestedStatus === null;
+    if (clearing && !existing) return true;
     const before = captureGoalProgress();
     let status = requestedStatus; let value = requestedValue;
     // R31 (finding 9): a numeric habit can be skipped too; only a value decides done or missed.
-    if (habit.trackingType === 'numeric' && requestedStatus !== 'skipped') { const numeric = Core.numericHabitState(habit, requestedValue); status = numeric.status; value = numeric.value; }
-    const record = { id: `${habitId}:${date}`, habitId, date, status: ['done', 'skipped', 'missed'].includes(status) ? status : 'done', value: value ?? null, createdAt: existing?.createdAt || nowIso(), updatedAt: nowIso() };
+    if (!clearing && habit.trackingType === 'numeric' && requestedStatus !== 'skipped') { const numeric = Core.numericHabitState(habit, requestedValue); status = numeric.status; value = numeric.value; }
+    const record = clearing ? null : { id: `${habitId}:${date}`, habitId, date, status: ['done', 'skipped', 'missed'].includes(status) ? status : 'done', value: value ?? null, createdAt: existing?.createdAt || nowIso(), updatedAt: nowIso() };
     const previousUpdatedAt = habit.updatedAt;
     habit.updatedAt = nowIso();
     // Establish canonical ownership before touching the growing IndexedDB
@@ -4253,10 +4256,13 @@
       return null;
     }
     try {
-      const putHabitLog = TodoStorage.habitLogs.putIfCurrent || TodoStorage.habitLogs.put;
-      await putHabitLog.call(TodoStorage.habitLogs, record, existing || null);
+      if (clearing) await TodoStorage.habitLogs.deleteIfCurrent(existing.id, existing);
+      else {
+        const putHabitLog = TodoStorage.habitLogs.putIfCurrent || TodoStorage.habitLogs.put;
+        await putHabitLog.call(TodoStorage.habitLogs, record, existing || null);
+      }
       if (!ownsCanonical()) throw new Error(msg('Canonical data changed in another tab during Habit check-in.'));
-      if (record.status === 'done') haptic('success');
+      if (record?.status === 'done') haptic('success');
       await refreshHabitMetrics();
     } catch (error) {
       let rollbackError = null;
@@ -4264,7 +4270,8 @@
         // Roll back with the same native compare-and-set used for the forward
         // write. A competing tab can write between any separate read and
         // mutation, so never overwrite or delete a record we do not own.
-        if (existing && TodoStorage.habitLogs.putIfCurrent) await TodoStorage.habitLogs.putIfCurrent(existing, record);
+        if (clearing) { if (!(await TodoStorage.habitLogs.get(existing.id))) await TodoStorage.habitLogs.putIfCurrent(existing, null); }
+        else if (existing && TodoStorage.habitLogs.putIfCurrent) await TodoStorage.habitLogs.putIfCurrent(existing, record);
         else if (!existing && TodoStorage.habitLogs.deleteIfCurrent) await TodoStorage.habitLogs.deleteIfCurrent(record.id, record);
         else {
           const current = await TodoStorage.habitLogs.get(record.id);
@@ -6673,7 +6680,7 @@
     const number = value => Number(value || 0).toLocaleString(I18n.locale(), { maximumFractionDigits: 2 });
     return {
       title: tr('Habits'), summary: snap.planned ? tr('{done} of {total} today', { done: snap.done, total: snap.planned }) : '',
-      items: snap.items.map(item => ({ id: item.id, done: item.done, text: `${item.done ? '✓' : '○'}  ${item.name}${item.numeric ? ` · ${number(item.value)}/${number(item.target)}${item.unit ? ` ${item.unit}` : ''}` : ''}` })),
+      items: snap.items.map(item => ({ id: item.id, done: item.done, text: `${item.done ? '✓' : item.missed ? '✗' : '○'}  ${item.name}${item.numeric ? ` · ${number(item.value)}/${number(item.target)}${item.unit ? ` ${item.unit}` : ''}` : ''}` })),
       more: snap.more ? tr('+ {count} more', { count: snap.more }) : '',
       empty: tr('No habits planned for today'), stale: tr('Open Dailo for today’s habits'),
     };

@@ -1192,6 +1192,7 @@
     "Weekdays {days}": "Dani: {days}",
     "{count} / {target} this week": "{count} / {target} ove nedelje",
     "Not checked in": "Nije zabeleženo",
+    "Not done": "Nije urađeno",
     "Skip today": "Preskoči danas",
     "Habit actions": "Radnje za naviku",
     "Future": "Budući dani",

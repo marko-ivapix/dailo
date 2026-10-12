@@ -2592,6 +2592,14 @@ textarea[data-autogrow] { field-sizing: content; min-height: 0; resize: none; ov
 .habit-year-key { display: inline-flex; align-items: center; gap: 6px; }
 .habit-year-key .habit-year-cell { width: 10px; }
 
+/* R61 — a yes/no habit marked "not done": a red circle with a cross (Danas, Dan), a red day (Nedelja, details). */
+.habit-circle-missed { fill: var(--danger-fill); }
+.habit-circle-x { fill: none; stroke: var(--on-accent); stroke-width: 2.6; stroke-linecap: round; }
+.habit-cell.is-marked { color: var(--on-accent); }
+.habit-cell.is-marked::before { border-color: var(--danger-fill); background: var(--danger-fill); }
+.habit-cell-x { width: 14px; height: 14px; fill: none; stroke: var(--on-accent); stroke-width: 3; stroke-linecap: round; }
+.habit-cell-swatch.is-marked { border-color: var(--danger-fill); background: var(--danger-fill); }
+
 /* Keep primary compact actions touchable after all density rules. */
 @media (max-width: 700px), (pointer: coarse) {
   .task-actions .btn-icon,
