@@ -914,6 +914,11 @@
     "Attachments: {error}": "Prilozi: {error}",
     "The file is larger than the server allows.": "Fajl je veći nego što server dozvoljava.",
     "An item is too large to sync (at most 256 KB). Shorten it.": "Jedna stavka je prevelika za sinhronizaciju (najviše 256 KB). Skrati je.",
+    "Your e-mail address is confirmed. Sign in with your password.": "E-adresa je potvrđena. Prijavi se svojom lozinkom.",
+    "Your new e-mail address is confirmed.": "Nova e-adresa je potvrđena.",
+    "For a new password, use the code from the e-mail: Sign in → Forgot password?": "Za novu lozinku upiši kod iz e-poruke: Prijava → Zaboravljena lozinka?",
+    "The link has expired or was already used. Ask for a new code in Dailo.": "Link je istekao ili je već iskorišćen. Zatraži novi kod u Dailu.",
+    "The link did not work. Ask for a new code in Dailo.": "Link nije uspeo. Zatraži novi kod u Dailu.",
     "Too large to sync (at most 240 KB): {items}": "Preveliko za sinhronizaciju (najviše 240 KB): {items}",
     "The server has no place for attachments yet. Run 0003_attachments.sql in Supabase.": "Server još nema mesta za priloge. U Supabase-u pokreni 0003_attachments.sql.",
     // R47a: the desktop sidebar.

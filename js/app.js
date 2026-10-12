@@ -11,7 +11,7 @@
   // Optional sync (V2.0-a): on only when js/sync-config.js has the project URL and public key.
   const Sync = window.DailoSync || null;
   const syncConfig = window.DailoSyncConfig || {};
-  const syncClient = Sync?.isConfigured(syncConfig) ? Sync.createClient({ url: syncConfig.url, anonKey: syncConfig.anonKey }) : null;
+  const syncClient = Sync?.isConfigured(syncConfig) ? Sync.createClient({ url: syncConfig.url, anonKey: syncConfig.anonKey, emailRedirect: Release.APP_URL }) : null;
   // R50: Supabase Realtime pokes a sync when a record of the account changes; the five-minute round stays as a fallback.
   const liveSync = syncClient && Sync.createRealtime ? Sync.createRealtime({ url: syncConfig.url, key: syncConfig.anonKey, onChange: () => scheduleSync(800), onStatus: () => refreshSyncCard() }) : null;
   const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
@@ -4692,10 +4692,29 @@
     renderModal();
   }
 
+  // R60: a link from an account e-mail lands here with its outcome in the address. Only the message is taken: the
+  // session in it is never used, so a link from someone else cannot sign this device into their account.
+  const AUTH_LANDING_MESSAGES = Object.freeze({
+    confirmed: msg('Your e-mail address is confirmed. Sign in with your password.'),
+    email: msg('Your new e-mail address is confirmed.'),
+    recovery: msg('For a new password, use the code from the e-mail: Sign in → Forgot password?'),
+    expired: msg('The link has expired or was already used. Ask for a new code in Dailo.'),
+    failed: msg('The link did not work. Ask for a new code in Dailo.'),
+  });
+  function consumeAuthLanding() {
+    const landing = Sync?.authLanding?.(location.hash) || (loadSyncMeta().pkce ? null : Sync?.authLanding?.(location.search));
+    if (!landing) return false;
+    history.replaceState(null, '', location.pathname);
+    setToastMessage(tr(AUTH_LANDING_MESSAGES[landing.kind]));
+    if (landing.kind === 'confirmed' && syncClient && !loadSyncMeta().session?.accessToken) openWelcome('sign-in');
+    return true;
+  }
+
   // At start: a Google or Apple sign-in coming back to the web page, otherwise the first screen when it is due.
   function startWelcome() {
     const returning = consumeAuthRedirect();
     if (returning) return returning;
+    if (consumeAuthLanding()) return true;
     if (welcomeDue() && state && !recovery && !storageError && !staleDataNotice && !globalOperation && !modalState) openWelcome('sign-in', { firstRun: true });
   }
 

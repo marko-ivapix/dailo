@@ -322,7 +322,8 @@ test('sign-out keeps local data, and account deletion needs the typed word', asy
 test('the app wires sync into saving, startup, dialogs, actions and the domain context', () => {
   const app = read('js/app.js');
   assert.match(app, /const Sync = window\.DailoSync \|\| null;/);
-  assert.match(app, /const syncClient = Sync\?\.isConfigured\(syncConfig\) \? Sync\.createClient\(\{ url: syncConfig\.url, anonKey: syncConfig\.anonKey \}\) : null;/);
+  // R60: the client also says where the links in the account e-mails go (tests/emails-r60.test.js).
+  assert.match(app, /const syncClient = Sync\?\.isConfigured\(syncConfig\) \? Sync\.createClient\(\{ url: syncConfig\.url, anonKey: syncConfig\.anonKey, emailRedirect: Release\.APP_URL \}\) : null;/);
   assert.match(app, /scheduleAutomaticSnapshot\(\);\n\s+scheduleSync\(\);\n\s+return true;/, 'every successful save schedules a sync');
   assert.match(app, /await startReady\(\);[\s\S]*?startSync\(\);[\s\S]*?registerServiceWorker\(\);/, 'sync starts after the data is ready');
   assert.match(app, /else if \(modalState\.type === 'sync-choice'\) root\.innerHTML = renderSyncChoice\(\);/);

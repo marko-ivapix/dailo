@@ -276,8 +276,11 @@
     return { state: next, habitLogPuts: [...puts.values()], habitLogDeletes: [...deletes], changed };
   }
 
-  function createClient({ url, anonKey, fetch: fetchImpl = root.fetch ? root.fetch.bind(root) : null, now = () => Date.now(), pageSize = 1000, batchSize = 500 } = {}) {
+  function createClient({ url, anonKey, fetch: fetchImpl = root.fetch ? root.fetch.bind(root) : null, now = () => Date.now(), pageSize = 1000, batchSize = 500, emailRedirect = '' } = {}) {
     const base = String(url || '').replace(/\/+$/, '');
+    // R60: the links in the account e-mails go to `emailRedirect` (the web app) when the project allows that address;
+    // otherwise Supabase uses its Site URL, which is localhost in a new project.
+    const withRedirect = path => (emailRedirect ? `${path}?${new URLSearchParams({ redirect_to: emailRedirect })}` : path);
 
     // R46: `raw` sends a file as it is (with its own type), `blob` returns the answer as a file.
     async function request(path, { method = 'GET', body, token, prefer, raw = null, type = '', upsert = false, blob = false } = {}) {
@@ -331,7 +334,7 @@
       // address gets a code. An address that already has an account gets a stand-in user without identities.
       async signUp(email, password, { fullName = '', termsAcceptedAt = '' } = {}) {
         const data = { ...(String(fullName).trim() ? { full_name: String(fullName).trim() } : {}), ...(termsAcceptedAt ? { terms_accepted_at: termsAcceptedAt } : {}) };
-        const result = await request('/auth/v1/signup', { method: 'POST', body: { email: address(email), password: String(password || ''), data } });
+        const result = await request(withRedirect('/auth/v1/signup'), { method: 'POST', body: { email: address(email), password: String(password || ''), data } });
         if (result?.access_token) return { session: toSession(result) };
         if (Array.isArray(result?.identities) && !result.identities.length) throw new SyncError(ACCOUNT_EXISTS, 422, 'user_already_exists');
         return { confirm: true };
@@ -340,10 +343,10 @@
         return toSession(await request('/auth/v1/token?grant_type=password', { method: 'POST', body: { email: address(email), password: String(password || '') } }));
       },
       async resendSignUp(email) {
-        await request('/auth/v1/resend', { method: 'POST', body: { type: 'signup', email: address(email) } });
+        await request(withRedirect('/auth/v1/resend'), { method: 'POST', body: { type: 'signup', email: address(email) } });
       },
       async requestPasswordReset(email) {
-        await request('/auth/v1/recover', { method: 'POST', body: { email: address(email) } });
+        await request(withRedirect('/auth/v1/recover'), { method: 'POST', body: { email: address(email) } });
       },
       async verifyRecovery(email, code) {
         return toSession(await request('/auth/v1/verify', { method: 'POST', body: { type: 'recovery', email: address(email), token: String(code || '').trim() } }));
@@ -359,7 +362,7 @@
       },
       // A new address gets a code; with secure e-mail change the current address gets one too, and both confirm.
       async changeEmail(session, email) {
-        await request('/auth/v1/user', { method: 'PUT', token: session?.accessToken, body: { email: address(email) } });
+        await request(withRedirect('/auth/v1/user'), { method: 'PUT', token: session?.accessToken, body: { email: address(email) } });
       },
       async verifyEmailChange(email, code) {
         const data = await request('/auth/v1/verify', { method: 'POST', body: { type: 'email_change', email: address(email), token: String(code || '').trim() } });
@@ -826,10 +829,20 @@
     return Object.freeze({ connect, disconnect, status: () => state });
   }
 
+  // R60: what a link from an account e-mail did, read from the address it lands on (#… after a link, ?… after an error).
+  // Only the outcome is read; the session the address may carry is never used.
+  function authLanding(text) {
+    const params = new URLSearchParams(String(text || '').replace(/^[#?]/, ''));
+    if (params.has('error') || params.has('error_code')) return { kind: params.get('error_code') === 'otp_expired' ? 'expired' : 'failed' };
+    if (!params.has('access_token')) return null;
+    const kind = { signup: 'confirmed', invite: 'confirmed', magiclink: 'confirmed', email_change: 'email', recovery: 'recovery' }[params.get('type')];
+    return kind ? { kind } : null;
+  }
+
   // Sync is offered only when the deployment has a project URL and public key (js/sync-config.js).
   function isConfigured(config) {
     return Boolean(config && /^https:\/\/[^\s/]+/.test(config.url || '') && typeof config.anonKey === 'string' && config.anonKey.length > 20);
   }
 
-  return Object.freeze({ COLLECTIONS, DEVICE_SETTINGS, SYNC_RECORD_LIMIT, SyncError, serverMessage, safeAttachmentData, passwordProblem, createCodeVerifier, codeChallenge, collectRecords, hashRecord, recordFingerprint, untouchedSample, diffRecords, applyRemote, createClient, createRealtime, syncOnce, isConfigured, JOURNAL_ITERATIONS, journalCipherValid, createJournalCipher, unlockJournalCipher, exportJournalKey, importJournalKey, forgetJournalShadow });
+  return Object.freeze({ COLLECTIONS, DEVICE_SETTINGS, SYNC_RECORD_LIMIT, SyncError, serverMessage, authLanding, safeAttachmentData, passwordProblem, createCodeVerifier, codeChallenge, collectRecords, hashRecord, recordFingerprint, untouchedSample, diffRecords, applyRemote, createClient, createRealtime, syncOnce, isConfigured, JOURNAL_ITERATIONS, journalCipherValid, createJournalCipher, unlockJournalCipher, exportJournalKey, importJournalKey, forgetJournalShadow });
 });

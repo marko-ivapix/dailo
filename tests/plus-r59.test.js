@@ -65,8 +65,7 @@ test('holding the "+" opens the menu where a tap adds directly; a tap on the ope
   assert.match(read('index.html'), /data-long-press="quick-add-task"/);
 });
 
-test('R59 is released as 2.0.0-alpha.86', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.86');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.86';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.86');
+test('R59 shipped as 2.0.0-alpha.86 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 99) >= 86);
 });
