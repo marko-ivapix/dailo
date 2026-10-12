@@ -256,7 +256,8 @@ test('the value sheet opens for a past day and names it; the screen opens on Dan
   vm.createContext(enter);
   vm.runInContext(`let habitsOpen = false, habitsEntryDay = null; // R37: Juče nije zabeleženo\n${fn('enterHabitsRoute')}`, enter);
   enter.enterHabitsRoute({ type: 'habits' });
-  assert.deepEqual(plain(enter.state.ui), { habitsView: 'day', habitsDay: TODAY, habitTrackerMonth: TODAY.slice(0, 7), habitChartDay: null });
+  // R41: the screen also opens on the selected day's week.
+  assert.deepEqual(plain(enter.state.ui), { habitsView: 'day', habitsDay: TODAY, habitsWeekStart: null, habitTrackerMonth: TODAY.slice(0, 7), habitChartDay: null });
   enter.state.ui.habitsView = 'week';
   enter.enterHabitsRoute({ type: 'habits' });
   assert.equal(enter.state.ui.habitsView, 'week', 'staying on the screen keeps the view');

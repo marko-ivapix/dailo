@@ -15,6 +15,7 @@ function createFakeSupabase({ url = 'https://fake.supabase.co', anonKey = 'anon-
   const history = [];
   const sentCodes = [];
   const mail = []; // { email, kind: 'otp' | 'signup' | 'recovery' }
+  const logoutScopes = [];
   let clock = Date.parse('2026-10-08T10:00:00.000Z');
   let tokenCounter = 0;
   const tick = () => new Date(clock += 7).toISOString();
@@ -24,7 +25,7 @@ function createFakeSupabase({ url = 'https://fake.supabase.co', anonKey = 'anon-
     tokenCounter += 1;
     const accessToken = `at-${user.id}-${tokenCounter}`;
     const refreshToken = `rt-${user.id}-${tokenCounter}`;
-    tokens.set(accessToken, { userId: user.id, expiresAt: clock + expiresIn * 1000 });
+    tokens.set(accessToken, { userId: user.id, expiresAt: clock + expiresIn * 1000, refreshToken });
     refreshTokens.set(refreshToken, user.id);
     return { access_token: accessToken, refresh_token: refreshToken, expires_in: expiresIn, token_type: 'bearer', user: { id: user.id, email: user.email, user_metadata: user.metadata || {} } };
   }
@@ -115,9 +116,16 @@ function createFakeSupabase({ url = 'https://fake.supabase.co', anonKey = 'anon-
       refreshTokens.delete(body.refresh_token);
       return json(200, issueSession([...users.values()].find(user => user.id === userId)));
     }
+    // Like Supabase Auth: without ?scope= a sign-out ends every session of the user ("global"); "local" ends only this one.
     if (path === '/auth/v1/logout' && method === 'POST') {
       const auth = (headers.Authorization || '').replace(/^Bearer /, '');
-      tokens.delete(auth);
+      const entry = tokens.get(auth);
+      const scope = target.searchParams.get('scope') || 'global';
+      logoutScopes.push(scope);
+      if (entry && scope === 'global') {
+        for (const [token, item] of tokens) if (item.userId === entry.userId) tokens.delete(token);
+        for (const [token, userId] of refreshTokens) if (userId === entry.userId) refreshTokens.delete(token);
+      } else if (entry) { tokens.delete(auth); refreshTokens.delete(entry.refreshToken); }
       return json(204, null);
     }
     if (path === '/rest/v1/rpc/delete_my_account' && method === 'POST') {
@@ -163,7 +171,7 @@ function createFakeSupabase({ url = 'https://fake.supabase.co', anonKey = 'anon-
   }
 
   return {
-    url, anonKey, fetch: handle, sentCodes, mail, history,
+    url, anonKey, fetch: handle, sentCodes, mail, logoutScopes, history,
     // What a provider (Google, Apple) does after the user agrees: it hands the app an auth code for this challenge.
     providerRedirect({ provider, codeChallenge, email }) {
       if (!providers[provider]) throw new Error(`${provider} is off`);

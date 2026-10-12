@@ -294,8 +294,9 @@
           throw error;
         }
       },
+      // Only this device's session ends; without the scope Supabase signs out every device of the account.
       async signOut(session) {
-        try { await request('/auth/v1/logout', { method: 'POST', token: session?.accessToken }); } catch (_) { /* signing out locally is enough */ }
+        try { await request('/auth/v1/logout?scope=local', { method: 'POST', token: session?.accessToken }); } catch (_) { /* signing out locally is enough */ }
       },
       async deleteAccount(session) {
         await request('/rest/v1/rpc/delete_my_account', { method: 'POST', token: session.accessToken, body: {} });

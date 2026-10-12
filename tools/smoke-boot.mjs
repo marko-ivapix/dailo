@@ -633,6 +633,17 @@ if (!tiles.length || tiles.some(tile => !tile.firstElementChild?.matches('.more-
 click('#main .more-tiles .more-row[data-route="account"]');
 await new Promise(resolve => setTimeout(resolve, 50));
 if (window.location.hash !== '#account' || window.document.querySelector('#main .page-title')?.textContent !== 'Nalog' || !window.document.querySelector('#main [data-account-local], #main [data-settings-sync] [data-action="open-welcome"]')) fail('the Nalog tile did not open the Nalog screen');
+// R41: Navike pages to next week (› with its rings inactive) and "Ova nedelja" comes back.
+window.location.hash = '#habits';
+await new Promise(resolve => setTimeout(resolve, 50));
+const weekRangeText = () => window.document.querySelector('#main .habits-week-range strong')?.textContent;
+const thisWeekRange = weekRangeText();
+click('#main [data-action="habits-week"][data-shift="1"]');
+await new Promise(resolve => setTimeout(resolve, 20));
+if (!thisWeekRange || weekRangeText() === thisWeekRange || !window.document.querySelector('#main .habits-week-today') || window.document.querySelector('#main [data-action="habits-ring"]:not([disabled])')) fail('› on Navike did not show next week');
+click('#main .habits-week-today');
+await new Promise(resolve => setTimeout(resolve, 20));
+if (weekRangeText() !== thisWeekRange || window.document.querySelector('#main .habits-week-today')) fail('"Ova nedelja" did not return to this week');
 // Redesign R16: Detalji navike → Početak → Početak meseca → Primeni saves the habit's start at once.
 const startHabit = window.TodoApp.state.habits.find(habit => habit.status === 'active');
 window.location.hash = `#habit/${startHabit.id}`;
