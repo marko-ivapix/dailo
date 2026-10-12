@@ -59,29 +59,22 @@ test('sync is off until the project URL and public key are supplied, and never t
   assert.equal(Sync.isConfigured({ url: 'http://abcd1234.supabase.co', anonKey: 'x'.repeat(40) }), false);
 });
 
-test('Nalog shows the sync card only when sync is configured: e-mail, then code, then the account (R15)', () => {
+test('Nalog shows the sync card only when sync is configured: the way to sign in, then the account (R15, R40)', () => {
   const off = renderSettings();
   assert.doesNotMatch(off, /data-settings-sync/);
   assert.doesNotMatch(renderAccount(), /data-settings-sync/);
   assert.match(off, /<span data-privacy-note>Your data stays only on this device\. Dailo has no server or account\.<\/span>/);
   assert.doesNotMatch(renderAccount(() => ({ configured: false })), /data-settings-sync/);
 
-  const view = fields => () => ({ configured: true, signedIn: false, step: 'email', email: '', busy: false, error: '', running: false, lastSyncAt: null, lastError: '', ...fields });
-  const email = renderAccount(view({ email: 'ana@example.com', error: 'Enter a valid e-mail address.' }));
+  const view = fields => () => ({ configured: true, signedIn: false, email: '', running: false, lastSyncAt: null, lastError: '', ...fields });
+  const signedOut = renderAccount(view({}));
   // Redesign R10g (M5): the sync card is the "Nalog" group; R15 moved it to the Nalog screen.
-  assert.doesNotMatch(renderSettings(view({ email: 'ana@example.com' })), /data-settings-sync/);
-  assert.match(email, /<section class="settings-card" data-settings-sync>\s*<h2>Account<\/h2>/);
-  assert.match(email, /<input class="input" id="sync-email" type="email" inputmode="email" autocomplete="email" value="ana@example\.com" \/>/);
-  assert.match(email, /data-action="sync-request-code">Send code<\/button>/);
-  assert.match(email, /<p class="validation" role="alert">Enter a valid e-mail address\.<\/p>/);
-  assert.match(renderSettings(view({ email: 'ana@example.com' })), /<span data-privacy-note>Your data stays only on this device until you sign in to sync\.<\/span>/);
-
-  const code = renderAccount(view({ step: 'code', email: 'ana@example.com', busy: true }));
-  assert.match(code, /<input class="input" id="sync-code" inputmode="numeric" autocomplete="one-time-code" maxlength="10" \/>/);
-  assert.match(code, /A code was sent to ana@example\.com\./);
-  assert.match(code, /data-action="sync-verify-code" disabled>Confirm<\/button>/);
-  assert.match(code, /data-action="sync-request-code" disabled>Send a new code<\/button>/);
-  assert.match(code, /data-action="sync-change-email">Change e-mail<\/button>/);
+  assert.doesNotMatch(renderSettings(view({})), /data-settings-sync/);
+  assert.match(signedOut, /<section class="settings-card" data-settings-sync>\s*<h2>Account<\/h2>/);
+  // R40: sign-in moved to the welcome screen; Nalog opens it for signing in or creating an account.
+  assert.match(signedOut, /data-action="open-welcome" data-mode="sign-in">Log in<\/button><button class="btn btn-secondary" type="button" data-action="open-welcome" data-mode="sign-up">Create account<\/button>/);
+  assert.doesNotMatch(signedOut, /sync-email|sync-code/);
+  assert.match(renderSettings(view({})), /<span data-privacy-note>Your data stays only on this device until you sign in to sync\.<\/span>/);
 
   const signedIn = renderAccount(view({ signedIn: true, email: 'ana@example.com', lastSyncAt: '2026-10-08T10:00:00.000Z', lastError: 'Network unavailable: offline' }));
   assert.match(signedIn, /<strong>Account<\/strong><span>ana@example\.com<\/span>/);
@@ -106,9 +99,9 @@ function syncHarness({ state = baseState(), habitLogs = [], meta = null, fake = 
   const context = {
     console, JSON, Date, Promise, Error, Object, Array, String, Number, Boolean, Set, Map,
     Sync, syncClient: Sync.createClient({ url: fake.url, anonKey: fake.anonKey, fetch: fake.fetch, now: fake.now }),
-    syncMeta: null, syncUi: { step: 'email', email: '', busy: false, error: '' }, syncTimer: null, syncRunning: false, applyingSync: false,
+    syncMeta: null, syncTimer: null, syncRunning: false, applyingSync: false,
     state: clone(state), recovery: null, globalOperation: null, startupPromise: null, storageError: false, staleDataNotice: null,
-    modalState: null, undoState: null, undoHold: null, textSaveTimer: null, dragState: null,
+    modalState: null, undoState: null, undoHold: null, textSaveTimer: null, dragState: null, modalReturnFocus: null, restoreModalReturnFocus() {},
     document: { activeElement: null },
     localStorage: { getItem: key => (storage.has(key) ? storage.get(key) : null), setItem: (key, value) => storage.set(key, String(value)), removeItem: key => storage.delete(key) },
     setTimeout: (fn, delay) => { calls.timers.push(delay); return calls.timers.length; }, clearTimeout() {},
@@ -234,35 +227,26 @@ test('a pull that arrives while a dialog opened is deferred without moving the s
 });
 
 test('signing in keeps the shadow for the same account, resets it for another, and an expired session signs out', async () => {
-  const fake = createFakeSupabase();
+  const fake = createFakeSupabase({ autoconfirm: true });
+  await Sync.createClient({ url: fake.url, anonKey: fake.anonKey, fetch: fake.fetch, now: fake.now }).signUp('ana@example.com', 'tajna1234');
   const harness = syncHarness({ fake, meta: { userId: 'someone-else', shadow: { 'tasks/x': 'h' }, cursor: '2026-10-01T00:00:00.000Z' } });
-  harness.context.inputs['sync-email'] = 'not-an-address';
-  await vm.runInContext('requestSyncCode()', harness.context);
-  assert.equal(harness.context.syncUi.error, 'Enter a valid e-mail address.');
-  harness.context.inputs['sync-email'] = ' ana@example.com ';
-  await vm.runInContext('requestSyncCode()', harness.context);
-  assert.deepEqual(fake.sentCodes.map(item => item.email), ['ana@example.com']);
-  assert.equal(harness.context.syncUi.step, 'code');
-  harness.context.inputs['sync-code'] = '12';
-  await vm.runInContext('verifySyncCode()', harness.context);
-  assert.equal(harness.context.syncUi.error, 'Enter the code from the e-mail.');
-  harness.context.inputs['sync-code'] = '000000';
-  await vm.runInContext('verifySyncCode()', harness.context);
-  assert.equal(harness.context.syncUi.error, 'The code is wrong or has expired.');
-  harness.context.inputs['sync-code'] = '123 456';
-  await vm.runInContext('verifySyncCode()', harness.context);
+  // R40: sign-in is by e-mail and password on the welcome screen (tests/redesign-r40.test.js covers its checks).
+  const signIn = async () => {
+    vm.runInContext("openWelcome('sign-in')", harness.context);
+    Object.assign(harness.context.inputs, { 'welcome-email': 'ana@example.com', 'welcome-password': 'tajna1234' });
+    await vm.runInContext('welcomeSubmit()', harness.context);
+  };
+  await signIn();
   const meta = harness.meta();
   assert.equal(meta.session.user.email, 'ana@example.com');
   assert.notEqual(meta.userId, 'someone-else');
   assert.ok(meta.lastSyncAt, 'the first sync runs after sign-in');
   assert.equal(meta.shadow['tasks/x'], undefined, 'another account starts from a fresh shadow');
-  assert.equal(harness.context.syncUi.step, 'email');
+  assert.equal(harness.context.modalState, null, 'the welcome screen closes');
 
-  await vm.runInContext('requestSyncCode()', Object.assign(harness.context, { inputs: { 'sync-email': 'ana@example.com' } }));
-  harness.context.inputs['sync-code'] = '123456';
   harness.storage.set('dailoSync', JSON.stringify({ ...meta, shadow: { 'tasks/kept': 'h' }, cursor: '2026-10-02T00:00:00.000Z' }));
   harness.context.syncRunning = true; // keep the follow-up sync from changing what sign-in stored
-  await vm.runInContext('verifySyncCode()', harness.context);
+  await signIn();
   harness.context.syncRunning = false;
   assert.deepEqual(harness.meta().shadow, { 'tasks/kept': 'h' }, 'the same account keeps its shadow');
   assert.equal(harness.meta().cursor, '2026-10-02T00:00:00.000Z');
@@ -340,7 +324,7 @@ test('the app wires sync into saving, startup, dialogs, actions and the domain c
   assert.match(app, /scheduleAutomaticSnapshot\(\);\n\s+scheduleSync\(\);\n\s+return true;/, 'every successful save schedules a sync');
   assert.match(app, /await startReady\(\);[\s\S]*?startSync\(\);[\s\S]*?registerServiceWorker\(\);/, 'sync starts after the data is ready');
   assert.match(app, /else if \(modalState\.type === 'sync-choice'\) root\.innerHTML = renderSyncChoice\(\);/);
-  for (const action of ['sync-request-code', 'sync-verify-code', 'sync-change-email', 'sync-now', 'sync-sign-out', 'sync-delete-account', 'sync-choose']) {
+  for (const action of ['open-welcome', 'welcome-mode', 'welcome-provider', 'sync-now', 'sync-sign-out', 'sync-delete-account', 'sync-choose']) {
     assert.match(app, new RegExp(`action === '${action}'`), `${action} is handled`);
   }
   assert.match(app, /syncView,/, 'Settings reads the sync view from the domain context');

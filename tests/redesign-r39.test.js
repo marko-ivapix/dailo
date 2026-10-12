@@ -83,8 +83,7 @@ test('L: Settings → Opšte → "Tema": Tamna, Svetla or Prati sistem, only on 
   assert.match(read('docs/superpowers/specs/2026-10-08-redesign-decisions.md'), /M6 reopened \(2026-10-12\)/);
 });
 
-test('R39 is released as 2.0.0-alpha.65', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.65');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.65';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.65');
+test('R39 shipped as 2.0.0-alpha.65 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 99) >= 65);
 });

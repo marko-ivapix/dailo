@@ -151,8 +151,6 @@ ${native ? `
     const { pageHeader, esc } = ctx;
     const sync = ctx.syncView?.() || { configured: false };
     const statusTime = value => statusTimeHtml(esc, value);
-    const busy = sync.busy ? ' disabled' : '';
-    const syncError = sync.error ? `<p class="validation" role="alert">${esc(trMessage(sync.error))}</p>` : '';
     const subtitle = sync.configured && sync.signedIn ? sync.email : sync.configured ? '' : tr('Data is on this device only');
     const card = !sync.configured ? `
       <section class="settings-card" data-account-local>
@@ -162,18 +160,60 @@ ${native ? `
       </section>` : `
       <section class="settings-card" data-settings-sync>
         <h2>${tr('Account')}</h2>
-        ${sync.signedIn ? `<div class="settings-row"><div class="settings-label"><strong>${tr('Account')}</strong><span>${esc(sync.email)}</span></div></div>
+        ${sync.signedIn ? `<div class="settings-row"><div class="settings-label"><strong>${tr('Account')}</strong><span>${sync.name ? `${esc(sync.name)} · ` : ''}${esc(sync.email)}</span></div></div>
         <div class="settings-row"><div class="settings-label"><strong>${tr('Last sync')}</strong><span data-sync-status>${sync.running ? tr('Syncing…') : statusTime(sync.lastSyncAt)}${sync.lastError ? `<br><span class="validation" role="alert">${esc(trMessage(sync.lastError))}</span>` : ''}</span></div><button class="btn btn-secondary" type="button" data-action="sync-now"${sync.running ? ' disabled' : ''}><i class="ph ph-arrows-clockwise"></i> ${tr('Sync now')}</button></div>
         <p class="area-empty-copy">${tr('Tasks, projects, goals, habits, notes and settings sync between your devices. Attachments stay on the device where they were added.')}</p>
         <div class="sync-actions"><button class="btn btn-secondary" type="button" data-action="sync-sign-out">${tr('Sign out')}</button><button class="btn btn-ghost is-danger" type="button" data-action="sync-delete-account">${tr('Delete account')}</button></div>`
-        : sync.step === 'code' ? `<div class="settings-row"><label class="settings-label" for="sync-code"><strong>${tr('Code from the e-mail')}</strong><span>${tr('A code was sent to {email}. It is valid for a short time.', { email: esc(sync.email) })}</span></label><input class="input" id="sync-code" inputmode="numeric" autocomplete="one-time-code" maxlength="10" /></div>
-        ${syncError}
-        <div class="sync-actions"><button class="btn btn-secondary" type="button" data-action="sync-verify-code"${busy}>${tr('Confirm')}</button><button class="btn btn-ghost" type="button" data-action="sync-request-code"${busy}>${tr('Send a new code')}</button><button class="btn btn-ghost" type="button" data-action="sync-change-email">${tr('Change e-mail')}</button></div>`
-        : `<div class="settings-row"><label class="settings-label" for="sync-email"><strong>${tr('Sign in')}</strong><span>${tr('Optional. Enter your e-mail address to get a sign-in code. No password is needed. Without signing in, everything stays only on this device.')}</span></label><input class="input" id="sync-email" type="email" inputmode="email" autocomplete="email" value="${esc(sync.email)}" /></div>
-        ${syncError}
-        <div class="sync-actions"><button class="btn btn-primary" type="button" data-action="sync-request-code"${busy}>${tr('Send code')}</button></div>`}
+        : `<p class="area-empty-copy">${tr('Sign in to have your tasks, habits and goals on all your devices. Without an account, everything stays only on this device.')}</p>
+        <div class="sync-actions"><button class="btn btn-primary" type="button" data-action="open-welcome" data-mode="sign-in">${tr('Log in')}</button><button class="btn btn-secondary" type="button" data-action="open-welcome" data-mode="sign-up">${tr('Create account')}</button></div>`}
       </section>`;
     return `${pageHeader(tr('Account'), subtitle, { add: false })}${card}`;
+  }
+
+  // R40: the first screen and "Prijavi se" / "Napravi nalog" on Nalog, after the user's two mockups. One window in
+  // five steps: sign-in, sign-up, the code that confirms an account, and a new password (e-mail, then code).
+  const WELCOME_TEXT = {
+    'sign-in': [msg('A more organized day'), msg('Turn your goals into daily progress.'), msg('Log in')],
+    'sign-up': [msg('Create your account'), msg('A more organized day starts here.'), msg('Create account')],
+    confirm: [msg('Confirm your e-mail address'), '', msg('Confirm')],
+    reset: [msg('New password'), msg('Enter your e-mail address and we will send you a code.'), msg('Send code')],
+    'reset-code': [msg('New password'), '', msg('Save the password')],
+  };
+  // Brand names, the same in every language.
+  const PROVIDER_NAMES = { apple: 'Apple', google: 'Google' };
+  function renderWelcome(ctx) {
+    const { esc, modalState: welcome } = ctx;
+    const mode = WELCOME_TEXT[welcome.mode] ? welcome.mode : 'sign-in';
+    const [title, lead, submit] = WELCOME_TEXT[mode];
+    const sentLead = tr('We sent a code to {email}.', { email: esc(welcome.email) });
+    const shown = Boolean(welcome.showPassword);
+    const field = (id, icon, label, attrs, value, extra = '') => `<div class="welcome-field"><i class="ph ph-${icon}" aria-hidden="true"></i><label class="sr-only" for="${id}">${label}</label><input class="welcome-input" id="${id}" ${attrs} placeholder="${label}" value="${esc(value)}" />${extra}</div>`;
+    const eye = `<button class="welcome-eye" type="button" data-action="welcome-toggle-password" aria-label="${shown ? tr('Hide password') : tr('Show password')}" aria-pressed="${shown}"><i class="ph ph-${shown ? 'eye-slash' : 'eye'}" aria-hidden="true"></i></button>`;
+    const passwordType = `type="${shown ? 'text' : 'password'}"`;
+    const email = field('welcome-email', 'envelope-simple', tr('E-mail address'), 'type="email" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false"', welcome.email);
+    const code = field('welcome-code', 'key', tr('Code from the e-mail'), 'inputmode="numeric" autocomplete="one-time-code" maxlength="10"', welcome.code);
+    const newPassword = label => `${field('welcome-password', 'lock-simple', label, `${passwordType} autocomplete="new-password" aria-describedby="welcome-password-hint"`, welcome.password, eye)}<p class="welcome-hint" id="welcome-password-hint">${tr('At least 8 characters, with a digit and a letter')}</p>${field('welcome-password-confirm', 'lock-simple', tr('Confirm password'), `${passwordType} autocomplete="new-password"`, welcome.confirm, eye)}`;
+    const fields = {
+      'sign-in': `${email}${field('welcome-password', 'lock-simple', tr('Password'), `${passwordType} autocomplete="current-password"`, welcome.password, eye)}<button class="welcome-link" type="button" data-action="welcome-mode" data-mode="reset">${tr('Forgot password?')}</button>`,
+      'sign-up': `${field('welcome-name', 'user', tr('Full name'), 'type="text" autocomplete="name"', welcome.name)}${email}${newPassword(tr('Password'))}<label class="welcome-terms"><input id="welcome-terms" type="checkbox"${welcome.terms ? ' checked' : ''} /><span>${tr('I accept {terms} and {privacy}', { terms: `<a href="uslovi.html" target="_blank" rel="noopener">${tr('the Terms of Use')}</a>`, privacy: `<a href="privatnost.html" target="_blank" rel="noopener">${tr('the Privacy Policy')}</a>` })}</span></label>`,
+      confirm: code,
+      reset: email,
+      'reset-code': `${code}${newPassword(tr('New password'))}`,
+    }[mode];
+    const error = welcome.error ? `<p class="validation" role="alert">${esc(trMessage(welcome.error))}</p>` : '';
+    const provider = (name, label, icon, wide) => `<button class="welcome-provider${wide ? ' is-wide' : ''}" type="button" data-action="welcome-provider" data-provider="${name}" aria-label="${label}">${icon}${wide ? `<span>${PROVIDER_NAMES[name]}</span>` : ''}</button>`;
+    const providers = wide => `<p class="welcome-divider">${tr('or continue with')}</p><div class="welcome-providers">${provider('apple', tr('Continue with Apple'), '<i class="ph-fill ph-apple-logo" aria-hidden="true"></i>', wide)}${provider('google', tr('Continue with Google'), '<img src="icons/google.svg" alt="" width="24" height="24" />', wide)}</div>`;
+    const resend = `<button class="welcome-link is-centered" type="button" data-action="welcome-resend">${tr('Send a new code')}</button>`;
+    const after = {
+      'sign-in': `${providers(false)}<button class="welcome-switch" type="button" data-action="welcome-mode" data-mode="sign-up"><span>${tr('No account yet?')}</span> <strong>${tr('Sign up')}</strong></button><button class="welcome-skip" type="button" data-action="welcome-skip">${tr('Continue without an account')}</button><p class="welcome-note">${tr('Without an account, everything stays only on this device.')}</p>`,
+      'sign-up': `${providers(true)}<button class="welcome-switch" type="button" data-action="welcome-mode" data-mode="sign-in"><span>${tr('Already have an account?')}</span> <strong>${tr('Log in')}</strong></button>`,
+      confirm: `${resend}<p class="welcome-note">${tr('The link in the message confirms the account too; then sign in.')}</p>`,
+      reset: '',
+      'reset-code': resend,
+    }[mode];
+    const back = mode === 'sign-in' ? '' : `<button class="welcome-back" type="button" data-action="welcome-mode" data-mode="sign-in" aria-label="${tr('Back to sign-in')}"><i class="ph ph-caret-left" aria-hidden="true"></i></button>`;
+    const intro = `<div class="welcome-intro${mode === 'sign-in' ? '' : ' is-left'}"><h2 class="welcome-title" id="welcome-title">${tr(title)}</h2><p class="welcome-lead">${['confirm', 'reset-code'].includes(mode) ? sentLead : tr(lead)}</p></div>`;
+    return ctx.modalFrame(`<div class="welcome-waves" aria-hidden="true"></div><div class="welcome-column">${back}<div class="welcome-brand"><img class="welcome-logo" src="icons/icon.svg" alt="" width="72" height="72" /><p class="welcome-wordmark">Dailo</p><p class="welcome-tagline">${tr('Plan. Focus. Do more.')}</p></div>${intro}<form class="welcome-form" data-welcome-form novalidate>${fields}${error}<button class="btn btn-primary welcome-submit" type="submit"${welcome.busy ? ' disabled' : ''}>${tr(submit)}</button></form>${after}</div>`, 'welcome-screen', 'aria-labelledby="welcome-title"');
   }
 
   window.TodoDomainModules?.register({
@@ -181,6 +221,7 @@ ${native ? `
     renderRoute(route, ctx) {
       if (route.type === 'settings') return renderSettings(ctx);
       if (route.type === 'account') return renderAccount(ctx);
+      if (route.type === 'modal' && route.modalType === 'welcome') return renderWelcome(ctx);
     },
     handleAction(action, event, ctx) {
       const element = event?.target.closest('[data-action]');

@@ -27,6 +27,14 @@ Two problems that V1.x cannot solve go away:
 
 ### B. Accounts: Supabase Auth, e-mail without a password (decided 2026-10-08)
 
+> **Amended 2026-10-12 (R40, `2026-10-12-redesign-r40-welcome-sign-in.md`).** The user sent two mockups and chose sign-in by **e-mail and password**, with **Google** and **Apple**, on a welcome screen shown at the first start.
+>
+> - **Codes from the e-mail:** they still confirm a new account and set a new password, for the same reason as below (on iPhone a link opens Safari, not the app).
+> - **Sign in with Apple:** it is offered next to Google, as App Store rule 4.8 asks.
+> - **What stays:** sign-in stays optional, and "Nastavi bez naloga" keeps Dailo fully local.
+>
+> The rest of this section describes the original decision.
+
 - **When:** sign-in arrives only with V2.0, together with the app and sync (user decision 2026-10-08). The V1.x web app gets no sign-in.
 - **Sign-in:** optional. Without signing in, Dailo behaves exactly as V1.12 (local only).
 - **Method:** the user types an e-mail address and enters a 6-digit one-time code sent to that address (Supabase e-mail OTP). There is no password.
@@ -103,7 +111,7 @@ Each phase gets its plan, failing tests first, and a ledger, as V1.x did.
 ## Decisions for the user
 
 1. **Platforms.** **Decided 2026-10-08:** iPhone and Android together (TestFlight and Play internal testing in parallel).
-2. ~~**Sign-in method.**~~ **Decided 2026-10-08:** e-mail without a password (one-time code), and only with V2.0.
+2. ~~**Sign-in method.**~~ **Decided 2026-10-08:** e-mail without a password (one-time code), and only with V2.0. **Amended 2026-10-12 (R40):** e-mail and password, plus Google and Apple, on a welcome screen at the first start; the codes remain for confirming an account and for a new password.
 3. **Conflict policy.** **Decided 2026-10-08:** last-write-wins per record. The replaced version is kept on the server in `record_history`; local recovery snapshots stay available on each device.
 4. **Attachments.** **Decided 2026-10-08:** sync records first; attachments follow in V2.1.
 5. **App name and identifier.** **Decided 2026-10-08:** "Dailo", bundle/application id `cloud.ivapix.dailo`.

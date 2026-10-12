@@ -59,6 +59,7 @@ function shellFilesExpected() {
     if (ref.endsWith('.css')) for (const url of cssUrls(ref)) files.add(url);
   }
   for (const icon of JSON.parse(read('manifest.webmanifest')).icons) files.add(icon.src);
+  files.add('icons/google.svg'); // R40: the Google mark of the welcome screen, drawn from js/settings-ui.js
   return [...files].sort();
 }
 

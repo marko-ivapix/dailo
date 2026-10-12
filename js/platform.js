@@ -153,6 +153,11 @@
       if (/^https?:/i.test(url)) { Promise.resolve(plugin('Browser')?.open({ url })).catch(error => env.console?.error?.(error)); return; }
       env.location.href = url;
     }
+    // R40: the browser sheet of a Google or Apple sign-in closes when the app's link comes back.
+    function closeExternal() {
+      if (!isNative) return;
+      Promise.resolve(plugin('Browser')?.close?.()).catch(() => { /* already closed */ });
+    }
     // Native only: every link with target=_blank, an http(s) address or a mailto:/tel: scheme goes through
     // openExternal. Relative pages that are not packaged in the app (the tester guide) map to their online copy.
     function interceptExternalLinks(target, { onlinePages = {} } = {}) {
@@ -347,7 +352,7 @@
       lifecycle: Object.freeze({ onPause, onResume }),
       backButton: Object.freeze({ setHandler: setBackHandler }),
       files: Object.freeze({ saveFile, openFile, cleanupSharedFiles, saveBackupCopy }),
-      links: Object.freeze({ openExternal, interceptExternalLinks, onAppLink }),
+      links: Object.freeze({ openExternal, closeExternal, interceptExternalLinks, onAppLink }),
       storage: Object.freeze({ status: storageStatus }),
       durable: Object.freeze({ write: writeMirror, read: readMirror }),
       notifications: Object.freeze({ permission: notificationPermission, requestPermission: requestNotificationPermission, exactAlarms, allowExactAlarms, reconcile, test: testNotification, onOpen: onNotificationOpen, setActionTypes, notificationId }),

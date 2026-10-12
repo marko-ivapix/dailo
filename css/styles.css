@@ -2408,6 +2408,47 @@ textarea[data-autogrow] { field-sizing: content; min-height: 0; resize: none; ov
 .settings-health.is-ok strong { color: var(--success); }
 .settings-health.is-warning strong { color: var(--warning); }
 
+/* Redesign R40: the welcome screen (first launch, sign-in and registration) after the user's two mockups. It fills the
+   screen above the bottom bar and the "+", and uses tokens only, so the light theme and every text size apply. */
+.modal-backdrop-welcome-screen { padding: 0; place-items: stretch; background: var(--graphite-900); }
+.modal.welcome-screen { position: relative; width: 100%; max-width: none; min-height: var(--viewport-height); max-height: none; margin: 0; border: 0; border-radius: 0; background: var(--graphite-900); box-shadow: none; overflow: visible; display: flex; justify-content: center; padding: calc(env(safe-area-inset-top) + 24px) 20px calc(env(safe-area-inset-bottom) + 28px); }
+.welcome-waves { position: absolute; inset: 0 0 auto; height: 380px; pointer-events: none; background: radial-gradient(ellipse 75% 45% at 18% 92%, var(--accent-tint), transparent 70%), radial-gradient(ellipse 70% 40% at 88% 78%, var(--blue-tint), transparent 72%); }
+.welcome-column { position: relative; width: min(100%, 420px); display: flex; flex-direction: column; gap: 14px; }
+.welcome-back { position: absolute; top: 0; left: 0; width: 44px; height: 44px; border: 1px solid var(--line-2); border-radius: var(--radius-pill); background: var(--graphite-850); color: var(--ink-1); display: grid; place-items: center; font-size: var(--text-lead); cursor: pointer; }
+.welcome-brand { display: flex; flex-direction: column; align-items: center; text-align: center; padding-top: 4px; }
+.welcome-logo { width: 72px; height: 72px; border-radius: 20px; box-shadow: var(--shadow-raised); }
+.welcome-wordmark { margin: 14px 0 0; color: var(--ink-1); font-family: var(--font-display); font-size: var(--text-hero); font-weight: 700; letter-spacing: -0.02em; line-height: 1.05; }
+.welcome-tagline { margin: 6px 0 0; color: var(--ink-3); font-size: var(--text-lg); }
+.welcome-intro { margin-top: 16px; text-align: center; }
+.welcome-intro.is-left { text-align: left; }
+.welcome-title { margin: 0; color: var(--ink-1); font-family: var(--font-display); font-size: var(--text-2xl); font-weight: 600; line-height: 1.2; }
+.welcome-lead { margin: 6px 0 0; color: var(--ink-2); font-size: var(--text-body); }
+.welcome-form { display: flex; flex-direction: column; gap: 12px; }
+.welcome-field { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 0 6px 0 16px; border: 1px solid var(--line-2); border-radius: var(--radius-xl); background: var(--graphite-850); color: var(--ink-3); }
+.welcome-field:focus-within { border-color: var(--primary-focus); }
+.welcome-field > .ph { flex: none; font-size: var(--text-xl); }
+.welcome-input { flex: 1; min-width: 0; height: 54px; border: 0; background: transparent; color: var(--ink-1); font-size: var(--text-input); outline: 0; }
+.welcome-input::placeholder { color: var(--ink-3); }
+.welcome-eye { flex: none; width: 44px; height: 44px; border: 0; border-radius: var(--radius-md); background: transparent; color: var(--ink-2); display: grid; place-items: center; font-size: var(--text-xl); cursor: pointer; }
+.welcome-hint { margin: -4px 0 0 4px; color: var(--ink-3); font-size: var(--text-sm); }
+.welcome-link { align-self: flex-end; min-height: 44px; padding: 0 4px; border: 0; background: transparent; color: var(--blue-300); font-size: var(--text-base); cursor: pointer; }
+.welcome-link.is-centered { align-self: center; }
+.welcome-terms { display: flex; align-items: flex-start; gap: 12px; color: var(--ink-2); font-size: var(--text-base); line-height: 1.5; }
+.welcome-terms input { flex: none; width: 22px; height: 22px; margin: 1px 0 0; accent-color: var(--primary); }
+.welcome-terms a { color: var(--blue-300); }
+.welcome-submit { min-height: 54px; margin-top: 4px; border-radius: var(--radius-xl); font-size: var(--text-lead); font-weight: 600; }
+.welcome-divider { display: flex; align-items: center; gap: 14px; margin: 8px 0 0; color: var(--ink-3); font-size: var(--text-base); }
+.welcome-divider::before, .welcome-divider::after { content: ""; flex: 1; height: 1px; background: var(--line-2); }
+.welcome-providers { display: flex; justify-content: center; gap: 16px; }
+.welcome-provider { width: 76px; min-height: 56px; border: 1px solid var(--line-2); border-radius: var(--radius-xl); background: var(--graphite-850); color: var(--ink-1); display: inline-flex; align-items: center; justify-content: center; gap: 10px; font-size: var(--text-lg); cursor: pointer; }
+.welcome-provider.is-wide { flex: 1; width: auto; }
+.welcome-provider .ph-fill { font-size: var(--text-2xl); }
+.welcome-provider img { width: 24px; height: 24px; }
+.welcome-switch { width: 100%; min-height: 56px; margin-top: 8px; border: 1px solid var(--line-2); border-radius: var(--radius-xl); background: transparent; color: var(--ink-2); font-size: var(--text-body); cursor: pointer; }
+.welcome-switch strong { color: var(--blue-300); font-weight: 600; }
+.welcome-skip { min-height: 44px; border: 0; background: transparent; color: var(--ink-2); font-size: var(--text-body); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.welcome-note { margin: -8px 0 0; color: var(--ink-3); font-size: var(--text-sm); text-align: center; }
+
 /* Keep primary compact actions touchable after all density rules. */
 @media (max-width: 700px), (pointer: coarse) {
   .task-actions .btn-icon,

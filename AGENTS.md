@@ -35,7 +35,7 @@ If a summary document conflicts with current source/tests, document the discrepa
 - Static browser application.
 - HTML + CSS + vanilla JavaScript.
 - No framework migration unless explicitly approved.
-- No backend, accounts or cloud sync in V1.x. V2.0 (approved 2026-10-08, `docs/superpowers/specs/2026-10-08-todo-v2-0-design.md`) adds optional Supabase sync with e-mail one-time-code sign-in. The app must keep working fully without an account, and the service-role key never enters the repository.
+- No backend, accounts or cloud sync in V1.x. V2.0 (approved 2026-10-08, `docs/superpowers/specs/2026-10-08-todo-v2-0-design.md`) adds optional Supabase sync. Sign-in was an e-mail one-time code at first. Since R40 (2026-10-12, the user's choice) it is by e-mail and password, or with Google or Apple, and codes from the e-mail confirm an account and set a new password. The app must keep working fully without an account (the welcome screen always offers "Nastavi bez naloga"), and the service-role key and provider secrets never enter the repository.
 - Primary metadata state is local-first.
 - `localStorage` stores compact application state.
 - IndexedDB stores large/growing data such as attachments, Habit logs, Goal history and recovery snapshots.

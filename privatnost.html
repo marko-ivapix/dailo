@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="sr-Latn">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0F1114">
+  <title>Dailo — Politika privatnosti</title>
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="vendor/fonts/fonts.css">
+  <style>
+    :root {
+      --bg: #0F1114;
+      --card: #14171B;
+      --line: #2D3239;
+      --ink-1: #F3F4F6;
+      --ink-2: #D5D9DF;
+      --ink-3: #9199A4;
+      --blue: #8590FF;
+      --mint: #3ED7BA;
+      --yellow: #F5B942;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink-2);
+      font: 16px/1.6 Geist, system-ui, -apple-system, sans-serif;
+      padding: calc(24px + env(safe-area-inset-top)) 16px calc(32px + env(safe-area-inset-bottom));
+    }
+    main { max-width: 680px; margin: 0 auto; }
+    h1, h2 { font-family: "Space Grotesk", Geist, system-ui, sans-serif; color: var(--ink-1); line-height: 1.25; }
+    h1 { font-size: 28px; margin: 0 0 8px; }
+    h2 { font-size: 19px; margin: 0 0 8px; }
+    .lead { color: var(--ink-3); margin: 0 0 24px; }
+    section { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; margin: 0 0 14px; }
+    p { margin: 0 0 10px; }
+    ol, ul { margin: 0 0 10px; padding-left: 22px; }
+    li { margin: 0 0 6px; }
+    strong { color: var(--ink-1); }
+    a { color: var(--blue); }
+    .note { border-left: 3px solid var(--yellow); padding-left: 12px; color: var(--ink-1); }
+    .ok { border-left: 3px solid var(--mint); padding-left: 12px; }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 14px; color: var(--ink-1); background: #1A1D22; border-radius: 6px; padding: 1px 6px; }
+    .back { display: inline-block; margin-top: 8px; padding: 10px 16px; border-radius: 10px; background: #0619FE; color: #fff; text-decoration: none; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Dailo — Politika privatnosti</h1>
+    <p class="lead">Verzija od 12. oktobra 2026. Ova stranica opisuje koje podatke Dailo čuva, gde i kako ih brišeš.</p>
+
+    <section>
+      <h2>Ukratko</h2>
+      <ul>
+        <li>Dailo radi i bez naloga. Tada svi podaci ostaju samo na tvom uređaju.</li>
+        <li>Nalog je potreban samo za sinhronizaciju između uređaja.</li>
+        <li>Dailo nema reklame, analitiku ni praćenje, i ne prodaje niti deli tvoje podatke.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Podaci na uređaju</h2>
+      <p>Zadaci, projekti, oznake, oblasti, ciljevi, navike, beleške, resursi, dnevnik, šabloni, podešavanja i prilozi čuvaju se u pregledaču ili u aplikaciji na tvom uređaju. Aplikacija na telefonu čuva i rezervnu kopiju u svom prostoru, a nedeljna automatska kopija (ako je uključiš) ide u fasciklu <code>Documents/Dailo</code>.</p>
+      <p>Podsetnici su obaveštenja koja zakazuje sam uređaj. ZIP rezervna kopija nastaje samo kad je izvezeš.</p>
+    </section>
+
+    <section>
+      <h2>Nalog i sinhronizacija (nije obavezno)</h2>
+      <p>Za nalog Dailo koristi uslugu <strong>Supabase</strong> (prijava i baza podataka). Uz nalog se čuvaju:</p>
+      <ul>
+        <li>e-adresa;</li>
+        <li>lozinka, koju Supabase čuva samo u šifrovanom obliku (heš), pa je ni Dailo ne vidi;</li>
+        <li>ime i prezime, ako ih upišeš pri registraciji;</li>
+        <li>vreme kada su prihvaćeni ovi uslovi i politika privatnosti.</li>
+      </ul>
+      <p>Sinhronizuju se zadaci, projekti, oznake, oblasti, ciljevi, navike sa zapisima, beleške, resursi, šabloni, sačuvani prikazi, dnevnik i podešavanja. <strong>Prilozi (fajlovi) se ne šalju</strong>; ostaju na uređaju na kome su dodati.</p>
+      <p>Svakom zapisu na serveru može da pristupi samo tvoj nalog. Server čuva i prethodne verzije zapisa, da se podaci ne bi izgubili greškom.</p>
+    </section>
+
+    <section>
+      <h2>Prijava sa Google ili Apple nalogom</h2>
+      <p>Ako izabereš Google ili Apple, oni Dailu (preko Supabase-a) šalju tvoju e-adresu i ime. Lozinku tog naloga Dailo nikad ne dobija. Apple ti može ponuditi i skrivenu e-adresu.</p>
+    </section>
+
+    <section>
+      <h2>Brisanje</h2>
+      <ul>
+        <li><strong>Još → Nalog → Obriši nalog</strong> briše nalog, sve sinhronizovane podatke i njihove prethodne verzije sa servera.</li>
+        <li>Podaci na uređaju ostaju dok ih ne obrišeš (<strong>Podešavanja → Podaci</strong>) ili ne ukloniš aplikaciju.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Prijava problema i kontakt</h2>
+      <p>Prijava problema iz aplikacije otvara e-poruku sa verzijom aplikacije i podacima o uređaju; tvoji zadaci i beleške se ne šalju.</p>
+      <p>Za pitanja o privatnosti i za brisanje podataka piši na <a href="mailto:marko.radicevic@ivapix.cloud">marko.radicevic@ivapix.cloud</a>.</p>
+      <p>Ako se ova politika promeni, nova verzija dobija novi datum na vrhu, a o većim izmenama Dailo obaveštava u aplikaciji.</p>
+    </section>
+
+    <p><a href="uslovi.html">Uslovi korišćenja</a></p>
+
+    <a class="back" href="./">Otvori Dailo</a>
+  </main>
+</body>
+</html>
