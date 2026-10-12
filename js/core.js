@@ -1480,6 +1480,35 @@
     return { title: name.replace(/\s+/g, ' ').slice(0, 200).trim(), notes: notes.join('\n') };
   }
 
+  // R35 (H): a shared link becomes a resource: the page title (or the one line shared with it, or the site) is its
+  // name, the link its link and any other shared text its description. Text without an http(s) link returns null and
+  // stays a task (sharedTextDraft).
+  function sharedResourceDraft({ text = '', subject = '', title = '', url = '' } = {}) {
+    const clean = value => String(value || '').replace(/\r\n?/g, '\n').trim();
+    const found = clean(url) || (clean(text).match(/https?:\/\/[^\s<>"]+/i) || [])[0] || '';
+    let link;
+    try { link = new URL(found); } catch (_) { return null; }
+    if (!['http:', 'https:'].includes(link.protocol)) return null;
+    const rest = clean(text).split('\n').map(line => line.split(found).join(' ').replace(/\s+/g, ' ').trim()).filter(Boolean);
+    let name = clean(subject) || clean(title);
+    if (!name && rest.length === 1 && rest[0].length <= 120) name = rest.shift();
+    if (!name) name = link.hostname.replace(/^www\./, '');
+    return { title: name.replace(/\s+/g, ' ').slice(0, 120).trim(), linkUrls: [found], description: rest.join('\n') };
+  }
+
+  // R35 (B): a note becomes a task: its name is the title, list lines ("- ", "* ", "• ", "[ ] ", "[x] ", "1. ")
+  // become subtasks ("[x]" ones already done) and the other lines stay as the task's notes.
+  function noteTaskDraft(note) {
+    const subtasks = [];
+    const rest = [];
+    for (const line of String(note?.body || '').replace(/\r\n?/g, '\n').split('\n')) {
+      const item = line.match(/^\s*(?:[-*•]\s+(\[[ xX]?\]\s*)?|(\[[ xX]?\])\s+|\d+[.)]\s+)(.*\S)\s*$/);
+      if (item) subtasks.push({ title: item[3].trim().slice(0, 500), isCompleted: /x/i.test(item[1] || item[2] || '') });
+      else rest.push(line);
+    }
+    return { title: String(note?.title || '').trim().slice(0, 500), notes: rest.join('\n').replace(/^\n+|\n+$/g, '').replace(/\n{3,}/g, '\n\n'), subtasks };
+  }
+
   function notificationPlan(state, now, { days = 14, limit = 60, logs = {}, plannedFired = {} } = {}) {
     const start = new Date(now).getTime();
     if (!state || !Number.isFinite(start)) return [];
@@ -2290,6 +2319,8 @@
     notificationKey,
     notificationPlan,
     sharedTextDraft,
+    sharedResourceDraft,
+    noteTaskDraft,
     widgetSnapshot,
     snoozeTarget,
     laterToday,

@@ -2273,6 +2273,14 @@ textarea[data-autogrow] { field-sizing: content; min-height: 0; resize: none; ov
 /* A subtask held and dragged lifts like a task row. */
 .subtask-row.is-touch-dragging { position: relative; z-index: 5; pointer-events: none; background: var(--graphite-800); box-shadow: var(--shadow-popover); transition: none; }
 
+/* Redesign R35 — Biblioteka additions after the third design pass (2026-10-12). */
+/* Beleške and Resursi search their own items. */
+.knowledge-search { margin: 10px 0 12px; }
+/* A resource row opens its link beside the star. */
+.knowledge-list .knowledge-row:has(.knowledge-row-link) { grid-template-columns: auto minmax(0, 1fr) auto auto; }
+.knowledge-row-link { color: var(--ink-3); text-decoration: none; }
+.knowledge-row-link:hover { color: var(--blue-300); }
+
 /* Keep primary compact actions touchable after all density rules. */
 @media (max-width: 700px), (pointer: coarse) {
   .task-actions .btn-icon,

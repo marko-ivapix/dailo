@@ -31,6 +31,7 @@ function linkHarness(extra = {}) {
   const ctx = withI18n({
     URL, URLSearchParams, Core, state: { tasks: [] }, modalState: null, globalOperation: null, recovery: null,
     openQuickAdd: context => calls.push(['quick', context]), navigate: route => calls.push(['navigate', route]),
+    openKnowledgeWindow: (type, id, options) => calls.push(['knowledge', type, id, options]), // R35: a shared link becomes a resource
     closePopover: () => calls.push(['closePopover']), flushTextSave: () => calls.push(['flush']), closeModal: () => calls.push(['close']),
     ...extra,
   });
@@ -47,8 +48,11 @@ test('B, C: Dailo links open Quick Add, Danas, Dnevnik or a shared draft', () =>
   assert.deepEqual(calls.at(-1), ['navigate', '#today']);
   ctx.handleIncomingLink('dailo://journal');
   assert.deepEqual(calls.at(-1), ['navigate', '#journal']);
+  ctx.handleIncomingLink(`dailo://share?${new URLSearchParams({ text: 'Kupi mleko\ni hleb' })}`);
+  assert.deepEqual(JSON.parse(JSON.stringify(calls.at(-1))), ['quick', { title: 'Kupi mleko', notes: 'i hleb' }]);
+  // R35 (H): a shared link opens a new resource in Inbox instead.
   ctx.handleIncomingLink(`dailo://share?${new URLSearchParams({ text: 'https://example.com/a', subject: 'Članak' })}`);
-  assert.deepEqual(JSON.parse(JSON.stringify(calls.at(-1))), ['quick', { title: 'Članak', notes: 'https://example.com/a' }]);
+  assert.deepEqual(JSON.parse(JSON.stringify(calls.at(-1))), ['knowledge', 'resource', null, { prefill: { title: 'Članak', linkUrls: ['https://example.com/a'], description: '' }, inbox: true }]);
   assert.equal(ctx.handleIncomingLink('https://example.com'), false);
   assert.equal(ctx.handleIncomingLink('dailo://unknown'), false);
   assert.equal(ctx.handleIncomingLink('not a link'), false);

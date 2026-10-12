@@ -1167,6 +1167,12 @@
     "Examples saved, but Habit metrics could not refresh. Reload to retry.": "Primeri su sačuvani, ali metrike navika nisu osvežene. Ponovo učitaj stranicu.",
     // R33: third design pass, windows and screens
     "Area, goals": "Oblast, ciljevi",
+    "Search notes": "Pretraži beleške",
+    "Search resources": "Pretraži resurse",
+    "Nothing found. The search looks at names, text and links.": "Ništa nije pronađeno. Pretraga gleda nazive, tekst i linkove.",
+    "Make a task": "Napravi zadatak",
+    "Task made from the note": "Zadatak napravljen iz beleške",
+    "Open link: {site}": "Otvori link: {site}",
     "Learning": "Učenje",
     "Creativity": "Kreativnost",
     "Nature": "Priroda",

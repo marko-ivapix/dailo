@@ -704,7 +704,7 @@
         saveAndRender();
       },
       openProjectModal, saveProjectModal, archiveProject, restoreProject, deleteProject,
-      openQuickAdd, openGoalModal, openHabitModal,
+      openQuickAdd, openGoalModal, openHabitModal, noteToTask,
       renderAreaTaskRow(task, areaId) { return taskRow(task, `area:${areaId}`, { today: true }); },
       repeatEditorState, repeatEditorHtml, repeatEditorUpdate, repeatEditorError, repeatEditorSetStart, repeatRuleFromSheet, repeatFocusSelector, readRepeatInputs,
       renderChoreRow(task, options = {}) { return taskRow(task, 'cleaning', { today: true, metaText: options.metaText, metaLead: options.metaLead }); },
@@ -1252,6 +1252,8 @@
     const pinned = [
       ...sortedAreas().filter(area => area.status !== 'archived' && area.isPinned).map(area => moreRow(`area/${encodeURIComponent(area.id)}`, area.icon || 'ph-squares-four', area.name, '', tr('Area'))),
       ...(state.savedViews || []).filter(view => view.isPinned).map(view => moreRow(`saved-view/${encodeURIComponent(view.id)}`, 'ph-funnel', view.name, '', tr('Saved view'))),
+      // R35 (I): starred notes are pinned here too, the four most recent.
+      ...(state.notes || []).filter(note => note.favorite).sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt))).slice(0, 4).map(note => moreRow(`note/${encodeURIComponent(note.id)}`, 'ph-note', note.title, '', tr('Note'))),
     ];
     const count = list => (list || []).length;
     // R32 (finding 37): the review tile says whether this week is done; the notice left Danas in R14.
@@ -1691,9 +1693,35 @@
   }
 
   // Redesign R10b (S3): a note or a resource opens as a window like the task window; without an id it is a new one.
-  function openKnowledgeWindow(type, id = null) {
+  function openKnowledgeWindow(type, id = null, options = {}) {
     if (modalState?.type !== 'knowledge') captureModalReturnFocus();
-    callDomainHook('handleAction', 'open-knowledge', { ownerType: type, ownerId: id });
+    callDomainHook('handleAction', 'open-knowledge', { ownerType: type, ownerId: id, prefill: options.prefill || null, inbox: Boolean(options.inbox) });
+  }
+
+  // R35 (B): "Napravi zadatak" turns a note into an Inbox task: the name is the title, list lines become subtasks and
+  // the rest stays as notes; it takes the note's area and tags, and the note links it. Poništi removes both again.
+  function noteToTask(noteId) {
+    const note = (state.notes || []).find(item => item.id === noteId); if (!note) return;
+    flushTextSave();
+    const draft = Core.noteTaskDraft(note);
+    const now = nowIso();
+    const task = {
+      id: uid('task'), title: draft.title || tr('Task'), notes: draft.notes, projectId: null, areaId: note.areaId || null, goalIds: [], plannedTime: null, dueTime: null, durationMinutes: null,
+      plannedDate: null, dueDate: null, reminderAt: null, reminderFiredAt: null, recurrence: null, tagIds: [...(note.tagIds || [])], priority: 'none', attachmentIds: [], isInbox: true,
+      isImportant: false, isUrgent: false, isCompleted: false, completedAt: null,
+      subtasks: draft.subtasks.map((item, order) => ({ id: uid('sub'), title: item.title, isCompleted: item.isCompleted, order })),
+      todayOrder: null, projectOrder: null, inboxOrder: nextOrder('inbox', true), createdAt: now, updatedAt: now,
+    };
+    const previous = { relatedTaskIds: [...(note.relatedTaskIds || [])], updatedAt: note.updatedAt };
+    state.tasks.push(task);
+    note.relatedTaskIds = [...previous.relatedTaskIds, task.id]; note.updatedAt = now;
+    saveState(); render();
+    openTaskDetail(task.id);
+    setUndo(msg('Task made from the note'), () => {
+      state.tasks = state.tasks.filter(item => item.id !== task.id);
+      Object.assign(note, previous);
+      saveState(); render();
+    });
   }
 
   // Redesign R9b (GO5): a goal opens as a window like the task window.
@@ -5914,7 +5942,10 @@
     if (target === 'new-task') openQuickAdd({});
     else if (target === 'share') {
       const params = Object.fromEntries(['text', 'subject', 'title', 'url'].map(key => [key, link.searchParams.get(key) || '']));
-      openQuickAdd(Core.sharedTextDraft(params));
+      // R35 (H): a shared link becomes a resource in Inbox; other shared text becomes a task.
+      const resource = Core.sharedResourceDraft(params);
+      if (resource) openKnowledgeWindow('resource', null, { prefill: resource, inbox: true });
+      else openQuickAdd(Core.sharedTextDraft(params));
     } else navigate(`#${target}`);
     return true;
   }
