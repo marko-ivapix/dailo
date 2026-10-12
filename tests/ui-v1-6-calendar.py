@@ -26,7 +26,9 @@ def test_only_calendar_tasks_are_draggable_and_drag_updates_planned_fields():
     assert '<button class="calendar-card" type="button" draggable="true" data-calendar-drag="task"' in calendar
     assert '<button class="calendar-card is-deadline" type="button" data-route=' in calendar
     assert "['calendar-task'].includes(dragState.type)" in app
-    assert "updateTask(dragState.id, { plannedDate: date, ...(time ? { plannedTime: time } : {}) })" in app
+    # R47d (K9): the drop goes through dropTaskOnDay, which keeps an existing plannedTime when no hour was hit.
+    assert "dropTaskOnDay(dragState.id, date, time)" in app
+    assert "requestTaskEdit(taskId, { plannedDate: date, ...(time ? { plannedTime: time } : {}), isInbox: false })" in app
     assert "calendar-goal" not in app[app.index('function handleDragStart'):app.index('function cleanupDrag')]
 
 

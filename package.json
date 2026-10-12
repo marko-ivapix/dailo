@@ -14,6 +14,7 @@
     "build": "node tools/build-www.mjs",
     "serve": "python3 -m http.server 8080",
     "smoke": "node tools/smoke-boot.mjs",
+    "check:python": "python3 tools/check-python.py",
     "cap:sync": "node tools/build-www.mjs && cap sync",
     "cap:ios": "cap open ios",
     "cap:android": "cap open android"
