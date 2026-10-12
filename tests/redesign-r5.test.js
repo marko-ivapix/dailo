@@ -45,6 +45,7 @@ function screenContext(ui = {}) {
     pageHeader: (title, subtitle) => `<header title="${title}" subtitle="${subtitle}"></header>`,
     taskRow: (task, context, options) => `<row ${task.id} ${context}${options?.today ? ' today' : ''}${options?.hidePlace ? ' noplace' : ''}>`,
     emptyState: title => `<empty ${title}>`, formatDate: date => `F(${date})`,
+    clampOrder: value => (Number.isFinite(value) ? value : 999999), // R33: Kad stignem follows the project order
   };
   vm.createContext(withI18n(ctx));
   vm.runInContext(['listTasks', 'todayDueLabel', 'projectOverviewRow', 'renderTasksScreen'].map(fn).join(''), ctx);
@@ -70,7 +71,7 @@ test('Z6: Projekti has "Bez projekta", the projects grouped by area with counts,
   const ctx = screenContext({ tasksView: 'projects' });
   const html = ctx.renderTasksScreen();
   // R17: list rows lost the "›" arrow.
-  assert.match(html, /<button class="project-row" type="button" data-route="project\/none"><i class="ph ph-tray project-row-icon" aria-hidden="true"><\/i><span class="project-row-main"><span class="task-title">No project<\/span><span class="task-meta">1 open<\/span><\/span><\/button>/);
+  assert.match(html, /<button class="project-row" type="button" data-route="project\/none"><i class="ph ph-circle-dashed project-row-icon" aria-hidden="true"><\/i><span class="project-row-main"><span class="task-title">No project<\/span><span class="task-meta">1 open<\/span><\/span><\/button>/);
   assert.match(html, /<h2 class="section-label tasks-group-label">Kuća<\/h2><span class="section-count">1<\/span>/);
   assert.match(html, /<h2 class="section-label tasks-group-label">No area<\/h2><span class="section-count">1<\/span>/);
   assert.ok(html.indexOf('Selidba') < html.indexOf('Ostalo'));

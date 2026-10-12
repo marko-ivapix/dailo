@@ -138,7 +138,7 @@ test('the Quick Add preview lists what the title will set and hides when nothing
   vm.runInContext(`${slice('  function parseQuickAddTitle(', '  function nextOrder(')}\n${slice('  function quickParsePreview(', '  function renderQuickModal(')}`, context);
   const html = vm.runInContext("quickParsePreview(parseQuickAddTitle('Ponuda +Klijenti @Zdravlje #posao !visok rok petak 45min sutra u 9:30'))", context);
   assert.match(html, /^<div class="quick-parse-preview" data-quick-preview role="group" aria-label="Recognized in title">/);
-  for (const part of ['ph-calendar-check', 'D:', '09:30', 'ph-flag', 'Due D:', 'ph-timer', '45 min', 'ph-folder-simple', 'Klijenti', 'ph-hash', 'posao', 'ph-arrow-fat-up', 'P:high']) assert.ok(html.includes(part), part);
+  for (const part of ['ph-calendar-check', 'D:', '09:30', 'ph-hourglass-medium', 'Due D:', 'ph-timer', '45 min', 'ph-folder-simple', 'Klijenti', 'ph-hash', 'posao', 'ph-flag', 'P:high'] /* R33: hourglass = due, flag = priority */) assert.ok(html.includes(part), part);
   assert.doesNotMatch(html, /Zdravlje/, 'a project wins over an Area');
   assert.equal(vm.runInContext("quickParsePreview(parseQuickAddTitle('Samo naslov'))", context), '');
 });

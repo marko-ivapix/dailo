@@ -115,8 +115,7 @@ test('37: the Weekly review tile says whether this week is done', () => {
   assert.match(fn('renderMoreScreen'), /const reviewNote = Core\.weeklyReviewDue\(state\.settings, Core\.dateOnly\(\), state\.settings\.weekStartsOn\) \? tr\('Time for this week\\'s review'\) : lastReview \? tr\('Last: \{date\}', \{ date: formatDate\(Core\.localDateOf\(lastReview\.completedAt\)\) \}\) : '';/);
 });
 
-test('R32 is released as 2.0.0-alpha.58', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.58');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.58';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.58');
+test('R32 shipped as 2.0.0-alpha.58 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 99) >= 58);
 });

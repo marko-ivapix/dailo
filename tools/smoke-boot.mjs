@@ -620,7 +620,8 @@ click('#modal-root [data-action="close-modal"]');
 await new Promise(resolve => setTimeout(resolve, 20));
 // Redesign R21: "Sačuvaj kao šablon" opens the template editor as a sheet; the weekdays are chips and one big button saves.
 const templateCount = window.TodoApp.state.templates.length;
-const kitHabit = window.TodoApp.state.habits.find(habit => habit.status === 'active');
+// R33: the weekday chips show only for a habit on selected weekdays.
+const kitHabit = window.TodoApp.state.habits.find(habit => habit.status === 'active' && habit.frequencyType === 'weekdays');
 window.location.hash = `#habit/${kitHabit.id}`;
 await new Promise(resolve => setTimeout(resolve, 50));
 click('#modal-root [data-action="habit-details-menu"]');

@@ -127,10 +127,10 @@ test('S3: a resource opens in a window like the task window', () => {
     ['knowledge-type', 'Type', 'Book'], ['knowledge-status', 'Reading status', 'Unread'], ['knowledge-author', 'Author', 'Author'], ['knowledge-reviewed', 'Last reviewed', 'Not reviewed yet'],
     ['knowledge-tags', 'Tags', 'Reading'], ['knowledge-relations', 'Related Tasks', 'Read'], ['knowledge-relations', 'Related Projects', 'None'], ['knowledge-relations', 'Related Goals', 'None'], ['knowledge-relations', 'Related Habits', 'None'], ['knowledge-clip', 'Clipped text', 'None'],
   ]);
-  assert.match(html, /<h3 class="goal-details-label">Description<\/h3><textarea id="knowledge-text" class="input knowledge-text" rows="5" placeholder="Description">Original description<\/textarea>/);
+  assert.match(html, /<h3 class="goal-details-label">Description<\/h3><textarea id="knowledge-text" class="input knowledge-text" rows="5" data-autogrow placeholder="Description">Original description<\/textarea>/);
   assert.match(html, /<h3 class="goal-details-label">Links · 1<\/h3><div class="habit-window-card knowledge-links"><div class="knowledge-link-row"><a class="knowledge-link" href="https:\/\/example\.com" target="_blank" rel="noopener noreferrer">https:\/\/example\.com<\/a><button class="btn-icon" type="button" data-action="remove-knowledge-link" data-link-index="0" aria-label="Remove link"><i class="ph ph-x"><\/i><\/button><\/div><div class="knowledge-link-add"><input id="knowledge-link" class="input" type="url" inputmode="url" autocomplete="off" placeholder="https:\/\/…" value="" aria-label="New link"><button class="btn btn-secondary" type="button" data-action="add-knowledge-link">Add<\/button><\/div><\/div>/);
   assert.match(html, /<h3 class="goal-details-label">Organization<\/h3><div class="habit-window-card">/);
-  assert.match(html, /<div data-attachment-owner="resource:r"><\/div><\/div><\/frame>$/, 'no footer for a saved item');
+  assert.match(html, /<div class="task-window-attachments"><div data-attachment-owner="resource:r"><\/div><\/div><\/div><\/frame>$/, 'no footer for a saved item (R33: attachments in the group look)');
   assert.doesNotMatch(html, /<select|data-action="save-knowledge"|form-hint/);
   // A note has Tekst, no resource rows and no relations; its clip shows as a quote
   const note = fixture();
@@ -138,7 +138,7 @@ test('S3: a resource opens in a window like the task window', () => {
   openItem(module, note.ctx, 'note', 'n1');
   const noteHtml = windowHtml(module, note.ctx);
   assert.deepEqual(rowsOf(noteHtml), [['knowledge-tags', 'Tags', 'Reading'], ['knowledge-clip', 'Clipped text', 'Added']]);
-  assert.match(noteHtml, /<h2 class="task-window-kind">Note<\/h2>[\s\S]*placeholder="Note name"[\s\S]*<h3 class="goal-details-label">Text<\/h3><textarea id="knowledge-text" class="input knowledge-text" rows="5" placeholder="Note text">Agenda<\/textarea><h3 class="goal-details-label">Clipped text<\/h3><blockquote class="knowledge-clip-quote">&lt;b>excerpt&lt;\/b><\/blockquote>/);
+  assert.match(noteHtml, /<h2 class="task-window-kind">Note<\/h2>[\s\S]*placeholder="Note name"[\s\S]*<h3 class="goal-details-label">Text<\/h3><textarea id="knowledge-text" class="input knowledge-text" rows="5" data-autogrow placeholder="Note text">Agenda<\/textarea><h3 class="goal-details-label">Clipped text<\/h3><blockquote class="knowledge-clip-quote">&lt;b>excerpt&lt;\/b><\/blockquote>/);
 });
 
 test('S3: an existing item saves at once from its sheets, links, star and fields', () => {
@@ -281,7 +281,7 @@ test('app.js: links and old addresses open the window; the floating "+" adds a n
   assert.match(fn('navigate'), /const knowledgeRoute = \/\^#\?\(note\|resource\)\\\/\(\.\+\)\$\/\.exec\(route\);\n\s+if \(knowledgeRoute\) \{ openKnowledgeWindow\(knowledgeRoute\[1\], decodeURIComponent\(knowledgeRoute\[2\]\)\); return; \}/);
   assert.match(fn('renderMain'), /if \(\['note', 'resource'\]\.includes\(route\.type\)\) \{ history\.replaceState\(null, '', route\.type === 'note' \? '#notes' : '#resources'\); openKnowledgeWindow\(route\.type, route\.id\); \}/);
   assert.match(fn('openKnowledgeWindow'), /callDomainHook\('handleAction', 'open-knowledge', \{ ownerType: type, ownerId: id \}\);/);
-  assert.match(app, /const QUICK_ADD_DIRECT = Object\.freeze\(\{ '#goals': \[msg\('New goal'\), \(\) => openGoalModal\(\)\], '#habits': \[msg\('New habit'\), \(\) => openHabitModal\(\)\], '#notes': \[msg\('New note'\), \(\) => openKnowledgeWindow\('note'\)\], '#resources': \[msg\('New resource'\), \(\) => openKnowledgeWindow\('resource'\)\]/);
+  assert.match(app, /const QUICK_ADD_DIRECT = Object\.freeze\(\{ '#goals': \[msg\('New goal'\), \(\) => openGoalModal\(\)\], '#habits': \[msg\('New habit'\), \(\) => openHabitModal\(\)\], '#areas': \[msg\('New area'\), \(\) => callDomainHook\('handleAction', 'new-area', \{ target: \$\('#mobile-quick-add-toggle'\) \}\)\], '#notes': \[msg\('New note'\), \(\) => openKnowledgeWindow\('note'\)\], '#resources': \[msg\('New resource'\), \(\) => openKnowledgeWindow\('resource'\)\]/);
   assert.match(fn('handleClick'), /if \(action === 'toggle-mobile-quick-add'\) \{ const direct = quickAddDirect\(\); if \(direct\) \{ direct\[1\]\(\); return; \}/);
   assert.match(app, /scheduleTextSave, /);
   assert.doesNotMatch(knowledgeUi, /function renderKnowledgeDetail\(|knowledge-detail-metadata|data-knowledge-filter|knowledge-metadata-grid/);

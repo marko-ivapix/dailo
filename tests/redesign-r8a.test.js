@@ -147,9 +147,9 @@ test('H3: Nedelja is a table of habits by days with inactive future and unschedu
   const html = render(screen({ habitsView: 'week' }));
   assert.match(html, /<button class="btn is-selected" type="button" data-action="habits-view" data-view="week" aria-pressed="true">Week<\/button>/);
   assert.doesNotMatch(html, /habits-ring[^>]*is-selected/, 'Nedelja selects no ring');
-  assert.match(html, /<table class="habits-week-table"><thead><tr><th scope="col"><span class="sr-only">Habit<\/span><\/th>/);
-  assert.equal((html.match(/<th scope="row" class="habits-week-name">/g) || []).length, 5, 'active habits only');
-  assert.match(html, /<tr class="habits-week-group"><th scope="rowgroup" colspan="8">Morning<\/th><\/tr>/);
+  assert.match(html, /<table class="habits-week-table"><thead><tr><th scope="col"/, 'R33: the names have their own rows, so the head has only the seven days');
+  assert.equal((html.match(/<th scope="rowgroup" colspan="7" class="habits-week-name">/g) || []).length, 5, 'active habits only');
+  assert.match(html, /<tr class="habits-week-group"><th scope="rowgroup" colspan="7">Morning<\/th><\/tr>/);
   const cell = (id, date) => html.match(new RegExp(`<button class="habit-cell ([^"]+)" type="button" data-action="habit-today-toggle" data-habit-id="${id}" data-date="${date}"([^>]*)>`));
   assert.match(cell('m', TODAY)[1], /^is-done is-today$/);
   assert.doesNotMatch(cell('m', TODAY)[2], /disabled/);

@@ -50,7 +50,7 @@ function fixture(extra = {}) {
   const archivedProjects = new Set(state.projects.filter(project => project.isArchived).map(project => project.id));
   const ctx = {
     calls, inputs, state, Core, esc,
-    AREA_ICONS: ['ph-briefcase', 'ph-house', 'ph-heart'], PROJECT_COLORS: ['#4f8cff', '#2fbf71'], colorName: color => `C${color}` /* R22c */,
+    AREA_ICONS: ['ph-briefcase', 'ph-house', 'ph-heart'], PROJECT_COLORS: ['#4f8cff', '#2fbf71'], colorName: color => `C${color}` /* R22c */, areaIconName: icon => `I${icon}` /* R33 */,
     sortedAreas: () => state.areas,
     getArea: id => state.areas.find(area => area.id === id),
     backLink: () => '', // R22a: the back link is covered by redesign-r22a

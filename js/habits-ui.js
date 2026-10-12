@@ -204,8 +204,9 @@
     for (const routine of ROUTINE_ORDER) {
       const habits = active.filter(habit => routineOf(habit) === routine);
       if (!habits.length) continue;
-      body += `<tr class="habits-week-group"><th scope="rowgroup" colspan="8">${esc(routineLabel(routine))}</th></tr>`;
-      body += habits.map(habit => `<tr><th scope="row" class="habits-week-name">${esc(habit.name)}</th>${week.days.map(date => {
+      body += `<tr class="habits-week-group"><th scope="rowgroup" colspan="7">${esc(routineLabel(routine))}</th></tr>`;
+      // R33 (finding 24): each name has its own full-width row (a button to the details) above its seven days.
+      body += habits.map(habit => `<tr class="habits-week-name-row"><th scope="rowgroup" colspan="7" class="habits-week-name"><button class="habits-week-name-button" type="button" data-route="habit/${esc(habit.id)}">${esc(habit.name)}</button></th></tr><tr class="habits-week-days">${week.days.map(date => {
         const day = Core.habitDayState(habit, state.habitLogCache?.[habit.id] || [], date, week.today, week.rule);
         const inactive = ['unscheduled', 'future'].includes(day.state);
         const label = `${habit.name}, ${ctx.formatDate(date, 'full')}: ${tr(CELL_LABELS[day.state])}`;
@@ -214,7 +215,7 @@
       }).join('')}</tr>`).join('');
     }
     const legend = ['done', 'missed', 'skipped', 'unscheduled'].map(key => `<span><i class="habit-cell-swatch is-${key}" aria-hidden="true"></i>${tr(CELL_LABELS[key])}</span>`).join('');
-    return `<h2 class="section-label habits-week-title">${esc(title)}</h2><div class="habits-week-scroll"><table class="habits-week-table"><thead><tr><th scope="col"><span class="sr-only">${tr('Habit')}</span></th>${head}</tr></thead><tbody>${body}</tbody></table></div><div class="habits-legend">${legend}</div>`;
+    return `<h2 class="section-label habits-week-title">${esc(title)}</h2><div class="habits-week-scroll"><table class="habits-week-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div><div class="habits-legend">${legend}</div>`;
   }
 
   // H7: each active habit's week, done days against the week's plan.
@@ -295,7 +296,9 @@
 
   // Redesign R8b (N1–N6): the new habit window. The draft lives in ctx.modalState.draft; the rows open small sheets
   // over the window that write the draft back with "Primeni", or at once for a single choice.
-  const plainNumber = value => Number(value || 0).toLocaleString(I18n.locale(), { maximumFractionDigits: 2, useGrouping: false });
+  // R33 (finding 24): numbers read the same everywhere ("10.000 koraka"); a field gets them without separators.
+  const plainNumber = value => Number(value || 0).toLocaleString(I18n.locale(), { maximumFractionDigits: 2 });
+  const inputNumber = value => String(Number(value || 0)).replace('.', I18n.locale().startsWith('sr') ? ',' : '.');
   function suggestedQuickValues(target) {
     const value = Number(target) || 0;
     if (!(value > 0)) return [];
@@ -525,7 +528,8 @@
   // --- The sheets over the window (one at a time) ---------------------------------------------------------
   let sheet = null;
   const sheetSubtitle = ctx => `<p class="sheet-subtitle">${ctx.esc(ctx.modalState?.draft?.name?.trim() || tr('New habit'))}</p>`;
-  const radioOption = (action, value, label, on) => `<button class="popover-option sheet-option${on ? ' is-selected' : ''}" type="button" role="radio" aria-checked="${on}" data-pop-action="${action}" data-value="${value}"><span class="sheet-radio${on ? ' is-on' : ''}" aria-hidden="true"></span><span class="sheet-option-label">${label}</span></button>`;
+  // R33 (finding 24): the circle sits on the right, as in every other sheet.
+  const radioOption = (action, value, label, on) => `<button class="popover-option sheet-option${on ? ' is-selected' : ''}" type="button" role="radio" aria-checked="${on}" data-pop-action="${action}" data-value="${value}"><span class="sheet-option-label">${label}</span><span class="sheet-radio${on ? ' is-on' : ''}" aria-hidden="true"></span></button>`;
   const applyFooter = (action, left = '<span></span>', disabled = false) => `<div class="sheet-footer">${left}<button class="btn btn-primary" type="button" data-pop-action="${action}"${disabled ? ' disabled' : ''}>${tr('Apply')}</button></div>`;
   function showSheet(ctx, anchor, html, type) {
     if (anchor) ctx.openPopover(anchor, html, { type }); else ctx.refreshSheet(html);
@@ -640,7 +644,7 @@
   }
 
   function quickSheetHtml(ctx) {
-    const values = draftQuickValues(ctx.modalState.draft).map(plainNumber).join(' ');
+    const values = draftQuickValues(ctx.modalState.draft).map(inputNumber).join(' ');
     return `<div class="popover-title">${tr('Quick values')}</div>${sheetSubtitle(ctx)}<label class="sheet-field"><i class="ph ph-lightning" aria-hidden="true"></i><span>${tr('Quick values')}</span><input id="habit-quick-values" class="input" inputmode="decimal" value="${ctx.esc(values)}"></label><p class="sheet-note">${tr('Separate with spaces. They appear in the value sheet.')}</p>${applyFooter('habit-quick-apply', `<button class="btn btn-ghost" type="button" data-pop-action="habit-quick-suggest">${tr('Suggest')}</button>`)}`;
   }
 
@@ -781,9 +785,10 @@
     const samplePrefix = 'workspace-starter-v1';
     // Sample titles are created in the UI language; sampleKey markers stay stable so a later run
     // still recognizes examples added in another language, and name matching uses the same tr().
+    // R33 (finding 25): each example area has its own icon and color.
     const areas = [
-      ['family-friends', tr('Family & Friends')], ['work', tr('Work')], ['personal-growth', tr('Personal Growth')],
-      ['home', tr('Home')], ['travel', tr('Travel')], ['health', tr('Health')], ['career', tr('Career')], ['finance', tr('Finance')]
+      ['family-friends', tr('Family & Friends'), 'ph-users'], ['work', tr('Work'), 'ph-briefcase'], ['personal-growth', tr('Personal Growth'), 'ph-graduation-cap'],
+      ['home', tr('Home'), 'ph-house'], ['travel', tr('Travel'), 'ph-airplane'], ['health', tr('Health'), 'ph-heart'], ['career', tr('Career'), 'ph-chart-line-up'], ['finance', tr('Finance'), 'ph-wallet']
     ];
     const habits = [
       ['morning', 'cold-shower', tr('Cold shower')], ['morning', 'wim-hof-breathing', tr('Wim Hof breathing')],
@@ -797,10 +802,10 @@
     const timestamp = nowIso(), today = Core.dateOnly();
     const hasSampleOrName = (collection, sampleKey, name, field = 'name') => collection.some(item => item.sampleKey === sampleKey || normalizeName(item[field]) === normalizeName(name));
     const byName = (collection, name, field = 'name') => collection.find(item => normalizeName(item[field]) === normalizeName(name));
-    for (const [key, name] of areas) {
+    for (const [key, name, areaIcon] of areas) {
       const sampleKey = 'area-routines-v1:area:' + key;
       if (hasSampleOrName(state.areas, sampleKey, name)) continue;
-      addedAreas.push({ id: uid('area'), sampleKey, name, ...areaDefaults, status: 'active', isPinned: false, createdAt: timestamp, updatedAt: timestamp });
+      addedAreas.push({ id: uid('area'), sampleKey, name, ...areaDefaults, icon: areaIcon, color: PROJECT_COLORS[(state.areas.length + addedAreas.length) % PROJECT_COLORS.length], status: 'active', isPinned: false, createdAt: timestamp, updatedAt: timestamp });
     }
     for (const [routine, key, name] of habits) {
       const sampleKey = 'area-routines-v1:habit:' + routine + ':' + key;

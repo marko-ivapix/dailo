@@ -36,7 +36,9 @@ function harness() {
     Math,
   };
   vm.createContext(ctx);
-  vm.runInContext(`let taskSwipeState = null; let suppressTaskSwipeClick = false; let touchReorder = null;\n${['resetTaskSwipe', 'handleTaskSwipeStart', 'handleTaskSwipeMove', 'finishTaskSwipe', 'handleTouchReorderStart', 'startTouchReorder', 'handleTouchReorderMove', 'finishTouchReorder', 'cancelTouchReorder', 'blockTouchScroll'].map(fn).join('\n')}`, ctx);
+  // R33: subtasks share the touch reorder, and an Inbox row stays within its capture group.
+  const constLine = name => app.match(new RegExp(`\\n  const ${name} = [^\\n]+`))[0];
+  vm.runInContext(`let taskSwipeState = null; let suppressTaskSwipeClick = false; let touchReorder = null;\n${constLine('REORDER_ROWS')}\n${constLine('dropGroup')}\n${['sameReorderList', 'resetTaskSwipe', 'handleTaskSwipeStart', 'handleTaskSwipeMove', 'finishTaskSwipe', 'handleTouchReorderStart', 'startTouchReorder', 'handleTouchReorderMove', 'finishTouchReorder', 'cancelTouchReorder', 'blockTouchScroll'].map(fn).join('\n')}`, ctx);
   const event = (type, row, x, y, extra = {}) => ({ type, pointerType: 'touch', isPrimary: true, button: 0, pointerId: 1, clientX: x, clientY: y, target: { closest: selector => (/button|input/.test(selector) ? null : row) }, preventDefault() { calls.push(['prevent', type]); }, ...extra });
   return { ctx, calls, timers, rows, under, event };
 }

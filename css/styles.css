@@ -3157,6 +3157,29 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
   body:has(#toast-root .toast) .mobile-quick-add { transform: translateY(calc(-1 * var(--toast-stack, 56px) - 8px)); }
 }
 
+/* Redesign R33 — windows and screens after the third design pass (2026-10-12). */
+/* Text fields that grow with their text (a script sizes them where field-sizing is not supported). */
+textarea[data-autogrow] { field-sizing: content; min-height: 0; resize: none; overflow: hidden; }
+.task-window-title { width: 100%; padding: 4px 0; border: 0; background: transparent; color: var(--ink-1); font: inherit; font-size: 22px; font-weight: 600; line-height: 1.25; }
+.knowledge-text, .journal-text { min-height: 120px; }
+/* A sheet follows the finger while its header is dragged down. */
+.sheet-header { touch-action: none; cursor: grab; }
+/* Nedelja: each habit's name has its own row above its seven days. */
+.habits-week-name-row th { padding: 8px 2px 2px; text-align: left; }
+.habits-week-table .habits-week-name-row .habits-week-name { max-width: none; white-space: normal; }
+.habits-week-days td { padding-bottom: 6px; }
+.habits-week-name-button { display: block; width: 100%; min-height: 32px; padding: 0; border: 0; background: none; color: var(--ink-1); font: inherit; font-size: 14px; font-weight: 500; text-align: left; overflow-wrap: anywhere; cursor: pointer; }
+/* The template editor's "Više opcija". */
+.template-more { margin-top: 8px; border-top: 1px solid var(--line-1); }
+.template-more > summary { min-height: 44px; display: flex; align-items: center; color: var(--ink-2); font-weight: 500; cursor: pointer; }
+.template-more[open] > summary { margin-bottom: 4px; }
+.task-window-more[open] .task-window-more-caret { transform: rotate(90deg); }
+.task-window-row.is-static { cursor: default; }
+/* Small controls reach 44 px on touch screens too. */
+.inline-add, .today-more, .collapsible-trigger { min-height: 44px; }
+/* A subtask held and dragged lifts like a task row. */
+.subtask-row.is-touch-dragging { position: relative; z-index: 5; pointer-events: none; background: var(--graphite-800); box-shadow: var(--shadow-popover); transition: none; }
+
 /* Keep primary compact actions touchable after all density rules. */
 @media (max-width: 700px), (pointer: coarse) {
   .task-actions .btn-icon,

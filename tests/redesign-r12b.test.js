@@ -30,7 +30,7 @@ function context(journal = [], extra = {}) {
   const state = { journal, tasks: [], habits: [], habitLogCache: {}, ui: {}, settings: {} };
   const ctx = {
     calls, state, esc, Core: { ...Core, dateOnly: value => (value ? Core.dateOnly(value) : TODAY) },
-    modalState: null, inputs: {},
+    modalState: null, inputs: {}, menuSheet: (title, body) => `<menu title="${title}">${body}</menu>`, // R33
     $: selector => ctx.inputs[selector] || null,
     pageHeader: (title, subtitle) => `<header title="${title}" subtitle="${subtitle}"></header>`,
     formatDate: (value, mode) => `${mode === 'full' ? 'FULL' : 'F'}:${value}`,
@@ -105,7 +105,7 @@ test('J2: the entry window with the date, the day summary, the moods, the text a
   const html = window_(adapter, ctx);
   assert.match(html, /^<frame quick><div class="modal-inner quick-sheet journal-window"><div class="modal-header task-window-header"><span class="task-window-kind">Journal<\/span><div class="task-window-actions"><button class="btn-icon" type="button" data-action="journal-menu" aria-label="Entry actions"><i class="ph ph-dots-three"><\/i><\/button><button class="btn-icon" type="button" data-action="close-modal" aria-label="Close"><i class="ph ph-x"><\/i><\/button><\/div><\/div><h2 class="journal-date">FULL:2026-10-09<\/h2><p class="journal-summary">Completed 2 tasks · habits 1\/2<\/p>/);
   assert.deepEqual([...html.matchAll(/<button class="journal-mood( is-selected)?" type="button" data-action="journal-mood" data-value="(\d)" aria-pressed="(\w+)"><span aria-hidden="true">(\S+)<\/span><small>(\w+)<\/small><\/button>/g)].map(match => `${match[4]} ${match[5]}${match[3] === 'true' ? '*' : ''}`), ['😞 Bad', '🙁 Poor', '😐 Okay*', '🙂 Good', '😄 Great']);
-  assert.match(html, /<textarea id="journal-text" class="input journal-text" rows="10" placeholder="How did the day go\? What was good\? What tomorrow\?" aria-label="Entry">Long day<\/textarea><button class="quick-chip journal-task" type="button" data-action="journal-task-tomorrow">\+ Task for tomorrow<\/button><p class="sheet-note">Selected text or a “Tomorrow: …” line becomes the task title\. It saves while you type\. The journal is not in Search, only in its own search on the Journal screen\.<\/p><\/div><\/frame>$/);
+  assert.match(html, /<textarea id="journal-text" class="input journal-text" data-autogrow rows="10" placeholder="How did the day go\? What was good\? What tomorrow\?" aria-label="Entry">Long day<\/textarea><button class="quick-chip journal-task" type="button" data-action="journal-task-tomorrow">\+ Task for tomorrow<\/button><p class="sheet-note">Selected text or a “Tomorrow: …” line becomes the task title\. It saves while you type\. The journal is not in Search, only in its own search on the Journal screen\.<\/p><\/div><\/frame>$/);
   assert.deepEqual(plain(Core.journalDaySummary(ctx.state, Object.values(ctx.state.habitLogCache).flat(), '2026-10-09')), { completed: 2, habitsDone: 1, habitsDue: 2 });
 });
 
@@ -137,7 +137,8 @@ test('J2: ⋯ deletes the entry after asking, with Undo', () => {
   const adapter = load(), ctx = context([entry('2026-10-08', { text: 'Old' }), entry('2026-10-09', { text: 'Keep' })]);
   act(adapter, ctx, 'open-journal', { date: '2026-10-08' });
   act(adapter, ctx, 'journal-menu');
-  assert.match(ctx.calls.find(call => call[0] === 'open')[2], /^<div class="popover-title">FULL:2026-10-08<\/div><div class="sheet-card"><button class="popover-option sheet-option is-danger" type="button" data-pop-action="journal-delete"><span class="sheet-option-label">Delete entry<\/span><\/button><\/div>$/);
+  // R33: the usual ⋯ sheet (menuSheet) with a red row and its trash icon.
+  assert.match(ctx.calls.find(call => call[0] === 'open')[2], /^<menu title="FULL:2026-10-08"><button class="popover-option is-danger" type="button" data-pop-action="journal-delete"><i class="ph ph-trash"><\/i>Delete entry<\/button><\/menu>$/);
   act(adapter, ctx, 'journal-delete');
   const [, config] = ctx.calls.find(call => call[0] === 'confirm');
   assert.deepEqual([config.title, config.message, config.confirmLabel], ['Delete this entry?', 'The entry and its mood are removed.', 'Delete entry']);

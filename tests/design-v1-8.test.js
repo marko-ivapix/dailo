@@ -177,7 +177,7 @@ test('modals are 12px graphite panels with overlay elevation and bottom-sheet gr
 test('Task Properties keeps collapsed disclosures and presents grouped key/value rows', () => {
   const tasksUi = read('js/tasks-ui.js');
   assert.match(tasksUi, /<details class="task-window-more">/);
-  assert.match(tasksUi, /class="property-row" for="detail-area"/);
+  assert.match(tasksUi, /row\('task-area-picker', 'ph-squares-four', tr\('Area'\)/); // R33: Oblast is a row with a sheet
   const r3 = css.slice(css.indexOf('/* Redesign R3'));
   assert.match(r3, /\.task-window-card \{[^}]*border: 1px solid var\(--line-1\)/);
   assert.match(r3, /\.task-window-card \{[^}]*background: var\(--graphite-850\)/);

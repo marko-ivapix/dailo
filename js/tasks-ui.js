@@ -72,7 +72,6 @@
     if (!task) return '';
     const project = getProject(task.projectId);
     const projectArea = project ? getArea(project.areaId) : null;
-    const goalOptions = (state.goals || []).filter(goal => goal.status !== 'archived' || (task.goalIds || []).includes(goal.id));
     const completedCount = task.subtasks.filter(s => s.isCompleted).length;
     const today = Core.dateOnly();
     const when = (date, time) => (date ? esc(`${relativeDateLabel(date)}${time ? ` · ${time}` : ''}`) : '');
@@ -82,7 +81,7 @@
     return modalFrame(`<div class="modal-inner task-window">
       <div class="modal-header task-window-header"><span id="task-modal-title" class="task-window-kind">${task.isInbox ? tr('Task in Inbox') : tr('Task')}</span><div class="task-window-actions"><button class="btn-icon" type="button" data-action="task-menu" data-task-id="${esc(task.id)}" aria-label="${tr('Task actions')}"><i class="ph ph-dots-three"></i></button><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div></div>
       ${modalState.error ? `<div class="validation task-modal-error">${esc(modalState.error)}</div>` : ''}
-      <input id="detail-title" class="modal-task-title task-window-title" type="text" maxlength="500" value="${esc(modalState.titleDraft)}" aria-label="${tr('Task title')}" />
+      <textarea id="detail-title" class="modal-task-title task-window-title" rows="1" maxlength="500" data-autogrow aria-label="${tr('Task title')}">${esc(modalState.titleDraft)}</textarea>
       <button class="task-window-project" type="button" data-action="task-project-picker" data-task-id="${esc(task.id)}"><i class="ph ph-folder-simple" aria-hidden="true"></i>${project ? esc(project.name) : tr('No project')}</button>
       <h3 class="task-window-group">${tr('Planning')}</h3>
       <div class="task-window-card">${row('task-plan-picker', 'ph-calendar-check', tr('Planned'), when(task.plannedDate, task.plannedTime))}${row('task-due-picker', 'ph-hourglass-medium', tr('Due date'), when(task.dueDate, task.dueTime), dueClass)}${row('task-reminder-picker', 'ph-bell', tr('Reminder'), task.reminderAt ? esc(formatReminder(task.reminderAt)) : '')}${row('task-repeat-picker', 'ph-arrows-clockwise', tr('Repeat'), task.recurrence ? esc(recurrenceLabel(task.recurrence)) : '')}${row('task-duration-picker', 'ph-timer', tr('Duration'), task.durationMinutes ? esc(durationLabel(task.durationMinutes)) : '')}</div>
@@ -92,8 +91,9 @@
       <div class="task-window-card"><div class="subtask-list" data-subtask-list="${esc(task.id)}">${[...task.subtasks].sort((a,b)=>clampOrder(a.order)-clampOrder(b.order)).map(s => subtaskRow(task, s, ctx)).join('')}</div><div class="add-subtask-input"><input id="detail-subtask" class="input" type="text" placeholder="${tr('Add subtask...')}" data-task-id="${esc(task.id)}" /></div></div>
       <label class="task-window-group" for="detail-notes">${tr('Notes')}</label><textarea id="detail-notes" class="detail-notes" placeholder="${tr('Add notes...')}">${esc(modalState.notesDraft)}</textarea>
       <div class="task-window-attachments">${renderAttachmentsSection({ ownerType: 'task', ownerId: task.id })}</div>
-      <details class="task-window-more"><summary><span>${tr('More options')}</span><span class="task-window-more-meta">${tr('Area, goals, importance')}</span><i class="ph ph-caret-right task-properties-caret" aria-hidden="true"></i></summary>
-        <div class="task-window-card"><label class="property-row" for="detail-area"><span class="property-key">${tr('Area')}</span>${project ? `<span class="property-value">${projectArea ? esc(projectArea.name) : tr('Inherited from project')}</span>` : `<select id="detail-area" class="input task-property-select" data-task-area="${esc(task.id)}"><option value="">${tr('No area')}</option>${(state.areas || []).filter(area => area.status === 'active' || area.id === task.areaId).map(area => `<option value="${esc(area.id)}" ${area.id === task.areaId ? 'selected' : ''}>${esc(area.name)}</option>`).join('')}</select>`}</label><details class="task-goals-disclosure"><summary class="property-row"><span class="property-key">${tr('Goals')}</span><span class="property-value">${(task.goalIds || []).length ? trn(task.goalIds.length, '{count} linked', '{count} linked') : tr('No goals')}</span></summary><div class="task-goal-options">${goalOptions.length ? goalOptions.map(goal => `<label><input type="checkbox" data-task-goal="${esc(task.id)}" value="${esc(goal.id)}" ${(task.goalIds || []).includes(goal.id) ? 'checked' : ''}>${esc(goal.title)}</label>`).join('') : `<span class="area-empty-copy">${tr('No Goals yet.')}</span>`}</div></details><label class="property-row task-flag-row"><span class="property-key">${tr('Important')}</span><input type="checkbox" data-task-flag="isImportant" data-task-id="${esc(task.id)}" ${task.isImportant ? 'checked' : ''} aria-label="${tr('Mark task important')}"></label><label class="property-row task-flag-row"><span class="property-key">${tr('Urgent')}</span><input type="checkbox" data-task-flag="isUrgent" data-task-id="${esc(task.id)}" ${task.isUrgent ? 'checked' : ''} aria-label="${tr('Mark task urgent')}"></label></div>
+      <!-- R33 (finding 22): Oblast and Ciljevi are rows with sheets, like the rest of the window. -->
+      <details class="task-window-more"><summary><span>${tr('More options')}</span><span class="task-window-more-meta">${tr('Area, goals')}</span><i class="ph ph-caret-right task-window-more-caret" aria-hidden="true"></i></summary>
+        <div class="task-window-card">${project ? `<div class="task-window-row is-static"><i class="ph ph-squares-four" aria-hidden="true"></i><span class="task-window-row-label">${tr('Area')}</span><span class="task-window-row-value is-set">${projectArea ? esc(projectArea.name) : tr('Inherited from project')}</span></div>` : row('task-area-picker', 'ph-squares-four', tr('Area'), esc(getArea(task.areaId)?.name || ''))}${row('task-goals-picker', 'ph-target', tr('Goals'), (task.goalIds || []).length ? esc(trn(task.goalIds.length, '{count} linked', '{count} linked')) : '')}</div>
       </details>
       <div class="task-window-footer"><button class="btn ${task.isCompleted ? 'btn-secondary' : 'btn-primary'} task-complete-button" type="button" data-action="toggle-complete" data-task-id="${esc(task.id)}">${task.isCompleted ? tr('Reopen task') : tr('Complete task')}</button></div>
     </div>`, 'task-detail-modal', 'aria-labelledby="task-modal-title"');
@@ -107,34 +107,5 @@
     renderRoute(route, ctx) {
       if (route.type === 'modal' && route.modalType === 'task') return renderTaskModal(ctx);
     },
-    handleInput(event, ctx) {
-      if (ctx.modalState?.type !== 'task') return false;
-      const input = event.target;
-      if (input.matches('[data-task-area]') && event.type === 'change') {
-        const task = ctx.getTask(input.dataset.taskArea);
-        if (!task || task.projectId) return true;
-        task.areaId = input.value || null;
-        task.updatedAt = ctx.nowIso();
-        ctx.saveAndRender();
-        return true;
-      }
-      if (input.matches('[data-task-goal]') && event.type === 'change') {
-        const task = ctx.getTask(input.dataset.taskGoal);
-        if (!task) return true;
-        const selected = [...ctx.$$('[data-task-goal]:checked')].map(item => item.value);
-        const previous = new Set(task.goalIds || []);
-        task.goalIds = selected;
-        for (const goal of ctx.state.goals || []) {
-          const ids = new Set(goal.taskIds || []);
-          if (selected.includes(goal.id) && !ids.has(task.id)) ids.add(task.id);
-          else if (!selected.includes(goal.id) && previous.has(goal.id)) ids.delete(task.id);
-          goal.taskIds = [...ids];
-        }
-        task.updatedAt = ctx.nowIso();
-        ctx.saveAndRender();
-        return true;
-      }
-      return false;
-    }
   });
 })();

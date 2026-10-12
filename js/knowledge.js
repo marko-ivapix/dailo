@@ -238,13 +238,14 @@
     html += `<input id="knowledge-title" class="quick-title-input${titleError ? ' is-error' : ''}" type="text" maxlength="120" autocomplete="off" placeholder="${resource ? tr('Resource name') : tr('Note name')}" value="${esc(d.title)}" aria-label="${tr('Name')}">`;
     html += `<button class="goal-details-area" type="button" data-action="knowledge-area"><i class="ph ph-squares-four" aria-hidden="true"></i>${esc(getArea(d.areaId)?.name || tr('No area'))}</button>`;
     if (resource) html += `<div class="habit-window-card">${windowRow(context, 'knowledge-type', 'ph-books', tr('Type'), tr(RESOURCE_TYPES[d.resourceType] || 'Article'))}${windowRow(context, 'knowledge-status', 'ph-book-open', tr('Reading status'), tr(RESOURCE_STATUSES[d.resourceStatus] || 'Unread'))}${windowRow(context, 'knowledge-author', 'ph-user', tr('Author'), d.author, tr('No author'))}${windowRow(context, 'knowledge-reviewed', 'ph-calendar-check', tr('Last reviewed'), d.reviewedAt ? context.formatDate(d.reviewedAt) : '', tr('Not reviewed yet'))}</div>`;
-    html += `<h3 class="goal-details-label">${resource ? tr('Description') : tr('Text')}</h3><textarea id="knowledge-text" class="input knowledge-text" rows="5" placeholder="${resource ? tr('Description') : tr('Note text')}">${esc(d.text)}</textarea>`;
+    html += `<h3 class="goal-details-label">${resource ? tr('Description') : tr('Text')}</h3><textarea id="knowledge-text" class="input knowledge-text" rows="5" data-autogrow placeholder="${resource ? tr('Description') : tr('Note text')}">${esc(d.text)}</textarea>`;
     if (d.clip) html += `<h3 class="goal-details-label">${tr('Clipped text')}</h3><blockquote class="knowledge-clip-quote">${esc(d.clip)}</blockquote>`;
     html += `<h3 class="goal-details-label">${tr('Links')} · ${d.linkUrls.length}</h3><div class="habit-window-card knowledge-links">${d.linkUrls.map((url, index) => `<div class="knowledge-link-row">${linkHtml(context, url)}<button class="btn-icon" type="button" data-action="remove-knowledge-link" data-link-index="${index}" aria-label="${tr('Remove link')}"><i class="ph ph-x"></i></button></div>`).join('')}<div class="knowledge-link-add"><input id="knowledge-link" class="input" type="url" inputmode="url" autocomplete="off" placeholder="https://…" value="${esc(d.linkDraft)}" aria-label="${tr('New link')}"><button class="btn btn-secondary" type="button" data-action="add-knowledge-link">${tr('Add')}</button></div></div>`;
     const tags = context.state.tags.filter(tag => d.tagIds.includes(tag.id)).map(tag => tag.name).join(', ');
     const relations = resource ? RELATIONS.map(([field, label, collection]) => windowRow(context, 'knowledge-relations', 'ph-link-simple', tr(label), names(context, collection, d[field]), tr('None'), ` data-field="${field}"`)).join('') : '';
     html += `<h3 class="goal-details-label">${tr('Organization')}</h3><div class="habit-window-card">${windowRow(context, 'knowledge-tags', 'ph-tag', tr('Tags'), tags, tr('None'))}${relations}${windowRow(context, 'knowledge-clip', 'ph-quotes', tr('Clipped text'), d.clip ? tr('Added') : '', tr('None'))}</div>`;
-    html += renderAttachmentsSection({ ownerType: type, ownerId: modalState.ownerId });
+    // R33 (finding 26): the attachments take the same group look as Tekst, Linkovi and Organizacija.
+    html += `<div class="task-window-attachments">${renderAttachmentsSection({ ownerType: type, ownerId: modalState.ownerId })}</div>`;
     if (isNew && modalState.pendingFiles.length) html += `<p class="sheet-note">${modalState.pendingFiles.map(file => esc(file.name)).join(' · ')} · ${tr('files are added when you save.')}</p>`;
     if (modalState.error) html += `<p class="validation" role="alert">${esc(modalState.error)}</p>`;
     if (isNew) html += `<div class="quick-sheet-footer"><span></span><button class="btn btn-primary habit-window-save" type="button" data-action="save-knowledge"${modalState.busy ? ' disabled' : ''}>${resource ? tr('Create resource') : tr('Create note')}</button></div>`;
@@ -259,13 +260,23 @@
     const { esc } = context;
     return `${sheetHead(context, title)}<div class="sheet-card" role="radiogroup" aria-label="${title}">${options.map(([value, label]) => `<button class="popover-option sheet-option${current === value ? ' is-selected' : ''}" type="button" role="radio" aria-checked="${current === value}" data-pop-action="${action}" data-${attr === 'value' ? 'value' : 'area-id'}="${esc(value)}"><span class="sheet-option-label">${esc(label)}</span><span class="sheet-radio${current === value ? ' is-on' : ''}" aria-hidden="true"></span></button>`).join('')}</div>`;
   }
+  function relationChoices(items, selectedIds) {
+    const chosen = new Set(selectedIds || []);
+    const name = item => String(item.title || item.name || '');
+    const finished = item => item.isCompleted === true || item.isArchived === true || item.status === 'archived' || item.status === 'completed';
+    const byName = (a, b) => name(a).localeCompare(name(b));
+    return [...(items || []).filter(item => chosen.has(item.id)).sort(byName), ...(items || []).filter(item => !chosen.has(item.id) && !finished(item)).sort(byName)];
+  }
+
   function multiSheetHtml(context) {
     const { esc, state } = context;
     if (sheet.kind === 'tags') {
       return `${sheetHead(context, tr('Tags'))}<div class="sheet-card">${state.tags.map(tag => `<button class="popover-option sheet-option" type="button" data-pop-action="knowledge-tag-toggle" data-tag-id="${esc(tag.id)}" aria-pressed="${sheet.ids.includes(tag.id)}"><span class="tag-dot" style="--tag-color:${esc(tag.color)}" aria-hidden="true"></span><span class="sheet-option-label">${esc(tag.name)}</span><span class="sheet-check${sheet.ids.includes(tag.id) ? ' is-on' : ''}" aria-hidden="true"></span></button>`).join('') || `<p class="sheet-note">${tr('No tags yet. Create tags from the Tags section.')}</p>`}</div>${applyFooter('knowledge-tags-apply')}`;
     }
     const [, label, collection] = RELATIONS.find(([field]) => field === sheet.field);
-    return `${sheetHead(context, tr(label))}<div class="sheet-card">${state[collection].map(item => `<button class="popover-option sheet-option" type="button" data-pop-action="knowledge-relation-toggle" data-id="${esc(item.id)}" aria-pressed="${sheet.ids.includes(item.id)}"><span class="sheet-option-label">${esc(item.title || item.name)}</span><span class="sheet-check${sheet.ids.includes(item.id) ? ' is-on' : ''}" aria-hidden="true"></span></button>`).join('') || `<p class="sheet-note">${tr('No items.')}</p>`}</div>${applyFooter('knowledge-relations-apply')}`;
+    // R33 (finding 27): the chosen items first, then open ones by name; a search field filters the rest.
+    const items = relationChoices(state[collection], sheet.ids);
+    return `${sheetHead(context, tr(label))}<label class="sheet-search"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input class="input" type="search" data-sheet-search placeholder="${tr('Search')}" aria-label="${tr('Search')}"></label><div class="sheet-card">${items.map(item => `<button class="popover-option sheet-option" type="button" data-sheet-item data-search="${esc(String(item.title || item.name || '').toLowerCase())}" data-pop-action="knowledge-relation-toggle" data-id="${esc(item.id)}" aria-pressed="${sheet.ids.includes(item.id)}"><span class="sheet-option-label">${esc(item.title || item.name)}</span><span class="sheet-check${sheet.ids.includes(item.id) ? ' is-on' : ''}" aria-hidden="true"></span></button>`).join('') || `<p class="sheet-note">${tr('No items.')}</p>`}</div>${applyFooter('knowledge-relations-apply')}`;
   }
   const WINDOW_ACTIONS = new Set(['knowledge-window-favorite', 'knowledge-menu', 'knowledge-area', 'knowledge-set-area', 'knowledge-type', 'knowledge-set-type', 'knowledge-status', 'knowledge-set-status', 'knowledge-author', 'knowledge-author-apply', 'knowledge-reviewed', 'knowledge-reviewed-apply', 'knowledge-reviewed-clear', 'knowledge-tags', 'knowledge-tag-toggle', 'knowledge-tags-apply', 'knowledge-relations', 'knowledge-relation-toggle', 'knowledge-relations-apply', 'knowledge-clip', 'knowledge-clip-apply']);
   function handleWindowAction(action, el, context) {
