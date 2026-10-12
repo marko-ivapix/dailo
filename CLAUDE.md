@@ -121,10 +121,9 @@ python3 -m http.server 8080
 
 *Update this section on every merge.*
 
-- **Branch:** `2.0.0-alpha.85`, not merged yet:
+- **`main`:** `6a85a58` (PR #26: R57, R58 and the `.claude/` setup); GitHub Pages serves `2.0.0-alpha.85`. The work branch was restarted from it.
   - R57: description, sharing preview, `404.html`, link check;
-  - R58: security fixes, privacy policy and terms completed, migration `0006_security.sql`.
-- **`main`:** `5af3326` (PR #25, R48–R56); GitHub Pages serves `2.0.0-alpha.83`.
+  - R58: security fixes, privacy policy and terms completed, migration `0006_security.sql` (run only once every device is on alpha.85 or later).
 - **Sync:** `js/sync-config.js` holds the user's project `https://qjfpnvjuqbrmdkjxxmsq.supabase.co` and its publishable key. The user still has to apply migrations `0001_sync.sql` to `0006_security.sql` and set up SMTP, the e-mail templates, the redirect URLs and the Google/Apple providers (`docs/v2/podesavanje-supabase.md`).
 - **Reported by the user:**
   - iPhone B1–B5 (2026-10-08);
