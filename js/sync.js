@@ -91,14 +91,17 @@
     if (/(invalid|no) api key/i.test(detail)) return msg('The server does not accept the app key.');
     if (['PGRST205', 'PGRST202', '42P01', '42883'].includes(reason)) return MISSING_TABLES;
     if (reason === '23514' && /records_type_check/.test(detail)) return msg('The server does not accept Dnevnik yet. Run 0002_journal.sql in Supabase.');
-    // R58: 0006_security.sql caps one record at 256 KB.
-    if (reason === '23514' && /records_data_size/.test(detail)) return msg('One item is too large to sync (at most 256 KB). Shorten it, or keep it on this device.');
+    // R58: 0006_security.sql caps one record at 256 KB; the app already holds back items over SYNC_RECORD_LIMIT.
+    if (reason === '23514' && /records_data_size/.test(detail)) return msg('An item is too large to sync (at most 256 KB). Shorten it.');
     if (/bucket not found/i.test(detail)) return NO_BUCKET;
     if (status === 413 || /exceeded the maximum allowed size/i.test(detail)) return TOO_LARGE;
     return detail ? `${msg('Server error')}: ${detail}` : msg('Server error');
   }
 
   const keyOf = (type, id) => `${type}/${id}`;
+  // R58: the server holds at most 256 KB per record (0006_security.sql); the app keeps a margin for the JSON encoding.
+  const SYNC_RECORD_LIMIT = 240 * 1024;
+  const recordBytes = data => new TextEncoder().encode(JSON.stringify(data)).length;
   const own = (object, key) => Object.prototype.hasOwnProperty.call(object || {}, key);
   const clone = value => (value === undefined ? undefined : JSON.parse(JSON.stringify(value)));
 
@@ -472,8 +475,12 @@
       const journalKey = journal?.key || null;
       const journalLocked = Boolean(journal?.locked) && !journalKey;
       // R58: a readable journal row on the server while this device holds the key was written by a device that did
-      // not know about the encryption yet. It is never marked as "already there", so it goes back sealed.
+      // not know about the encryption yet; it goes back sealed. Only while the account still uses this key's cipher:
+      // when another device turned encryption off or set a new password, the readable rows are what it wants now.
       const readableJournal = new Set();
+      const keyFits = state => Boolean(journalKey && state?.settings?.journalCipher && (!journal?.salt || state.settings.journalCipher.salt === journal.salt));
+      // R58: an item over SYNC_RECORD_LIMIT stays on this device (the server refuses more than 256 KB), and Nalog names it.
+      const tooLarge = new Map();
       const net = {
         async pull(token, since) {
           const opened = [];
@@ -485,14 +492,44 @@
           }
           return opened;
         },
+        // Returns the keys held back for their size; they stay out of the shadow and are tried again next round.
         async push(token, records) {
           const sealed = journalKey ? await Promise.all(records.map(record => (record.type === 'journal' && !record.deleted && record.data ? sealJournalRecord(journalKey, record) : record))) : records;
-          await client.push(token, sealed);
-          // A sealed entry that replaced a readable one leaves that copy in the server history; the app purges it.
-          if (records.some(record => record.type === 'journal' && readableJournal.has(keyOf(record.type, record.id)))) meta.purgeJournalHistory = true;
+          const held = new Set();
+          const fits = sealed.filter((record, index) => {
+            if (record.deleted || !record.data || recordBytes(record.data) <= SYNC_RECORD_LIMIT) return true;
+            const key = keyOf(record.type, record.id);
+            const data = records[index].data || {};
+            held.add(key);
+            tooLarge.set(key, { type: record.type, id: record.id, name: String(data.title || data.name || data.date || record.id) });
+            return false;
+          });
+          // A sealed entry that replaces a readable one leaves that copy in the server history; the app purges it after
+          // a successful round. The flag goes first, so a push that fails here still leaves it set.
+          if (fits.some(record => record.type === 'journal' && readableJournal.has(keyOf(record.type, record.id)))) meta.purgeJournalHistory = true;
+          if (fits.length) await client.push(token, fits);
+          return held;
         },
       };
-      const unmarkReadable = target => { for (const key of readableJournal) delete target[key]; return target; };
+      // Pushes this device's copy of the readable journal rows, sealed, and records the result in `target`.
+      const reseal = async (source, target) => {
+        if (!readableJournal.size) return 0;
+        if (!keyFits(source.state)) { readableJournal.clear(); return 0; }
+        const latestRecords = gather(source);
+        const records = [...readableJournal].map(key => latestRecords.get(key)).filter(Boolean);
+        const held = records.length ? await net.push(session, records) : new Set();
+        for (const record of records) {
+          const key = keyOf(record.type, record.id);
+          if (held.has(key)) delete target[key];
+          else target[key] = hashRecord(record.data);
+        }
+        readableJournal.clear();
+        return records.length - held.size;
+      };
+      const finishLarge = () => {
+        if (tooLarge.size) meta.tooLarge = [...tooLarge.values()];
+        else delete meta.tooLarge;
+      };
       // R46: attachments take part when the app hands over its files and the server has their bucket. A file that
       // arrived as a record but is not downloaded yet waits in `pending` and counts as present, so no deletion goes out.
       const withFiles = Boolean(files) && await client.filesAvailable(session);
@@ -548,17 +585,23 @@
           const localOnly = [...records.values()].filter(record => record.type !== 'settings' && !(journalLocked && record.type === 'journal') && !liveKeys.has(keyOf(record.type, record.id)))
             .map(record => ({ type: record.type, id: record.id, data: null, deleted: true, updated_at: '' }));
           await apply(local, [...localOnly, ...live]);
-          meta.shadow = unmarkReadable(Object.fromEntries(live.map(row => [keyOf(row.type, row.id), hashRecord(remoteData(row))])));
+          const taken = Object.fromEntries(live.map(row => [keyOf(row.type, row.id), hashRecord(remoteData(row))]));
+          const resealed = await reseal(await readLocal(), taken);
+          meta.shadow = taken;
           meta.shadowFormat = SHADOW_FORMAT;
           meta.cursor = latest(remoteRows, null);
           if (withFiles) await fetchPending();
           finishFiles();
+          finishLarge();
           meta.lastSyncAt = new Date(now()).toISOString();
           meta.lastError = null;
-          return { status: 'ok', pushed: 0, pulled: live.length };
+          return { status: 'ok', pushed: resealed, pulled: live.length };
         }
+        if (!keyFits(local.state)) readableJournal.clear();
         if (chosen === 'device') {
-          shadow = unmarkReadable(Object.fromEntries(live.map(row => [keyOf(row.type, row.id), hashRecord(remoteData(row))])));
+          shadow = Object.fromEntries(live.map(row => [keyOf(row.type, row.id), hashRecord(remoteData(row))]));
+          // A readable row this device keeps goes up sealed; one it does not have keeps its mark, so it is deleted.
+          for (const key of readableJournal) if (records.has(key)) delete shadow[key];
           cursor = latest(remoteRows, null);
         } else {
           // Merge: a record on both sides keeps its newer `updatedAt`; otherwise this device's version wins.
@@ -584,12 +627,16 @@
         sent.push(record);
       }
       const outgoing = [...sent, ...diff.deletes.map(record => ({ ...record, deleted: true }))];
-      if (outgoing.length) await net.push(session, outgoing);
+      const held = outgoing.length ? await net.push(session, outgoing) : new Set();
       const goneFiles = diff.deletes.filter(record => record.type === 'attachments').map(record => record.id);
       if (goneFiles.length) {
         try { await client.removeFiles(session, goneFiles); } catch (_) { /* a leftover file costs space, not data */ }
       }
-      for (const record of sent) shadow[keyOf(record.type, record.id)] = hashRecord(record.data);
+      for (const record of sent) {
+        const key = keyOf(record.type, record.id);
+        if (!held.has(key)) shadow[key] = hashRecord(record.data);
+        readableJournal.delete(key);
+      }
       for (const record of diff.deletes) delete shadow[keyOf(record.type, record.id)];
       meta.shadow = { ...shadow };
       meta.shadowFormat = SHADOW_FORMAT;
@@ -611,21 +658,16 @@
         else shadow[key] = hashRecord(remoteData(row));
       }
       // R58: readable journal rows pulled in this round go back sealed now, from this device's (newer or equal) copy.
-      if (readableJournal.size) {
-        const latestLocal = gather(await readLocal());
-        const reseal = [...readableJournal].map(key => latestLocal.get(key)).filter(Boolean);
-        if (reseal.length) await net.push(session, reseal);
-        unmarkReadable(shadow);
-        for (const record of reseal) shadow[keyOf(record.type, record.id)] = hashRecord(record.data);
-      }
+      const resealed = await reseal(await readLocal(), shadow);
       meta.shadow = shadow;
       meta.shadowFormat = SHADOW_FORMAT;
       meta.cursor = latest(pulled, cursor);
       if (withFiles) await fetchPending();
       finishFiles();
+      finishLarge();
       meta.lastSyncAt = new Date(now()).toISOString();
       meta.lastError = null;
-      return { status: 'ok', pushed: outgoing.length, pulled: incoming.length };
+      return { status: 'ok', pushed: outgoing.length - held.size + resealed, pulled: incoming.length };
     } catch (error) {
       meta.lastError = error?.message || String(error);
       return { status: 'error', error: meta.lastError, code: error?.status || 0 };
@@ -740,7 +782,7 @@
         if (message?.topic !== REALTIME_TOPIC) return;
         if (message.event === 'phx_reply' && message.ref === joinRef) {
           if (message.payload?.status === 'ok') { attempt = 0; setState('live'); } else ws.close();
-        } else if (message.event === 'postgres_changes') onChange?.();
+        } else if (message.event === 'postgres_changes' && message.payload?.data?.type !== 'DELETE') onChange?.(); // R58: a deleted account's row
         else if (message.event === 'phx_error' || message.event === 'phx_close') ws.close();
       };
       // A closed socket (network, sleep, a refused join) comes back after a growing pause; onclose follows onerror.
@@ -789,5 +831,5 @@
     return Boolean(config && /^https:\/\/[^\s/]+/.test(config.url || '') && typeof config.anonKey === 'string' && config.anonKey.length > 20);
   }
 
-  return Object.freeze({ COLLECTIONS, DEVICE_SETTINGS, SyncError, serverMessage, safeAttachmentData, passwordProblem, createCodeVerifier, codeChallenge, collectRecords, hashRecord, recordFingerprint, untouchedSample, diffRecords, applyRemote, createClient, createRealtime, syncOnce, isConfigured, JOURNAL_ITERATIONS, journalCipherValid, createJournalCipher, unlockJournalCipher, exportJournalKey, importJournalKey, forgetJournalShadow });
+  return Object.freeze({ COLLECTIONS, DEVICE_SETTINGS, SYNC_RECORD_LIMIT, SyncError, serverMessage, safeAttachmentData, passwordProblem, createCodeVerifier, codeChallenge, collectRecords, hashRecord, recordFingerprint, untouchedSample, diffRecords, applyRemote, createClient, createRealtime, syncOnce, isConfigured, JOURNAL_ITERATIONS, journalCipherValid, createJournalCipher, unlockJournalCipher, exportJournalKey, importJournalKey, forgetJournalShadow });
 });

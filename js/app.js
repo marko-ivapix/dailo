@@ -4432,7 +4432,7 @@
   function syncView() {
     const meta = syncMeta || loadSyncMeta();
     return { configured: Boolean(syncClient), signedIn: Boolean(meta.session?.accessToken), email: meta.session?.user?.email || '', name: meta.session?.user?.name || '', serverCheck,
-      running: syncRunning, lastSyncAt: meta.lastSyncAt || null, lastError: meta.lastError || '', fileError: meta.fileError || '', live: liveSync?.status() === 'live', journalPurgeError: meta.journalPurgeError || '' };
+      running: syncRunning, lastSyncAt: meta.lastSyncAt || null, lastError: meta.lastError || '', fileError: meta.fileError || '', live: liveSync?.status() === 'live', journalPurgeError: meta.journalPurgeError || '', tooLarge: meta.tooLarge || [] };
   }
 
   function editingText() {
@@ -4974,7 +4974,8 @@
 
   async function journalSyncOptions() {
     const key = await deviceJournalKey();
-    return { key, locked: Boolean(state?.settings?.journalCipher) && !key };
+    // R58: the salt tells syncOnce which cipher this key belongs to, so it never re-seals for a cipher that is gone.
+    return { key, salt: key ? state.settings.journalCipher.salt : null, locked: Boolean(state?.settings?.journalCipher) && !key };
   }
 
   // After a sync: a device forgets its key when encryption was turned off on another one, and once the journal went

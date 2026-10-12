@@ -913,7 +913,8 @@
     "Tasks, projects, goals, habits, notes, attachments and settings sync between your devices.": "Zadaci, projekti, ciljevi, navike, beleške, prilozi i podešavanja se sinhronizuju između tvojih uređaja.",
     "Attachments: {error}": "Prilozi: {error}",
     "The file is larger than the server allows.": "Fajl je veći nego što server dozvoljava.",
-    "One item is too large to sync (at most 256 KB). Shorten it, or keep it on this device.": "Jedna stavka je prevelika za sinhronizaciju (najviše 256 KB). Skrati je ili je čuvaj samo na ovom uređaju.",
+    "An item is too large to sync (at most 256 KB). Shorten it.": "Jedna stavka je prevelika za sinhronizaciju (najviše 256 KB). Skrati je.",
+    "Too large to sync (at most 240 KB): {items}": "Preveliko za sinhronizaciju (najviše 240 KB): {items}",
     "The server has no place for attachments yet. Run 0003_attachments.sql in Supabase.": "Server još nema mesta za priloge. U Supabase-u pokreni 0003_attachments.sql.",
     // R47a: the desktop sidebar.
     "Drag here for tomorrow": "Prevuci ovde za sutra",

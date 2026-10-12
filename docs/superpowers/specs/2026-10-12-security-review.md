@@ -1,6 +1,6 @@
 # Security review — 2026-10-12
 
-**Status:** findings 2–6, 8 and 9 are fixed in R58 (`2.0.0-alpha.85`, `docs/superpowers/specs/2026-10-12-r58-security-fixes.md`); finding 1 waits for a custom domain and finding 7 is accepted for testing. · **Scope:** the user's checklist (keys, RLS, IDOR and user isolation, git secrets, storage buckets, input validation, injection, logs, auth sessions, dependencies, "attack your own app"), read-only, at `0c44289` (alpha.83) plus R57.
+**Status:** findings 2, 3, 4, 6 and 8 are fixed in R58, and 5 and 9 in part (the widget token and the question before the first merge are left, with reasons) (`2.0.0-alpha.85`, `docs/superpowers/specs/2026-10-12-r58-security-fixes.md`); finding 1 waits for a custom domain and finding 7 is accepted for testing. · **Scope:** the user's checklist (keys, RLS, IDOR and user isolation, git secrets, storage buckets, input validation, injection, logs, auth sessions, dependencies, "attack your own app"), read-only, at `0c44289` (alpha.83) plus R57.
 
 A read-only review agent did the review. The findings marked "confirmed" were then checked in the source by hand.
 
@@ -51,6 +51,6 @@ A read-only review agent did the review. The findings marked "confirmed" were th
 - **Tokens:** refresh-token rotation with reuse detection.
 - **Server:**
   - migrations 0001–0005 applied and the Security Advisor clean;
-  - only `records` in the Realtime publication;
+  - only `record_pokes` in the Realtime publication (after 0006);
   - only the `public` schema in the Data API;
   - GraphQL off if unused.

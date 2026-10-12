@@ -47,9 +47,33 @@
   - **The first sync merging into an empty account without asking:** the expected path on a personal device.
   - **Actions pinned by tag:** low risk.
 
+## Fixes after the code review
+
+The `code-reviewer` agent reviewed the first R58 commit (`6bd282d`) and reproduced each sync finding against the fake server. All are fixed in the same release:
+
+- **Encryption turned off on another device (high).**
+  - **Problem:** a device that still held the key re-sealed the whole journal with a key it then forgot, so no device could read it.
+  - **Fix:** re-sealing now happens only while the account's cipher is still the key's cipher. `journalSyncOptions` passes the key's salt, and `keyFits` compares it with the settings after the pull.
+  - **Tests:** test 1 now uses a pre-R51 app in a normal round, and a new test turns encryption off.
+- **"Keep this device's data":** account-only readable journal rows keep their shadow mark, so they are deleted as promised. Only rows this device has go up sealed.
+- **The 256 KB cap stopped the whole sync.**
+  - **Fix:** items over `SYNC_RECORD_LIMIT` (240 KB, measured after sealing) stay on the device and out of the shadow, while the rest syncs.
+  - **Display:** `meta.tooLarge` names them, and Nalog shows "Preveliko za sinhronizaciju (najviše 240 KB): …".
+  - **Server message:** now "Jedna stavka je prevelika za sinhronizaciju (najviše 256 KB). Skrati je.".
+- **Same-round re-seal:** a first sync that takes the server copy now re-seals in the same round and sets the purge flag.
+- **The purge flag:** it is set before the re-seal push, so a failed push still leaves it set.
+- **The privacy policy:** it now says the server keeps only sealed previous versions of an encrypted journal. The earlier "none are kept" was not true.
+- **The goal unit** is escaped once. The "of {target}" label builds from the raw unit inside one `esc()`.
+- **`pushed`** now counts re-seal pushes, so "nothing left to re-seal" is a real check.
+- **Pushed twice:** a readable row already pushed sealed in the diff push is not pushed again.
+- **Realtime:** a DELETE event of `record_pokes` (a deleted account) starts no sync.
+- **Grants:** `record_pokes` is `revoke all` from `anon` and `authenticated`, then `grant select`.
+- **Rollout:** run `0006_security.sql` only once every device is on `2.0.0-alpha.85` or later, because older versions lose instant changes. The guide says so.
+- **Android device-to-device transfer:** `allowBackup="false"` stops cloud and `adb` backups. With targetSdk 36, a direct transfer to a new phone still moves the app data, including the session. That is the user's own new phone, so it stays as is.
+
 ## Checks
 
-- **Node:** `tests/security-r58.test.js`, written first; it failed 10/10. It covers:
+- **Node:** `tests/security-r58.test.js`, written first; it failed 10/10, and after the review it grew to 14 tests, of which 10 failed before the fixes. It covers:
   - a readable journal row re-sealed in the same round, with the history purge;
   - a first "server" sync re-sealing on the next round;
   - the escaped unit;

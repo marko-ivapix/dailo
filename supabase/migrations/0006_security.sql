@@ -17,8 +17,7 @@ create policy "pokes are private" on public.record_pokes
   for select to authenticated
   using (user_id = auth.uid());
 
-revoke all on public.record_pokes from anon;
-revoke insert, update, delete on public.record_pokes from authenticated;
+revoke all on public.record_pokes from anon, authenticated;
 grant select on public.record_pokes to authenticated;
 
 -- One poke per account per statement, however many rows a push writes.

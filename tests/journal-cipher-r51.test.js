@@ -157,7 +157,8 @@ test('the app: the device key, the sync options and the status', () => {
   assert.match(app, /const JOURNAL_KEY_KEY = 'dailoJournalKey';/);
   assert.match(fn('runSync'), /journal: await journalSyncOptions\(\),/);
   assert.match(fn('runSync'), /if \(result\.status === 'ok'\) \{ connectLiveSync\(\); await afterJournalSync\(meta\); \}/);
-  assert.match(fn('journalSyncOptions'), /return \{ key, locked: Boolean\(state\?\.settings\?\.journalCipher\) && !key \};/);
+  // R58: the options also carry the key's salt (tests/security-r58.test.js).
+  assert.match(fn('journalSyncOptions'), /return \{ key, salt: key \? state\.settings\.journalCipher\.salt : null, locked: Boolean\(state\?\.settings\?\.journalCipher\) && !key \};/);
   assert.match(fn('deviceJournalKey'), /if \(stored\?\.salt !== cipher\.salt \|\| typeof stored\.key !== 'string'\) return null;/);
   assert.match(fn('journalCipherStatus'), /return stored\?\.salt === cipher\.salt \? 'on' : 'locked';/);
   const after = fn('afterJournalSync');
