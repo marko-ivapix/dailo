@@ -64,9 +64,10 @@ test('K1, K2: on wide screens the sidebar replaces the bottom bar; it folds to i
 });
 
 test('K12: on a wide screen the "+" adds a task where nothing else belongs, and its label says what it adds', () => {
-  const context = withI18n({ location: { hash: '#today' }, wide: false, matchMedia: () => ({ matches: context.wide }), openQuickAdd: () => 'quick' });
+  // R59: the task screens add a task on the phone too, so the menu case is a screen without its own type (Podešavanja).
+  const context = withI18n({ location: { hash: '#settings' }, wide: false, matchMedia: () => ({ matches: context.wide }), openQuickAdd: () => 'quick', state: {}, currentRoute: () => ({ type: context.location.hash.slice(1) }) });
   vm.createContext(context);
-  vm.runInContext(`const QUICK_ADD_DIRECT = { '#habits': ['New habit', () => 'habit'] };\n${app.match(/\n  const DESKTOP_NEW_TASK = [^\n]+/)[0]}\n${app.match(/\n  const wideScreen = [^\n]+/)[0]}\n${app.match(/\n  const quickAddDirect = [^\n]+/)[0]}`, context);
+  vm.runInContext(`const QUICK_ADD_DIRECT = { '#habits': ['New habit', () => 'habit'] };\n${app.match(/\n  const TASK_SCREENS = [^\n]+/)[0]}\n${app.match(/\n  const NEW_TASK_HERE = [^\n]+/)[0]}\n${app.match(/\n  const DESKTOP_NEW_TASK = [^\n]+/)[0]}\n${app.match(/\n  const wideScreen = [^\n]+/)[0]}\n${app.match(/\n  const quickAddDirect = [^\n]+/)[0]}`, context);
   assert.equal(vm.runInContext('quickAddDirect()', context), null, 'the phone opens the menu');
   context.wide = true;
   assert.equal(vm.runInContext('quickAddDirect()[0]', context), 'New task');

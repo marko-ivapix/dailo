@@ -282,7 +282,8 @@ test('app.js: links and old addresses open the window; the floating "+" adds a n
   assert.match(fn('renderMain'), /if \(\['note', 'resource'\]\.includes\(route\.type\)\) \{ history\.replaceState\(null, '', route\.type === 'note' \? '#notes' : '#resources'\); openKnowledgeWindow\(route\.type, route\.id\); \}/);
   assert.match(fn('openKnowledgeWindow'), /callDomainHook\('handleAction', 'open-knowledge', \{ ownerType: type, ownerId: id, prefill: options\.prefill \|\| null, inbox: Boolean\(options\.inbox\) \}\);/, 'R35: a share can fill in a new resource');
   assert.match(app, /const QUICK_ADD_DIRECT = Object\.freeze\(\{ '#goals': \[msg\('New goal'\), \(\) => openGoalModal\(\)\], '#habits': \[msg\('New habit'\), \(\) => openHabitModal\(\)\], '#areas': \[msg\('New area'\), \(\) => callDomainHook\('handleAction', 'new-area', \{ target: \$\('#mobile-quick-add-toggle'\) \}\)\], '#notes': \[msg\('New note'\), \(\) => openKnowledgeWindow\('note'\)\], '#resources': \[msg\('New resource'\), \(\) => openKnowledgeWindow\('resource'\)\]/);
-  assert.match(fn('handleClick'), /if \(action === 'toggle-mobile-quick-add'\) \{ const direct = quickAddDirect\(\); if \(direct\) \{ direct\[1\]\(\); return; \}/);
+  // R59: a tap on the "+" while its menu is open closes the menu first.
+  assert.match(fn('handleClick'), /if \(action === 'toggle-mobile-quick-add'\) \{ if \(el\.getAttribute\('aria-expanded'\) === 'true'\) \{ setMobileQuickAddOpen\(false\); return; \} const direct = quickAddDirect\(\); if \(direct\) \{ direct\[1\]\(\); return; \}/);
   assert.match(app, /scheduleTextSave, /);
   assert.doesNotMatch(knowledgeUi, /function renderKnowledgeDetail\(|knowledge-detail-metadata|data-knowledge-filter|knowledge-metadata-grid/);
   assert.match(moduleFor().renderRoute({ type: 'note', id: 'n1' }, fixture().ctx), /^<header title="Notes"/, 'the route shows the list');

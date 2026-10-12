@@ -62,7 +62,8 @@ test('C: Inbox has its own add row; Enter files the title in Inbox and keeps the
 
 test('C: holding the "+" opens a new task at once', () => {
   assert.match(read('index.html'), /<button id="mobile-quick-add-toggle" class="mobile-quick-add-toggle" type="button" data-action="toggle-mobile-quick-add" data-long-press="quick-add-task"/);
-  assert.match(fn('runLongPress'), /if \(el\.dataset\.longPress === 'quick-add-task'\) \{ haptic\('tick'\); setMobileQuickAddOpen\(false\); const context = routeQuickAddContext\(\); if \(context\) openQuickAdd\(context\); else setToastMessage\(tr\('Restore the project to add tasks\.'\)\); return; \}/);
+  // R59: where a tap on the "+" already adds directly, holding it opens the menu instead (tests/plus-r59.test.js).
+  assert.match(fn('runLongPress'), /if \(el\.dataset\.longPress === 'quick-add-task'\) \{ haptic\('tick'\); if \(quickAddDirect\(\)\) \{ setMobileQuickAddOpen\(true\); return; \} setMobileQuickAddOpen\(false\); const context = routeQuickAddContext\(\); if \(context\) openQuickAdd\(context\); else setToastMessage\(tr\('Restore the project to add tasks\.'\)\); return; \}/);
 });
 
 test('G: triage offers "Datum…" and "Otvori" for a task', () => {

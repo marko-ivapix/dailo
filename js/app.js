@@ -122,10 +122,14 @@
   // there and its label says what;
   // elsewhere it opens the menu.
   const QUICK_ADD_DIRECT = Object.freeze({ '#goals': [msg('New goal'), () => openGoalModal()], '#habits': [msg('New habit'), () => openHabitModal()], '#areas': [msg('New area'), () => callDomainHook('handleAction', 'new-area', { target: $('#mobile-quick-add-toggle') })], '#notes': [msg('New note'), () => openKnowledgeWindow('note')], '#resources': [msg('New resource'), () => openKnowledgeWindow('resource')], '#tags': [msg('New tag'), () => openTagModal()], '#templates': [msg('New template'), () => callDomainHook('handleAction', 'new-template', { target: $('#mobile-quick-add-toggle') })], '#saved-views': [msg('New saved view'), () => callDomainHook('handleAction', 'new-saved-view', { target: $('#mobile-quick-add-toggle') })], '#cleaning': [msg('New recurring task'), () => callDomainHook('handleAction', 'new-cleaning-chore', { target: $('#mobile-quick-add-toggle') })], '#journal': [msg('Today’s entry'), () => callDomainHook('handleAction', 'open-journal', { target: $('#mobile-quick-add-toggle') })] });
+  // R59: on the task screens the "+" opens a new task there at once (Danas plans it for today, a project, an area or a
+  // tag files it there, Kalendar plans it for the shown day); the menu stays where no type belongs (Još, Podešavanja…).
+  const TASK_SCREENS = new Set(['today', 'inbox', 'tasks', 'calendar', 'upcoming', 'anytime', 'projects', 'project', 'area', 'tag']);
+  const NEW_TASK_HERE = Object.freeze([msg('New task'), () => { const context = routeQuickAddContext(); if (context) openQuickAdd(context); else setToastMessage(tr('Restore the project to add tasks.')); }]);
   // R47a (K12): on a wide screen the "+" never opens the menu: where nothing else belongs it adds a task.
   const DESKTOP_NEW_TASK = Object.freeze([msg('New task'), () => openQuickAdd({})]);
   const wideScreen = () => Boolean(globalThis.matchMedia?.('(min-width: 1024px)').matches);
-  const quickAddDirect = () => QUICK_ADD_DIRECT[location.hash] || (wideScreen() ? DESKTOP_NEW_TASK : null);
+  const quickAddDirect = () => QUICK_ADD_DIRECT[location.hash] || (state && TASK_SCREENS.has(currentRoute().type) ? NEW_TASK_HERE : null) || (wideScreen() ? DESKTOP_NEW_TASK : null);
   function syncQuickAddToggle() {
     const toggle = $('#mobile-quick-add-toggle');
     if (toggle && (quickAddDirect() || !toggle.hasAttribute('aria-expanded'))) setMobileQuickAddOpen(false);
@@ -1588,7 +1592,7 @@
       defaults,
       draft: {
         title: context.title || '', notes: context.notes || '', projectId: defaults.projectId, areaId: defaults.areaId, plannedDate: defaults.plannedDate, parsedPlanDate: null, explicitPlan: defaults.explicitPlan,
-        dueDate: null, plannedTime: null, dueTime: null, explicitPlannedTime: false, reminderAt: null, reminderFiredAt: null, recurrence: null, tagIds: [], priority: 'none', subtasks: [],
+        dueDate: null, plannedTime: null, dueTime: null, explicitPlannedTime: false, reminderAt: null, reminderFiredAt: null, recurrence: null, tagIds: [...(context.tagIds || [])], priority: 'none', subtasks: [],
       },
       error: '',
     };
@@ -5826,6 +5830,8 @@
     if (route.type === 'today') return { today: true };
     // R33 (finding 25): on an area's screen "+" files the new task into that area.
     if (route.type === 'area') return getArea(route.id) ? { areaId: route.id } : {};
+    // R59: on a tag's screen the new task carries that tag.
+    if (route.type === 'tag') return getTag(route.id) ? { tagIds: [route.id] } : {};
     if (route.type === 'project' && route.id === 'none') return { anytime: true };
     if (route.type === 'project') return getProject(route.id)?.isArchived ? null : { projectId: route.id };
     if (route.type === 'tasks' && state.ui.tasksView !== 'projects') return { anytime: true };
@@ -5877,7 +5883,7 @@
       return;
     }
     const action = el.dataset.action;
-    if (action === 'toggle-mobile-quick-add') { const direct = quickAddDirect(); if (direct) { direct[1](); return; } setMobileQuickAddOpen(el.getAttribute('aria-expanded') !== 'true'); return; }
+    if (action === 'toggle-mobile-quick-add') { if (el.getAttribute('aria-expanded') === 'true') { setMobileQuickAddOpen(false); return; } const direct = quickAddDirect(); if (direct) { direct[1](); return; } setMobileQuickAddOpen(el.getAttribute('aria-expanded') !== 'true'); return; }
     if (el.closest('#mobile-quick-add-menu')) {
       setMobileQuickAddOpen(false);
       $('#mobile-quick-add-toggle')?.focus();
@@ -6520,9 +6526,10 @@
     clearTimeout(longPressTimer); longPressFired = false;
     longPressTimer = setTimeout(() => { longPressTimer = null; longPressFired = true; runLongPress(el); }, 500);
   }
-  // R36 (C): holding the "+" opens a new task at once, whatever the "+" does on a tap there.
+  // R36 (C): holding the "+" opens a new task at once where a tap opens the menu. R59: where a tap adds directly,
+  // holding it opens the menu, so every type stays one hold away.
   function runLongPress(el) {
-    if (el.dataset.longPress === 'quick-add-task') { haptic('tick'); setMobileQuickAddOpen(false); const context = routeQuickAddContext(); if (context) openQuickAdd(context); else setToastMessage(tr('Restore the project to add tasks.')); return; }
+    if (el.dataset.longPress === 'quick-add-task') { haptic('tick'); if (quickAddDirect()) { setMobileQuickAddOpen(true); return; } setMobileQuickAddOpen(false); const context = routeQuickAddContext(); if (context) openQuickAdd(context); else setToastMessage(tr('Restore the project to add tasks.')); return; }
     callDomainHook('handleAction', el.dataset.longPress, { target: el });
   }
   function cancelLongPress() {
