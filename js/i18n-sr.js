@@ -973,6 +973,12 @@
     "Nothing was heard. Try again.": "Ništa se nije čulo. Pokušaj ponovo.",
     "No microphone was found.": "Mikrofon nije pronađen.",
     "Speech recognition is not available right now.": "Prepoznavanje govora trenutno nije dostupno.",
+    // R54: the habit's last 12 months.
+    "Last 12 months": "Poslednjih 12 meseci",
+    "{done} days done · {percent}% of planned": "Urađeno dana: {done} · {percent}% planiranog",
+    "Nothing planned in the last 12 months": "U poslednjih 12 meseci ništa nije bilo planirano",
+    "Partly": "Delimično",
+    "Not planned": "Nije planirano",
     // R41: paging through weeks on Navike.
     "Current week": "Ova nedelja",
     "Last week": "Prošla nedelja",

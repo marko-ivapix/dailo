@@ -1456,6 +1456,33 @@
     };
   }
 
+  // R54: a habit's last year as 53 weeks (columns, oldest first) of 7 days in the week rule's order, ending with this
+  // week. A day is done, partial (a numeric value below the target), skipped, missed, open, unscheduled or future.
+  // `percent` is the share done of the planned days up to today (skipped ones left out), null when none was planned;
+  // `months` marks the columns where a month begins.
+  function habitYear(habit, logs, today = dateOnly(), weekRule = 'monday') {
+    const start = addDays(habitPeriodKey({ frequencyType: 'timesPerWeek' }, today, weekRule), -52 * 7);
+    const weeks = [];
+    const months = [];
+    const planned = [];
+    let done = 0;
+    for (let column = 0; column < 53; column += 1) {
+      const days = [];
+      for (let row = 0; row < 7; row += 1) {
+        const date = addDays(start, column * 7 + row);
+        const day = habitDayState(habit, logs, date, today, weekRule);
+        let state = day.state;
+        if (state === 'done') done += 1;
+        if (!['future', 'unscheduled', 'skipped'].includes(state)) planned.push(date);
+        if (habit?.trackingType === 'numeric' && ['missed', 'open'].includes(state) && Number(day.value) > 0) state = 'partial';
+        if (date.endsWith('-01')) months.push({ column, month: date.slice(5, 7) });
+        days.push({ date, state });
+      }
+      weeks.push(days);
+    }
+    return { start, weeks, months, done, percent: planned.length ? habitCompletionForDates(habit, logs, planned, today, weekRule) : null };
+  }
+
   // M11: once a day is checked in (or skipped), that day's reminders stay silent; a numeric habit below its
   // target still reminds. Weekly habits are silenced by the week's target instead.
   function habitDayClosed(habit, logs, date) {
@@ -2487,6 +2514,7 @@
     parseDateOnly,
     localDateOf,
     cyrillicToLatin,
+    habitYear,
     calendarIcs,
     parseIcsEvents,
     icsImportTasks,

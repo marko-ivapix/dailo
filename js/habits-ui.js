@@ -449,6 +449,15 @@
       targetLine = `<p>${esc(tr('{current} / {minimum} minimum · {ideal} ideal', { current: plainNumber(target.current), minimum: plainNumber(target.minimumTarget), ideal: plainNumber(target.idealTarget) }))} · ${esc(target.idealMet ? tr('Ideal target met') : target.minimumMet ? tr('Minimum target met') : tr('Working toward minimum'))}</p>`;
     }
     html += `<h3 class="habit-details-label">${tr('Insight')}</h3><div class="today-card habit-details-insight"${targetAttr}><p>${esc(tr('This week: {done} of {planned}', { done: progress.done, planned: progress.planned }))}</p>${targetLine}<p class="task-meta" data-habit-recovery>${esc(habitRecovery(ctx, habit, metrics))}</p></div>`;
+    // R54: the last 12 months as 53 weeks by 7 days, with the share done and a legend.
+    const year = Core.habitYear(habit, logs, week.today, week.rule);
+    const yearSummary = year.percent == null ? tr('Nothing planned in the last 12 months') : tr('{done} days done · {percent}% of planned', { done: year.done, percent: year.percent });
+    const yearState = { done: tr('Done'), partial: tr('Partly'), skipped: tr('Skipped'), missed: tr('Missed'), open: tr('Today'), unscheduled: tr('Not planned'), future: '' };
+    const monthName = new Intl.DateTimeFormat(I18n.locale(), { month: 'short' });
+    const yearMonths = year.months.map(item => `<span class="habit-year-month" style="grid-column:${item.column + 1} / span 4">${esc(monthName.format(new Date(2026, Number(item.month) - 1, 1)).replace('.', ''))}</span>`).join('');
+    const yearCells = year.weeks.flat().map(day => `<span class="habit-year-cell is-${day.state}" title="${esc(`${ctx.formatDate(day.date)}${yearState[day.state] ? ` · ${yearState[day.state]}` : ''}`)}"></span>`).join('');
+    const yearLegend = ['done', 'partial', 'skipped', 'missed'].map(state => `<span class="habit-year-key"><span class="habit-year-cell is-${state}"></span>${yearState[state]}</span>`).join('');
+    html += `<h3 class="habit-details-label">${tr('Last 12 months')}</h3><div class="today-card habit-year"><p class="habit-year-summary">${esc(yearSummary)}</p><div class="habit-year-months" aria-hidden="true">${yearMonths}</div><div class="habit-year-grid" role="img" aria-label="${esc(yearSummary)}">${yearCells}</div><div class="habit-year-legend" aria-hidden="true">${yearLegend}</div></div>`;
     // Podešavanja
     const row = (action, icon, title, value, empty) => habitWindowRow(ctx, action, icon, title, value, empty);
     const area = (state.areas || []).find(item => item.id === habit.areaId)?.name || '';
