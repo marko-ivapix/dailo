@@ -44,7 +44,7 @@ test('M5: Settings has Opšte, Podaci, Pomoć and Računar in that order (R15: N
     // R37 (J): "Veličina teksta", "Probni podsetnik" and "Stanje podataka".
     ['General', ['Week starts on', 'Daily capacity', 'Theme', 'Text size']], // R39: Tema
     ['Reminders', ['Browser reminders', 'Test reminder', 'Default reminder time', 'Reminder at the planned time', 'Journal reminder']],
-    ['Data', ['Data health', 'Backup', 'Backup reminder', 'Restore from backup', 'Local snapshots', 'Persistent storage', 'Populate demo workspace', 'Reset app data']],
+    ['Data', ['Data health', 'Backup', 'Backup reminder', 'Restore from backup', 'Calendar file (.ics)' /* R52 */, 'Local snapshots', 'Persistent storage', 'Populate demo workspace', 'Reset app data']],
     ['Help', ['Guide', 'Report a problem', 'Install app', 'Privacy', 'About']],
     ['Computer', ['Search', 'Compact density']],
   ]);

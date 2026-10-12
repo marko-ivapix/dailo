@@ -2458,7 +2458,7 @@
   // button and Otkaži as full-width buttons. On a phone it opens at the bottom like every other window.
   function renderConfirmModal() {
     const phrase = modalState.phrase ? `<label class="sheet-label" for="global-confirm-phrase">${tr('Type {word} to continue', { word: esc(modalState.phrase) })}<input id="global-confirm-phrase" class="input" autocomplete="off" autocapitalize="characters" spellcheck="false" /></label>` : '';
-    return modalFrame(`<div class="modal-inner quick-sheet choice-window confirm-window"><div class="modal-header"><h2 class="modal-title">${esc(tr(modalState.title))}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close dialog')}"><i class="ph ph-x"></i></button></div>${modalState.message ? `<p class="dialog-copy">${esc(tr(modalState.message))}</p>` : ''}${phrase}<div class="sheet-actions"><button class="btn btn-danger" type="button" data-action="confirm-action">${esc(tr(modalState.confirmLabel || msg('Delete')))}</button><button class="btn btn-secondary" type="button" data-action="close-modal">${tr('Cancel')}</button></div></div>`, 'quick confirm-modal');
+    return modalFrame(`<div class="modal-inner quick-sheet choice-window confirm-window"><div class="modal-header"><h2 class="modal-title">${esc(tr(modalState.title))}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close dialog')}"><i class="ph ph-x"></i></button></div>${modalState.message ? `<p class="dialog-copy">${esc(tr(modalState.message, modalState.messageParams))}</p>` : ''}${phrase}<div class="sheet-actions"><button class="btn ${modalState.confirmKind === 'primary' ? 'btn-primary' : 'btn-danger'}" type="button" data-action="confirm-action">${esc(tr(modalState.confirmLabel || msg('Delete')))}</button><button class="btn btn-secondary" type="button" data-action="close-modal">${tr('Cancel')}</button></div></div>`, 'quick confirm-modal');
   }
 
 
@@ -5295,6 +5295,32 @@
     } catch (error) { console.error(error); updateBackupStatus({ snapshotAvailable: await hasRetainedRecoverySnapshot(snapshotAvailable), validationResult: `${msg('Export failed')}: ${error.message}` }, source); setToastMessage(tr('Backup could not be created')); }
   }
 
+  // R52: the calendar as an .ics file for any calendar app (open tasks with a planned or due date).
+  async function exportIcsAction() {
+    const text = Core.calendarIcs(listTasks(), { now: new Date(), dueLabel: tr('Due') });
+    if (!text.includes('BEGIN:VEVENT')) { setToastMessage(tr('No tasks with a date to export.')); return; }
+    try { await globalThis.DailoPlatform.files.saveFile(new Blob([text], { type: 'text/calendar;charset=utf-8' }), `dailo-kalendar-${Core.dateOnly()}.ics`, tr('Dailo calendar')); }
+    catch (error) { setToastMessage(tr('The file could not be saved: {error}', { error: trMessage(error.message) })); }
+  }
+
+  // R52: events from an .ics file become planned tasks — from today on, without repeats or tasks already here —
+  // after a question that says what is skipped, with Undo.
+  async function importIcsFile(file) {
+    const plan = Core.icsImportTasks(Core.parseIcsEvents(await file.text()), listTasks(), Core.dateOnly());
+    const counts = { past: plan.past, recurring: plan.recurring, duplicates: plan.duplicates };
+    if (!plan.drafts.length) { setToastMessage(tr('Nothing to import: {past} past, {recurring} repeating, {duplicates} already here.', counts)); return; }
+    openConfirm({ title: msg('Import calendar events?'), message: msg('{count} events become planned tasks. Skipped: {past} past, {recurring} repeating, {duplicates} already here.'), messageParams: { count: plan.drafts.length, ...counts }, confirmLabel: msg('Import'), confirmKind: 'primary',
+      onConfirm: () => {
+        modalState = null; renderModal();
+        const snapshot = snapshotTasks([]);
+        for (const draft of plan.drafts) state.tasks.push(newTaskRecord({ ...draft, title: draft.title || tr('Untitled event') }));
+        if (!saveState()) { restoreTasks(snapshot); setToastMessage(tr('Changes could not be saved locally. Try again.')); return; }
+        render();
+        setUndo(msg('Calendar events imported'), () => { restoreTasks(snapshot); saveState(); render(); });
+        if (plan.overLimit) setToastMessage(tr('{count} more events were left out. Import them with another file.', { count: plan.overLimit }));
+      } });
+  }
+
   function chooseImportBackup() {
     const input = $('#backup-import-input'); if (input) input.click();
   }
@@ -5987,6 +6013,8 @@
     else if (action === 'apply-app-update') applyAppUpdate();
     else if (action === 'request-storage-persistence') updateStoragePersistence(true).catch(console.error);
     else if (action === 'import-backup') chooseImportBackup();
+    else if (action === 'export-ics') exportIcsAction();
+    else if (action === 'import-ics') $('#ics-import-input')?.click();
     else if (action === 'clear-completed') clearCompleted();
     else if (action === 'completed-project') openCompletedProjectSheet(el);
     else if (action === 'completed-period') { state.ui.completedPeriod = [0, 7, 30].includes(Number(el.dataset.value)) ? Number(el.dataset.value) : 0; saveAndRender(); }
@@ -6139,6 +6167,7 @@
     if (event.target.id === 'theme') { applyTheme(event.target.value); render(); return; }
     if (event.target.id === 'daily-capacity') { const minutes = Number(event.target.value); if (Number.isInteger(minutes) && minutes >= 0 && minutes <= 1440) { state.settings.dailyCapacityMinutes = minutes; saveAndRender(); } return; }
     if (event.target.id === 'backup-reminder-days') { const days = Number(event.target.value); if (Number.isInteger(days) && days >= 0 && days <= 90) { state.settings.backupReminderDays = days; saveAndRender(); } return; }
+    if (event.target.id === 'ics-import-input') { const file = event.target.files?.[0]; event.target.value = ''; if (file) importIcsFile(file).catch(() => setToastMessage(tr('The calendar file could not be read.'))); return; }
     if (event.target.id === 'backup-import-input') { const file=event.target.files?.[0]; event.target.value=''; if(file) inspectImportBackup(file); return; }
   }
 
