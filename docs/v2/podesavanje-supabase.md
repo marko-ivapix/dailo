@@ -17,6 +17,11 @@ Jednokratno podešavanje servera za sinhronizaciju (V2.0-a). Traje desetak minut
 5. Isto uradi sa `supabase/migrations/0003_attachments.sql`. On pravi privatno skladište **attachments** za priloge (do 10 MB po fajlu, svaki nalog vidi samo svoju fasciklu). Bez njega se prilozi ne sinhronizuju, a **Još → Nalog** to i kaže.
 6. Isto uradi sa `supabase/migrations/0004_realtime.sql`. On uključuje Realtime za tabelu `records`, pa drugi uređaj dobije promenu odmah, a ne tek na sledećoj sinhronizaciji (na 5 minuta). U **Još → Nalog** pored poslednje sinhronizacije tada piše „promene stižu odmah”. Bez ovog koraka sinhronizacija radi kao i pre.
 7. Isto uradi sa `supabase/migrations/0005_journal_history.sql`. Kad u **Još → Nalog** uključiš **Šifrovan dnevnik**, aplikacija njime briše sa servera ranije, nešifrovane verzije dnevnika. Bez ovog koraka dnevnik se ipak šifruje, ali stare verzije ostaju dok ga ne pokreneš, a Nalog to i kaže.
+8. Isto uradi sa `supabase/migrations/0006_security.sql` (od verzije `2.0.0-alpha.85`, R58), ali pokreni ga tek kad su svi uređaji na verziji `2.0.0-alpha.85` ili novijoj: starije verzije posle njega više ne dobijaju promene odmah, nego na 5 minuta. On:
+   - prebacuje Realtime sa tabele `records` na malu tabelu `record_pokes`, pa nijedan nalog ne saznaje ništa o tuđim obrisanim zapisima. Bez ovog koraka „promene stižu odmah” ne radi, a sinhronizacija ide na 5 minuta;
+   - ograničava jedan zapis na 256 KB;
+   - čuva prethodne verzije zapisa 90 dana;
+   - zatvara funkciju za brisanje istorije dnevnika za neprijavljene.
 
 ## 3. Prijava e-poštom i lozinkom
 

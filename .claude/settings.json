@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(npm run verify)",
+      "Bash(npm run smoke)",
+      "Bash(npm run check)",
+      "Bash(npm run check:python)",
+      "Bash(npm run check:links)",
+      "Bash(npm run build)",
+      "Bash(node --test *)",
+      "Bash(node tools/check-syntax.mjs)",
+      "Bash(node tools/check-links.mjs)",
+      "Bash(node tools/check-links.mjs --external)",
+      "Bash(python3 tools/check-python.py)",
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git show *)"
+    ],
+    "deny": [
+      "Read(./**/*.jks)",
+      "Read(./**/.env)",
+      "Read(./**/.env.*)"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/session-start.sh",
+            "timeout": 300
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/guard-bash.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

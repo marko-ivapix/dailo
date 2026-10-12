@@ -75,7 +75,8 @@ test('S-2: a Content Security Policy limits scripts, connections and plug-ins', 
   assert.deepEqual(policy['script-src'], ["'self'"], 'no inline scripts, no eval');
   assert.deepEqual(policy['object-src'], ["'none'"]);
   assert.deepEqual(policy['base-uri'], ["'none'"]);
-  assert.ok(policy['connect-src'].includes('https://*.supabase.co'), 'sync can reach Supabase');
+  // R58: only this project's Supabase host, the one in js/sync-config.js.
+  assert.ok(policy['connect-src'].some(source => /^https:\/\/[a-z0-9]+\.supabase\.co$/.test(source)), 'sync can reach Supabase');
   assert.ok(policy['img-src'].includes('blob:'), 'attachment previews');
   assert.ok(html.indexOf('Content-Security-Policy') < html.indexOf('<link'), 'the policy comes before any resource');
   assert.doesNotMatch(html, /<script(?![^>]*\bsrc=)[^>]*>/, 'no inline script');

@@ -1,0 +1,31 @@
+name: Links
+
+# R57: the outside links of the public pages and the app (the starter examples' resources, the guide's sources)
+# still answer. A 404 or 410 fails the run; 403, 429, 5xx and timeouts are only warnings, since many sites refuse
+# robots or are briefly down. Internal links are checked on every push by the Node suite (tests/site-r57.test.js).
+on:
+  push:
+    paths:
+      - '*.html'
+      - 'js/**'
+      - 'manifest.webmanifest'
+      - 'tools/check-links.mjs'
+      - '.github/workflows/links.yml'
+  schedule:
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  links:
+    name: Outside links
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node tools/check-links.mjs --external

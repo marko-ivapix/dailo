@@ -352,7 +352,8 @@ test('Google in the phone app: the system browser, dailo://auth, and a refusal s
   assert.equal(h.welcome().error, 'Sign-in did not finish. Try again.', 'no verifier on this device');
   // The app's link handler hands dailo://auth to the sign-in before it closes any window.
   const link = fn('handleIncomingLink');
-  assert.match(link, /if \(target === 'auth'\) \{ finishProviderSignIn\(link\.searchParams\); return true; \}\n    closePopover\(\);/);
+  // R58: dailo://auth counts only while this device has a sign-in pending.
+  assert.match(link, /if \(target === 'auth'\) \{ if \(!loadSyncMeta\(\)\.pkce\) return false; finishProviderSignIn\(link\.searchParams\); return true; \}\n    closePopover\(\);/);
   assert.match(link, /\['new-task', 'today', 'journal', 'share', 'auth'(, '[a-z-]+')*\]\.includes\(target\)/);
   assert.match(link, /if \(modalState\?\.type === 'welcome'\) dismissWelcome\(\);\n    else if \(modalState\) \{ flushTextSave\(\); closeModal\(\); \}/, 'a shortcut puts the screen away without answering it');
   assert.match(read('js/platform.js'), /function closeExternal\(\) \{\n      if \(!isNative\) return;\n      Promise\.resolve\(plugin\('Browser'\)\?\.close\?\.\(\)\)/);

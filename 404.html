@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="sr-Latn">
+<head>
+  <meta charset="utf-8">
+  <!-- GitHub Pages serves this page for any missing address under /dailo/, at any depth; the base keeps its links working. -->
+  <base href="/dailo/">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0F1114">
+  <meta name="robots" content="noindex">
+  <title>Dailo — Stranica nije pronađena</title>
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="vendor/fonts/fonts.css">
+  <style>
+    :root {
+      --bg: #0F1114;
+      --card: #14171B;
+      --line: #2D3239;
+      --ink-1: #F3F4F6;
+      --ink-2: #D5D9DF;
+      --ink-3: #9199A4;
+      --blue: #8590FF;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: grid;
+      place-items: center;
+      background: var(--bg);
+      color: var(--ink-2);
+      font: 16px/1.6 Geist, system-ui, -apple-system, sans-serif;
+      padding: calc(24px + env(safe-area-inset-top)) 16px calc(32px + env(safe-area-inset-bottom));
+    }
+    main { max-width: 480px; width: 100%; text-align: center; }
+    img { width: 72px; height: 72px; border-radius: 16px; }
+    h1 { font-family: "Space Grotesk", Geist, system-ui, sans-serif; color: var(--ink-1); font-size: 28px; line-height: 1.25; margin: 20px 0 8px; }
+    p { margin: 0 0 20px; color: var(--ink-3); }
+    a { color: var(--blue); }
+    .back { display: inline-block; padding: 12px 20px; border-radius: 10px; background: #0619FE; color: #fff; text-decoration: none; font-weight: 600; }
+    nav { margin-top: 28px; display: flex; gap: 8px 20px; justify-content: center; flex-wrap: wrap; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <main>
+    <img src="icons/icon-192.png" alt="">
+    <h1>Stranica nije pronađena</h1>
+    <p>Ova adresa ne postoji ili je premeštena.</p>
+    <a class="back" href="./">Otvori Dailo</a>
+    <nav aria-label="Korisne stranice">
+      <a href="uputstvo.html">Uputstvo</a>
+      <a href="privatnost.html">Politika privatnosti</a>
+      <a href="uslovi.html">Uslovi korišćenja</a>
+    </nav>
+  </main>
+</body>
+</html>
