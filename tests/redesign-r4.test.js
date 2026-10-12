@@ -41,6 +41,7 @@ function quickContext(draft = {}, extra = {}) {
     setToastMessage: (message, link) => calls.push(['toast', message, link]), addedMessage: () => 'added', // R36: where the task went
     ...extra,
   };
+  ctx.SpeechRecognitionImpl = null; // R53: no speech recognition here, so the plain title field
   vm.createContext(withI18n(ctx));
   vm.runInContext(`${constLine('QUICK_TEMPLATE_FIELDS')}${['parseQuickAddTitle', 'quickParsePreview', 'renderQuickModal', 'quickPlanLabel', 'quickPlace', 'quickTemplateRow', 'quickTemplateSummary', 'openQuickTemplatePicker', 'applyQuickTemplate', 'clearQuickTemplate', 'syncQuickDraftFromDom', 'createTask', 'projectPickerGroups', 'openProjectPicker', 'setProject'].map(fn).join('')}`, ctx);
   return ctx;

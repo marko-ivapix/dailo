@@ -122,6 +122,7 @@ ${native ? `
         <div class="settings-row"><label class="settings-label" for="auto-backup"><strong>${tr('Automatic backup')}</strong><span>${tr('Once a week to Documents/Dailo on this phone; the newest four are kept.')}${autoBackup.lastAt ? `<br>${tr('Last copy:')} ${statusTime(autoBackup.lastAt)}` : ''}${autoBackup.error ? `<br>${esc(tr('Last attempt failed: {error}', { error: autoBackup.error }))}` : ''}</span></label><input id="auto-backup" type="checkbox"${autoBackup.enabled ? ' checked' : ''}></div>` : ''}
         <div class="settings-row settings-sub"><label class="settings-label" for="backup-reminder-days"><strong>${tr('Backup reminder')}</strong><span>${tr('Today reminds you to export a backup when the last one is older than this.')}</span></label><select class="input" id="backup-reminder-days">${reminderOptions}</select></div>
         <div class="settings-row"><div class="settings-label"><strong>${tr('Restore from backup')}</strong><span>${tr('Validate a ZIP first, then replace current data only after you confirm.')}</span></div><div><button class="btn btn-secondary" type="button" data-action="import-backup"><i class="ph ph-upload-simple"></i> ${tr('Import ZIP')}</button><input id="backup-import-input" type="file" accept=".zip,application/zip" hidden /></div></div>
+        <div class="settings-row"><div class="settings-label"><strong>${tr('Calendar file (.ics)')}</strong><span>${tr('Planned tasks and deadlines for Google, Apple or Outlook calendar; events from a file become tasks.')}</span></div><div><button class="btn btn-secondary" type="button" data-action="export-ics"><i class="ph ph-download-simple"></i> ${tr('Export')}</button> <button class="btn btn-secondary" type="button" data-action="import-ics"><i class="ph ph-upload-simple"></i> ${tr('Import')}</button><input id="ics-import-input" type="file" accept=".ics,text/calendar" hidden /></div></div>
         <div class="settings-row"><div class="settings-label"><strong>${tr('Local snapshots')}</strong><span>${tr('Five automatic copies, at most once every five minutes after saving. Restore one item with its files and history.')}</span></div><button class="btn btn-secondary" type="button" data-action="open-local-snapshots">${tr('Browse snapshots')}</button></div>
         <div class="settings-row"><div class="settings-label"><strong>${tr('Persistent storage')}</strong><span data-storage-persistence="${esc(persistence.state)}">${esc(persistenceText)}${esc(usage)}</span></div>${persistence.state === 'denied' ? `<button class="btn btn-secondary" type="button" data-action="request-storage-persistence">${tr('Request')}</button>` : ''}</div>
         <div class="settings-row"><div class="settings-label"><strong>${tr('Populate demo workspace')}</strong><span>${tr('Add missing editable examples from everyday life: habits, goals, a bucket list, a camping packing list, recurring chores, tags, notes, resources and templates. Existing items and edits stay intact.')}</span></div><button class="btn btn-secondary" type="button" data-action="add-starter-examples">${tr('Populate workspace')}</button></div>
@@ -183,7 +184,8 @@ ${native ? `
         <h2>${tr('Account')}</h2>
         ${sync.signedIn ? `<div class="settings-row"><div class="settings-label"><strong>${tr('Account')}</strong><span>${sync.name ? `${esc(sync.name)} · ` : ''}${esc(sync.email)}</span></div></div>
         <div class="settings-row"><div class="settings-label"><strong>${tr('Password')}</strong><span>${tr('Changing it signs out your other devices.')}</span></div><button class="btn btn-secondary" type="button" data-action="account-change-password">${tr('Change')}</button></div><div class="settings-row"><div class="settings-label"><strong>${tr('E-mail address')}</strong><span>${esc(sync.email)}</span></div><button class="btn btn-secondary" type="button" data-action="account-change-email">${tr('Change')}</button></div>
-        <div class="settings-row"><div class="settings-label"><strong>${tr('Last sync')}</strong><span data-sync-status>${sync.running ? tr('Syncing…') : statusTime(sync.lastSyncAt)}${sync.lastError ? `<br><span class="validation" role="alert">${esc(trMessage(sync.lastError))}</span>` : ''}${sync.fileError ? `<br><span class="validation" role="alert">${tr('Attachments: {error}', { error: esc(trMessage(sync.fileError)) })}</span>` : ''}</span></div><button class="btn btn-secondary" type="button" data-action="sync-now"${sync.running ? ' disabled' : ''}><i class="ph ph-arrows-clockwise"></i> ${tr('Sync now')}</button></div>
+        ${journalCipherRow(ctx, sync)}
+        <div class="settings-row"><div class="settings-label"><strong>${tr('Last sync')}</strong><span data-sync-status>${sync.running ? tr('Syncing…') : statusTime(sync.lastSyncAt)}${sync.live ? ` · ${tr('changes arrive at once')}` : ''}${sync.lastError ? `<br><span class="validation" role="alert">${esc(trMessage(sync.lastError))}</span>` : ''}${sync.fileError ? `<br><span class="validation" role="alert">${tr('Attachments: {error}', { error: esc(trMessage(sync.fileError)) })}</span>` : ''}</span></div><button class="btn btn-secondary" type="button" data-action="sync-now"${sync.running ? ' disabled' : ''}><i class="ph ph-arrows-clockwise"></i> ${tr('Sync now')}</button></div>
         <p class="area-empty-copy">${tr('Tasks, projects, goals, habits, notes, attachments and settings sync between your devices.')}</p>
         <div class="sync-actions"><button class="btn btn-secondary" type="button" data-action="sync-sign-out">${tr('Sign out')}</button><button class="btn btn-ghost is-danger" type="button" data-action="sync-delete-account">${tr('Delete account')}</button></div>`
         : `<p class="area-empty-copy">${tr('Sign in to have your tasks, habits and goals on all your devices. Without an account, everything stays only on this device.')}</p>
@@ -240,6 +242,28 @@ ${native ? `
   }
 
   // R43: "Promeni lozinku" and "Promeni e-adresu" as sheets with a form (Enter sends it, password managers see it).
+  // R51: the encrypted journal — off, on (this device has the key) or locked (turned on on another device).
+  function journalCipherRow(ctx, sync) {
+    const status = ctx.journalCipherStatus();
+    const text = { off: tr('Off. When on, the server sees only ciphertext of the journal.'), on: tr('On. The server sees only ciphertext.'), locked: tr('On on another device. Enter the journal password to sync it here.') }[status];
+    const [action, label] = { off: ['journal-cipher-enable', tr('Turn on')], on: ['journal-cipher-disable', tr('Turn off')], locked: ['journal-cipher-unlock', tr('Unlock')] }[status];
+    const purge = sync.journalPurgeError ? `<br><span class="validation" role="alert">${ctx.esc(trMessage(sync.journalPurgeError))}</span>` : '';
+    return `<div class="settings-row"><div class="settings-label"><strong>${tr('Encrypted journal')}</strong><span>${text}${purge}</span></div><button class="btn btn-secondary" type="button" data-action="${action}">${label}</button></div>`;
+  }
+
+  function renderJournalCipherWindow(ctx) {
+    const { esc, modalState: win } = ctx;
+    const field = (id, label, value, autocomplete) => `<label class="sheet-field"><i class="ph ph-lock-simple" aria-hidden="true"></i><span>${label}</span><input id="${id}" class="input" type="password" autocomplete="${autocomplete}" value="${esc(value)}" /></label>`;
+    const error = win.error ? `<p class="validation" role="alert">${esc(trMessage(win.error))}</p>` : '';
+    const [title, copy, fields, submit, kind] = {
+      enable: [tr('Encrypt the journal'), `<p class="dialog-copy">${tr('Choose a journal password. It never leaves your devices; without it the journal on the server cannot be read.')}</p><p class="sheet-note">${tr('Update Dailo on every device first: older versions show encrypted entries as empty.')}</p>`,
+        `${field('journal-password', tr('Journal password'), win.password, 'new-password')}<p class="sheet-note">${tr('At least 8 characters, with a digit and a letter')}</p>${field('journal-password-confirm', tr('Confirm password'), win.confirm, 'new-password')}`, tr('Turn on encryption'), 'btn-primary'],
+      unlock: [tr('Unlock the journal'), `<p class="dialog-copy">${tr('The journal was encrypted on another device. Enter its password to sync it here.')}</p>`, field('journal-password', tr('Journal password'), win.password, 'current-password'), tr('Unlock'), 'btn-primary'],
+      disable: [tr('Turn off encryption'), `<p class="dialog-copy">${tr('The journal will go to the server readable again, and every device forgets the journal password.')}</p>`, '', tr('Turn off encryption'), 'btn-danger'],
+    }[win.mode];
+    return ctx.modalFrame(`<div class="modal-inner quick-sheet"><div class="modal-header"><h2 class="modal-title">${title}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div>${copy}<form class="account-form" data-account-form novalidate>${fields}${error}<div class="quick-sheet-footer"><button class="btn ${kind} habit-window-save" type="submit"${win.busy ? ' disabled' : ''}>${submit}</button></div></form></div>`, 'quick');
+  }
+
   function renderAccountWindow(ctx) {
     const { esc, modalState: win } = ctx;
     const field = (id, icon, label, attrs, value) => `<label class="sheet-field"><i class="ph ph-${icon}" aria-hidden="true"></i><span>${label}</span><input id="${id}" class="input" ${attrs} value="${esc(value)}" /></label>`;
@@ -271,6 +295,7 @@ ${native ? `
       if (route.type === 'account') return renderAccount(ctx);
       if (route.type === 'modal' && route.modalType === 'welcome') return renderWelcome(ctx);
       if (route.type === 'modal' && ['account-password', 'account-email'].includes(route.modalType)) return renderAccountWindow(ctx);
+      if (route.type === 'modal' && route.modalType === 'journal-cipher') return renderJournalCipherWindow(ctx);
     },
     handleAction(action, event, ctx) {
       const element = event?.target.closest('[data-action]');

@@ -10,6 +10,7 @@ From the repository root. Since the modernization (M1) the npm scripts are the s
 npm ci            # jsdom (smoke) and Capacitor (native projects), exact versions from package-lock.json
 npm run verify    # node tools/check-syntax.mjs && node --test "tests/*.test.js"
 npm run smoke     # jsdom boot of index.html: create a task, Back closes Quick Add, reopen, find it
+npm run check:python  # R48: Python AST, path adapter, registry and static contracts (tools/check-python.py)
 npm run cap:sync  # npm run build (www/) + npx cap sync (iOS and Android)
 ```
 
@@ -31,7 +32,7 @@ python3 tests/run-browser-regressions.py --dry-run
 git diff --check
 ```
 
-These checks need no Python packages. Where a local `.venv` exists (gitignored, so not in cloud clones), `./.venv/bin/python` can replace `python3`.
+These checks need no Python packages. Since R48, `.github/workflows/ci.yml` runs `verify`, `smoke` and `check:python` on every push and pull request, then builds the Android debug APK (artifact `dailo-debug-apk`, kept 14 days). Where a local `.venv` exists (gitignored, so not in cloud clones), `./.venv/bin/python` can replace `python3`.
 
 Current `2.0.0-alpha.4` evidence (2026-10-10, M12 on `feature/audit-fixes-m12`): Node **504/504** (60 files), syntax **94/94**, smoke OK (with the A-2 focus/title checks), registry 3/3, static 10/10, `cap:sync` OK.
 

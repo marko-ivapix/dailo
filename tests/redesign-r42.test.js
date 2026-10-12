@@ -76,7 +76,7 @@ test('checkServer reads the key, the tables and the sign-in settings', async () 
 function account(view) {
   let adapter;
   runInNewContextWithI18n(read('js/settings-ui.js'), { window: { TodoDomainModules: { register: value => { adapter = value; } } } });
-  return adapter.renderRoute({ type: 'account' }, { state: { settings: {} }, esc, pageHeader: title => `<h1>${title}</h1>`, syncView: () => ({ configured: true, signedIn: false, email: '', ...view }) });
+  return adapter.renderRoute({ type: 'account' }, { state: { settings: {} }, esc, journalCipherStatus: () => 'off' /* R51 */, pageHeader: title => `<h1>${title}</h1>`, syncView: () => ({ configured: true, signedIn: false, email: '', ...view }) });
 }
 
 test('Nalog: "Proveri server" lists what is set up and what is missing', () => {
@@ -99,7 +99,7 @@ test('the app runs the check and keeps its result for the Nalog screen', async (
   const calls = { renders: 0 };
   const context = withI18n({
     console, JSON, Date, Promise, Error, Object, Array, String, Number, Boolean, Set, Map, URL, URLSearchParams, Sync,
-    syncClient: Sync.createClient({ url: fake.url, anonKey: fake.anonKey, fetch: fake.fetch }), syncMeta: null, syncRunning: false, applyingSync: false, syncTimer: null,
+    syncClient: Sync.createClient({ url: fake.url, anonKey: fake.anonKey, fetch: fake.fetch }), syncMeta: null, syncRunning: false, applyingSync: false, syncTimer: null, liveSync: null /* R50 */,
     localStorage: { getItem: () => null, setItem() {}, removeItem() {} }, render() { calls.renders += 1; }, modalState: null,
   });
   vm.createContext(context);

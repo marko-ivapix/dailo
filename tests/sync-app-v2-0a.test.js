@@ -23,7 +23,7 @@ function renderSettings(syncView, type = 'settings') {
   runInNewContextWithI18n(read('js/settings-ui.js'), { window: { TodoDomainModules: { register: value => { adapter = value; } } } });
   return adapter.renderRoute({ type }, {
     state: { settings: { shortcuts: {}, compactDensity: true, todayFocusFilter: 'all', todayVisibleSections: [] } },
-    pageHeader: () => '', shortcutLabels: {}, shortcutError: () => '', notificationButtonLabel: () => 'Enable', esc,
+    pageHeader: () => '', shortcutLabels: {}, shortcutError: () => '', notificationButtonLabel: () => 'Enable', esc, journalCipherStatus: () => 'off' /* R51 */, 
     release: Release, environmentInfo: () => ({}), ...(syncView ? { syncView } : {}),
   });
 }
@@ -99,7 +99,7 @@ function syncHarness({ state = baseState(), habitLogs = [], meta = null, fake = 
   const context = {
     console, JSON, Date, Promise, Error, Object, Array, String, Number, Boolean, Set, Map,
     Sync, syncClient: Sync.createClient({ url: fake.url, anonKey: fake.anonKey, fetch: fake.fetch, now: fake.now }),
-    syncMeta: null, syncTimer: null, syncRunning: false, applyingSync: false,
+    syncMeta: null, syncTimer: null, syncRunning: false, applyingSync: false, liveSync: null /* R50: no Realtime here */,
     state: clone(state), recovery: null, globalOperation: null, startupPromise: null, storageError: false, staleDataNotice: null,
     modalState: null, undoState: null, undoHold: null, textSaveTimer: null, dragState: null, modalReturnFocus: null, restoreModalReturnFocus() {},
     document: { activeElement: null },

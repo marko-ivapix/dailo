@@ -28,6 +28,7 @@ function moduleCtx({ locked = false, available = true, journal = [], route = 'jo
   const calls = [];
   let unlocked = !locked, enabled = locked;
   const ctx = {
+    journalCipherStatus: () => 'off', // R51: the encrypted journal is off here
     state: { journal, ui: {}, habitLogCache: {} }, calls,
     Core, esc, nowIso: () => '2026-10-11T18:00:00.000Z',
     formatDate: (date, style) => `${style || 'short'}:${date}`,

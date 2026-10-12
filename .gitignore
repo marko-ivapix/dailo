@@ -11,3 +11,8 @@ Dailo-v1.8-distributable/
 # Capacitor / npm
 node_modules/
 www/
+
+# R49: release upload keys never enter the repository (the shared debug key does, on purpose).
+*.jks
+*.keystore
+!android/app/debug.keystore

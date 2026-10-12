@@ -73,7 +73,7 @@ test('Settings on a phone: a select sits under its label, checkboxes are switche
 test('the confirm dialog is a sheet with the red button first and a Serbian word to type', () => {
   const confirm = fn('renderConfirmModal');
   assert.match(confirm, /<div class="modal-inner quick-sheet choice-window confirm-window">/);
-  assert.match(confirm, /<div class="sheet-actions"><button class="btn btn-danger" type="button" data-action="confirm-action">/);
+  assert.match(confirm, /<div class="sheet-actions"><button class="btn \$\{modalState\.confirmKind === 'primary' \? 'btn-primary' : 'btn-danger'\}" type="button" data-action="confirm-action">/);
   assert.match(confirm, /<label class="sheet-label" for="global-confirm-phrase">/);
   assert.match(confirm, /'quick confirm-modal'\);/);
   assert.doesNotMatch(confirm, /style="|modal-footer/);

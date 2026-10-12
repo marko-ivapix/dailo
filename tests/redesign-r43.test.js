@@ -95,7 +95,7 @@ test('windows: "Promeni lozinku" with the current password or a code when needed
 test('Nalog: the password and e-mail rows when signed in', () => {
   let adapter;
   runInNewContextWithI18n(read('js/settings-ui.js'), { window: { TodoDomainModules: { register: value => { adapter = value; } } } });
-  const html = adapter.renderRoute({ type: 'account' }, { state: { settings: {} }, esc, pageHeader: title => `<h1>${title}</h1>`, syncView: () => ({ configured: true, signedIn: true, email: 'ana@example.com', name: '', lastSyncAt: null, lastError: '' }) });
+  const html = adapter.renderRoute({ type: 'account' }, { state: { settings: {} }, esc, journalCipherStatus: () => 'off' /* R51 */, pageHeader: title => `<h1>${title}</h1>`, syncView: () => ({ configured: true, signedIn: true, email: 'ana@example.com', name: '', lastSyncAt: null, lastError: '' }) });
   assert.match(html, /<div class="settings-row"><div class="settings-label"><strong>Password<\/strong><span>Changing it signs out your other devices\.<\/span><\/div><button class="btn btn-secondary" type="button" data-action="account-change-password">Change<\/button><\/div><div class="settings-row"><div class="settings-label"><strong>E-mail address<\/strong><span>ana@example\.com<\/span><\/div><button class="btn btn-secondary" type="button" data-action="account-change-email">Change<\/button><\/div>/);
 });
 

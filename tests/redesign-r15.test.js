@@ -67,7 +67,7 @@ function settingsModule() {
   return adapter;
 }
 const baseCtx = sync => ({
-  state: { settings: { shortcuts: {}, backupStatus: {}, weekStartsOn: 'monday' } }, esc,
+  state: { settings: { shortcuts: {}, backupStatus: {}, weekStartsOn: 'monday' } }, esc, journalCipherStatus: () => 'off' /* R51 */, 
   pageHeader: (title, subtitle) => `<header title="${title}" subtitle="${subtitle}"></header>`,
   shortcutLabels: {}, shortcutError: () => '', notificationButtonLabel: () => 'Enable', release: Release, environmentInfo: () => ({}),
   syncView: () => sync,

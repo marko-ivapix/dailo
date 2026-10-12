@@ -12,6 +12,8 @@
   const Sync = window.DailoSync || null;
   const syncConfig = window.DailoSyncConfig || {};
   const syncClient = Sync?.isConfigured(syncConfig) ? Sync.createClient({ url: syncConfig.url, anonKey: syncConfig.anonKey }) : null;
+  // R50: Supabase Realtime pokes a sync when a record of the account changes; the five-minute round stays as a fallback.
+  const liveSync = syncClient && Sync.createRealtime ? Sync.createRealtime({ url: syncConfig.url, key: syncConfig.anonKey, onChange: () => scheduleSync(800), onStatus: () => refreshSyncCard() }) : null;
   const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
   const MAX_ATTACHMENTS_PER_TASK = 10;
   const STORAGE_KEY = 'todoAppData';
@@ -693,6 +695,8 @@
       menuSheet,
       backLink,
       foldButton,
+      journalCipherStatus,
+      bottomNavRoute, activeInboxRecords, renderSidebar,
       colorName,
       journalLock,
       readAutoBackup, readTextSize, applyTextSize, readTheme,
@@ -1274,87 +1278,13 @@
     const rule = taskRecurrence(task);
     return Boolean(rule && rule.status !== 'ended' && !task.isCompleted && !task.isInbox && !getProject(task.projectId)?.isArchived);
   }
-  // R47a (K1): on a wide screen the sidebar replaces the bottom bar and "Još" (CSS shows it from 1024 px on): the brand
-  // and sync state, Pretraga, the main screens with Danas's count and the Inbox badge, Zakačeno, Projekti by area,
-  // the groups of "Još" (they fold, remembered on this device) and, at the bottom, Podešavanja and Nalog.
+  // R47a (K1): the desktop sidebar; its markup and folds live in js/sidebar-ui.js (R56), and app.js puts it in place.
   function renderSidebar() {
     const aside = $('#desktop-sidebar');
     if (!aside) return;
     aside.hidden = Boolean(recovery) || !state;
     if (aside.hidden) return;
-    const route = currentRoute();
-    const active = (location.hash || '#today').replace(/^#/, '');
-    const folds = readSidebarFolds();
-    const collapsed = document.documentElement.dataset.sidebar === 'collapsed';
-    const isActive = target => target === active || (['today', 'inbox', 'tasks', 'calendar', 'habits'].includes(target) && bottomNavRoute(route) === target);
-    const sidebarItem = (target, icon, label, count = '', badge = false) => {
-      const on = isActive(target);
-      return `<button class="sidebar-item${on ? ' is-active' : ''}" type="button" data-route="${esc(target)}"${on ? ' aria-current="page"' : ''} title="${esc(label)}"><i class="ph ${esc(icon)}" aria-hidden="true"></i><span class="sidebar-label">${esc(label)}</span>${count ? `<span class="sidebar-count${badge ? ' is-badge' : ''}">${esc(count)}</span>` : ''}</button>`;
-    };
-    // A folded group still shows the screen that is open.
-    const sidebarGroup = (key, title, items, foldable = true) => {
-      if (!items.length) return '';
-      const open = !foldable || folds[key] !== true;
-      const head = foldable ? `<button class="sidebar-group-title" type="button" data-action="sidebar-fold" data-group="${key}" aria-expanded="${open}"><span class="sidebar-label">${title}</span><i class="ph ph-caret-${open ? 'down' : 'right'}" aria-hidden="true"></i></button>` : `<h2 class="sidebar-group-title"><span class="sidebar-label">${title}</span></h2>`;
-      return `<section class="sidebar-group">${head}${(open ? items : items.filter(item => item.includes('is-active'))).join('')}</section>`;
-    };
-    const sections = Core.deriveTodaySections(listTasks(), Core.dateOnly());
-    const todayCount = sections.overdue.length + sections.today.length || '';
-    const inboxCount = activeInboxRecords('all').length || '';
-    const sync = syncView();
-    const syncLine = !sync.configured ? tr('Data is on this device only') : !sync.signedIn ? tr('Not signed in') : sync.running ? tr('Syncing…')
-      : sync.lastSyncAt ? tr('Synced {time}', { time: new Date(sync.lastSyncAt).toLocaleTimeString(I18n.locale(), { hour: '2-digit', minute: '2-digit' }) }) : sync.email;
-    const pinned = [
-      ...sortedAreas().filter(area => area.status !== 'archived' && area.isPinned).map(area => sidebarItem(`area/${encodeURIComponent(area.id)}`, area.icon || 'ph-squares-four', area.name)),
-      ...(state.savedViews || []).filter(view => view.isPinned).map(view => sidebarItem(`saved-view/${encodeURIComponent(view.id)}`, 'ph-funnel', view.name)),
-      ...(state.notes || []).filter(note => note.favorite).sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt))).slice(0, 4).map(note => sidebarItem(`note/${encodeURIComponent(note.id)}`, 'ph-note', note.title)),
-    ];
-    const projectItems = sidebarProjectGroups().flatMap(group => [`<p class="sidebar-subtitle">${esc(group.title)}</p>`, ...group.projects.map(project => sidebarItem(`project/${encodeURIComponent(project.id)}`, 'ph-folder', project.name, project.open || ''))]);
-    aside.innerHTML = `<div class="sidebar-top"><span class="sidebar-brand"><img src="icons/icon.svg" alt="" width="28" height="28" /><span class="sidebar-label">Dailo</span></span><button class="btn-icon sidebar-collapse" type="button" data-action="toggle-sidebar" aria-label="${collapsed ? tr('Unfold the sidebar') : tr('Fold the sidebar')}" aria-expanded="${!collapsed}"><i class="ph ph-sidebar-simple" aria-hidden="true"></i></button></div>`
-      + `<p class="sidebar-sync">${esc(syncLine)}</p>`
-      + `<button class="sidebar-item" type="button" data-action="open-search" title="${tr('Search')}"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><span class="sidebar-label">${tr('Search')}</span><kbd class="sidebar-key">/</kbd></button>`
-      + `<nav class="sidebar-nav" aria-label="${tr('Main screens')}">${sidebarItem('today', 'ph-sun', tr('Today'), todayCount)}<div class="sidebar-drop" data-sidebar-drop="tomorrow"><i class="ph ph-arrow-bend-down-right" aria-hidden="true"></i><span class="sidebar-label">${tr('Drag here for tomorrow')}</span></div>${sidebarItem('inbox', 'ph-tray', tr('Inbox'), inboxCount, true)}${sidebarItem('tasks', 'ph-list-checks', tr('Tasks'))}${sidebarItem('calendar', 'ph-calendar-blank', tr('Calendar'))}${sidebarItem('habits', 'ph-repeat', tr('Habits'))}</nav>`
-      + sidebarGroup('pinned', tr('Pinned'), pinned, false)
-      + sidebarGroup('projects', tr('Projects'), projectItems, false)
-      + sidebarGroup('planning', tr('Planning'), [sidebarItem('goals', 'ph-target', tr('Goals')), sidebarItem('areas', 'ph-squares-four', tr('Areas')), sidebarItem('cleaning', 'ph-arrows-clockwise', tr('Recurring tasks')), sidebarItem('review', 'ph-clipboard-text', tr('Weekly review'))])
-      + sidebarGroup('library', tr('Library'), [sidebarItem('notes', 'ph-note', tr('Notes')), sidebarItem('journal', 'ph-book-open', tr('Journal')), sidebarItem('resources', 'ph-link', tr('Resources')), sidebarItem('tags', 'ph-tag', tr('Tags')), sidebarItem('templates', 'ph-copy', tr('Templates')), sidebarItem('saved-views', 'ph-funnel', tr('Saved Views'))])
-      + sidebarGroup('archives', tr('Archives'), [sidebarItem('completed', 'ph-check-circle', tr('Completed tasks')), sidebarItem('archived', 'ph-archive', tr('Archived Projects'))])
-      + `<div class="sidebar-bottom">${sidebarItem('settings', 'ph-gear', tr('Settings'))}${sidebarItem('account', 'ph-user-circle', tr('Account'))}</div>`;
-  }
-
-  // R47a (K1): the sidebar's projects, grouped by area in the areas' order and then those without one, with open counts.
-  function sidebarProjectGroups() {
-    const projects = sortedProjects().filter(project => !project.isCleaningRoom);
-    const entry = project => ({ id: project.id, name: project.name, open: projectTasks(project.id).filter(task => !task.isCompleted).length });
-    const areas = sortedAreas();
-    const groups = areas.map(area => ({ title: area.name, projects: projects.filter(project => project.areaId === area.id).map(entry) })).filter(group => group.projects.length);
-    const known = new Set(areas.map(area => area.id));
-    const loose = projects.filter(project => !project.areaId || !known.has(project.areaId)).map(entry);
-    return loose.length ? [...groups, { title: tr('Without area'), projects: loose }] : groups;
-  }
-
-  function readSidebarFolds() {
-    try {
-      const value = JSON.parse(localStorage.getItem('dailoSidebarFolds') || '{}');
-      return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
-    } catch (_) { return {}; }
-  }
-
-  function toggleSidebarFold(group) {
-    if (!['planning', 'library', 'archives'].includes(group)) return;
-    const folds = readSidebarFolds();
-    folds[group] = !folds[group];
-    try { localStorage.setItem('dailoSidebarFolds', JSON.stringify(folds)); } catch (_) { /* this session only */ }
-    renderSidebar();
-  }
-
-  // The sidebar folds to a strip of icons (the button at its top, or "["); the choice is remembered on this device.
-  function toggleSidebar() {
-    const collapsed = document.documentElement.dataset.sidebar !== 'collapsed';
-    if (collapsed) document.documentElement.dataset.sidebar = 'collapsed';
-    else delete document.documentElement.dataset.sidebar;
-    try { localStorage.setItem('dailoSidebar', collapsed ? 'collapsed' : 'open'); } catch (_) { /* this session only */ }
-    renderSidebar();
+    aside.innerHTML = callDomainHook('renderRoute', { type: 'sidebar' }) || '';
   }
 
   // R47a (K10): T in Kalendar selects today.
@@ -1598,6 +1528,48 @@
     if (recovery === 'migration-error') return `<div class="recovery"><div class="recovery-card"><h1>${tr('Local data migration could not finish.')}</h1><p>${tr('Your saved data and original files have not been overwritten. Check available storage and close other app tabs, then retry.')}</p><div class="recovery-actions"><button class="btn btn-secondary" type="button" data-action="retry-load">${tr('Retry')}</button></div></div></div>`;
     const unsupported = recovery === 'unsupported-version';
     return `<div class="recovery"><div class="recovery-card"><h1>${unsupported ? tr('This data is from a newer version.') : tr("We couldn't load your local data.")}</h1><p>${unsupported ? tr("Dailo can't safely read this saved format.") : tr('Your saved data appears to be invalid. Nothing has been overwritten.')}</p><div class="recovery-actions"><button class="btn btn-secondary" type="button" data-action="retry-load">${tr('Retry')}</button><button class="btn btn-danger" type="button" data-action="recovery-reset">${tr('Reset local data')}</button></div></div></div>`;
+  }
+
+  // R53: voice input in Quick Add where the browser recognizes speech (Chrome, Edge, Safari). The phone apps keep the
+  // keyboard's own dictation key, since their WebViews have no speech recognition.
+  const SpeechRecognitionImpl = globalThis.SpeechRecognition || globalThis.webkitSpeechRecognition || null;
+  const DICTATION_ERRORS = { 'not-allowed': msg('The microphone is not allowed. Allow it in the browser settings.'), 'service-not-allowed': msg('The microphone is not allowed. Allow it in the browser settings.'), 'no-speech': msg('Nothing was heard. Try again.'), 'audio-capture': msg('No microphone was found.'), network: msg('Speech recognition is not available right now.') };
+  let dictation = null;
+
+  // A tap listens once; the words join the title live (Cyrillic becomes Latin) and the preview of dates and tags
+  // follows. A second tap stops.
+  function toggleDictation() {
+    if (dictation) { dictation.stop(); return; }
+    const field = $('#quick-title');
+    if (!SpeechRecognitionImpl || !field) return;
+    const recognition = new SpeechRecognitionImpl();
+    recognition.lang = I18n.locale().startsWith('sr') ? 'sr-RS' : I18n.locale();
+    recognition.interimResults = true;
+    recognition.continuous = false;
+    const base = field.value.trim();
+    recognition.onresult = event => {
+      const heard = Core.cyrillicToLatin(Array.from(event.results, result => result[0]?.transcript || '').join('')).replace(/\s+/g, ' ').trim();
+      field.value = [base, heard].filter(Boolean).join(' ');
+      field.dispatchEvent(new Event('input', { bubbles: true }));
+    };
+    recognition.onerror = event => { if (DICTATION_ERRORS[event.error]) setToastMessage(tr(DICTATION_ERRORS[event.error])); };
+    recognition.onend = () => { dictation = null; setDictationState(false); $('#quick-title')?.focus(); };
+    dictation = recognition;
+    setDictationState(true);
+    try { recognition.start(); } catch (_) { dictation = null; setDictationState(false); }
+  }
+
+  function setDictationState(on) {
+    const button = $('#quick-dictation');
+    if (!button) return;
+    button.classList.toggle('is-listening', on);
+    button.setAttribute('aria-pressed', String(on));
+    button.setAttribute('aria-label', on ? tr('Stop dictation') : tr('Dictate the task'));
+  }
+
+  function stopDictation() {
+    dictation?.abort();
+    dictation = null;
   }
 
   function openQuickAdd(context = {}) {
@@ -1880,6 +1852,7 @@
   }
 
   function closeModal() {
+    stopDictation();
     if (modalState?.type === 'focus') stopFocusTimer();
     // R12b (J2): an entry emptied of text and mood leaves when its window closes.
     if (modalState?.type === 'journal') callDomainHook('handleAction', 'journal-closing', null);
@@ -2132,9 +2105,12 @@
     const parsed = parseQuickAddTitle(d.title, !d.explicitPlan);
     const plan = d.explicitPlan ? d.plannedDate : (parsed.plannedDate || d.plannedDate);
     const time = d.explicitPlannedTime ? d.plannedTime : (d.plannedTime || parsed.plannedTime);
+    const titleInput = `<input id="quick-title" class="quick-title-input${modalState.error ? ' is-error' : ''}" type="text" maxlength="500" autocomplete="off" placeholder="${tr('What needs to be done?')}" value="${esc(d.title)}" aria-label="${tr('Task title')}" />`;
+    // R53: the microphone, where the browser recognizes speech.
+    const dictate = SpeechRecognitionImpl ? `<button id="quick-dictation" class="btn-icon quick-dictation" type="button" data-action="quick-dictate" aria-pressed="false" aria-label="${tr('Dictate the task')}"><i class="ph ph-microphone" aria-hidden="true"></i></button>` : '';
     return modalFrame(`<div class="modal-inner quick-sheet">
       <div class="modal-header"><h2 class="modal-title">${tr('New task')}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div>
-      <input id="quick-title" class="quick-title-input${modalState.error ? ' is-error' : ''}" type="text" maxlength="500" autocomplete="off" placeholder="${tr('What needs to be done?')}" value="${esc(d.title)}" aria-label="${tr('Task title')}" />
+      ${dictate ? `<div class="quick-title-row">${titleInput}${dictate}</div>` : titleInput}
       ${modalState.error ? `<div class="validation">${esc(modalState.error)}</div>` : ''}
       ${modalState.draft.notes ? `<p class="quick-shared-note"><i class="ph ph-link" aria-hidden="true"></i><span>${esc(modalState.draft.notes)}</span></p>` : ''}
       <div class="quick-parse-slot" data-quick-preview-slot aria-live="polite">${quickParsePreview(parsed)}</div>
@@ -2455,7 +2431,7 @@
   // button and Otkaži as full-width buttons. On a phone it opens at the bottom like every other window.
   function renderConfirmModal() {
     const phrase = modalState.phrase ? `<label class="sheet-label" for="global-confirm-phrase">${tr('Type {word} to continue', { word: esc(modalState.phrase) })}<input id="global-confirm-phrase" class="input" autocomplete="off" autocapitalize="characters" spellcheck="false" /></label>` : '';
-    return modalFrame(`<div class="modal-inner quick-sheet choice-window confirm-window"><div class="modal-header"><h2 class="modal-title">${esc(tr(modalState.title))}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close dialog')}"><i class="ph ph-x"></i></button></div>${modalState.message ? `<p class="dialog-copy">${esc(tr(modalState.message))}</p>` : ''}${phrase}<div class="sheet-actions"><button class="btn btn-danger" type="button" data-action="confirm-action">${esc(tr(modalState.confirmLabel || msg('Delete')))}</button><button class="btn btn-secondary" type="button" data-action="close-modal">${tr('Cancel')}</button></div></div>`, 'quick confirm-modal');
+    return modalFrame(`<div class="modal-inner quick-sheet choice-window confirm-window"><div class="modal-header"><h2 class="modal-title">${esc(tr(modalState.title))}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close dialog')}"><i class="ph ph-x"></i></button></div>${modalState.message ? `<p class="dialog-copy">${esc(tr(modalState.message, modalState.messageParams))}</p>` : ''}${phrase}<div class="sheet-actions"><button class="btn ${modalState.confirmKind === 'primary' ? 'btn-primary' : 'btn-danger'}" type="button" data-action="confirm-action">${esc(tr(modalState.confirmLabel || msg('Delete')))}</button><button class="btn btn-secondary" type="button" data-action="close-modal">${tr('Cancel')}</button></div></div>`, 'quick confirm-modal');
   }
 
 
@@ -4438,6 +4414,9 @@
   // Optional sync (V2.0-a). The session, shadow and cursor stay on this device under their own key, never in state or backups.
   const SYNC_META_KEY = 'dailoSync';
   const SYNC_DEFERRED = 'sync-deferred';
+  // R51: this device's journal key ({ salt, key }), outside state, sync and backups like the session.
+  const JOURNAL_KEY_KEY = 'dailoJournalKey';
+  let journalKeyCache = null;
 
   function loadSyncMeta() {
     try {
@@ -4453,7 +4432,7 @@
   function syncView() {
     const meta = syncMeta || loadSyncMeta();
     return { configured: Boolean(syncClient), signedIn: Boolean(meta.session?.accessToken), email: meta.session?.user?.email || '', name: meta.session?.user?.name || '', serverCheck,
-      running: syncRunning, lastSyncAt: meta.lastSyncAt || null, lastError: meta.lastError || '', fileError: meta.fileError || '' };
+      running: syncRunning, lastSyncAt: meta.lastSyncAt || null, lastError: meta.lastError || '', fileError: meta.fileError || '', live: liveSync?.status() === 'live', journalPurgeError: meta.journalPurgeError || '' };
   }
 
   function editingText() {
@@ -4492,14 +4471,16 @@
         readLocal: async () => { const habitLogs = await TodoStorage.habitLogs.listAll(); return { state, habitLogs, attachments: await syncAttachmentList() }; },
         writeLocal: applySyncResult,
         files: syncFiles,
+        journal: await journalSyncOptions(),
       });
       if (result.status === 'error' && result.error === SYNC_DEFERRED) { meta.lastError = null; scheduleSync(15000); }
-      else if (result.status === 'error' && result.code === 401) delete meta.session;
+      else if (result.status === 'error' && result.code === 401) { delete meta.session; liveSync?.disconnect(); }
     } finally {
       syncRunning = false;
       // A sign-out during the round replaced the record; never bring the old one back.
       if (syncMeta === meta) saveSyncMeta();
     }
+    if (result.status === 'ok') { connectLiveSync(); await afterJournalSync(meta); }
     if (result.status === 'choose' && syncMeta === meta) {
       // Only the first-run examples are here: the account's data replaces them without the question (audit M9),
       // after the same recovery copy the question takes. If that copy fails, the question is asked as before.
@@ -4622,6 +4603,7 @@
   }
 
   async function accountSubmit() {
+    if (modalState?.type === 'journal-cipher') return journalCipherSubmit();
     if (!syncClient || !['account-password', 'account-email'].includes(modalState?.type) || modalState.busy) return;
     const windowState = accountFields();
     return windowState.type === 'account-password' ? accountPasswordSubmit(windowState) : accountEmailSubmit(windowState);
@@ -4904,6 +4886,8 @@
   async function signOutSync() {
     const meta = loadSyncMeta();
     clearTimeout(syncTimer);
+    liveSync?.disconnect();
+    forgetJournalKey();
     syncMeta = {};
     try { localStorage.removeItem(SYNC_META_KEY); } catch (error) { console.error(error); }
     render();
@@ -4920,6 +4904,8 @@
         try { await syncClient.deleteAccount(await syncClient.ensureSession(loadSyncMeta().session)); }
         catch (error) { setToastMessage(tr('The account could not be deleted: {error}', { error: trMessage(error.message) })); return; }
         clearTimeout(syncTimer);
+        liveSync?.disconnect();
+        forgetJournalKey();
         syncMeta = {};
         try { localStorage.removeItem(SYNC_META_KEY); } catch (error) { console.error(error); }
         render();
@@ -4953,9 +4939,130 @@
     await runSync(mode);
   }
 
+  // R51: the encrypted journal (docs/superpowers/specs/2026-10-12-r51-journal-encryption.md). The key counts only for
+  // the account's current cipher; without it a device with encryption on is locked and leaves the journal alone.
+  function journalCipherStored() {
+    try { return JSON.parse(localStorage.getItem(JOURNAL_KEY_KEY) || 'null'); } catch (_) { return null; }
+  }
+
+  function journalCipherStatus() {
+    const cipher = state?.settings?.journalCipher;
+    if (!cipher) return 'off';
+    const stored = journalCipherStored();
+    return stored?.salt === cipher.salt ? 'on' : 'locked';
+  }
+
+  async function deviceJournalKey() {
+    const cipher = state?.settings?.journalCipher;
+    if (!Sync?.journalCipherValid?.(cipher)) return null;
+    if (journalKeyCache?.salt === cipher.salt) return journalKeyCache.key;
+    const stored = journalCipherStored();
+    if (stored?.salt !== cipher.salt || typeof stored.key !== 'string') return null;
+    try { journalKeyCache = { salt: stored.salt, key: await Sync.importJournalKey(stored.key) }; } catch (_) { return null; }
+    return journalKeyCache.key;
+  }
+
+  async function storeJournalKey(salt, key) {
+    journalKeyCache = { salt, key };
+    try { localStorage.setItem(JOURNAL_KEY_KEY, JSON.stringify({ salt, key: await Sync.exportJournalKey(key) })); } catch (error) { console.error(error); }
+  }
+
+  function forgetJournalKey() {
+    journalKeyCache = null;
+    try { localStorage.removeItem(JOURNAL_KEY_KEY); } catch (error) { console.error(error); }
+  }
+
+  async function journalSyncOptions() {
+    const key = await deviceJournalKey();
+    return { key, locked: Boolean(state?.settings?.journalCipher) && !key };
+  }
+
+  // After a sync: a device forgets its key when encryption was turned off on another one, and once the journal went
+  // sealed, the readable versions leave the server history (0005_journal_history.sql).
+  async function afterJournalSync(meta) {
+    if (!state?.settings?.journalCipher) { if (journalCipherStored()) forgetJournalKey(); return; }
+    if (!meta.purgeJournalHistory || journalCipherStatus() !== 'on') return;
+    try {
+      const gone = await syncClient.purgeJournalHistory(meta.session);
+      if (gone === null) meta.journalPurgeError = msg('Run 0005_journal_history.sql in Supabase to remove the earlier readable journal from the server.');
+      else { delete meta.purgeJournalHistory; delete meta.journalPurgeError; }
+    } catch (error) { meta.journalPurgeError = error.message; }
+    if (syncMeta === meta) saveSyncMeta();
+    refreshSyncCard();
+  }
+
+  function openJournalCipherWindow(mode) {
+    const status = journalCipherStatus();
+    const allowed = { enable: 'off', unlock: 'locked', disable: 'on' };
+    if (!syncClient || !loadSyncMeta().session?.accessToken || modalState || allowed[mode] !== status) return;
+    captureModalReturnFocus(); closePopover();
+    modalState = { type: 'journal-cipher', mode, password: '', confirm: '', busy: false, error: '' };
+    renderModal();
+  }
+
+  function setJournalWindow(changes) {
+    if (modalState?.type !== 'journal-cipher') return;
+    modalState = { ...modalState, ...changes };
+    renderModal();
+  }
+
+  async function journalCipherSubmit() {
+    if (modalState?.type !== 'journal-cipher' || modalState.busy) return;
+    const windowState = modalState;
+    windowState.password = String($('#journal-password')?.value ?? windowState.password);
+    windowState.confirm = String($('#journal-password-confirm')?.value ?? windowState.confirm);
+    if (windowState.mode === 'enable') {
+      const problem = Sync.passwordProblem(windowState.password);
+      if (problem) { setJournalWindow({ error: problem }); return; }
+      if (windowState.password !== windowState.confirm) { setJournalWindow({ error: msg('The passwords do not match.') }); return; }
+    }
+    setJournalWindow({ busy: true, error: '' });
+    if (syncRunning) { setJournalWindow({ busy: false, error: msg('Sync is running. Try again in a moment.') }); return; }
+    const meta = loadSyncMeta();
+    let message;
+    try {
+      if (windowState.mode === 'enable') {
+        const { cipher, key } = await Sync.createJournalCipher(windowState.password);
+        state.settings.journalCipher = cipher;
+        if (!saveState()) { delete state.settings.journalCipher; throw new Error(msg('Changes could not be saved locally. Try again.')); }
+        await storeJournalKey(cipher.salt, key);
+        // Every entry goes again, sealed; then the readable versions leave the server history.
+        Sync.forgetJournalShadow(meta);
+        meta.purgeJournalHistory = true;
+        message = tr('The journal is encrypted. The server sees only ciphertext.');
+      } else if (windowState.mode === 'unlock') {
+        const key = await Sync.unlockJournalCipher(state.settings.journalCipher, windowState.password);
+        if (!key) { setJournalWindow({ busy: false, error: msg('The journal password is wrong.') }); return; }
+        await storeJournalKey(state.settings.journalCipher.salt, key);
+        // The next pull fetches the sealed entries this device left out while it was locked.
+        meta.cursor = null;
+        message = tr('The journal is unlocked on this device.');
+      } else {
+        delete state.settings.journalCipher;
+        if (!saveState()) throw new Error(msg('Changes could not be saved locally. Try again.'));
+        forgetJournalKey();
+        // Every entry goes again, readable.
+        Sync.forgetJournalShadow(meta);
+        delete meta.purgeJournalHistory; delete meta.journalPurgeError;
+        message = tr('Journal encryption is off.');
+      }
+    } catch (error) { setJournalWindow({ busy: false, error: error.message }); return; }
+    syncMeta = meta;
+    saveSyncMeta();
+    closeAccountWindow(message);
+    scheduleSync(300);
+  }
+
+  // R50: the socket follows the account and the screen: it opens after a successful sync while the app is in front,
+  // and the sync that runs when the app comes back opens it again.
+  function connectLiveSync() {
+    const session = loadSyncMeta().session;
+    if (liveSync && document.visibilityState !== 'hidden' && session?.accessToken) liveSync.connect(session);
+  }
+
   function startSync() {
     if (!syncClient) return;
-    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') scheduleSync(500); });
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') scheduleSync(500); else liveSync?.disconnect(); });
     window.addEventListener('online', () => scheduleSync(500));
     setInterval(() => scheduleSync(0), 5 * 60 * 1000);
     scheduleSync(1000);
@@ -5159,6 +5266,32 @@
       updateBackupStatus({ lastExport: nowIso(), snapshotAvailable: await hasRetainedRecoverySnapshot(snapshotAvailable), validationResult: msg('Export verified') }, source);
       setToastMessage(tr('Backup exported'));
     } catch (error) { console.error(error); updateBackupStatus({ snapshotAvailable: await hasRetainedRecoverySnapshot(snapshotAvailable), validationResult: `${msg('Export failed')}: ${error.message}` }, source); setToastMessage(tr('Backup could not be created')); }
+  }
+
+  // R52: the calendar as an .ics file for any calendar app (open tasks with a planned or due date).
+  async function exportIcsAction() {
+    const text = Core.calendarIcs(listTasks(), { now: new Date(), dueLabel: tr('Due') });
+    if (!text.includes('BEGIN:VEVENT')) { setToastMessage(tr('No tasks with a date to export.')); return; }
+    try { await globalThis.DailoPlatform.files.saveFile(new Blob([text], { type: 'text/calendar;charset=utf-8' }), `dailo-kalendar-${Core.dateOnly()}.ics`, tr('Dailo calendar')); }
+    catch (error) { setToastMessage(tr('The file could not be saved: {error}', { error: trMessage(error.message) })); }
+  }
+
+  // R52: events from an .ics file become planned tasks — from today on, without repeats or tasks already here —
+  // after a question that says what is skipped, with Undo.
+  async function importIcsFile(file) {
+    const plan = Core.icsImportTasks(Core.parseIcsEvents(await file.text()), listTasks(), Core.dateOnly());
+    const counts = { past: plan.past, recurring: plan.recurring, duplicates: plan.duplicates };
+    if (!plan.drafts.length) { setToastMessage(tr('Nothing to import: {past} past, {recurring} repeating, {duplicates} already here.', counts)); return; }
+    openConfirm({ title: msg('Import calendar events?'), message: msg('{count} events become planned tasks. Skipped: {past} past, {recurring} repeating, {duplicates} already here.'), messageParams: { count: plan.drafts.length, ...counts }, confirmLabel: msg('Import'), confirmKind: 'primary',
+      onConfirm: () => {
+        modalState = null; renderModal();
+        const snapshot = snapshotTasks([]);
+        for (const draft of plan.drafts) state.tasks.push(newTaskRecord({ ...draft, title: draft.title || tr('Untitled event') }));
+        if (!saveState()) { restoreTasks(snapshot); setToastMessage(tr('Changes could not be saved locally. Try again.')); return; }
+        render();
+        setUndo(msg('Calendar events imported'), () => { restoreTasks(snapshot); saveState(); render(); });
+        if (plan.overLimit) setToastMessage(tr('{count} more events were left out. Import them with another file.', { count: plan.overLimit }));
+      } });
   }
 
   function chooseImportBackup() {
@@ -5769,9 +5902,7 @@
     else if (action === 'focus-next') focusNextTask(el.dataset.taskId);
     else if (action === 'toggle-complete') toggleComplete(el.dataset.taskId);
     else if (action === 'open-search') openSearch();
-    else if (action === 'toggle-sidebar') toggleSidebar();
     else if (action === 'calendar-today') calendarToday();
-    else if (action === 'sidebar-fold') toggleSidebarFold(el.dataset.group);
     else if (action === 'tasks-view') { state.ui.tasksView = el.dataset.view === 'projects' ? 'projects' : 'anytime'; saveAndRender(); }
     else if (action === 'delete-draft-goal-milestone') deleteDraftGoalMilestone(el.dataset.milestoneId);
     else if (action === 'delete-milestone') deleteMilestone(el.dataset.goalId, el.dataset.milestoneId);
@@ -5835,6 +5966,7 @@
     else if (action === 'sync-check-server') runServerCheck();
     else if (action === 'account-change-password') openAccountWindow('password');
     else if (action === 'account-change-email') openAccountWindow('email');
+    else if (['journal-cipher-enable', 'journal-cipher-unlock', 'journal-cipher-disable'].includes(action)) openJournalCipherWindow(action.slice('journal-cipher-'.length));
     else if (action === 'sync-sign-out') signOutSync();
     else if (action === 'sync-delete-account') deleteSyncAccount();
     else if (action === 'sync-choose') chooseSyncMode(el.dataset.mode);
@@ -5852,6 +5984,9 @@
     else if (action === 'apply-app-update') applyAppUpdate();
     else if (action === 'request-storage-persistence') updateStoragePersistence(true).catch(console.error);
     else if (action === 'import-backup') chooseImportBackup();
+    else if (action === 'export-ics') exportIcsAction();
+    else if (action === 'quick-dictate') toggleDictation();
+    else if (action === 'import-ics') $('#ics-import-input')?.click();
     else if (action === 'clear-completed') clearCompleted();
     else if (action === 'completed-project') openCompletedProjectSheet(el);
     else if (action === 'completed-period') { state.ui.completedPeriod = [0, 7, 30].includes(Number(el.dataset.value)) ? Number(el.dataset.value) : 0; saveAndRender(); }
@@ -6004,6 +6139,7 @@
     if (event.target.id === 'theme') { applyTheme(event.target.value); render(); return; }
     if (event.target.id === 'daily-capacity') { const minutes = Number(event.target.value); if (Number.isInteger(minutes) && minutes >= 0 && minutes <= 1440) { state.settings.dailyCapacityMinutes = minutes; saveAndRender(); } return; }
     if (event.target.id === 'backup-reminder-days') { const days = Number(event.target.value); if (Number.isInteger(days) && days >= 0 && days <= 90) { state.settings.backupReminderDays = days; saveAndRender(); } return; }
+    if (event.target.id === 'ics-import-input') { const file = event.target.files?.[0]; event.target.value = ''; if (file) importIcsFile(file).catch(() => setToastMessage(tr('The calendar file could not be read.'))); return; }
     if (event.target.id === 'backup-import-input') { const file=event.target.files?.[0]; event.target.value=''; if(file) inspectImportBackup(file); return; }
   }
 
@@ -6061,7 +6197,7 @@
         if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); navigateCalendar(event.key === 'ArrowLeft' ? -1 : 1); return; }
         if (event.key.toLowerCase() === 't') { event.preventDefault(); calendarToday(); return; }
       }
-      if (event.key === '[' && !event.ctrlKey && !event.metaKey && !event.altKey && wideScreen()) { event.preventDefault(); toggleSidebar(); return; }
+      if (event.key === '[' && !event.ctrlKey && !event.metaKey && !event.altKey && wideScreen()) { event.preventDefault(); callDomainHook('handleAction', 'toggle-sidebar', null); return; }
       const command=Object.keys(SHORTCUT_DEFAULTS).find(key=>combination && state.settings.shortcuts[key]===combination);
       if(command){event.preventDefault();if(command==='newTask'){const direct=quickAddDirect();if(direct)direct[1]();else openQuickAdd();}else if(command==='search')openSearch();else navigate(command);return;}
       // Preserve the existing convenient Search alias, without bypassing suppression.
@@ -6492,7 +6628,7 @@
   // with the Serbian texts for an empty day and for a day that has passed since Dailo was last opened.
   function updateWidget() {
     const platform = globalThis.DailoPlatform;
-    if (platform?.kind !== 'android' || !platform.widget || !state) return;
+    if (!['android', 'ios'].includes(platform?.kind) || !platform.widget || !state) return;
     const today = Core.dateOnly(), snap = Core.widgetSnapshot(state, today);
     platform.widget.update({
       date: today, title: tr('Today'),
@@ -6591,6 +6727,7 @@
   function resumeApp() {
     if (globalOperation || startupPromise || recovery || !state) return;
     checkDateAndReminders();
+    takeSharedItems();
     updateWidget();
     if (autoBackupDue()) runAutoBackup();
     scheduleSync(500);
@@ -6637,8 +6774,19 @@
     platform.links.onAppLink?.(handleIncomingLink);
     scheduleNotificationPlan(0);
     consumeLaunchParams();
+    takeSharedItems();
     updateWidget();
     setTimeout(() => { if (autoBackupDue()) runAutoBackup(); }, 8000);
+  }
+
+  // R55: what was shared to Dailo on the iPhone while it was closed. The first item opens like "Podeli u Dailo" on
+  // Android; any others go to Inbox, so nothing waits behind a window.
+  async function takeSharedItems() {
+    const items = await globalThis.DailoPlatform?.shared?.take?.() || [];
+    items.forEach((item, index) => {
+      if (index === 0) handleIncomingLink(`dailo://share?${new URLSearchParams({ text: item.text || '', url: item.url || '' })}`);
+      else addToInbox(item.text || item.url);
+    });
   }
 
   // R24: links that open Dailo — the icon's shortcuts (dailo://new-task, dailo://today, dailo://journal) and text

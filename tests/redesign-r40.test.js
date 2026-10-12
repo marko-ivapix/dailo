@@ -152,7 +152,7 @@ function harness({ fake = createFakeSupabase(), meta = null, storage: entries = 
   const calls = { renders: 0, modals: 0, toasts: [], assigned: [], opened: [], closedBrowser: 0, replaced: [] };
   const context = {
     console, JSON, Date, Promise, Error, Object, Array, String, Number, Boolean, Set, Map, URL, URLSearchParams,
-    Sync, syncClient: clientFor(fake), syncMeta: null, syncTimer: null, syncRunning: false, applyingSync: false,
+    Sync, syncClient: clientFor(fake), syncMeta: null, syncTimer: null, syncRunning: false, applyingSync: false, liveSync: null /* R50 */,
     state: { version: 3, tasks: [], projects: [], tags: [], areas: [], goals: [], habits: [], notes: [], resources: [], templates: [], savedViews: [], settings: {}, ui: {} },
     recovery: null, globalOperation: null, startupPromise: null, storageError: false, staleDataNotice: null,
     modalState: null, undoState: null, undoHold: null, textSaveTimer: null, dragState: null, modalReturnFocus: null,
@@ -373,7 +373,7 @@ test('wiring: start, the form, the actions, Nalog and the old e-mail code', () =
   // Nalog without a sign-in offers the same screen.
   let adapter;
   runInNewContextWithI18n(read('js/settings-ui.js'), { window: { TodoDomainModules: { register: value => { adapter = value; } } } });
-  const account = view => adapter.renderRoute({ type: 'account' }, { state: { settings: {} }, esc, pageHeader: (title, subtitle) => `<h1>${title}</h1><p>${subtitle}</p>`, syncView: () => view });
+  const account = view => adapter.renderRoute({ type: 'account' }, { state: { settings: {} }, esc, journalCipherStatus: () => 'off' /* R51 */, pageHeader: (title, subtitle) => `<h1>${title}</h1><p>${subtitle}</p>`, syncView: () => view });
   const out = account({ configured: true, signedIn: false });
   assert.match(out, /<p class="area-empty-copy">Sign in to have your tasks, habits and goals on all your devices\. Without an account, everything stays only on this device\.<\/p>\s*<div class="sync-actions"><button class="btn btn-primary" type="button" data-action="open-welcome" data-mode="sign-in">Log in<\/button><button class="btn btn-secondary" type="button" data-action="open-welcome" data-mode="sign-up">Create account<\/button><\/div>/);
   assert.doesNotMatch(out, /sync-email|Send code/);

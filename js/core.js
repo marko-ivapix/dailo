@@ -1456,6 +1456,33 @@
     };
   }
 
+  // R54: a habit's last year as 53 weeks (columns, oldest first) of 7 days in the week rule's order, ending with this
+  // week. A day is done, partial (a numeric value below the target), skipped, missed, open, unscheduled or future.
+  // `percent` is the share done of the planned days up to today (skipped ones left out), null when none was planned;
+  // `months` marks the columns where a month begins.
+  function habitYear(habit, logs, today = dateOnly(), weekRule = 'monday') {
+    const start = addDays(habitPeriodKey({ frequencyType: 'timesPerWeek' }, today, weekRule), -52 * 7);
+    const weeks = [];
+    const months = [];
+    const planned = [];
+    let done = 0;
+    for (let column = 0; column < 53; column += 1) {
+      const days = [];
+      for (let row = 0; row < 7; row += 1) {
+        const date = addDays(start, column * 7 + row);
+        const day = habitDayState(habit, logs, date, today, weekRule);
+        let state = day.state;
+        if (state === 'done') done += 1;
+        if (!['future', 'unscheduled', 'skipped'].includes(state)) planned.push(date);
+        if (habit?.trackingType === 'numeric' && ['missed', 'open'].includes(state) && Number(day.value) > 0) state = 'partial';
+        if (date.endsWith('-01')) months.push({ column, month: date.slice(5, 7) });
+        days.push({ date, state });
+      }
+      weeks.push(days);
+    }
+    return { start, weeks, months, done, percent: planned.length ? habitCompletionForDates(habit, logs, planned, today, weekRule) : null };
+  }
+
   // M11: once a day is checked in (or skipped), that day's reminders stay silent; a numeric habit below its
   // target still reminds. Weekly habits are silenced by the week's target instead.
   function habitDayClosed(habit, logs, date) {
@@ -2326,10 +2353,171 @@
     return result.ok ? { ok: true } : { ok: false, reason: result.reason };
   }
 
+  // R52: the calendar as an .ics file (RFC 5545), docs/superpowers/specs/2026-10-12-r52-ics.md. Export writes the open
+  // tasks' plans (timed in UTC, or all-day) and deadlines on other days; import reads events back as dated drafts.
+  const icsDay = value => (/^\d{4}-\d{2}-\d{2}$/.test(String(value || '')) && parseDateOnly(value) && dateOnly(parseDateOnly(value)) === value ? value : null);
+  const icsUtc = instant => instant.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  const icsText = text => String(text).replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
+  const icsUnescape = text => String(text).replace(/\\([\\;,nN])/g, (_, char) => (char === 'n' || char === 'N' ? '\n' : char));
+  // Lines are folded at 75 octets; a continuation line starts with one space.
+  function icsFold(line) {
+    const parts = [];
+    let current = '';
+    let size = 0;
+    for (const char of line) {
+      const bytes = new TextEncoder().encode(char).length;
+      if (size + bytes > (parts.length ? 74 : 75)) { parts.push(current); current = ''; size = 0; }
+      current += char;
+      size += bytes;
+    }
+    parts.push(current);
+    return parts.join('\r\n ');
+  }
+
+  function calendarIcs(tasks, { now = new Date(), dueLabel = 'Due' } = {}) {
+    const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Dailo//Dailo//SR', 'CALSCALE:GREGORIAN'];
+    const stamp = icsUtc(now);
+    const event = (uid, summary, notes, date, time, minutes) => {
+      lines.push('BEGIN:VEVENT', `UID:${uid}`, `DTSTAMP:${stamp}`);
+      if (time) {
+        const [hours, mins] = time.split(':').map(Number);
+        const start = parseDateOnly(date);
+        start.setHours(hours, mins, 0, 0);
+        lines.push(`DTSTART:${icsUtc(start)}`, `DTEND:${icsUtc(new Date(start.getTime() + minutes * 60000))}`);
+      } else lines.push(`DTSTART;VALUE=DATE:${date.replace(/-/g, '')}`, `DTEND;VALUE=DATE:${addDays(date, 1).replace(/-/g, '')}`);
+      lines.push(`SUMMARY:${icsText(summary)}`);
+      if (notes) lines.push(`DESCRIPTION:${icsText(notes)}`);
+      lines.push('END:VEVENT');
+    };
+    for (const task of tasks || []) {
+      if (!task || task.isCompleted) continue;
+      const title = String(task.title || '').trim();
+      const notes = String(task.notes || '').trim();
+      const planned = icsDay(task.plannedDate);
+      const due = icsDay(task.dueDate);
+      if (planned) event(`${task.id}-plan@dailo`, title, notes, planned, normalizeTime(task.plannedTime), positiveIntegerOrNull(task.durationMinutes) || 30);
+      if (due && due !== planned) event(`${task.id}-due@dailo`, `${dueLabel}: ${title}`, notes, due, normalizeTime(task.dueTime), 30);
+    }
+    lines.push('END:VCALENDAR');
+    return `${lines.map(icsFold).join('\r\n')}\r\n`;
+  }
+
+  // The offset of a time zone at an instant, in milliseconds (wall clock there minus UTC).
+  function zoneOffset(instant, timeZone) {
+    const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })
+      .formatToParts(new Date(instant)).filter(part => part.type !== 'literal').map(part => [part.type, Number(part.value)]));
+    return Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second) - instant;
+  }
+
+  function icsMoment(property) {
+    const match = /^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})(Z)?)?$/.exec(String(property?.value || '').trim());
+    if (!match) return null;
+    const [, year, month, day, hour, minute, second, utc] = match;
+    const date = icsDay(`${year}-${month}-${day}`);
+    if (!date) return null;
+    if (property.params.VALUE === 'DATE' || hour === undefined) return { date, time: null, allDay: true, instant: parseDateOnly(date).getTime() };
+    const fields = [Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute), Number(second)];
+    let instant;
+    if (utc) instant = Date.UTC(...fields);
+    else if (property.params.TZID && (() => { try { new Intl.DateTimeFormat('en-US', { timeZone: property.params.TZID }); return true; } catch (_) { return false; } })()) {
+      // The wall time in that zone: guess, then correct by the offset at the result (twice covers the DST edges).
+      const wall = Date.UTC(...fields);
+      instant = wall - zoneOffset(wall, property.params.TZID);
+      instant = wall - zoneOffset(instant, property.params.TZID);
+    } else instant = new Date(...fields).getTime(); // floating time, or a zone this device does not know: local
+    const local = new Date(instant);
+    return { date: dateOnly(local), time: `${pad(local.getHours())}:${pad(local.getMinutes())}`, allDay: false, instant };
+  }
+
+  function icsDurationMinutes(value) {
+    const match = /^([+-])?P(?:(\d+)W)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/.exec(String(value || '').trim());
+    if (!match || match[1] === '-') return null;
+    const [, , weeks = 0, days = 0, hours = 0, minutes = 0, seconds = 0] = match;
+    return Number(weeks) * 10080 + Number(days) * 1440 + Number(hours) * 60 + Number(minutes) + Math.round(Number(seconds) / 60);
+  }
+
+  function parseIcsEvents(text) {
+    const lines = String(text || '').replace(/\r\n|\r/g, '\n').split('\n').reduce((out, line) => {
+      if (/^[ \t]/.test(line) && out.length) out[out.length - 1] += line.slice(1);
+      else out.push(line);
+      return out;
+    }, []);
+    const events = [];
+    let props = null;
+    for (const line of lines) {
+      if (line.trim().toUpperCase() === 'BEGIN:VEVENT') { props = {}; continue; }
+      if (line.trim().toUpperCase() === 'END:VEVENT') {
+        const event = props && icsEvent(props);
+        if (event) events.push(event);
+        props = null;
+        continue;
+      }
+      if (!props) continue;
+      const colon = line.indexOf(':');
+      if (colon < 0) continue;
+      const [name, ...params] = line.slice(0, colon).split(';');
+      const key = name.trim().toUpperCase();
+      if (!(key in props)) props[key] = { value: line.slice(colon + 1), params: Object.fromEntries(params.map(part => { const [param, ...value] = part.split('='); return [param.trim().toUpperCase(), value.join('=').replace(/^"|"$/g, '')]; })) };
+    }
+    return events;
+  }
+
+  function icsEvent(props) {
+    if (String(props.STATUS?.value || '').trim().toUpperCase() === 'CANCELLED') return null;
+    const start = icsMoment(props.DTSTART);
+    if (!start) return null;
+    let durationMinutes = null;
+    if (!start.allDay) {
+      const end = props.DTEND ? icsMoment(props.DTEND) : null;
+      const span = end && !end.allDay ? Math.round((end.instant - start.instant) / 60000) : props.DURATION ? icsDurationMinutes(props.DURATION.value) : null;
+      durationMinutes = span > 0 ? span : null;
+    }
+    return { uid: icsUnescape(props.UID?.value || ''), summary: icsUnescape(props.SUMMARY?.value || ''), description: icsUnescape(props.DESCRIPTION?.value || ''), date: start.date, time: start.time, durationMinutes, allDay: start.allDay, recurring: Boolean(props.RRULE || props.RDATE) };
+  }
+
+  // Which events become tasks: from today on, not repeating (Dailo's own repeat rule is set by hand), not the same
+  // title, day and time as an open task (or an earlier event in the file), and at most `limit` per file.
+  function icsImportTasks(events, tasks, today, limit = 500) {
+    const key = (title, date, time) => `${String(title || '').trim().toLocaleLowerCase()}|${date}|${time || ''}`;
+    const seen = new Set((tasks || []).filter(task => task && !task.isCompleted && task.plannedDate).map(task => key(task.title, task.plannedDate, task.plannedTime)));
+    const drafts = [];
+    let past = 0;
+    let recurring = 0;
+    let duplicates = 0;
+    let overLimit = 0;
+    for (const event of events || []) {
+      if (event.recurring) { recurring += 1; continue; }
+      if (event.date < today) { past += 1; continue; }
+      const title = String(event.summary || '').trim();
+      const id = key(title, event.date, event.time);
+      if (seen.has(id)) { duplicates += 1; continue; }
+      if (drafts.length >= limit) { overLimit += 1; continue; }
+      seen.add(id);
+      const minutes = Number.isInteger(event.durationMinutes) && event.durationMinutes > 0 && event.durationMinutes <= 1440 ? event.durationMinutes : null;
+      drafts.push({ title, notes: String(event.description || '').trim(), plannedDate: event.date, plannedTime: event.time || null, durationMinutes: minutes });
+    }
+    return { drafts, past, recurring, duplicates, overLimit };
+  }
+
+  // R53: Serbian Cyrillic to Latin; speech recognition may answer in Cyrillic while the app is written in Latin.
+  const CYRILLIC_LATIN = { А: 'A', Б: 'B', В: 'V', Г: 'G', Д: 'D', Ђ: 'Đ', Е: 'E', Ж: 'Ž', З: 'Z', И: 'I', Ј: 'J', К: 'K', Л: 'L', Љ: 'Lj', М: 'M', Н: 'N', Њ: 'Nj', О: 'O', П: 'P', Р: 'R', С: 'S', Т: 'T', Ћ: 'Ć', У: 'U', Ф: 'F', Х: 'H', Ц: 'C', Ч: 'Č', Џ: 'Dž', Ш: 'Š' };
+  function cyrillicToLatin(text) {
+    return String(text ?? '').replace(/[\u0400-\u04FF]/g, char => {
+      if (CYRILLIC_LATIN[char]) return CYRILLIC_LATIN[char];
+      const upper = CYRILLIC_LATIN[char.toUpperCase()];
+      return upper ? upper.toLowerCase() : char;
+    });
+  }
+
   return {
     dateOnly,
     parseDateOnly,
     localDateOf,
+    cyrillicToLatin,
+    habitYear,
+    calendarIcs,
+    parseIcsEvents,
+    icsImportTasks,
     addDays,
     pruneDanglingReferences,
     attachmentOpensInline,

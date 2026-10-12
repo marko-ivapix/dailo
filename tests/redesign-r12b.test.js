@@ -29,6 +29,7 @@ function context(journal = [], extra = {}) {
   const calls = [];
   const state = { journal, tasks: [], habits: [], habitLogCache: {}, ui: {}, settings: {} };
   const ctx = {
+    journalCipherStatus: () => 'off', // R51: the encrypted journal is off here
     calls, state, esc, Core: { ...Core, dateOnly: value => (value ? Core.dateOnly(value) : TODAY) },
     modalState: null, inputs: {}, menuSheet: (title, body) => `<menu title="${title}">${body}</menu>`, // R33
     $: selector => ctx.inputs[selector] || null,
