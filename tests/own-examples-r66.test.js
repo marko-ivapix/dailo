@@ -188,7 +188,8 @@ test('R66: the projects are the user\'s lists, each with its Area and items', as
   assert.deepEqual(titles('Clothes'), ['T-shirt', 'Hoodie', 'Socks']);
   assert.deepEqual(titles('Motorcycle'), ['Summer jacket', 'Chain and sprockets', 'Battery']);
   assert.deepEqual(titles('To learn'), ['JavaScript', 'Canva', 'Photoshop', 'Figma (Marko Pešić course)', 'Interior design', 'How a house is built', 'A musical instrument', 'Cooking', 'Training plan', 'Meal plan']);
-  assert.ok(titles('Bucket list').includes('Raft the Tara river') && !titles('Bucket list').includes('Learn to play an instrument'));
+  // R68: the bucket list became the user's own 81 items (tests/bucket-list-r68.test.js), which include an instrument.
+  assert.ok(titles('Bucket list').includes('Raft the Tara river') && titles('Bucket list').length === 81);
   assert.deepEqual(titles('Movies and series'), ["Who's Singin' Over There?", 'The Marathon Family', 'Planet Earth II']);
   for (const name of state.projects.map(project => project.name)) assert.deepEqual(inProject(state, name).map(item => item.projectOrder), inProject(state, name).map((_, index) => index), name);
   assert.ok(state.tasks.every(item => !item.isInbox && !item.isCompleted && !item.recurrence && !item.plannedDate && !item.dueDate));
@@ -313,7 +314,8 @@ test('R66: a second run adds nothing, a deleted example comes back alone, own it
 test('R66: the toast counts what was added; a failed save removes every new example', async () => {
   const { toasts, run } = harness();
   await run();
-  assert.equal(toasts.at(-1), 'Added 5 Areas, 7 Projects, 36 Tasks, 3 Goals, 10 Habits, 7 Tags, 2 Notes, 5 Resources and 2 Templates. All examples are editable.');
+  // R68: 108 tasks — the bucket list grew from 9 to 81.
+  assert.equal(toasts.at(-1), 'Added 5 Areas, 7 Projects, 108 Tasks, 3 Goals, 10 Habits, 7 Tags, 2 Notes, 5 Resources and 2 Templates. All examples are editable.');
   const failing = harness(emptyState(), { saveOk: false });
   await failing.run();
   assert.deepEqual(counts(failing.state), { areas: 0, tags: 0, habits: 0, projects: 0, tasks: 0, goals: 0, notes: 0, resources: 0, templates: 0 });
