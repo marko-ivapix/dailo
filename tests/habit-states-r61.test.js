@@ -84,8 +84,7 @@ test('the week table and the details calendar mark the day; the legend explains 
   assert.ok(read('js/i18n-sr.js').includes('"Not done": "Nije urađeno"'));
 });
 
-test('R61 is released as 2.0.0-alpha.88', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.88');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.88';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.88');
+test('R61 shipped as 2.0.0-alpha.88 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 99) >= 88);
 });

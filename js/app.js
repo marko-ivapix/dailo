@@ -1888,11 +1888,17 @@
     if (returnTarget) restoreModalReturnFocus(returnTarget);
   }
 
+  // R62: a window counts as on screen from the frame after it opened; a redraw before that still animates in.
+  let modalFrameToken = 0, modalOnScreen = false;
   function renderModal() {
     const root = $('#modal-root');
     if (!modalState) { root.innerHTML = ''; root.dataset.modalType = ''; return; }
     // R22c: when the same window redraws, the focus returns to the control that had it (not to the page).
     const focused = root.dataset.modalType === modalState.type ? focusDescriptor(document.activeElement, '#modal-root') : null;
+    // R62: the same window redrawn after a change (a chip, a day, a repeat option) keeps still and keeps its scroll,
+    // so it does not flicker as if it closed and opened; a new window still animates in.
+    const steady = root.dataset.modalType === modalState.type && modalOnScreen;
+    const scrolled = steady ? [...root.querySelectorAll('.modal-backdrop, .modal')].map(el => el.scrollTop) : [];
     const domainContent = callDomainHook('renderRoute', { type: 'modal', modalType: modalState.type });
     if (domainContent !== undefined) root.innerHTML = domainContent;
     else if (modalState.type === 'quick') root.innerHTML = renderQuickModal();
@@ -1911,6 +1917,14 @@
       $('.modal-header', root)?.insertAdjacentHTML('afterend', `<div class="quick-template-row"><button class="quick-chip" type="button" data-action="from-template"><i class="ph ph-copy" aria-hidden="true"></i>${tr('From template')}</button></div>`);
     }
     root.dataset.modalType = modalState.type;
+    if (steady) {
+      root.querySelector('.modal-backdrop')?.classList.add('is-steady');
+      root.querySelectorAll('.modal-backdrop, .modal').forEach((el, index) => { if (scrolled[index]) el.scrollTop = scrolled[index]; });
+    } else {
+      const token = ++modalFrameToken;
+      modalOnScreen = false;
+      requestAnimationFrame(() => { if (token === modalFrameToken) modalOnScreen = true; });
+    }
     root.querySelectorAll('textarea[data-autogrow]').forEach(autoGrow);
     if (focused && !root.contains(document.activeElement)) $(focused)?.focus({ preventScroll: true });
     if (!focused && ['confirm','recurrence-scope'].includes(modalState?.type)) requestAnimationFrame(() => root.querySelector('.modal button, .modal [href], .modal input, .modal select, .modal textarea, .modal [tabindex]:not([tabindex="-1"])')?.focus());
@@ -5173,7 +5187,7 @@
   function gestureHint(hasTasks) {
     if (!hasTasks || !window.matchMedia?.('(pointer: coarse)').matches) return '';
     try { if (localStorage.getItem('dailoGestureHint')) return ''; } catch (_) { return ''; }
-    return `<section class="gesture-hint" role="note"><i class="ph ph-hand-swipe-right gesture-hint-icon" aria-hidden="true"></i><p>${tr('Swipe a task right to complete it, left to pick its date. Hold a row, then drag it to change the order.')}</p><button class="btn btn-secondary" type="button" data-action="dismiss-gesture-hint">${tr('OK')}</button></section>`;
+    return `<section class="gesture-hint" role="note"><i class="ph ph-hand-swipe-right gesture-hint-icon" aria-hidden="true"></i><p>${tr('Swipe a task right to complete it, left to pick its date. Hold a row, then drag it up or down to change the order.')}</p><button class="btn btn-secondary" type="button" data-action="dismiss-gesture-hint">${tr('OK')}</button></section>`;
   }
   function dismissGestureHint() {
     try { localStorage.setItem('dailoGestureHint', nowIso()); } catch (_) { /* shown again next time */ }
@@ -6345,7 +6359,8 @@
   function startTouchReorder(reorder) {
     if (touchReorder !== reorder) return;
     reorder.active = true; reorder.timer = null;
-    if (taskSwipeState?.row === reorder.row) { resetTaskSwipe(taskSwipeState.row, taskSwipeState.originalStyle); taskSwipeState = null; }
+    // R62: the swipe waits, so a clear move to the side after the hold still completes the task or picks its date.
+    if (taskSwipeState?.row === reorder.row) { resetTaskSwipe(taskSwipeState.row, taskSwipeState.originalStyle); reorder.swipe = taskSwipeState; taskSwipeState = null; }
     reorder.row.releasePointerCapture?.(reorder.pointerId);
     reorder.row.classList.add('is-dragging', 'is-touch-dragging');
     document.body.classList.add('task-drag-active');
@@ -6357,6 +6372,15 @@
     if (!reorder || reorder.pointerId !== event.pointerId) return;
     const dx = event.clientX - reorder.startX, dy = event.clientY - reorder.startY;
     if (!reorder.active) { if (Math.abs(dx) > 8 || Math.abs(dy) > 8) cancelTouchReorder(); return; }
+    // R62: until the lifted row has moved up or down, a clear move to the side puts it down and swipes instead.
+    if (!reorder.vertical && reorder.swipe && Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy)) {
+      const swipe = reorder.swipe;
+      cancelTouchReorder();
+      taskSwipeState = swipe;
+      handleTaskSwipeMove(event);
+      return;
+    }
+    if (Math.abs(dy) > 12) reorder.vertical = true;
     event.preventDefault();
     reorder.row.style.transform = `translateY(${dy}px)`;
     const over = document.elementFromPoint(event.clientX, event.clientY)?.closest?.(REORDER_ROWS);
@@ -6386,8 +6410,9 @@
     touchReorder = null;
   }
 
+  // R62: nor while a row is swiped to the side, so a slight slant does not turn the swipe into a scroll.
   function blockTouchScroll(event) {
-    if (touchReorder?.active) event.preventDefault();
+    if ((touchReorder?.active || taskSwipeState?.swiping) && event.cancelable !== false) event.preventDefault();
   }
 
   // R44: on Navike a horizontal swipe over the week bar or the rings pages the week, like ‹ and ›: to the left is
@@ -6587,7 +6612,7 @@
     document.addEventListener('pointerup', finishTouchReorder);
     document.addEventListener('pointercancel', finishTouchReorder);
     document.addEventListener('touchmove', blockTouchScroll, { passive: false });
-    document.addEventListener('contextmenu', event => { if (touchReorder) event.preventDefault(); });
+    document.addEventListener('contextmenu', event => { if (touchReorder || taskSwipeState) event.preventDefault(); });
     document.addEventListener('click', handleClick);
     // R40: the welcome screen is a form, so Enter and the phone's "Go" key send it and password managers see it.
     document.addEventListener('submit', event => {

@@ -92,7 +92,8 @@ test('K: a one-time hint on Danas explains the gestures on touch screens', () =>
   const ctx = withI18n({ I18n, localStorage: { getItem: key => storage[key] ?? null, setItem: (key, value) => { storage[key] = value; } }, nowIso: () => 'now', window: { matchMedia: () => ({ matches: true }) } });
   vm.createContext(ctx);
   vm.runInContext(`${fn('gestureHint')}\n${fn('dismissGestureHint')}`, ctx);
-  assert.match(ctx.gestureHint(true), /<section class="gesture-hint" role="note"><i class="ph ph-hand-swipe-right gesture-hint-icon" aria-hidden="true"><\/i><p>Swipe a task right to complete it, left to pick its date\. Hold a row, then drag it to change the order\.<\/p><button class="btn btn-secondary" type="button" data-action="dismiss-gesture-hint">OK<\/button><\/section>/);
+  // R62: the hint says the hold reorders up or down (a hold moved sideways swipes).
+  assert.match(ctx.gestureHint(true), /<section class="gesture-hint" role="note"><i class="ph ph-hand-swipe-right gesture-hint-icon" aria-hidden="true"><\/i><p>Swipe a task right to complete it, left to pick its date\. Hold a row, then drag it up or down to change the order\.<\/p><button class="btn btn-secondary" type="button" data-action="dismiss-gesture-hint">OK<\/button><\/section>/);
   assert.equal(ctx.gestureHint(false), '', 'only while Danas shows tasks');
   ctx.dismissGestureHint();
   assert.equal(storage.dailoGestureHint, 'now');

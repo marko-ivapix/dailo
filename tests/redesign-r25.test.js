@@ -105,11 +105,13 @@ test('E: the touch drag is wired to the page, blocks the native drag and long-pr
   assert.match(start, /document\.addEventListener\('pointerup', finishTouchReorder\);/);
   assert.match(start, /document\.addEventListener\('pointercancel', finishTouchReorder\);/);
   assert.match(start, /document\.addEventListener\('touchmove', blockTouchScroll, \{ passive: false \}\);/);
-  assert.match(start, /document\.addEventListener\('contextmenu', event => \{ if \(touchReorder\) event\.preventDefault\(\); \}\);/);
+  // R62: a row being swiped blocks the long-press menu too.
+  assert.match(start, /document\.addEventListener\('contextmenu', event => \{ if \(touchReorder \|\| taskSwipeState\) event\.preventDefault\(\); \}\);/);
   assert.match(fn('handleDragStart'), /if \(touchReorder\) \{ event\.preventDefault\(\); return; \}/);
   assert.match(fn('handleTaskSwipeMove'), /if \(touchReorder\?\.active\) return;/);
   assert.match(css, /\.task-row\.is-touch-dragging \{ position: relative; z-index: 5; pointer-events: none;/);
-  assert.match(css, /@media \(pointer: coarse\) \{\n\s+\.task-row\[draggable="true"\] \{ -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; \}/);
+  // R62: every task row on a touch screen selects no text (and swipes sideways), not only the draggable ones.
+  assert.match(css, /@media \(pointer: coarse\) \{\n\s+\.task-row \{ touch-action: pan-y; touch-action: pan-y pinch-zoom; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; \}/);
 });
 
 test('R25 shipped as 2.0.0-alpha.50 or later (the newest release test pins the exact version)', () => {

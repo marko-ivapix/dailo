@@ -1339,7 +1339,7 @@
     "Tonight": "Večeras",
     "Weekend": "Vikend",
     "In 1 hour": "Za 1 h",
-    "Swipe a task right to complete it, left to pick its date. Hold a row, then drag it to change the order.": "Prevuci zadatak udesno da ga završiš, ulevo da mu izabereš datum. Drži red pa ga prevuci da promeniš redosled.",
+    "Swipe a task right to complete it, left to pick its date. Hold a row, then drag it up or down to change the order.": "Prevuci zadatak udesno da ga završiš, ulevo da mu izabereš datum. Drži red pa ga prevuci gore ili dole da promeniš redosled.",
     "OK": "U redu",
     "Search notes": "Pretraži beleške",
     "Search resources": "Pretraži resurse",

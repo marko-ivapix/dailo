@@ -2305,9 +2305,6 @@ h2.task-window-kind { margin: 0; font-size: var(--text-md); }
 
 /* Redesign R25 — a row lifted for touch reordering (2026-10-11). */
 .task-row.is-touch-dragging { position: relative; z-index: 5; pointer-events: none; border-color: var(--line-3); background: var(--graphite-800); box-shadow: var(--shadow-popover); transition: none; }
-@media (pointer: coarse) {
-  .task-row[draggable="true"] { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
-}
 
 /* Redesign R26 — "Na današnji dan" and the locked journal (2026-10-11). */
 .journal-on-this-day-title { margin-top: 18px; }
@@ -2599,6 +2596,15 @@ textarea[data-autogrow] { field-sizing: content; min-height: 0; resize: none; ov
 .habit-cell.is-marked::before { border-color: var(--danger-fill); background: var(--danger-fill); }
 .habit-cell-x { width: 14px; height: 14px; fill: none; stroke: var(--on-accent); stroke-width: 3; stroke-linecap: round; }
 .habit-cell-swatch.is-marked { border-color: var(--danger-fill); background: var(--danger-fill); }
+
+/* Redesign R62 — a redrawn window keeps still; task rows swipe and hold without selecting text (2026-10-13). */
+.modal-backdrop.is-steady, .modal-backdrop.is-steady .modal { animation: none; }
+/* The browser decides at the touch start who handles a sideways move, so the row says it up front; the second
+   declaration keeps pinch zoom where it is understood. While a row is lifted, nothing under it selects either. */
+@media (pointer: coarse) {
+  .task-row { touch-action: pan-y; touch-action: pan-y pinch-zoom; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  .task-drag-active { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+}
 
 /* Keep primary compact actions touchable after all density rules. */
 @media (max-width: 700px), (pointer: coarse) {
