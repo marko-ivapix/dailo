@@ -371,8 +371,7 @@ test('R66 review: Upcoming does not list a task twice when its due day is alread
   assert.match(functionSource('renderUpcomingDays').source, /Core\.deriveRoughMonths\(source\.tasks, today, Core\.addDays\(today, UPCOMING_DAYS\)\)/);
 });
 
-test('R66 is released as 2.0.0-alpha.93', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.93');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.93';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.93');
+test('R66 shipped as 2.0.0-alpha.93 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 99) >= 93);
 });
