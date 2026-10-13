@@ -54,6 +54,8 @@
   const DATE_YEAR_FMT = new Intl.DateTimeFormat(I18n.locale(), { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
   const SHORT_DATE_YEAR_FMT = new Intl.DateTimeFormat(I18n.locale(), { month: 'short', day: 'numeric', year: 'numeric' });
   const WEEKDAY_FMT = new Intl.DateTimeFormat(I18n.locale(), { weekday: 'long' });
+  const MONTH_FMT = new Intl.DateTimeFormat(I18n.locale(), { month: 'long' });
+  const MONTH_YEAR_FMT = new Intl.DateTimeFormat(I18n.locale(), { month: 'long', year: 'numeric' });
   const SHORTCUT_DEFAULTS = { newTask:'N', search:'Ctrl/Cmd+F', today:'T', inbox:'I', upcoming:'U', calendar:'C', goals:'G', habits:'H', templates:'Shift+T' };
   // R47a (K10): fixed keys on top of the editable shortcuts — 1–5 open the main screens.
   const DESKTOP_KEYS = Object.freeze({ 1: 'today', 2: 'inbox', 3: 'tasks', 4: 'calendar', 5: 'habits' });
@@ -196,6 +198,13 @@
     const otherYear = date.getFullYear() !== new Date().getFullYear();
     if (mode === 'full') return (otherYear ? DATE_YEAR_FMT : DATE_FMT).format(date);
     return (otherYear ? SHORT_DATE_YEAR_FMT : SHORT_DATE_FMT).format(date);
+  }
+
+  // R66: a rough month ("YYYY-MM") by name; another year says which, like formatDate.
+  function plannedMonthLabel(month) {
+    const date = Core.normalizePlannedMonth(month) ? parseLocalDate(`${month}-01`) : null;
+    if (!date) return '';
+    return (date.getFullYear() !== new Date().getFullYear() ? MONTH_YEAR_FMT : MONTH_FMT).format(date);
   }
 
   function formatPageToday(today) {
@@ -708,6 +717,8 @@
       templateTypes: TEMPLATE_TYPES, templateLabel, openTemplateEditorFromSource, saveTemplateRecord, duplicateTemplateRecord, useTemplate,
       captureModalReturnFocus,
       durationLabel,
+      plannedMonthLabel,
+      requestTaskEdit,
       todayDueLabel, openHabitValue,
       looseTasks(completed) { return listTasks().filter(task => !task.projectId && !task.isInbox && Boolean(task.isCompleted) === completed); },
       goalPercent(goal) { return Math.round(Core.computeGoalProgress(goal, state, state.habitMetrics || {}).percent); },
