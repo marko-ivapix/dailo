@@ -41,9 +41,10 @@
   const PROJECTS = [
     ['groceries', msg('Groceries'), 'home'], ['to-buy', msg('To buy'), 'home'], ['clothes', msg('Clothes'), 'personal'], ['motorcycle', msg('Motorcycle'), 'hobbies'],
     ['to-learn', msg('To learn'), 'personal'], ['bucket-list', msg('Bucket list'), 'personal'], ['movies', msg('Movies and series'), 'personal'],
+    ['things-to-own', msg('Things to own'), 'personal'],
   ];
 
-  // [project, key, title, { tags, inMonths: rough month from this one, calendarMonth: the next such month (1–12) }].
+  // [project, key, title, { tags, inMonths: rough month from this one, calendarMonth: the next such month (1–12), items: subtasks }].
   // Product names stay as they are in every language.
   const TASKS = [
     ['groceries', 'eggs', msg('Eggs'), {}], ['groceries', 'milk', msg('Milk'), {}], ['groceries', 'bananas', msg('Bananas'), {}], ['groceries', 'fabric-softener', msg('Fabric softener'), {}],
@@ -101,6 +102,21 @@
     ['bucket-list', 'festival', msg('A big music festival'), {}], ['bucket-list', 'savings', msg('Savings for a year of living'), {}],
     ['bucket-list', 'own-business', msg('Start your own business or project'), {}],
     ['movies', 'who-is-singing', msg("Who's Singin' Over There?"), {}], ['movies', 'marathon-family', msg('The Marathon Family'), {}], ['movies', 'planet-earth', msg('Planet Earth II'), {}],
+    // R69: the things to own the user kept, one task per group with the things as subtasks.
+    ['things-to-own', 'own-clothes', msg('Clothes and shoes'), { items: [msg('A dark suit'), msg('A light blue shirt'), msg('A dark plain tie'), msg('Leather belts, black and brown'),
+      msg('Black leather shoes'), msg('Brown shoes or boots'), msg('White sneakers'), msg('Dark jeans'), msg('Chinos'), msg('A polo shirt'), msg('A merino wool sweater'),
+      msg('A winter coat'), msg('Rain jacket'), msg('A leather jacket'), msg('A good watch')] }],
+    ['things-to-own', 'own-grooming', msg('Grooming'), { items: [msg('Perfume'), msg('Face cream with SPF'), msg('A good mattress and pillow')] }],
+    ['things-to-own', 'own-tools', msg('Tools and home'), { items: [msg('A basic toolbox (hammer, screwdrivers, pliers, tape measure, level)'), msg('A cordless drill'),
+      msg('Hex and Torx key sets'), msg('A flashlight'), msg('Duct tape and WD-40'), msg('A Swiss Army knife or multi-tool'), msg('A ladder'), msg('A fire extinguisher'),
+      msg('A first aid kit'), msg('An extension cord'), msg('Iron')] }],
+    ['things-to-own', 'own-kitchen', msg('Kitchen'), { items: [msg('A good kitchen knife'), msg('A cutting board'), msg('A cast-iron pan'), msg('A good pot'), msg('A coffee maker'), msg('A thermos')] }],
+    ['things-to-own', 'own-vehicle', msg('Car and motorcycle'), { items: [msg('Jumper cables or a booster'), msg('A tyre inflator'), msg('A spare wheel and a jack'), msg('A tow rope'),
+      msg('A good helmet and motorcycle protective gear'), msg('A vest, a warning triangle and a first aid kit in the car')] }],
+    ['things-to-own', 'own-tech', msg('Technology'), { items: [msg('A laptop'), msg('Power bank'), msg('Headphones'), msg('An external drive for backups'), msg('A password manager')] }],
+    ['things-to-own', 'own-documents', msg('Documents and money'), { items: [msg('ID card and driving licence'), msg('An emergency fund'), msg('Travel health insurance'),
+      msg('A folder with important documents'), msg('A card for payments abroad')] }],
+    ['things-to-own', 'own-outdoors', msg('Nature and travel'), { items: [msg('A good backpack'), msg('A cabin suitcase'), msg('A tent and a sleeping bag'), msg('Hiking shoes'), msg('A water bottle')] }],
   ];
 
   // Packing lists the user repeats: each trip is a new project made from the template. [key, name, area, tasks].
@@ -196,7 +212,7 @@
       if (!project) continue;
       const plannedMonth = fields.calendarMonth ? Core.upcomingMonth(fields.calendarMonth, today) : Number.isInteger(fields.inMonths) ? Core.addMonths(thisMonth, fields.inMonths) : null;
       const projectOrder = [...(view.tasks || []), ...out.tasks].filter(item => item.projectId === project.id).length;
-      const item = makeTask(tr(title), { sampleKey, projectId: project.id, tagIds: tagIds(fields.tags), projectOrder, ...(plannedMonth ? { plannedMonth } : {}) });
+      const item = makeTask(tr(title), { sampleKey, projectId: project.id, tagIds: tagIds(fields.tags), subtasks: subtasks(fields.items || []), projectOrder, ...(plannedMonth ? { plannedMonth } : {}) });
       out.tasks.push(item); found.tasks[key] = item;
     }
 

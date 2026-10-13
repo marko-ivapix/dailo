@@ -83,8 +83,7 @@ test('R68: the Bucket list is Serbian in the app', () => {
   } finally { I18n.setLanguage('en'); }
 });
 
-test('R68 is released as 2.0.0-alpha.95', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.95');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.95';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.95');
+test('R68 shipped as 2.0.0-alpha.95 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 99) >= 95);
 });

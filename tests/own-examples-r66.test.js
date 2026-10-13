@@ -180,6 +180,7 @@ test('R66: the projects are the user\'s lists, each with its Area and items', as
   assert.deepEqual(state.projects.map(project => [project.name, project.areaId]), [
     ['Groceries', area('Home')], ['To buy', area('Home')], ['Clothes', area('Personal')], ['Motorcycle', area('Hobbies and nature')],
     ['To learn', area('Personal')], ['Bucket list', area('Personal')], ['Movies and series', area('Personal')],
+    ['Things to own', area('Personal')], // R69: the user's list of things to own (tests/things-to-own-r69.test.js)
   ]);
   assert.ok(state.projects.every(project => !project.isCleaningRoom && !project.isArchived));
   const titles = name => inProject(state, name).map(item => item.title);
@@ -314,8 +315,8 @@ test('R66: a second run adds nothing, a deleted example comes back alone, own it
 test('R66: the toast counts what was added; a failed save removes every new example', async () => {
   const { toasts, run } = harness();
   await run();
-  // R68: 108 tasks — the bucket list grew from 9 to 81.
-  assert.equal(toasts.at(-1), 'Added 5 Areas, 7 Projects, 108 Tasks, 3 Goals, 10 Habits, 7 Tags, 2 Notes, 5 Resources and 2 Templates. All examples are editable.');
+  // R68: 108 tasks — the bucket list grew from 9 to 81. R69: plus the "Things to own" project and its 8 group tasks.
+  assert.equal(toasts.at(-1), 'Added 5 Areas, 8 Projects, 116 Tasks, 3 Goals, 10 Habits, 7 Tags, 2 Notes, 5 Resources and 2 Templates. All examples are editable.');
   const failing = harness(emptyState(), { saveOk: false });
   await failing.run();
   assert.deepEqual(counts(failing.state), { areas: 0, tags: 0, habits: 0, projects: 0, tasks: 0, goals: 0, notes: 0, resources: 0, templates: 0 });
@@ -329,7 +330,8 @@ test('R66: the examples are Serbian in the app, and Settings describes them', ()
     let counter = 0;
     const out = Starter.workspaceExamples(emptyState(), { Core, uid: prefix => `${prefix}_${++counter}`, today: '2026-10-13', timestamp: stamp, habitDraft: () => ({}), PROJECT_COLORS });
     assert.deepEqual(out.areas.map(area => area.name), ['Lično', 'Posao', 'Dom', 'Zdravlje', 'Hobi i priroda']);
-    assert.deepEqual(out.projects.map(project => project.name), ['Namirnice', 'Za kupovinu', 'Odeća', 'Motor', 'Za učenje', 'Bucket lista', 'Filmovi i serije']);
+    // R69: "Treba da imam" joins the lists.
+    assert.deepEqual(out.projects.map(project => project.name), ['Namirnice', 'Za kupovinu', 'Odeća', 'Motor', 'Za učenje', 'Bucket lista', 'Filmovi i serije', 'Treba da imam']);
     assert.deepEqual(out.tags.map(tag => tag.name), ['Kuća', 'Privatno', 'Posao', 'Umetnost', 'Hobi', 'Zdravlje', 'Kupovina']);
     for (const title of ['Omekšivač', 'Pegla', 'Patosnice', 'Ratkapne', 'Alat', 'Lanac i lančanici', 'Akumulator', 'Letnja jakna', 'Dukserica', 'Čarape', 'Plan ishrane']) assert.ok(out.tasks.some(item => item.title === title), title);
     assert.deepEqual(out.templates.map(item => item.name), ['Kampovanje', 'Planinarenje']);
