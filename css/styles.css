@@ -67,6 +67,7 @@
 
   /* Roles (R34: every color in this file comes from a token) */
   --on-accent: #FFFFFF;
+  --on-light-accent: #14171B;
   --on-accent-wash: rgba(255, 255, 255, .2);
   --on-success: var(--graphite-900);
   --danger-hover: #E2454A;
@@ -2618,6 +2619,12 @@ textarea[data-autogrow] { field-sizing: content; min-height: 0; resize: none; ov
 
 /* Redesign R64 — the sign-in screen fills the window, so it does not slide in or shrink like a dialog (2026-10-13). */
 .modal.welcome-screen { animation: none; }
+
+/* Redesign R65 — a project's folder on its color in the sidebar; "Projekti" stands out (2026-10-13). */
+.sidebar-project-icon { flex: none; display: grid; place-items: center; width: 22px; height: 22px; border-radius: var(--radius-sm); background: var(--project-color); color: var(--on-accent); }
+.sidebar-project-icon .ph { font-size: var(--text-sm); }
+.sidebar-project-icon.is-light { color: var(--on-light-accent); }
+.sidebar-group.is-projects > .sidebar-group-title { color: var(--ink-1); font-size: var(--text-sm); font-weight: 700; }
 
 /* Keep primary compact actions touchable after all density rules. */
 @media (max-width: 700px), (pointer: coarse) {

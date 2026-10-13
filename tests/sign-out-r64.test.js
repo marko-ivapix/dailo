@@ -53,8 +53,7 @@ test('the sign-in screen opens and redraws in place: no movement, no shrinking',
   assert.match(css, /\.modal-backdrop\.is-steady, \.modal-backdrop\.is-steady \.modal \{ animation: none; \}/, 'R62: a step change (Prijava → Registracija, the eye, an error) redraws in place');
 });
 
-test('R64 is released as 2.0.0-alpha.91', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.91');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.91';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.91');
+test('R64 shipped as 2.0.0-alpha.91 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 99) >= 91);
 });

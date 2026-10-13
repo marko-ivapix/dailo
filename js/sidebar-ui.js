@@ -17,16 +17,19 @@
     const folds = readSidebarFolds();
     const collapsed = document.documentElement.dataset.sidebar === 'collapsed';
     const isActive = target => target === active || (MAIN_SCREENS.includes(target) && ctx.bottomNavRoute(route) === target);
-    const sidebarItem = (target, icon, label, count = '', badge = false) => {
+    const sidebarItem = (target, icon, label, count = '', badge = false, color = '') => {
       const on = isActive(target);
-      return `<button class="sidebar-item${on ? ' is-active' : ''}" type="button" data-route="${esc(target)}"${on ? ' aria-current="page"' : ''} title="${esc(label)}"><i class="ph ${esc(icon)}" aria-hidden="true"></i><span class="sidebar-label">${esc(label)}</span>${count ? `<span class="sidebar-count${badge ? ' is-badge' : ''}">${esc(count)}</span>` : ''}</button>`;
+      // R65: a project's folder sits on the project's color.
+      const glyph = `<i class="ph ${esc(icon)}" aria-hidden="true"></i>`;
+      const mark = color ? `<span class="sidebar-project-icon${lightColor(color) ? ' is-light' : ''}" style="--project-color:${esc(color)}">${glyph}</span>` : glyph;
+      return `<button class="sidebar-item${on ? ' is-active' : ''}" type="button" data-route="${esc(target)}"${on ? ' aria-current="page"' : ''} title="${esc(label)}">${mark}<span class="sidebar-label">${esc(label)}</span>${count ? `<span class="sidebar-count${badge ? ' is-badge' : ''}">${esc(count)}</span>` : ''}</button>`;
     };
     // A folded group still shows the screen that is open.
     const sidebarGroup = (key, title, items, foldable = true) => {
       if (!items.length) return '';
       const open = !foldable || folds[key] !== true;
       const head = foldable ? `<button class="sidebar-group-title" type="button" data-action="sidebar-fold" data-group="${key}" aria-expanded="${open}"><span class="sidebar-label">${title}</span><i class="ph ph-caret-${open ? 'down' : 'right'}" aria-hidden="true"></i></button>` : `<h2 class="sidebar-group-title"><span class="sidebar-label">${title}</span></h2>`;
-      return `<section class="sidebar-group">${head}${(open ? items : items.filter(item => item.includes('is-active'))).join('')}</section>`;
+      return `<section class="sidebar-group${key === 'projects' ? ' is-projects' : ''}">${head}${(open ? items : items.filter(item => item.includes('is-active'))).join('')}</section>`;
     };
     const sections = Core.deriveTodaySections(ctx.listTasks(), Core.dateOnly());
     const todayCount = sections.overdue.length + sections.today.length || '';
@@ -39,7 +42,7 @@
       ...(state.savedViews || []).filter(view => view.isPinned).map(view => sidebarItem(`saved-view/${encodeURIComponent(view.id)}`, 'ph-funnel', view.name)),
       ...(state.notes || []).filter(note => note.favorite).sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt))).slice(0, 4).map(note => sidebarItem(`note/${encodeURIComponent(note.id)}`, 'ph-note', note.title)),
     ];
-    const projectItems = sidebarProjectGroups(ctx).flatMap(group => [`<p class="sidebar-subtitle">${esc(group.title)}</p>`, ...group.projects.map(project => sidebarItem(`project/${encodeURIComponent(project.id)}`, 'ph-folder', project.name, project.open || ''))]);
+    const projectItems = sidebarProjectGroups(ctx).flatMap(group => [`<p class="sidebar-subtitle">${esc(group.title)}</p>`, ...group.projects.map(project => sidebarItem(`project/${encodeURIComponent(project.id)}`, 'ph-folder', project.name, project.open || '', false, Core.safeColor(project.color, '#5362FF')))]);
     return `<div class="sidebar-top"><span class="sidebar-brand"><img src="icons/icon.svg" alt="" width="28" height="28" /><span class="sidebar-label">Dailo</span></span><button class="btn-icon sidebar-collapse" type="button" data-action="toggle-sidebar" aria-label="${collapsed ? tr('Unfold the sidebar') : tr('Fold the sidebar')}" aria-expanded="${!collapsed}"><i class="ph ph-sidebar-simple" aria-hidden="true"></i></button></div>`
       + `<p class="sidebar-sync">${esc(syncLine)}</p>`
       + `<button class="sidebar-item" type="button" data-action="open-search" title="${tr('Search')}"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><span class="sidebar-label">${tr('Search')}</span><kbd class="sidebar-key">/</kbd></button>`
@@ -55,12 +58,20 @@
   // The sidebar's projects, grouped by area in the areas' order and then those without one, with open counts.
   function sidebarProjectGroups(ctx) {
     const projects = ctx.sortedProjects().filter(project => !project.isCleaningRoom);
-    const entry = project => ({ id: project.id, name: project.name, open: ctx.projectTasks(project.id).filter(task => !task.isCompleted).length });
+    const entry = project => ({ id: project.id, name: project.name, color: project.color, open: ctx.projectTasks(project.id).filter(task => !task.isCompleted).length });
     const areas = ctx.sortedAreas();
     const groups = areas.map(area => ({ title: area.name, projects: projects.filter(project => project.areaId === area.id).map(entry) })).filter(group => group.projects.length);
     const known = new Set(areas.map(area => area.id));
     const loose = projects.filter(project => !project.areaId || !known.has(project.areaId)).map(entry);
     return loose.length ? [...groups, { title: tr('Without area'), projects: loose }] : groups;
+  }
+
+  // R65: on a light color a dark folder reads better than a white one (relative luminance above 0.19, where the
+  // contrast with dark ink passes the contrast with white).
+  function lightColor(color) {
+    const hex = color.length === 4 ? color.replace(/[0-9a-f]/gi, digit => digit + digit) : color;
+    const [r, g, b] = [1, 3, 5].map(at => parseInt(hex.slice(at, at + 2), 16) / 255).map(c => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.19;
   }
 
   function readSidebarFolds() {
