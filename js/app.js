@@ -1192,8 +1192,8 @@
     // R30 (finding 8): tasks due today and missed plans wait in Zadaci → "Predlozi za danas"; Danas links there.
     const suggestions = Core.deriveTodaySections(listTasks(), today).suggestions;
     if (suggestions.length) main += `<button class="today-suggestions-link" type="button" data-action="open-today-suggestions"><i class="ph ph-lightbulb" aria-hidden="true"></i><span>${tr('Suggested for today')}</span><span class="today-suggestions-count">${suggestions.length}</span><i class="ph ph-caret-right" aria-hidden="true"></i></button>`;
-    // Done habits move to the bottom (T5).
-    const habits = [...sections.habits.filter(item => item.status.status !== 'done'), ...sections.habits.filter(item => item.status.status === 'done')];
+    // R66: habits keep their own order (T5 moved done ones to the bottom, so the list jumped under the finger).
+    const habits = sections.habits;
     const side = habits.length ? section('habits', tr('Habits'), `${habits.length - sections.habits.filter(item => item.status.status !== 'done').length}/${habits.length}`, `<div class="habit-list today-card">${todayLimited('habits', habits.map(item => renderHabitTodayRow(item.habit, item.status)))}</div>${yesterdayHabitsNote()}`) : '';
     let rest = '';
     if (sections.completed.length) {

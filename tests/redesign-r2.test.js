@@ -155,7 +155,8 @@ test('T1, T6: the header, the notices and the sections in order with their count
   assert.match(html, /<task late today today><article class="today-row deadline-row" data-goal-id="g">.*Milestone · Goal/s, 'overdue: tasks, then goals and milestones');
   assert.match(html, /<h2 class="section-label">Planned today<\/h2><span class="section-count">2<\/span>/);
   assert.match(html, /<div class="task-list today-card" data-list-context="today"><task plan today today drag><article class="today-row deadline-row" data-goal-id="g">/);
-  assert.match(html, /<h2 class="section-label">Habits<\/h2><span class="section-count">1\/2<\/span><\/div><div class="habit-list today-card"><habit h2 pending><habit h1 done>/, 'done habits move to the bottom');
+  // R66: habits keep their own order; a done habit no longer moves to the bottom.
+  assert.match(html, /<h2 class="section-label">Habits<\/h2><span class="section-count">1\/2<\/span><\/div><div class="habit-list today-card"><habit h1 done><habit h2 pending>/, 'done habits keep their place');
   assert.match(html, /data-action="toggle-today-completed"/);
   assert.match(html, /data-action="quick-add" data-today="true"/, 'the inline add row stays');
   for (const gone of ['data-today-focus-strip', 'data-today-focus', 'data-daily-review', 'data-today-actions', 'dashboard-', 'data-today-filter', 'data-today-capacity', 'toggle-suggestions', 'open-focus']) assert.ok(!html.includes(gone), gone);

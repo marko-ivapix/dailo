@@ -132,7 +132,8 @@ test('H2, H6: Dan groups by routine, done habits last, with the frequency and st
   const groups = [...html.matchAll(/<section class="section habits-routine habits-routine--(\w+)"><div class="section-header"><h2 class="section-label"><i class="ph ([\w-]+)" aria-hidden="true"><\/i> ([^<]+)<\/h2><span class="section-count">(\d+)<\/span><\/div>/g)].map(match => match.slice(1));
   assert.deepEqual(groups, [['morning', 'ph-sun', 'Morning', '2'], ['daily', 'ph-sun-horizon', 'Daytime', '1'], ['night', 'ph-moon', 'Night', '1']]);
   const rows = [...html.matchAll(/<article class="today-row habit-today-row[^"]*" data-habit-id="(\w)">/g)].map(match => match[1]);
-  assert.deepEqual(rows, ['n', 'm', 'g', 'r'], 'Water before the done Meditate; Not today is not listed');
+  // R66: each routine keeps the habits' own order; the done Meditate no longer moves below Water.
+  assert.deepEqual(rows, ['m', 'n', 'g', 'r'], 'the habits\' own order; Not today is not listed');
   assert.match(html, /<span class="task-title">Meditate<\/span><span class="task-meta">Daily · streak 5 days<\/span>/);
   // R14b: the circle now closes the row, so the name button is followed directly by it (no count span in between).
   assert.match(html, /<span class="task-title">Gym<\/span><span class="task-meta">3 times\/week · 1 \/ 3 this week<\/span><\/button><button class="habit-check"/, 'the weekly count is in the line, not repeated on the right');
