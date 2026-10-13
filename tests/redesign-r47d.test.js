@@ -45,7 +45,8 @@ test('K8 week: each day has a load bar against the daily capacity and "+ Dodaj" 
   assert.match(html, /<span class="calendar-load" title="Planned 60 min of 360 min" aria-hidden="true"><span style="width:17%"><\/span><\/span>/);
   assert.equal((html.match(/class="calendar-load/g) || []).length, 2, 'days without planned time have no bar');
   assert.match(html, /<button class="calendar-day-add" type="button" data-action="quick-add" data-date="2026-10-14" aria-label="Add a task for D:2026-10-14"><i class="ph ph-plus" aria-hidden="true"><\/i> Add<\/button>/);
-  assert.match(html, /<button class="btn calendar-today" type="button" data-action="calendar-today">Today<\/button><button class="btn-icon" type="button" data-action="calendar-prev"/);
+  // R63: "Danas" is a styled secondary button (it was a bare grey button on a wide screen).
+  assert.match(html, /<button class="btn btn-secondary calendar-today" type="button" data-action="calendar-today">Today<\/button><button class="btn-icon" type="button" data-action="calendar-prev"/);
   state.settings.dailyCapacityMinutes = 0;
   assert.doesNotMatch(vm.runInContext(`renderWeek(ctx, '${T}')`, context), /calendar-load/, 'no bar with the capacity off');
 });

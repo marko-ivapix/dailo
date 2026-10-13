@@ -273,7 +273,7 @@
     const values = dates.filter(date => date <= week.today).map(date => Core.habitDayPercent(active, state.habitLogCache || {}, date, week.today, week.rule).percent);
     const numbers = values.filter(value => value !== null);
     const average = numbers.length ? Math.round(numbers.reduce((sum, value) => sum + value, 0) / numbers.length) : null;
-    const W = 320, H = 150, L = 30, R = 10, T = 10, B = 22;
+    const W = 320, H = 150, L = 42, R = 10, T = 10, B = 22;
     const x = index => L + index * (W - L - R) / Math.max(1, length - 1);
     const y = value => T + (100 - value) / 100 * (H - T - B);
     const label = capitalized(new Intl.DateTimeFormat(I18n.locale(), { month: 'long', year: 'numeric' }).format(first));

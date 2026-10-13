@@ -32,7 +32,7 @@
     const previous = unit === 'month' ? tr('Previous month') : tr('Previous week');
     const next = unit === 'month' ? tr('Next month') : tr('Next week');
     // R47d (K8): a wide screen has "Danas" next to the arrows (CSS); the phone keeps C1 without it.
-    return `<div class="calendar-period-bar"><h2 class="calendar-period">${ctx.esc(label)}</h2><span class="calendar-arrows"><button class="btn calendar-today" type="button" data-action="calendar-today">${tr('Today')}</button><button class="btn-icon" type="button" data-action="calendar-prev" aria-label="${previous}"><i class="ph ph-caret-left"></i></button><button class="btn-icon" type="button" data-action="calendar-next" aria-label="${next}"><i class="ph ph-caret-right"></i></button></span></div>`;
+    return `<div class="calendar-period-bar"><h2 class="calendar-period">${ctx.esc(label)}</h2><span class="calendar-arrows"><button class="btn btn-secondary calendar-today" type="button" data-action="calendar-today">${tr('Today')}</button><button class="btn-icon" type="button" data-action="calendar-prev" aria-label="${previous}"><i class="ph ph-caret-left"></i></button><button class="btn-icon" type="button" data-action="calendar-next" aria-label="${next}"><i class="ph ph-caret-right"></i></button></span></div>`;
   }
 
   // The day button speaks its date and count, since the dot is only visual (C5).

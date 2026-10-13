@@ -2500,7 +2500,8 @@ textarea[data-autogrow] { field-sizing: content; min-height: 0; resize: none; ov
   .sidebar-subtitle { margin: 6px 0 2px; padding: 0 10px; color: var(--ink-4); font-size: var(--text-xs); }
   .sidebar-bottom { margin-top: auto; padding-top: 12px; border-top: 1px solid var(--line-1); }
   .mobile-quick-add { right: 32px; bottom: 32px; }
-  .mobile-quick-add-toggle { width: auto; gap: 8px; padding: 0 20px 0 16px; border-radius: var(--radius-pill); }
+  .mobile-quick-add-toggle { display: inline-flex; align-items: center; width: auto; gap: 8px; padding: 0 20px 0 16px; border-radius: var(--radius-pill); font-size: var(--text-base); font-weight: 600; }
+  .mobile-quick-add-toggle i { font-size: var(--text-lg); }
   .quick-add-label { display: inline; }
   .toast-root { right: 32px; bottom: 100px; }
   :root[data-sidebar="collapsed"] .desktop-sidebar :is(.sidebar-label, .sidebar-sync, .sidebar-key, .sidebar-drop, .sidebar-subtitle, .sidebar-group-title > .ph) { display: none; }
@@ -2605,6 +2606,15 @@ textarea[data-autogrow] { field-sizing: content; min-height: 0; resize: none; ov
   .task-row { touch-action: pan-y; touch-action: pan-y pinch-zoom; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
   .task-drag-active { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 }
+
+/* Redesign R63 — fixes from the pass in Chromium, phone and wide (2026-10-13). */
+/* The chart's "100%" may use the card padding at a larger text size instead of being cut. */
+.habits-chart-svg { overflow: visible; }
+/* The sticky "Završi zadatak" stays above a done subtask's tick (which sits at z-index 1). */
+.task-window-footer { z-index: 2; }
+/* Raspored: a task without a time is a plain title, and its time field keeps its width. */
+.day-unscheduled-title { padding: 8px 0; border: 0; background: none; font: inherit; cursor: pointer; }
+.day-unscheduled-item .task-time-input { flex: 0 0 136px; }
 
 /* Keep primary compact actions touchable after all density rules. */
 @media (max-width: 700px), (pointer: coarse) {

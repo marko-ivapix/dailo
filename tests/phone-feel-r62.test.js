@@ -166,8 +166,7 @@ test('the hint says which way reorders', () => {
   assert.ok(read('js/i18n-sr.js').includes('"Swipe a task right to complete it, left to pick its date. Hold a row, then drag it up or down to change the order.": "Prevuci zadatak udesno da ga završiš, ulevo da mu izabereš datum. Drži red pa ga prevuci gore ili dole da promeniš redosled."'));
 });
 
-test('R62 is released as 2.0.0-alpha.89', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.89');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.89';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.89');
+test('R62 shipped as 2.0.0-alpha.89 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 99) >= 89);
 });

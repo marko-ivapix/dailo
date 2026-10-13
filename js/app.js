@@ -1883,7 +1883,10 @@
     const returnTarget = modalReturnFocus;
     modalReturnFocus = null;
     modalState = null;
-    $('#modal-root').innerHTML = '';
+    // R63: the type goes with the window, so the same window opened again animates in again.
+    const root = $('#modal-root');
+    root.innerHTML = '';
+    root.dataset.modalType = '';
     restoreGoalFocus(goalReturn);
     if (returnTarget) restoreModalReturnFocus(returnTarget);
   }
@@ -1897,7 +1900,8 @@
     const focused = root.dataset.modalType === modalState.type ? focusDescriptor(document.activeElement, '#modal-root') : null;
     // R62: the same window redrawn after a change (a chip, a day, a repeat option) keeps still and keeps its scroll,
     // so it does not flicker as if it closed and opened; a new window still animates in.
-    const steady = root.dataset.modalType === modalState.type && modalOnScreen;
+    // R63: only while a window is on screen; an emptied root starts a new window.
+    const steady = root.dataset.modalType === modalState.type && modalOnScreen && Boolean(root.querySelector('.modal-backdrop'));
     const scrolled = steady ? [...root.querySelectorAll('.modal-backdrop, .modal')].map(el => el.scrollTop) : [];
     const domainContent = callDomainHook('renderRoute', { type: 'modal', modalType: modalState.type });
     if (domainContent !== undefined) root.innerHTML = domainContent;

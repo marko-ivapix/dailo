@@ -111,7 +111,8 @@ test('C1, C7: "Kalendar" with the Nedelja / Mesec / Predstojeće switch; no Doda
 test('C1, C3, C5: the week bar, a strip of seven days with dots, the selection and the wide-screen cards', () => {
   const ctx = calendarContext(week());
   const html = adapter().renderRoute({ type: 'calendar' }, ctx);
-  assert.match(html, /<div class="calendar-period-bar"><h2 class="calendar-period">Oct 12\s*–\s*18, 2026<\/h2><span class="calendar-arrows"><button class="btn calendar-today" type="button" data-action="calendar-today">Today<\/button><button class="btn-icon" type="button" data-action="calendar-prev" aria-label="Previous week"><i class="ph ph-caret-left"><\/i><\/button><button class="btn-icon" type="button" data-action="calendar-next" aria-label="Next week"><i class="ph ph-caret-right"><\/i><\/button><\/span><\/div>/u);
+  // R63: "Danas" is a styled secondary button (it was a bare grey button on a wide screen).
+  assert.match(html, /<div class="calendar-period-bar"><h2 class="calendar-period">Oct 12\s*–\s*18, 2026<\/h2><span class="calendar-arrows"><button class="btn btn-secondary calendar-today" type="button" data-action="calendar-today">Today<\/button><button class="btn-icon" type="button" data-action="calendar-prev" aria-label="Previous week"><i class="ph ph-caret-left"><\/i><\/button><button class="btn-icon" type="button" data-action="calendar-next" aria-label="Next week"><i class="ph ph-caret-right"><\/i><\/button><\/span><\/div>/u);
   const days = [...html.matchAll(/<section class="calendar-strip-day([^"]*)" data-calendar-date="([\d-]+)">/g)].map(match => [match[2], match[1].trim()]);
   assert.deepEqual(days.map(day => day[0]), ['2026-10-12', '2026-10-13', '2026-10-14', '2026-10-15', '2026-10-16', '2026-10-17', '2026-10-18']);
   assert.deepEqual(days.filter(day => day[1].includes('is-selected')).map(day => day[0]), [DAY]);
@@ -130,7 +131,8 @@ test('C1, C3, C5: the week bar, a strip of seven days with dots, the selection a
 test('C1, C5: the month grid has weekday names, blanks, dates and dots only (titles for wide screens, R47d)', () => {
   const ctx = calendarContext(week(), { calendarView: 'month' });
   const html = adapter().renderRoute({ type: 'calendar' }, ctx);
-  assert.match(html, /<h2 class="calendar-period">October 2026<\/h2><span class="calendar-arrows"><button class="btn calendar-today" type="button" data-action="calendar-today">Today<\/button><button class="btn-icon" type="button" data-action="calendar-prev" aria-label="Previous month">/);
+  // R63: "Danas" is a styled secondary button (it was a bare grey button on a wide screen).
+  assert.match(html, /<h2 class="calendar-period">October 2026<\/h2><span class="calendar-arrows"><button class="btn btn-secondary calendar-today" type="button" data-action="calendar-today">Today<\/button><button class="btn-icon" type="button" data-action="calendar-prev" aria-label="Previous month">/);
   assert.match(html, /aria-label="Next month"/);
   const grid = html.slice(html.indexOf('<div class="calendar-month-grid">'), html.indexOf('<section class="calendar-day-panel"'));
   assert.deepEqual([...grid.matchAll(/<span class="calendar-grid-weekday">(\w+)<\/span>/g)].map(match => match[1]), ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']);
