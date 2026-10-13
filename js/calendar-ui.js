@@ -166,7 +166,7 @@
       html += `<section class="calendar-upcoming-day" data-upcoming-date="${date}"><h2 class="section-label calendar-upcoming-label">${ctx.esc(label)} <span>· ${ctx.esc(ctx.formatDate(date))}</span></h2><div class="task-list today-card" data-list-context="calendar">${dayRows(ctx, items)}${repeatRows(ctx, date, repeats)}</div></section>`;
     }
     // R66: then the tasks with only a rough month, under each month.
-    for (const group of Core.deriveRoughMonths(source.tasks, today)) {
+    for (const group of Core.deriveRoughMonths(source.tasks, today, Core.addDays(today, UPCOMING_DAYS))) {
       html += `<section class="calendar-upcoming-day" data-upcoming-month="${group.month}"><h2 class="section-label calendar-upcoming-label">${ctx.esc(capitalized(ctx.plannedMonthLabel(group.month)))} <span>· ${tr('approximately')}</span></h2><div class="task-list today-card" data-list-context="calendar">${group.items.map(task => ctx.calendarTaskRow(task)).join('')}</div></section>`;
     }
     // R17: the usual empty state.

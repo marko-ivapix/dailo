@@ -132,7 +132,7 @@ test('R66: an open task without a planned day shows its rough month in the row',
 
 test('R66: Upcoming lists the rough months after the days, and the app names the month', () => {
   const upcoming = functionSource('renderUpcomingDays').source;
-  assert.match(upcoming, /Core\.deriveRoughMonths\(source\.tasks, today\)/);
+  assert.match(upcoming, /Core\.deriveRoughMonths\(source\.tasks, today, /); // the review fix passes the 21-day window
   assert.match(upcoming, /data-upcoming-month="\$\{group\.month\}"/);
   assert.match(upcoming, /tr\('approximately'\)/);
   const label = functionSource('plannedMonthLabel').source;
@@ -335,6 +335,40 @@ test('R66: the examples are Serbian in the app, and Settings describes them', ()
     assert.equal(I18n.tr('Around {month}', { month: 'novembar' }), 'Okvirno novembar');
   } finally { I18n.setLanguage('en'); }
   assert.match(read('js/settings-ui.js'), /tr\('Add missing editable examples: your Areas, shopping and learning lists, a bucket list, habits, camping and hiking templates, tags, books and goals\. Existing items and edits stay intact\.'\)/);
+});
+
+// --- Fixes after the code review ------------------------------------------------------------------------
+
+test('R66 review: a goal whose project or habit already existed is manual, not stuck at 0%', async () => {
+  const own = emptyState();
+  own.habits.push({ id: 'habit_old', sampleKey: 'area-routines-v1:habit:daily:training', name: 'Training four times per week', routine: 'daily', status: 'active', goalIds: [], createdAt: stamp, updatedAt: stamp });
+  own.projects.push({ id: 'project_old', name: 'Motorcycle', color: '#5362FF', areaId: null, goalIds: [], order: 0, isArchived: false, archivedAt: null, createdAt: stamp, updatedAt: stamp });
+  const { state, run } = harness(own);
+  await run();
+  const shape = named(state.goals, 'Stay in shape', 'title');
+  const motorcycle = named(state.goals, 'Get the motorcycle ready for the season', 'title');
+  assert.deepEqual([shape.progressMode, plain(shape.habitLinks)], ['manual', []]);
+  assert.deepEqual([motorcycle.progressMode, plain(motorcycle.projectLinks)], ['manual', []]);
+  assert.deepEqual(plain(state.habits[0].goalIds), [], 'existing items are never changed');
+});
+
+test('R66 review: the motorcycle goal falls on the first April 1st at least a month away', () => {
+  const target = today => {
+    let counter = 0;
+    const out = Starter.workspaceExamples(emptyState(), { Core, uid: prefix => `${prefix}_${++counter}`, today, timestamp: stamp, habitDraft: () => ({}), PROJECT_COLORS });
+    return out.goals.find(goal => goal.title === 'Get the motorcycle ready for the season').targetDate;
+  };
+  assert.equal(target('2026-10-13'), '2027-04-01');
+  assert.equal(target('2027-03-01'), '2027-04-01');
+  assert.equal(target('2027-03-20'), '2028-04-01');
+  assert.equal(target('2027-04-15'), '2028-04-01');
+});
+
+test('R66 review: Upcoming does not list a task twice when its due day is already shown', () => {
+  const tasks = [task({ id: 'x', plannedMonth: '2026-11', dueDate: '2026-10-20' }), task({ id: 'y', plannedMonth: '2026-11', dueDate: '2026-12-20' })];
+  assert.deepEqual(Core.deriveRoughMonths(tasks, '2026-10-13', '2026-11-03').map(group => [group.month, group.items.map(item => item.id)]), [['2026-11', ['y']]]);
+  assert.deepEqual(Core.deriveRoughMonths(tasks, '2026-10-13').map(group => group.items.length), [2], 'without a window every month task is listed');
+  assert.match(functionSource('renderUpcomingDays').source, /Core\.deriveRoughMonths\(source\.tasks, today, Core\.addDays\(today, UPCOMING_DAYS\)\)/);
 });
 
 test('R66 is released as 2.0.0-alpha.93', () => {

@@ -19,6 +19,7 @@
   - It takes the open tasks that have a valid month and no planned day.
   - It sorts the groups by month, and sorts the items by month, then title.
   - A month already past is listed under the current month, so it does not drop out of sight.
+  - An optional `dueShownUntil` leaves out tasks due after today up to that day. Upcoming passes today + 21 days, because it already lists those tasks on their due day (review fix).
 - **Helpers in Core:**
   - `normalizePlannedMonth(value)` returns the month or `null`;
   - `monthKey(date)` gives the month of a day;

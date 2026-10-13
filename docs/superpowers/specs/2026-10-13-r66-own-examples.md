@@ -74,3 +74,19 @@
 - **Manual-pending:**
   - Run "Popuni primerima" on the phone and look at Zadaci → Projekti, Šabloni and Predstojeće.
   - Set and remove a month in the task window.
+
+## Fixes after the code review
+
+The `code-reviewer` agent confirmed three problems in `9b346ca`:
+
+- **A linked goal stuck at 0%.**
+  - On a workspace that had run the earlier examples, "Budi u formi" became `linkedHabits` with no link. The training habit keeps its key, so it is not added again.
+  - "Spremi motor za sezonu" did the same when a "Motor" project already existed.
+  - Such a goal is now manual, and the existing items stay unchanged.
+- **The motorcycle goal could fall due in days.** Run in March, it could be due on April 1st only a few days later. It now falls on the first April 1st at least 30 days away.
+- **Predstojeće listed a task twice.** A task with a rough month and a due date within the 21 days appeared on its day and again under its month.
+  - `Core.deriveRoughMonths` takes an optional `dueShownUntil` and leaves those tasks out.
+  - Predstojeće passes today + 21 days.
+
+Three tests in `tests/own-examples-r66.test.js` cover these fixes; all three failed before the fix. `npm run verify` 1222/1222, smoke OK.
+

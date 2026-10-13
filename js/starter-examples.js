@@ -167,20 +167,22 @@
       const sampleKey = `${PREFIX}:goal:${key}`;
       const own = existing(view.goals, sampleKey, tr(title), 'title');
       if (own) return own;
+      const project = added.projects[fields.project], habit = added.habits[fields.habit?.[0]];
+      // Without the link (the project or habit was already there), a linked goal would stay at 0%, so it is manual.
+      const progressMode = fields.progressMode && (project || habit) ? fields.progressMode : 'manual';
       const record = {
-        id: uid('goal'), sampleKey, title: tr(title), areaId: areaId(area), horizon, status: 'active', progressMode: fields.progressMode || 'manual', progressType: fields.progressType || 'percentage',
+        id: uid('goal'), sampleKey, title: tr(title), areaId: areaId(area), horizon, status: 'active', progressMode, progressType: fields.progressType || 'percentage',
         currentValue: 0, targetValue: fields.targetValue || 100, unit: fields.unit ? tr(fields.unit) : '', targetDate: fields.targetDate || Core.addDays(today, days), projectLinks: [], taskIds: [], habitLinks: [],
         milestones: [], reminders: { sevenDaysBefore: false, threeDaysBefore: false, oneDayBefore: false, onTargetDate: false, time: '09:00' }, reminderFiredMoments: [], completedAt: null, ...stamp,
       };
-      const project = added.projects[fields.project];
       if (project) { record.projectLinks.push({ projectId: project.id, contributionMode: 'allTasks', selectedTaskIds: [] }); project.goalIds.push(record.id); }
-      const habit = added.habits[fields.habit?.[0]];
       if (habit) { record.habitLinks.push({ habitId: habit.id, metric: fields.habit[1], target: fields.habit[2] }); habit.goalIds.push(record.id); }
       out.goals.push(record);
       return record;
     };
-    // The season starts in April; the goal is due on its first day, at least a month away.
-    const season = `${Core.upcomingMonth(4, Core.addDays(today, 30))}-01`;
+    // The season starts in April; the goal is due on the first April 1st at least a month away.
+    const soonest = Core.addDays(today, 30), april = Core.upcomingMonth(4, soonest);
+    const season = `${`${april}-01` < soonest ? Core.addMonths(april, 12) : april}-01`;
     goal('motorcycle-season', msg('Get the motorcycle ready for the season'), 'hobbies', 'mid', 0, { progressMode: 'linkedTasks', project: 'motorcycle', targetDate: season });
     const reading = goal('books', msg('Read 12 books in a year'), 'personal', 'long', 365, { progressType: 'numeric', targetValue: 12, unit: msg('books') });
     goal('shape', msg('Stay in shape'), 'health', 'short', 84, { progressMode: 'linkedHabits', habit: ['training', 'totalCheckins', 48] });

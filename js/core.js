@@ -337,12 +337,14 @@
     return candidate < current ? addMonths(candidate, 12) : candidate;
   }
   // Open tasks with a rough month and no planned day, by month; a month already past waits in the current one.
-  function deriveRoughMonths(tasks, today = dateOnly()) {
+  // A task due after today up to `dueShownUntil` is left out: Upcoming already lists it on its due day.
+  function deriveRoughMonths(tasks, today = dateOnly(), dueShownUntil = null) {
     const current = monthKey(today);
     const groups = new Map();
     for (const task of tasks || []) {
       const month = normalizePlannedMonth(task?.plannedMonth);
       if (!month || task.isCompleted || task.plannedDate) continue;
+      if (dueShownUntil && task.dueDate && task.dueDate > today && task.dueDate <= dueShownUntil) continue;
       const key = month < current ? current : month;
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key).push(task);
