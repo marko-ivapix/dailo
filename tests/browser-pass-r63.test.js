@@ -69,8 +69,7 @@ test('wide screen: "Danas" in Kalendar is a styled button, and the "+" is one li
   assert.match(css, /@media \(min-width: 1024px\) \{[^@]*\n  \.mobile-quick-add-toggle \{ display: inline-flex; align-items: center; width: auto; gap: 8px; padding: 0 20px 0 16px; border-radius: var\(--radius-pill\); font-size: var\(--text-base\); font-weight: 600; \}\n  \.mobile-quick-add-toggle i \{ font-size: var\(--text-lg\); \}\n  \.quick-add-label \{ display: inline; \}/);
 });
 
-test('R63 is released as 2.0.0-alpha.90', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.90');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.90';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.90');
+test('R63 shipped as 2.0.0-alpha.90 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 99) >= 90);
 });

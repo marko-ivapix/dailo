@@ -4942,6 +4942,15 @@
     if (meta.session && syncClient) await syncClient.signOut(meta.session);
   }
 
+  // R64: "Odjavi se" returns to the first screen, Danas behind the sign-in screen, to sign in again or go on without
+  // an account. The session ends on this device at once; the server is told meanwhile, so a slow network holds nothing.
+  function signOutToWelcome() {
+    const done = signOutSync();
+    navigate('today');
+    openWelcome('sign-in', { firstRun: true });
+    return done;
+  }
+
   function deleteSyncAccount() {
     const word = 'OBRIŠI';
     openConfirm({ title: msg('Delete your sync account?'), message: msg('This deletes your account and all synced data on the server. Data on this device stays.'),
@@ -6018,7 +6027,7 @@
     else if (action === 'account-change-password') openAccountWindow('password');
     else if (action === 'account-change-email') openAccountWindow('email');
     else if (['journal-cipher-enable', 'journal-cipher-unlock', 'journal-cipher-disable'].includes(action)) openJournalCipherWindow(action.slice('journal-cipher-'.length));
-    else if (action === 'sync-sign-out') signOutSync();
+    else if (action === 'sync-sign-out') signOutToWelcome();
     else if (action === 'sync-delete-account') deleteSyncAccount();
     else if (action === 'sync-choose') chooseSyncMode(el.dataset.mode);
     else if (action === 'undo') doUndo();
