@@ -1555,7 +1555,7 @@ a.btn { text-decoration: none; }
 .task-window-more > summary { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 4px; color: var(--ink-1); cursor: pointer; list-style: none; }
 .task-window-more-meta { flex: 1; color: var(--ink-4); font-size: var(--text-md); text-align: right; }
 .task-window-footer { position: sticky; bottom: 0; margin-top: 18px; padding: 10px 0 4px; background: linear-gradient(to bottom, transparent, var(--graphite-850) 30%); }
-.task-complete-button { width: 100%; min-height: 50px; font-size: var(--text-lg); }
+.task-complete-button { position: relative; width: 100%; min-height: 40px; font-size: var(--text-lg); }
 
 /* Redesign R4 — Quick Add as a bottom sheet at every width (Q1, Q2, S7). */
 .modal-backdrop-quick { place-items: end center; align-items: end; padding: 0; }
@@ -1754,7 +1754,7 @@ a.btn { text-decoration: none; }
 .habit-window-target .input { width: 84px; }
 .habit-window-more { width: 100%; display: flex; align-items: center; justify-content: space-between; margin-top: 10px; padding: 12px 14px; border: 1px solid var(--line-1); border-radius: var(--radius-md); background: var(--graphite-850); color: var(--ink-1); font: inherit; cursor: pointer; }
 .habit-window-more span { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-3); font-size: var(--text-md); }
-.habit-window-save { width: 100%; min-height: 48px; }
+.habit-window-save { position: relative; width: 100%; min-height: 40px; }
 .habit-weekdays { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; margin: 4px 0 8px; }
 .habit-weekday { min-height: 40px; border: 1px solid var(--line-2); border-radius: var(--radius-md); background: none; color: var(--ink-2); font: inherit; font-size: var(--text-md); cursor: pointer; }
 .habit-weekday.is-on { border-color: var(--line-3); background: var(--graphite-750); color: var(--ink-1); font-weight: 600; }
@@ -2625,6 +2625,12 @@ textarea[data-autogrow] { field-sizing: content; min-height: 0; resize: none; ov
 .sidebar-project-icon .ph { font-size: var(--text-sm); }
 .sidebar-project-icon.is-light { color: var(--on-light-accent); }
 .sidebar-group.is-projects > .sidebar-group-title { color: var(--ink-1); font-size: var(--text-sm); font-weight: 700; }
+
+/* Redesign R66 — compact choices and a lower main button in the windows; a finger still gets 44 px (2026-10-13). */
+.view-tabs.habit-window-seg { overflow: visible; }
+.view-tabs.habit-window-seg .btn { position: relative; min-height: 34px; padding-block: 4px; }
+.view-tabs.habit-window-seg .btn::after { content: ""; position: absolute; inset: -6px 0; }
+.habit-window-save::after, .task-complete-button::after { content: ""; position: absolute; inset: -3px 0; }
 
 /* Keep primary compact actions touchable after all density rules. */
 @media (max-width: 700px), (pointer: coarse) {
