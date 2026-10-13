@@ -202,7 +202,7 @@
     return `${frequency} · ${trn(metrics.currentStreak || 0, 'streak {count} day', 'streak {count} days')}`;
   }
 
-  // H2: the selected day's habits by routine, the done ones last in each group.
+  // H2: the selected day's habits by routine. R66: in their own order, so a habit keeps its place when it is checked in.
   function renderHabitsDay(ctx, active, week, date) {
     const { Core, esc, state } = ctx;
     let html = date !== week.today ? `<h2 class="habits-day-title">${esc(ctx.formatDate(date, 'full'))}</h2>` : '';
@@ -213,8 +213,7 @@
         .filter(entry => !['unscheduled', 'future'].includes(entry.day.state));
       if (!entries.length) continue;
       shown += entries.length;
-      const sorted = [...entries.filter(entry => entry.day.state !== 'done'), ...entries.filter(entry => entry.day.state === 'done')];
-      const rows = sorted.map(({ habit, day }) => renderHabitTodayRow(ctx, habit, { status: day.state === 'done' ? 'done' : day.state === 'skipped' ? 'skipped' : 'pending', value: day.value, marked: day.marked }, { date, meta: dayMeta(ctx, habit, day, date, week.today), count: false })).join('');
+      const rows = entries.map(({ habit, day }) => renderHabitTodayRow(ctx, habit, { status: day.state === 'done' ? 'done' : day.state === 'skipped' ? 'skipped' : 'pending', value: day.value, marked: day.marked }, { date, meta: dayMeta(ctx, habit, day, date, week.today), count: false })).join('');
       html += `<section class="section habits-routine habits-routine--${routine}"><div class="section-header"><h2 class="section-label"><i class="ph ${ROUTINE_ICONS[routine]}" aria-hidden="true"></i> ${esc(routineLabel(routine))}</h2><span class="section-count">${entries.length}</span></div><div class="habit-list today-card">${rows}</div></section>`;
     }
     return shown ? html : `${html}<p class="today-empty">${tr('No habits planned for this day.')}</p>`;
