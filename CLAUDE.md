@@ -121,7 +121,8 @@ python3 -m http.server 8080
 
 *Update this section on every merge.*
 
-- **`main`:** `83d49d1` (PR #28: R65, project colors in the sidebar); GitHub Pages serves `2.0.0-alpha.92`. The work branch was restarted from it.
+- **`main`:** `286bb97` (PR #29: R66, habits keep their place, compact window choices, a lower main button); GitHub Pages serves `2.0.0-alpha.93`. The work branch was restarted from it.
+  - Before: PR #28 (`83d49d1`, R65: project colors in the sidebar).
   - Before: PR #27 (`fbcffc7`, R59–R64):
     - R59: the "+" adds the screen's item; R60: e-mail links lead to Dailo, Serbian templates;
     - R61: three habit states; R62: windows keep still, task rows swipe on phones;
