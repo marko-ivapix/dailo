@@ -6,11 +6,11 @@
   'use strict';
   const { tr, msg } = I18n;
 
-  // R66: "Popuni primerima" adds the user's own structure (replacing the R29 set): five Areas, the shopping, learning,
+  // R67: "Popuni primerima" adds the user's own structure (replacing the R29 set): five Areas, the shopping, learning,
   // bucket and movie lists as Projects, the habits, camping and hiking as project templates, books as Resources.
   // Every item carries a stable sampleKey, so a later run adds only what is missing and never duplicates a name.
   const PREFIX = 'workspace-starter-v3';
-  // The habits and three Areas keep their first-set keys, so a workspace filled before R66 is recognized.
+  // The habits and three Areas keep their first-set keys, so a workspace filled before R67 is recognized.
   const FIRST = 'area-routines-v1';
 
   // [key, name, icon, sampleKey]
@@ -42,11 +42,11 @@
     ['groceries', msg('Groceries'), 'home'], ['to-buy', msg('To buy'), 'home'], ['clothes', msg('Clothes'), 'personal'], ['motorcycle', msg('Motorcycle'), 'hobbies'],
     ['to-learn', msg('To learn'), 'personal'], ['bucket-list', msg('Bucket list'), 'personal'], ['movies', msg('Movies and series'), 'personal'],
     ['things-to-own', msg('Things to own'), 'personal'],
-    // R70: two Redovne obaveze groups (isCleaningRoom) for the chores below.
+    // R71: two Redovne obaveze groups (isCleaningRoom) for the chores below.
     ['car-and-motorcycle', msg('Car and motorcycle'), null, true], ['health-and-bills', msg('Health and bills'), 'health', true],
   ];
 
-  // R70: chores that repeat, in their Redovne obaveze group: [group, key, title, frequency, interval, first day].
+  // R71: chores that repeat, in their Redovne obaveze group: [group, key, title, frequency, interval, first day].
   // The first day is a number of days from today, a calendar day ([month, day], the next one to come) or the next
   // property-tax instalment (due 45 days into each quarter).
   const CHORES = [
@@ -70,7 +70,7 @@
   ];
   const PROPERTY_TAX_DAYS = [[2, 14], [5, 15], [8, 14], [11, 14]];
 
-  // R70: the user's shopping list for four days of the meal plan, as a task template for Namirnice.
+  // R71: the user's shopping list for four days of the meal plan, as a task template for Namirnice.
   const MEAL_PLAN_SHOPPING = [
     msg('Chicken fillet – 620 g'), msg('Turkey fillet – 400 g'), msg('Lean beef – 220 g'), msg('Tuna in water – 160 g'), msg('Eggs – 7'), msg('Egg whites – 200 g'),
     msg('Skyr – 500 g'), msg('Low-fat cottage cheese – 230 g'), msg('Whey protein – 120 g'), msg('Milk – 200 ml'),
@@ -82,7 +82,7 @@
     msg('Olive oil – 100 g'), msg('Creatine – 20 g'), msg('Omega-3 – as on the label'),
   ];
 
-  // R70: saved views of the open tasks with a tag: [key, name, tag].
+  // R71: saved views of the open tasks with a tag: [key, name, tag].
   const VIEWS = [['shopping', msg('Shopping'), 'shopping'], ['work', msg('Work'), 'work'], ['house', msg('House'), 'house'], ['health', msg('Health'), 'health']];
 
   // [project, key, title, { tags, inMonths: rough month from this one, calendarMonth: the next such month (1–12), items: subtasks }].
@@ -99,8 +99,8 @@
     ['to-learn', 'interior-design', msg('Interior design'), { tags: ['art'] }], ['to-learn', 'house-building', msg('How a house is built'), { tags: ['art'] }],
     ['to-learn', 'instrument', msg('A musical instrument'), { tags: ['art', 'hobby'] }], ['to-learn', 'cooking', msg('Cooking'), { tags: ['health'] }],
     ['to-learn', 'training-plan', msg('Training plan'), { tags: ['health'], calendarMonth: 1 }], ['to-learn', 'meal-plan', msg('Meal plan'), { tags: ['health'], calendarMonth: 1 }],
-    // R68: the 81 dreams the user kept from the proposed 89, in its order: travel, Serbia and the Balkans, the motorcycle,
-    // adrenaline, nature, health, learning, food, life. The R66 dreams keep their keys.
+    // R69: the 81 dreams the user kept from the proposed 89, in its order: travel, Serbia and the Balkans, the motorcycle,
+    // adrenaline, nature, health, learning, food, life. The R67 dreams keep their keys.
     ['bucket-list', 'northern-lights', msg('See the northern lights'), {}], ['bucket-list', 'japan', msg('Japan in cherry blossom season'), {}],
     ['bucket-list', 'safari', msg('A safari in Tanzania or Kenya'), {}], ['bucket-list', 'great-wall', msg('The Great Wall of China'), {}],
     ['bucket-list', 'petra', msg('Petra in Jordan'), {}], ['bucket-list', 'desert', msg('See a desert'), {}],
@@ -143,7 +143,7 @@
     ['bucket-list', 'festival', msg('A big music festival'), {}], ['bucket-list', 'savings', msg('Savings for a year of living'), {}],
     ['bucket-list', 'own-business', msg('Start your own business or project'), {}],
     ['movies', 'who-is-singing', msg("Who's Singin' Over There?"), {}], ['movies', 'marathon-family', msg('The Marathon Family'), {}], ['movies', 'planet-earth', msg('Planet Earth II'), {}],
-    // R69: the things to own the user kept, one task per group with the things as subtasks.
+    // R70: the things to own the user kept, one task per group with the things as subtasks.
     ['things-to-own', 'own-clothes', msg('Clothes and shoes'), { items: [msg('A dark suit'), msg('A light blue shirt'), msg('A dark plain tie'), msg('Leather belts, black and brown'),
       msg('Black leather shoes'), msg('Brown shoes or boots'), msg('White sneakers'), msg('Dark jeans'), msg('Chinos'), msg('A polo shirt'), msg('A merino wool sweater'),
       msg('A winter coat'), msg('Rain jacket'), msg('A leather jacket'), msg('A good watch')] }],

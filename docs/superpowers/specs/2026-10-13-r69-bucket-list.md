@@ -1,6 +1,6 @@
-# R68 — the user's Bucket list in the examples
+# R69 — the user's Bucket list in the examples
 
-**Date:** 2026-10-13 · **Status:** the user asked for "listu za bucket list od 50 do 100 stavki, pa cu ja da izbacim sta ne treba". From the proposed 89 they removed items 3, 4, 6, 11, 35, 47, 52 and 82 and reworded two: "9 neka bude samo da vidim pustinju, 51 bez ovog 'u divljini'". · **Release:** `2.0.0-alpha.95`.
+**Date:** 2026-10-13 · **Status:** the user asked for "listu za bucket list od 50 do 100 stavki, pa cu ja da izbacim sta ne treba". From the proposed 89 they removed items 3, 4, 6, 11, 35, 47, 52 and 82 and reworded two: "9 neka bude samo da vidim pustinju, 51 bez ovog 'u divljini'". · **Release:** `2.0.0-alpha.96`.
 
 ## The change
 
@@ -9,19 +9,19 @@
 - **Reworded:** "Vidi pustinju" (was a night in the desert) and "Nekoliko dana kampovanja sam" (without "u divljini").
 - **Plain items:** the dreams have no dates, months or tags.
 - **Earlier dreams:**
-  - The nine dreams from R66 keep their sample keys, so a workspace that already has them gets only the new ones.
+  - The nine dreams from R67 keep their sample keys, so a workspace that already has them gets only the new ones.
   - Two of them read as in the proposed list: "Obiđi svih pet nacionalnih parkova Srbije" and "Nauči da roniš (sa sertifikatom)". Their old catalog entries left.
 - **Unchanged:** "Muzički instrument" stays in Za učenje, and "Nauči da sviraš instrument" is a dream. The user kept both.
 
 ## Checks
 
-- **Node:** `tests/bucket-list-r68.test.js` was written first; 4 of its 5 tests failed. It covers:
+- **Node:** `tests/bucket-list-r69.test.js` was written first; 4 of its 5 tests failed. It covers:
   - the 81 titles in order;
   - the removed and reworded items;
   - an earlier copy counted by its key;
   - the Serbian names;
   - the version.
-- **R66:** `tests/own-examples-r66.test.js` now expects 81 dreams and 108 tasks in the toast, with an R68 comment.
+- **R67:** `tests/own-examples-r67.test.js` now expects 81 dreams and 108 tasks in the toast, with an R69 comment.
 - **Suites:**
   - `npm run verify`: 1234/1234.
   - `npm run smoke`: OK.

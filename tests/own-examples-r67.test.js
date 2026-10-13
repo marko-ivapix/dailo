@@ -1,5 +1,5 @@
-// R66: the user's own starter examples for "Popuni primerima" and the rough month of a task (task.plannedMonth).
-// Spec: docs/superpowers/specs/2026-10-13-r66-own-examples.md · data model: docs/superpowers/specs/2026-10-13-r66-rough-month-data.md
+// R67: the user's own starter examples for "Popuni primerima" and the rough month of a task (task.plannedMonth).
+// Spec: docs/superpowers/specs/2026-10-13-r67-own-examples.md · data model: docs/superpowers/specs/2026-10-13-r67-rough-month-data.md
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -22,7 +22,7 @@ const emptyState = () => ({ version: 3, tasks: [], projects: [], tags: [], areas
 
 // --- The rough month (data model) --------------------------------------------------------------------
 
-test('R66: a rough month is "YYYY-MM"; anything else reads as no month', () => {
+test('R67: a rough month is "YYYY-MM"; anything else reads as no month', () => {
   assert.equal(Core.normalizePlannedMonth('2026-12'), '2026-12');
   for (const value of ['2026-13', '2026-00', '2026-1', '26-01', '2026-12-01', '', 5, null, undefined, {}]) assert.equal(Core.normalizePlannedMonth(value), null, String(value));
   assert.equal(Core.monthKey('2026-10-13'), '2026-10');
@@ -34,7 +34,7 @@ test('R66: a rough month is "YYYY-MM"; anything else reads as no month', () => {
   assert.equal(Core.upcomingMonth(12, '2026-10-13'), '2026-12');
 });
 
-test('R66: normalizing keeps a valid month, clears an invalid one and leaves older tasks without the field', () => {
+test('R67: normalizing keeps a valid month, clears an invalid one and leaves older tasks without the field', () => {
   const state = { ...emptyState(), tasks: [task({ id: 'a', plannedMonth: '2026-12' }), task({ id: 'b', plannedMonth: '2026-13' }), task({ id: 'c' })] };
   const tasks = Core.normalizeState(state).tasks;
   assert.equal(tasks[0].plannedMonth, '2026-12');
@@ -42,21 +42,21 @@ test('R66: normalizing keeps a valid month, clears an invalid one and leaves old
   assert.equal(Object.hasOwn(tasks[2], 'plannedMonth'), false, 'an older task is not rewritten, so sync sends nothing new');
 });
 
-test('R66: backups accept a valid month and refuse a bad one', () => {
+test('R67: backups accept a valid month and refuse a bad one', () => {
   const ok = { ...emptyState(), tasks: [task({ plannedMonth: '2027-01' })] };
   assert.doesNotThrow(() => Backup.validateDomain(ok, [], []));
   const bad = { ...emptyState(), tasks: [task({ plannedMonth: 'January' })] };
   assert.throws(() => Backup.validateDomain(bad, [], []), /plannedMonth/);
 });
 
-test('R66: sync carries the month with the task record; no migration is needed', () => {
+test('R67: sync carries the month with the task record; no migration is needed', () => {
   const Sync = require('../js/sync.js');
   const records = Sync.collectRecords({ ...emptyState(), tasks: [task({ plannedMonth: '2026-12' })] });
   assert.equal(records.get('tasks/t1').data.plannedMonth, '2026-12');
   assert.deepEqual(fs.readdirSync(path.join(__dirname, '..', 'supabase', 'migrations')).filter(name => /^0007/.test(name)), []);
 });
 
-test('R66: Upcoming groups open tasks by rough month; a past month waits in the current one', () => {
+test('R67: Upcoming groups open tasks by rough month; a past month waits in the current one', () => {
   const tasks = [
     task({ id: 'dec', title: 'Hoodie', plannedMonth: '2026-12' }),
     task({ id: 'nov', title: 'Iron', plannedMonth: '2026-11' }),
@@ -76,7 +76,7 @@ test('R66: Upcoming groups open tasks by rough month; a past month waits in the 
   assert.equal([...today.today, ...today.overdue, ...today.suggestions].some(entry => (entry.task || entry).plannedMonth), false);
 });
 
-test('R66: a repeat does not pass the month on, and templates do not keep it', () => {
+test('R67: a repeat does not pass the month on, and templates do not keep it', () => {
   const rule = Core.normalizeRecurrenceV3({ frequency: 'weekly', interval: 1, endType: 'never', seriesId: 't1' });
   const next = Core.buildNextRecurringTask(task({ plannedDate: '2026-10-13', plannedMonth: '2026-10', recurrence: rule }), stamp, 't2');
   assert.equal(next.plannedMonth, null);
@@ -102,7 +102,7 @@ function taskCtx(item, extra = {}) {
   return { ctx, edits, popovers };
 }
 
-test('R66: the task window has a Rough month row whose sheet sets and removes the month', () => {
+test('R67: the task window has a Rough month row whose sheet sets and removes the month', () => {
   assert.match(functionSource('renderTaskModal').source, /row\('task-month-picker', 'ph-calendar-dots', tr\('Rough month'\), task\.plannedMonth \? esc\(capital\(plannedMonthLabel\(task\.plannedMonth\)\)\) : ''\)/);
   const module = tasksModule();
   const item = task({ isInbox: true, plannedMonth: '2026-11' });
@@ -122,7 +122,7 @@ test('R66: the task window has a Rough month row whose sheet sets and removes th
   assert.deepEqual(plain(edits), [['t1', { plannedMonth: '2027-01', isInbox: false }], ['t1', { plannedMonth: null }]]);
 });
 
-test('R66: an open task without a planned day shows its rough month in the row', () => {
+test('R67: an open task without a planned day shows its rough month in the row', () => {
   const module = tasksModule();
   const row = item => module.renderTaskRow(item, 'project:p1', {}, taskCtx(item).ctx);
   assert.match(row(task({ plannedMonth: '2026-11' })), /<div class="task-meta">Around November<\/div>/);
@@ -130,7 +130,7 @@ test('R66: an open task without a planned day shows its rough month in the row',
   assert.doesNotMatch(row(task({ plannedMonth: '2026-11', isCompleted: true, completedAt: stamp })), /Around/);
 });
 
-test('R66: Upcoming lists the rough months after the days, and the app names the month', () => {
+test('R67: Upcoming lists the rough months after the days, and the app names the month', () => {
   const upcoming = functionSource('renderUpcomingDays').source;
   assert.match(upcoming, /Core\.deriveRoughMonths\(source\.tasks, today, /); // the review fix passes the 21-day window
   assert.match(upcoming, /data-upcoming-month="\$\{group\.month\}"/);
@@ -165,7 +165,7 @@ const named = (items, name, field = 'name') => { const found = items.find(item =
 const counts = state => Object.fromEntries(['areas', 'tags', 'habits', 'projects', 'tasks', 'goals', 'notes', 'resources', 'templates'].map(key => [key, state[key].length]));
 const inProject = (state, name) => state.tasks.filter(item => item.projectId === named(state.projects, name).id);
 
-test('R66: five Areas and the user\'s tags', async () => {
+test('R67: five Areas and the user\'s tags', async () => {
   const { state, run } = harness();
   await run();
   assert.deepEqual(state.areas.map(area => [area.name, area.icon]), [['Personal', 'ph-graduation-cap'], ['Work', 'ph-briefcase'], ['Home', 'ph-house'], ['Health', 'ph-heart'], ['Hobbies and nature', 'ph-plant']]);
@@ -173,16 +173,16 @@ test('R66: five Areas and the user\'s tags', async () => {
   assert.ok(state.tags.every(tag => /^#[0-9A-Fa-f]{6}$/.test(tag.color)));
 });
 
-test('R66: the projects are the user\'s lists, each with its Area and items', async () => {
+test('R67: the projects are the user\'s lists, each with its Area and items', async () => {
   const { state, run } = harness();
   await run();
   const area = name => named(state.areas, name).id;
-  // R70: "Popuni primerima" also adds two Redovne obaveze groups (tests/more-examples-r70.test.js); the lists are the rest.
+  // R71: "Popuni primerima" also adds two Redovne obaveze groups (tests/more-examples-r71.test.js); the lists are the rest.
   const lists = state.projects.filter(project => !project.isCleaningRoom);
   assert.deepEqual(lists.map(project => [project.name, project.areaId]), [
     ['Groceries', area('Home')], ['To buy', area('Home')], ['Clothes', area('Personal')], ['Motorcycle', area('Hobbies and nature')],
     ['To learn', area('Personal')], ['Bucket list', area('Personal')], ['Movies and series', area('Personal')],
-    ['Things to own', area('Personal')], // R69: the user's list of things to own (tests/things-to-own-r69.test.js)
+    ['Things to own', area('Personal')], // R70: the user's list of things to own (tests/things-to-own-r70.test.js)
   ]);
   assert.ok(state.projects.every(project => !project.isArchived));
   assert.deepEqual(state.projects.filter(project => project.isCleaningRoom).map(project => project.name), ['Car and motorcycle', 'Health and bills']);
@@ -192,7 +192,7 @@ test('R66: the projects are the user\'s lists, each with its Area and items', as
   assert.deepEqual(titles('Clothes'), ['T-shirt', 'Hoodie', 'Socks']);
   assert.deepEqual(titles('Motorcycle'), ['Summer jacket', 'Chain and sprockets', 'Battery']);
   assert.deepEqual(titles('To learn'), ['JavaScript', 'Canva', 'Photoshop', 'Figma (Marko Pešić course)', 'Interior design', 'How a house is built', 'A musical instrument', 'Cooking', 'Training plan', 'Meal plan']);
-  // R68: the bucket list became the user's own 81 items (tests/bucket-list-r68.test.js), which include an instrument.
+  // R69: the bucket list became the user's own 81 items (tests/bucket-list-r69.test.js), which include an instrument.
   assert.ok(titles('Bucket list').includes('Raft the Tara river') && titles('Bucket list').length === 81);
   assert.deepEqual(titles('Movies and series'), ["Who's Singin' Over There?", 'The Marathon Family', 'Planet Earth II']);
   for (const name of lists.map(project => project.name)) assert.deepEqual(inProject(state, name).map(item => item.projectOrder), inProject(state, name).map((_, index) => index), name);
@@ -200,7 +200,7 @@ test('R66: the projects are the user\'s lists, each with its Area and items', as
   assert.ok(listTasks.every(item => !item.isInbox && !item.isCompleted && !item.recurrence && !item.plannedDate && !item.dueDate));
 });
 
-test('R66: the lists use the tags and rough months, the way the user kept them', async () => {
+test('R67: the lists use the tags and rough months, the way the user kept them', async () => {
   const { state, run } = harness();
   await run();
   const today = Core.dateOnly();
@@ -221,7 +221,7 @@ test('R66: the lists use the tags and rough months, the way the user kept them',
   assert.ok(state.tasks.every(entry => entry.plannedMonth == null || Core.normalizePlannedMonth(entry.plannedMonth) === entry.plannedMonth));
 });
 
-test('R66: the user\'s habits keep their keys and get Areas', async () => {
+test('R67: the user\'s habits keep their keys and get Areas', async () => {
   const { state, run } = harness();
   await run();
   assert.equal(state.habits.length, 10);
@@ -235,10 +235,10 @@ test('R66: the user\'s habits keep their keys and get Areas', async () => {
   assert.ok(state.habits.every(item => item.areaId && item.status === 'active' && item.startDate === Core.dateOnly()));
 });
 
-test('R66: Camping and Hiking are project templates with the user\'s packing lists', async () => {
+test('R67: Camping and Hiking are project templates with the user\'s packing lists', async () => {
   const { state, run } = harness();
   await run();
-  // R70: the meal-plan shopping list joins them as a task template.
+  // R71: the meal-plan shopping list joins them as a task template.
   assert.deepEqual(state.templates.map(item => [item.name, item.type]), [['Camping', 'project'], ['Hiking', 'project'], ['Shopping for the meal plan (4 days)', 'task']]);
   const camping = named(state.templates, 'Camping');
   assert.equal(camping.data.areaId, named(state.areas, 'Hobbies and nature').id);
@@ -257,7 +257,7 @@ test('R66: Camping and Hiking are project templates with the user\'s packing lis
   assert.equal(state.projects.some(project => ['Camping', 'Hiking'].includes(project.name)), false, 'a template, not a project');
 });
 
-test('R66: books and the Figma course are resources; goals and notes follow the lists', async () => {
+test('R67: books and the Figma course are resources; goals and notes follow the lists', async () => {
   const { state, run } = harness();
   await run();
   const figma = named(state.resources, 'Figma course', 'title');
@@ -274,10 +274,10 @@ test('R66: books and the Figma course are resources; goals and notes follow the 
   const training = named(state.habits, 'Training four times per week');
   assert.deepEqual(plain(shape.habitLinks), [{ habitId: training.id, metric: 'totalCheckins', target: 48 }]);
   assert.ok(training.goalIds.includes(shape.id));
-  assert.deepEqual(state.notes.map(note => note.title), ['Clothing sizes', 'Emergency numbers', 'Gift ideas']); // R70: gift ideas
+  assert.deepEqual(state.notes.map(note => note.title), ['Clothing sizes', 'Emergency numbers', 'Gift ideas']); // R71: gift ideas
 });
 
-test('R66: the old example set is gone', async () => {
+test('R67: the old example set is gone', async () => {
   const { state, run } = harness();
   await run();
   for (const name of ['Plan your week', 'Camping at Tara', 'Moving to a new apartment', 'Living Room']) assert.equal(state.projects.some(project => project.name === name), false, name);
@@ -287,7 +287,7 @@ test('R66: the old example set is gone', async () => {
   assert.doesNotMatch(read('js/starter-examples.js'), /realLifeExamples|Camping at Tara/);
 });
 
-test('R66: the whole set passes state and backup validation', async () => {
+test('R67: the whole set passes state and backup validation', async () => {
   const { state, run } = harness();
   await run();
   const normalized = Core.normalizeState(plain(state));
@@ -297,7 +297,7 @@ test('R66: the whole set passes state and backup validation', async () => {
   assert.doesNotThrow(() => Backup.validateDomain(plain(state), [], []));
 });
 
-test('R66: a second run adds nothing, a deleted example comes back alone, own items with the same name are reused', async () => {
+test('R67: a second run adds nothing, a deleted example comes back alone, own items with the same name are reused', async () => {
   const first = harness();
   await first.run();
   const before = counts(first.state);
@@ -317,11 +317,11 @@ test('R66: a second run adds nothing, a deleted example comes back alone, own it
   assert.equal(named(second.state.projects, 'Groceries').areaId, 'area_mine');
 });
 
-test('R66: the toast counts what was added; a failed save removes every new example', async () => {
+test('R67: the toast counts what was added; a failed save removes every new example', async () => {
   const { toasts, run } = harness();
   await run();
-  // R68: 108 tasks — the bucket list grew from 9 to 81. R69: plus the "Things to own" project and its 8 group tasks.
-  // R70: two groups with 17 chores, a third template, a third note and four saved views, which the toast now counts.
+  // R69: 108 tasks — the bucket list grew from 9 to 81. R70: plus the "Things to own" project and its 8 group tasks.
+  // R71: two groups with 17 chores, a third template, a third note and four saved views, which the toast now counts.
   assert.equal(toasts.at(-1), 'Added 5 Areas, 10 Projects, 133 Tasks, 3 Goals, 10 Habits, 7 Tags, 3 Notes, 5 Resources, 3 Templates and 4 Saved views. All examples are editable.');
   const failing = harness(emptyState(), { saveOk: false });
   await failing.run();
@@ -329,19 +329,19 @@ test('R66: the toast counts what was added; a failed save removes every new exam
   assert.equal(failing.toasts.at(-1), 'Could not save starter examples locally. Free up browser storage and try again.');
 });
 
-test('R66: the examples are Serbian in the app, and Settings describes them', () => {
+test('R67: the examples are Serbian in the app, and Settings describes them', () => {
   require('../js/i18n-sr.js');
   I18n.setLanguage('sr');
   try {
     let counter = 0;
     const out = Starter.workspaceExamples(emptyState(), { Core, uid: prefix => `${prefix}_${++counter}`, today: '2026-10-13', timestamp: stamp, habitDraft: () => ({}), PROJECT_COLORS });
     assert.deepEqual(out.areas.map(area => area.name), ['Lično', 'Posao', 'Dom', 'Zdravlje', 'Hobi i priroda']);
-    // R69: "Treba da imam" joins the lists.
-    // R70: then the two Redovne obaveze groups.
+    // R70: "Treba da imam" joins the lists.
+    // R71: then the two Redovne obaveze groups.
     assert.deepEqual(out.projects.map(project => project.name), ['Namirnice', 'Za kupovinu', 'Odeća', 'Motor', 'Za učenje', 'Bucket lista', 'Filmovi i serije', 'Treba da imam', 'Auto i motor', 'Zdravlje i računi']);
     assert.deepEqual(out.tags.map(tag => tag.name), ['Kuća', 'Privatno', 'Posao', 'Umetnost', 'Hobi', 'Zdravlje', 'Kupovina']);
     for (const title of ['Omekšivač', 'Pegla', 'Patosnice', 'Ratkapne', 'Alat', 'Lanac i lančanici', 'Akumulator', 'Letnja jakna', 'Dukserica', 'Čarape', 'Plan ishrane']) assert.ok(out.tasks.some(item => item.title === title), title);
-    assert.deepEqual(out.templates.map(item => item.name), ['Kampovanje', 'Planinarenje', 'Nabavka za plan ishrane (4 dana)']); // R70
+    assert.deepEqual(out.templates.map(item => item.name), ['Kampovanje', 'Planinarenje', 'Nabavka za plan ishrane (4 dana)']); // R71
     assert.ok(out.templates[0].data.tasks.some(item => item.subtasks.some(sub => sub.title === 'Suvo pranje ruku')));
     assert.equal(I18n.tr('Around {month}', { month: 'novembar' }), 'Okvirno novembar');
   } finally { I18n.setLanguage('en'); }
@@ -350,7 +350,7 @@ test('R66: the examples are Serbian in the app, and Settings describes them', ()
 
 // --- Fixes after the code review ------------------------------------------------------------------------
 
-test('R66 review: a goal whose project or habit already existed is manual, not stuck at 0%', async () => {
+test('R67 review: a goal whose project or habit already existed is manual, not stuck at 0%', async () => {
   const own = emptyState();
   own.habits.push({ id: 'habit_old', sampleKey: 'area-routines-v1:habit:daily:training', name: 'Training four times per week', routine: 'daily', status: 'active', goalIds: [], createdAt: stamp, updatedAt: stamp });
   own.projects.push({ id: 'project_old', name: 'Motorcycle', color: '#5362FF', areaId: null, goalIds: [], order: 0, isArchived: false, archivedAt: null, createdAt: stamp, updatedAt: stamp });
@@ -363,7 +363,7 @@ test('R66 review: a goal whose project or habit already existed is manual, not s
   assert.deepEqual(plain(state.habits[0].goalIds), [], 'existing items are never changed');
 });
 
-test('R66 review: the motorcycle goal falls on the first April 1st at least a month away', () => {
+test('R67 review: the motorcycle goal falls on the first April 1st at least a month away', () => {
   const target = today => {
     let counter = 0;
     const out = Starter.workspaceExamples(emptyState(), { Core, uid: prefix => `${prefix}_${++counter}`, today, timestamp: stamp, habitDraft: () => ({}), PROJECT_COLORS });
@@ -375,14 +375,14 @@ test('R66 review: the motorcycle goal falls on the first April 1st at least a mo
   assert.equal(target('2027-04-15'), '2028-04-01');
 });
 
-test('R66 review: Upcoming does not list a task twice when its due day is already shown', () => {
+test('R67 review: Upcoming does not list a task twice when its due day is already shown', () => {
   const tasks = [task({ id: 'x', plannedMonth: '2026-11', dueDate: '2026-10-20' }), task({ id: 'y', plannedMonth: '2026-11', dueDate: '2026-12-20' })];
   assert.deepEqual(Core.deriveRoughMonths(tasks, '2026-10-13', '2026-11-03').map(group => [group.month, group.items.map(item => item.id)]), [['2026-11', ['y']]]);
   assert.deepEqual(Core.deriveRoughMonths(tasks, '2026-10-13').map(group => group.items.length), [2], 'without a window every month task is listed');
   assert.match(functionSource('renderUpcomingDays').source, /Core\.deriveRoughMonths\(source\.tasks, today, Core\.addDays\(today, UPCOMING_DAYS\)\)/);
 });
 
-test('R66 shipped as 2.0.0-alpha.93 or later (the newest release test pins the exact version)', () => {
+test('R67 shipped as 2.0.0-alpha.94 or later (the newest release test pins the exact version)', () => {
   assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
-  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 99) >= 93);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 99) >= 94);
 });

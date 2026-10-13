@@ -1,6 +1,6 @@
-// R70: more examples the user picked — car and motorcycle chores, health and tax dates, the meal-plan shopping
+// R71: more examples the user picked — car and motorcycle chores, health and tax dates, the meal-plan shopping
 // template from the user's list, saved views by tag and a gift-ideas note.
-// Spec: docs/superpowers/specs/2026-10-13-r70-more-examples.md
+// Spec: docs/superpowers/specs/2026-10-13-r71-more-examples.md
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -28,7 +28,7 @@ const group = (out, key) => {
 };
 const rule = task => [task.recurrence.frequency, task.recurrence.interval];
 
-test('R70: "Auto i motor" is a Redovne obaveze group with the thirteen chores at their rhythm', () => {
+test('R71: "Auto i motor" is a Redovne obaveze group with the thirteen chores at their rhythm', () => {
   const { project, tasks } = group(examples(), 'car-and-motorcycle');
   assert.deepEqual([project.name, project.isCleaningRoom, project.isArchived], ['Car and motorcycle', true, false]);
   assert.deepEqual(tasks.map(task => [task.title, ...rule(task)]), [
@@ -44,7 +44,7 @@ test('R70: "Auto i motor" is a Redovne obaveze group with the thirteen chores at
   assert.ok(tasks.every(task => task.plannedDate === task.dueDate && task.plannedDate > '2026-10-13' && task.recurrence.seriesId === task.id && task.notes === ''));
 });
 
-test('R70: "Zdravlje i računi" keeps the dentist, the check-up, the eyes and the property tax', () => {
+test('R71: "Zdravlje i računi" keeps the dentist, the check-up, the eyes and the property tax', () => {
   const out = examples();
   const { project, tasks } = group(out, 'health-and-bills');
   assert.equal(project.areaId, out.areas.find(area => area.name === 'Health').id);
@@ -57,7 +57,7 @@ test('R70: "Zdravlje i računi" keeps the dentist, the check-up, the eyes and th
   assert.doesNotMatch(tasks.map(task => task.title).join(' '), /bills|mole|flu|ID card|licence/i);
 });
 
-test('R70: the shopping template follows the user\'s meal-plan list, group by group, into Groceries', () => {
+test('R71: the shopping template follows the user\'s meal-plan list, group by group, into Groceries', () => {
   const out = examples();
   const template = out.templates.find(item => item.sampleKey === `${Starter.PREFIX}:template:meal-plan-shopping`);
   assert.ok(template);
@@ -75,7 +75,7 @@ test('R70: the shopping template follows the user\'s meal-plan list, group by gr
   assert.equal(made.projectId, group(out, 'groceries').project.id);
 });
 
-test('R70: four saved views gather the open tasks of a tag', () => {
+test('R71: four saved views gather the open tasks of a tag', () => {
   const out = examples();
   const tag = name => out.tags.find(item => item.name === name).id;
   assert.deepEqual(plain(out.savedViews.map(view => [view.name, view.type, view.filters, view.isPinned])), [
@@ -87,7 +87,7 @@ test('R70: four saved views gather the open tasks of a tag', () => {
   assert.ok(Core.applySavedView(out.savedViews[1], state).some(task => task.title === 'JavaScript'));
 });
 
-test('R70: the gift-ideas note joins the notes; the whole set validates and a second run adds nothing', () => {
+test('R71: the gift-ideas note joins the notes; the whole set validates and a second run adds nothing', () => {
   const out = examples();
   assert.deepEqual(out.notes.map(note => note.title), ['Clothing sizes', 'Emergency numbers', 'Gift ideas']);
   assert.equal(out.notes[2].body, 'Mom —\nDad —\nFriends —\nColleagues —');
@@ -98,14 +98,14 @@ test('R70: the gift-ideas note joins the notes; the whole set validates and a se
   assert.deepEqual(Object.values(again).map(list => list.length).reduce((a, b) => a + b, 0), 0);
 });
 
-test('R70: the toast counts the saved views; Redovne obaveze keeps offering its cleaning examples until they are added', () => {
+test('R71: the toast counts the saved views; Redovne obaveze keeps offering its cleaning examples until they are added', () => {
   assert.match(read('js/habits-ui.js'), /tr\('Added \{areas\} Areas, \{projects\} Projects, \{tasks\} Tasks, \{goals\} Goals, \{habits\} Habits, \{tags\} Tags, \{notes\} Notes, \{resources\} Resources, \{templates\} Templates and \{savedViews\} Saved views\. All examples are editable\.'/);
   const list = functionSource('renderList', ['js/cleaning-ui.js']).source;
   assert.match(list, /const cleaningExamplesAdded = groupsOf\(ctx\)\.some\(group => String\(group\.cleaningSampleKey \|\| ''\)\.startsWith\('cleaning:'\)\);/);
   assert.match(list, /if \(!cleaningExamplesAdded\) html \+= `<div class="sheet-chips cleaning-chips">\$\{example\('apartment', msg\('Example: apartment'\)\)\}\$\{example\('house', msg\('Example: house'\)\)\}<\/div>`;/);
 });
 
-test('R70: the new examples are Serbian in the app', () => {
+test('R71: the new examples are Serbian in the app', () => {
   require('../js/i18n-sr.js');
   I18n.setLanguage('sr');
   try {
@@ -123,8 +123,8 @@ test('R70: the new examples are Serbian in the app', () => {
   } finally { I18n.setLanguage('en'); }
 });
 
-test('R70 is released as 2.0.0-alpha.97', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.97');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.97';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.97');
+test('R71 is released as 2.0.0-alpha.98', () => {
+  assert.equal(Release.APP_VERSION, '2.0.0-alpha.98');
+  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.98';/);
+  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.98');
 });

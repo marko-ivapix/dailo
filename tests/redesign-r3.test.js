@@ -43,7 +43,7 @@ test('D1–D4, E1: the task window has the title, the project link, Planiranje a
   assert.match(html, /<textarea id="detail-title" class="modal-task-title task-window-title" rows="1" maxlength="500" data-autogrow aria-label="Task title">Report<\/textarea>/, 'R33: the title wraps');
   assert.match(html, /<button class="task-window-project" type="button" data-action="task-project-picker" data-task-id="t1"><i class="ph ph-folder-simple" aria-hidden="true"><\/i>Posao<\/button>/);
   const rows = [...html.matchAll(/<button class="task-window-row" type="button" data-action="([a-z-]+)" data-task-id="t1"><i class="ph (ph-[a-z-]+)" aria-hidden="true"><\/i><span class="task-window-row-label">([^<]+)<\/span><span class="task-window-row-value([^"]*)">(.*?)<\/span><i class="ph ph-caret-right task-window-row-caret" aria-hidden="true"><\/i><\/button>/g)];
-  // R66: the Okvirno (rough month) row follows Planirano, so the later rows moved down by one.
+  // R67: the Okvirno (rough month) row follows Planirano, so the later rows moved down by one.
   assert.deepEqual(rows.map(row => row[1]), ['task-plan-picker', 'task-month-picker', 'task-due-picker', 'task-reminder-picker', 'task-repeat-picker', 'task-duration-picker', 'task-tags-picker', 'task-priority-picker', 'task-goals-picker'], 'R22b: the project is the link under the title only; R33: goals as a row');
   assert.deepEqual(rows.map(row => row[3]), ['Planned', 'Rough month', 'Due date', 'Reminder', 'Repeat', 'Duration', 'Tags', 'Priority', 'Goals']);
   assert.notEqual(rows[0][2], rows[2][2], 'D3: Rok has its own icon');
@@ -73,7 +73,7 @@ test('the window shows "Nije podešeno", the Inbox label, the area for a task wi
   const html = windowHtml({ id: 't2', title: 'Idea', isInbox: true, isCompleted: true, priority: 'none', tagIds: [], subtasks: [], goalIds: [], areaId: 'a' });
   assert.match(html, /<span id="task-modal-title" class="task-window-kind">Task in Inbox<\/span>/);
   assert.match(html, /data-action="task-project-picker" data-task-id="t2"><i class="ph ph-folder-simple" aria-hidden="true"><\/i>No project<\/button>/);
-  assert.equal((html.match(/<span class="task-window-row-value">Not set<\/span>/g) || []).length, 9, 'R22b: no project row; R33: the goals row; R66: the Okvirno row');
+  assert.equal((html.match(/<span class="task-window-row-value">Not set<\/span>/g) || []).length, 9, 'R22b: no project row; R33: the goals row; R67: the Okvirno row');
   assert.match(html, /data-action="task-area-picker" data-task-id="t2"><i class="ph ph-squares-four" aria-hidden="true"><\/i><span class="task-window-row-label">Area<\/span><span class="task-window-row-value is-set">Kuća<\/span>/);
   assert.match(html, /<button class="btn btn-secondary task-complete-button" type="button" data-action="toggle-complete" data-task-id="t2">Reopen task<\/button>/);
   for (const [key, value] of [['Reopen task', 'Vrati kao otvoren'], ['Task in Inbox', 'Zadatak · u Inbox-u'], ['More options', 'Više opcija'], ['Area, goals', 'Oblast, ciljevi']]) assert.match(sr, new RegExp(`"${key}": "${value}"`), key);

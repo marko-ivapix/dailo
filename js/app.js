@@ -200,7 +200,7 @@
     return (otherYear ? SHORT_DATE_YEAR_FMT : SHORT_DATE_FMT).format(date);
   }
 
-  // R66: a rough month ("YYYY-MM") by name; another year says which, like formatDate.
+  // R67: a rough month ("YYYY-MM") by name; another year says which, like formatDate.
   function plannedMonthLabel(month) {
     const date = Core.normalizePlannedMonth(month) ? parseLocalDate(`${month}-01`) : null;
     if (!date) return '';

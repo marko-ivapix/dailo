@@ -174,14 +174,14 @@ sheet.querySelector(`.quick-chip[data-date="${tomorrow}"]`).dispatchEvent(new wi
 window.document.querySelector('.popover [data-pop-action="date-sheet-apply"]').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
 await new Promise(resolve => setTimeout(resolve, 50));
 if (window.TodoApp.state.tasks.find(task => task.id === created.id)?.plannedDate !== tomorrow || window.document.querySelector('.popover')) fail('the date sheet did not plan the task for tomorrow');
-// R66: the Okvirno row opens the month sheet and a chip sets the rough month at once.
+// R67: the Okvirno row opens the month sheet and a chip sets the rough month at once.
 const nextMonth = window.TodoCore.addMonths(window.TodoCore.monthKey(window.TodoCore.dateOnly()), 1);
 window.document.querySelector('#modal-root .task-window-row[data-action="task-month-picker"]')?.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
 window.document.querySelector(`.popover [data-pop-action="set-task-month"][data-month="${nextMonth}"]`)?.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
 await new Promise(resolve => setTimeout(resolve, 50));
 if (window.TodoApp.state.tasks.find(task => task.id === created.id)?.plannedMonth !== nextMonth || window.document.querySelector('.popover')) fail('the Okvirno sheet did not set the rough month');
 window.TodoApp.handleBackButton();
-// R66: Predstojeće lists an example with only a rough month under that month, after the days.
+// R67: Predstojeće lists an example with only a rough month under that month, after the days.
 window.location.hash = '#upcoming';
 await new Promise(resolve => setTimeout(resolve, 50));
 const monthSection = window.document.querySelector(`#main [data-upcoming-month="${nextMonth}"]`);

@@ -1,5 +1,5 @@
-// R68: the example Bucket list holds the 81 items the user kept from the proposed list of 89.
-// Spec: docs/superpowers/specs/2026-10-13-r68-bucket-list.md
+// R69: the example Bucket list holds the 81 items the user kept from the proposed list of 89.
+// Spec: docs/superpowers/specs/2026-10-13-r69-bucket-list.md
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -49,7 +49,7 @@ const KEPT = [
   'Volunteer', 'Write a letter to yourself in 10 years', 'Make a family tree', 'A big music festival', 'Savings for a year of living', 'Start your own business or project',
 ];
 
-test('R68: the Bucket list holds the 81 kept items, in the order of the list', () => {
+test('R69: the Bucket list holds the 81 kept items, in the order of the list', () => {
   assert.equal(KEPT.length, 81);
   const items = bucket(examples());
   assert.deepEqual(items.map(task => task.title), KEPT);
@@ -57,22 +57,22 @@ test('R68: the Bucket list holds the 81 kept items, in the order of the list', (
   assert.ok(items.every(task => !task.plannedDate && !task.dueDate && !task.plannedMonth && !task.tagIds.length && !task.isInbox));
 });
 
-test('R68: the eight removed items are gone and the two reworded ones read as asked', () => {
+test('R69: the eight removed items are gone and the two reworded ones read as asked', () => {
   const titles = bucket(examples()).map(task => task.title).join(' | ');
   for (const gone of [/Iceland/, /fjords/, /Machu Picchu/, /New Zealand/, /Nordkapp/, /Kilimanjaro/, /under the stars/, /with your parents/]) assert.doesNotMatch(titles, gone);
   assert.doesNotMatch(titles, /wilderness|Wadi Rum|Sahara/);
 });
 
-test('R68: an item that was already added keeps its place in the workspace and is not added twice', () => {
+test('R69: an item that was already added keeps its place in the workspace and is not added twice', () => {
   const first = examples();
   const view = { ...emptyState(), projects: first.projects, tasks: bucket(first).filter(task => ['Skydive', 'Learn to scuba dive (with a certificate)'].includes(task.title)) };
-  // The R66 titles of two dreams changed; their sample keys did not, so an older copy still counts.
+  // The R67 titles of two dreams changed; their sample keys did not, so an older copy still counts.
   view.tasks = view.tasks.map(task => (task.title.startsWith('Learn to scuba dive') ? { ...task, title: 'Learn to scuba dive' } : task));
   const again = examples(view);
   assert.equal(again.tasks.filter(task => /Skydive|scuba/.test(task.title)).length, 0);
 });
 
-test('R68: the Bucket list is Serbian in the app', () => {
+test('R69: the Bucket list is Serbian in the app', () => {
   require('../js/i18n-sr.js');
   I18n.setLanguage('sr');
   try {
@@ -83,7 +83,7 @@ test('R68: the Bucket list is Serbian in the app', () => {
   } finally { I18n.setLanguage('en'); }
 });
 
-test('R68 shipped as 2.0.0-alpha.95 or later (the newest release test pins the exact version)', () => {
+test('R69 shipped as 2.0.0-alpha.96 or later (the newest release test pins the exact version)', () => {
   assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
-  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 99) >= 95);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 99) >= 96);
 });

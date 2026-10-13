@@ -10,7 +10,7 @@
     const place = options.hidePlace ? '' : project ? project.name : ctx.getArea?.(task.areaId)?.name;
     const flag = ['high', 'medium'].includes(task.priority) ? `<i class="ph ph-flag task-flag task-flag--${task.priority}" role="img" aria-label="${tr('{priority} priority', { priority: task.priority === 'high' ? tr('High') : tr('Medium') })}"></i>` : '';
     const due = task.isCompleted ? '' : ctx.todayDueLabel(task.dueDate, ctx.Core.dateOnly());
-    // R66: a rough month shows while the task has no planned day.
+    // R67: a rough month shows while the task has no planned day.
     const month = task.plannedMonth && !task.plannedDate && !task.isCompleted ? esc(tr('Around {month}', { month: ctx.plannedMonthLabel(task.plannedMonth) })) : '';
     // R14 (T3): the flag and the due label lead the meta line under the title; the checkbox closes the row on the right.
     // R11d: Redovne obaveze passes its own meta line (place and repeat sentence); R20: its date leads that line.
@@ -75,7 +75,7 @@
 
   const capital = text => (text ? text.charAt(0).toLocaleUpperCase() + text.slice(1) : '');
 
-  // R66: "Okvirni mesec" — the twelve months from the current one; a tap applies (E3), like the priority sheet.
+  // R67: "Okvirni mesec" — the twelve months from the current one; a tap applies (E3), like the priority sheet.
   function openTaskMonthSheet(anchor, taskId, ctx) {
     const { getTask, esc, Core, plannedMonthLabel } = ctx;
     const task = getTask(taskId);

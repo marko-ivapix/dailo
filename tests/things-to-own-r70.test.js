@@ -1,5 +1,5 @@
-// R69: "Treba da imam" — the list of things to own that the user kept, as one example project with a task per group.
-// Spec: docs/superpowers/specs/2026-10-13-r69-things-to-own.md
+// R70: "Treba da imam" — the list of things to own that the user kept, as one example project with a task per group.
+// Spec: docs/superpowers/specs/2026-10-13-r70-things-to-own.md
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -36,7 +36,7 @@ const GROUPS = [
   ['Nature and travel', ['A good backpack', 'A cabin suitcase', 'A tent and a sleeping bag', 'Hiking shoes', 'A water bottle']],
 ];
 
-test('R69: "Things to own" is a Personal project with one task per group and the kept things as subtasks', () => {
+test('R70: "Things to own" is a Personal project with one task per group and the kept things as subtasks', () => {
   const out = examples();
   const { project, tasks } = own(out);
   assert.equal(project.name, 'Things to own');
@@ -48,7 +48,7 @@ test('R69: "Things to own" is a Personal project with one task per group and the
   assert.ok(tasks.every(task => !task.plannedDate && !task.dueDate && !task.plannedMonth && !task.tagIds.length));
 });
 
-test('R69: the removed things are gone, the reworded ones read as asked, and the mattress is under Grooming', () => {
+test('R70: the removed things are gone, the reworded ones read as asked, and the mattress is under Grooming', () => {
   const items = own(examples()).tasks.flatMap(task => task.subtasks.map(item => item.title)).join(' | ');
   for (const gone of [/razor|trimmer/i, /nail/i, /white shirt/i, /T-shirts/i, /swim/i, /sportswear|training gear/i, /sunglasses/i, /wallet/i, /smartphone/i, /passport/i, /library|books/i, /hobby/i, /plant/i]) {
     assert.doesNotMatch(items, gone);
@@ -58,15 +58,15 @@ test('R69: the removed things are gone, the reworded ones read as asked, and the
   assert.equal(own(examples()).tasks.find(task => task.title === 'Grooming').subtasks.at(-1).title, 'A good mattress and pillow');
 });
 
-test('R69: the project joins the other example lists, after Movies and series', () => {
+test('R70: the project joins the other example lists, after Movies and series', () => {
   const out = examples();
-  // R70: the two Redovne obaveze groups follow the lists.
+  // R71: the two Redovne obaveze groups follow the lists.
   assert.deepEqual(out.projects.map(project => project.name), ['Groceries', 'To buy', 'Clothes', 'Motorcycle', 'To learn', 'Bucket list', 'Movies and series', 'Things to own', 'Car and motorcycle', 'Health and bills']);
   const again = examples({ ...emptyState(), areas: out.areas, projects: out.projects, tasks: out.tasks });
   assert.equal(again.projects.length + again.tasks.length, 0, 'a second run adds nothing');
 });
 
-test('R69: the list is Serbian in the app', () => {
+test('R70: the list is Serbian in the app', () => {
   require('../js/i18n-sr.js');
   I18n.setLanguage('sr');
   try {
@@ -78,7 +78,7 @@ test('R69: the list is Serbian in the app', () => {
   } finally { I18n.setLanguage('en'); }
 });
 
-test('R69 shipped as 2.0.0-alpha.96 or later (the newest release test pins the exact version)', () => {
+test('R70 shipped as 2.0.0-alpha.97 or later (the newest release test pins the exact version)', () => {
   assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
-  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 99) >= 96);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 99) >= 97);
 });

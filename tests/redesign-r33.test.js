@@ -76,7 +76,7 @@ test('24: Nedelja puts each habit name on its own row; radio circles sit on the 
 });
 
 test('25: example areas get their own icon and color; "+" on Oblasti adds an area and on an area files into it', () => {
-  // R66: the example Areas moved to js/starter-examples.js; each still has its own icon and the next color.
+  // R67: the example Areas moved to js/starter-examples.js; each still has its own icon and the next color.
   const starter = read('js/starter-examples.js');
   assert.match(starter, /\['hobbies', msg\('Hobbies and nature'\), 'ph-plant', `\$\{PREFIX\}:area:hobbies`\]/);
   assert.match(starter, /color: color\(view\.areas, out\.areas\), icon,/);

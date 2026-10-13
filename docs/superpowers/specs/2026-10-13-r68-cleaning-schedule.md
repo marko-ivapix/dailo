@@ -1,6 +1,6 @@
-# R67 — the Redovne obaveze examples follow a cleaning schedule
+# R68 — the Redovne obaveze examples follow a cleaning schedule
 
-**Date:** 2026-10-13 · **Status:** the user asked for research ("da li mozes da mi istrazis za redovne obaveze - na koliko se sta cisti i menja i u kojoj prostoriji?"). After seeing it they said: "necemo ovo sto pise za svaki dan, i ne trebaju mi informacije zasto se nesto radi. ne treba: testiraj detektor dima, servis gasnog kotla. i mozes da ubacis". · **Release:** `2.0.0-alpha.94`.
+**Date:** 2026-10-13 · **Status:** the user asked for research ("da li mozes da mi istrazis za redovne obaveze - na koliko se sta cisti i menja i u kojoj prostoriji?"). After seeing it they said: "necemo ovo sto pise za svaki dan, i ne trebaju mi informacije zasto se nesto radi. ne treba: testiraj detektor dima, servis gasnog kotla. i mozes da ubacis". · **Release:** `2.0.0-alpha.95`.
 
 ## The change
 
@@ -50,7 +50,7 @@
 
 ## Checks
 
-- **Node:** `tests/cleaning-schedule-r67.test.js` was written first; 6 of its 7 tests failed. It covers:
+- **Node:** `tests/cleaning-schedule-r68.test.js` was written first; 6 of its 7 tests failed. It covers:
   - the rooms of both examples;
   - 29 rhythms;
   - the bathroom subtasks;

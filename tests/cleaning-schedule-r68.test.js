@@ -1,5 +1,5 @@
-// R67: the Redovne obaveze examples follow a researched cleaning and replacement schedule by room, without daily chores.
-// Spec: docs/superpowers/specs/2026-10-13-r67-cleaning-schedule.md
+// R68: the Redovne obaveze examples follow a researched cleaning and replacement schedule by room, without daily chores.
+// Spec: docs/superpowers/specs/2026-10-13-r68-cleaning-schedule.md
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -27,7 +27,7 @@ const rooms = state => state.projects.filter(project => project.isCleaningRoom);
 const chore = (state, title) => { const found = state.tasks.find(task => task.title === title); assert.ok(found, title); return found; };
 const rule = (state, title) => [chore(state, title).recurrence.frequency, chore(state, title).recurrence.interval];
 
-test('R67: the apartment example has the six rooms, the house adds the garden', () => {
+test('R68: the apartment example has the six rooms, the house adds the garden', () => {
   const flat = cleaning();
   flat.add('apartment');
   assert.deepEqual(rooms(flat.state).map(room => room.name), ['Kitchen', 'Bathroom', 'Bedroom', 'Living Room', 'Hallway', 'Appliances']);
@@ -37,7 +37,7 @@ test('R67: the apartment example has the six rooms, the house adds the garden', 
   assert.ok(house.state.tasks.length > flat.state.tasks.length);
 });
 
-test('R67: each chore repeats at the researched rhythm', () => {
+test('R68: each chore repeats at the researched rhythm', () => {
   const { state, add } = cleaning();
   add('apartment');
   for (const [title, expected] of [
@@ -56,7 +56,7 @@ test('R67: each chore repeats at the researched rhythm', () => {
   assert.equal(chore(state, 'Replace the sponge').projectId, rooms(state).find(room => room.name === 'Kitchen').id);
 });
 
-test('R67: no daily chores, no reasons, no smoke alarm and no boiler service', () => {
+test('R68: no daily chores, no reasons, no smoke alarm and no boiler service', () => {
   const { state, add } = cleaning();
   add('house');
   assert.ok(state.tasks.every(task => !(task.recurrence.frequency === 'daily' && task.recurrence.interval === 1)), 'nothing every day');
@@ -65,7 +65,7 @@ test('R67: no daily chores, no reasons, no smoke alarm and no boiler service', (
   assert.doesNotMatch(titles, /smoke|alarm|gas|boiler service|Wipe counters|Check boiler/i);
 });
 
-test('R67: first dates are spread so Today is not flooded; every chore starts today or later', () => {
+test('R68: first dates are spread so Today is not flooded; every chore starts today or later', () => {
   const { state, add } = cleaning();
   add('house');
   const today = Core.dateOnly();
@@ -74,7 +74,7 @@ test('R67: first dates are spread so Today is not flooded; every chore starts to
   assert.ok(state.tasks.every(task => task.recurrence.seriesId === task.id && task.cleaningSampleKey.startsWith('cleaning:house:')));
 });
 
-test('R67: a second run adds nothing, and the set passes validation', () => {
+test('R68: a second run adds nothing, and the set passes validation', () => {
   const { state, add } = cleaning();
   add('apartment');
   const before = [state.projects.length, state.tasks.length];
@@ -85,7 +85,7 @@ test('R67: a second run adds nothing, and the set passes validation', () => {
   assert.doesNotThrow(() => Backup.validateDomain(normalized, [], []));
 });
 
-test('R67: the chores are Serbian in the app', () => {
+test('R68: the chores are Serbian in the app', () => {
   require('../js/i18n-sr.js');
   I18n.setLanguage('sr');
   try {
@@ -96,7 +96,7 @@ test('R67: the chores are Serbian in the app', () => {
   } finally { I18n.setLanguage('en'); }
 });
 
-test('R67 shipped as 2.0.0-alpha.94 or later (the newest release test pins the exact version)', () => {
+test('R68 shipped as 2.0.0-alpha.95 or later (the newest release test pins the exact version)', () => {
   assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
-  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 99) >= 94);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 99) >= 95);
 });

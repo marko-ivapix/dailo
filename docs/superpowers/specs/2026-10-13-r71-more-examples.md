@@ -1,11 +1,11 @@
-# R70 — more examples: car and health dates, the meal-plan shopping list, saved views, gift ideas
+# R71 — more examples: car and health dates, the meal-plan shopping list, saved views, gift ideas
 
 **Date:** 2026-10-13 · **Status:**
 - **The picks:** asked for more suggestions, the user picked 1 (car and motorcycle), 2 (without the ID card and licence), 3, 6 and 8. They left out 4, 5 and 7: "7, ovo imam u kalendaru na telefonu".
 - **The pruning:** from the item lists they removed 14 (the monthly bills), 17 (the dermatologist), 18 (the flu jab) and 40 (the recipes note).
 - **The shopping list:** for the shopping template they sent their own list as a picture ("Na slici je lista za kupovinu"). It is "Lista namirnica za kupovinu — za 4 dana plana ishrane".
 
-**Release:** `2.0.0-alpha.97`.
+**Release:** `2.0.0-alpha.98`.
 
 ## The change
 
@@ -41,14 +41,14 @@ All of this is added by "Popuni primerima" (`js/starter-examples.js`).
 
 ## Checks
 
-- **Node:** `tests/more-examples-r70.test.js` was written first; all 8 of its tests failed. It covers:
+- **Node:** `tests/more-examples-r71.test.js` was written first; all 8 of its tests failed. It covers:
   - both groups, their rhythms and first days, including the tax instalment from two dates;
   - the template's items, project and note, and an instance of it;
   - the saved views and what they show;
   - the note, validation and the second run;
   - the toast key and the cleaning chips;
   - the Serbian names and the version.
-- **Older tests:** R66 and R69 now expect the groups, the template, the note and the new toast, each with an R70 comment.
+- **Older tests:** R67 and R70 now expect the groups, the template, the note and the new toast, each with an R71 comment.
 - **Suites:**
   - `npm run verify`: 1247/1247.
   - `npm run smoke`: OK.

@@ -1,6 +1,6 @@
-# R66 — the rough month of a task (data model)
+# R67 — the rough month of a task (data model)
 
-**Date:** 2026-10-13 · **Status:** the data-model spec for R66. The user kept shopping and learning lists with a month and no day ("mi se isto svidja datum da ima (neodredjen je) okviran datum") and chose a new field over a planned date on the 1st ("okvirni datum opcija 2"). · **Release:** `2.0.0-alpha.93`.
+**Date:** 2026-10-13 · **Status:** the data-model spec for R67. The user kept shopping and learning lists with a month and no day ("mi se isto svidja datum da ima (neodredjen je) okviran datum") and chose a new field over a planned date on the 1st ("okvirni datum opcija 2"). · **Release:** `2.0.0-alpha.94`.
 
 ## The field
 
@@ -53,7 +53,7 @@
 
 ## Tests (written first)
 
-`tests/own-examples-r66.test.js` checks:
+`tests/own-examples-r67.test.js` checks:
 
 - the helpers and normalization;
 - that older tasks are not rewritten;

@@ -5,8 +5,8 @@
   // The sample Area is created with a translated name; an existing English "Home" Area is still reused.
   const isHomeArea = area => [msg('Home'), tr('Home')].some(name => area.name.toLowerCase() === name.toLowerCase());
 
-  // R67: the example chores follow a researched cleaning and replacement schedule by room, without daily chores
-  // (NSF, ADA, Sleep Foundation, Energy Star and appliance makers; docs/superpowers/specs/2026-10-13-r67-cleaning-schedule.md).
+  // R68: the example chores follow a researched cleaning and replacement schedule by room, without daily chores
+  // (NSF, ADA, Sleep Foundation, Energy Star and appliance makers; docs/superpowers/specs/2026-10-13-r68-cleaning-schedule.md).
   // [room, room name, chore, frequency, interval, first day from today, subtasks]; the first days are spread so Danas is not flooded.
   const KITCHEN = ['kitchen', msg('Kitchen')], BATHROOM = ['bathroom', msg('Bathroom')], BEDROOM = ['bedroom', msg('Bedroom')];
   const LIVING = ['living-room', msg('Living Room')], HALLWAY = ['hallway', msg('Hallway')], APPLIANCES = ['appliances', msg('Appliances')];
@@ -120,7 +120,7 @@
       html += `${ctx.foldButton('cleaning-archived-fold', tr('Archived groups'), archived.length, openFold)}`;
       if (openFold) html += `<div class="today-card">${archived.map(group => `<div class="cleaning-archived-row"><span class="cleaning-archived-name">${esc(group.name)}<small>${esc(trn(count(group), '{count} chore', '{count} chores'))}</small></span><button class="quick-chip" type="button" data-action="restore-cleaning-group" data-project-id="${esc(group.id)}">${tr('Restore')}</button></div>`).join('')}</div>`;
     }
-    // R70: groups from "Popuni primerima" fill this screen, so the cleaning examples stay on offer until one was added.
+    // R71: groups from "Popuni primerima" fill this screen, so the cleaning examples stay on offer until one was added.
     const cleaningExamplesAdded = groupsOf(ctx).some(group => String(group.cleaningSampleKey || '').startsWith('cleaning:'));
     if (!cleaningExamplesAdded) html += `<div class="sheet-chips cleaning-chips">${example('apartment', msg('Example: apartment'))}${example('house', msg('Example: house'))}</div>`;
     return `${html}<p class="sheet-note cleaning-note">${tr('Everything that repeats is here: chores from groups, repeating tasks from projects and the rest. The repeat is set in the task window.')}</p>`;

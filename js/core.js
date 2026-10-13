@@ -320,7 +320,7 @@
     return result;
   }
 
-  // R66: a task's rough month ("okvirno"), "YYYY-MM". It never puts the task on Today; Upcoming lists it under the month.
+  // R67: a task's rough month ("okvirno"), "YYYY-MM". It never puts the task on Today; Upcoming lists it under the month.
   function normalizePlannedMonth(value) {
     return typeof value === 'string' && /^\d{4}-(0[1-9]|1[0-2])$/.test(value) ? value : null;
   }
@@ -946,7 +946,7 @@
     };
     state.tasks = state.tasks.map(task => ({
       ...task, durationMinutes: positiveIntegerOrNull(task.durationMinutes),
-      // R66: only a stored bad month is cleared; older tasks keep no field, so sync has nothing new to send.
+      // R67: only a stored bad month is cleared; older tasks keep no field, so sync has nothing new to send.
       ...(task.plannedMonth != null && normalizePlannedMonth(task.plannedMonth) !== task.plannedMonth ? { plannedMonth: null } : {}),
     }));
     state.goals = state.goals.map(goal => ({

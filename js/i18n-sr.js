@@ -1874,7 +1874,7 @@
     "Canonical or stored data changed during rollback; recovery remains available.": "Podaci su se promenili tokom vraćanja izmena; oporavak je i dalje dostupan.",
     "Canonical data changed during rollback; recovery remains available.": "Podaci aplikacije su se promenili tokom vraćanja izmena; oporavak je i dalje dostupan.",
     "Backup replacement and rollback failed": "Zamena podataka iz rezervne kopije i vraćanje izmena nisu uspeli",
-    // R66: the user's own starter examples and the rough month of a task.
+    // R67: the user's own starter examples and the rough month of a task.
     "approximately": "okvirno",
     "Add missing editable examples: your Areas, shopping and learning lists, a bucket list, habits, camping and hiking templates, tags, books and goals. Existing items and edits stay intact.": "Dodaje primere koji nedostaju i koji mogu da se menjaju: tvoje oblasti, liste za kupovinu i učenje, bucket listu, navike, šablone za kampovanje i planinarenje, oznake, knjige i ciljeve. Postojeće stavke i izmene ostaju netaknute.",
     "Hobbies and nature": "Hobi i priroda",
@@ -1956,7 +1956,7 @@
     "Approximate month": "Okvirni mesec",
     "An approximate month keeps the task out of Today. It shows in Upcoming under that month.": "Okvirni mesec ne stavlja zadatak u Danas. Zadatak se vidi u Predstojećem pod tim mesecom.",
     "Who's Singin' Over There?": "Ko to tamo peva",
-    // R67: the Redovne obaveze example schedule.
+    // R68: the Redovne obaveze example schedule.
     "Appliances": "Uređaji",
     "Replace the sponge": "Zameni sunđer",
     "Disinfect the sink": "Dezinfikuj sudoperu",
@@ -2008,7 +2008,7 @@
     "Clean the air conditioner filter": "Očisti filter klime",
     "Clean the washing machine pump filter": "Očisti filter pumpe veš mašine",
     "Replace the vacuum filter": "Zameni filter usisivača",
-    // R68: the Bucket list the user kept.
+    // R69: the Bucket list the user kept.
     "A safari in Tanzania or Kenya": "Safari u Tanzaniji ili Keniji",
     "The Great Wall of China": "Kineski zid",
     "Petra in Jordan": "Petra u Jordanu",
@@ -2082,7 +2082,7 @@
     "A big music festival": "Veliki muzički festival",
     "Savings for a year of living": "Ušteda za godinu dana života",
     "Start your own business or project": "Pokreni svoj posao ili projekat",
-    // R69: Treba da imam.
+    // R70: Treba da imam.
     "Things to own": "Treba da imam",
     "Clothes and shoes": "Odeća i obuća",
     "A dark suit": "Tamno odelo",
@@ -2143,7 +2143,7 @@
     "A cabin suitcase": "Kofer za kabinu",
     "A tent and a sleeping bag": "Šator i vreća za spavanje",
     "A water bottle": "Flaša za vodu",
-    // R70: more examples the user picked.
+    // R71: more examples the user picked.
     "Added {areas} Areas, {projects} Projects, {tasks} Tasks, {goals} Goals, {habits} Habits, {tags} Tags, {notes} Notes, {resources} Resources, {templates} Templates and {savedViews} Saved views. All examples are editable.": "Dodato – oblasti: {areas}, projekti: {projects}, zadaci: {tasks}, ciljevi: {goals}, navike: {habits}, oznake: {tags}, beleške: {notes}, resursi: {resources}, šabloni: {templates}, sačuvani prikazi: {savedViews}. Svi primeri mogu da se menjaju.",
     "Health and bills": "Zdravlje i računi",
     "Car registration and technical inspection": "Registracija i tehnički pregled auta",

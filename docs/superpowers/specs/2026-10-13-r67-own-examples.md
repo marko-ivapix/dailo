@@ -1,6 +1,6 @@
-# R66 — the user's own starter examples and the rough month
+# R67 — the user's own starter examples and the rough month
 
-**Date:** 2026-10-13 · **Status:** the user's request. They listed their own projects and items and showed the lists they kept before ("To buy" with Cena, Vrsta and Mesec; "To learn" with Vrsta and Datum). They asked: "ti ih preradi kako mislis da treba … da li bi mogao ti lepo ovde u chatu da mi razvrstas sve ovo". They accepted the proposed sorting with "da, zameni primere, okvirni datum opcija 2". · **Release:** `2.0.0-alpha.93`. · **Data model:** `docs/superpowers/specs/2026-10-13-r66-rough-month-data.md`.
+**Date:** 2026-10-13 · **Status:** the user's request. They listed their own projects and items and showed the lists they kept before ("To buy" with Cena, Vrsta and Mesec; "To learn" with Vrsta and Datum). They asked: "ti ih preradi kako mislis da treba … da li bi mogao ti lepo ovde u chatu da mi razvrstas sve ovo". They accepted the proposed sorting with "da, zameni primere, okvirni datum opcija 2". · **Release:** `2.0.0-alpha.94`. · **Data model:** `docs/superpowers/specs/2026-10-13-r67-rough-month-data.md`.
 
 ## The change
 
@@ -48,15 +48,15 @@
 ## Checks
 
 - **Node:**
-  - `tests/own-examples-r66.test.js` was written first; 19 of its 20 tests failed. A sync-record test was added afterwards, for 21 tests. It covers:
+  - `tests/own-examples-r67.test.js` was written first; 19 of its 20 tests failed. A sync-record test was added afterwards, for 21 tests. It covers:
     - the data model;
     - the window row and its sheet, driven through the tasks module;
     - the row meta and the Upcoming code;
     - every collection of the example set, with the links between them;
     - validation, a second run, reuse of own items, the toast and rollback;
     - the Serbian names and the version.
-  - Older tests changed, each with a comment naming R66:
-    - **R29:** the content tests moved to R66; validation, load order, version and progress type stay.
+  - Older tests changed, each with a comment naming R67:
+    - **R29:** the content tests moved to R67; validation, load order, version and progress type stay.
     - **R31 item 13:** the remaining catalog texts.
     - **R33 item 25:** area icons and colors now come from the new module.
     - **R3:** the window gained the Okvirno row.
@@ -70,7 +70,7 @@
   - `npm run smoke`: OK.
   - `npm run check:python`: 4/4.
   - `npm run check:links`: OK.
-- **Numbering:** the work started as "R59" on an older `main`. R59–R65 had meanwhile merged from another session, so the step became R66 with `2.0.0-alpha.93`.
+- **Numbering:** the work started as "R59" on an older `main`. R59–R65 had meanwhile merged from another session, so the step became R67 with `2.0.0-alpha.94`.
 - **Manual-pending:**
   - Run "Popuni primerima" on the phone and look at Zadaci → Projekti, Šabloni and Predstojeće.
   - Set and remove a month in the task window.
@@ -88,5 +88,5 @@ The `code-reviewer` agent confirmed three problems in `9b346ca`:
   - `Core.deriveRoughMonths` takes an optional `dueShownUntil` and leaves those tasks out.
   - Predstojeće passes today + 21 days.
 
-Three tests in `tests/own-examples-r66.test.js` cover these fixes; all three failed before the fix. `npm run verify` 1222/1222, smoke OK.
+Three tests in `tests/own-examples-r67.test.js` cover these fixes; all three failed before the fix. `npm run verify` 1222/1222, smoke OK.
 

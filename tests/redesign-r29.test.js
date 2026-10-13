@@ -1,7 +1,7 @@
 // Redesign R29: richer real-life starter examples for "Popuni primerima" — a camping packing list, a bucket list,
 // everyday habits, goals with milestones, recurring chores, tags, notes, resources and templates.
 // Spec: docs/superpowers/specs/2026-10-11-redesign-r29-real-life-examples.md
-// R66 replaced that example set with the user's own (tests/own-examples-r66.test.js checks its content, the second run,
+// R67 replaced that example set with the user's own (tests/own-examples-r67.test.js checks its content, the second run,
 // the toast, the rollback and the Serbian names). What stays here holds for any example set: it validates, it loads
 // before the habits module and works offline, and stored goals keep a valid progress type.
 const test = require('node:test');
@@ -56,7 +56,7 @@ test('R29: the examples load before the habits module and work offline', () => {
   const html = read('index.html');
   assert.ok(html.indexOf('src="js/starter-examples.js"') > 0 && html.indexOf('src="js/starter-examples.js"') < html.indexOf('src="js/habits-ui.js"'));
   assert.match(read('sw.js'), /'js\/starter-examples\.js',\n  'js\/habits-ui\.js',/);
-  // R66: the Settings row describes the user's own set (checked in tests/own-examples-r66.test.js).
+  // R67: the Settings row describes the user's own set (checked in tests/own-examples-r67.test.js).
 });
 
 test('R29 shipped as 2.0.0-alpha.54 or later (the newest release test pins the exact version)', () => {

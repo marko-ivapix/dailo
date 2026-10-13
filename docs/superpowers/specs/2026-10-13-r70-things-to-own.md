@@ -1,11 +1,11 @@
-# R69 — "Treba da imam" in the examples
+# R70 — "Treba da imam" in the examples
 
 **Date:** 2026-10-13 · **Status:**
 - **The request:** "da li mozes da mi napises i sta bi svaki muskarac trebao da poseduje?"
 - **The pruning:** from the proposed 69 the user removed items 2, 11, 17, 18, 20, 21, 22, 24, 49, 55, 66, 67 and 69, and asked: "preradi: 1: samo 'tamno odelo', 51. samo 'power bank', 68 prebaci u nega".
 - **Placement:** asked whether the list should be its own project or go into "Za kupovinu", the user did not choose. It became its own project, because "Za kupovinu" holds things for the home.
 
-**Release:** `2.0.0-alpha.96`.
+**Release:** `2.0.0-alpha.97`.
 
 ## The change
 
@@ -26,13 +26,13 @@
 
 ## Checks
 
-- **Node:** `tests/things-to-own-r69.test.js` was written first; all 5 of its tests failed. It covers:
+- **Node:** `tests/things-to-own-r70.test.js` was written first; all 5 of its tests failed. It covers:
   - the project, its area, groups, things and order;
   - the removed, reworded and moved things;
   - the place among the lists and the second run;
   - the Serbian names;
   - the version.
-- **R66:** `tests/own-examples-r66.test.js` now expects the eighth project and 116 tasks, with an R69 comment.
+- **R67:** `tests/own-examples-r67.test.js` now expects the eighth project and 116 tasks, with an R70 comment.
 - **Suites:**
   - `npm run verify`: 1239/1239.
   - `npm run smoke`: OK.

@@ -830,7 +830,7 @@
 
   }
 
-  // R66: the example set lives in js/starter-examples.js; this adds what is missing and saves it in one go.
+  // R67: the example set lives in js/starter-examples.js; this adds what is missing and saves it in one go.
   async function addStarterExamples(ctx) {
     const { state, Core, uid, nowIso, habitDraft, PROJECT_COLORS, saveState, render, setToastMessage, refreshHabitMetrics } = ctx;
     const added = window.DailoStarterExamples.workspaceExamples(state, { Core, uid, today: Core.dateOnly(), timestamp: nowIso(), habitDraft, PROJECT_COLORS });
