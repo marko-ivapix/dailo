@@ -35,7 +35,8 @@ test('9: a numeric habit can be skipped; a skipped day is not missed', () => {
   assert.equal(Core.habitStatusForDate(habit, logs, '2026-10-10', '2026-10-12').status, 'skipped');
   assert.equal(Core.habitStatusForDate(habit, logs, '2026-10-11', '2026-10-12').status, 'done');
   assert.equal(Core.habitDayState(habit, logs, '2026-10-10', '2026-10-12').state, 'skipped');
-  assert.match(fn('setHabitLog'), /if \(habit\.trackingType === 'numeric' && requestedStatus !== 'skipped'\) \{/);
+  // R61: a clearing call (null) skips the numeric rule.
+  assert.match(fn('setHabitLog'), /if \(!clearing && habit\.trackingType === 'numeric' && requestedStatus !== 'skipped'\) \{/);
   assert.match(habitsUi, /const skip = `<button class="popover-option" type="button" data-pop-action="habit-today-skip"/, 'the menu offers "Preskoči" for every habit');
   assert.match(habitsUi, /const skip = !\['done', 'unscheduled'\]\.includes\(today\.state\) \? `<button class="btn btn-ghost" type="button" data-action="habit-today-skip"/);
 });

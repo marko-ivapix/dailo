@@ -164,8 +164,9 @@ test('app.js: the floating "+" on Ciljevi opens the window and says "Novi cilj";
   // R10b generalized the direct "+" to a table of screens (Ciljevi, Beleške, Resursi).
   assert.match(app, /const QUICK_ADD_DIRECT = Object\.freeze\(\{ '#goals': \[msg\('New goal'\), \(\) => openGoalModal\(\)\]/);
   // R47a (K12): a wide screen adds a task where nothing else belongs.
-  assert.match(app, /const quickAddDirect = \(\) => QUICK_ADD_DIRECT\[location\.hash\] \|\| \(wideScreen\(\) \? DESKTOP_NEW_TASK : null\);/);
-  assert.match(fn('handleClick'), /if \(action === 'toggle-mobile-quick-add'\) \{ const direct = quickAddDirect\(\); if \(direct\) \{ direct\[1\]\(\); return; \} setMobileQuickAddOpen\(el\.getAttribute\('aria-expanded'\) !== 'true'\); return; \}/);
+  // R59: the task screens add a task directly too, and a tap on the open menu's "+" closes it.
+  assert.match(app, /const quickAddDirect = \(\) => QUICK_ADD_DIRECT\[location\.hash\] \|\| \(state && TASK_SCREENS\.has\(currentRoute\(\)\.type\) \? NEW_TASK_HERE : null\) \|\| \(wideScreen\(\) \? DESKTOP_NEW_TASK : null\);/);
+  assert.match(fn('handleClick'), /if \(action === 'toggle-mobile-quick-add'\) \{ if \(el\.getAttribute\('aria-expanded'\) === 'true'\) \{ setMobileQuickAddOpen\(false\); return; \} const direct = quickAddDirect\(\); if \(direct\) \{ direct\[1\]\(\); return; \} setMobileQuickAddOpen\(el\.getAttribute\('aria-expanded'\) !== 'true'\); return; \}/);
   assert.match(fn('handleKeydown'), /if\(command==='newTask'\)\{const direct=quickAddDirect\(\);if\(direct\)direct\[1\]\(\);else openQuickAdd\(\);\}/);
   assert.match(fn('setMobileQuickAddOpen'), /const direct = !open && quickAddDirect\(\);[\s\S]*toggle\.setAttribute\('aria-label', direct \? tr\(direct\[0\]\)/);
   assert.match(fn('syncQuickAddToggle'), /quickAddDirect\(\)/);

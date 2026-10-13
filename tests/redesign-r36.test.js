@@ -62,7 +62,8 @@ test('C: Inbox has its own add row; Enter files the title in Inbox and keeps the
 
 test('C: holding the "+" opens a new task at once', () => {
   assert.match(read('index.html'), /<button id="mobile-quick-add-toggle" class="mobile-quick-add-toggle" type="button" data-action="toggle-mobile-quick-add" data-long-press="quick-add-task"/);
-  assert.match(fn('runLongPress'), /if \(el\.dataset\.longPress === 'quick-add-task'\) \{ haptic\('tick'\); setMobileQuickAddOpen\(false\); const context = routeQuickAddContext\(\); if \(context\) openQuickAdd\(context\); else setToastMessage\(tr\('Restore the project to add tasks\.'\)\); return; \}/);
+  // R59: where a tap on the "+" already adds directly, holding it opens the menu instead (tests/plus-r59.test.js).
+  assert.match(fn('runLongPress'), /if \(el\.dataset\.longPress === 'quick-add-task'\) \{ haptic\('tick'\); if \(quickAddDirect\(\)\) \{ setMobileQuickAddOpen\(true\); return; \} setMobileQuickAddOpen\(false\); const context = routeQuickAddContext\(\); if \(context\) openQuickAdd\(context\); else setToastMessage\(tr\('Restore the project to add tasks\.'\)\); return; \}/);
 });
 
 test('G: triage offers "Datum…" and "Otvori" for a task', () => {
@@ -91,7 +92,8 @@ test('K: a one-time hint on Danas explains the gestures on touch screens', () =>
   const ctx = withI18n({ I18n, localStorage: { getItem: key => storage[key] ?? null, setItem: (key, value) => { storage[key] = value; } }, nowIso: () => 'now', window: { matchMedia: () => ({ matches: true }) } });
   vm.createContext(ctx);
   vm.runInContext(`${fn('gestureHint')}\n${fn('dismissGestureHint')}`, ctx);
-  assert.match(ctx.gestureHint(true), /<section class="gesture-hint" role="note"><i class="ph ph-hand-swipe-right gesture-hint-icon" aria-hidden="true"><\/i><p>Swipe a task right to complete it, left to pick its date\. Hold a row, then drag it to change the order\.<\/p><button class="btn btn-secondary" type="button" data-action="dismiss-gesture-hint">OK<\/button><\/section>/);
+  // R62: the hint says the hold reorders up or down (a hold moved sideways swipes).
+  assert.match(ctx.gestureHint(true), /<section class="gesture-hint" role="note"><i class="ph ph-hand-swipe-right gesture-hint-icon" aria-hidden="true"><\/i><p>Swipe a task right to complete it, left to pick its date\. Hold a row, then drag it up or down to change the order\.<\/p><button class="btn btn-secondary" type="button" data-action="dismiss-gesture-hint">OK<\/button><\/section>/);
   assert.equal(ctx.gestureHint(false), '', 'only while Danas shows tasks');
   ctx.dismissGestureHint();
   assert.equal(storage.dailoGestureHint, 'now');

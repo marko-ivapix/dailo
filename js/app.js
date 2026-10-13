@@ -11,7 +11,7 @@
   // Optional sync (V2.0-a): on only when js/sync-config.js has the project URL and public key.
   const Sync = window.DailoSync || null;
   const syncConfig = window.DailoSyncConfig || {};
-  const syncClient = Sync?.isConfigured(syncConfig) ? Sync.createClient({ url: syncConfig.url, anonKey: syncConfig.anonKey }) : null;
+  const syncClient = Sync?.isConfigured(syncConfig) ? Sync.createClient({ url: syncConfig.url, anonKey: syncConfig.anonKey, emailRedirect: Release.APP_URL }) : null;
   // R50: Supabase Realtime pokes a sync when a record of the account changes; the five-minute round stays as a fallback.
   const liveSync = syncClient && Sync.createRealtime ? Sync.createRealtime({ url: syncConfig.url, key: syncConfig.anonKey, onChange: () => scheduleSync(800), onStatus: () => refreshSyncCard() }) : null;
   const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
@@ -122,10 +122,14 @@
   // there and its label says what;
   // elsewhere it opens the menu.
   const QUICK_ADD_DIRECT = Object.freeze({ '#goals': [msg('New goal'), () => openGoalModal()], '#habits': [msg('New habit'), () => openHabitModal()], '#areas': [msg('New area'), () => callDomainHook('handleAction', 'new-area', { target: $('#mobile-quick-add-toggle') })], '#notes': [msg('New note'), () => openKnowledgeWindow('note')], '#resources': [msg('New resource'), () => openKnowledgeWindow('resource')], '#tags': [msg('New tag'), () => openTagModal()], '#templates': [msg('New template'), () => callDomainHook('handleAction', 'new-template', { target: $('#mobile-quick-add-toggle') })], '#saved-views': [msg('New saved view'), () => callDomainHook('handleAction', 'new-saved-view', { target: $('#mobile-quick-add-toggle') })], '#cleaning': [msg('New recurring task'), () => callDomainHook('handleAction', 'new-cleaning-chore', { target: $('#mobile-quick-add-toggle') })], '#journal': [msg('Today’s entry'), () => callDomainHook('handleAction', 'open-journal', { target: $('#mobile-quick-add-toggle') })] });
+  // R59: on the task screens the "+" opens a new task there at once (Danas plans it for today, a project, an area or a
+  // tag files it there, Kalendar plans it for the shown day); the menu stays where no type belongs (Još, Podešavanja…).
+  const TASK_SCREENS = new Set(['today', 'inbox', 'tasks', 'calendar', 'upcoming', 'anytime', 'projects', 'project', 'area', 'tag']);
+  const NEW_TASK_HERE = Object.freeze([msg('New task'), () => { const context = routeQuickAddContext(); if (context) openQuickAdd(context); else setToastMessage(tr('Restore the project to add tasks.')); }]);
   // R47a (K12): on a wide screen the "+" never opens the menu: where nothing else belongs it adds a task.
   const DESKTOP_NEW_TASK = Object.freeze([msg('New task'), () => openQuickAdd({})]);
   const wideScreen = () => Boolean(globalThis.matchMedia?.('(min-width: 1024px)').matches);
-  const quickAddDirect = () => QUICK_ADD_DIRECT[location.hash] || (wideScreen() ? DESKTOP_NEW_TASK : null);
+  const quickAddDirect = () => QUICK_ADD_DIRECT[location.hash] || (state && TASK_SCREENS.has(currentRoute().type) ? NEW_TASK_HERE : null) || (wideScreen() ? DESKTOP_NEW_TASK : null);
   function syncQuickAddToggle() {
     const toggle = $('#mobile-quick-add-toggle');
     if (toggle && (quickAddDirect() || !toggle.hasAttribute('aria-expanded'))) setMobileQuickAddOpen(false);
@@ -1588,7 +1592,7 @@
       defaults,
       draft: {
         title: context.title || '', notes: context.notes || '', projectId: defaults.projectId, areaId: defaults.areaId, plannedDate: defaults.plannedDate, parsedPlanDate: null, explicitPlan: defaults.explicitPlan,
-        dueDate: null, plannedTime: null, dueTime: null, explicitPlannedTime: false, reminderAt: null, reminderFiredAt: null, recurrence: null, tagIds: [], priority: 'none', subtasks: [],
+        dueDate: null, plannedTime: null, dueTime: null, explicitPlannedTime: false, reminderAt: null, reminderFiredAt: null, recurrence: null, tagIds: [...(context.tagIds || [])], priority: 'none', subtasks: [],
       },
       error: '',
     };
@@ -1879,16 +1883,26 @@
     const returnTarget = modalReturnFocus;
     modalReturnFocus = null;
     modalState = null;
-    $('#modal-root').innerHTML = '';
+    // R63: the type goes with the window, so the same window opened again animates in again.
+    const root = $('#modal-root');
+    root.innerHTML = '';
+    root.dataset.modalType = '';
     restoreGoalFocus(goalReturn);
     if (returnTarget) restoreModalReturnFocus(returnTarget);
   }
 
+  // R62: a window counts as on screen from the frame after it opened; a redraw before that still animates in.
+  let modalFrameToken = 0, modalOnScreen = false;
   function renderModal() {
     const root = $('#modal-root');
     if (!modalState) { root.innerHTML = ''; root.dataset.modalType = ''; return; }
     // R22c: when the same window redraws, the focus returns to the control that had it (not to the page).
     const focused = root.dataset.modalType === modalState.type ? focusDescriptor(document.activeElement, '#modal-root') : null;
+    // R62: the same window redrawn after a change (a chip, a day, a repeat option) keeps still and keeps its scroll,
+    // so it does not flicker as if it closed and opened; a new window still animates in.
+    // R63: only while a window is on screen; an emptied root starts a new window.
+    const steady = root.dataset.modalType === modalState.type && modalOnScreen && Boolean(root.querySelector('.modal-backdrop'));
+    const scrolled = steady ? [...root.querySelectorAll('.modal-backdrop, .modal')].map(el => el.scrollTop) : [];
     const domainContent = callDomainHook('renderRoute', { type: 'modal', modalType: modalState.type });
     if (domainContent !== undefined) root.innerHTML = domainContent;
     else if (modalState.type === 'quick') root.innerHTML = renderQuickModal();
@@ -1907,6 +1921,14 @@
       $('.modal-header', root)?.insertAdjacentHTML('afterend', `<div class="quick-template-row"><button class="quick-chip" type="button" data-action="from-template"><i class="ph ph-copy" aria-hidden="true"></i>${tr('From template')}</button></div>`);
     }
     root.dataset.modalType = modalState.type;
+    if (steady) {
+      root.querySelector('.modal-backdrop')?.classList.add('is-steady');
+      root.querySelectorAll('.modal-backdrop, .modal').forEach((el, index) => { if (scrolled[index]) el.scrollTop = scrolled[index]; });
+    } else {
+      const token = ++modalFrameToken;
+      modalOnScreen = false;
+      requestAnimationFrame(() => { if (token === modalFrameToken) modalOnScreen = true; });
+    }
     root.querySelectorAll('textarea[data-autogrow]').forEach(autoGrow);
     if (focused && !root.contains(document.activeElement)) $(focused)?.focus({ preventScroll: true });
     if (!focused && ['confirm','recurrence-scope'].includes(modalState?.type)) requestAnimationFrame(() => root.querySelector('.modal button, .modal [href], .modal input, .modal select, .modal textarea, .modal [tabindex]:not([tabindex="-1"])')?.focus());
@@ -4231,11 +4253,14 @@
     // live check-in is controlled by the current lifecycle state.
     const allowHistoricalBackfill = Boolean(options.allowHistoricalBackfill && date < today);
     if (!habit || !date || date > today || (date === today && habit.status !== 'active') || !(Core.habitScheduledOn(habit, date, { historical: true }) || existing || allowHistoricalBackfill)) return false;
+    // R61: null clears the day (no log at all), the empty state of a yes/no habit.
+    const clearing = requestedStatus === null;
+    if (clearing && !existing) return true;
     const before = captureGoalProgress();
     let status = requestedStatus; let value = requestedValue;
     // R31 (finding 9): a numeric habit can be skipped too; only a value decides done or missed.
-    if (habit.trackingType === 'numeric' && requestedStatus !== 'skipped') { const numeric = Core.numericHabitState(habit, requestedValue); status = numeric.status; value = numeric.value; }
-    const record = { id: `${habitId}:${date}`, habitId, date, status: ['done', 'skipped', 'missed'].includes(status) ? status : 'done', value: value ?? null, createdAt: existing?.createdAt || nowIso(), updatedAt: nowIso() };
+    if (!clearing && habit.trackingType === 'numeric' && requestedStatus !== 'skipped') { const numeric = Core.numericHabitState(habit, requestedValue); status = numeric.status; value = numeric.value; }
+    const record = clearing ? null : { id: `${habitId}:${date}`, habitId, date, status: ['done', 'skipped', 'missed'].includes(status) ? status : 'done', value: value ?? null, createdAt: existing?.createdAt || nowIso(), updatedAt: nowIso() };
     const previousUpdatedAt = habit.updatedAt;
     habit.updatedAt = nowIso();
     // Establish canonical ownership before touching the growing IndexedDB
@@ -4249,10 +4274,13 @@
       return null;
     }
     try {
-      const putHabitLog = TodoStorage.habitLogs.putIfCurrent || TodoStorage.habitLogs.put;
-      await putHabitLog.call(TodoStorage.habitLogs, record, existing || null);
+      if (clearing) await TodoStorage.habitLogs.deleteIfCurrent(existing.id, existing);
+      else {
+        const putHabitLog = TodoStorage.habitLogs.putIfCurrent || TodoStorage.habitLogs.put;
+        await putHabitLog.call(TodoStorage.habitLogs, record, existing || null);
+      }
       if (!ownsCanonical()) throw new Error(msg('Canonical data changed in another tab during Habit check-in.'));
-      if (record.status === 'done') haptic('success');
+      if (record?.status === 'done') haptic('success');
       await refreshHabitMetrics();
     } catch (error) {
       let rollbackError = null;
@@ -4260,7 +4288,8 @@
         // Roll back with the same native compare-and-set used for the forward
         // write. A competing tab can write between any separate read and
         // mutation, so never overwrite or delete a record we do not own.
-        if (existing && TodoStorage.habitLogs.putIfCurrent) await TodoStorage.habitLogs.putIfCurrent(existing, record);
+        if (clearing) { if (!(await TodoStorage.habitLogs.get(existing.id))) await TodoStorage.habitLogs.putIfCurrent(existing, null); }
+        else if (existing && TodoStorage.habitLogs.putIfCurrent) await TodoStorage.habitLogs.putIfCurrent(existing, record);
         else if (!existing && TodoStorage.habitLogs.deleteIfCurrent) await TodoStorage.habitLogs.deleteIfCurrent(record.id, record);
         else {
           const current = await TodoStorage.habitLogs.get(record.id);
@@ -4688,10 +4717,29 @@
     renderModal();
   }
 
+  // R60: a link from an account e-mail lands here with its outcome in the address. Only the message is taken: the
+  // session in it is never used, so a link from someone else cannot sign this device into their account.
+  const AUTH_LANDING_MESSAGES = Object.freeze({
+    confirmed: msg('Your e-mail address is confirmed. Sign in with your password.'),
+    email: msg('Your new e-mail address is confirmed.'),
+    recovery: msg('For a new password, use the code from the e-mail: Sign in → Forgot password?'),
+    expired: msg('The link has expired or was already used. Ask for a new code in Dailo.'),
+    failed: msg('The link did not work. Ask for a new code in Dailo.'),
+  });
+  function consumeAuthLanding() {
+    const landing = Sync?.authLanding?.(location.hash) || (loadSyncMeta().pkce ? null : Sync?.authLanding?.(location.search));
+    if (!landing) return false;
+    history.replaceState(null, '', location.pathname);
+    setToastMessage(tr(AUTH_LANDING_MESSAGES[landing.kind]));
+    if (landing.kind === 'confirmed' && syncClient && !loadSyncMeta().session?.accessToken) openWelcome('sign-in');
+    return true;
+  }
+
   // At start: a Google or Apple sign-in coming back to the web page, otherwise the first screen when it is due.
   function startWelcome() {
     const returning = consumeAuthRedirect();
     if (returning) return returning;
+    if (consumeAuthLanding()) return true;
     if (welcomeDue() && state && !recovery && !storageError && !staleDataNotice && !globalOperation && !modalState) openWelcome('sign-in', { firstRun: true });
   }
 
@@ -4892,6 +4940,15 @@
     try { localStorage.removeItem(SYNC_META_KEY); } catch (error) { console.error(error); }
     render();
     if (meta.session && syncClient) await syncClient.signOut(meta.session);
+  }
+
+  // R64: "Odjavi se" returns to the first screen, Danas behind the sign-in screen, to sign in again or go on without
+  // an account. The session ends on this device at once; the server is told meanwhile, so a slow network holds nothing.
+  function signOutToWelcome() {
+    const done = signOutSync();
+    navigate('today');
+    openWelcome('sign-in', { firstRun: true });
+    return done;
   }
 
   function deleteSyncAccount() {
@@ -5143,7 +5200,7 @@
   function gestureHint(hasTasks) {
     if (!hasTasks || !window.matchMedia?.('(pointer: coarse)').matches) return '';
     try { if (localStorage.getItem('dailoGestureHint')) return ''; } catch (_) { return ''; }
-    return `<section class="gesture-hint" role="note"><i class="ph ph-hand-swipe-right gesture-hint-icon" aria-hidden="true"></i><p>${tr('Swipe a task right to complete it, left to pick its date. Hold a row, then drag it to change the order.')}</p><button class="btn btn-secondary" type="button" data-action="dismiss-gesture-hint">${tr('OK')}</button></section>`;
+    return `<section class="gesture-hint" role="note"><i class="ph ph-hand-swipe-right gesture-hint-icon" aria-hidden="true"></i><p>${tr('Swipe a task right to complete it, left to pick its date. Hold a row, then drag it up or down to change the order.')}</p><button class="btn btn-secondary" type="button" data-action="dismiss-gesture-hint">${tr('OK')}</button></section>`;
   }
   function dismissGestureHint() {
     try { localStorage.setItem('dailoGestureHint', nowIso()); } catch (_) { /* shown again next time */ }
@@ -5826,6 +5883,8 @@
     if (route.type === 'today') return { today: true };
     // R33 (finding 25): on an area's screen "+" files the new task into that area.
     if (route.type === 'area') return getArea(route.id) ? { areaId: route.id } : {};
+    // R59: on a tag's screen the new task carries that tag.
+    if (route.type === 'tag') return getTag(route.id) ? { tagIds: [route.id] } : {};
     if (route.type === 'project' && route.id === 'none') return { anytime: true };
     if (route.type === 'project') return getProject(route.id)?.isArchived ? null : { projectId: route.id };
     if (route.type === 'tasks' && state.ui.tasksView !== 'projects') return { anytime: true };
@@ -5877,7 +5936,7 @@
       return;
     }
     const action = el.dataset.action;
-    if (action === 'toggle-mobile-quick-add') { const direct = quickAddDirect(); if (direct) { direct[1](); return; } setMobileQuickAddOpen(el.getAttribute('aria-expanded') !== 'true'); return; }
+    if (action === 'toggle-mobile-quick-add') { if (el.getAttribute('aria-expanded') === 'true') { setMobileQuickAddOpen(false); return; } const direct = quickAddDirect(); if (direct) { direct[1](); return; } setMobileQuickAddOpen(el.getAttribute('aria-expanded') !== 'true'); return; }
     if (el.closest('#mobile-quick-add-menu')) {
       setMobileQuickAddOpen(false);
       $('#mobile-quick-add-toggle')?.focus();
@@ -5968,7 +6027,7 @@
     else if (action === 'account-change-password') openAccountWindow('password');
     else if (action === 'account-change-email') openAccountWindow('email');
     else if (['journal-cipher-enable', 'journal-cipher-unlock', 'journal-cipher-disable'].includes(action)) openJournalCipherWindow(action.slice('journal-cipher-'.length));
-    else if (action === 'sync-sign-out') signOutSync();
+    else if (action === 'sync-sign-out') signOutToWelcome();
     else if (action === 'sync-delete-account') deleteSyncAccount();
     else if (action === 'sync-choose') chooseSyncMode(el.dataset.mode);
     else if (action === 'undo') doUndo();
@@ -6313,7 +6372,8 @@
   function startTouchReorder(reorder) {
     if (touchReorder !== reorder) return;
     reorder.active = true; reorder.timer = null;
-    if (taskSwipeState?.row === reorder.row) { resetTaskSwipe(taskSwipeState.row, taskSwipeState.originalStyle); taskSwipeState = null; }
+    // R62: the swipe waits, so a clear move to the side after the hold still completes the task or picks its date.
+    if (taskSwipeState?.row === reorder.row) { resetTaskSwipe(taskSwipeState.row, taskSwipeState.originalStyle); reorder.swipe = taskSwipeState; taskSwipeState = null; }
     reorder.row.releasePointerCapture?.(reorder.pointerId);
     reorder.row.classList.add('is-dragging', 'is-touch-dragging');
     document.body.classList.add('task-drag-active');
@@ -6325,6 +6385,15 @@
     if (!reorder || reorder.pointerId !== event.pointerId) return;
     const dx = event.clientX - reorder.startX, dy = event.clientY - reorder.startY;
     if (!reorder.active) { if (Math.abs(dx) > 8 || Math.abs(dy) > 8) cancelTouchReorder(); return; }
+    // R62: until the lifted row has moved up or down, a clear move to the side puts it down and swipes instead.
+    if (!reorder.vertical && reorder.swipe && Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy)) {
+      const swipe = reorder.swipe;
+      cancelTouchReorder();
+      taskSwipeState = swipe;
+      handleTaskSwipeMove(event);
+      return;
+    }
+    if (Math.abs(dy) > 12) reorder.vertical = true;
     event.preventDefault();
     reorder.row.style.transform = `translateY(${dy}px)`;
     const over = document.elementFromPoint(event.clientX, event.clientY)?.closest?.(REORDER_ROWS);
@@ -6354,8 +6423,9 @@
     touchReorder = null;
   }
 
+  // R62: nor while a row is swiped to the side, so a slight slant does not turn the swipe into a scroll.
   function blockTouchScroll(event) {
-    if (touchReorder?.active) event.preventDefault();
+    if ((touchReorder?.active || taskSwipeState?.swiping) && event.cancelable !== false) event.preventDefault();
   }
 
   // R44: on Navike a horizontal swipe over the week bar or the rings pages the week, like ‹ and ›: to the left is
@@ -6520,9 +6590,10 @@
     clearTimeout(longPressTimer); longPressFired = false;
     longPressTimer = setTimeout(() => { longPressTimer = null; longPressFired = true; runLongPress(el); }, 500);
   }
-  // R36 (C): holding the "+" opens a new task at once, whatever the "+" does on a tap there.
+  // R36 (C): holding the "+" opens a new task at once where a tap opens the menu. R59: where a tap adds directly,
+  // holding it opens the menu, so every type stays one hold away.
   function runLongPress(el) {
-    if (el.dataset.longPress === 'quick-add-task') { haptic('tick'); setMobileQuickAddOpen(false); const context = routeQuickAddContext(); if (context) openQuickAdd(context); else setToastMessage(tr('Restore the project to add tasks.')); return; }
+    if (el.dataset.longPress === 'quick-add-task') { haptic('tick'); if (quickAddDirect()) { setMobileQuickAddOpen(true); return; } setMobileQuickAddOpen(false); const context = routeQuickAddContext(); if (context) openQuickAdd(context); else setToastMessage(tr('Restore the project to add tasks.')); return; }
     callDomainHook('handleAction', el.dataset.longPress, { target: el });
   }
   function cancelLongPress() {
@@ -6554,7 +6625,7 @@
     document.addEventListener('pointerup', finishTouchReorder);
     document.addEventListener('pointercancel', finishTouchReorder);
     document.addEventListener('touchmove', blockTouchScroll, { passive: false });
-    document.addEventListener('contextmenu', event => { if (touchReorder) event.preventDefault(); });
+    document.addEventListener('contextmenu', event => { if (touchReorder || taskSwipeState) event.preventDefault(); });
     document.addEventListener('click', handleClick);
     // R40: the welcome screen is a form, so Enter and the phone's "Go" key send it and password managers see it.
     document.addEventListener('submit', event => {
@@ -6647,7 +6718,7 @@
     const number = value => Number(value || 0).toLocaleString(I18n.locale(), { maximumFractionDigits: 2 });
     return {
       title: tr('Habits'), summary: snap.planned ? tr('{done} of {total} today', { done: snap.done, total: snap.planned }) : '',
-      items: snap.items.map(item => ({ id: item.id, done: item.done, text: `${item.done ? '✓' : '○'}  ${item.name}${item.numeric ? ` · ${number(item.value)}/${number(item.target)}${item.unit ? ` ${item.unit}` : ''}` : ''}` })),
+      items: snap.items.map(item => ({ id: item.id, done: item.done, text: `${item.done ? '✓' : item.missed ? '✗' : '○'}  ${item.name}${item.numeric ? ` · ${number(item.value)}/${number(item.target)}${item.unit ? ` ${item.unit}` : ''}` : ''}` })),
       more: snap.more ? tr('+ {count} more', { count: snap.more }) : '',
       empty: tr('No habits planned for today'), stale: tr('Open Dailo for today’s habits'),
     };

@@ -330,8 +330,9 @@ test('upcoming v3 groups future tasks, goals, habits, and milestones by next dat
 
 test('today v3 derives numeric partial and completed status from transient logs', () => {
   const state = { habits: [{ id: 'water', status: 'active', trackingType: 'numeric', targetValue: 2, frequencyType: 'daily', startDate: '2026-09-16' }] };
-  assert.deepEqual(Core.deriveTodayV3(state, [{ habitId: 'water', date: '2026-09-16', value: 0.5 }], '2026-09-16').habits[0].status, { status: 'missed', value: 0.5, percent: 25 });
-  assert.deepEqual(Core.deriveTodayV3(state, [{ habitId: 'water', date: '2026-09-16', value: 2.4 }], '2026-09-16').habits[0].status, { status: 'done', value: 2.4, percent: 100 });
+  // R61: a status from a log also says `logged: true`.
+  assert.deepEqual(Core.deriveTodayV3(state, [{ habitId: 'water', date: '2026-09-16', value: 0.5 }], '2026-09-16').habits[0].status, { status: 'missed', value: 0.5, percent: 25, logged: true });
+  assert.deepEqual(Core.deriveTodayV3(state, [{ habitId: 'water', date: '2026-09-16', value: 2.4 }], '2026-09-16').habits[0].status, { status: 'done', value: 2.4, percent: 100, logged: true });
   assert.deepEqual(Core.deriveUpcomingV3({}, '2026-09-16'), []);
 });
 

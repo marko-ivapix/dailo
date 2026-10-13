@@ -2305,9 +2305,6 @@ h2.task-window-kind { margin: 0; font-size: var(--text-md); }
 
 /* Redesign R25 — a row lifted for touch reordering (2026-10-11). */
 .task-row.is-touch-dragging { position: relative; z-index: 5; pointer-events: none; border-color: var(--line-3); background: var(--graphite-800); box-shadow: var(--shadow-popover); transition: none; }
-@media (pointer: coarse) {
-  .task-row[draggable="true"] { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
-}
 
 /* Redesign R26 — "Na današnji dan" and the locked journal (2026-10-11). */
 .journal-on-this-day-title { margin-top: 18px; }
@@ -2503,7 +2500,8 @@ textarea[data-autogrow] { field-sizing: content; min-height: 0; resize: none; ov
   .sidebar-subtitle { margin: 6px 0 2px; padding: 0 10px; color: var(--ink-4); font-size: var(--text-xs); }
   .sidebar-bottom { margin-top: auto; padding-top: 12px; border-top: 1px solid var(--line-1); }
   .mobile-quick-add { right: 32px; bottom: 32px; }
-  .mobile-quick-add-toggle { width: auto; gap: 8px; padding: 0 20px 0 16px; border-radius: var(--radius-pill); }
+  .mobile-quick-add-toggle { display: inline-flex; align-items: center; width: auto; gap: 8px; padding: 0 20px 0 16px; border-radius: var(--radius-pill); font-size: var(--text-base); font-weight: 600; }
+  .mobile-quick-add-toggle i { font-size: var(--text-lg); }
   .quick-add-label { display: inline; }
   .toast-root { right: 32px; bottom: 100px; }
   :root[data-sidebar="collapsed"] .desktop-sidebar :is(.sidebar-label, .sidebar-sync, .sidebar-key, .sidebar-drop, .sidebar-subtitle, .sidebar-group-title > .ph) { display: none; }
@@ -2591,6 +2589,35 @@ textarea[data-autogrow] { field-sizing: content; min-height: 0; resize: none; ov
 .habit-year-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 8px; color: var(--ink-3); font-size: var(--text-sm); }
 .habit-year-key { display: inline-flex; align-items: center; gap: 6px; }
 .habit-year-key .habit-year-cell { width: 10px; }
+
+/* R61 — a yes/no habit marked "not done": a red circle with a cross (Danas, Dan), a red day (Nedelja, details). */
+.habit-circle-missed { fill: var(--danger-fill); }
+.habit-circle-x { fill: none; stroke: var(--on-accent); stroke-width: 2.6; stroke-linecap: round; }
+.habit-cell.is-marked { color: var(--on-accent); }
+.habit-cell.is-marked::before { border-color: var(--danger-fill); background: var(--danger-fill); }
+.habit-cell-x { width: 14px; height: 14px; fill: none; stroke: var(--on-accent); stroke-width: 3; stroke-linecap: round; }
+.habit-cell-swatch.is-marked { border-color: var(--danger-fill); background: var(--danger-fill); }
+
+/* Redesign R62 — a redrawn window keeps still; task rows swipe and hold without selecting text (2026-10-13). */
+.modal-backdrop.is-steady, .modal-backdrop.is-steady .modal { animation: none; }
+/* The browser decides at the touch start who handles a sideways move, so the row says it up front; the second
+   declaration keeps pinch zoom where it is understood. While a row is lifted, nothing under it selects either. */
+@media (pointer: coarse) {
+  .task-row { touch-action: pan-y; touch-action: pan-y pinch-zoom; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  .task-drag-active { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+}
+
+/* Redesign R63 — fixes from the pass in Chromium, phone and wide (2026-10-13). */
+/* The chart's "100%" may use the card padding at a larger text size instead of being cut. */
+.habits-chart-svg { overflow: visible; }
+/* The sticky "Završi zadatak" stays above a done subtask's tick (which sits at z-index 1). */
+.task-window-footer { z-index: 2; }
+/* Raspored: a task without a time is a plain title, and its time field keeps its width. */
+.day-unscheduled-title { padding: 8px 0; border: 0; background: none; font: inherit; cursor: pointer; }
+.day-unscheduled-item .task-time-input { flex: 0 0 136px; }
+
+/* Redesign R64 — the sign-in screen fills the window, so it does not slide in or shrink like a dialog (2026-10-13). */
+.modal.welcome-screen { animation: none; }
 
 /* Keep primary compact actions touchable after all density rules. */
 @media (max-width: 700px), (pointer: coarse) {

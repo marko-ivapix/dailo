@@ -31,10 +31,11 @@ test('Core.habitsWidgetSnapshot: today\'s planned habits, open ones first in rou
   const snap = JSON.parse(JSON.stringify(Core.habitsWidgetSnapshot(habits, logs, T, 'monday')));
   assert.deepEqual(snap, {
     date: T, done: 1, planned: 3, more: 0,
+    // R61: each item also says whether the day is marked "not done".
     items: [
-      { id: 'Water', name: 'Water', done: false, numeric: true, value: 0.5, target: 2, unit: 'l' },
-      { id: 'Read', name: 'Read', done: false, numeric: false, value: null, target: null, unit: '' },
-      { id: 'Meditate', name: 'Meditate', done: true, numeric: false, value: null, target: null, unit: '' },
+      { id: 'Water', name: 'Water', done: false, missed: false, numeric: true, value: 0.5, target: 2, unit: 'l' },
+      { id: 'Read', name: 'Read', done: false, missed: false, numeric: false, value: null, target: null, unit: '' },
+      { id: 'Meditate', name: 'Meditate', done: true, missed: false, numeric: false, value: null, target: null, unit: '' },
     ],
   }, 'not the weekend habit, the skipped day or the paused habit');
   const many = Array.from({ length: 7 }, (_, index) => habit(`h${index}`));

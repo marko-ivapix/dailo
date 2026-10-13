@@ -251,7 +251,7 @@
     const numeric = habit => habit.trackingType === 'numeric';
     return {
       date: today, done: rows.filter(({ day }) => day.state === 'done').length, planned: rows.length,
-      items: rows.slice(0, limit).map(({ habit, day }) => ({ id: String(habit.id), name: String(habit.name || ''), done: day.state === 'done', numeric: numeric(habit),
+      items: rows.slice(0, limit).map(({ habit, day }) => ({ id: String(habit.id), name: String(habit.name || ''), done: day.state === 'done', missed: Boolean(day.marked), numeric: numeric(habit),
         value: numeric(habit) ? Number(day.value || 0) : null, target: numeric(habit) ? Number(habit.targetValue || 0) : null, unit: numeric(habit) ? String(habit.unit || '') : '' })),
       more: Math.max(0, rows.length - limit),
     };
@@ -1276,8 +1276,9 @@
     const log = (logs || []).find(item => item && item.date === date && (!habit?.id || item.habitId === habit.id));
     if (log) {
       // R31: a skipped day of a numeric habit stays skipped; otherwise the value decides.
-      if (habit?.trackingType === 'numeric' && log.status !== 'skipped') return numericHabitState(habit, log.value);
-      return { status: log.status, value: log.value ?? null, percent: log.status === 'done' ? 100 : 0 };
+      // R61: `logged` tells a recorded day from one nobody touched (a yes/no habit's "not done" is a logged missed day).
+      if (habit?.trackingType === 'numeric' && log.status !== 'skipped') return { ...numericHabitState(habit, log.value), logged: true };
+      return { status: log.status, value: log.value ?? null, percent: log.status === 'done' ? 100 : 0, logged: true };
     }
     if (!habitScheduledOn(habit, date, { historical: true })) return { status: 'unscheduled', value: null, percent: 0 };
     return { status: date < today ? 'missed' : 'pending', value: null, percent: 0 };
@@ -1293,6 +1294,8 @@
     if (status.status === 'unscheduled') return { state: 'unscheduled', planned: false, value: null };
     if (status.status === 'skipped') return { state: 'skipped', planned: false, value: status.value };
     if (status.status === 'done') return { state: 'done', planned: true, value: status.value };
+    // R61: a yes/no habit marked "not done" is missed even today, and `marked` sets it apart from an untouched day.
+    if (habit?.trackingType !== 'numeric' && status.logged && status.status === 'missed') return { state: 'missed', planned: habit?.frequencyType !== 'timesPerWeek', value: null, marked: true };
     if (habit?.frequencyType === 'timesPerWeek') {
       const week = habitPeriodKey(habit, date, weekRule);
       const done = new Set((logs || []).filter(log => log && log.date <= today && (!habit.id || log.habitId === habit.id) && habitPeriodKey(habit, log.date, weekRule) === week && habitStatusForDate(habit, logs, log.date, today).status === 'done').map(log => log.date)).size;
@@ -1487,8 +1490,9 @@
   // target still reminds. Weekly habits are silenced by the week's target instead.
   function habitDayClosed(habit, logs, date) {
     if (habit?.frequencyType === 'timesPerWeek') return false;
-    const status = habitStatusForDate(habit, logs || [], date, date).status;
-    return status === 'done' || status === 'skipped';
+    const day = habitStatusForDate(habit, logs || [], date, date);
+    // R61: a yes/no habit marked "not done" closes the day too; a numeric one below its target still reminds.
+    return day.status === 'done' || day.status === 'skipped' || (habit?.trackingType !== 'numeric' && day.logged === true && day.status === 'missed');
   }
 
   function habitReminderActive(habit, logs, now, weekStartsOn = 'monday') {
@@ -2539,6 +2543,7 @@
     calendarTimeBlocks,
     calendarDayItems,
     habitDayState,
+    habitDayClosed,
     habitDayPercent,
     habitWeekProgress,
     nextRecurrenceDate,

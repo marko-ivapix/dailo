@@ -28,7 +28,18 @@ Jednokratno podešavanje servera za sinhronizaciju (V2.0-a). Traje desetak minut
 Od verzije `2.0.0-alpha.66` (R40) prijava je e-adresom i lozinkom. Kod iz e-poruke služi da se potvrdi nov nalog i da se postavi nova lozinka.
 
 1. **Authentication → Sign In / Providers → Email**: uključeno, sa **Confirm email**. Za **Minimum password length** upiši `8` (aplikacija i sama traži bar 8 znakova, sa brojem i slovom).
-2. **Authentication → Emails → Templates**: šabloni **Confirm signup** i **Reset Password** moraju da imaju `{{ .Token }}`, jer aplikacija traži kod.
+2. **Authentication → Emails → Templates**: šabloni **Confirm signup** i **Reset Password** moraju da imaju `{{ .Token }}`, jer aplikacija traži kod. Bez ovog koraka stižu Supabase-ove engleske poruke sa linkom umesto koda.
+
+   Gotovi srpski šabloni (sa logom, velikim kodom i napomenom) su u repozitorijumu. Za svaki šablon otvori fajl, kopiraj **Subject** iz prvog reda i ceo sadržaj u **Body** (prvi red je komentar i ne smeta), pa klikni **Save**:
+
+   | Šablon u Supabase-u | Fajl | Subject |
+   | --- | --- | --- |
+   | **Confirm signup** | `supabase/templates/confirm-signup.html` | `Dailo — potvrdi nalog` |
+   | **Reset Password** | `supabase/templates/reset-password.html` | `Dailo — nova lozinka` |
+   | **Change Email Address** | `supabase/templates/change-email.html` | `Dailo — nova e-adresa` |
+   | **Reauthentication** | `supabase/templates/reauthentication.html` | `Dailo — potvrdi promenu lozinke` |
+
+   Kraće verzije, ako ti je draži običan tekst:
 
    **Confirm signup** (Subject: `Dailo — potvrdi nalog`):
 
@@ -60,8 +71,9 @@ Od verzije `2.0.0-alpha.66` (R40) prijava je e-adresom i lozinkom. Kod iz e-poru
    Oznake `<p>` drže rečenice u posebnim redovima; bez njih bi se u e-poruci spojile. Šablon **Magic Link** više nije potreban.
 
 3. **Authentication → URL Configuration**:
-   - **Site URL**: `https://marko-ivapix.github.io/dailo/`
-   - **Redirect URLs**: dodaj `https://marko-ivapix.github.io/dailo/` i `dailo://auth`. Na te adrese se aplikacija vraća posle prijave sa Google ili Apple nalogom.
+   - **Site URL**: `https://marko-ivapix.github.io/dailo/`. Nov projekat ovde ima `http://localhost:3000`, pa **linkovi iz e-poruka vode na localhost** dok se ovo ne promeni.
+   - **Redirect URLs**: dodaj `https://marko-ivapix.github.io/dailo/` i `dailo://auth`. Na te adrese se aplikacija vraća posle prijave sa Google ili Apple nalogom. Od verzije `2.0.0-alpha.87` (R60) aplikacija pri registraciji, novom kodu, novoj lozinci i promeni e-adrese traži da link vodi na `https://marko-ivapix.github.io/dailo/`; Supabase to poštuje samo ako je ta adresa na ovom spisku.
+   - Kad neko otvori link iz e-poruke, Dailo kaže šta se desilo (npr. „E-adresa je potvrđena. Prijavi se svojom lozinkom.”) i očisti adresu. Prijavu iz linka ne preuzima, pa tuđi link ne može da prijavi tvoj uređaj na tuđi nalog.
 
 ## 3a. Google i Apple (kad želiš ta dugmad)
 

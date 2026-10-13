@@ -121,17 +121,24 @@ python3 -m http.server 8080
 
 *Update this section on every merge.*
 
-- **Branch:** `2.0.0-alpha.85`, not merged yet:
+- **`main`:** `6a85a58` (PR #26: R57, R58 and the `.claude/` setup); GitHub Pages serves `2.0.0-alpha.85`. The work branch was restarted from it.
   - R57: description, sharing preview, `404.html`, link check;
-  - R58: security fixes, privacy policy and terms completed, migration `0006_security.sql`.
-- **`main`:** `5af3326` (PR #25, R48–R56); GitHub Pages serves `2.0.0-alpha.83`.
-- **Sync:** `js/sync-config.js` holds the user's project `https://qjfpnvjuqbrmdkjxxmsq.supabase.co` and its publishable key. The user still has to apply migrations `0001_sync.sql` to `0006_security.sql` and set up SMTP, the e-mail templates, the redirect URLs and the Google/Apple providers (`docs/v2/podesavanje-supabase.md`).
+  - R58: security fixes, privacy policy and terms completed, migration `0006_security.sql` (run only once every device is on alpha.85 or later).
+- **Sync:** `js/sync-config.js` holds the user's project `https://qjfpnvjuqbrmdkjxxmsq.supabase.co` and its publishable key (`docs/v2/podesavanje-supabase.md`).
+  - **Checked on 2026-10-13 with the publishable key (read-only):**
+    - the tables of 0001 exist, and 0005 and 0006 were run;
+    - e-mail sign-up is on, with Confirm email;
+    - the Site URL is the app and `dailo://auth` is an allowed redirect;
+    - Google and Apple are off.
+  - **SMTP:** reported working by the user ("radi smtp sada"). The first try with the own mail server failed with `535 authentication failed`.
+  - **Not visible with the key:** migrations 0002–0004, the e-mail templates, the minimum password length and the region.
+  - The cloud environment allows `qjfpnvjuqbrmdkjxxmsq.supabase.co`.
 - **Reported by the user:**
   - iPhone B1–B5 (2026-10-08);
-  - Android debug APKs `2.0.0-alpha.41`, `.53`, `.54` and `.65` installed and working ("instalirao sam, sve radi");
+  - Android debug APKs `2.0.0-alpha.41`, `.53`, `.54`, `.65` and `.85` installed and working ("instalirao sam, sve radi"; alpha.85 on 2026-10-12, built from `main` at `6a85a58`);
   - notifications arrive (alpha.41).
 
-  The `2.0.0-alpha.83` debug APK was sent on 2026-10-12, and no report has come in yet.
+  The `2.0.0-alpha.83` debug APK was also sent on 2026-10-12; no separate report came for it.
 - **Manual-pending:**
   - **Beta checklist:** B6–B42.
   - **iPhone:** the build on the user's Mac, plus the widgets and share extension, which need a paid team (`docs/v2/ios-widgeti.md`).

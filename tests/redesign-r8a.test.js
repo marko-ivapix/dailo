@@ -34,7 +34,8 @@ test('Core.habitDayState: done, missed, open, skipped, unscheduled and future; w
   const state = (habit, logs, date) => plain(Core.habitDayState(habit, logs, date, T, 'monday'));
   const dailyLogs = [log('d', '2026-10-05'), log('d', '2026-10-06', 'missed'), log('d', '2026-10-03', 'skipped')];
   assert.deepEqual(state(daily, dailyLogs, '2026-10-05'), { state: 'done', planned: true, value: null });
-  assert.deepEqual(state(daily, dailyLogs, '2026-10-06'), { state: 'missed', planned: true, value: null });
+  // R61: a logged missed day of a yes/no habit is a "not done" mark (a red ✗); a day without a log is not marked.
+  assert.deepEqual(state(daily, dailyLogs, '2026-10-06'), { state: 'missed', planned: true, value: null, marked: true });
   assert.deepEqual(state(daily, dailyLogs, '2026-10-07'), { state: 'missed', planned: true, value: null }, 'a past day without a log');
   assert.deepEqual(state(daily, dailyLogs, T), { state: 'open', planned: true, value: null });
   assert.deepEqual(state(daily, dailyLogs, '2026-10-03'), { state: 'skipped', planned: false, value: null });
@@ -140,7 +141,7 @@ test('H2, H6: Dan groups by routine, done habits last, with the frequency and st
   const yesterday = Core.addDays(TODAY, -1);
   const past = render(screen({ habitsDay: yesterday }));
   assert.match(past, new RegExp(`<h2 class="habits-day-title">F:${yesterday}<\\/h2>`));
-  assert.match(past, new RegExp(`<button class="habit-check" type="button" data-action="habit-today-toggle" data-habit-id="m" data-date="${yesterday}" data-long-press="habit-today-menu" aria-pressed="false" aria-label="Meditate">`));
+  assert.match(past, new RegExp(`<button class="habit-check" type="button" data-action="habit-today-toggle" data-habit-id="m" data-date="${yesterday}" data-long-press="habit-today-menu" aria-pressed="false" aria-label="Meditate: Not checked in">`)); // R61: with the state
   assert.match(past, new RegExp(`data-action="habit-today-menu" data-habit-id="m" data-date="${yesterday}" aria-haspopup="dialog"><span class="task-title">Meditate<\\/span><span class="task-meta">Daily · missed<\\/span>`));
   assert.doesNotMatch(render(screen({ habitsDay: Core.addDays(TODAY, 3) })), /habits-day-title/, 'a stored future day falls back to today');
 });
@@ -162,7 +163,8 @@ test('H3: Nedelja is a table of habits by days with inactive future and unschedu
   if (week[6] > TODAY) { assert.match(cell('r', week[6])[1], /is-future/); assert.match(cell('r', week[6])[2], / disabled/); }
   if (week[0] < TODAY) assert.match(cell('g', week[0])[1], /^is-open/, 'a weekly habit has no missed day');
   assert.doesNotMatch(cell('n', TODAY)[2], /aria-pressed/, 'numeric cells open the value sheet');
-  assert.match(html, /<div class="habits-legend"><span><i class="habit-cell-swatch is-done" aria-hidden="true"><\/i>Done<\/span><span><i class="habit-cell-swatch is-missed" aria-hidden="true"><\/i>Missed<\/span><span><i class="habit-cell-swatch is-skipped" aria-hidden="true"><\/i>Skipped<\/span><span><i class="habit-cell-swatch is-unscheduled" aria-hidden="true"><\/i>Not scheduled<\/span><\/div>/);
+  // R61: the legend adds "Not done" after "Done".
+  assert.match(html, /<div class="habits-legend"><span><i class="habit-cell-swatch is-done" aria-hidden="true"><\/i>Done<\/span><span><i class="habit-cell-swatch is-marked" aria-hidden="true"><\/i>Not done<\/span><span><i class="habit-cell-swatch is-missed" aria-hidden="true"><\/i>Missed<\/span><span><i class="habit-cell-swatch is-skipped" aria-hidden="true"><\/i>Skipped<\/span><span><i class="habit-cell-swatch is-unscheduled" aria-hidden="true"><\/i>Not scheduled<\/span><\/div>/);
 });
 
 test('H7, H4: Napredak has the bars of this week and the month chart with today labelled', () => {

@@ -41,6 +41,8 @@
   // sheet), the name (opens the menu, as does a long press on the check) and the week or the value on the right.
   const number = value => Number(value || 0).toLocaleString(I18n.locale(), { maximumFractionDigits: 2 });
   function habitCircle(state, fraction) {
+    // R61: a yes/no habit marked "not done" shows a red circle with a cross.
+    if (state === 'marked') return '<svg class="habit-circle is-missed" viewBox="0 0 28 28" aria-hidden="true"><circle class="habit-circle-missed" cx="14" cy="14" r="12.5"/><path class="habit-circle-x" d="M10 10l8 8M18 10l-8 8"/></svg>';
     if (state === 'done') return '<svg class="habit-circle is-done" viewBox="0 0 28 28" aria-hidden="true"><circle class="habit-circle-fill" cx="14" cy="14" r="12.5"/><path class="habit-circle-tick" d="M8.5 14.5l3.5 3.5 7.5-8"/></svg>';
     if (state === 'skipped') return '<svg class="habit-circle is-skipped" viewBox="0 0 28 28" aria-hidden="true"><circle class="habit-circle-dashed" cx="14" cy="14" r="11"/></svg>';
     const arc = fraction > 0 ? `<circle class="habit-circle-arc" cx="14" cy="14" r="11" stroke-dasharray="${(fraction * 69.115).toFixed(1)} 69.1" transform="rotate(-90 14 14)"/>` : '';
@@ -55,6 +57,9 @@
     const dateAttr = date ? ` data-date="${esc(date)}"` : '';
     const status = todayStatus?.status || 'pending';
     const numeric = habit.trackingType === 'numeric';
+    // R61: "not done" is a logged missed day (Danas) or a day the caller marks (Dan, the details window).
+    const marked = !numeric && Boolean(todayStatus?.marked || (todayStatus?.logged && status === 'missed'));
+    const stateLabel = tr(status === 'done' ? msg('Done') : marked ? msg('Not done') : status === 'skipped' ? msg('Skipped') : msg('Not checked in'));
     let fraction = 0; let right = '';
     if (numeric) {
       const target = Number(habit.targetValue) || 0;
@@ -67,7 +72,7 @@
     }
     const check = numeric
       ? `<button class="habit-check" type="button" data-action="habit-today-toggle" data-habit-id="${esc(habit.id)}"${dateAttr} data-long-press="habit-today-menu" aria-label="${esc(tr('Enter value: {habit}', { habit: habit.name }))}">`
-      : `<button class="habit-check" type="button" data-action="habit-today-toggle" data-habit-id="${esc(habit.id)}"${dateAttr} data-long-press="habit-today-menu" aria-pressed="${status === 'done'}" aria-label="${esc(habit.name)}">`;
+      : `<button class="habit-check" type="button" data-action="habit-today-toggle" data-habit-id="${esc(habit.id)}"${dateAttr} data-long-press="habit-today-menu" aria-pressed="${status === 'done'}" aria-label="${esc(`${habit.name}: ${stateLabel}`)}">`;
     // R17: the week count or the value joins the meta line under the name instead of the right side.
     const metaText = [options.meta, right && !(options.count === false && !numeric) ? right : ''].filter(Boolean).join(' · ');
     const meta = metaText ? `<span class="task-meta">${esc(metaText)}</span>` : '';
@@ -75,7 +80,7 @@
     const quick = numeric && !date ? (habit.quickValues || []).slice(0, 2).map(value => `<button class="quick-chip habit-quick-value" type="button" data-action="habit-quick-value" data-habit-id="${esc(habit.id)}" data-value="${esc(value)}" aria-label="${esc(tr('Add {value} to {habit}', { value: number(value), habit: habit.name }))}">+${esc(number(value))}</button>`).join('') : '';
     // R14b (T5 amended): like a task row, the name comes first and the circle closes the row on the right.
     const main = `<button class="today-row-main" type="button" data-action="habit-today-menu" data-habit-id="${esc(habit.id)}"${dateAttr} aria-haspopup="dialog"><span class="task-title">${esc(habit.name)}</span>${meta}</button>`;
-    return `<article class="today-row habit-today-row${status === 'done' ? ' is-done' : ''}${status === 'skipped' ? ' is-skipped' : ''}" data-habit-id="${esc(habit.id)}">${main}${quick}${check}${habitCircle(status, fraction)}</button></article>`;
+    return `<article class="today-row habit-today-row${status === 'done' ? ' is-done' : ''}${status === 'skipped' ? ' is-skipped' : ''}${marked ? ' is-missed' : ''}" data-habit-id="${esc(habit.id)}">${main}${quick}${check}${habitCircle(marked ? 'marked' : status, fraction)}</button></article>`;
   }
 
   function openTodayHabitMenu(ctx, anchor, habitId, date = ctx.Core.dateOnly()) {
@@ -113,7 +118,7 @@
   // (Core.habitWeekRule); the chart covers one calendar month (`ui.habitTrackerMonth`).
   const ROUTINE_ORDER = ['morning', 'daily', 'night'];
   const routineOf = habit => (ROUTINE_ORDER.includes(habit.routine) ? habit.routine : 'daily');
-  const CELL_LABELS = Object.freeze({ done: msg('Done'), missed: msg('Missed'), skipped: msg('Skipped'), open: msg('Not checked in'), unscheduled: msg('Not scheduled'), future: msg('Future') });
+  const CELL_LABELS = Object.freeze({ done: msg('Done'), marked: msg('Not done'), missed: msg('Missed'), skipped: msg('Skipped'), open: msg('Not checked in'), unscheduled: msg('Not scheduled'), future: msg('Future') });
 
   function habitsWeek(ctx) {
     const today = ctx.Core.dateOnly();
@@ -209,13 +214,15 @@
       if (!entries.length) continue;
       shown += entries.length;
       const sorted = [...entries.filter(entry => entry.day.state !== 'done'), ...entries.filter(entry => entry.day.state === 'done')];
-      const rows = sorted.map(({ habit, day }) => renderHabitTodayRow(ctx, habit, { status: day.state === 'done' ? 'done' : day.state === 'skipped' ? 'skipped' : 'pending', value: day.value }, { date, meta: dayMeta(ctx, habit, day, date, week.today), count: false })).join('');
+      const rows = sorted.map(({ habit, day }) => renderHabitTodayRow(ctx, habit, { status: day.state === 'done' ? 'done' : day.state === 'skipped' ? 'skipped' : 'pending', value: day.value, marked: day.marked }, { date, meta: dayMeta(ctx, habit, day, date, week.today), count: false })).join('');
       html += `<section class="section habits-routine habits-routine--${routine}"><div class="section-header"><h2 class="section-label"><i class="ph ${ROUTINE_ICONS[routine]}" aria-hidden="true"></i> ${esc(routineLabel(routine))}</h2><span class="section-count">${entries.length}</span></div><div class="habit-list today-card">${rows}</div></section>`;
     }
     return shown ? html : `${html}<p class="today-empty">${tr('No habits planned for this day.')}</p>`;
   }
 
   const TICK = '<svg class="habit-cell-tick" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+  // R61: a day marked "not done".
+  const CROSS = '<svg class="habit-cell-x" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17"/></svg>';
 
   // H3: the week as a table; a cell records a day like a tap in Dan.
   function renderHabitsWeek(ctx, active, week) {
@@ -235,12 +242,12 @@
         const inactive = ['unscheduled', 'future'].includes(day.state);
         // R37 (D): a numeric day short of its target shows how far it got as an arc.
         const fraction = habit.trackingType === 'numeric' && day.state !== 'done' && Number(habit.targetValue) > 0 ? Math.min(1, Number(day.value || 0) / Number(habit.targetValue)) : 0;
-        const label = `${habit.name}, ${ctx.formatDate(date, 'full')}: ${tr(CELL_LABELS[day.state])}`;
+        const label = `${habit.name}, ${ctx.formatDate(date, 'full')}: ${tr(CELL_LABELS[day.marked ? 'marked' : day.state])}`;
         const pressed = habit.trackingType === 'numeric' ? '' : ` aria-pressed="${day.state === 'done'}"`;
-        return `<td><button class="habit-cell is-${day.state}${date === week.today ? ' is-today' : ''}${fraction > 0 ? ` is-partial" style="--fraction:${Math.round(fraction * 100) / 100}` : ''}" type="button" data-action="habit-today-toggle" data-habit-id="${esc(habit.id)}" data-date="${date}"${inactive ? ' disabled' : ''} aria-label="${esc(label)}"${pressed}>${day.state === 'done' ? TICK : ''}</button></td>`;
+        return `<td><button class="habit-cell is-${day.state}${day.marked ? ' is-marked' : ''}${date === week.today ? ' is-today' : ''}${fraction > 0 ? ` is-partial" style="--fraction:${Math.round(fraction * 100) / 100}` : ''}" type="button" data-action="habit-today-toggle" data-habit-id="${esc(habit.id)}" data-date="${date}"${inactive ? ' disabled' : ''} aria-label="${esc(label)}"${pressed}>${day.state === 'done' ? TICK : day.marked ? CROSS : ''}</button></td>`;
       }).join('')}</tr>`).join('');
     }
-    const legend = ['done', 'missed', 'skipped', 'unscheduled'].map(key => `<span><i class="habit-cell-swatch is-${key}" aria-hidden="true"></i>${tr(CELL_LABELS[key])}</span>`).join('');
+    const legend = ['done', 'marked', 'missed', 'skipped', 'unscheduled'].map(key => `<span><i class="habit-cell-swatch is-${key}" aria-hidden="true"></i>${tr(CELL_LABELS[key])}</span>`).join('');
     return `<div class="habits-week-scroll"><table class="habits-week-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div><div class="habits-legend">${legend}</div>`;
   }
 
@@ -266,7 +273,7 @@
     const values = dates.filter(date => date <= week.today).map(date => Core.habitDayPercent(active, state.habitLogCache || {}, date, week.today, week.rule).percent);
     const numbers = values.filter(value => value !== null);
     const average = numbers.length ? Math.round(numbers.reduce((sum, value) => sum + value, 0) / numbers.length) : null;
-    const W = 320, H = 150, L = 30, R = 10, T = 10, B = 22;
+    const W = 320, H = 150, L = 42, R = 10, T = 10, B = 22;
     const x = index => L + index * (W - L - R) / Math.max(1, length - 1);
     const y = value => T + (100 - value) / 100 * (H - T - B);
     const label = capitalized(new Intl.DateTimeFormat(I18n.locale(), { month: 'long', year: 'numeric' }).format(first));
@@ -418,7 +425,7 @@
     const today = Core.habitDayState(habit, logs, week.today, week.today, week.rule);
     if (active) {
       const skip = !['done', 'unscheduled'].includes(today.state) ? `<button class="btn btn-ghost" type="button" data-action="habit-today-skip" data-habit-id="${id}">${today.state === 'skipped' ? tr('Undo skip') : tr('Skip today')}</button>` : '';
-      html += `<div class="today-card habit-details-today">${renderHabitTodayRow(ctx, habit, { status: today.state === 'done' ? 'done' : today.state === 'skipped' ? 'skipped' : 'pending', value: today.value })}</div><div class="habit-details-today-line"><span>${esc(tr('Today: {status}', { status: tr(CELL_LABELS[today.state]) }))}</span>${skip}</div>`;
+      html += `<div class="today-card habit-details-today">${renderHabitTodayRow(ctx, habit, { status: today.state === 'done' ? 'done' : today.state === 'skipped' ? 'skipped' : 'pending', value: today.value, marked: today.marked })}</div><div class="habit-details-today-line"><span>${esc(tr('Today: {status}', { status: tr(CELL_LABELS[today.state]) }))}</span>${skip}</div>`;
     } else html += `<p class="sheet-note">${tr('Paused and archived habits preserve history but cannot be checked in.')}</p>`;
     const progress = Core.habitWeekProgress(habit, logs, week.start, week.today, week.rule);
     const streak = count => (weekly ? trn(count, '{count} week', '{count} weeks') : trn(count, '{count} day', '{count} days'));
@@ -436,7 +443,7 @@
       const date = Core.addDays(`${month}-01`, index);
       const day = Core.habitDayState(habit, logs, date, week.today, week.rule);
       const inactive = ['future', 'unscheduled'].includes(day.state) || (date === week.today && !active);
-      return `<button class="habit-cell is-${day.state}${date === week.today ? ' is-today' : ''}" type="button" data-action="habit-today-toggle" data-habit-id="${id}" data-date="${date}"${inactive ? ' disabled' : ''} aria-label="${esc(`${ctx.formatDate(date, 'full')}: ${tr(CELL_LABELS[day.state])}`)}"${numeric ? '' : ` aria-pressed="${day.state === 'done'}"`}>${index + 1}</button>`;
+      return `<button class="habit-cell is-${day.state}${day.marked ? ' is-marked' : ''}${date === week.today ? ' is-today' : ''}" type="button" data-action="habit-today-toggle" data-habit-id="${id}" data-date="${date}"${inactive ? ' disabled' : ''} aria-label="${esc(`${ctx.formatDate(date, 'full')}: ${tr(CELL_LABELS[day.marked ? 'marked' : day.state])}`)}"${numeric ? '' : ` aria-pressed="${day.state === 'done'}"`}>${index + 1}</button>`;
     }).join('');
     const label = capitalized(new Intl.DateTimeFormat(I18n.locale(), { month: 'long', year: 'numeric' }).format(first));
     html += `<div class="habit-details-month"><div class="habit-details-month-head"><button class="btn-icon" type="button" data-action="habit-details-month" data-shift="-1" aria-label="${tr('Previous month')}"><i class="ph ph-caret-left"></i></button><span>${esc(label)}</span><button class="btn-icon" type="button" data-action="habit-details-month" data-shift="1" aria-label="${tr('Next month')}"${month >= current ? ' disabled' : ''}><i class="ph ph-caret-right"></i></button></div><div class="habit-details-calendar">${names}${'<span aria-hidden="true"></span>'.repeat(lead)}${cells}</div><p class="sheet-note">${tr('A tap on a past day changes the history.')}</p></div>`;
@@ -998,7 +1005,8 @@
     if (action === 'habit-today-toggle') {
       const habit = getHabit(el.dataset.habitId); if (!habit || date > today) return true;
       if (habit.trackingType === 'numeric') ctx.openHabitValue(habit.id, date);
-      else setHabitLog(habit.id, date, dayLog(habit.id)?.status === 'done' ? 'missed' : 'done');
+      // R61: empty → done → not done (a red ✗) → empty; a skipped day goes to done.
+      else { const current = dayLog(habit.id)?.status; setHabitLog(habit.id, date, current === 'done' ? 'missed' : current === 'missed' ? null : 'done'); }
       return true;
     }
     if (action === 'habit-quick-value') {

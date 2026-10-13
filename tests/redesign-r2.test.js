@@ -194,7 +194,8 @@ test('T5, H6: compact habit rows with a round check, the week or the value on th
   const render = (habit, status) => module.renderRoute({ type: 'habit-today-row', habit, todayStatus: status }, habitCtx());
   const done = render({ id: 'h1', name: 'Read', trackingType: 'checkbox', frequencyType: 'daily' }, { status: 'done' });
   assert.match(done, /^<article class="today-row habit-today-row is-done" data-habit-id="h1">/);
-  assert.match(done, /<button class="habit-check" type="button" data-action="habit-today-toggle" data-habit-id="h1" data-long-press="habit-today-menu" aria-pressed="true" aria-label="Read">/);
+  // R61: the circle's name also says the day's state.
+  assert.match(done, /<button class="habit-check" type="button" data-action="habit-today-toggle" data-habit-id="h1" data-long-press="habit-today-menu" aria-pressed="true" aria-label="Read: Done">/);
   assert.match(done, /habit-circle is-done/);
   assert.match(done, /<button class="today-row-main" type="button" data-action="habit-today-menu" data-habit-id="h1" aria-haspopup="dialog"><span class="task-title">Read<\/span><\/button>/);
   const skipped = render({ id: 'h2', name: 'Run', trackingType: 'checkbox', frequencyType: 'daily' }, { status: 'skipped' });
