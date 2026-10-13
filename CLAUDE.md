@@ -121,9 +121,11 @@ python3 -m http.server 8080
 
 *Update this section on every merge.*
 
-- **`main`:** `6a85a58` (PR #26: R57, R58 and the `.claude/` setup); GitHub Pages serves `2.0.0-alpha.85`. The work branch was restarted from it.
-  - R57: description, sharing preview, `404.html`, link check;
-  - R58: security fixes, privacy policy and terms completed, migration `0006_security.sql` (run only once every device is on alpha.85 or later).
+- **`main`:** `fbcffc7` (PR #27: R59–R64); GitHub Pages serves `2.0.0-alpha.91`. The work branch was restarted from it.
+  - R59: the "+" adds the screen's item; R60: e-mail links lead to Dailo, Serbian templates;
+  - R61: three habit states; R62: windows keep still, task rows swipe on phones;
+  - R63: fixes from a pass in Chromium; R64: "Odjavi se" returns to the sign-in screen.
+  - Before: PR #26 (`6a85a58`, R57–R58: sharing preview, 404, security fixes, privacy policy, migration 0006).
 - **Sync:** `js/sync-config.js` holds the user's project `https://qjfpnvjuqbrmdkjxxmsq.supabase.co` and its publishable key (`docs/v2/podesavanje-supabase.md`).
   - **Checked on 2026-10-13 with the publishable key (read-only):**
     - the tables of 0001 exist, and 0005 and 0006 were run;
