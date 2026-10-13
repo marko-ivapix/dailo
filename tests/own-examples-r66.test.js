@@ -177,12 +177,15 @@ test('R66: the projects are the user\'s lists, each with its Area and items', as
   const { state, run } = harness();
   await run();
   const area = name => named(state.areas, name).id;
-  assert.deepEqual(state.projects.map(project => [project.name, project.areaId]), [
+  // R70: "Popuni primerima" also adds two Redovne obaveze groups (tests/more-examples-r70.test.js); the lists are the rest.
+  const lists = state.projects.filter(project => !project.isCleaningRoom);
+  assert.deepEqual(lists.map(project => [project.name, project.areaId]), [
     ['Groceries', area('Home')], ['To buy', area('Home')], ['Clothes', area('Personal')], ['Motorcycle', area('Hobbies and nature')],
     ['To learn', area('Personal')], ['Bucket list', area('Personal')], ['Movies and series', area('Personal')],
     ['Things to own', area('Personal')], // R69: the user's list of things to own (tests/things-to-own-r69.test.js)
   ]);
-  assert.ok(state.projects.every(project => !project.isCleaningRoom && !project.isArchived));
+  assert.ok(state.projects.every(project => !project.isArchived));
+  assert.deepEqual(state.projects.filter(project => project.isCleaningRoom).map(project => project.name), ['Car and motorcycle', 'Health and bills']);
   const titles = name => inProject(state, name).map(item => item.title);
   assert.deepEqual(titles('Groceries'), ['Eggs', 'Milk', 'Bananas', 'Fabric softener']);
   assert.deepEqual(titles('To buy'), ['Iron', 'Car floor mats', 'Hubcaps', 'Tools']);
@@ -192,8 +195,9 @@ test('R66: the projects are the user\'s lists, each with its Area and items', as
   // R68: the bucket list became the user's own 81 items (tests/bucket-list-r68.test.js), which include an instrument.
   assert.ok(titles('Bucket list').includes('Raft the Tara river') && titles('Bucket list').length === 81);
   assert.deepEqual(titles('Movies and series'), ["Who's Singin' Over There?", 'The Marathon Family', 'Planet Earth II']);
-  for (const name of state.projects.map(project => project.name)) assert.deepEqual(inProject(state, name).map(item => item.projectOrder), inProject(state, name).map((_, index) => index), name);
-  assert.ok(state.tasks.every(item => !item.isInbox && !item.isCompleted && !item.recurrence && !item.plannedDate && !item.dueDate));
+  for (const name of lists.map(project => project.name)) assert.deepEqual(inProject(state, name).map(item => item.projectOrder), inProject(state, name).map((_, index) => index), name);
+  const listTasks = state.tasks.filter(item => lists.some(project => project.id === item.projectId));
+  assert.ok(listTasks.every(item => !item.isInbox && !item.isCompleted && !item.recurrence && !item.plannedDate && !item.dueDate));
 });
 
 test('R66: the lists use the tags and rough months, the way the user kept them', async () => {
@@ -234,7 +238,8 @@ test('R66: the user\'s habits keep their keys and get Areas', async () => {
 test('R66: Camping and Hiking are project templates with the user\'s packing lists', async () => {
   const { state, run } = harness();
   await run();
-  assert.deepEqual(state.templates.map(item => [item.name, item.type]), [['Camping', 'project'], ['Hiking', 'project']]);
+  // R70: the meal-plan shopping list joins them as a task template.
+  assert.deepEqual(state.templates.map(item => [item.name, item.type]), [['Camping', 'project'], ['Hiking', 'project'], ['Shopping for the meal plan (4 days)', 'task']]);
   const camping = named(state.templates, 'Camping');
   assert.equal(camping.data.areaId, named(state.areas, 'Hobbies and nature').id);
   assert.deepEqual(camping.data.tasks.map(item => [item.title, item.subtasks.map(sub => sub.title)]), [
@@ -269,7 +274,7 @@ test('R66: books and the Figma course are resources; goals and notes follow the 
   const training = named(state.habits, 'Training four times per week');
   assert.deepEqual(plain(shape.habitLinks), [{ habitId: training.id, metric: 'totalCheckins', target: 48 }]);
   assert.ok(training.goalIds.includes(shape.id));
-  assert.deepEqual(state.notes.map(note => note.title), ['Clothing sizes', 'Emergency numbers']);
+  assert.deepEqual(state.notes.map(note => note.title), ['Clothing sizes', 'Emergency numbers', 'Gift ideas']); // R70: gift ideas
 });
 
 test('R66: the old example set is gone', async () => {
@@ -316,7 +321,8 @@ test('R66: the toast counts what was added; a failed save removes every new exam
   const { toasts, run } = harness();
   await run();
   // R68: 108 tasks — the bucket list grew from 9 to 81. R69: plus the "Things to own" project and its 8 group tasks.
-  assert.equal(toasts.at(-1), 'Added 5 Areas, 8 Projects, 116 Tasks, 3 Goals, 10 Habits, 7 Tags, 2 Notes, 5 Resources and 2 Templates. All examples are editable.');
+  // R70: two groups with 17 chores, a third template, a third note and four saved views, which the toast now counts.
+  assert.equal(toasts.at(-1), 'Added 5 Areas, 10 Projects, 133 Tasks, 3 Goals, 10 Habits, 7 Tags, 3 Notes, 5 Resources, 3 Templates and 4 Saved views. All examples are editable.');
   const failing = harness(emptyState(), { saveOk: false });
   await failing.run();
   assert.deepEqual(counts(failing.state), { areas: 0, tags: 0, habits: 0, projects: 0, tasks: 0, goals: 0, notes: 0, resources: 0, templates: 0 });
@@ -331,10 +337,11 @@ test('R66: the examples are Serbian in the app, and Settings describes them', ()
     const out = Starter.workspaceExamples(emptyState(), { Core, uid: prefix => `${prefix}_${++counter}`, today: '2026-10-13', timestamp: stamp, habitDraft: () => ({}), PROJECT_COLORS });
     assert.deepEqual(out.areas.map(area => area.name), ['Lično', 'Posao', 'Dom', 'Zdravlje', 'Hobi i priroda']);
     // R69: "Treba da imam" joins the lists.
-    assert.deepEqual(out.projects.map(project => project.name), ['Namirnice', 'Za kupovinu', 'Odeća', 'Motor', 'Za učenje', 'Bucket lista', 'Filmovi i serije', 'Treba da imam']);
+    // R70: then the two Redovne obaveze groups.
+    assert.deepEqual(out.projects.map(project => project.name), ['Namirnice', 'Za kupovinu', 'Odeća', 'Motor', 'Za učenje', 'Bucket lista', 'Filmovi i serije', 'Treba da imam', 'Auto i motor', 'Zdravlje i računi']);
     assert.deepEqual(out.tags.map(tag => tag.name), ['Kuća', 'Privatno', 'Posao', 'Umetnost', 'Hobi', 'Zdravlje', 'Kupovina']);
     for (const title of ['Omekšivač', 'Pegla', 'Patosnice', 'Ratkapne', 'Alat', 'Lanac i lančanici', 'Akumulator', 'Letnja jakna', 'Dukserica', 'Čarape', 'Plan ishrane']) assert.ok(out.tasks.some(item => item.title === title), title);
-    assert.deepEqual(out.templates.map(item => item.name), ['Kampovanje', 'Planinarenje']);
+    assert.deepEqual(out.templates.map(item => item.name), ['Kampovanje', 'Planinarenje', 'Nabavka za plan ishrane (4 dana)']); // R70
     assert.ok(out.templates[0].data.tasks.some(item => item.subtasks.some(sub => sub.title === 'Suvo pranje ruku')));
     assert.equal(I18n.tr('Around {month}', { month: 'novembar' }), 'Okvirno novembar');
   } finally { I18n.setLanguage('en'); }

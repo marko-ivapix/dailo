@@ -121,11 +121,12 @@ python3 -m http.server 8080
 
 *Update this section on every merge.*
 
-- **Branch `claude/sleepy-gauss-7u6n19`:** R66–R69 (`2.0.0-alpha.96`), not merged yet.
+- **Branch `claude/sleepy-gauss-7u6n19`:** R66–R70 (`2.0.0-alpha.97`), not merged yet.
   - R66: the user's own starter examples and the rough month of a task (`task.plannedMonth`, a data-model change).
   - R67: the Redovne obaveze examples follow a researched cleaning schedule.
   - R68: the user's Bucket list (81 items).
   - R69: "Treba da imam", the user's list of things to own.
+  - R70: car and health dates in Redovne obaveze, the meal-plan shopping template, saved views by tag, gift ideas.
 - **`main`:** `83d49d1` (PR #28: R65, project colors in the sidebar); GitHub Pages serves `2.0.0-alpha.92`. The work branch was restarted from it.
   - Before: PR #27 (`fbcffc7`, R59–R64):
     - R59: the "+" adds the screen's item; R60: e-mail links lead to Dailo, Serbian templates;

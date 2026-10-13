@@ -73,8 +73,8 @@
     const archived = groupsOf(ctx).filter(group => group.isArchived);
     const addGroup = `<button class="quick-chip cleaning-add-group" type="button" data-action="new-cleaning-group">+ ${tr('Group')}</button>`;
     const summary = `${trn(open.length, '{count} task repeats', '{count} tasks repeat')}${late ? ` · ${trn(late, '{count} late', '{count} late')}` : ''}`;
+    const example = (preset, label) => `<button class="quick-chip" type="button" data-action="add-cleaning-examples" data-cleaning-preset="${preset}">${tr(label)}</button>`;
     if (!open.length && !groups.length && !archived.length) {
-      const example = (preset, label) => `<button class="quick-chip" type="button" data-action="add-cleaning-examples" data-cleaning-preset="${preset}">${tr(label)}</button>`;
       return pageHeader(tr('Recurring tasks'), '', { add: false }) + `<div class="empty-state"><h3>${tr('No recurring tasks yet')}</h3><p>${tr('Make a group (home, car, garden…), then add chores that repeat.')}</p><div class="sheet-chips cleaning-chips">${example('apartment', msg('Example: apartment'))}${example('house', msg('Example: house'))}${addGroup}</div></div>`;
     }
     const projectsShown = all.some(section => section.kind === 'project');
@@ -120,6 +120,9 @@
       html += `${ctx.foldButton('cleaning-archived-fold', tr('Archived groups'), archived.length, openFold)}`;
       if (openFold) html += `<div class="today-card">${archived.map(group => `<div class="cleaning-archived-row"><span class="cleaning-archived-name">${esc(group.name)}<small>${esc(trn(count(group), '{count} chore', '{count} chores'))}</small></span><button class="quick-chip" type="button" data-action="restore-cleaning-group" data-project-id="${esc(group.id)}">${tr('Restore')}</button></div>`).join('')}</div>`;
     }
+    // R70: groups from "Popuni primerima" fill this screen, so the cleaning examples stay on offer until one was added.
+    const cleaningExamplesAdded = groupsOf(ctx).some(group => String(group.cleaningSampleKey || '').startsWith('cleaning:'));
+    if (!cleaningExamplesAdded) html += `<div class="sheet-chips cleaning-chips">${example('apartment', msg('Example: apartment'))}${example('house', msg('Example: house'))}</div>`;
     return `${html}<p class="sheet-note cleaning-note">${tr('Everything that repeats is here: chores from groups, repeating tasks from projects and the rest. The repeat is set in the task window.')}</p>`;
   }
 

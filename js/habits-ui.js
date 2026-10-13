@@ -847,7 +847,7 @@
     try {
       await refreshHabitMetrics();
       if (ctx.state !== state) return;
-      render(); setToastMessage(tr('Added {areas} Areas, {projects} Projects, {tasks} Tasks, {goals} Goals, {habits} Habits, {tags} Tags, {notes} Notes, {resources} Resources and {templates} Templates. All examples are editable.', Object.fromEntries(Object.entries(added).map(([key, records]) => [key, records.length]))));
+      render(); setToastMessage(tr('Added {areas} Areas, {projects} Projects, {tasks} Tasks, {goals} Goals, {habits} Habits, {tags} Tags, {notes} Notes, {resources} Resources, {templates} Templates and {savedViews} Saved views. All examples are editable.', Object.fromEntries(Object.entries(added).map(([key, records]) => [key, records.length]))));
     } catch (error) {
       console.error(error);
       if (ctx.state !== state) return;

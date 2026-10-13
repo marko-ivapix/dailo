@@ -42,7 +42,48 @@
     ['groceries', msg('Groceries'), 'home'], ['to-buy', msg('To buy'), 'home'], ['clothes', msg('Clothes'), 'personal'], ['motorcycle', msg('Motorcycle'), 'hobbies'],
     ['to-learn', msg('To learn'), 'personal'], ['bucket-list', msg('Bucket list'), 'personal'], ['movies', msg('Movies and series'), 'personal'],
     ['things-to-own', msg('Things to own'), 'personal'],
+    // R70: two Redovne obaveze groups (isCleaningRoom) for the chores below.
+    ['car-and-motorcycle', msg('Car and motorcycle'), null, true], ['health-and-bills', msg('Health and bills'), 'health', true],
   ];
+
+  // R70: chores that repeat, in their Redovne obaveze group: [group, key, title, frequency, interval, first day].
+  // The first day is a number of days from today, a calendar day ([month, day], the next one to come) or the next
+  // property-tax instalment (due 45 days into each quarter).
+  const CHORES = [
+    ['car-and-motorcycle', 'car-registration', msg('Car registration and technical inspection'), 'yearly', 1, 30],
+    ['car-and-motorcycle', 'motorcycle-registration', msg('Motorcycle registration'), 'yearly', 1, 60],
+    ['car-and-motorcycle', 'car-service', msg('Car service (oil and filters)'), 'yearly', 1, 90],
+    ['car-and-motorcycle', 'motorcycle-service', msg('Motorcycle service before the season'), 'yearly', 1, [3, 1]],
+    ['car-and-motorcycle', 'winter-tyres', msg('Winter tyres'), 'yearly', 1, [10, 25]],
+    ['car-and-motorcycle', 'summer-tyres', msg('Summer tyres'), 'yearly', 1, [4, 10]],
+    ['car-and-motorcycle', 'tyre-pressure', msg('Tyre pressure'), 'monthly', 1, 7],
+    ['car-and-motorcycle', 'car-fluids', msg('Car oil and fluids'), 'monthly', 1, 8],
+    ['car-and-motorcycle', 'motorcycle-chain', msg('Lubricate and tension the motorcycle chain'), 'weekly', 2, 5],
+    ['car-and-motorcycle', 'motorcycle-battery', msg('Motorcycle battery over the winter'), 'monthly', 1, 20],
+    ['car-and-motorcycle', 'car-wash', msg('Car wash'), 'weekly', 2, 3],
+    ['car-and-motorcycle', 'wiper-blades', msg('Wiper blades'), 'yearly', 1, 21],
+    ['car-and-motorcycle', 'car-first-aid', msg('First aid kit expiry date in the car'), 'yearly', 1, 150],
+    ['health-and-bills', 'dentist', msg('Dentist'), 'monthly', 6, 14],
+    ['health-and-bills', 'check-up', msg('Medical check-up'), 'yearly', 1, 30],
+    ['health-and-bills', 'eye-test', msg('Eye test'), 'yearly', 2, 60],
+    ['health-and-bills', 'property-tax', msg('Property tax'), 'monthly', 3, 'property-tax'],
+  ];
+  const PROPERTY_TAX_DAYS = [[2, 14], [5, 15], [8, 14], [11, 14]];
+
+  // R70: the user's shopping list for four days of the meal plan, as a task template for Namirnice.
+  const MEAL_PLAN_SHOPPING = [
+    msg('Chicken fillet – 620 g'), msg('Turkey fillet – 400 g'), msg('Lean beef – 220 g'), msg('Tuna in water – 160 g'), msg('Eggs – 7'), msg('Egg whites – 200 g'),
+    msg('Skyr – 500 g'), msg('Low-fat cottage cheese – 230 g'), msg('Whey protein – 120 g'), msg('Milk – 200 ml'),
+    msg('Oat flakes – 150 g'), msg('Rice (white or brown) – 260 g'), msg('Wholegrain pasta – 90 g'), msg('Wholegrain or rye bread – 300 g'), msg('Potatoes – 900 g'),
+    msg('Rice cakes – 40 g'), msg('Bananas – 4'),
+    msg('Canned mushrooms (drained) – 1100 g'), msg('Carrots – 300 g'), msg('Peppers – 500 g'), msg('Spinach – 270 g'), msg('Tomatoes – 300 g'), msg('Cabbage – 200 g'),
+    msg('Onion – 50 g'), msg('Cucumber – 100 g'),
+    msg('Blueberries – 100 g'), msg('Raspberries – 100 g'), msg('Almonds – 85 g'), msg('Walnuts – 20 g'),
+    msg('Olive oil – 100 g'), msg('Creatine – 20 g'), msg('Omega-3 – as on the label'),
+  ];
+
+  // R70: saved views of the open tasks with a tag: [key, name, tag].
+  const VIEWS = [['shopping', msg('Shopping'), 'shopping'], ['work', msg('Work'), 'work'], ['house', msg('House'), 'house'], ['health', msg('Health'), 'health']];
 
   // [project, key, title, { tags, inMonths: rough month from this one, calendarMonth: the next such month (1–12), items: subtasks }].
   // Product names stay as they are in every language.
@@ -146,6 +187,7 @@
   const NOTES = [
     ['clothing-sizes', msg('Clothing sizes'), 'personal', [msg('Write the sizes down so shopping is quick.'), '', msg('T-shirt —'), msg('Hoodie —'), msg('Trousers —'), msg('Shoes —')]],
     ['emergency-numbers', msg('Emergency numbers'), 'health', [msg('Police 192'), msg('Fire service 193'), msg('Ambulance 194'), msg('Roadside assistance (AMSS) 1987'), msg('112 from a mobile phone also reaches the police')]],
+    ['gift-ideas', msg('Gift ideas'), 'personal', [msg('Mom —'), msg('Dad —'), msg('Friends —'), msg('Colleagues —')]],
   ];
 
   // view: the current collections. Returns only the new records, per collection.
@@ -153,7 +195,7 @@
     const plainName = value => Core.normalizeTagName(String(value || '')).toLocaleLowerCase();
     const existing = (collection, sampleKey, name, field = 'name') => (collection || []).find(item => item.sampleKey === sampleKey || plainName(item[field]) === plainName(name));
     const stamp = { createdAt: timestamp, updatedAt: timestamp };
-    const out = { areas: [], tags: [], habits: [], projects: [], tasks: [], goals: [], notes: [], resources: [], templates: [] };
+    const out = { areas: [], tags: [], habits: [], projects: [], tasks: [], goals: [], notes: [], resources: [], templates: [], savedViews: [] };
     const added = { projects: {}, habits: {} };
     const found = { areas: {}, tags: {}, projects: {}, tasks: {} };
     const color = (collection, list) => PROJECT_COLORS[((collection || []).length + list.length) % PROJECT_COLORS.length];
@@ -189,11 +231,11 @@
       out.habits.push(habit); added.habits[key] = habit;
     }
 
-    for (const [key, name, area] of PROJECTS) {
+    for (const [key, name, area, isCleaningRoom] of PROJECTS) {
       const sampleKey = `${PREFIX}:project:${key}`;
       const own = existing(view.projects, sampleKey, tr(name));
       if (own) { found.projects[key] = own; continue; }
-      const project = { id: uid('project'), sampleKey, name: tr(name), color: color(view.projects, out.projects), areaId: areaId(area), goalIds: [], order: (view.projects || []).length + out.projects.length, isArchived: false, archivedAt: null, ...stamp };
+      const project = { id: uid('project'), sampleKey, name: tr(name), color: color(view.projects, out.projects), areaId: areaId(area), goalIds: [], order: (view.projects || []).length + out.projects.length, isArchived: false, archivedAt: null, ...(isCleaningRoom ? { isCleaningRoom } : {}), ...stamp };
       out.projects.push(project); found.projects[key] = added.projects[key] = project;
     }
 
@@ -214,6 +256,21 @@
       const projectOrder = [...(view.tasks || []), ...out.tasks].filter(item => item.projectId === project.id).length;
       const item = makeTask(tr(title), { sampleKey, projectId: project.id, tagIds: tagIds(fields.tags), subtasks: subtasks(fields.items || []), projectOrder, ...(plannedMonth ? { plannedMonth } : {}) });
       out.tasks.push(item); found.tasks[key] = item;
+    }
+
+    // The next time a calendar day comes round, after today.
+    const nextDay = ([month, day]) => {
+      const date = `${Core.upcomingMonth(month, today)}-${String(day).padStart(2, '0')}`;
+      return date > today ? date : `${Core.addMonths(date.slice(0, 7), 12)}-${date.slice(8)}`;
+    };
+    for (const [groupKey, key, title, frequency, interval, first] of CHORES) {
+      const sampleKey = `${PREFIX}:task:${key}`;
+      const group = found.projects[groupKey];
+      if (!group || existing(view.tasks, sampleKey, tr(title), 'title')) continue;
+      const date = first === 'property-tax' ? PROPERTY_TAX_DAYS.map(nextDay).sort()[0] : Array.isArray(first) ? nextDay(first) : Core.addDays(today, first);
+      const item = makeTask(tr(title), { sampleKey, projectId: group.id, plannedDate: date, dueDate: date });
+      item.recurrence = Core.normalizeRecurrenceV3({ frequency, interval, endType: 'never', seriesId: item.id });
+      out.tasks.push(item);
     }
 
     // Links go both ways, so only to a project or habit this run adds; existing items are never changed.
@@ -269,6 +326,18 @@
       const tasks = list.map(([title, items], projectOrder) => makeTask(tr(title), { projectId: source.id, subtasks: subtasks(items), projectOrder }));
       const { data } = Core.templateFromEntity('project', source, { tasks, goals: [] }, today);
       out.templates.push({ id: uid('template'), sampleKey, name: tr(name), type: 'project', data, ...stamp });
+    }
+    const shoppingKey = `${PREFIX}:template:meal-plan-shopping`, shoppingName = tr('Shopping for the meal plan (4 days)');
+    if (!existing(view.templates, shoppingKey, shoppingName)) {
+      const source = makeTask(shoppingName, { notes: tr('For 8 days, double the amounts.'), projectId: found.projects.groceries?.id || null, subtasks: subtasks(MEAL_PLAN_SHOPPING) });
+      const { data } = Core.templateFromEntity('task', source, view, today);
+      out.templates.push({ id: uid('template'), sampleKey: shoppingKey, name: shoppingName, type: 'task', data: { ...data, scheduleEnabled: false, scheduleDate: null, scheduleGeneratedOn: null }, ...stamp });
+    }
+
+    for (const [key, name, tag] of VIEWS) {
+      const sampleKey = `${PREFIX}:view:${key}`;
+      if (existing(view.savedViews, sampleKey, tr(name)) || !found.tags[tag]) continue;
+      out.savedViews.push({ id: uid('view'), sampleKey, name: tr(name), type: 'tasks', filters: { tagId: found.tags[tag].id, completion: 'open' }, isPinned: false, ...stamp });
     }
     return out;
   }

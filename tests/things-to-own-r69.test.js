@@ -60,7 +60,8 @@ test('R69: the removed things are gone, the reworded ones read as asked, and the
 
 test('R69: the project joins the other example lists, after Movies and series', () => {
   const out = examples();
-  assert.deepEqual(out.projects.map(project => project.name), ['Groceries', 'To buy', 'Clothes', 'Motorcycle', 'To learn', 'Bucket list', 'Movies and series', 'Things to own']);
+  // R70: the two Redovne obaveze groups follow the lists.
+  assert.deepEqual(out.projects.map(project => project.name), ['Groceries', 'To buy', 'Clothes', 'Motorcycle', 'To learn', 'Bucket list', 'Movies and series', 'Things to own', 'Car and motorcycle', 'Health and bills']);
   const again = examples({ ...emptyState(), areas: out.areas, projects: out.projects, tasks: out.tasks });
   assert.equal(again.projects.length + again.tasks.length, 0, 'a second run adds nothing');
 });
@@ -77,8 +78,7 @@ test('R69: the list is Serbian in the app', () => {
   } finally { I18n.setLanguage('en'); }
 });
 
-test('R69 is released as 2.0.0-alpha.96', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.96');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.96';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.96');
+test('R69 shipped as 2.0.0-alpha.96 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 99) >= 96);
 });
