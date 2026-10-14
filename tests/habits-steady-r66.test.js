@@ -40,8 +40,7 @@ test('the large main button of the windows is lower, with a 44 px touch area', (
   assert.ok(beforeMarker.includes('.habit-window-save::after, .task-complete-button::after { content: ""; position: absolute; inset: -3px 0; }'));
 });
 
-test('R66 is released as 2.0.0-alpha.93', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.93');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.93';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.93');
+test('R66 shipped as 2.0.0-alpha.93 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 99) >= 93);
 });

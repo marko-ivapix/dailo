@@ -68,7 +68,8 @@ test('the link check: no broken internal link, anchor or own-site address; it fi
 test('outside links: collected from the pages and the app, own site and the sync server left out; 404 fails, 403 only warns', async () => {
   const { collectExternalLinks, classify, checkExternal } = await links();
   const urls = collectExternalLinks(root);
-  for (const url of ['https://www.pss.rs', 'https://lnt.org/why/7-principles/', 'https://jamesclear.com/atomic-habits']) assert.ok(urls.includes(url), url);
+  // R67: the starter examples no longer link the hiking and camping sites; the book link and the pages' links remain.
+  for (const url of ['https://jamesclear.com/atomic-habits', 'https://www.poverenik.rs']) assert.ok(urls.includes(url), url);
   assert.ok(urls.every(url => !url.startsWith(SITE) && !url.includes('supabase.co') && !url.includes('${') && !url.includes('…')));
   assert.deepEqual([200, 301, 404, 410, 403, 429, 500, 0].map(classify), ['ok', 'ok', 'broken', 'broken', 'unsure', 'unsure', 'unsure', 'unsure']);
   const calls = [];

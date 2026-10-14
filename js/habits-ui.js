@@ -829,145 +829,11 @@
 
   }
 
+  // R67: the example set lives in js/starter-examples.js; this adds what is missing and saves it in one go.
   async function addStarterExamples(ctx) {
-    const { state, Core, uid, nowIso, habitDraft, areaDefaults, PROJECT_COLORS, saveState, render, setToastMessage, refreshHabitMetrics } = ctx;
-    const normalizeName = value => Core.normalizeTagName(value).toLocaleLowerCase();
-    const samplePrefix = 'workspace-starter-v1';
-    // Sample titles are created in the UI language; sampleKey markers stay stable so a later run
-    // still recognizes examples added in another language, and name matching uses the same tr().
-    // R33 (finding 25): each example area has its own icon and color.
-    const areas = [
-      ['family-friends', tr('Family & Friends'), 'ph-users'], ['work', tr('Work'), 'ph-briefcase'], ['personal-growth', tr('Personal Growth'), 'ph-graduation-cap'],
-      ['home', tr('Home'), 'ph-house'], ['travel', tr('Travel'), 'ph-airplane'], ['health', tr('Health'), 'ph-heart'], ['career', tr('Career'), 'ph-chart-line-up'], ['finance', tr('Finance'), 'ph-wallet']
-    ];
-    const habits = [
-      ['morning', 'cold-shower', tr('Cold shower')], ['morning', 'wim-hof-breathing', tr('Wim Hof breathing')],
-      ['morning', '10-minute-workout', tr('10-minute workout')], ['morning', 'beard-balm', tr('Beard balm')],
-      ['daily', 'training', tr('Training four times per week')],
-      ['daily', 'sleep-before-midnight', tr('Sleep before midnight')], ['daily', 'sleep-7-8-hours', tr('Sleep 7–8 hours')],
-      ['daily', 'program-30-minutes', tr('Program 30 minutes')], ['daily', 'read-learn-30-minutes', tr('Read/learn 30 minutes')],
-      ['night', 'tomorrow-tasks', tr("Enter tomorrow's tasks")]
-    ];
-    const addedAreas = [], addedHabits = [], addedProjects = [], addedTasks = [], addedGoals = [], addedNotes = [], addedResources = [], addedTags = [], addedTemplates = [];
-    const timestamp = nowIso(), today = Core.dateOnly();
-    const hasSampleOrName = (collection, sampleKey, name, field = 'name') => collection.some(item => item.sampleKey === sampleKey || normalizeName(item[field]) === normalizeName(name));
-    const byName = (collection, name, field = 'name') => collection.find(item => normalizeName(item[field]) === normalizeName(name));
-    for (const [key, name, areaIcon] of areas) {
-      const sampleKey = 'area-routines-v1:area:' + key;
-      if (hasSampleOrName(state.areas, sampleKey, name)) continue;
-      addedAreas.push({ id: uid('area'), sampleKey, name, ...areaDefaults, icon: areaIcon, color: PROJECT_COLORS[(state.areas.length + addedAreas.length) % PROJECT_COLORS.length], status: 'active', isPinned: false, createdAt: timestamp, updatedAt: timestamp });
-    }
-    for (const [routine, key, name] of habits) {
-      const sampleKey = 'area-routines-v1:habit:' + routine + ':' + key;
-      if (state.habits.some(habit => habit.sampleKey === sampleKey || normalizeName(habit.name) === normalizeName(name))) continue;
-      addedHabits.push({
-        ...habitDraft(), id: uid('habit'), sampleKey, name, routine, status: 'active',
-        areaId: null, goalIds: [], quickValues: [], reminders: [], reminderFiredMoments: [],
-        frequencyType: key === 'training' ? 'timesPerWeek' : 'daily',
-        timesPerWeek: key === 'training' ? 4 : null, weekdays: [], everyNDays: null,
-        endDate: null, successfulPeriodsTarget: null, createdAt: timestamp, updatedAt: timestamp
-      });
-    }
-    const allAreas = [...state.areas, ...addedAreas];
-    const workArea = byName(allAreas, tr('Work'));
-    const healthArea = byName(allAreas, tr('Health'));
-    const homeArea = byName(allAreas, tr('Home'));
-    const travelArea = byName(allAreas, tr('Travel'));
-    const careerArea = byName(allAreas, tr('Career'));
-    const financeArea = byName(allAreas, tr('Finance'));
-    const personalGrowthArea = byName(allAreas, tr('Personal Growth'));
-    const familyArea = byName(allAreas, tr('Family & Friends'));
-    const tagSeeds = [
-      ['focus', tr('Focus'), '#4da3ff'], ['health', tr('Health'), '#6bd39b'], ['home', tr('Home'), '#f2b66d'],
-      ['review', tr('Review'), '#b69cff'], ['errands', tr('Errands'), '#f07b72'], ['planning', tr('Planning'), '#59c6c9']
-    ];
-    for (const [key, name, color] of tagSeeds) {
-      const sampleKey = `${samplePrefix}:tag:${key}`;
-      if (hasSampleOrName(state.tags, sampleKey, name)) continue;
-      addedTags.push({ id: uid('tag'), sampleKey, name, color, createdAt: timestamp, updatedAt: timestamp });
-    }
-    const allTags = [...state.tags, ...addedTags];
-    const tagId = name => byName(allTags, name)?.id || null;
-    const projects = [
-      ['weekly-plan', tr('Plan your week'), workArea?.id || null, false],
-      ['health-baseline', tr('Health baseline'), healthArea?.id || null, false],
-      ['family-weekend', tr('Family weekend'), familyArea?.id || null, false],
-      ['home-reset', tr('Home reset'), homeArea?.id || null, false],
-      ['travel-planning', tr('Travel planning'), travelArea?.id || null, false],
-      ['career-portfolio', tr('Career portfolio'), careerArea?.id || null, false],
-      ['finance-review', tr('Monthly finance review'), financeArea?.id || null, false],
-      ['reading-path', tr('Reading and learning path'), personalGrowthArea?.id || null, false],
-      ['cleaning-living-room', tr('Living Room'), homeArea?.id || null, true],
-      ['cleaning-bathroom', tr('Bathroom'), homeArea?.id || null, true],
-      ['cleaning-kitchen', tr('Kitchen'), homeArea?.id || null, true],
-    ];
-    for (const [key, name, areaId, isCleaningRoom] of projects) {
-      const sampleKey = `${samplePrefix}:project:${key}`;
-      if (hasSampleOrName(state.projects, sampleKey, name)) continue;
-      addedProjects.push({ id: uid('project'), sampleKey, ...(isCleaningRoom ? { cleaningSampleKey: `cleaning:starter:${key.replace('cleaning-', '')}` } : {}), name, color: PROJECT_COLORS[addedProjects.length % PROJECT_COLORS.length], areaId, goalIds: [], order: state.projects.length + addedProjects.length, isArchived: false, archivedAt: null, isCleaningRoom, createdAt: timestamp, updatedAt: timestamp });
-    }
-    const allProjects = [...state.projects, ...addedProjects];
-    const weeklyPlan = byName(allProjects, tr('Plan your week'));
-    const tasks = [
-      ['today-priority', tr('Choose today’s priority'), { projectId: weeklyPlan?.id || null, plannedDate: today, todayOrder: 0, tagNames: [tr('Focus'), tr('Planning')] }],
-      ['overdue-follow-up', tr('Follow up on an overdue commitment'), { projectId: weeklyPlan?.id || null, dueDate: Core.addDays(today, -1), tagNames: [tr('Review')] }],
-      ['due-soon-review', tr('Review this week’s plan'), { projectId: weeklyPlan?.id || null, dueDate: Core.addDays(today, 2), tagNames: [tr('Review'), tr('Planning')] }],
-      ['family-dinner', tr('Plan family dinner'), { projectId: byName(allProjects, tr('Family weekend'))?.id || null, plannedDate: Core.addDays(today, 3), tagNames: [tr('Planning')] }],
-      ['book-doctor', tr('Book annual health check'), { projectId: byName(allProjects, tr('Health baseline'))?.id || null, dueDate: Core.addDays(today, 5), tagNames: [tr('Health')] }],
-      ['update-portfolio', tr('Update portfolio homepage'), { projectId: byName(allProjects, tr('Career portfolio'))?.id || null, plannedDate: Core.addDays(today, 1), tagNames: [tr('Focus')] }],
-      ['review-subscriptions', tr('Review monthly subscriptions'), { projectId: byName(allProjects, tr('Monthly finance review'))?.id || null, plannedDate: Core.addDays(today, 6), tagNames: [tr('Review')] }],
-      ['choose-destination', tr('Choose a travel destination'), { projectId: byName(allProjects, tr('Travel planning'))?.id || null, dueDate: Core.addDays(today, 10), tagNames: [tr('Planning')] }],
-      ['vacuum-living-room', tr('Vacuum'), { projectId: byName(allProjects, tr('Living Room'))?.id || null, plannedDate: today, dueDate: today, tagNames: [tr('Home')], cleaning: ['vacuum-living-room', 'weekly', 1] }],
-      ['dust-living-room', tr('Dust surfaces'), { projectId: byName(allProjects, tr('Living Room'))?.id || null, plannedDate: today, dueDate: today, tagNames: [tr('Home')], cleaning: ['dust-living-room', 'weekly', 1] }],
-      ['clean-bathroom', tr('Clean bathroom'), { projectId: byName(allProjects, tr('Bathroom'))?.id || null, plannedDate: today, dueDate: today, tagNames: [tr('Home')], cleaning: ['clean-bathroom', 'weekly', 1] }],
-      ['check-boiler', tr('Check boiler'), { projectId: byName(allProjects, tr('Bathroom'))?.id || null, plannedDate: today, dueDate: today, tagNames: [tr('Home'), tr('Review')], cleaning: ['check-boiler', 'monthly', 3] }],
-      ['wipe-counters', tr('Wipe counters'), { projectId: byName(allProjects, tr('Kitchen'))?.id || null, plannedDate: today, dueDate: today, tagNames: [tr('Home')], cleaning: ['wipe-counters', 'weekly', 1] }],
-    ];
-    for (const [key, title, extra] of tasks) {
-      const sampleKey = `${samplePrefix}:task:${key}`;
-      if (hasSampleOrName(state.tasks, sampleKey, title, 'title')) continue;
-      const projectId = extra.projectId && allProjects.some(project => project.id === extra.projectId) ? extra.projectId : null;
-      const id = uid('task'), cleaning = extra.cleaning;
-      addedTasks.push({ id, sampleKey, ...(cleaning ? { cleaningSampleKey: `cleaning:starter:${cleaning[0]}` } : {}), title, notes: '', projectId, areaId: projectId ? null : workArea?.id || null, goalIds: [], plannedDate: extra.plannedDate || null, plannedTime: null, dueDate: extra.dueDate || null, dueTime: null, reminderAt: null, reminderFiredAt: null, recurrence: cleaning ? Core.normalizeRecurrenceV3({ frequency: cleaning[1], interval: cleaning[2], endType: 'never', seriesId: id }) : null, tagIds: (extra.tagNames || []).map(tagId).filter(Boolean), priority: 'none', attachmentIds: [], isInbox: !(projectId || extra.plannedDate), isCompleted: false, completedAt: null, subtasks: [], todayOrder: extra.todayOrder ?? null, projectOrder: projectId ? addedTasks.filter(task => task.projectId === projectId).length : null, inboxOrder: null, createdAt: timestamp, updatedAt: timestamp });
-    }
-    const allHabits = [...state.habits, ...addedHabits];
-    const linkedProject = byName(allProjects, tr('Plan your week'));
-    const linkedTask = [...state.tasks, ...addedTasks].find(task => task.sampleKey === `${samplePrefix}:task:today-priority`);
-    const linkedHabit = [...state.habits, ...addedHabits].find(habit => habit.sampleKey === 'area-routines-v1:habit:daily:program-30-minutes');
-    const goalName = tr('Build a sustainable weekly rhythm'), goalKey = `${samplePrefix}:goal:weekly-rhythm`;
-    if (!hasSampleOrName(state.goals, goalKey, goalName, 'title')) {
-      const goal = { id: uid('goal'), sampleKey: goalKey, title: goalName, areaId: workArea?.id || null, horizon: 'short', status: 'active', progressMode: 'linkedTasks', progressType: 'percentage', currentValue: 0, targetValue: 100, unit: '', targetDate: Core.addDays(today, 14), projectLinks: linkedProject ? [{ projectId: linkedProject.id, contributionMode: 'allTasks', selectedTaskIds: [] }] : [], taskIds: linkedTask ? [linkedTask.id] : [], habitLinks: linkedHabit ? [{ habitId: linkedHabit.id, metric: 'totalCheckins', target: 7 }] : [], milestones: [], reminders: { sevenDaysBefore: false, threeDaysBefore: false, oneDayBefore: false, onTargetDate: false, time: '09:00' }, reminderFiredMoments: [], createdAt: timestamp, updatedAt: timestamp, completedAt: null };
-      addedGoals.push(goal);
-      if (linkedProject) linkedProject.goalIds.push(goal.id);
-      if (linkedTask) linkedTask.goalIds.push(goal.id);
-      if (linkedHabit) linkedHabit.goalIds.push(goal.id);
-    }
-    const allGoals = [...state.goals, ...addedGoals];
-    const extraGoalSeeds = [
-      ['health-baseline', tr('Complete my health baseline'), healthArea?.id || null, 'mid', 'linkedTasks', byName(allProjects, tr('Health baseline'))],
-      ['travel-plan', tr('Plan a restorative trip'), travelArea?.id || null, 'long', 'manual', byName(allProjects, tr('Travel planning'))],
-    ];
-    for (const [key, title, areaId, horizon, progressMode, project] of extraGoalSeeds) {
-      const goalKey = `${samplePrefix}:goal:${key}`;
-      if (hasSampleOrName(state.goals, goalKey, title, 'title')) continue;
-      const goal = { id: uid('goal'), sampleKey: goalKey, title, areaId, horizon, status: 'active', progressMode, progressType: 'percentage', currentValue: 0, targetValue: 100, unit: '', targetDate: Core.addDays(today, horizon === 'long' ? 90 : 30), projectLinks: project ? [{ projectId: project.id, contributionMode: 'allTasks', selectedTaskIds: [] }] : [], taskIds: [], habitLinks: [], milestones: [], reminders: { sevenDaysBefore: false, threeDaysBefore: false, oneDayBefore: false, onTargetDate: false, time: '09:00' }, reminderFiredMoments: [], createdAt: timestamp, updatedAt: timestamp, completedAt: null };
-      addedGoals.push(goal);
-      if (project) project.goalIds = [...new Set([...(project.goalIds || []), goal.id])];
-    }
-    const noteName = tr('Weekly planning notes'), noteKey = `${samplePrefix}:note:weekly-planning`;
-    if (!hasSampleOrName(state.notes, noteKey, noteName, 'title')) addedNotes.push({ id: uid('note'), sampleKey: noteKey, title: noteName, body: tr('Use this note to capture decisions, loose ends, and a short review for next week.'), areaId: workArea?.id || null, linkUrls: [], attachmentIds: [], createdAt: timestamp, updatedAt: timestamp });
-    const resourceName = tr('How to plan your week'), resourceKey = `${samplePrefix}:resource:workspace-guide`;
-    const weeklyRhythmGoal = byName(allGoals, goalName, 'title');
-    const programHabit = byName(allHabits, tr('Program 30 minutes'));
-    if (!hasSampleOrName(state.resources, resourceKey, resourceName, 'title')) addedResources.push({ id: uid('resource'), sampleKey: resourceKey, title: resourceName, description: tr('A short guide to weekly planning: look back at the week, then choose what matters next.'), areaId: workArea?.id || null, linkUrls: ['https://todoist.com/productivity-methods/weekly-review'], attachmentIds: [], relatedTaskIds: linkedTask ? [linkedTask.id] : [], relatedProjectIds: weeklyPlan ? [weeklyPlan.id] : [], relatedGoalIds: weeklyRhythmGoal ? [weeklyRhythmGoal.id] : [], relatedHabitIds: programHabit ? [programHabit.id] : [], createdAt: timestamp, updatedAt: timestamp });
-    // R29: the real-life set (js/starter-examples.js) sees this run's first-set items too, so it finds their Areas.
-    const view = { areas: [...state.areas, ...addedAreas], tags: [...state.tags, ...addedTags], habits: [...state.habits, ...addedHabits], projects: [...state.projects, ...addedProjects], tasks: [...state.tasks, ...addedTasks], goals: [...state.goals, ...addedGoals], notes: [...state.notes, ...addedNotes], resources: [...state.resources, ...addedResources], templates: [...(state.templates || [])] };
-    const realLife = window.DailoStarterExamples?.realLifeExamples(view, { Core, uid, today, timestamp, habitDraft, PROJECT_COLORS });
-    if (realLife) {
-      addedTags.push(...realLife.tags); addedHabits.push(...realLife.habits); addedProjects.push(...realLife.projects); addedTasks.push(...realLife.tasks);
-      addedGoals.push(...realLife.goals); addedNotes.push(...realLife.notes); addedResources.push(...realLife.resources); addedTemplates.push(...realLife.templates);
-    }
-    const additions = [[state.areas, addedAreas], [state.tags, addedTags], [state.habits, addedHabits], [state.projects, addedProjects], [state.tasks, addedTasks], [state.goals, addedGoals], [state.notes, addedNotes], [state.resources, addedResources], [state.templates, addedTemplates]];
+    const { state, Core, uid, nowIso, habitDraft, PROJECT_COLORS, saveState, render, setToastMessage, refreshHabitMetrics } = ctx;
+    const added = window.DailoStarterExamples.workspaceExamples(state, { Core, uid, today: Core.dateOnly(), timestamp: nowIso(), habitDraft, PROJECT_COLORS });
+    const additions = Object.keys(added).map(key => [state[key], added[key]]);
     if (!additions.some(([, records]) => records.length)) { setToastMessage(tr('Starter examples already present.')); return; }
     for (const [collection, records] of additions) collection.push(...records);
     if (!saveState()) {
@@ -980,7 +846,7 @@
     try {
       await refreshHabitMetrics();
       if (ctx.state !== state) return;
-      render(); setToastMessage(tr('Added {areas} Areas, {projects} Projects, {tasks} Tasks, {goals} Goals, {habits} Habits, {tags} Tags, {notes} Notes, {resources} Resources and {templates} Templates. All examples are editable.', { areas: addedAreas.length, projects: addedProjects.length, tasks: addedTasks.length, goals: addedGoals.length, habits: addedHabits.length, tags: addedTags.length, notes: addedNotes.length, resources: addedResources.length, templates: addedTemplates.length }));
+      render(); setToastMessage(tr('Added {areas} Areas, {projects} Projects, {tasks} Tasks, {goals} Goals, {habits} Habits, {tags} Tags, {notes} Notes, {resources} Resources, {templates} Templates and {savedViews} Saved views. All examples are editable.', Object.fromEntries(Object.entries(added).map(([key, records]) => [key, records.length]))));
     } catch (error) {
       console.error(error);
       if (ctx.state !== state) return;

@@ -76,8 +76,10 @@ test('24: Nedelja puts each habit name on its own row; radio circles sit on the 
 });
 
 test('25: example areas get their own icon and color; "+" on Oblasti adds an area and on an area files into it', () => {
-  assert.match(habitsUi, /\['family-friends', tr\('Family & Friends'\), 'ph-users'\]/);
-  assert.match(habitsUi, /icon: areaIcon, color: PROJECT_COLORS\[\(state\.areas\.length \+ addedAreas\.length\) % PROJECT_COLORS\.length\]/);
+  // R67: the example Areas moved to js/starter-examples.js; each still has its own icon and the next color.
+  const starter = read('js/starter-examples.js');
+  assert.match(starter, /\['hobbies', msg\('Hobbies and nature'\), 'ph-plant', `\$\{PREFIX\}:area:hobbies`\]/);
+  assert.match(starter, /color: color\(view\.areas, out\.areas\), icon,/);
   assert.match(app, /const AREA_ICONS = \['ph-briefcase', 'ph-house', 'ph-heart', 'ph-chart-line-up', 'ph-graduation-cap', 'ph-palette', 'ph-plant', 'ph-airplane', 'ph-users', 'ph-wallet'\];/);
   assert.match(app, /'#areas': \[msg\('New area'\), \(\) => callDomainHook\('handleAction', 'new-area', \{ target: \$\('#mobile-quick-add-toggle'\) \}\)\]/);
   assert.match(fn('routeQuickAddContext'), /if \(route\.type === 'area'\) return getArea\(route\.id\) \? \{ areaId: route\.id \} : \{\};/);

@@ -206,8 +206,8 @@ test('M4, S4: the Još row, and groups stay out of Zadaci → Projekti and Arhiv
   // R20: the chore's date leads its meta line instead of standing on the right (metaLead replaces sideHtml).
   assert.match(app, /renderChoreRow\(task, options = \{\}\) \{ return taskRow\(task, 'cleaning', \{ today: true, metaText: options\.metaText, metaLead: options\.metaLead \}\); \}/);
   const tasksUi = read('js/tasks-ui.js');
-  // R14 (T3): the flag and due label moved into the meta line.
-  assert.match(tasksUi, /const meta = options\.metaText != null \? \[options\.metaLead, esc\(options\.metaText\)\]\.filter\(Boolean\)\.join\(' · '\) : flag \+ \[due, \.\.\.\[task\.plannedTime, place\]\.filter\(Boolean\)\.map\(esc\)\]\.filter\(Boolean\)\.join\(' · '\);/);
+  // R14 (T3): the flag and due label moved into the meta line. R67: the rough month follows the due label.
+  assert.match(tasksUi, /const meta = options\.metaText != null \? \[options\.metaLead, esc\(options\.metaText\)\]\.filter\(Boolean\)\.join\(' · '\) : flag \+ \[due, month, \.\.\.\[task\.plannedTime, place\]\.filter\(Boolean\)\.map\(esc\)\]\.filter\(Boolean\)\.join\(' · '\);/);
   assert.doesNotMatch(tasksUi, /task-side/);
 });
 

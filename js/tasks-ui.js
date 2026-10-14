@@ -10,9 +10,11 @@
     const place = options.hidePlace ? '' : project ? project.name : ctx.getArea?.(task.areaId)?.name;
     const flag = ['high', 'medium'].includes(task.priority) ? `<i class="ph ph-flag task-flag task-flag--${task.priority}" role="img" aria-label="${tr('{priority} priority', { priority: task.priority === 'high' ? tr('High') : tr('Medium') })}"></i>` : '';
     const due = task.isCompleted ? '' : ctx.todayDueLabel(task.dueDate, ctx.Core.dateOnly());
+    // R67: a rough month shows while the task has no planned day.
+    const month = task.plannedMonth && !task.plannedDate && !task.isCompleted ? esc(tr('Around {month}', { month: ctx.plannedMonthLabel(task.plannedMonth) })) : '';
     // R14 (T3): the flag and the due label lead the meta line under the title; the checkbox closes the row on the right.
     // R11d: Redovne obaveze passes its own meta line (place and repeat sentence); R20: its date leads that line.
-    const meta = options.metaText != null ? [options.metaLead, esc(options.metaText)].filter(Boolean).join(' · ') : flag + [due, ...[task.plannedTime, place].filter(Boolean).map(esc)].filter(Boolean).join(' · ');
+    const meta = options.metaText != null ? [options.metaLead, esc(options.metaText)].filter(Boolean).join(' · ') : flag + [due, month, ...[task.plannedTime, place].filter(Boolean).map(esc)].filter(Boolean).join(' · ');
     const draggable = options.draggable && !task.isCompleted;
     const chip = (action, label) => `<button class="quick-chip" type="button" data-action="${action}" data-task-id="${esc(task.id)}">${label}</button>`;
     // Redesign R6 (I5): an Inbox task is sorted with Danas, Sutra, Kad stignem or Projekat….
@@ -39,7 +41,7 @@
   // Organizacija rows that open their sheets (every change saves at once), subtasks, notes, attachments and the
   // folded "Više opcija". One large button at the bottom completes or reopens the task.
   function renderTaskModal(ctx) {
-    const { modalState, getTask, getProject, getArea, state, Core, esc, relativeDateLabel, tagSummary, priorityLabel, formatReminder, recurrenceLabel, renderAttachmentsSection, clampOrder, modalFrame, durationLabel } = ctx;
+    const { modalState, getTask, getProject, getArea, state, Core, esc, relativeDateLabel, tagSummary, priorityLabel, formatReminder, recurrenceLabel, renderAttachmentsSection, clampOrder, modalFrame, durationLabel, plannedMonthLabel } = ctx;
     const task = getTask(modalState.taskId);
     if (!task) return '';
     const project = getProject(task.projectId);
@@ -56,7 +58,7 @@
       <textarea id="detail-title" class="modal-task-title task-window-title" rows="1" maxlength="500" data-autogrow aria-label="${tr('Task title')}">${esc(modalState.titleDraft)}</textarea>
       <button class="task-window-project" type="button" data-action="task-project-picker" data-task-id="${esc(task.id)}"><i class="ph ph-folder-simple" aria-hidden="true"></i>${project ? esc(project.name) : tr('No project')}</button>
       <h3 class="task-window-group">${tr('Planning')}</h3>
-      <div class="task-window-card">${row('task-plan-picker', 'ph-calendar-check', tr('Planned'), when(task.plannedDate, task.plannedTime))}${row('task-due-picker', 'ph-hourglass-medium', tr('Due date'), when(task.dueDate, task.dueTime), dueClass)}${row('task-reminder-picker', 'ph-bell', tr('Reminder'), task.reminderAt ? esc(formatReminder(task.reminderAt)) : '')}${row('task-repeat-picker', 'ph-arrows-clockwise', tr('Repeat'), task.recurrence ? esc(recurrenceLabel(task.recurrence)) : '')}${row('task-duration-picker', 'ph-timer', tr('Duration'), task.durationMinutes ? esc(durationLabel(task.durationMinutes)) : '')}</div>
+      <div class="task-window-card">${row('task-plan-picker', 'ph-calendar-check', tr('Planned'), when(task.plannedDate, task.plannedTime))}${row('task-month-picker', 'ph-calendar-dots', tr('Rough month'), task.plannedMonth ? esc(capital(plannedMonthLabel(task.plannedMonth))) : '')}${row('task-due-picker', 'ph-hourglass-medium', tr('Due date'), when(task.dueDate, task.dueTime), dueClass)}${row('task-reminder-picker', 'ph-bell', tr('Reminder'), task.reminderAt ? esc(formatReminder(task.reminderAt)) : '')}${row('task-repeat-picker', 'ph-arrows-clockwise', tr('Repeat'), task.recurrence ? esc(recurrenceLabel(task.recurrence)) : '')}${row('task-duration-picker', 'ph-timer', tr('Duration'), task.durationMinutes ? esc(durationLabel(task.durationMinutes)) : '')}</div>
       <h3 class="task-window-group">${tr('Organization')}</h3>
       <div class="task-window-card">${row('task-tags-picker', 'ph-tag', tr('Tags'), tagSummary(task.tagIds) || '')}${row('task-priority-picker', 'ph-flag', tr('Priority'), priority)}</div>
       <h3 class="task-window-group">${tr('Subtasks')} · ${completedCount}/${task.subtasks.length}</h3>
@@ -71,8 +73,34 @@
     </div>`, 'task-detail-modal', 'aria-labelledby="task-modal-title"');
   }
 
+  const capital = text => (text ? text.charAt(0).toLocaleUpperCase() + text.slice(1) : '');
+
+  // R67: "Okvirni mesec" — the twelve months from the current one; a tap applies (E3), like the priority sheet.
+  function openTaskMonthSheet(anchor, taskId, ctx) {
+    const { getTask, esc, Core, plannedMonthLabel } = ctx;
+    const task = getTask(taskId);
+    if (!task) return;
+    const current = Core.normalizePlannedMonth(task.plannedMonth);
+    const first = Core.monthKey(Core.dateOnly());
+    const chip = month => `<button class="quick-chip${current === month ? ' is-selected' : ''}" type="button" data-pop-action="set-task-month" data-task-id="${esc(taskId)}" data-month="${month}" aria-pressed="${current === month}">${esc(capital(plannedMonthLabel(month)))}</button>`;
+    const months = Array.from({ length: 12 }, (_, index) => Core.addMonths(first, index));
+    const remove = current ? `<div class="sheet-footer"><button class="btn btn-ghost" type="button" data-pop-action="set-task-month" data-task-id="${esc(taskId)}" data-month="">${tr('Remove month')}</button><span></span></div>` : '';
+    ctx.openPopover(anchor, `<div class="popover-title">${tr('Approximate month')}</div><p class="sheet-subtitle">${esc(task.title)}</p><div class="sheet-chips">${months.map(chip).join('')}</div><p class="sheet-note">${tr('An approximate month keeps the task out of Today. It shows in Upcoming under that month.')}</p>${remove}`, { type: 'task-month', taskId });
+  }
+  function setTaskMonth(taskId, value, ctx) {
+    const month = ctx.Core.normalizePlannedMonth(value);
+    ctx.closePopover();
+    // Choosing a month sorts an Inbox task, like choosing a day does.
+    ctx.requestTaskEdit(taskId, month ? { plannedMonth: month, isInbox: false } : { plannedMonth: null });
+  }
+
   window.TodoDomainModules?.register({
     name: 'tasks',
+    handleAction(action, event, ctx) {
+      if (action === 'task-month-picker') { const el = event?.target?.closest?.('[data-action]'); openTaskMonthSheet(el, el?.dataset?.taskId, ctx); return true; }
+      if (action === 'set-task-month') { const el = event?.target?.closest?.('[data-pop-action]'); setTaskMonth(el?.dataset?.taskId, el?.dataset?.month, ctx); return true; }
+      return undefined;
+    },
     renderTaskRow(task, listContext, options, ctx) {
       return renderTaskRow(task, listContext, options, ctx);
     },

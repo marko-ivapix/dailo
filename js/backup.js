@@ -162,6 +162,7 @@
         && (typeof task[key] !== 'string' || !Number.isFinite(Date.parse(task[key])))) fail(key);
       for (const key of ['todayOrder','projectOrder','inboxOrder']) numberField(task,key,-Infinity);
       if (task.durationMinutes != null && !positiveInteger(task.durationMinutes)) fail('durationMinutes');
+      if (task.plannedMonth != null && root.TodoCore.normalizePlannedMonth(task.plannedMonth) !== task.plannedMonth) fail('plannedMonth');
       if (task.subtasks != null) {
         nested(task.subtasks,'subtasks');
         for (const sub of task.subtasks) {

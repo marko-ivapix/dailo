@@ -97,13 +97,12 @@ test('15: a past calendar day shows what was completed, and "+" there plans for 
 
 test('13: the example texts read naturally, and the first set loses "No-nut", the second "Beard balm" and the todoist guide name', () => {
   const sr = read('js/i18n-sr.js');
+  // R67 replaced the example set with the user's own; the texts that remain keep their wording, the rest left the catalog.
   for (const [en, value] of [
-    ['Pack: tent and sleeping', 'Spakuj šator i opremu za spavanje'], ['Pack: clothes', 'Spakuj odeću'], ['Pack: often forgotten', 'Spakuj ono što se često zaboravi'],
-    ['Get the deposit back from the landlord', 'Uzmi nazad depozit od stanodavca'], ['Call your parents or a friend', 'Pozovi roditelje ili nekog bliskog'],
     ['112 from a mobile phone also reaches the police', 'Sa mobilnog telefona radi i 112'], ['Ride in a hot-air balloon', 'Leti balonom na topli vazduh'],
   ]) assert.ok(sr.includes(`${JSON.stringify(en)}: ${JSON.stringify(value)}`), en);
-  assert.doesNotMatch(habitsUi, /No-nut|'night', 'beard-balm'/);
-  assert.match(habitsUi, /const resourceName = tr\('How to plan your week'\)/);
+  const starter = read('js/starter-examples.js');
+  for (const source of [habitsUi, starter]) assert.doesNotMatch(source, /No-nut|'night', 'beard-balm'|todoist/);
 });
 
 test('R31 shipped as 2.0.0-alpha.57 or later (the newest release test pins the exact version)', () => {

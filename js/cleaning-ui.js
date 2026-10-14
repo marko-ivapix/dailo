@@ -5,6 +5,44 @@
   // The sample Area is created with a translated name; an existing English "Home" Area is still reused.
   const isHomeArea = area => [msg('Home'), tr('Home')].some(name => area.name.toLowerCase() === name.toLowerCase());
 
+  // R68: the example chores follow a researched cleaning and replacement schedule by room, without daily chores
+  // (NSF, ADA, Sleep Foundation, Energy Star and appliance makers; docs/superpowers/specs/2026-10-13-r68-cleaning-schedule.md).
+  // [room, room name, chore, frequency, interval, first day from today, subtasks]; the first days are spread so Danas is not flooded.
+  const KITCHEN = ['kitchen', msg('Kitchen')], BATHROOM = ['bathroom', msg('Bathroom')], BEDROOM = ['bedroom', msg('Bedroom')];
+  const LIVING = ['living-room', msg('Living Room')], HALLWAY = ['hallway', msg('Hallway')], APPLIANCES = ['appliances', msg('Appliances')];
+  const CHORES = [
+    [...KITCHEN, msg('Replace the sponge'), 'weekly', 2, 0], [...KITCHEN, msg('Disinfect the sink'), 'weekly', 1, 1],
+    [...KITCHEN, msg('Clean the microwave'), 'weekly', 1, 2], [...KITCHEN, msg('Throw out spoiled food from the fridge'), 'weekly', 1, 3],
+    [...KITCHEN, msg('Clean the range hood filter'), 'monthly', 1, 7], [...KITCHEN, msg('Run the dishwasher cleaning program'), 'monthly', 1, 10],
+    [...KITCHEN, msg('Clean fridge'), 'monthly', 3, 14], [...KITCHEN, msg('Clean the oven'), 'monthly', 3, 21],
+    [...KITCHEN, msg('Clean the dishwasher filter'), 'monthly', 3, 24], [...KITCHEN, msg('Descale the kettle and coffee maker'), 'monthly', 3, 28],
+    [...KITCHEN, msg('Replace the range hood charcoal filter'), 'monthly', 3, 35], [...KITCHEN, msg('Replace the water pitcher filter'), 'monthly', 2, 30],
+    [...KITCHEN, msg('Replace the tap water filter'), 'monthly', 4, 50], [...KITCHEN, msg('Clean the coils behind the fridge'), 'monthly', 6, 45],
+    [...KITCHEN, msg('Defrost the freezer'), 'monthly', 6, 60],
+    [...BATHROOM, msg('Clean bathroom'), 'weekly', 1, 0, [msg('Toilet'), msg('Shower'), msg('Mirror'), msg('Floor')]],
+    [...BATHROOM, msg('Change the towels'), 'weekly', 1, 1], [...BATHROOM, msg('Wash the bath mat'), 'weekly', 1, 2],
+    [...BATHROOM, msg('Wash the toothbrush cup'), 'weekly', 1, 3], [...BATHROOM, msg('Wash the shower curtain'), 'monthly', 1, 12],
+    [...BATHROOM, msg('Replace the toothbrushes'), 'monthly', 3, 30], [...BATHROOM, msg('Descale the shower head and taps'), 'monthly', 3, 40],
+    [...BATHROOM, msg('Replace the shower curtain'), 'yearly', 1, 180], [...BATHROOM, msg('Flush the water heater'), 'yearly', 1, 120],
+    [...BATHROOM, msg('Replace the water heater anode'), 'yearly', 4, 365],
+    [...BEDROOM, msg('Change bedding'), 'weekly', 1, 0], [...BEDROOM, msg('Dust surfaces'), 'weekly', 1, 4], [...BEDROOM, msg('Vacuum'), 'weekly', 1, 4],
+    [...BEDROOM, msg('Change the duvet cover'), 'weekly', 2, 7], [...BEDROOM, msg('Vacuum and turn the mattress'), 'monthly', 3, 21],
+    [...BEDROOM, msg('Wash the duvet and blankets'), 'monthly', 6, 40], [...BEDROOM, msg('Wash the pillows'), 'monthly', 6, 50],
+    [...BEDROOM, msg('Replace the pillows'), 'yearly', 2, 365],
+    [...LIVING, msg('Dust surfaces'), 'weekly', 1, 5], [...LIVING, msg('Vacuum'), 'weekly', 1, 6], [...LIVING, msg('Mop the floor'), 'weekly', 1, 6],
+    [...LIVING, msg('Vacuum the sofa and curtains'), 'monthly', 1, 15], [...LIVING, msg('Dust the radiators'), 'monthly', 1, 18],
+    [...LIVING, msg('Clean the windows inside'), 'monthly', 2, 25], [...LIVING, msg('Wash the curtains'), 'monthly', 6, 70],
+    [...LIVING, msg('Clean the windows outside'), 'monthly', 6, 75], [...LIVING, msg('Deep-clean the carpets'), 'yearly', 1, 150],
+    [...LIVING, msg('Bleed the radiators'), 'yearly', 1, 30],
+    [...HALLWAY, msg('Vacuum hallway'), 'daily', 3, 1], [...HALLWAY, msg('Shake out the doormat'), 'daily', 3, 2],
+    [...HALLWAY, msg('Wipe the door handles and light switches'), 'weekly', 1, 3], [...HALLWAY, msg('Wash the doormat'), 'monthly', 1, 20],
+    [...HALLWAY, msg('Wipe the shoe rack and the front door'), 'monthly', 1, 22],
+    [...APPLIANCES, msg('Run the washing machine cleaning program'), 'monthly', 1, 8], [...APPLIANCES, msg('Wash the vacuum filter'), 'monthly', 1, 9],
+    [...APPLIANCES, msg('Wash the trash bins'), 'monthly', 1, 11], [...APPLIANCES, msg('Clean the air conditioner filter'), 'monthly', 1, 16],
+    [...APPLIANCES, msg('Clean the washing machine pump filter'), 'monthly', 3, 33], [...APPLIANCES, msg('Replace the vacuum filter'), 'yearly', 1, 200],
+  ];
+  const HOUSE_CHORES = [['garden', msg('Garden'), msg('Check outdoor lights'), 'monthly', 1, 13]];
+
   // Redesign R11d (S4): "Redovne obaveze" — everything that repeats. Groups are the cleaning rooms (projects
   // with isCleaningRoom); then the projects with repeating tasks, then "Bez grupe".
   const groupsOf = ctx => ctx.allProjects().filter(project => project.isCleaningRoom);
@@ -35,8 +73,8 @@
     const archived = groupsOf(ctx).filter(group => group.isArchived);
     const addGroup = `<button class="quick-chip cleaning-add-group" type="button" data-action="new-cleaning-group">+ ${tr('Group')}</button>`;
     const summary = `${trn(open.length, '{count} task repeats', '{count} tasks repeat')}${late ? ` · ${trn(late, '{count} late', '{count} late')}` : ''}`;
+    const example = (preset, label) => `<button class="quick-chip" type="button" data-action="add-cleaning-examples" data-cleaning-preset="${preset}">${tr(label)}</button>`;
     if (!open.length && !groups.length && !archived.length) {
-      const example = (preset, label) => `<button class="quick-chip" type="button" data-action="add-cleaning-examples" data-cleaning-preset="${preset}">${tr(label)}</button>`;
       return pageHeader(tr('Recurring tasks'), '', { add: false }) + `<div class="empty-state"><h3>${tr('No recurring tasks yet')}</h3><p>${tr('Make a group (home, car, garden…), then add chores that repeat.')}</p><div class="sheet-chips cleaning-chips">${example('apartment', msg('Example: apartment'))}${example('house', msg('Example: house'))}${addGroup}</div></div>`;
     }
     const projectsShown = all.some(section => section.kind === 'project');
@@ -82,6 +120,9 @@
       html += `${ctx.foldButton('cleaning-archived-fold', tr('Archived groups'), archived.length, openFold)}`;
       if (openFold) html += `<div class="today-card">${archived.map(group => `<div class="cleaning-archived-row"><span class="cleaning-archived-name">${esc(group.name)}<small>${esc(trn(count(group), '{count} chore', '{count} chores'))}</small></span><button class="quick-chip" type="button" data-action="restore-cleaning-group" data-project-id="${esc(group.id)}">${tr('Restore')}</button></div>`).join('')}</div>`;
     }
+    // R71: groups from "Popuni primerima" fill this screen, so the cleaning examples stay on offer until one was added.
+    const cleaningExamplesAdded = groupsOf(ctx).some(group => String(group.cleaningSampleKey || '').startsWith('cleaning:'));
+    if (!cleaningExamplesAdded) html += `<div class="sheet-chips cleaning-chips">${example('apartment', msg('Example: apartment'))}${example('house', msg('Example: house'))}</div>`;
     return `${html}<p class="sheet-note cleaning-note">${tr('Everything that repeats is here: chores from groups, repeating tasks from projects and the rest. The repeat is set in the task window.')}</p>`;
   }
 
@@ -168,23 +209,15 @@
       if (!room) { room = { id: ctx.uid('project'), name, color: '#4da3ff', order: ctx.state.projects.length, areaId: home.id, goalIds: [], isArchived: false, isCleaningRoom: true, cleaningSampleKey: key, createdAt: now, updatedAt: now }; ctx.state.projects.push(room); }
       return room;
     };
-    const chores = preset === 'house' ? [
-      ['living-room', msg('Living Room'), msg('Vacuum'), 'weekly', 1], ['living-room', msg('Living Room'), msg('Dust surfaces'), 'weekly', 1],
-      ['bathroom', msg('Bathroom'), msg('Clean bathroom'), 'weekly', 1], ['bathroom', msg('Bathroom'), msg('Check boiler'), 'monthly', 3],
-      ['bedroom', msg('Bedroom'), msg('Change bedding'), 'weekly', 1], ['hallway', msg('Hallway'), msg('Vacuum hallway'), 'weekly', 1], ['garden', msg('Garden'), msg('Check outdoor lights'), 'monthly', 1],
-    ] : [
-      ['living-room', msg('Living Room'), msg('Vacuum'), 'weekly', 1], ['living-room', msg('Living Room'), msg('Dust surfaces'), 'weekly', 1],
-      ['bathroom', msg('Bathroom'), msg('Clean bathroom'), 'weekly', 1], ['bathroom', msg('Bathroom'), msg('Check boiler'), 'monthly', 3],
-      ['kitchen', msg('Kitchen'), msg('Wipe counters'), 'weekly', 1], ['kitchen', msg('Kitchen'), msg('Clean fridge'), 'monthly', 1],
-    ];
-    for (const [roomKey, roomName, chore, frequency, interval] of chores) {
+    const chores = preset === 'house' ? [...CHORES, ...HOUSE_CHORES] : CHORES;
+    for (const [roomKey, roomName, chore, frequency, interval, firstInDays, subtasks = []] of chores) {
       // Stable sample keys use the English source; the names created for the user are translated.
       const slug = chore.toLowerCase().replaceAll(' ', '-');
       const room = ensureRoom(tr(roomName), `cleaning:${preset}:${roomKey}`, `cleaning:${roomKey}`);
       const key = `cleaning:${preset}:${roomKey}:${slug}`, legacyKey = `cleaning:${roomKey}:${slug}`;
       if (ctx.state.tasks.some(task => task.cleaningSampleKey === key || task.cleaningSampleKey === legacyKey)) continue;
-      const id = ctx.uid('task');
-      ctx.state.tasks.push({ id, title: tr(chore), notes: '', projectId: room.id, areaId: null, goalIds: [], plannedDate: today, plannedTime: null, dueDate: today, dueTime: null, reminderAt: null, reminderFiredAt: null, recurrence: ctx.Core.normalizeRecurrenceV3({ frequency, interval, endType: 'never', seriesId: id }), tagIds: [], priority: 'none', attachmentIds: [], isInbox: false, isCompleted: false, completedAt: null, subtasks: [], todayOrder: null, projectOrder: null, inboxOrder: null, cleaningSampleKey: key, createdAt: now, updatedAt: now });
+      const id = ctx.uid('task'), first = ctx.Core.addDays(today, firstInDays);
+      ctx.state.tasks.push({ id, title: tr(chore), notes: '', projectId: room.id, areaId: null, goalIds: [], plannedDate: first, plannedTime: null, dueDate: first, dueTime: null, reminderAt: null, reminderFiredAt: null, recurrence: ctx.Core.normalizeRecurrenceV3({ frequency, interval, endType: 'never', seriesId: id }), tagIds: [], priority: 'none', attachmentIds: [], isInbox: false, isCompleted: false, completedAt: null, subtasks: subtasks.map((title, order) => ({ id: ctx.uid('sub'), title: tr(title), order, isCompleted: false, completedAt: null })), todayOrder: null, projectOrder: null, inboxOrder: null, cleaningSampleKey: key, createdAt: now, updatedAt: now });
     }
     ctx.saveState(); ctx.navigate('cleaning');
   }

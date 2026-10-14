@@ -320,6 +320,40 @@
     return result;
   }
 
+  // R67: a task's rough month ("okvirno"), "YYYY-MM". It never puts the task on Today; Upcoming lists it under the month.
+  function normalizePlannedMonth(value) {
+    return typeof value === 'string' && /^\d{4}-(0[1-9]|1[0-2])$/.test(value) ? value : null;
+  }
+  const monthKey = date => String(date || '').slice(0, 7);
+  function addMonths(month, amount) {
+    const [year, number] = month.split('-').map(Number);
+    const index = year * 12 + number - 1 + amount;
+    return `${Math.floor(index / 12)}-${pad(index % 12 + 1)}`;
+  }
+  // The next time calendar month `number` (1–12) comes round; the current month counts.
+  function upcomingMonth(number, today = dateOnly()) {
+    const current = monthKey(today);
+    const candidate = `${current.slice(0, 4)}-${pad(number)}`;
+    return candidate < current ? addMonths(candidate, 12) : candidate;
+  }
+  // Open tasks with a rough month and no planned day, by month; a month already past waits in the current one.
+  // A task due after today up to `dueShownUntil` is left out: Upcoming already lists it on its due day.
+  function deriveRoughMonths(tasks, today = dateOnly(), dueShownUntil = null) {
+    const current = monthKey(today);
+    const groups = new Map();
+    for (const task of tasks || []) {
+      const month = normalizePlannedMonth(task?.plannedMonth);
+      if (!month || task.isCompleted || task.plannedDate) continue;
+      if (dueShownUntil && task.dueDate && task.dueDate > today && task.dueDate <= dueShownUntil) continue;
+      const key = month < current ? current : month;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(task);
+    }
+    return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([month, items]) => ({
+      month, items: items.sort((a, b) => a.plannedMonth.localeCompare(b.plannedMonth) || String(a.title).localeCompare(String(b.title))),
+    }));
+  }
+
   function deriveUpcomingV3(state, today) {
     const groups = new Map(deriveUpcoming(state.tasks || [], today).map(group => [group.date, { ...group, goals: [], habits: [], milestones: [] }]));
     const horizonEnd = addDays(today, 14);
@@ -622,6 +656,7 @@
       dueDate,
       reminderAt,
       reminderFiredAt: null,
+      plannedMonth: null,
       recurrence:{...recurrence,seriesId:recurrence.seriesId || task.id,occurrencesCreated:recurrence.occurrencesCreated+1,skipNext:false},
       recurrenceBaseline:null,
       recurrenceSuccessorId:null,
@@ -909,7 +944,11 @@
         pinnedSectionIds: Array.isArray(dashboard.pinnedSectionIds) ? [...new Set(dashboard.pinnedSectionIds.filter(id => typeof id === 'string'))] : [],
       },
     };
-    state.tasks = state.tasks.map(task => ({ ...task, durationMinutes: positiveIntegerOrNull(task.durationMinutes) }));
+    state.tasks = state.tasks.map(task => ({
+      ...task, durationMinutes: positiveIntegerOrNull(task.durationMinutes),
+      // R67: only a stored bad month is cleared; older tasks keep no field, so sync has nothing new to send.
+      ...(task.plannedMonth != null && normalizePlannedMonth(task.plannedMonth) !== task.plannedMonth ? { plannedMonth: null } : {}),
+    }));
     state.goals = state.goals.map(goal => ({
       ...goal,
       // R29: the first starter examples saved 'linkedTasks' here, which backups refuse; it reads as a percentage anyway.
@@ -2537,6 +2576,11 @@
     deriveAnytime,
     deriveUpcoming,
     deriveUpcomingV3,
+    normalizePlannedMonth,
+    monthKey,
+    addMonths,
+    upcomingMonth,
+    deriveRoughMonths,
     deriveCalendarDay,
     deriveCalendarWeek,
     deriveCalendarMonthSummary,
