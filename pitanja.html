@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="sr-Latn">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0F1114">
+  <title>Dailo — Česta pitanja</title>
+  <meta name="description" content="Kratki odgovori o aplikaciji Dailo: nalog i sinhronizacija, gde su podaci, rezervne kopije, podsetnici i najvažniji pokreti.">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Dailo">
+  <meta property="og:locale" content="sr_RS">
+  <meta property="og:title" content="Dailo — Česta pitanja">
+  <meta property="og:description" content="Kratki odgovori o aplikaciji Dailo: nalog i sinhronizacija, gde su podaci, rezervne kopije, podsetnici i najvažniji pokreti.">
+  <meta property="og:url" content="https://marko-ivapix.github.io/dailo/pitanja.html">
+  <meta property="og:image" content="https://marko-ivapix.github.io/dailo/icons/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Dailo: zadaci, navike, ciljevi i dnevnik na jednom mestu">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="vendor/fonts/fonts.css">
+  <style>
+    :root {
+      --bg: #0F1114;
+      --card: #14171B;
+      --line: #2D3239;
+      --ink-1: #F3F4F6;
+      --ink-2: #D5D9DF;
+      --ink-3: #9199A4;
+      --blue: #8590FF;
+      --mint: #3ED7BA;
+      --yellow: #F5B942;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink-2);
+      font: 16px/1.6 Geist, system-ui, -apple-system, sans-serif;
+      padding: calc(24px + env(safe-area-inset-top)) 16px calc(32px + env(safe-area-inset-bottom));
+    }
+    main { max-width: 680px; margin: 0 auto; }
+    h1, h2 { font-family: "Space Grotesk", Geist, system-ui, sans-serif; color: var(--ink-1); line-height: 1.25; }
+    h1 { font-size: 28px; margin: 0 0 8px; }
+    h2 { font-size: 19px; margin: 0 0 8px; }
+    .lead { color: var(--ink-3); margin: 0 0 24px; }
+    section { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; margin: 0 0 14px; }
+    p { margin: 0 0 10px; }
+    ol, ul { margin: 0 0 10px; padding-left: 22px; }
+    li { margin: 0 0 6px; }
+    strong { color: var(--ink-1); }
+    a { color: var(--blue); }
+    .note { border-left: 3px solid var(--yellow); padding-left: 12px; color: var(--ink-1); }
+    .ok { border-left: 3px solid var(--mint); padding-left: 12px; }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 14px; color: var(--ink-1); background: #1A1D22; border-radius: 6px; padding: 1px 6px; }
+    .back { display: inline-block; margin-top: 8px; padding: 10px 16px; border-radius: 10px; background: #0619FE; color: #fff; text-decoration: none; font-weight: 600; }
+      details.qa { border-top: 1px solid var(--line); }
+    details.qa:first-of-type { border-top: 0; }
+    details.qa summary { cursor: pointer; padding: 12px 0; color: var(--ink-1); font-weight: 600; list-style: none; display: flex; justify-content: space-between; gap: 12px; }
+    details.qa summary::-webkit-details-marker { display: none; }
+    details.qa summary::after { content: "+"; color: var(--ink-3); font-weight: 400; }
+    details.qa[open] summary::after { content: "−"; }
+    details.qa > :not(summary) { margin-top: 0; }
+    details.qa > :last-child { margin-bottom: 14px; }
+    section h2 { margin-bottom: 4px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Dailo — Česta pitanja</h1>
+    <p class="lead">Kratki odgovori na ono što se najčešće pita. Dodirni pitanje da vidiš odgovor.</p>
+
+    <section>
+      <h2>Osnovno</h2>
+      <details class="qa"><summary>Šta je Dailo?</summary><p>Lični planer na jednom mestu: zadaci i projekti, Inbox, kalendar, navike, ciljevi, oblasti, beleške, resursi i dnevnik. Brzo zabeležiš, središ u Inboxu, isplaniraš dan i završiš.</p></details>
+      <details class="qa"><summary>Da li mi treba nalog?</summary><p>Ne. Bez naloga sve radi, a podaci ostaju samo na tvom uređaju. Nalog ti treba samo ako želiš iste podatke na telefonu i računaru.</p></details>
+      <details class="qa"><summary>Da li Dailo radi bez interneta?</summary><p>Da. Kad ga jednom otvoriš sa internetom, radi i bez njega. Ako imaš nalog, promene se pošalju kad se veza vrati.</p></details>
+      <details class="qa"><summary>Kako da instaliram Dailo?</summary><ul><li><strong>iPhone:</strong> otvori stranu u Safariju, dodirni <strong>Deli</strong>, pa <strong>Dodaj na početni ekran</strong>.</li><li><strong>Android:</strong> otvori stranu u Chrome-u, pa u meniju izaberi <strong>Instaliraj aplikaciju</strong>.</li><li><strong>Računar:</strong> u Chrome-u ili Edge-u klikni ikonicu za instalaciju u adresnoj traci.</li></ul><p>Na iPhone-u prvo instaliraj, pa tek onda unosi podatke: Safari i instalirana aplikacija čuvaju podatke odvojeno.</p></details>
+      <details class="qa"><summary>Da li je Dailo gotov?</summary><p>Dailo je još u razvoju (alfa i beta verzije), pa su greške moguće. Zato redovno pravi rezervnu kopiju.</p></details>
+    </section>
+
+    <section>
+      <h2>Podaci i nalog</h2>
+      <details class="qa"><summary>Gde se čuvaju moji podaci?</summary><p>Na tvom uređaju. Ako imaš nalog, kopija se čuva i na serveru u Evropskoj uniji (Supabase, Frankfurt), da bi stigla na tvoje druge uređaje. Više u <a href="privatnost.html">Politici privatnosti</a>.</p></details>
+      <details class="qa"><summary>Kako da prenesem podatke na drugi telefon ili računar?</summary><p>Najlakše nalogom: prijavi se istom e-adresom na oba uređaja (<strong>Još → Nalog</strong>). Bez naloga: <strong>Podešavanja → Podaci → Izvezi ZIP</strong>, pa na drugom uređaju <strong>Uvezi ZIP</strong>.</p></details>
+      <details class="qa"><summary>Kako da napravim rezervnu kopiju?</summary><p>U <strong>Podešavanja → Podaci</strong> dodirni <strong>Izvezi ZIP</strong> i sačuvaj fajl na sigurno mesto. Dailo te podseti kad prođe više dana od poslednje kopije; interval biraš u istom delu.</p><p>Za vraćanje koristi <strong>Uvezi ZIP</strong>. Dailo pre toga sam napravi sigurnosnu kopiju trenutnih podataka i traži da upišeš <code>VRATI</code>.</p></details>
+      <details class="qa"><summary>Zaboravljena lozinka — šta sad?</summary><p>Na ekranu za prijavu dodirni <strong>Zaboravljena lozinka?</strong>. Na e-adresu stiže kod; upiši ga i izaberi novu lozinku.</p></details>
+      <details class="qa"><summary>Šta je šifrovan dnevnik?</summary><p>U <strong>Još → Nalog</strong> možeš uključiti <strong>Šifrovan dnevnik</strong>. Tada dnevnik ide na server samo šifrovan, lozinkom dnevnika koju znaš samo ti. Ta lozinka nikad ne napušta tvoje uređaje; bez nje se dnevnik na serveru ne može pročitati, pa je čuvaj.</p></details>
+      <details class="qa"><summary>Šta se desi kad se odjavim?</summary><p>Otvara se ekran za prijavu. Podaci na ovom uređaju ostaju; možeš se ponovo prijaviti ili nastaviti bez naloga.</p></details>
+      <details class="qa"><summary>Kako da obrišem nalog?</summary><p>U <strong>Još → Nalog</strong> dodirni <strong>Obriši nalog</strong> i upiši <code>OBRIŠI</code>. Brišu se nalog i svi podaci na serveru; podaci na ovom uređaju ostaju.</p></details>
+    </section>
+
+    <section>
+      <h2>Korišćenje</h2>
+      <details class="qa"><summary>Kako najbrže da dodam zadatak?</summary><p>Dugme <strong>+</strong> dodaje stavku ekrana na kom si: na Danas zadatak, na Navike naviku, na Ciljevi cilj. Drži <strong>+</strong> za meni sa svim vrstama.</p><p>U naslovu možeš odmah napisati i detalje, na primer <em>Pošalji ponudu +Klijenti rok petak 45min sutra u 9:30</em>.</p></details>
+      <details class="qa"><summary>Koja je razlika između Inboxa, Danas i Zadataka?</summary><p><strong>Inbox</strong> je za ono što zabeležiš usput, da središ kasnije. <strong>Danas</strong> pokazuje šta je planirano za danas, zakasnele zadatke i današnje navike. <strong>Zadaci</strong> imaju „Kad stignem” (zadaci bez dana) i projekte.</p></details>
+      <details class="qa"><summary>Koji pokreti postoje na zadatku?</summary><ul><li>Prevuci zadatak <strong>udesno</strong>: završen je.</li><li>Prevuci ga <strong>ulevo</strong>: biraš mu datum.</li><li>Drži red pa ga prevuci <strong>gore ili dole</strong>: menjaš redosled.</li></ul></details>
+      <details class="qa"><summary>Kako rade navike?</summary><p>Dodir na krug menja stanje: urađeno (✓), pa <strong>Nije urađeno</strong> (crveni ✗), pa prazno. Navika sa brojem (na primer čaše vode) otvara unos vrednosti. Navike ostaju na svom mestu kad im promeniš stanje.</p></details>
+      <details class="qa"><summary>Šta su projekti, a šta oblasti?</summary><p><strong>Projekat</strong> ima kraj, na primer „Selidba”. <strong>Oblast</strong> je deo života koji traje, na primer Zdravlje ili Posao, i okuplja projekte, zadatke, ciljeve i navike.</p></details>
+      <details class="qa"><summary>Šta su Redovne obaveze?</summary><p>Poslovi koji se ponavljaju, poput usisavanja, računa ili servisa auta, složeni po grupama (kuhinja, kupatilo, auto…). Kad dođe vreme, obaveza se pojavi među zadacima.</p></details>
+      <details class="qa"><summary>Šta je Nedeljni pregled?</summary><p>Jednom nedeljno prođeš kroz šest koraka: isprazniš Inbox, središ zakasnele zadatke, pogledaš narednih 7 dana, ciljeve, navike i oblasti. Nalazi se u <strong>Još → Biblioteka</strong>.</p></details>
+      <details class="qa"><summary>Mogu li da koristim Dailo na računaru?</summary><p>Da. Na širokom ekranu ima bočni meni i prečice na tastaturi. Sa nalogom imaš iste podatke kao na telefonu.</p></details>
+    </section>
+
+    <section>
+      <h2>Podsetnici</h2>
+      <details class="qa"><summary>Zašto mi ne stižu podsetnici?</summary><p>U pregledaču podsetnici rade samo dok je Dailo otvoren. U aplikaciji za telefon stižu i kad je zatvorena, ako dozvoliš obaveštenja. Podešavaš ih u <strong>Podešavanja → Podsetnici</strong>.</p></details>
+    </section>
+
+    <section>
+      <h2>Pomoć</h2>
+      <details class="qa"><summary>Kako da prijavim problem?</summary><p>U <strong>Podešavanja → Pomoć</strong> dodirni <strong>Prijavi problem</strong>. Otvoriće se e-poruka sa verzijom aplikacije i podacima o uređaju; tvoji zadaci i beleške se ne šalju.</p><p>Možeš pisati i direktno na <a href="mailto:marko.radicevic@ivapix.cloud">marko.radicevic@ivapix.cloud</a>. Opiši korake i šta se desilo; snimak ekrana mnogo pomaže.</p></details>
+      <details class="qa"><summary>Gde je detaljnije uputstvo?</summary><p>U <a href="uputstvo.html">uputstvu</a> su instalacija, rezervne kopije i brzo dodavanje korak po korak.</p></details>
+    </section>
+
+    <a class="back" href="./">Otvori Dailo</a>
+  </main>
+</body>
+</html>

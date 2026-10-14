@@ -6852,7 +6852,7 @@
     platform.lifecycle.onResume(resumeApp);
     platform.lifecycle.onPause(lockJournalAgain);
     platform.backButton.setHandler(handleBackButton);
-    platform.links.interceptExternalLinks(document, { onlinePages: { 'uputstvo.html': Release.GUIDE_URL, 'uslovi.html': Release.TERMS_URL, 'privatnost.html': Release.PRIVACY_URL } });
+    platform.links.interceptExternalLinks(document, { onlinePages: { 'uputstvo.html': Release.GUIDE_URL, 'uslovi.html': Release.TERMS_URL, 'privatnost.html': Release.PRIVACY_URL, 'pitanja.html': Release.FAQ_URL } });
     platform.files.cleanupSharedFiles().catch(console.error);
     platform.notifications.setActionTypes?.(notificationActionTypes());
     platform.notifications.onOpen(openNotificationTarget);

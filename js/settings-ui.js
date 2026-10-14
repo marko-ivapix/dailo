@@ -131,6 +131,7 @@ ${native ? `
       <section class="settings-card" data-settings-about>
         <h2>${tr('Help')}</h2>
         <div class="settings-row"><div class="settings-label"><strong>${tr('Guide')}</strong><span>${tr('How to install Dailo, keep backups and report problems.')}</span></div><a class="btn btn-secondary" href="uputstvo.html" target="_blank" rel="noopener" data-beta-guide>${tr('Open guide')}</a></div>
+        <div class="settings-row"><div class="settings-label"><strong>${tr('FAQ')}</strong><span>${tr('Short answers about the account, your data, backups, reminders and gestures.')}</span></div><a class="btn btn-secondary" href="pitanja.html" target="_blank" rel="noopener" data-faq>${tr('Open FAQ')}</a></div>
         ${reportHref ? `<div class="settings-row"><div class="settings-label"><strong>${tr('Report a problem')}</strong><span>${tr('Opens an e-mail with the app version and device details. Your data is not attached.')}</span></div><a class="btn btn-secondary" href="${esc(reportHref)}" data-report-problem>${tr('Report a problem')}</a></div>` : ''}
         ${installed ? '' : `<div class="settings-row"><div class="settings-label"><strong>${tr('Install app')}</strong><span data-install-status="browser">${installText}</span></div>${installButton}</div>`}
         <div class="settings-row"><div class="settings-label"><strong>${tr('Privacy')}</strong><span data-privacy-note>${privacy}</span></div></div>

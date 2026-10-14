@@ -69,8 +69,7 @@ test('the wide-screen sidebar follows: Planning without Projekti, Library with N
   assert.doesNotMatch(html, /data-route="templates"/);
 });
 
-test('R72 is released as 2.0.0-alpha.99', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.99');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.99';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.99');
+test('R72 shipped as 2.0.0-alpha.99 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 99) >= 99);
 });

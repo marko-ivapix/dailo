@@ -398,7 +398,8 @@ test('links back into the app, the Google mark and the terms pages', () => {
   assert.match(read('privatnost.html'), /Supabase/);
   assert.equal(Release.TERMS_URL, 'https://marko-ivapix.github.io/dailo/uslovi.html');
   assert.equal(Release.PRIVACY_URL, 'https://marko-ivapix.github.io/dailo/privatnost.html');
-  assert.match(fn('startPlatform'), /onlinePages: \{ 'uputstvo\.html': Release\.GUIDE_URL, 'uslovi\.html': Release\.TERMS_URL, 'privatnost\.html': Release\.PRIVACY_URL \}/);
+  // R73: the phone app opens Česta pitanja online too.
+  assert.match(fn('startPlatform'), /onlinePages: \{ 'uputstvo\.html': Release\.GUIDE_URL, 'uslovi\.html': Release\.TERMS_URL, 'privatnost\.html': Release\.PRIVACY_URL, 'pitanja\.html': Release\.FAQ_URL \}/);
 });
 
 test('style: a full screen above the bottom bar, in tokens only', () => {

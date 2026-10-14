@@ -691,6 +691,10 @@
     "Your data stays only on this device. Dailo has no server or account.": "Tvoji podaci ostaju samo na ovom uređaju. Dailo nema server ni nalog.",
     "How to install Dailo, keep backups and report problems.": "Kako se Dailo instalira, kako se čuvaju rezervne kopije i kako se prijavljuje problem.",
     "Open guide": "Otvori uputstvo",
+    // R73: the Česta pitanja page in Podešavanja → Pomoć.
+    "FAQ": "Česta pitanja",
+    "Short answers about the account, your data, backups, reminders and gestures.": "Kratki odgovori o nalogu, podacima, rezervnim kopijama, podsetnicima i pokretima.",
+    "Open FAQ": "Otvori pitanja",
 
     // Calendar and task rows / Task Properties (js/calendar-ui.js, js/tasks-ui.js)
     "Done": "Urađeno",
