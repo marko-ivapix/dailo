@@ -27,7 +27,10 @@ function adapter() {
   return registered;
 }
 
-function calendarContext(data = {}, ui = {}) {
+// Fixed in 2026-10-14: these tests were written on 2026-10-11, and some of them read "today" from the real clock.
+// Once the fixture week reached today, 14 October became "today" and 13 October a past day, which changed the
+// markup. A test that depends on that passes `today`, so the screen sees the day the expectations were written for.
+function calendarContext(data = {}, ui = {}, today = null) {
   const calls = [];
   const state = {
     tasks: [], goals: [], projects: [],
@@ -37,7 +40,7 @@ function calendarContext(data = {}, ui = {}) {
     ...data,
   };
   const ctx = {
-    calls, state, Core, esc,
+    calls, state, Core: today ? { ...Core, dateOnly: date => (date ? Core.dateOnly(date) : today) } : Core, esc,
     route: { type: 'calendar' },
     emptyState: (title, text) => `<div class="empty-state"><h3>${title}</h3><p>${text}</p></div>`, // R17: Predstojeće uses the usual empty state
     currentRoute: () => ctx.route,
@@ -129,7 +132,7 @@ test('C1, C3, C5: the week bar, a strip of seven days with dots, the selection a
 });
 
 test('C1, C5: the month grid has weekday names, blanks, dates and dots only (titles for wide screens, R47d)', () => {
-  const ctx = calendarContext(week(), { calendarView: 'month' });
+  const ctx = calendarContext(week(), { calendarView: 'month' }, '2026-10-11');
   const html = adapter().renderRoute({ type: 'calendar' }, ctx);
   // R63: "Danas" is a styled secondary button (it was a bare grey button on a wide screen).
   assert.match(html, /<h2 class="calendar-period">October 2026<\/h2><span class="calendar-arrows"><button class="btn btn-secondary calendar-today" type="button" data-action="calendar-today">Today<\/button><button class="btn-icon" type="button" data-action="calendar-prev" aria-label="Previous month">/);
@@ -150,7 +153,7 @@ test('C1, C5: the month grid has weekday names, blanks, dates and dots only (tit
 });
 
 test('C4, C6: the day panel with the long date, "Lista / Raspored", the Today rows and the empty text', () => {
-  const ctx = calendarContext(week());
+  const ctx = calendarContext(week(), {}, '2026-10-11');
   const html = adapter().renderRoute({ type: 'calendar' }, ctx);
   assert.match(html, /<section class="calendar-day-panel" data-calendar-day="2026-10-14"><div class="calendar-day-head"><h2 class="calendar-day-title">F:2026-10-14<\/h2><div class="view-tabs calendar-day-mode" role="group" aria-label="Day view"><button class="btn is-selected" type="button" data-action="calendar-day-mode" data-mode="list" aria-pressed="true">List<\/button><button class="btn" type="button" data-action="calendar-day-mode" data-mode="schedule" aria-pressed="false">Schedule<\/button><\/div><\/div><div class="task-list today-card" data-list-context="calendar"><row b><row a><deadline g1><row c><\/div><\/section>$/);
   ctx.state.ui.calendarDate = '2026-10-13';
@@ -160,7 +163,7 @@ test('C4, C6: the day panel with the long date, "Lista / Raspored", the Today ro
 test('C6: Raspored is the V1.12 day view for the selected day, without the archived projects', () => {
   const data = week();
   data.tasks.push({ id: 'y', title: 'Archived block', plannedDate: DAY, plannedTime: '11:00', durationMinutes: 60, projectId: 'archived' });
-  const ctx = calendarContext(data, { calendarDayMode: 'schedule' });
+  const ctx = calendarContext(data, { calendarDayMode: 'schedule' }, '2026-10-11');
   const html = adapter().renderRoute({ type: 'calendar' }, ctx);
   assert.match(html, /data-action="calendar-day-mode" data-mode="schedule" aria-pressed="true">Schedule<\/button><\/div><\/div><div class="day-view"><div class="day-capacity" data-day-capacity role="status"><span>Planned 45m of 360m<\/span>/);
   assert.match(html, /<section class="section day-unscheduled" data-calendar-date="2026-10-14">/);
