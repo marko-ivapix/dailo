@@ -1324,18 +1324,20 @@
     const accountText = sync.configured && sync.signedIn ? sync.email : sync.configured ? tr('Sign in') : tr('Data is on this device only');
     let html = pageHeader(tr('More'), '', { add: false });
     if (pinned.length) html += card(tr('Pinned'), pinned);
+    // R72: Planiranje is Ciljevi, Projekti (Zadaci → Projekti), Redovne obaveze and Oblasti; Nedeljni pregled moved to
+    // Biblioteka in the place of Šabloni, which left the menu ("Sačuvaj kao šablon" and "Iz šablona" stay).
     html += card(tr('Planning'), [
       moreRow('goals', 'ph-target', tr('Goals'), count((state.goals || []).filter(goal => goal.status === 'active'))),
-      moreRow('areas', 'ph-squares-four', tr('Areas'), count((state.areas || []).filter(area => area.status !== 'archived'))),
+      moreRow('projects', 'ph-folder', tr('Projects'), count(state.projects.filter(project => !project.isArchived && !project.isCleaningRoom))),
       moreRow('cleaning', 'ph-arrows-clockwise', tr('Recurring tasks'), count(state.tasks.filter(isOpenRepeating))),
-      moreRow('review', 'ph-clipboard-text', tr('Weekly review'), '', reviewNote),
+      moreRow('areas', 'ph-squares-four', tr('Areas'), count((state.areas || []).filter(area => area.status !== 'archived'))),
     ]);
     html += card(tr('Library'), [
       moreRow('notes', 'ph-note', tr('Notes'), count(state.notes)),
       moreRow('journal', 'ph-book-open', tr('Journal'), count(state.journal)),
       moreRow('resources', 'ph-link', tr('Resources'), count(state.resources)),
       moreRow('tags', 'ph-tag', tr('Tags'), count(state.tags)),
-      moreRow('templates', 'ph-copy', tr('Templates'), count(state.templates)),
+      moreRow('review', 'ph-clipboard-text', tr('Weekly review'), '', reviewNote),
       moreRow('saved-views', 'ph-funnel', tr('Saved Views'), count(state.savedViews)),
     ]);
     html += card(tr('Archives'), [

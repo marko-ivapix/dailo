@@ -30,7 +30,8 @@ test('M4: Još is a screen with Zakačeno, Planiranje, Biblioteka, Arhiva and Po
   const more = fn('renderMoreScreen');
   for (const label of ['Pinned', 'Planning', 'Library', 'Archives']) assert.match(more, new RegExp(`tr\\('${label}'\\)`), label);
   // R7 (C9): Predstojeće moved into the Calendar, so "Još" no longer lists it.
-  for (const route of ['goals', 'areas', 'cleaning', 'review', 'notes', 'resources', 'tags', 'templates', 'saved-views', 'completed', 'archived', 'settings']) {
+  // R72: Šabloni left the menu and Projekti joined Planiranje (tests/more-menu-r72.test.js).
+  for (const route of ['goals', 'projects', 'areas', 'cleaning', 'review', 'notes', 'resources', 'tags', 'saved-views', 'completed', 'archived', 'settings']) {
     assert.match(more, new RegExp(`'${route}'`), route);
   }
   assert.doesNotMatch(more, /'upcoming'/);
