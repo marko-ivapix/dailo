@@ -2281,6 +2281,26 @@
       .slice(0, limit);
   }
 
+  // R101: what was done — the tasks completed this month, last month and this year, the best day this month (the earliest
+  // of equals) and the run of days with something completed, from today or, until something is done today, from yesterday.
+  function completionSummary(tasks, today = dateOnly()) {
+    const counts = new Map();
+    for (const task of tasks || []) {
+      const day = task?.isCompleted ? localDateOf(String(task.completedAt || '')) : null;
+      if (day && day <= today) counts.set(day, (counts.get(day) || 0) + 1);
+    }
+    const [year, month] = today.split('-').map(Number);
+    const thisMonth = today.slice(0, 7), lastMonth = month === 1 ? `${year - 1}-12` : `${year}-${String(month - 1).padStart(2, '0')}`;
+    const summary = { month: 0, lastMonth: 0, year: 0, best: null, streak: 0 };
+    for (const [day, count] of [...counts].sort(([a], [b]) => a.localeCompare(b))) {
+      if (day.startsWith(thisMonth)) { summary.month += count; if (!summary.best || count > summary.best.count) summary.best = { date: day, count }; }
+      if (day.startsWith(lastMonth)) summary.lastMonth += count;
+      if (day.startsWith(String(year))) summary.year += count;
+    }
+    for (let day = counts.has(today) ? today : addDays(today, -1); counts.has(day); day = addDays(day, -1)) summary.streak += 1;
+    return summary;
+  }
+
   // R98: one question about the day for the journal, the same all day; `offset` gives the next ones in turn.
   const JOURNAL_QUESTIONS = Object.freeze([
     msg('What was good today?'), msg('What made you smile today?'), msg('What was hard today, and what helped?'), msg('What is worth remembering from today?'),
@@ -2894,6 +2914,7 @@
     choreProgress,
     weeklyWins,
     priorityCandidates,
+    completionSummary,
     JOURNAL_QUESTIONS,
     journalQuestion,
     completedOn,

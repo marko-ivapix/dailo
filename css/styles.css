@@ -2680,6 +2680,12 @@ a.toast-action { display: inline-flex; align-items: center; text-decoration: non
 /* R92: Navike — the line that says what ✓, ✗ and an empty circle mean. */
 .habits-legend { margin: 14px 4px 0; color: var(--ink-3); font-size: var(--text-sm); line-height: 1.45; }
 
+/* R101: Završeni zadaci opens with what was done. */
+.completed-summary { display: grid; gap: 4px; padding: 12px 14px; margin-bottom: 12px; }
+.completed-summary-label { margin: 0; color: var(--ink-3); font-size: var(--text-sm); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+.completed-summary-main { margin: 0; color: var(--ink-1); font-size: var(--text-lg); font-weight: 600; }
+.completed-summary-line { margin: 0; color: var(--ink-2); font-size: var(--text-sm); }
+
 /* R100: the ready-made saved views, each added with one tap. */
 .views-ready { margin-top: 24px; }
 .view-ready-add { color: var(--accent); }

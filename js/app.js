@@ -1662,11 +1662,23 @@
 
   // Redesign R10e (S9, M6): project and period chips, groups by completion day with Today rows (the round check restores
   // a task with Undo), and "Obriši završene zadatke" at the bottom.
+  // R101: what was done, over all completed tasks (whatever the chips filter): this month, last month, this year, the
+  // best day this month and the run of days.
+  function completedSummaryCard() {
+    const summary = Core.completionSummary(state.tasks, Core.dateOnly());
+    if (!summary.month && !summary.lastMonth && !summary.year) return '';
+    const tasks = count => trn(count, '{count} task', '{count} tasks');
+    const totals = [tr('Last month: {tasks}', { tasks: tasks(summary.lastMonth) }), tr('This year: {tasks}', { tasks: tasks(summary.year) })].join(' · ');
+    const extra = [summary.best?.count > 1 ? tr('Best day: {date} ({count})', { date: formatDate(summary.best.date), count: summary.best.count }) : '', summary.streak > 1 ? trn(summary.streak, 'Streak: {count} day in a row', 'Streak: {count} days in a row') : ''].filter(Boolean).join(' · ');
+    return `<div class="today-card completed-summary"><p class="completed-summary-label">${tr('Achievements')}</p><p class="completed-summary-main">${esc(tr('This month: {tasks}', { tasks: tasks(summary.month) }))}</p><p class="completed-summary-line">${esc(totals)}</p>${extra ? `<p class="completed-summary-line">${esc(extra)}</p>` : ''}</div>`;
+  }
+
   function renderCompleted() {
     const projectId = state.ui.completedProjectFilter || null;
     const periodDays = Number(state.ui.completedPeriod) || 0;
     const tasks = Core.filterCompleted(state.tasks, { projectId, periodDays }, nowIso());
     let html = pageHeader(tr('Completed tasks'), trn(tasks.length, '{count} task', '{count} tasks'), { add: false });
+    html += completedSummaryCard();
     const project = allProjects().find(item => item.id === projectId);
     const period = (days, label) => `<button class="quick-chip${periodDays === days ? ' is-selected' : ''}" type="button" data-action="completed-period" data-value="${days}" aria-pressed="${periodDays === days}">${label}</button>`;
     html += `<div class="sheet-chips completed-chips"><button class="quick-chip${project ? ' is-selected' : ''}" type="button" data-action="completed-project">${esc(project?.name || tr('All projects'))} <i class="ph ph-caret-down" aria-hidden="true"></i></button>${period(0, tr('All time'))}${period(7, tr('7 days'))}${period(30, tr('30 days'))}</div>`;
