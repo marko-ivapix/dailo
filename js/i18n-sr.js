@@ -628,6 +628,11 @@
     "No deadline": "Bez roka",
     "Past-due tasks moved to tomorrow": "Zakasneli zadaci su pomereni na sutra",
     "Nothing is past due.": "Ništa nije zakasnelo.",
+    // R84: Zatvori dan
+    "Close the day": "Zatvori dan",
+    "Still open today: {count}": "Otvoreno danas: {count}",
+    "Unfinished tasks moved to tomorrow": "Neurađeno je pomereno na sutra",
+    "The day is closed.": "Dan je zatvoren.",
     "Time for a backup": "Vreme je za rezervnu kopiju",
     "Your account keeps a copy on the server; a ZIP is a copy only you keep.": "Nalog čuva kopiju na serveru, a ZIP je kopija koju čuvaš samo ti.",
     "Planned today": "Planirano danas",

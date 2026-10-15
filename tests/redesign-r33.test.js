@@ -121,7 +121,8 @@ test('32: an hourglass is the due date and a flag the priority everywhere; Bez p
 test('33: Fokus → Detalji comes back to Fokus with its timer', () => {
   assert.match(fn('openTaskDetail'), /const focus = modalState\?\.type === 'focus' \? modalState : null;/);
   // R83: the past-due pass gets the task window back too.
-  assert.match(fn('openTaskDetail'), /const back = focus \|\| \(\['inbox-triage', 'overdue-triage'\]\.includes\(modalState\?\.type\) \? modalState : null\);/, 'R36: Razvrstaj redom too');
+  // R84: and "Zatvori dan".
+  assert.match(fn('openTaskDetail'), /const back = focus \|\| \(\['inbox-triage', 'overdue-triage', 'close-day'\]\.includes\(modalState\?\.type\) \? modalState : null\);/, 'R36: Razvrstaj redom too');
   assert.match(fn('openTaskDetail'), /\.\.\.\(back \? \{ returnTo: back \} : \{\}\)/);
   assert.match(fn('closeModal'), /if \(modalState\?\.type === 'task' && modalState\.returnTo\?\.type === 'focus'\) \{/);
   assert.match(fn('closeModal'), /startFocusTimer\(\);/);

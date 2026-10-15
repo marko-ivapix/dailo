@@ -78,7 +78,8 @@ test('the pass goes through the past-due tasks one at a time with every way out'
   assert.match(app, /else if \(action === 'overdue-today'\) \{ const item = getTask\(el\.dataset\.taskId\); if \(item\) requestTaskEdit\(item\.id, overdueMoveChanges\(item, Core\.dateOnly\(\)\)\); \}/);
   assert.match(app, /else if \(action === 'overdue-delete'\) requestDeleteEntity\('task', el\.dataset\.taskId, \{ returnTo: modalState \}\);/);
   assert.match(app, /else if \(action === 'overdue-all-tomorrow'\) moveAllOverdueToTomorrow\(\);/);
-  assert.match(fn('openTaskDetail'), /const back = focus \|\| \(\['inbox-triage', 'overdue-triage'\]\.includes\(modalState\?\.type\) \? modalState : null\);/);
+  // R84: the "Zatvori dan" pass gets the task window back too.
+  assert.match(fn('openTaskDetail'), /const back = focus \|\| \(\['inbox-triage', 'overdue-triage', 'close-day'\]\.includes\(modalState\?\.type\) \? modalState : null\);/);
   assert.match(fn('requestDeleteEntity'), /function requestDeleteEntity\(type, identity, \{ returnTo = null \} = \{\}\)/);
   assert.match(fn('requestDeleteEntity'), /\.\.\.\(returnTo \? \{ returnTo \} : \{\}\),/);
 });
@@ -107,8 +108,7 @@ test('the new lines are Serbian', () => {
   ]) assert.ok(sr.includes(`${JSON.stringify(en)}: ${JSON.stringify(value)}`), en);
 });
 
-test('R83 is released as 2.0.0-alpha.110', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.110');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.110';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.110');
+test('R83 shipped as 2.0.0-alpha.110 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 110) >= 110);
 });

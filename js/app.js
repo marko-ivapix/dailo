@@ -1191,6 +1191,8 @@
     // R30 (finding 5): one first-run card at a time; the phone app's transfer question comes first.
     if (!transfer) html += sampleNotice();
     // R83: the backup reminder moved to the top of Još, with a dot on the Još tab.
+    // R84: in the evening, "Zatvori dan" comes before the journal notice.
+    html += closeDayNotice();
     // R14 (T6 amended): the weekly review prompt left Today; the review stays in Još.
     html += callDomainHook('renderRoute', { type: 'journal-notice' }) || '';
     const section = (key, label, count, body, danger = false) => `<section class="section today-section today-section--${key}" data-today-section="${key}"><div class="section-header"><h2 class="section-label${danger ? ' danger' : ''}">${label}</h2><span class="section-count">${count}</span></div>${body}</section>`;
@@ -1307,6 +1309,57 @@
     const actions = [button('overdue-today', tr('Today')), button('overdue-tomorrow', tr('Tomorrow')), button('overdue-due', tr('New deadline…')), button('overdue-no-due', tr('No deadline')),
       button('overdue-complete', tr('Complete'), 'btn-primary'), button('overdue-open', tr('Open it')), button('overdue-delete', tr('Delete'), 'btn-ghost')].join('');
     return modalFrame(`<div class="modal-inner">${header}<div class="inbox-triage-card"><p class="inbox-triage-meta">${esc(tr('Due was {date}', { date: formatDate(item.dueDate) }))}</p><p class="inbox-triage-title">${esc(item.title || '')}</p></div><div class="inbox-triage-actions">${actions}</div><div class="inbox-triage-footer"><span>${esc(tr('{current} of {total}', { current: modalState.index + 1, total: open.length }))}</span><button class="btn btn-ghost" type="button" data-action="overdue-skip">${tr('Skip')}</button></div></div>`, 'quick inbox-triage-modal');
+  }
+  // R84: "Zatvori dan" — from the journal reminder time (20:00 without one) Danas offers to go through today's
+  // unfinished plan or move it all to tomorrow (the AGENTS.md exception). "Ne danas" hides it until tomorrow on this
+  // device (device-local key, outside state, backups and sync). Past-due tasks have their own section.
+  const CLOSE_DAY_LATER_KEY = 'dailoCloseDayLater';
+  function closeDayOpenTasks() {
+    const today = Core.dateOnly();
+    return listTasks().filter(item => !item.isCompleted && item.plannedDate === today && !Core.isOverdue(item, today));
+  }
+  function closeDayNotice() {
+    const now = new Date(nowIso()), today = Core.dateOnly();
+    const [hours, minutes] = (Core.journalReminderTime(state.settings) || '20:00').split(':').map(Number);
+    if (Core.dateOnly(now) !== today || now.getHours() * 60 + now.getMinutes() < hours * 60 + minutes) return '';
+    const open = closeDayOpenTasks();
+    if (!open.length) return '';
+    try { if (localStorage.getItem(CLOSE_DAY_LATER_KEY) === today) return ''; } catch (_) { /* shown when storage is unavailable */ }
+    return `<section class="weekly-review-notice close-day-notice" data-close-day role="status" aria-label="${tr('Close the day')}"><i class="ph ph-moon-stars weekly-review-notice-icon" aria-hidden="true"></i><div class="backup-reminder-copy"><strong>${tr('Close the day')}</strong><span>${esc(tr('Still open today: {count}', { count: open.length }))}</span></div><div class="backup-reminder-actions"><button class="btn btn-primary" type="button" data-action="close-day-pass">${tr('Go through them')}</button><button class="btn btn-secondary" type="button" data-action="close-day-all-tomorrow">${tr('All to tomorrow')}</button><button class="btn btn-ghost" type="button" data-action="close-day-later">${tr('Not today')}</button></div></section>`;
+  }
+  // R84 (the AGENTS.md exception): today's open plan moves to tomorrow in one step with Undo; deadlines stay, and a
+  // repeating task moves only this occurrence.
+  function moveTodayToTomorrow() {
+    const tomorrow = Core.addDays(Core.dateOnly(), 1);
+    const tasks = closeDayOpenTasks();
+    if (!tasks.length) return;
+    const snapshot = snapshotTasks(tasks);
+    for (const item of tasks) {
+      if (taskRecurrence(item) && !item.recurrenceBaseline) { item.recurrenceBaseline = copyTemplate(item); delete item.recurrenceBaseline.recurrenceBaseline; }
+      Object.assign(item, { plannedDate: tomorrow, todayOrder: null, updatedAt: nowIso() });
+    }
+    if (!saveState()) { restoreTasks(snapshot); render(); setToastMessage(tr('Changes could not be saved locally. Try again.')); return; }
+    render();
+    setUndo(msg('Unfinished tasks moved to tomorrow'), () => { restoreTasks(snapshot); saveState(); render(); });
+  }
+  function openCloseDayPass() {
+    captureModalReturnFocus();
+    modalState = { type: 'close-day', queue: closeDayOpenTasks().map(item => item.id), index: 0 };
+    renderModal();
+    requestAnimationFrame(() => $('#modal-root .inbox-triage-actions button')?.focus());
+  }
+  function renderCloseDayPass() {
+    const open = (modalState.queue || []).filter(id => closeDayOpenTasks().some(item => item.id === id));
+    const header = `<div class="modal-header"><h2 class="modal-title">${tr('Close the day')}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div>`;
+    if (!open.length) return modalFrame(`<div class="modal-inner">${header}<div class="empty-state inbox-empty"><i class="ph ph-moon-stars" aria-hidden="true"></i><h3>${tr('Finished')}</h3><p>${tr('The day is closed.')}</p></div><div class="quick-sheet-footer"><button class="btn btn-primary habit-window-save" type="button" data-action="open-journal">${tr('Write down how the day went')}</button></div></div>`, 'quick inbox-triage-modal');
+    if (modalState.index >= open.length) modalState.index = 0;
+    const item = getTask(open[modalState.index]);
+    const attrs = `data-task-id="${esc(item.id)}"`;
+    const button = (action, text, kind = 'btn-secondary') => `<button class="btn ${kind}" type="button" data-action="${action}" ${attrs}>${text}</button>`;
+    const actions = [button('close-day-tomorrow', tr('Tomorrow')), button('close-day-anytime', tr('Anytime')), button('close-day-date', tr('Date…')),
+      button('close-day-complete', tr('Complete'), 'btn-primary'), button('close-day-open', tr('Open it')), button('close-day-delete', tr('Delete'), 'btn-ghost')].join('');
+    const when = item.plannedTime ? `<p class="inbox-triage-meta">${esc(item.plannedTime)}</p>` : '';
+    return modalFrame(`<div class="modal-inner">${header}<div class="inbox-triage-card">${when}<p class="inbox-triage-title">${esc(item.title || '')}</p></div><div class="inbox-triage-actions">${actions}</div><div class="inbox-triage-footer"><span>${esc(tr('{current} of {total}', { current: modalState.index + 1, total: open.length }))}</span><button class="btn btn-ghost" type="button" data-action="close-day-skip">${tr('Skip')}</button></div></div>`, 'quick inbox-triage-modal');
   }
   function inboxTriageOpen(type, id) {
     const item = inboxItem(type, id);
@@ -1676,7 +1729,7 @@
     else captureModalReturnFocus();
     closePopover();
     // R36 (G): opened from Razvrstaj redom it returns there too.
-    const back = focus || (['inbox-triage', 'overdue-triage'].includes(modalState?.type) ? modalState : null);
+    const back = focus || (['inbox-triage', 'overdue-triage', 'close-day'].includes(modalState?.type) ? modalState : null);
     modalState = { type: 'task', taskId, titleDraft: task.title, notesDraft: task.notes || '', error: '', attachmentRecords: [], attachmentMessage: '', ...(back ? { returnTo: back } : {}) };
     renderModal();
     // R14: the window opens without the keyboard; a tap on the title edits it.
@@ -1930,7 +1983,7 @@
       if (flushTaskDraft(() => closeModal())) return;
       const back = modalState.returnTo; modalState = back; renderModal(); startFocusTimer(); return;
     }
-    if (modalState?.type === 'task' && ['inbox-triage', 'overdue-triage'].includes(modalState.returnTo?.type)) {
+    if (modalState?.type === 'task' && ['inbox-triage', 'overdue-triage', 'close-day'].includes(modalState.returnTo?.type)) {
       if (flushTaskDraft(() => closeModal())) return;
       modalState = modalState.returnTo; renderModal(); return;
     }
@@ -1982,6 +2035,7 @@
     else if (modalState.type === 'sync-choice') root.innerHTML = renderSyncChoice();
     else if (modalState.type === 'inbox-triage') root.innerHTML = renderInboxTriage();
     else if (modalState.type === 'overdue-triage') root.innerHTML = renderOverdueTriage();
+    else if (modalState.type === 'close-day') root.innerHTML = renderCloseDayPass();
     // R20: "Iz šablona" is a chip under the window title, and only when templates of that type exist.
     if (['project','habit','goal'].includes(modalState.type) && !modalState.taskId && !modalState.projectId && !modalState.habitId && !modalState.goalId && state.templates.some(template => template.type === modalState.type)) {
       $('.modal-header', root)?.insertAdjacentHTML('afterend', `<div class="quick-template-row"><button class="quick-chip" type="button" data-action="from-template"><i class="ph ph-copy" aria-hidden="true"></i>${tr('From template')}</button></div>`);
@@ -6166,6 +6220,16 @@
     else if (action === 'overdue-open') openTaskDetail(el.dataset.taskId);
     else if (action === 'overdue-delete') requestDeleteEntity('task', el.dataset.taskId, { returnTo: modalState });
     else if (action === 'overdue-skip') { modalState.index += 1; renderModal(); }
+    else if (action === 'close-day-pass') openCloseDayPass();
+    else if (action === 'close-day-all-tomorrow') moveTodayToTomorrow();
+    else if (action === 'close-day-later') { try { localStorage.setItem(CLOSE_DAY_LATER_KEY, Core.dateOnly()); } catch (_) { /* shown again next time */ } render(); }
+    else if (action === 'close-day-tomorrow') requestTaskEdit(el.dataset.taskId, { plannedDate: Core.addDays(Core.dateOnly(), 1), todayOrder: null });
+    else if (action === 'close-day-anytime') requestTaskEdit(el.dataset.taskId, { plannedDate: null, todayOrder: null });
+    else if (action === 'close-day-date') openPlanPicker(el, { type: 'task', taskId: el.dataset.taskId });
+    else if (action === 'close-day-complete') { toggleComplete(el.dataset.taskId); if (modalState?.type === 'close-day') renderModal(); }
+    else if (action === 'close-day-open') openTaskDetail(el.dataset.taskId);
+    else if (action === 'close-day-delete') requestDeleteEntity('task', el.dataset.taskId, { returnTo: modalState });
+    else if (action === 'close-day-skip') { modalState.index += 1; renderModal(); }
     else if (action === 'task-project-picker') showTaskProjectPicker(el.dataset.taskId, el);
     else if (action === 'task-plan-picker') showTaskPlanPicker(el.dataset.taskId, el);
     else if (action === 'task-area-picker') openTaskAreaSheet(el, el.dataset.taskId);
