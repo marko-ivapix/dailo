@@ -2654,6 +2654,29 @@ a.toast-action { display: inline-flex; align-items: center; text-decoration: non
 .quick-paste-lines { margin: var(--space-2) 0; padding-left: 20px; color: var(--ink-2); }
 .quick-paste-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 
+/* R91: Kalendar — "3 dana" columns (cards on a phone too), the deadline mark, a held task and where it can land. */
+.calendar-three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.calendar-three-day { display: flex; flex-direction: column; gap: 5px; min-width: 0; min-height: 200px; padding: 5px; border: 1px solid var(--line-1); border-radius: var(--radius-md); background: var(--graphite-900); }
+.calendar-three-day.is-today { border-color: var(--line-3); }
+.calendar-three-heading { display: flex; align-items: center; justify-content: space-between; gap: 4px; min-height: 44px; padding: 2px 4px; border: 0; border-radius: var(--radius-sm); background: none; color: var(--ink-3); font: inherit; font-size: var(--text-sm); cursor: pointer; }
+.calendar-three-heading strong { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; color: var(--ink-1); font-weight: 500; font-variant-numeric: tabular-nums; }
+.calendar-three-day.is-today .calendar-three-heading strong { color: var(--blue-300); font-weight: 600; }
+.calendar-three-day.is-selected .calendar-three-heading strong { background: var(--blue-500); color: var(--on-accent); }
+.calendar-three .calendar-cards { display: grid; gap: 5px; }
+.calendar-three .calendar-card { display: block; width: 100%; min-height: 44px; padding: 6px 7px; border: 1px solid var(--line-2); border-radius: var(--radius-sm); background: var(--graphite-850); color: var(--ink-1); font: inherit; font-size: var(--text-meta); line-height: 1.3; text-align: left; overflow-wrap: anywhere; cursor: pointer; }
+.calendar-three .calendar-card b { display: block; color: var(--ink-3); font-size: var(--text-xs); font-weight: 500; }
+.calendar-three .calendar-day-add { display: flex; align-items: center; justify-content: center; gap: 4px; min-height: 44px; margin-top: auto; border: 0; border-radius: var(--radius-sm); background: none; color: var(--ink-3); font: inherit; font-size: var(--text-meta); cursor: pointer; }
+.calendar-card.is-due { border-style: dashed; border-color: var(--warning); }
+.calendar-card.is-due i, .calendar-card.is-repeat i { margin-right: 4px; }
+.calendar-card.is-due i { color: var(--warning); }
+.calendar-card.is-repeat { border-style: dotted; color: var(--ink-3); }
+.calendar-month-title.is-due { box-shadow: inset 2px 0 0 var(--warning); }
+.task-row.is-due-item { box-shadow: inset 3px 0 0 var(--warning); }
+.task-due-icon { margin-right: 5px; color: var(--warning); vertical-align: -1px; }
+.calendar-card.is-touch-dragging, .day-grid-block.is-touch-dragging, .day-unscheduled-item.is-touch-dragging { z-index: 5; pointer-events: none; box-shadow: var(--shadow-popover); transition: none; }
+.calendar-card.is-touch-dragging, .day-unscheduled-item.is-touch-dragging { position: relative; }
+.calendar-three-day.is-drop-target, .calendar-month-cell.is-drop-target, .calendar-strip-day.is-drop-target { outline: 2px dashed var(--blue-300); outline-offset: -2px; }
+
 /* Keep primary compact actions touchable after all density rules. */
 @media (max-width: 700px), (pointer: coarse) {
   .task-actions .btn-icon,

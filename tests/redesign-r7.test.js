@@ -104,9 +104,10 @@ test('Core.calendarDayItems: open tasks on their plan day, else their due day; t
 });
 
 test('C1, C7: "Kalendar" with the Nedelja / Mesec / Predstojeće switch; no Dodaj, Danas, filter or summary', () => {
+  // R91: "3 dana" joins the switch after Nedelja (tests/calendar-r91.test.js).
   const ctx = calendarContext(week());
   const html = adapter().renderRoute({ type: 'calendar' }, ctx);
-  assert.match(html, /^<header title="Calendar" subtitle="" add="false"><\/header><div class="view-tabs calendar-view-switch" role="group" aria-label="Calendar view"><button class="btn is-selected" type="button" data-action="calendar-view" data-view="week" aria-pressed="true">Week<\/button><button class="btn" type="button" data-action="calendar-view" data-view="month" aria-pressed="false">Month<\/button><button class="btn" type="button" data-action="calendar-view" data-view="upcoming" aria-pressed="false">Upcoming<\/button><\/div>/);
+  assert.match(html, /^<header title="Calendar" subtitle="" add="false"><\/header><div class="view-tabs calendar-view-switch" role="group" aria-label="Calendar view"><button class="btn is-selected" type="button" data-action="calendar-view" data-view="week" aria-pressed="true">Week<\/button><button class="btn" type="button" data-action="calendar-view" data-view="three" aria-pressed="false">3 days<\/button><button class="btn" type="button" data-action="calendar-view" data-view="month" aria-pressed="false">Month<\/button><button class="btn" type="button" data-action="calendar-view" data-view="upcoming" aria-pressed="false">Upcoming<\/button><\/div>/);
   // R47d (K8): "Danas" and the month titles are in the markup for wide screens; CSS hides them on a phone (C1).
   assert.doesNotMatch(html, /calendar-add|data-calendar-visibility|calendar-summary|calendar-legend|calendar-detail|Walk the dog/);
 });
@@ -141,8 +142,9 @@ test('C1, C5: the month grid has weekday names, blanks, dates and dots only (tit
   assert.deepEqual([...grid.matchAll(/<span class="calendar-grid-weekday">(\w+)<\/span>/g)].map(match => match[1]), ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']);
   assert.equal((grid.match(/<span class="calendar-grid-blank" aria-hidden="true"><\/span>/g) || []).length, 3, '1 October 2026 is a Thursday');
   assert.equal((grid.match(/class="calendar-month-cell/g) || []).length, 31);
-  assert.match(grid, /<button class="calendar-month-cell is-selected" type="button" data-action="calendar-pick" data-date="2026-10-14" aria-pressed="true" aria-label="F:2026-10-14, 4 planned"><span>14<\/span><i class="calendar-dot" aria-hidden="true"><\/i><small class="calendar-month-titles">[^]*?<\/small><\/button>/);
-  assert.match(grid, /data-date="2026-10-15" aria-pressed="false" aria-label="F:2026-10-15"><span>15<\/span><i class="calendar-dot is-empty" aria-hidden="true"><\/i>/);
+  // R91: a month day also takes a dropped task (data-calendar-date).
+  assert.match(grid, /<button class="calendar-month-cell is-selected" type="button" data-action="calendar-pick" data-date="2026-10-14" data-calendar-date="2026-10-14" aria-pressed="true" aria-label="F:2026-10-14, 4 planned"><span>14<\/span><i class="calendar-dot" aria-hidden="true"><\/i><small class="calendar-month-titles">[^]*?<\/small><\/button>/);
+  assert.match(grid, /data-date="2026-10-15" data-calendar-date="2026-10-15" aria-pressed="false" aria-label="F:2026-10-15"><span>15<\/span><i class="calendar-dot is-empty" aria-hidden="true"><\/i>/);
   assert.doesNotMatch(grid, /calendar-card/, 'no cards in the month grid');
   // R47d (K8): titles appear only inside .calendar-month-titles, which CSS shows from 1024 px on; a phone keeps dots.
   assert.doesNotMatch(grid.replace(/<small class="calendar-month-titles">[^]*?<\/small>/g, ''), /Early run|Marathon/, 'no task content outside the wide-screen titles');
@@ -231,7 +233,8 @@ test('the switch, the day pick, Lista / Raspored and the arrows', () => {
 });
 
 test('stored views: week, month or upcoming; a stored "day" opens the week on Raspored', () => {
-  const lines = app.match(/ {4}if \(next\.ui\.calendarView === 'day'\) next\.ui\.calendarDayMode = 'schedule';\n {4}next\.ui\.calendarView = \['week', 'month', 'upcoming'\]\.includes\(next\.ui\.calendarView\) \? next\.ui\.calendarView : 'week';\n {4}next\.ui\.calendarDayMode = next\.ui\.calendarDayMode === 'schedule' \? 'schedule' : 'list';\n/);
+  // R91: "three" (3 dana) is a stored view too.
+  const lines = app.match(/ {4}if \(next\.ui\.calendarView === 'day'\) next\.ui\.calendarDayMode = 'schedule';\n {4}next\.ui\.calendarView = \['week', 'three', 'month', 'upcoming'\]\.includes\(next\.ui\.calendarView\) \? next\.ui\.calendarView : 'week';\n {4}next\.ui\.calendarDayMode = next\.ui\.calendarDayMode === 'schedule' \? 'schedule' : 'list';\n/);
   assert.ok(lines, 'normalization lines');
   const run = ui => { const ctx = { next: { ui } }; vm.runInNewContext(lines[0], ctx); return plain(ctx.next.ui); };
   assert.deepEqual(run({ calendarView: 'day' }), { calendarView: 'week', calendarDayMode: 'schedule' });

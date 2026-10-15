@@ -112,7 +112,8 @@ test('an over-full day warns, an empty day points to "+", and capacity can be of
 // Redesign R7 (C6): a stored "day" view opens the week with its Raspored; the arrows move by week.
 test('a stored day view becomes the week on Raspored; the arrows move by week', () => {
   const app = read('js/app.js');
-  assert.match(app, /if \(next\.ui\.calendarView === 'day'\) next\.ui\.calendarDayMode = 'schedule';\n {4}next\.ui\.calendarView = \['week', 'month', 'upcoming'\]\.includes\(next\.ui\.calendarView\) \? next\.ui\.calendarView : 'week';/);
+  // R91: "three" (3 dana) is a stored view too.
+  assert.match(app, /if \(next\.ui\.calendarView === 'day'\) next\.ui\.calendarDayMode = 'schedule';\n {4}next\.ui\.calendarView = \['week', 'three', 'month', 'upcoming'\]\.includes\(next\.ui\.calendarView\) \? next\.ui\.calendarView : 'week';/);
   const start = app.indexOf('  function navigateCalendar(');
   const navigate = app.slice(start, app.indexOf('\n  function ', start + 1));
   const context = { Core, state: { ui: { calendarView: 'week', calendarDate: DAY } }, calendarDate: () => context.state.ui.calendarDate, parseLocalDate: value => new Date(`${value}T00:00:00`), saveAndRender() {} };

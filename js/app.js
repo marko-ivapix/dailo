@@ -391,8 +391,9 @@
     // R86: Inbox no longer reads the filter; it stays valid so the stored ui keeps its shape.
     next.ui.inboxFilter = INBOX_FILTERS.some(([value]) => value === next.ui.inboxFilter) ? next.ui.inboxFilter : 'all';
     // Redesign R7 (C1, C6): Nedelja, Mesec or Predstojeće; a stored V1.12 "day" view is the week on its Raspored.
+    // R91: "3 dana" is a view too.
     if (next.ui.calendarView === 'day') next.ui.calendarDayMode = 'schedule';
-    next.ui.calendarView = ['week', 'month', 'upcoming'].includes(next.ui.calendarView) ? next.ui.calendarView : 'week';
+    next.ui.calendarView = ['week', 'three', 'month', 'upcoming'].includes(next.ui.calendarView) ? next.ui.calendarView : 'week';
     next.ui.calendarDayMode = next.ui.calendarDayMode === 'schedule' ? 'schedule' : 'list';
     next.ui.tasksView = next.ui.tasksView === 'projects' ? 'projects' : 'anytime';
     next.ui.todayExpanded = Object.fromEntries(['overdue', 'today', 'habits'].map(key => [key, next.ui.todayExpanded?.[key] === true]));
@@ -706,7 +707,8 @@
       calendarDate, parseLocalDate, formatDate, navigateCalendar, openPlanPicker, listTasks, deadlineRow,
       refreshSheet, openHabitDetails, openGoalDetails,
       openHabitStartSheet(anchor) { openDateSheet(anchor, { type: 'habit' }, 'start'); },
-      calendarTaskRow(task) { return taskRow(task, 'calendar', { today: true }); },
+      // R91: a task shown on its deadline day (no planned day) is marked as such.
+      calendarTaskRow(task, date) { return taskRow(task, 'calendar', { today: true, dueItem: Boolean(date) && !task.plannedDate && task.dueDate === date }); },
       taskRow,
       menuSheet,
       backLink,
@@ -1145,7 +1147,8 @@
       const first = Core.dateOnly(new Date(current.getFullYear(), current.getMonth() + direction, 1));
       const today = Core.dateOnly();
       state.ui.calendarDate = today.slice(0, 7) === first.slice(0, 7) ? today : first;
-    } else state.ui.calendarDate = Core.addDays(date, direction * 7);
+    } else if (state.ui.calendarView === 'three') state.ui.calendarDate = Core.addDays(date, direction * 3);
+    else state.ui.calendarDate = Core.addDays(date, direction * 7);
     saveAndRender();
   }
 
@@ -6822,8 +6825,65 @@
   }
 
   // R62: nor while a row is swiped to the side, so a slight slant does not turn the swipe into a scroll.
+  // R91: nor while a calendar task is dragged.
   function blockTouchScroll(event) {
-    if ((touchReorder?.active || taskSwipeState?.swiping) && event.cancelable !== false) event.preventDefault();
+    if ((touchReorder?.active || taskSwipeState?.swiping || calendarTouch?.active) && event.cancelable !== false) event.preventDefault();
+  }
+
+  // R91: on a touch screen, hold a calendar task (a card, a row of the day's list, a Raspored block or a task without
+  // a time) and drag it onto a day (the week strip, a 3-day column, a month day) or an hour of Raspored; it is planned
+  // there like a mouse drop (dropTaskOnDay, with Poništi and the repeat question).
+  const CALENDAR_TOUCH_SOURCES = '[data-calendar-drag="task"], .task-row[data-list-context="calendar"]';
+  const CALENDAR_TOUCH_TARGETS = '[data-calendar-time], [data-calendar-date]';
+  let calendarTouch = null;
+  function handleCalendarTouchStart(event) {
+    if (event.pointerType === 'mouse' || !event.isPrimary || calendarTouch || touchReorder || currentRoute().type !== 'calendar') return;
+    const source = event.target.closest?.(CALENDAR_TOUCH_SOURCES);
+    if (!source || source.classList.contains('is-completed') || event.target.closest('input, textarea, select, .complete-control')) return;
+    const id = source.dataset.calendarItemId || source.dataset.taskId;
+    if (!getTask(id)) return;
+    const drag = { source, id, pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, active: false, target: null };
+    drag.timer = setTimeout(() => startCalendarTouch(drag), 400);
+    calendarTouch = drag;
+  }
+  function startCalendarTouch(drag) {
+    if (calendarTouch !== drag) return;
+    drag.active = true; drag.timer = null;
+    if (taskSwipeState?.row === drag.source) { resetTaskSwipe(taskSwipeState.row, taskSwipeState.originalStyle); taskSwipeState = null; }
+    drag.source.releasePointerCapture?.(drag.pointerId);
+    drag.source.classList.add('is-touch-dragging');
+    document.body.classList.add('task-drag-active');
+    haptic('tick');
+  }
+  function handleCalendarTouchMove(event) {
+    const drag = calendarTouch;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    const dx = event.clientX - drag.startX, dy = event.clientY - drag.startY;
+    if (!drag.active) { if (Math.abs(dx) > 8 || Math.abs(dy) > 8) cancelCalendarTouch(); return; }
+    event.preventDefault();
+    drag.source.style.transform = `translate(${dx}px, ${dy}px)`;
+    const target = document.elementFromPoint(event.clientX, event.clientY)?.closest?.(CALENDAR_TOUCH_TARGETS) || null;
+    if (target !== drag.target) { drag.target?.classList.remove('is-drop-target'); target?.classList.add('is-drop-target'); drag.target = target; }
+  }
+  function finishCalendarTouch(event) {
+    const drag = calendarTouch;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    const target = drag.active && event.type !== 'pointercancel' ? drag.target : null;
+    const wasActive = drag.active;
+    cancelCalendarTouch();
+    if (wasActive) { suppressTaskSwipeClick = true; setTimeout(() => { suppressTaskSwipeClick = false; }, 0); }
+    const date = target?.closest('[data-calendar-date]')?.dataset.calendarDate;
+    if (Core.parseDateOnly(date)) dropTaskOnDay(drag.id, date, Core.normalizeTime(target.dataset.calendarTime));
+  }
+  function cancelCalendarTouch() {
+    const drag = calendarTouch;
+    if (!drag) return;
+    clearTimeout(drag.timer);
+    drag.source.style.transform = '';
+    drag.source.classList.remove('is-touch-dragging');
+    drag.target?.classList.remove('is-drop-target');
+    document.body.classList.remove('task-drag-active');
+    calendarTouch = null;
   }
 
   // R44: on Navike a horizontal swipe over the week bar or the rings pages the week, like ‹ and ›: to the left is
@@ -7022,8 +7082,12 @@
     document.addEventListener('pointermove', handleTouchReorderMove, { passive: false });
     document.addEventListener('pointerup', finishTouchReorder);
     document.addEventListener('pointercancel', finishTouchReorder);
+    document.addEventListener('pointerdown', handleCalendarTouchStart);
+    document.addEventListener('pointermove', handleCalendarTouchMove, { passive: false });
+    document.addEventListener('pointerup', finishCalendarTouch);
+    document.addEventListener('pointercancel', finishCalendarTouch);
     document.addEventListener('touchmove', blockTouchScroll, { passive: false });
-    document.addEventListener('contextmenu', event => { if (touchReorder || taskSwipeState) event.preventDefault(); });
+    document.addEventListener('contextmenu', event => { if (touchReorder || taskSwipeState || calendarTouch) event.preventDefault(); });
     document.addEventListener('click', handleClick);
     // R40: the welcome screen is a form, so Enter and the phone's "Go" key send it and password managers see it.
     document.addEventListener('submit', event => {
