@@ -46,6 +46,7 @@ function screenContext(ui = {}) {
     taskRow: (task, context, options) => `<row ${task.id} ${context}${options?.today ? ' today' : ''}${options?.hidePlace ? ' noplace' : ''}>`,
     emptyState: title => `<empty ${title}>`, formatDate: date => `F(${date})`,
     clampOrder: value => (Number.isFinite(value) ? value : 999999), // R33: Kad stignem follows the project order
+    projectTasks: (id, done = false) => tasks.filter(task => task.projectId === id && Boolean(task.isCompleted) === done), // R94: a row names its next step
   };
   vm.createContext(withI18n(ctx));
   vm.runInContext(['listTasks', 'todayDueLabel', 'projectOverviewRow', 'renderTasksScreen'].map(fn).join(''), ctx);

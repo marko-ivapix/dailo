@@ -739,7 +739,7 @@
         state.ui.projectCompletedExpanded[projectId] = !state.ui.projectCompletedExpanded[projectId];
         saveAndRender();
       },
-      openProjectModal, saveProjectModal, archiveProject, restoreProject, deleteProject,
+      openProjectModal, saveProjectModal, archiveProject, restoreProject, deleteProject, setProjectStatus,
       openQuickAdd, openGoalModal, openHabitModal, noteToTask,
       renderAreaTaskRow(task, areaId) { return taskRow(task, `area:${areaId}`, { today: true }); },
       repeatEditorState, repeatEditorHtml, repeatEditorUpdate, repeatEditorError, repeatEditorSetStart, repeatRuleFromSheet, repeatFocusSelector, readRepeatInputs,
@@ -1483,12 +1483,17 @@
   }
 
   // Redesign R5 (Z6): a project row with its open count, the nearest due date and a bar of the done share.
+  // R94: and its next step (its first open task in its order), or its status when it is on hold or for someday.
   function projectOverviewRow(project, tasks) {
     const all = tasks.filter(task => task.projectId === project.id);
     const open = all.filter(task => !task.isCompleted);
     const percent = all.length ? Math.round((all.length - open.length) / all.length * 100) : 0;
     const next = open.filter(task => task.dueDate).sort((a, b) => a.dueDate.localeCompare(b.dueDate))[0];
-    return `<button class="project-row" type="button" data-route="project/${esc(project.id)}"><span class="project-dot" style="--project-color:${esc(project.color)}" aria-hidden="true"></span><span class="project-row-main"><span class="task-title">${esc(project.name)}</span><span class="task-meta">${esc(trn(open.length, '{count} open', '{count} open'))}${next ? ` · ${todayDueLabel(next.dueDate)}` : ''}</span><span class="project-row-bar" aria-hidden="true"><i style="width:${percent}%;background:${esc(project.color)}"></i></span></span></button>`;
+    const status = Core.projectStatus(project);
+    const step = projectTasks(project.id)[0];
+    const line = status !== 'active' ? `<span class="project-row-next">${esc(status === 'onHold' ? tr('On hold') : tr('Someday'))}</span>`
+      : step ? `<span class="project-row-next">${esc(tr('Next: {task}', { task: step.title }))}</span>` : `<span class="project-row-next is-missing">${tr('No next step')}</span>`;
+    return `<button class="project-row" type="button" data-route="project/${esc(project.id)}"><span class="project-dot" style="--project-color:${esc(project.color)}" aria-hidden="true"></span><span class="project-row-main"><span class="task-title">${esc(project.name)}</span><span class="task-meta">${esc(trn(open.length, '{count} open', '{count} open'))}${next ? ` · ${todayDueLabel(next.dueDate)}` : ''}</span>${line}<span class="project-row-bar" aria-hidden="true"><i style="width:${percent}%;background:${esc(project.color)}"></i></span></span></button>`;
   }
 
   // Redesign R1 + R5 (Z1–Z6): the summary, the suggestions, and "Kad stignem" by project or the projects by area.
@@ -1499,7 +1504,8 @@
     const projects = sortedProjects().filter(project => !project.isCleaningRoom);
     // R33 (finding 36): Kad stignem keeps the order set in each project (then the oldest first).
     const byProjectOrder = (a, b) => clampOrder(a.projectOrder) - clampOrder(b.projectOrder) || String(a.createdAt || '').localeCompare(String(b.createdAt || ''));
-    const later = Core.deriveAnytime(tasks).sort(byProjectOrder);
+    // R94: the undated tasks of projects on hold or for someday wait there.
+    const later = Core.deriveAnytime(tasks, state.projects).sort(byProjectOrder);
     const open = tasks.filter(task => !task.isCompleted && !task.isInbox).length;
     const summary = `${trn(open, '{count} open task', '{count} open tasks')} · ${trn(projects.length, '{count} project', '{count} projects')}`;
     const tab = (key, label) => `<button class="btn ${view === key ? 'is-selected' : ''}" type="button" data-action="tasks-view" data-view="${key}" aria-pressed="${view === key}">${label}</button>`;
@@ -1517,18 +1523,29 @@
     if (view === 'projects') {
       const loose = tasks.filter(task => !task.projectId && !task.isInbox && !task.isCompleted).length;
       html += `<div class="today-card project-list"><button class="project-row" type="button" data-route="project/none"><i class="ph ph-circle-dashed project-row-icon" aria-hidden="true"></i><span class="project-row-main"><span class="task-title">${tr('No project')}</span><span class="task-meta">${esc(trn(loose, '{count} open', '{count} open'))}</span></span></button></div>`;
+      // R94: the active projects by area; those on hold and for someday fold below them.
+      const active = projects.filter(project => Core.projectStatus(project) === 'active');
       const areas = sortedAreas().filter(area => area.status !== 'archived');
       for (const area of areas) {
-        const list = projects.filter(project => project.areaId === area.id);
+        const list = active.filter(project => project.areaId === area.id);
         if (list.length) html += group(area.name, list.length, `<div class="today-card project-list">${list.map(project => projectOverviewRow(project, tasks)).join('')}</div>`);
       }
-      const unassigned = projects.filter(project => !areas.some(area => area.id === project.areaId));
+      const unassigned = active.filter(project => !areas.some(area => area.id === project.areaId));
       if (unassigned.length) html += group(tr('No area'), unassigned.length, `<div class="today-card project-list">${unassigned.map(project => projectOverviewRow(project, tasks)).join('')}</div>`);
+      for (const [status, label, key] of [['onHold', tr('On hold'), 'projectsOnHoldOpen'], ['someday', tr('Someday'), 'projectsSomedayOpen']]) {
+        const list = projects.filter(project => Core.projectStatus(project) === status);
+        if (!list.length) continue;
+        const open = state.ui[key] === true;
+        html += `<section class="section">${foldButton('toggle-projects-resting', label, list.length, open, ` data-fold="${key}"`)}${open ? `<div class="today-card project-list">${list.map(project => projectOverviewRow(project, tasks)).join('')}</div>` : ''}</section>`;
+      }
       html += `<button class="inline-add" type="button" data-action="new-project"><i class="ph ph-plus"></i> ${tr('New project')}</button>`;
       return html;
     }
     html += `<p class="tasks-note">${tr('Sorted tasks without a planned day, by project.')}</p>`;
-    if (!later.length) return html + emptyState(tr('Nothing waiting in Anytime.'), tr('Processed tasks without a planned date will appear here.'), tr('Add task'), 'quick-add', { anytime: true });
+    // R94: say how many wait in projects on hold or for someday, so nothing seems lost.
+    const resting = Core.deriveAnytime(tasks).length - later.length;
+    const restingNote = resting ? `<p class="tasks-note">${esc(trn(resting, '{count} task waits in a project on hold or for someday.', '{count} tasks wait in projects on hold or for someday.'))}</p>` : '';
+    if (!later.length) return html + emptyState(tr('Nothing waiting in Anytime.'), tr('Processed tasks without a planned date will appear here.'), tr('Add task'), 'quick-add', { anytime: true }) + restingNote;
     const loose = later.filter(task => !task.projectId);
     if (loose.length) html += group(tr('No project'), loose.length, `<div class="task-list today-card">${loose.map(task => taskRow(task, 'anytime', { today: true })).join('')}</div>`);
     // R30 (finding 1): a task in a group of Redovne obaveze is listed under the group, so nothing disappears.
@@ -1537,12 +1554,13 @@
       const rows = later.filter(task => task.projectId === project.id);
       if (rows.length) html += group(project.name, rows.length, `<div class="task-list today-card">${rows.map(task => taskRow(task, 'anytime', { today: true, hidePlace: true })).join('')}</div>`, project.color);
     }
+    html += restingNote;
     html += `<button class="inline-add" type="button" data-action="quick-add" data-anytime="true"><i class="ph ph-plus"></i> ${tr('Add task')}</button>`;
     return html;
   }
 
   function renderAnytime() {
-    const tasks = Core.deriveAnytime(state.tasks);
+    const tasks = Core.deriveAnytime(state.tasks, state.projects);
     let html = pageHeader(tr('Anytime'), trn(tasks.length, '{count} active task without a plan date', '{count} active tasks without a plan date'), { contextAnytime: true });
     if (!tasks.length) return html + emptyState(tr('Nothing waiting in Anytime.'), tr('Processed tasks without a planned date will appear here.'), tr('Add task'), 'quick-add', { anytime: true });
     html += `<div class="task-list today-card">${tasks.map(t => taskRow(t, 'anytime', { today: true })).join('')}</div>`;
@@ -4673,6 +4691,15 @@
     setUndo(msg('Project restored'), () => { const current = getProject(projectId); if (!current) return; Object.assign(current, previous, { updatedAt: nowIso() }); saveState(); render(); });
   }
 
+  // R94: Aktivan (no field), Na čekanju or Nekad. The switch stays on the project's screen, so a change is undone there.
+  function setProjectStatus(projectId, status) {
+    const project = getProject(projectId);
+    if (!project || project.isArchived || project.isCleaningRoom || !['active', 'onHold', 'someday'].includes(status) || Core.projectStatus(project) === status) return;
+    if (status === 'active') delete project.status; else project.status = status;
+    project.updatedAt = nowIso();
+    saveAndRender();
+  }
+
   function deleteProject(projectId) {
     requestDeleteEntity('project', projectId);
   }
@@ -6364,6 +6391,7 @@
     else if (action === 'open-search') openSearch();
     else if (action === 'calendar-today') calendarToday();
     else if (action === 'tasks-view') { state.ui.tasksView = el.dataset.view === 'projects' ? 'projects' : 'anytime'; saveAndRender(); }
+    else if (action === 'toggle-projects-resting') { const key = el.dataset.fold === 'projectsSomedayOpen' ? 'projectsSomedayOpen' : 'projectsOnHoldOpen'; state.ui[key] = state.ui[key] !== true; saveAndRender(); }
     else if (action === 'delete-draft-goal-milestone') deleteDraftGoalMilestone(el.dataset.milestoneId);
     else if (action === 'delete-milestone') deleteMilestone(el.dataset.goalId, el.dataset.milestoneId);
     else if (action === 'new-tag') openTagModal();

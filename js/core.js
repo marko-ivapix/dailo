@@ -447,8 +447,16 @@
 
 
 
-  function deriveAnytime(tasks) {
-    return tasks.filter(task => !task.isCompleted && !task.isInbox && !task.plannedDate);
+  // R94: a project is active (no field), on hold ('onHold', "Na čekanju") or for someday ('someday', "Nekad").
+  const PROJECT_STATUSES = ['onHold', 'someday'];
+  function projectStatus(project) {
+    return PROJECT_STATUSES.includes(project?.status) ? project.status : 'active';
+  }
+
+  // R94: the undated tasks of a project on hold or for someday wait there, out of Kad stignem.
+  function deriveAnytime(tasks, projects = []) {
+    const resting = new Set((projects || []).filter(project => projectStatus(project) !== 'active').map(project => project.id));
+    return tasks.filter(task => !task.isCompleted && !task.isInbox && !task.plannedDate && !(task.projectId && resting.has(task.projectId)));
   }
 
   // R11a: weekly on chosen weekdays, monthly by day or nth weekday, and yearly. A field that does
@@ -868,6 +876,8 @@
       return { date, planned: open.filter(task => task.plannedDate === date).length, due: open.filter(task => task.dueDate === date).length };
     });
     const now = parseDateOnly(today) || new Date();
+    // R94: the active projects without an open task have no next step; those on hold and for someday get a look too.
+    const projects = (source.projects || []).filter(project => project && !project.isArchived && !project.isCleaningRoom);
     return {
       weekStart: weekStartFor(today, weekStartsOn),
       inbox: open.filter(isInboxActive),
@@ -877,6 +887,11 @@
       goals: (source.goals || []).filter(goal => goal && (!goal.status || goal.status === 'active')).map(goal => ({ goal, health: getGoalHealth(goal, now) })),
       habits: (source.habits || []).filter(habit => habit && habit.status === 'active'),
       areas: (source.areas || []).filter(Boolean).map(area => ({ area, open: areaSummary(area.id, source).openTasks })),
+      projects: {
+        missingNext: projects.filter(project => projectStatus(project) === 'active' && !open.some(task => task.projectId === project.id)),
+        onHold: projects.filter(project => projectStatus(project) === 'onHold'),
+        someday: projects.filter(project => projectStatus(project) === 'someday'),
+      },
     };
   }
 
@@ -990,6 +1005,12 @@
       // R93: only a numeric habit has a limit ("atMost"); anything else is the usual target and keeps no field.
       if (Object.hasOwn(next, 'targetMode') && !habitHasLimit(next)) delete next.targetMode;
       return next;
+    });
+    // R94: only "on hold" and "someday" are stored; an active project keeps no field.
+    state.projects = state.projects.map(project => {
+      if (!Object.hasOwn(project, 'status') || PROJECT_STATUSES.includes(project.status)) return project;
+      const { status, ...rest } = project;
+      return rest;
     });
     state.templates = (state.templates || []).map(template => {
       const data = { ...(template.data || {}) };
@@ -2771,6 +2792,7 @@
     deriveTodayV3,
     filterTodayTasks,
     deriveAnytime,
+    projectStatus,
     deriveUpcoming,
     deriveUpcomingV3,
     normalizePlannedMonth,

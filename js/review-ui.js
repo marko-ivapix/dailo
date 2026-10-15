@@ -74,12 +74,19 @@
     }).join('');
     html += step(3, tr('Next 7 days'), null, card(days));
 
-    html += step(4, tr('Goals'), review.goals.length, review.goals.length ? card(review.goals.map(({ goal }) => ctx.renderGoalListRow(goal)).join('')) : empty(tr('No active goals.')));
-    html += step(5, tr('Habits'), review.habits.length, review.habits.length ? card(review.habits.map(habit => {
+    // R94: each active project needs a next step; those on hold and for someday get a look too.
+    const missing = review.projects.missingNext;
+    const resting = review.projects.onHold.length + review.projects.someday.length;
+    const restingText = [review.projects.onHold.length ? tr('On hold: {count}', { count: review.projects.onHold.length }) : '', review.projects.someday.length ? tr('Someday: {count}', { count: review.projects.someday.length }) : ''].filter(Boolean).join(' · ');
+    const restingLine = resting ? `<p class="review-projects-line">${esc(restingText)}<button class="btn btn-ghost" type="button" data-action="review-projects">${tr('Look through them')}</button></p>` : '';
+    html += step(4, tr('Projects'), missing.length, `${missing.length ? card(missing.map(item => row(ctx, `project/${item.id}`, item.name || tr('Untitled'), tr('No next step'))).join('')) : empty(tr('Every active project has a next step.'))}${restingLine}`, !missing.length && !resting);
+
+    html += step(5, tr('Goals'), review.goals.length, review.goals.length ? card(review.goals.map(({ goal }) => ctx.renderGoalListRow(goal)).join('')) : empty(tr('No active goals.')));
+    html += step(6, tr('Habits'), review.habits.length, review.habits.length ? card(review.habits.map(habit => {
       const metrics = ctx.habitMetrics(habit) || {};
       return row(ctx, `habit/${habit.id}`, habit.name || tr('Untitled'), tr('streak {count} · {percent}%', { count: Number(metrics.currentStreak) || 0, percent: Math.round(Number(metrics.completionRate) || 0) }));
     }).join('')) : empty(tr('No active habits.')));
-    html += step(6, tr('Areas'), review.areas.length, review.areas.length ? card(review.areas.map(({ area, open }) => row(ctx, `area/${area.id}`, area.name || tr('Untitled'), trn(open, '{count} open task', '{count} open tasks'))).join('')) : empty(tr('No Areas yet.')));
+    html += step(7, tr('Areas'), review.areas.length, review.areas.length ? card(review.areas.map(({ area, open }) => row(ctx, `area/${area.id}`, area.name || tr('Untitled'), trn(open, '{count} open task', '{count} open tasks'))).join('')) : empty(tr('No Areas yet.')));
 
     const history = log.filter(entry => entry !== doneThisWeek).slice(0, 4);
     const historyHtml = history.length ? `<p class="weekly-review-history">${tr('Recent reviews:')} ${history.map(entry => esc(completedDate(entry))).join(', ')}</p>` : '';
@@ -97,6 +104,7 @@
     handleAction(action, event, ctx) {
       const el = event?.target?.closest?.('[data-action]');
       if (action === 'review-day-bar') { selectedDay = el?.dataset?.date || null; ctx.render(); return true; }
+      if (action === 'review-projects') { ctx.state.ui.tasksView = 'projects'; ctx.saveState(); ctx.navigate('tasks'); return true; }
       if (action === 'review-open-day') {
         const date = el?.dataset?.date;
         if (!ctx.Core.parseDateOnly(date)) return true;

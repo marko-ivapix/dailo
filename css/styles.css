@@ -2680,6 +2680,14 @@ a.toast-action { display: inline-flex; align-items: center; text-decoration: non
 /* R92: Navike — the line that says what ✓, ✗ and an empty circle mean. */
 .habits-legend { margin: 14px 4px 0; color: var(--ink-3); font-size: var(--text-sm); line-height: 1.45; }
 
+/* R94: the project's status, its next step and the review's line about the projects that wait. */
+.project-status { display: flex; width: 100%; margin: 2px 0 8px; }
+.project-status .btn { flex: 1 1 0; }
+.project-row-next { overflow: hidden; color: var(--ink-2); font-size: var(--text-sm); text-overflow: ellipsis; white-space: nowrap; }
+.project-row-next.is-missing { color: var(--warning); }
+.task-next-step { margin-right: 6px; color: var(--blue-300); font-weight: 600; }
+.review-projects-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 8px 2px 0; color: var(--ink-3); font-size: var(--text-sm); }
+
 /* R93: the day's note in the habit's menu and the latest notes in its details. */
 .habit-note-field { grid-template-columns: auto auto minmax(0, 1fr); margin: 4px 4px 8px; }
 .habit-note-save { width: 100%; min-height: 44px; }

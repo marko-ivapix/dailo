@@ -212,6 +212,8 @@
     }
     for (const area of state.areas) enumField(area,'status',['active','archived']);
     for (const item of state.projects) for (const field of ['createdAt', 'updatedAt']) if (item[field] != null && item[field] !== '' && !root.TodoCore.isIsoTimestamp(item[field])) fail(`project ${field} timestamp`);
+    // R94: a project's status is stored only when it is on hold or for someday.
+    for (const item of state.projects) if (item.status !== undefined && !['onHold', 'someday'].includes(item.status)) fail('project status');
     for (const goal of state.goals) {
       entityTimestamps(goal, 'Goal');
       enumField(goal,'horizon',['short','mid','long']);

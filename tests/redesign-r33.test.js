@@ -149,7 +149,8 @@ test('34: the task menu fits where it opens: no repeats of the window\'s rows an
 
 test('35, 36: small controls reach 44 px, and Kad stignem keeps the order set in the project', () => {
   assert.match(css, /\.inline-add, \.today-more, \.collapsible-trigger \{ min-height: 44px; \}/);
-  assert.match(fn('renderTasksScreen'), /const later = Core\.deriveAnytime\(tasks\)\.sort\(byProjectOrder\);/);
+  // R94: the undated tasks of projects on hold or for someday are left out first.
+  assert.match(fn('renderTasksScreen'), /const later = Core\.deriveAnytime\(tasks, state\.projects\)\.sort\(byProjectOrder\);/);
 });
 
 // A small stand-in for DOM rows: classes, data attributes, a parent and closest() for the selectors the reorder code uses.

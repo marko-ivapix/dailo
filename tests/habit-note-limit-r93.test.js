@@ -105,8 +105,7 @@ test('the new lines are Serbian; the guide mentions both', () => {
   assert.ok(read('uputstvo.html').includes('Uz upisan dan možeš dodati kratku belešku (meni navike, na primer „prehlada“ ili „na putu“). Brojčana navika može imati i gornju granicu: <strong>Najviše</strong> 2 kafe dnevno. Dan je uspešan dok si u granici, a dan bez ijedne upiši kao 0.'));
 });
 
-test('R93 is released as 2.0.0-alpha.120', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.120');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.120';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.120');
+test('R93 shipped as 2.0.0-alpha.120 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 120) >= 120);
 });
