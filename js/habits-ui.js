@@ -865,6 +865,8 @@
     if (d.durationMinutes != null && !(Number.isInteger(d.durationMinutes) && d.durationMinutes >= 1 && d.durationMinutes <= 1440)) { ctx.modalState.error = tr('Duration must be 1 to 1440 minutes.'); renderModal(); return; }
     const { moreOpen, quickValuesSet, ...draftFields } = d;
     const fields = { ...draftFields, name: String(d.name).trim(), quickValues: d.trackingType === 'numeric' ? draftQuickValues(d) : (d.quickValues || []), reminders: d.reminders, updatedAt: nowIso() };
+    // R98b: an end the habit does not use is stored as null (the details sheet already did), never as empty text that backups refuse.
+    Object.assign(fields, { endDate: d.endType === 'date' ? d.endDate : null, successfulPeriodsTarget: d.endType === 'successfulPeriods' ? d.successfulPeriodsTarget : null });
     const existingId = ctx.modalState.habitId;
     const habit = existingId ? getHabit(existingId) : { id: uid('habit'), goalIds: [], status: 'active', reminderFiredMoments: [], isInbox: Boolean(ctx.modalState.templateContext?.inbox), createdAt: nowIso() };
     // R85: a habit that never had a duration gets no empty field, so sync has nothing new to send.

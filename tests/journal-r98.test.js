@@ -74,8 +74,7 @@ test('the Journal screen shows the insight; the guide covers the questions, the 
   assert.ok(read('uputstvo.html').includes('U unosu dnevnika te čeka jedno pitanje o danu (<strong>Upiši</strong> ga stavlja u tekst, <strong>Drugo pitanje</strong> nudi sledeće) i spisak zadataka završenih tog dana. Na ekranu Dnevnik je i uvid: kakvo je raspoloženje danima kad uradiš neku naviku, a kakvo ostalim danima. U aplikaciji za telefon dnevnik možeš da zaključaš (⋯ na ekranu Dnevnik), pa se otvara otiskom prsta, licem ili PIN-om telefona.'));
 });
 
-test('R98 is released as 2.0.0-alpha.125', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.125');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.125';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.125');
+test('R98 shipped as 2.0.0-alpha.125 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 125) >= 125);
 });

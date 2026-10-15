@@ -1027,6 +1027,9 @@
         graceDays: Number.isInteger(Number(habit.graceDays)) && Number(habit.graceDays) >= 0 ? Number(habit.graceDays) : 0,
         // R85: only a stored bad duration is cleared; older habits keep no field.
         ...(habit.durationMinutes != null && habitDurationOrNull(habit.durationMinutes) === null ? { durationMinutes: null } : {}),
+        // R98b: the habit window stored an unused end as empty text, which backups refuse; it reads as no end.
+        ...(habit.endDate === '' ? { endDate: null } : {}),
+        ...(habit.successfulPeriodsTarget === '' ? { successfulPeriodsTarget: null } : {}),
       };
       // R93: only a numeric habit has a limit ("atMost"); anything else is the usual target and keeps no field.
       if (Object.hasOwn(next, 'targetMode') && !habitHasLimit(next)) delete next.targetMode;
