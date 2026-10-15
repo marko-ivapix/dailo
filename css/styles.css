@@ -2680,6 +2680,14 @@ a.toast-action { display: inline-flex; align-items: center; text-decoration: non
 /* R92: Navike — the line that says what ✓, ✗ and an empty circle mean. */
 .habits-legend { margin: 14px 4px 0; color: var(--ink-3); font-size: var(--text-sm); line-height: 1.45; }
 
+/* R98: the journal's question about the day, what was completed that day and the mood insight. */
+.journal-question { display: grid; gap: 8px; margin: 0 0 10px; padding: 10px 12px; border: 1px solid var(--line-1); border-radius: var(--radius-md); background: var(--graphite-850); }
+.journal-question-text { margin: 0; color: var(--ink-1); font-size: var(--text-base); font-weight: 500; }
+.journal-question-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.journal-done { display: grid; gap: 4px; margin: 0 0 12px; padding-left: 18px; color: var(--ink-2); font-size: var(--text-sm); }
+.journal-insight { display: grid; gap: 6px; padding: 10px 14px; }
+.journal-insight-line { margin: 0; color: var(--ink-1); font-size: var(--text-base); }
+
 /* R97: a link is a card with its site; a project lists the notes and resources linked to it. */
 .knowledge-link-card { display: flex; align-items: center; gap: 10px; flex: 1 1 auto; min-width: 0; min-height: 44px; padding: 6px 4px; color: var(--ink-1); text-decoration: none; }
 .knowledge-link-card > i { flex: none; color: var(--ink-3); }

@@ -2271,6 +2271,43 @@
       .slice(0, limit);
   }
 
+  // R98: one question about the day for the journal, the same all day; `offset` gives the next ones in turn.
+  const JOURNAL_QUESTIONS = Object.freeze([
+    msg('What was good today?'), msg('What made you smile today?'), msg('What was hard today, and what helped?'), msg('What is worth remembering from today?'),
+    msg('Who made your day better?'), msg('What gave you energy today, and what took it away?'), msg('What would make tomorrow a good day?'),
+    msg('What are you grateful for today?'), msg('How do you feel at the end of the day?'), msg('What was new for you today?'),
+  ]);
+  function journalQuestion(date, offset = 0) {
+    const day = daysBetween('2026-01-01', date) || 0;
+    const count = JOURNAL_QUESTIONS.length;
+    return JOURNAL_QUESTIONS[(((day + Number(offset || 0)) % count) + count) % count];
+  }
+
+  // R98: the tasks completed on a day, in the order they were done.
+  function completedOn(state, date) {
+    return (state?.tasks || []).filter(task => task && task.isCompleted && localDateOf(task.completedAt) === date).sort((a, b) => String(a.completedAt).localeCompare(String(b.completedAt)));
+  }
+
+  // R98: mood and habits — for each active habit, the average mood (1–5) on the days of the last 90 with a mood when it
+  // was done, against the other days with a mood. Kept when each side has at least three days and the averages differ
+  // by 0.3 or more; the largest differences first, at most `limit`.
+  function moodInsights(state, habitLogs = [], today = dateOnly(), limit = 2) {
+    const first = addDays(today, -89);
+    const moods = (state?.journal || []).filter(item => item && Number.isInteger(item.mood) && item.mood >= 1 && item.mood <= 5 && item.date >= first && item.date <= today);
+    const average = list => list.reduce((sum, item) => sum + item.mood, 0) / list.length;
+    const found = [];
+    for (const habit of (state?.habits || []).filter(item => item && item.status === 'active')) {
+      const logs = (habitLogs || []).filter(log => log && log.habitId === habit.id);
+      const done = moods.filter(item => habitStatusForDate(habit, logs, item.date, today).status === 'done');
+      const rest = moods.filter(item => !done.includes(item));
+      if (done.length < 3 || rest.length < 3) continue;
+      const withMood = average(done), without = average(rest);
+      if (Math.abs(withMood - without) < 0.3) continue;
+      found.push({ habitId: habit.id, name: habit.name, with: Math.round(withMood * 10) / 10, without: Math.round(without * 10) / 10, withDays: done.length, withoutDays: rest.length, gap: Math.abs(withMood - without) });
+    }
+    return found.sort((a, b) => b.gap - a.gap).slice(0, limit).map(({ gap, ...item }) => item);
+  }
+
   // The read-only summary of a day in its journal entry (J2): tasks completed that day, and the habits planned that
   // day (weekly-target habits left out) with how many were done.
   function journalDaySummary(state, habitLogs, date) {
@@ -2847,6 +2884,10 @@
     choreProgress,
     weeklyWins,
     priorityCandidates,
+    JOURNAL_QUESTIONS,
+    journalQuestion,
+    completedOn,
+    moodInsights,
     deriveUpcoming,
     deriveUpcomingV3,
     normalizePlannedMonth,

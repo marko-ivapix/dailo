@@ -77,8 +77,7 @@ test('the new lines are Serbian; the guide mentions the links', () => {
   assert.ok(read('uputstvo.html').includes('Beleška i resurs mogu da se povežu sa projektom i ciljem (prozor beleške, <strong>Organizacija</strong>), a povezane vidiš na ekranu projekta i u detaljima cilja. Link se prikazuje kao kartica sa imenom sajta.'));
 });
 
-test('R97 is released as 2.0.0-alpha.124', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.124');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.124';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.124');
+test('R97 shipped as 2.0.0-alpha.124 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 124) >= 124);
 });

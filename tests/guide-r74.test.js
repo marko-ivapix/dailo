@@ -33,10 +33,11 @@ test('the title and preview describe the guide for everyone, not only beta teste
 });
 
 test('the sections follow the app: account and sync, gestures and reminders are new', () => {
-  // R94: "Projekti" (status and next step) follows the gestures and habits; R95: then "Redovne obaveze" (the bar).
+  // R94: "Projekti" (status and next step) follows the gestures and habits; R95: then "Redovne obaveze" (the bar);
+  // R98: "Dnevnik" (questions, insight, lock) after the weekly review.
   assert.deepEqual(headings, [
     'Instalacija', 'Nalog i sinhronizacija', 'Tvoji podaci', 'Rezervne kopije', 'Brzo dodavanje', 'Pokreti i navike', 'Projekti',
-    'Redovne obaveze', 'Raspored dana', 'Nedeljni pregled', 'Podsetnici', 'Bez interneta i nove verzije', 'Šta još ne radi', 'Prijava problema',
+    'Redovne obaveze', 'Raspored dana', 'Nedeljni pregled', 'Dnevnik', 'Podsetnici', 'Bez interneta i nove verzije', 'Šta još ne radi', 'Prijava problema',
   ]);
 });
 
