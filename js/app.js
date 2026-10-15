@@ -5472,7 +5472,7 @@
   }
 
   async function abandonGlobalOperation(op, message = msg('Operation canceled. Existing data was kept.'), statusPatch = null) {
-    if (op.busy) return;
+    if (op.busy) { if (op.unlocking) op.cancelRequested = true; return; }
     op.busy = true;
     const returnFocus = modalReturnFocus;
     modalState = null; renderModal();
@@ -5566,7 +5566,9 @@
   async function unlockRestoredJournal(op) {
     const password = $('#global-confirm-journal-password')?.value || '';
     if (!password) { op.journalSkipped = true; return true; }
-    op.busy = true;
+    // R78: the check can take seconds on a phone; the window says so, and Otkaži meanwhile is kept for afterwards.
+    op.busy = true; op.unlocking = true;
+    setToastMessage(tr('Checking the journal password…'));
     try {
       const key = await Sync.unlockJournalCipher(op.validated.state.settings.journalCipher, password);
       if (!key) { setToastMessage(tr('The journal password is wrong.')); return false; }
@@ -5574,7 +5576,7 @@
       op.journalSkipped = false;
       return true;
     } catch (error) { setToastMessage(trMessage(error.message)); return false; }
-    finally { op.busy = false; }
+    finally { op.unlocking = false; op.busy = false; }
   }
 
   async function beginGlobalOperation(reason, file = null, selection = null) {
@@ -5682,7 +5684,12 @@
   async function commitGlobalOperation(op) {
     if (globalOperation !== op || op.busy) return;
     if (plainWord($('#global-confirm-phrase')?.value) !== plainWord(CONFIRM_WORDS[op.reason])) { setToastMessage(tr('Type {word} exactly to continue.', { word: CONFIRM_WORDS[op.reason] })); return; }
-    if (op.sealedJournal?.length && !(await unlockRestoredJournal(op))) return;
+    if (op.sealedJournal?.length) {
+      const unlocked = await unlockRestoredJournal(op);
+      // R78: Otkaži pressed while the password was checked wins once the check ends; nothing is replaced.
+      if (op.cancelRequested) { await abandonGlobalOperation(op); return; }
+      if (!unlocked) return;
+    }
     if (globalOperation !== op || op.busy) return;
     op.busy = true;
     let mutationStarted = false;
@@ -5707,9 +5714,9 @@
       state = normalizeState(op.validated.state); canonicalRaw = localStorage.getItem(STORAGE_KEY); recovery = null; modalState = null;
       if (!op.selective) forgetSyncShadow();
       if (globalThis.DailoPlatform?.isNative) scheduleDurableMirror();
-      if (op.journalKey) await storeJournalKey(state.settings.journalCipher.salt, op.journalKey);
       const committedSource = captureStatusSource();
       globalOperation = phaseError ? op : null; renderModal(); location.hash = '#today'; render();
+      if (op.journalKey && state.settings?.journalCipher) await storeJournalKey(state.settings.journalCipher.salt, op.journalKey);
       try {
         if (phaseError) throw phaseError;
         if (op.selective) {

@@ -960,6 +960,7 @@
     "The encrypted journal ({count} entries) opens with the key on this device.": "Šifrovan dnevnik (unosa: {count}) otvara se ključem sa ovog uređaja.",
     "The journal in this backup could not be opened.": "Dnevnik iz ove kopije nije mogao da se otvori.",
     "Backup restored without the encrypted journal.": "Rezervna kopija je vraćena bez šifrovanog dnevnika.",
+    "Checking the journal password…": "Proveravam lozinku dnevnika…",
     "The journal is encrypted. The server sees only ciphertext.": "Dnevnik je šifrovan. Server vidi samo šifrovan tekst.",
     "The journal is unlocked on this device.": "Dnevnik je otključan na ovom uređaju.",
     "Journal encryption is off.": "Šifrovanje dnevnika je isključeno.",

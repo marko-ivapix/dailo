@@ -102,7 +102,8 @@ test('a restore opens the journal with this device\'s key, or asks for the journ
   assert.match(modal, /modalState\.journalPassword \? `<label class="sheet-label" for="global-confirm-journal-password">\$\{tr\('Journal password'\)\}<input id="global-confirm-journal-password" class="input" type="password" autocomplete="off" \/><\/label>` : ''/);
   const commit = functionSource('commitGlobalOperation').source;
   assert.ok(commit.indexOf('unlockRestoredJournal(op)') < commit.indexOf("markGlobalSnapshot(op, 'mutating'"), 'the journal is opened before anything is replaced');
-  assert.match(commit, /if \(op\.journalKey\) await storeJournalKey\(state\.settings\.journalCipher\.salt, op\.journalKey\);/);
+  // R78: the key is stored after the redraw, and only while the restored state has its cipher.
+  assert.match(commit, /if \(op\.journalKey && state\.settings\?\.journalCipher\) await storeJournalKey\(state\.settings\.journalCipher\.salt, op\.journalKey\);/);
   const unlock = functionSource('unlockRestoredJournal').source;
   assert.match(unlock, /const password = \$\('#global-confirm-journal-password'\)\?\.value \|\| '';/);
   assert.match(unlock, /if \(!password\) \{ op\.journalSkipped = true; return true; \}/);
