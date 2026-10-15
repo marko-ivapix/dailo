@@ -260,8 +260,10 @@
     const interval = Math.max(1, Number(recurrence.interval) || 1);
     const cap = text => text.charAt(0).toUpperCase() + text.slice(1);
     let text;
+    // R88: a rule that counts from completion says how long after it the next one comes.
+    if (recurrence.afterCompletion) text = { daily: trn(interval, '{count} day after it is done', '{count} days after it is done'), weekly: trn(interval, '{count} week after it is done', '{count} weeks after it is done'), monthly: trn(interval, '{count} month after it is done', '{count} months after it is done'), yearly: trn(interval, '{count} year after it is done', '{count} years after it is done') }[recurrence.frequency];
     // Interval 1 has its own wording: Serbian plural "one" also covers 21, 31 …
-    if (recurrence.frequency === 'daily') text = interval === 1 ? tr('Every day') : trn(interval, 'Every {count} day', 'Every {count} days');
+    else if (recurrence.frequency === 'daily') text = interval === 1 ? tr('Every day') : trn(interval, 'Every {count} day', 'Every {count} days');
     else if (recurrence.frequency === 'weekly' && recurrence.weekdays?.length) {
       const days = REPEAT_DAY_ORDER.filter(day => recurrence.weekdays.includes(day));
       const names = days.join() === '1,2,3,4,5' ? tr('on weekdays') : days.join() === '6,0' ? tr('on weekends') : repeatList(days.map(day => tr(REPEAT_ON_DAYS[day])));
@@ -2960,6 +2962,7 @@
     const nth = Math.ceil(date.getDate() / 7);
     const sheet = {
       target, start, frequency: rule?.frequency || 'weekly', interval: rule?.interval || 1,
+      afterCompletion: rule?.afterCompletion === true,
       weekdays: rule?.weekdays ? [...rule.weekdays] : [date.getDay()],
       monthMode: rule?.monthMode || 'day', monthDay: rule?.monthDay ?? date.getDate(),
       weekOfMonth: rule?.weekOfMonth ?? (nth > 4 ? 'last' : nth), weekday: rule?.weekday ?? date.getDay(),
@@ -2969,15 +2972,18 @@
     sheet.initial = rule ? repeatRuleFromSheet(sheet) : null;
     return sheet;
   }
+  // R88: "Od dana završetka" counts a plain interval from the day the task is done, so it has no chosen days; the
+  // flag is always written, so switching back to "Po rasporedu" clears it.
   function repeatRuleFromSheet(sheet) {
-    const rule = { frequency: sheet.frequency, interval: sheet.interval };
-    if (sheet.frequency === 'weekly') rule.weekdays = [...sheet.weekdays];
-    if (sheet.frequency === 'monthly') Object.assign(rule, sheet.monthMode === 'weekday' ? { monthMode: 'weekday', weekOfMonth: sheet.weekOfMonth, weekday: sheet.weekday } : { monthMode: 'day', monthDay: sheet.monthDay });
+    const rule = { frequency: sheet.frequency, interval: sheet.interval, afterCompletion: Boolean(sheet.afterCompletion) };
+    if (sheet.afterCompletion) { /* a plain interval */ } else if (sheet.frequency === 'weekly') rule.weekdays = [...sheet.weekdays];
+    else if (sheet.frequency === 'monthly') Object.assign(rule, sheet.monthMode === 'weekday' ? { monthMode: 'weekday', weekOfMonth: sheet.weekOfMonth, weekday: sheet.weekday } : { monthMode: 'day', monthDay: sheet.monthDay });
     return { ...rule, endType: sheet.endType, endDate: sheet.endType === 'date' ? sheet.endDate : null, endAfterOccurrences: sheet.endType === 'afterOccurrences' ? Number(sheet.endAfterOccurrences) : null };
   }
   function repeatPresetOn(sheet, index) {
     const preset = REPEAT_PRESETS[index][1], date = parseLocalDate(sheet.start);
     if (sheet.frequency !== preset.frequency || sheet.interval !== preset.interval) return false;
+    if (sheet.afterCompletion) return true;
     if (preset.frequency === 'weekly') return sheet.weekdays.length === 1 && sheet.weekdays[0] === date.getDay();
     if (preset.frequency === 'monthly') return sheet.monthMode === 'day' && sheet.monthDay === date.getDate();
     return true;
@@ -3015,13 +3021,16 @@
       }
     }
     if (s.frequency === 'yearly') extra = `<p class="sheet-note">${esc(tr('The date is the day of the first time: {date}.', { date: formatDate(s.start) }))}</p>`;
-    const dates = Core.upcomingRecurrenceDates(s.start, { ...rule, occurrencesCreated: s.occurrencesCreated }, 3, Core.dateOnly());
-    const next = dates.length ? tr('Next times: {dates}', { dates: dates.map(value => REPEAT_DATE_FMT.format(parseLocalDate(value))).join(' · ') }) : tr('No more repeats.');
+    // R88: counting from the day it is done has no days to choose and no dates to show in advance.
+    const anchor = `<div class="sheet-card" role="radiogroup" aria-label="${tr('Next time')}">${radio('repeat-anchor', 'schedule', `${tr('On schedule')}<small>${tr('The days are set in advance, even when you are late.')}</small>`, !s.afterCompletion)}${radio('repeat-anchor', 'completion', `${tr('From the day it is done')}<small>${tr('The next one comes only after you complete this one.')}</small>`, s.afterCompletion)}</div>`;
+    if (s.afterCompletion) extra = '';
+    const dates = s.afterCompletion ? [] : Core.upcomingRecurrenceDates(s.start, { ...rule, occurrencesCreated: s.occurrencesCreated }, 3, Core.dateOnly());
+    const next = s.afterCompletion ? tr('The next one is made when you complete this one.') : dates.length ? tr('Next times: {dates}', { dates: dates.map(value => REPEAT_DATE_FMT.format(parseLocalDate(value))).join(' · ') }) : tr('No more repeats.');
     const end = `<h3 class="sheet-group-title">${tr('End')}</h3><div class="sheet-card" role="radiogroup" aria-label="${tr('End')}">${radio('repeat-end', 'never', tr('Never'), s.endType === 'never')}${radio('repeat-end', 'date', tr('On date'), s.endType === 'date')}${radio('repeat-end', 'afterOccurrences', tr('After a number of times'), s.endType === 'afterOccurrences')}</div>`
       + (s.endType === 'date' ? `<label class="sheet-field"><i class="ph ph-calendar-blank" aria-hidden="true"></i><span>${tr('End date')}</span><input id="repeat-end-date" class="input" type="date" min="${esc(s.start)}" value="${esc(s.endDate)}"></label>` : '')
       + (s.endType === 'afterOccurrences' ? `<label class="sheet-field"><i class="ph ph-hash" aria-hidden="true"></i><span>${tr('Number of times')}</span><input id="repeat-end-count" class="input" type="number" min="1" step="1" value="${esc(s.endAfterOccurrences)}"></label>` : '')
       + (s.error ? `<p class="validation" role="alert">${esc(s.error)}</p>` : '');
-    return `<div class="sheet-chips">${chips}</div><div class="view-tabs habit-window-seg repeat-frequency" role="group" aria-label="${tr('Frequency')}">${segment}</div>${stepper}${extra}<p class="sheet-summary" data-repeat-summary>${esc(recurrenceLabel({ ...rule, status: s.status }))}</p><p class="sheet-note">${esc(next)}</p>${end}`;
+    return `<div class="sheet-chips">${chips}</div><div class="view-tabs habit-window-seg repeat-frequency" role="group" aria-label="${tr('Frequency')}">${segment}</div>${stepper}${anchor}${extra}<p class="sheet-summary" data-repeat-summary>${esc(recurrenceLabel({ ...rule, status: s.status }))}</p><p class="sheet-note">${esc(next)}</p>${end}`;
   }
   function repeatSheetHtml() {
     const s = repeatSheet, source = repeatSource(s.target);
@@ -3060,6 +3069,7 @@
     else if (action === 'repeat-nth') s.weekOfMonth = data.value === 'last' ? 'last' : Number(data.value);
     else if (action === 'repeat-nth-day') s.weekday = Number(data.day);
     else if (action === 'repeat-end') s.endType = data.value;
+    else if (action === 'repeat-anchor') s.afterCompletion = data.value === 'completion';
     else return false;
     if (['repeat-day', 'repeat-month-mode', 'repeat-month-day', 'repeat-nth', 'repeat-nth-day'].includes(action)) s.daysChosen = true;
     return true;

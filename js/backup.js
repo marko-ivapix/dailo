@@ -123,6 +123,8 @@
       if (item.monthMode != null && (item.frequency !== 'monthly' || !['day','weekday'].includes(item.monthMode))) fail('recurrence');
       if (item.monthMode === 'day' ? !(item.monthDay === 'last' || Number.isInteger(item.monthDay) && item.monthDay >= 1 && item.monthDay <= 31) : item.monthDay != null) fail('recurrence');
       if (item.monthMode === 'weekday' ? !(item.weekOfMonth === 'last' || Number.isInteger(item.weekOfMonth) && item.weekOfMonth >= 1 && item.weekOfMonth <= 4) || !weekday(item.weekday) : item.weekOfMonth != null || item.weekday != null) fail('recurrence');
+      // R88: counting from completion is a boolean, and only a plain interval can do it.
+      if (item.afterCompletion != null && (typeof item.afterCompletion !== 'boolean' || item.afterCompletion && (item.weekdays != null || item.monthMode != null))) fail('afterCompletion');
     };
     const recurrence = item => {
       if (item == null) return;

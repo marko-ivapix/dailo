@@ -463,11 +463,14 @@
     if (monthMode === 'weekday' && (weekOfMonth === 'last' || Number.isInteger(weekOfMonth) && weekOfMonth >= 1 && weekOfMonth <= 4) && isWeekday(weekday)) return { monthMode, weekOfMonth, weekday };
     return {};
   }
+  // R88: a rule can count from the day the task is completed (afterCompletion, kept only when true). Such a rule is a
+  // plain interval, so chosen weekdays or a month day are dropped.
   function normalizeRecurrence(recurrence) {
     if (!recurrence || typeof recurrence !== 'object') return null;
     const frequency = ['daily', 'weekly', 'monthly', 'yearly'].includes(recurrence.frequency) ? recurrence.frequency : null;
     if (!frequency) return null;
     const interval = Math.max(1, Math.floor(Number(recurrence.interval) || 1));
+    if (recurrence.afterCompletion === true) return { frequency, interval, afterCompletion: true };
     return { frequency, interval, ...recurrenceExtras(recurrence, frequency) };
   }
 
@@ -630,7 +633,17 @@
     const nowDate = Number.isNaN(now.getTime()) ? dateOnly() : dateOnly(new Date(now.getFullYear(), now.getMonth(), now.getDate()));
     const advance=value=>{let next=nextRecurrenceDate(value,recurrence);if(recurrence.skipNext)next=nextRecurrenceDate(next,recurrence);return next;};
     let plannedDate, dueDate, reminderAt;
-    if (recurrence.weekdays || recurrence.monthMode) {
+    if (recurrence.afterCompletion) {
+      // R88: the next one comes an interval after the day this one was completed (the plan day, else the deadline,
+      // else a plan); the other date and the reminder keep their distance, the reminder on the same wall-clock time.
+      const anchor = source.plannedDate || source.dueDate;
+      const next = advance(nowDate), shift = templateOffset(next, anchor || nowDate);
+      plannedDate = source.plannedDate || !source.dueDate ? next : null;
+      dueDate = source.dueDate ? addDays(source.dueDate, shift) : null;
+      const reminder = source.reminderAt ? new Date(source.reminderAt) : null;
+      if (reminder && !Number.isNaN(reminder.getTime())) reminder.setDate(reminder.getDate() + shift);
+      reminderAt = reminder && !Number.isNaN(reminder.getTime()) ? reminder.toISOString() : null;
+    } else if (recurrence.weekdays || recurrence.monthMode) {
       // R11a: the plan day (or else the due day) moves to the next occurrence; the due day and the
       // reminder keep their distance to it, the reminder on the same local wall-clock time.
       const anchor = source.plannedDate || source.dueDate || nowDate;
@@ -1609,7 +1622,8 @@
       if (!task || task.isCompleted || task.isInbox) continue;
       const rule = normalizeRecurrenceV3(task.recurrenceBaseline?.recurrence || task.recurrence);
       const anchor = task.plannedDate || task.dueDate;
-      if (!rule || rule.status !== 'active' || !anchor) continue;
+      // R88: a rule that counts from completion has no known future dates.
+      if (!rule || rule.status !== 'active' || !anchor || rule.afterCompletion) continue;
       const after = addDays(anchor, 1);
       const skipped = rule.skipNext ? upcomingRecurrenceDates(anchor, rule, 1, after)[0] : null;
       for (const date of upcomingRecurrenceDates(anchor, rule, 62, from > after ? from : after)) {
@@ -2640,6 +2654,7 @@
     plannedReminderDue,
     journalDaySummary,
     weeklyReviewStats,
+    normalizeRecurrence,
     normalizeRecurrenceV3,
     shouldGenerateRecurrence,
     splitRecurrenceForFuture,

@@ -124,7 +124,8 @@ test('S14: the controls under "Ovo ponavljanje", the sentence suffixes and an en
   assert.doesNotMatch(endedHtml, /This repeat|skip-recurrence/);
   assert.match(endedHtml, /data-repeat-summary>On Wednesdays · ended</);
   ended.handleRepeatAction('repeat-apply', { dataset: {} });
-  assert.deepEqual(ended.calls.at(-1), ['set', 'task', 't', { frequency: 'weekly', interval: 1, weekdays: [3], endType: 'never', endDate: null, endAfterOccurrences: null, status: 'active' }], 'Primeni starts an ended repeat again');
+  // R88: the sheet's rule always says whether it counts from completion (false here).
+  assert.deepEqual(ended.calls.at(-1), ['set', 'task', 't', { frequency: 'weekly', interval: 1, afterCompletion: false, weekdays: [3], endType: 'never', endDate: null, endAfterOccurrences: null, status: 'active' }], 'Primeni starts an ended repeat again');
 });
 
 function editContext(task) {

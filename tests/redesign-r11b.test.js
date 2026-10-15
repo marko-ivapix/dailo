@@ -142,12 +142,13 @@ test('S15: the actions, applying the R11a rule, an unchanged rule and a bad end'
   assert.equal(ctx.sheet().interval, 2);
   assert.deepEqual(ctx.calls.at(-1), ['refresh', '[data-pop-action="repeat-step"][data-step="1"]']);
   ctx.handleRepeatAction('repeat-apply', { dataset: {} });
-  assert.deepEqual(ctx.calls.at(-1), ['set', 'task', 't', { frequency: 'weekly', interval: 2, weekdays: [3, 6], endType: 'never', endDate: null, endAfterOccurrences: null }]);
+  // R88: the sheet's rule always says whether it counts from completion (false here).
+  assert.deepEqual(ctx.calls.at(-1), ['set', 'task', 't', { frequency: 'weekly', interval: 2, afterCompletion: false, weekdays: [3, 6], endType: 'never', endDate: null, endAfterOccurrences: null }]);
 
   ctx = editor();
   ctx.open();
   ctx.act('repeat-preset', { preset: '3' });
-  assert.deepEqual(plain(ctx.repeatRuleFromSheet(ctx.sheet())), { frequency: 'monthly', interval: 3, monthMode: 'day', monthDay: 10, endType: 'never', endDate: null, endAfterOccurrences: null });
+  assert.deepEqual(plain(ctx.repeatRuleFromSheet(ctx.sheet())), { frequency: 'monthly', interval: 3, afterCompletion: false, monthMode: 'day', monthDay: 10, endType: 'never', endDate: null, endAfterOccurrences: null });
   ctx.act('repeat-frequency', { value: 'daily' });
   assert.equal(ctx.sheet().interval, 1, 'a frequency change starts from 1');
   ctx.act('repeat-end', { value: 'date' });
@@ -158,7 +159,7 @@ test('S15: the actions, applying the R11a rule, an unchanged rule and a bad end'
   assert.match(ctx.repeatSheetHtml(), /<p class="validation" role="alert">Choose a valid end date or number of times\.<\/p>/);
   ctx.inputs['#repeat-end-date'] = { value: '2026-12-31' };
   ctx.handleRepeatAction('repeat-apply', { dataset: {} });
-  assert.deepEqual(ctx.calls.at(-1), ['set', 'task', 't', { frequency: 'daily', interval: 1, endType: 'date', endDate: '2026-12-31', endAfterOccurrences: null }]);
+  assert.deepEqual(ctx.calls.at(-1), ['set', 'task', 't', { frequency: 'daily', interval: 1, afterCompletion: false, endType: 'date', endDate: '2026-12-31', endAfterOccurrences: null }]);
 
   ctx = editor();
   ctx.open();
@@ -177,7 +178,8 @@ test('the draft target (Quick Add) applies and clears on the draft', () => {
   ctx.openRepeatPicker({}, { type: 'quick' });
   assert.match(ctx.repeatSheetHtml(), /data-repeat-summary>On Saturdays</, 'without a date the start is today');
   ctx.handleRepeatAction('repeat-apply', { dataset: {} });
-  assert.deepEqual(ctx.calls.at(-1), ['set', 'quick', null, { frequency: 'weekly', interval: 1, weekdays: [6], endType: 'never', endDate: null, endAfterOccurrences: null }]);
+  // R88: afterCompletion false, as above.
+  assert.deepEqual(ctx.calls.at(-1), ['set', 'quick', null, { frequency: 'weekly', interval: 1, afterCompletion: false, weekdays: [6], endType: 'never', endDate: null, endAfterOccurrences: null }]);
   ctx.openRepeatPicker({}, { type: 'quick' });
   ctx.handleRepeatAction('repeat-clear', { dataset: {} });
   assert.deepEqual(ctx.calls.at(-1), ['set', 'quick', null, null]);
