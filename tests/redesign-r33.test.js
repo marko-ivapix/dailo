@@ -23,7 +23,8 @@ test('22: the task title is a growing text field; Oblast and Ciljevi are rows wi
   assert.match(tasksUi, /row\('task-area-picker', 'ph-squares-four', tr\('Area'\)/);
   assert.match(tasksUi, /row\('task-goals-picker', 'ph-target', tr\('Goals'\)/);
   assert.doesNotMatch(tasksUi, /data-task-flag|data-task-area=|data-task-goal=/);
-  assert.match(tasksUi, /tr\('Area, goals'\)/);
+  // R87: the fold's line names the first fields waiting in it, Oblast and Ciljevi among them.
+  assert.match(tasksUi, /\['area', tr\('Area'\)\], \['goals', tr\('Goals'\)\]/);
 });
 
 function taskSheetCtx() {
@@ -130,7 +131,8 @@ test('33: Fokus → Detalji comes back to Fokus with its timer', () => {
 
 test('34: the task menu fits where it opens: no repeats of the window\'s rows and no moves for a finished task', () => {
   const calls = [];
-  const ctx = withI18n({ Core: { dateOnly: () => '2026-10-12' }, esc: String, modalState: null, getTask: id => tasks[id], openPopover: (anchor, html) => calls.push(html), menuSheet: (title, body) => body, templateMenuEntry: () => '<template>' });
+  // R87: the menu looks for the task's row on the screen for "Pomeri gore / dole"; there is none here.
+  const ctx = withI18n({ Core: { dateOnly: () => '2026-10-12' }, esc: String, modalState: null, getTask: id => tasks[id], openPopover: (anchor, html) => calls.push(html), menuSheet: (title, body) => body, templateMenuEntry: () => '<template>', document: { querySelectorAll: () => [] }, dropGroup: () => null, reorderNeighbours: () => null });
   const tasks = { open: { id: 'open', title: 'Open', isCompleted: false, plannedDate: null }, done: { id: 'done', title: 'Done', isCompleted: true } };
   vm.createContext(ctx);
   vm.runInContext(fn('openTaskMenu'), ctx);

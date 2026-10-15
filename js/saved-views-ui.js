@@ -15,14 +15,14 @@
   const TYPE_LABELS = { tasks: msg('Tasks'), goals: msg('Goals'), habits: msg('Habits') };
   const ALL_LABELS = { tasks: msg('All tasks'), goals: msg('All goals'), habits: msg('All habits') };
   const typeLabel = type => (TYPE_LABELS[type] ? tr(TYPE_LABELS[type]) : label(type));
-  const FILTER_LABELS = { areaId: msg('Area'), projectId: msg('Project'), tagId: msg('Tag'), priority: msg('Priority'), completion: msg('Completion'), plannedDate: msg('Planned'), dueDate: msg('Due'), targetDate: msg('Target date'), status: msg('Status'), trackingType: msg('Tracking'), frequencyType: msg('Frequency') };
+  const FILTER_LABELS = { areaId: msg('Area'), projectId: msg('Project'), tagId: msg('Tag'), priority: msg('Priority'), completion: msg('Completion'), plannedDate: msg('When I do it'), dueDate: msg('Due'), targetDate: msg('Target date'), status: msg('Status'), trackingType: msg('Tracking'), frequencyType: msg('Frequency') };
   const VALUE_LABELS = { none: msg('None'), low: msg('Low'), medium: msg('Medium'), high: msg('High'), open: msg('Open'), completed: msg('Completed'), active: msg('Active'), paused: msg('Paused'), archived: msg('Archived'), checkbox: msg('Checkbox'), numeric: msg('Numeric'), daily: msg('Daily'), weekdays: msg('Selected weekdays'), timesPerWeek: msg('X times per week'), everyNDays: msg('Every N days') };
   const valueLabel = value => (VALUE_LABELS[value] ? tr(VALUE_LABELS[value]) : label(String(value)));
 
   // Redesign R10d (S8): one card of views with their counts, a result screen with a menu, and an edit window whose filters
   // open sheets.
   const FILTER_ICONS = { areaId: 'ph-squares-four', projectId: 'ph-folder', tagId: 'ph-tag', priority: 'ph-flag', plannedDate: 'ph-calendar-blank', dueDate: 'ph-calendar-x', targetDate: 'ph-calendar-check', completion: 'ph-check-circle', status: 'ph-circle-half', trackingType: 'ph-check-square', frequencyType: 'ph-repeat' };
-  const EDIT_LABELS = { areaId: msg('Area'), projectId: msg('Project'), tagId: msg('Tag'), priority: msg('Priority'), completion: msg('Completion'), plannedDate: msg('Planned date (exact day)'), dueDate: msg('Due date (exact day)'), targetDate: msg('Target date (exact day)'), status: msg('Status'), trackingType: msg('Tracking'), frequencyType: msg('Frequency') };
+  const EDIT_LABELS = { areaId: msg('Area'), projectId: msg('Project'), tagId: msg('Tag'), priority: msg('Priority'), completion: msg('Completion'), plannedDate: msg('When I do it (exact day)'), dueDate: msg('Due date (exact day)'), targetDate: msg('Target date (exact day)'), status: msg('Status'), trackingType: msg('Tracking'), frequencyType: msg('Frequency') };
   const DATE_KEYS = ['plannedDate', 'dueDate', 'targetDate'];
 
   function filterText(context, key, value) {

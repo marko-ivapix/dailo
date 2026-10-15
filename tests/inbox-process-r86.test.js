@@ -51,8 +51,7 @@ test('the new lines are Serbian', () => {
   for (const [en, value] of [['To notes', 'U beleške'], ['Moved to notes', 'Prebačeno u beleške']]) assert.ok(sr.includes(`${JSON.stringify(en)}: ${JSON.stringify(value)}`), en);
 });
 
-test('R86 is released as 2.0.0-alpha.113', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.113');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.113';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.113');
+test('R86 shipped as 2.0.0-alpha.113 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 113) >= 113);
 });

@@ -2107,7 +2107,7 @@
     const meta = [
       project?.name || '',
       task.dueDate ? (task.dueDate < today ? tr('Overdue · {date}', { date: relativeDateLabel(task.dueDate, today) }) : tr('Due {date}', { date: relativeDateLabel(task.dueDate, today) })) : '',
-      task.plannedDate ? tr('Planned {date}', { date: relativeDateLabel(task.plannedDate, today) }) : '',
+      task.plannedDate ? tr('When I do it: {date}', { date: relativeDateLabel(task.plannedDate, today) }) : '',
       task.priority && task.priority !== 'none' ? tr('{priority} priority', { priority: priorityLabel(task.priority) }) : '',
     ].filter(Boolean);
     const subtasks = [...(task.subtasks || [])].sort((a, b) => clampOrder(a.order) - clampOrder(b.order));
@@ -2682,8 +2682,8 @@
     const otherDate = kind === 'plan' ? source?.dueDate : source?.plannedDate;
     const otherTime = kind === 'plan' ? source?.dueTime : source?.plannedTime;
     const other = otherDate ? `${relativeDateLabel(otherDate)}${otherTime ? ` · ${otherTime}` : ''}` : '';
-    const note = kind === 'plan' ? (other ? tr('The due date stays: {date}', { date: other }) : tr('No due date is set.')) : (other ? tr('The planned date stays: {date}', { date: other }) : tr('No planned date is set.'));
-    return `<div class="popover-title">${kind === 'plan' ? tr('Planned') : tr('Due date')}</div>${source?.title ? `<p class="sheet-subtitle">${esc(source.title)}</p>` : ''}${chips}${monthGrid(date, view, today)}<label class="sheet-field"><i class="ph ph-clock" aria-hidden="true"></i><span>${tr('Time')}</span><input id="date-sheet-time" class="input" type="time" value="${esc(time || '')}"></label><p class="sheet-note">${esc(note)}</p><div class="sheet-footer"><button class="btn btn-ghost" type="button" data-pop-action="date-sheet-clear">${tr('Remove date')}</button><button class="btn btn-primary" type="button" data-pop-action="date-sheet-apply">${tr('Apply')}</button></div>`;
+    const note = kind === 'plan' ? (other ? tr('The due date stays: {date}', { date: other }) : tr('No due date is set.')) : (other ? tr('“When I do it” stays: {date}', { date: other }) : tr('“When I do it” is not set.'));
+    return `<div class="popover-title">${kind === 'plan' ? tr('When I do it') : tr('Due date')}</div>${source?.title ? `<p class="sheet-subtitle">${esc(source.title)}</p>` : ''}${chips}${monthGrid(date, view, today)}<label class="sheet-field"><i class="ph ph-clock" aria-hidden="true"></i><span>${tr('Time')}</span><input id="date-sheet-time" class="input" type="time" value="${esc(time || '')}"></label><p class="sheet-note">${esc(note)}</p><div class="sheet-footer"><button class="btn btn-ghost" type="button" data-pop-action="date-sheet-clear">${tr('Remove date')}</button><button class="btn btn-primary" type="button" data-pop-action="date-sheet-apply">${tr('Apply')}</button></div>`;
   }
   function applyDateSheet(clear) {
     if (!dateSheet) return;
@@ -2936,7 +2936,7 @@
     const task = target.type === 'quick' ? modalState?.draft : getTask(target.taskId);
     const when = (day, at) => (day ? `${relativeDateLabel(day)}${at ? ` · ${at}` : ''}` : '—');
     const chips = presets.map(([label, value]) => `<button class="quick-chip${value.date === date && value.time === time ? ' is-selected' : ''}" type="button" data-pop-action="reminder-preset" data-date="${value.date}" data-time="${value.time}" aria-pressed="${value.date === date && value.time === time}">${esc(label)}</button>`).join('');
-    return `<div class="popover-title">${tr('Reminder')}</div>${task?.title ? `<p class="sheet-subtitle">${esc(task.title)}</p>` : ''}<div class="sheet-chips">${chips}</div>${task?.plannedDate && task?.plannedTime ? '' : `<p class="sheet-note">${tr('Quick choices for the planned time appear when the task has one.')}</p>`}<label class="sheet-field"><i class="ph ph-calendar-blank" aria-hidden="true"></i><span>${tr('Date')}</span><input id="reminder-date" class="input" type="date" value="${esc(date)}"></label><label class="sheet-field"><i class="ph ph-clock" aria-hidden="true"></i><span>${tr('Time')}</span><input id="reminder-time" class="input" type="time" value="${esc(time)}"></label><p class="sheet-summary" data-reminder-summary>${esc(tr('Remind me {date} at {time}', { date: lowerFirst(relativeDateLabel(date)), time }))}</p>${reminderSheet.error ? `<p class="validation" role="alert">${esc(tr(reminderSheet.error))}</p>` : ''}<h3 class="sheet-group-title">${tr('Task dates')}</h3><div class="sheet-card"><div class="sheet-option"><i class="ph ph-calendar-check" aria-hidden="true"></i><span class="sheet-option-label">${tr('Planned')}</span><span class="sheet-option-value">${esc(when(task?.plannedDate, task?.plannedTime))}</span></div><div class="sheet-option"><i class="ph ph-hourglass-medium" aria-hidden="true"></i><span class="sheet-option-label">${tr('Due date')}</span><span class="sheet-option-value">${esc(when(task?.dueDate, task?.dueTime))}</span></div></div><div class="sheet-footer">${task?.reminderAt ? `<button class="btn btn-ghost" type="button" data-pop-action="reminder-clear">${tr('Clear reminder')}</button>` : '<span></span>'}<button class="btn btn-primary" type="button" data-pop-action="reminder-apply">${tr('Apply')}</button></div>`;
+    return `<div class="popover-title">${tr('Reminder')}</div>${task?.title ? `<p class="sheet-subtitle">${esc(task.title)}</p>` : ''}<div class="sheet-chips">${chips}</div>${task?.plannedDate && task?.plannedTime ? '' : `<p class="sheet-note">${tr('Quick choices for the planned time appear when the task has one.')}</p>`}<label class="sheet-field"><i class="ph ph-calendar-blank" aria-hidden="true"></i><span>${tr('Date')}</span><input id="reminder-date" class="input" type="date" value="${esc(date)}"></label><label class="sheet-field"><i class="ph ph-clock" aria-hidden="true"></i><span>${tr('Time')}</span><input id="reminder-time" class="input" type="time" value="${esc(time)}"></label><p class="sheet-summary" data-reminder-summary>${esc(tr('Remind me {date} at {time}', { date: lowerFirst(relativeDateLabel(date)), time }))}</p>${reminderSheet.error ? `<p class="validation" role="alert">${esc(tr(reminderSheet.error))}</p>` : ''}<h3 class="sheet-group-title">${tr('Task dates')}</h3><div class="sheet-card"><div class="sheet-option"><i class="ph ph-calendar-check" aria-hidden="true"></i><span class="sheet-option-label">${tr('When I do it')}</span><span class="sheet-option-value">${esc(when(task?.plannedDate, task?.plannedTime))}</span></div><div class="sheet-option"><i class="ph ph-hourglass-medium" aria-hidden="true"></i><span class="sheet-option-label">${tr('Due date')}</span><span class="sheet-option-value">${esc(when(task?.dueDate, task?.dueTime))}</span></div></div><div class="sheet-footer">${task?.reminderAt ? `<button class="btn btn-ghost" type="button" data-pop-action="reminder-clear">${tr('Clear reminder')}</button>` : '<span></span>'}<button class="btn btn-primary" type="button" data-pop-action="reminder-apply">${tr('Apply')}</button></div>`;
   }
   function applyReminderSheet() {
     if (!reminderSheet) return;
@@ -3151,14 +3151,28 @@
     return `<button class="collapsible-trigger" type="button" data-action="${action}"${attrs} aria-expanded="${open}"><span class="left">${label} · ${count}</span><i class="ph ph-caret-${open ? 'up' : 'down'}" aria-hidden="true"></i></button>`;
   }
 
+  // R87: the rows next to a task in its own list (the same context and, in Inbox, the same capture group), so the
+  // ⋯ menu can move it up or down as holding and dragging would.
+  function reorderNeighbours(rows, taskId) {
+    const me = rows.find(row => row.id === taskId);
+    if (!me) return null;
+    const list = rows.filter(row => row.context === me.context && row.group === me.group);
+    const index = list.indexOf(me);
+    return { context: me.context, up: list[index - 1]?.id || null, down: list[index + 1]?.id || null };
+  }
+
   // R33 (finding 34): the menu fits where it opens. From the task window it leaves out what the window's rows do
   // (plan, due date, project); a completed task gets no actions that move it; "Sačuvaj kao šablon" sits lower.
+  // R87: "Pomeri gore" and "Pomeri dole" take the task's row on the screen, also from the task window (on a phone
+  // the rows have no ⋯), so the hold-and-drag order has buttons too.
   function openTaskMenu(anchor, taskId) {
     const task = getTask(taskId); if (!task) return;
     const today = Core.dateOnly();
     const inWindow = modalState?.type === 'task' && modalState.taskId === taskId;
     const open = !task.isCompleted;
     const item = (action, icon, label) => `<button class="popover-option" type="button" data-pop-action="${action}" data-task-id="${esc(taskId)}"><i class="ph ${icon}"></i>${label}</button>`;
+    const near = open ? reorderNeighbours([...document.querySelectorAll('#main .task-row[draggable="true"]')].map(row => ({ id: row.dataset.taskId, context: row.dataset.listContext, group: dropGroup(row) })), taskId) : null;
+    const move = (action, icon, label, target) => `<button class="popover-option" type="button" data-pop-action="${action}" data-task-id="${esc(taskId)}" data-target-id="${esc(target)}" data-list-context="${esc(near.context)}"><i class="ph ${icon}"></i>${label}</button>`;
     const html = [
       open ? item('task-start-focus', 'ph-timer', tr('Start focus')) : '',
       open && task.plannedDate !== today ? item('task-add-today', 'ph-sun', tr('Add to Today')) : '',
@@ -3167,6 +3181,8 @@
       open && !inWindow ? item('task-open-plan', 'ph-calendar-check', tr('Plan for...')) : '',
       open && !inWindow ? item('task-open-due', 'ph-hourglass-medium', tr('Change due date')) : '',
       inWindow ? '' : item('task-open-project', 'ph-folder-simple', tr('Move to project')),
+      near?.up ? move('task-move-up', 'ph-arrow-up', tr('Move up'), near.up) : '',
+      near?.down ? move('task-move-down', 'ph-arrow-down', tr('Move down'), near.down) : '',
       item('task-duplicate', 'ph-copy', tr('Duplicate')),
       templateMenuEntry('task', taskId),
     ].join('') + `<div class="popover-separator"></div><button class="popover-option is-danger" type="button" data-pop-action="task-delete" data-task-id="${esc(taskId)}"><i class="ph ph-trash"></i>${tr('Delete')}</button>`;
@@ -4547,19 +4563,42 @@
     requestDeleteEntity('subtask', { parentId: taskId, id: subtaskId });
   }
 
+  // R87: while a subtask is renamed, ↑ and ↓ next to its title (Alt+↑ and Alt+↓ on a keyboard) move it, so the drag
+  // has buttons too. The title field keeps the focus and the subtask stays in edit mode, ready to move again.
   function editSubtask(taskId, subtaskId) {
     const task = getTask(taskId); const sub = task?.subtasks.find(s => s.id === subtaskId); if (!sub) return;
     const row = document.querySelector(`[data-parent-task-id="${cssEscape(taskId)}"][data-subtask-id="${cssEscape(subtaskId)}"]`);
     const title = row?.querySelector('.subtask-title'); if (!title) return;
     const input = document.createElement('input');
-    input.className = 'input'; input.style.minHeight = '34px'; input.value = sub.title;
+    input.className = 'input subtask-title-input'; input.style.minHeight = '34px'; input.value = sub.title; input.setAttribute('aria-label', tr('Subtask title'));
     title.replaceWith(input); input.focus(); input.select();
+    let done = false;
     const finish = save => {
+      if (done) return; done = true;
       if (save && input.value.trim() && taskRecurrence(task)) {requestTaskEdit(taskId,{subtasks:task.subtasks.map(s=>s.id===subtaskId?{...s,title:input.value.trim()}:s)});return;}
       if (save && input.value.trim()) { sub.title = input.value.trim(); task.updatedAt = nowIso(); saveState(); }
       renderModal(); render();
     };
-    input.addEventListener('keydown', e => { if (e.key === 'Enter') finish(true); else if (e.key === 'Escape') finish(false); });
+    const ordered = [...task.subtasks].sort((a, b) => clampOrder(a.order) - clampOrder(b.order));
+    const index = ordered.indexOf(sub);
+    const move = step => {
+      const neighbour = ordered[index + step], value = input.value.trim(), changed = Boolean(value) && value !== sub.title;
+      if (!neighbour || done) return;
+      if (changed && taskRecurrence(task)) { finish(true); return; }
+      done = true;
+      if (changed) sub.title = value;
+      reorderSubtasks(taskId, subtaskId, neighbour.id);
+      editSubtask(taskId, subtaskId);
+    };
+    const arrow = (step, icon, label) => {
+      const button = document.createElement('button');
+      button.type = 'button'; button.className = 'btn-icon'; button.setAttribute('aria-label', label); button.innerHTML = `<i class="ph ${icon}" aria-hidden="true"></i>`;
+      for (const type of ['pointerdown', 'mousedown']) button.addEventListener(type, event => event.preventDefault());
+      button.addEventListener('click', () => move(step));
+      return button;
+    };
+    input.after(...[index > 0 ? arrow(-1, 'ph-arrow-up', tr('Move up')) : null, index < ordered.length - 1 ? arrow(1, 'ph-arrow-down', tr('Move down')) : null].filter(Boolean));
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') finish(true); else if (e.key === 'Escape') finish(false); else if (e.altKey && ['ArrowUp', 'ArrowDown'].includes(e.key)) { e.preventDefault(); move(e.key === 'ArrowUp' ? -1 : 1); } });
     input.addEventListener('blur', () => finish(true), { once: true });
   }
 
@@ -6381,6 +6420,7 @@
     }
     else if (action === 'task-add-today') { closePopover(); addTaskToToday(button.dataset.taskId); }
     else if (action === 'task-move-tomorrow') { closePopover(); moveTaskToTomorrow(button.dataset.taskId); }
+    else if (['task-move-up', 'task-move-down'].includes(action)) { closePopover(); reorderTasks(button.dataset.listContext, button.dataset.taskId, button.dataset.targetId); setToastMessage(action === 'task-move-up' ? tr('Moved up') : tr('Moved down')); }
     else if (action === 'task-move-anytime') { closePopover(); moveTaskToAnytime(button.dataset.taskId); }
     else if (action === 'task-open-plan') { const taskId=button.dataset.taskId; closePopover(); const anchor=document.querySelector(`[data-action="task-menu"][data-task-id="${cssEscape(taskId)}"]`) || button; openPlanPicker(anchor,{type:'task',taskId}); }
     else if (action === 'task-duplicate') startDuplicate(button.dataset.taskId);

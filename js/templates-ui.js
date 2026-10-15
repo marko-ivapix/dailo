@@ -101,7 +101,7 @@
     if (type === 'task') {
       html += templateRows(ctx, 'subtasks', data.subtasks || [], prefix, 'subtask');
       more += field('notes', tr('Notes'), 'notes') + field('projectId', tr('Project'), 'text', choices('projects', tr('No project'))) + field('tagIds', tr('Tags'), 'ids', state.tags.map(tag => [tag.id, tag.name])) + field('priority', tr('Priority'), 'text', [['none', tr('No priority')], ['low', tr('Low')], ['medium', tr('Medium')], ['high', tr('High')]]);
-      more += field('plannedOffsetDays', tr('Planned: days after the day it is made (blank = no date)'), 'number') + field('plannedTime', tr('Planned time'), 'time') + field('dueOffsetDays', tr('Due: days after the day it is made (blank = no date)'), 'number') + field('dueTime', tr('Due time'), 'time');
+      more += field('plannedOffsetDays', tr('When I do it: days after the day it is made (blank = no date)'), 'number') + field('plannedTime', tr('Time to do it'), 'time') + field('dueOffsetDays', tr('Due: days after the day it is made (blank = no date)'), 'number') + field('dueTime', tr('Due time'), 'time');
       more += field('reminderOffsetDays', tr('Reminder: days after the day it is made (blank = none)'), 'number') + (data.reminderOffsetDays != null ? field('reminderTime', tr('Reminder time'), 'time') : '');
       more += field('durationMinutes', tr('Duration in minutes (blank = none)'), 'number');
       const recurrence = data.recurrence || {};

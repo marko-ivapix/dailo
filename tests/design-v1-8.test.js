@@ -151,7 +151,8 @@ test('modals are 12px graphite panels with overlay elevation and bottom-sheet gr
 // Redesign R3 (E1): the window's rows sit in hairline cards; "Više opcija" keeps the key/value rows.
 test('Task Properties keeps collapsed disclosures and presents grouped key/value rows', () => {
   const tasksUi = read('js/tasks-ui.js');
-  assert.match(tasksUi, /<details class="task-window-more">/);
+  // R87: the fold stays open after a change made from inside it.
+  assert.match(tasksUi, /<details class="task-window-more"\$\{modalState\.moreOpen \? ' open' : ''\}>/);
   assert.match(tasksUi, /row\('task-area-picker', 'ph-squares-four', tr\('Area'\)/); // R33: Oblast is a row with a sheet
   const r3 = css.slice(css.indexOf('/* Redesign R3'));
   assert.match(r3, /\.task-window-card \{[^}]*border: 1px solid var\(--line-1\)/);
