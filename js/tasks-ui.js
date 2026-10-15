@@ -18,13 +18,15 @@
     const draggable = options.draggable && !task.isCompleted;
     // R94: a project's first open task is its next step.
     const next = options.nextStep ? `<span class="task-next-step">${tr('Next step')}</span>` : '';
+    // R95: a chore's bar fills slowly until it is time (amber on its day, red once it is well past).
+    const bar = options.bar ? `<span class="chore-bar${options.bar.state === 'calm' ? '' : ` is-${options.bar.state}`}" aria-hidden="true"><i style="width:${Math.round(options.bar.fill * 100)}%"></i></span>` : '';
     const chip = (action, label) => `<button class="quick-chip" type="button" data-action="${action}" data-task-id="${esc(task.id)}">${label}</button>`;
     // Redesign R6 (I5): an Inbox task is sorted with Danas, Sutra, Kad stignem or Projekat….
     const addToday = options.inbox ? `<div class="quick-actions">${chip('inbox-today', tr('Today'))}${chip('inbox-tomorrow', tr('Tomorrow'))}${chip('inbox-anytime', tr('Anytime'))}${chip('inbox-project', tr('Project…'))}</div>`
       : options.addToday ? `<div class="quick-actions">${chip('inbox-today', `+ ${tr('Today')}`)}</div>` : '';
     // R91: a Calendar row there for its deadline (no planned day) carries the hourglass.
     return `<article class="task-row task-row--today ${task.isCompleted ? 'is-completed' : ''}${options.dueItem ? ' is-due-item' : ''}" data-task-row-compact data-task-id="${esc(task.id)}" data-list-context="${esc(listContext)}" ${draggable ? 'draggable="true"' : ''}>
-      <div class="task-main-wrap"><div class="task-main" data-action="open-task" data-task-id="${esc(task.id)}" role="button" tabindex="0"><div class="task-title">${options.dueItem ? '<i class="ph ph-hourglass-medium task-due-icon" aria-hidden="true"></i>' : ''}${esc(task.title)}</div>${next || meta ? `<div class="task-meta">${next}${meta}</div>` : ''}</div>${addToday}</div>
+      <div class="task-main-wrap"><div class="task-main" data-action="open-task" data-task-id="${esc(task.id)}" role="button" tabindex="0"><div class="task-title">${options.dueItem ? '<i class="ph ph-hourglass-medium task-due-icon" aria-hidden="true"></i>' : ''}${esc(task.title)}</div>${next || meta ? `<div class="task-meta">${next}${meta}</div>` : ''}${bar}</div>${addToday}</div>
       <div class="task-actions" data-task-compact-actions><button class="btn-icon" type="button" data-action="task-menu" data-task-id="${esc(task.id)}" aria-label="${tr('Task actions')}"><i class="ph ph-dots-three"></i></button></div>
       <button class="complete-control ${task.isCompleted ? 'is-completed' : ''}" type="button" data-action="toggle-complete" data-inline-today-complete data-task-id="${esc(task.id)}" aria-label="${task.isCompleted ? tr('Mark incomplete') : tr('Complete task')}">${task.isCompleted ? '<i class="ph ph-check"></i>' : ''}</button>
     </article>`;

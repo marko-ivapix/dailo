@@ -40,8 +40,22 @@
     [...APPLIANCES, msg('Run the washing machine cleaning program'), 'monthly', 1, 8], [...APPLIANCES, msg('Wash the vacuum filter'), 'monthly', 1, 9],
     [...APPLIANCES, msg('Wash the trash bins'), 'monthly', 1, 11], [...APPLIANCES, msg('Clean the air conditioner filter'), 'monthly', 1, 16],
     [...APPLIANCES, msg('Clean the washing machine pump filter'), 'monthly', 3, 33], [...APPLIANCES, msg('Replace the vacuum filter'), 'yearly', 1, 200],
+    // R95: seasonal chores start on their next day of the year ('MM-DD'; a list for one that comes twice a year).
+    [...BEDROOM, msg('Swap the winter and summer clothes'), 'monthly', 6, ['04-01', '10-01']], [...APPLIANCES, msg('Have the air conditioner serviced before summer'), 'yearly', 1, '05-01'],
+    [...LIVING, msg('Clean the balcony for summer'), 'yearly', 1, '04-15'],
   ];
-  const HOUSE_CHORES = [['garden', msg('Garden'), msg('Check outdoor lights'), 'monthly', 1, 13]];
+  const GARDEN = ['garden', msg('Garden')];
+  const HOUSE_CHORES = [
+    [...GARDEN, msg('Check outdoor lights'), 'monthly', 1, 13],
+    [...GARDEN, msg('Check the roof after winter'), 'yearly', 1, '03-20'], [...GARDEN, msg('Turn on the outdoor tap'), 'yearly', 1, '04-01'],
+    [...GARDEN, msg('Prepare the garden for winter'), 'yearly', 1, '10-25'], [...GARDEN, msg('Turn off the outdoor tap before the frost'), 'yearly', 1, '11-01'],
+    [...GARDEN, msg('Clean the gutters'), 'yearly', 1, '11-05'],
+  ];
+  // R95: the next of a chore's days of the year after today, so the examples never pile up on the day they are added.
+  function seasonDate(today, days) {
+    const year = Number(today.slice(0, 4));
+    return [].concat(days).flatMap(day => [`${year}-${day}`, `${year + 1}-${day}`]).filter(date => date > today).sort()[0];
+  }
 
   // Redesign R11d (S4): "Redovne obaveze" — everything that repeats. Groups are the cleaning rooms (projects
   // with isCleaningRoom); then the projects with repeating tasks, then "Bez grupe".
@@ -69,24 +83,27 @@
     ui.cleaningCompletedExpanded ||= {};
     const today = Core.dateOnly(), all = recurringSections(ctx), groups = all.filter(section => section.kind === 'group');
     const open = all.flatMap(section => section.list).filter(task => !task.isCompleted);
-    const late = open.filter(task => taskDate(task) && taskDate(task) < today).length;
+    // R95: what is due now (its day has come), not what is "late".
+    const due = open.filter(task => taskDate(task) && taskDate(task) <= today).length;
     const archived = groupsOf(ctx).filter(group => group.isArchived);
     const addGroup = `<button class="quick-chip cleaning-add-group" type="button" data-action="new-cleaning-group">+ ${tr('Group')}</button>`;
-    const summary = `${trn(open.length, '{count} task repeats', '{count} tasks repeat')}${late ? ` · ${trn(late, '{count} late', '{count} late')}` : ''}`;
+    const summary = `${trn(open.length, '{count} task repeats', '{count} tasks repeat')}${due ? ` · ${trn(due, '{count} due now', '{count} due now')}` : ''}`;
     const example = (preset, label) => `<button class="quick-chip" type="button" data-action="add-cleaning-examples" data-cleaning-preset="${preset}">${tr(label)}</button>`;
     if (!open.length && !groups.length && !archived.length) {
-      return pageHeader(tr('Recurring tasks'), '', { add: false }) + `<div class="empty-state"><h3>${tr('No recurring tasks yet')}</h3><p>${tr('Make a group (home, car, garden…), then add chores that repeat.')}</p><div class="sheet-chips cleaning-chips">${example('apartment', msg('Example: apartment'))}${example('house', msg('Example: house'))}${addGroup}</div></div>`;
+      return pageHeader(tr('Recurring tasks'), '', { add: false }) + `<div class="empty-state"><h3>${tr('No recurring tasks yet')}</h3><p>${tr('Make a group (home, car, garden…), then add chores that repeat.')}</p><p>${tr('Unlike a repeating task, a chore has no strict deadline: its bar fills slowly until it is time, and doing it starts the bar again.')}</p><div class="sheet-chips cleaning-chips">${example('apartment', msg('Example: apartment'))}${example('house', msg('Example: house'))}${addGroup}</div></div>`;
     }
     const projectsShown = all.some(section => section.kind === 'project');
     let filter = ui.cleaningRoomFilter || 'all';
     if (filter !== 'all' && !(filter === 'projects' ? projectsShown : groups.some(section => section.key === filter))) filter = 'all';
     const chip = (value, label) => `<button class="quick-chip${filter === value ? ' is-selected' : ''}" type="button" data-action="cleaning-filter" data-value="${esc(value)}" aria-pressed="${filter === value}">${esc(label)}</button>`;
     let html = pageHeader(tr('Recurring tasks'), summary, { add: false });
+    // R95: how a chore differs from a repeating task, in one sentence (also in the empty state).
+    html += `<p class="tasks-note cleaning-intro">${tr('Unlike a repeating task, a chore has no strict deadline: its bar fills slowly until it is time, and doing it starts the bar again.')}</p>`;
     html += `<div class="sheet-chips cleaning-chips">${chip('all', tr('All'))}${groups.map(section => chip(section.key, section.project.name)).join('')}${projectsShown ? chip('projects', tr('From projects')) : ''}${addGroup}</div>`;
     const when = task => {
       const date = taskDate(task);
       if (!date) return `<span class="task-due">${tr('No date')}</span>`;
-      if (date < today) return `<span class="task-due is-overdue">${esc(tr('Overdue · {date}', { date: formatDate(date) }))}</span>`;
+      if (date < today) return `<span class="task-due is-due-now">${esc(tr('Time to do it · {date}', { date: formatDate(date) }))}</span>`;
       if (date === today) return `<span class="task-due is-today">${tr('Today')}</span>`;
       if (date === Core.addDays(today, 1)) return `<span class="task-due">${tr('Tomorrow')}</span>`;
       return `<span class="task-due">${esc(formatDate(date))}</span>`;
@@ -94,7 +111,7 @@
     const row = (task, place = false) => {
       const where = place ? (ctx.getProject(task.projectId)?.name || tr('No group')) : '';
       const metaText = task.isCompleted ? tr('Completed {date}', { date: relativeDateLabel(Core.localDateOf(task.completedAt)) }) : [where, ctx.recurrenceLabel(ctx.taskRecurrence(task))].filter(Boolean).join(' · ');
-      return ctx.renderChoreRow(task, { metaText, metaLead: task.isCompleted ? '' : when(task) });
+      return ctx.renderChoreRow(task, { metaText, metaLead: task.isCompleted ? '' : when(task), bar: task.isCompleted ? null : Core.choreProgress(task, ctx.taskRecurrence(task), today) });
     };
     const head = (key, title, count, tools = '') => `<section class="cleaning-section" data-cleaning-section="${esc(key)}"><div class="cleaning-section-head"><h2 class="cleaning-section-title">${title}<span class="cleaning-section-count"> · ${count}</span></h2>${tools}</div>`;
     // "Ove nedelje" (S4): what is late or comes within 7 days, from every group and project.
@@ -216,8 +233,9 @@
       const room = ensureRoom(tr(roomName), `cleaning:${preset}:${roomKey}`, `cleaning:${roomKey}`);
       const key = `cleaning:${preset}:${roomKey}:${slug}`, legacyKey = `cleaning:${roomKey}:${slug}`;
       if (ctx.state.tasks.some(task => task.cleaningSampleKey === key || task.cleaningSampleKey === legacyKey)) continue;
-      const id = ctx.uid('task'), first = ctx.Core.addDays(today, firstInDays);
-      ctx.state.tasks.push({ id, title: tr(chore), notes: '', projectId: room.id, areaId: null, goalIds: [], plannedDate: first, plannedTime: null, dueDate: first, dueTime: null, reminderAt: null, reminderFiredAt: null, recurrence: ctx.Core.normalizeRecurrenceV3({ frequency, interval, endType: 'never', seriesId: id }), tagIds: [], priority: 'none', attachmentIds: [], isInbox: false, isCompleted: false, completedAt: null, subtasks: subtasks.map((title, order) => ({ id: ctx.uid('sub'), title: tr(title), order, isCompleted: false, completedAt: null })), todayOrder: null, projectOrder: null, inboxOrder: null, cleaningSampleKey: key, createdAt: now, updatedAt: now });
+      const id = ctx.uid('task'), first = typeof firstInDays === 'number' ? ctx.Core.addDays(today, firstInDays) : seasonDate(today, firstInDays);
+      // R95: a chore has no strict deadline, only the day it is planned.
+      ctx.state.tasks.push({ id, title: tr(chore), notes: '', projectId: room.id, areaId: null, goalIds: [], plannedDate: first, plannedTime: null, dueDate: null, dueTime: null, reminderAt: null, reminderFiredAt: null, recurrence: ctx.Core.normalizeRecurrenceV3({ frequency, interval, endType: 'never', seriesId: id }), tagIds: [], priority: 'none', attachmentIds: [], isInbox: false, isCompleted: false, completedAt: null, subtasks: subtasks.map((title, order) => ({ id: ctx.uid('sub'), title: tr(title), order, isCompleted: false, completedAt: null })), todayOrder: null, projectOrder: null, inboxOrder: null, cleaningSampleKey: key, createdAt: now, updatedAt: now });
     }
     ctx.saveState(); ctx.navigate('cleaning');
   }
@@ -264,7 +282,8 @@
     const rule = ctx.repeatRuleFromSheet(d.repeat);
     const first = ctx.Core.firstRecurrenceDate(d.start, rule) || d.start;
     const now = ctx.nowIso(), id = ctx.uid('task'), projectId = d.projectId && ctx.getProject(d.projectId) ? d.projectId : null;
-    ctx.state.tasks.push({ id, title, notes: '', projectId, areaId: null, goalIds: [], plannedDate: first, plannedTime: null, dueDate: first, dueTime: null, reminderAt: null, reminderFiredAt: null, recurrence: ctx.Core.normalizeRecurrenceV3({ ...rule, seriesId: id }), tagIds: [], priority: 'none', attachmentIds: [], isInbox: false, isCompleted: false, completedAt: null, subtasks: [], todayOrder: null, projectOrder: null, inboxOrder: null, createdAt: now, updatedAt: now });
+    // R95: no strict deadline; one can be set in the task window when there really is one.
+    ctx.state.tasks.push({ id, title, notes: '', projectId, areaId: null, goalIds: [], plannedDate: first, plannedTime: null, dueDate: null, dueTime: null, reminderAt: null, reminderFiredAt: null, recurrence: ctx.Core.normalizeRecurrenceV3({ ...rule, seriesId: id }), tagIds: [], priority: 'none', attachmentIds: [], isInbox: false, isCompleted: false, completedAt: null, subtasks: [], todayOrder: null, projectOrder: null, inboxOrder: null, createdAt: now, updatedAt: now });
     ctx.saveState(); ctx.closeModal(); ctx.render();
     ctx.setToastMessage(tr('Scheduled · first time {date}', { date: ctx.relativeDateLabel(first).toLowerCase() }));
   }

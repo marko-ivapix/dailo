@@ -142,7 +142,8 @@ test('S15: saving checks the name and the end, then schedules the first matching
   ctx.inputs['#repeat-end-date'] = { value: '2027-06-30' };
   act(adapter, ctx, 'save-cleaning-chore');
   const [task] = ctx.state.tasks;
-  assert.deepEqual([task.id, task.title, task.projectId, task.areaId, task.plannedDate, task.dueDate, task.isInbox, task.isCompleted], ['task-new', 'Plati internet', 'g1', null, '2026-10-15', '2026-10-15', false, false]);
+  // R95: a chore gets only its planned day, no strict deadline.
+  assert.deepEqual([task.id, task.title, task.projectId, task.areaId, task.plannedDate, task.dueDate, task.isInbox, task.isCompleted], ['task-new', 'Plati internet', 'g1', null, '2026-10-15', null, false, false]);
   assert.deepEqual(plain(task.recurrence), { frequency: 'monthly', interval: 1, monthMode: 'day', monthDay: 15, status: 'active', endType: 'date', endDate: '2027-06-30', endAfterOccurrences: null, occurrencesCreated: 0, skipNext: false, seriesId: 'task-new' });
   assert.deepEqual(ctx.calls.slice(-4).map(call => call[0]), ['save', 'closeModal', 'render', 'toast']);
   assert.equal(ctx.calls.at(-1)[1], 'Scheduled · first time l:2026-10-15');

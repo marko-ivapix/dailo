@@ -2680,6 +2680,14 @@ a.toast-action { display: inline-flex; align-items: center; text-decoration: non
 /* R92: Navike — the line that says what ✓, ✗ and an empty circle mean. */
 .habits-legend { margin: 14px 4px 0; color: var(--ink-3); font-size: var(--text-sm); line-height: 1.45; }
 
+/* R95: a chore's bar fills slowly until it is time; on Redovne obaveze a passed day is due, not late. */
+.chore-bar { display: block; max-width: 180px; height: 4px; margin-top: 6px; border-radius: 2px; background: var(--line-2); overflow: hidden; }
+.chore-bar i { display: block; height: 100%; border-radius: 2px; background: var(--blue-300); }
+.chore-bar.is-due i { background: var(--warning); }
+.chore-bar.is-late i { background: var(--danger); }
+.task-due.is-due-now { color: var(--warning); }
+.cleaning-intro { margin: -4px 2px 12px; }
+
 /* R94: the project's status, its next step and the review's line about the projects that wait. */
 .project-status { display: flex; width: 100%; margin: 2px 0 8px; }
 .project-status .btn { flex: 1 1 0; }

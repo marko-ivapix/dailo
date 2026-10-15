@@ -1273,6 +1273,24 @@
     return Math.round((b.getTime() - a.getTime()) / 86400000);
   }
 
+  // R95: about how many days lie between two times of a repeat (a weekly rule on several weekdays splits its week).
+  function recurrenceSpanDays(rule) {
+    const per = { daily: 1, weekly: 7, monthly: 30, yearly: 365 }[rule?.frequency];
+    if (!per) return null;
+    const days = rule.frequency === 'weekly' && Array.isArray(rule.weekdays) && rule.weekdays.length > 1 ? rule.weekdays.length : 1;
+    return Math.max(1, Math.round(per * Math.max(1, Number(rule.interval) || 1) / days));
+  }
+
+  // R95: a chore's bar — 0 right after the last time, full on its day ('due'), and 'late' once half an interval (at
+  // least a day) has passed. The deadline counts first, as on Redovne obaveze. Null without a date or a repeat.
+  function choreProgress(task, rule, today = dateOnly()) {
+    const date = task?.dueDate || task?.plannedDate;
+    const span = recurrenceSpanDays(rule);
+    const left = date && span ? daysBetween(today, date) : null;
+    if (left === null) return null;
+    return { span, left, fill: Math.min(1, Math.max(0, (span - left) / span)), state: left > 0 ? 'calm' : left >= -Math.max(1, Math.floor(span / 2)) ? 'due' : 'late' };
+  }
+
   // Settings stores 'monday'/'sunday'; older data and defaults use 0 (Sunday) or 1 (Monday).
   function weekStartKey(value) {
     return value === 'sunday' || value === 0 ? 'sunday' : 'monday';
@@ -2793,6 +2811,8 @@
     filterTodayTasks,
     deriveAnytime,
     projectStatus,
+    recurrenceSpanDays,
+    choreProgress,
     deriveUpcoming,
     deriveUpcomingV3,
     normalizePlannedMonth,

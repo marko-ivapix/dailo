@@ -82,8 +82,9 @@ test('6: Redovne obaveze and step 3 of Nedeljni pregled put the date under the t
   const tasksUi = read('js/tasks-ui.js');
   assert.doesNotMatch(tasksUi, /task-side|sideHtml/);
   assert.match(tasksUi, /options\.metaText != null \? \[options\.metaLead, esc\(options\.metaText\)\]\.filter\(Boolean\)\.join\(' · '\)/);
-  assert.match(app, /renderChoreRow\(task, options = \{\}\) \{ return taskRow\(task, 'cleaning', \{ today: true, metaText: options\.metaText, metaLead: options\.metaLead \}\); \},/);
-  assert.match(read('js/cleaning-ui.js'), /ctx\.renderChoreRow\(task, \{ metaText, metaLead: task\.isCompleted \? '' : when\(task\) \}\)/);
+  // R95: the row also carries the chore's bar.
+  assert.match(app, /renderChoreRow\(task, options = \{\}\) \{ return taskRow\(task, 'cleaning', \{ today: true, metaText: options\.metaText, metaLead: options\.metaLead, bar: options\.bar \}\); \},/);
+  assert.match(read('js/cleaning-ui.js'), /ctx\.renderChoreRow\(task, \{ metaText, metaLead: task\.isCompleted \? '' : when\(task\), bar: /);
   assert.match(rule('.review-day-row'), /display: grid; justify-items: start; gap: 2px;/);
 });
 

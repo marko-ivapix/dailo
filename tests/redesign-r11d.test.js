@@ -82,13 +82,15 @@ const rowIds = html => [...html.matchAll(/<row id="([^"]+)"/g)].map(match => mat
 
 test('S4: everything that repeats, with "Ove nedelje" first and groups, projects and "Bez grupe" after', () => {
   const html = render(context());
-  assert.match(html, /^<header title="Recurring tasks" subtitle="5 tasks repeat · 1 late"><\/header>/);
+  // R95: the header counts what is due now (its day has come), not what is late.
+  assert.match(html, /^<header title="Recurring tasks" subtitle="5 tasks repeat · 2 due now"><\/header>/);
   assert.deepEqual([...html.matchAll(/data-action="cleaning-filter" data-value="([^"]+)" aria-pressed="(\w+)">([^<]+)</g)].map(match => `${match[3]}${match[2] === 'true' ? '*' : ''}`), ['All*', 'Kupatilo', 'Auto', 'From projects']);
   assert.match(html, /<button class="quick-chip cleaning-add-group" type="button" data-action="new-cleaning-group">\+ Group<\/button>/);
   assert.deepEqual(sectionTitles(html), ['This week 4', 'Kupatilo 2', 'Auto 1', 'Finansije 1', 'No group 1']);
   const week = html.slice(html.indexOf('data-cleaning-section="week"'), html.indexOf('data-cleaning-section="g1"'));
   assert.deepEqual(rowIds(week), ['late', 'pay', 'loose', 'soon'], 'late or within 7 days, by date');
-  assert.match(week, /<row id="late" meta="Kupatilo · R:weekly" side='<span class="task-due is-overdue">Overdue · F:2026-10-08<\/span>'>/);
+  // R95: a passed day reads "Vreme je" in amber, not a red "Kasni".
+  assert.match(week, /<row id="late" meta="Kupatilo · R:weekly" side='<span class="task-due is-due-now">Time to do it · F:2026-10-08<\/span>'>/);
   assert.match(week, /<row id="pay" meta="Finansije · R:monthly" side='<span class="task-due is-today">Today<\/span>'>/);
   assert.match(week, /<row id="loose" meta="No group · R:daily" side='<span class="task-due">Tomorrow<\/span>'>/);
   assert.match(week, /<row id="soon" meta="Kupatilo · R:monthly" side='<span class="task-due">F:2026-10-14<\/span>'>/);
@@ -119,7 +121,8 @@ test('S4: chips filter, the done fold, archived groups with "Vrati", and the emp
   state.ui.cleaningRoomFilter = 'gone';
   assert.equal(sectionTitles(render(context(state)))[0], 'This week 4', 'an unknown filter falls back to "Sve"');
   const empty = render(context({ ...fixture(), projects: [], tasks: [] }));
-  assert.match(empty, /<div class="empty-state"><h3>No recurring tasks yet<\/h3><p>Make a group \(home, car, garden…\), then add chores that repeat\.<\/p><div class="sheet-chips cleaning-chips"><button class="quick-chip" type="button" data-action="add-cleaning-examples" data-cleaning-preset="apartment">Example: apartment<\/button><button class="quick-chip" type="button" data-action="add-cleaning-examples" data-cleaning-preset="house">Example: house<\/button><button class="quick-chip cleaning-add-group" type="button" data-action="new-cleaning-group">\+ Group<\/button><\/div><\/div>/);
+  // R95: the empty state also says how a chore differs from a repeating task.
+  assert.match(empty, /<div class="empty-state"><h3>No recurring tasks yet<\/h3><p>Make a group \(home, car, garden…\), then add chores that repeat\.<\/p><p>Unlike a repeating task, a chore has no strict deadline: its bar fills slowly until it is time, and doing it starts the bar again\.<\/p><div class="sheet-chips cleaning-chips"><button class="quick-chip" type="button" data-action="add-cleaning-examples" data-cleaning-preset="apartment">Example: apartment<\/button><button class="quick-chip" type="button" data-action="add-cleaning-examples" data-cleaning-preset="house">Example: house<\/button><button class="quick-chip cleaning-add-group" type="button" data-action="new-cleaning-group">\+ Group<\/button><\/div><\/div>/);
 });
 
 const act = (adapter, ctx, action, data = {}) => adapter.handleAction(action, { target: { closest: () => ({ dataset: data }) } }, ctx);
@@ -204,7 +207,8 @@ test('M4, S4: the Još row, and groups stay out of Zadaci → Projekti and Arhiv
   assert.match(app, /moreRow\('archived', 'ph-archive', tr\('Archived Projects'\), count\(state\.projects\.filter\(project => project\.isArchived && !project\.isCleaningRoom\)\)\)/);
   assert.match(read('js/projects-ui.js'), /isArchived && !project\.isCleaningRoom/);
   // R20: the chore's date leads its meta line instead of standing on the right (metaLead replaces sideHtml).
-  assert.match(app, /renderChoreRow\(task, options = \{\}\) \{ return taskRow\(task, 'cleaning', \{ today: true, metaText: options\.metaText, metaLead: options\.metaLead \}\); \}/);
+  // R95: the row also carries the chore's bar.
+  assert.match(app, /renderChoreRow\(task, options = \{\}\) \{ return taskRow\(task, 'cleaning', \{ today: true, metaText: options\.metaText, metaLead: options\.metaLead, bar: options\.bar \}\); \}/);
   const tasksUi = read('js/tasks-ui.js');
   // R14 (T3): the flag and due label moved into the meta line. R67: the rough month follows the due label.
   assert.match(tasksUi, /const meta = options\.metaText != null \? \[options\.metaLead, esc\(options\.metaText\)\]\.filter\(Boolean\)\.join\(' · '\) : flag \+ \[due, month, \.\.\.\[task\.plannedTime, place\]\.filter\(Boolean\)\.map\(esc\)\]\.filter\(Boolean\)\.join\(' · '\);/);

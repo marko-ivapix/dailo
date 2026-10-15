@@ -109,8 +109,7 @@ test('the new lines are Serbian; the guide explains the status and the next step
   assert.ok(read('uputstvo.html').includes('Projekat može biti <strong>Aktivan</strong>, <strong>Na čekanju</strong> ili za <strong>Nekad</strong> (biraš na vrhu projekta). Zadaci bez datuma iz projekata koji nisu aktivni ne stoje u „Kad stignem“. <strong>Sledeći korak</strong> projekta je njegov prvi otvoren zadatak: pomeri zadatak na vrh i on postaje sledeći.'));
 });
 
-test('R94 is released as 2.0.0-alpha.121', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.121');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.121';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.121');
+test('R94 shipped as 2.0.0-alpha.121 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 121) >= 121);
 });
