@@ -501,6 +501,8 @@
       row('habit-details-tracking', 'ph-check-square', tr('Tracking'), numeric ? `${tr('Numeric')} · ${habit.targetMode === 'atMost' ? tr('at most {target}', { target: amount }) : amount}` : tr('Checkbox')),
       row('habit-draft-frequency', 'ph-repeat', tr('Frequency'), frequency),
       row('habit-draft-reminders', 'ph-bell', tr('Reminders'), activeReminderTimes(ctx, habit).join(', ')),
+      // R106: the duration (R85) of an existing habit is changed here.
+      row('habit-details-duration', 'ph-timer', tr('Duration'), habit.durationMinutes ? `${habit.durationMinutes} ${tr('min')}` : '', tr('None')),
     ].join('');
     const advanced = [
       numeric ? row('habit-draft-quick', 'ph-lightning', tr('Quick values'), draftQuickValues(habit).map(value => `+${plainNumber(value)}`).join('  ')) : '',
@@ -536,6 +538,8 @@
     Object.assign(habit, fields, { updatedAt: nowIso() });
     // R93: only a numeric habit keeps a limit; "at least" is the usual target and has no field.
     if (numeric && d.targetMode === 'atMost') habit.targetMode = 'atMost'; else delete habit.targetMode;
+    // R106: a set duration is kept; a habit that never had one gets no empty field.
+    if (d.durationMinutes != null || Object.hasOwn(habit, 'durationMinutes')) habit.durationMinutes = d.durationMinutes ?? null;
     if (goalsChanged) syncHabitGoalLinks(habit, d.goalIds || []);
     ctx.modalState.draft = null;
     saveState();
@@ -558,6 +562,10 @@
   }
   function graceSheetHtml(ctx) {
     return `<div class="popover-title">${tr('Grace days')}</div>${sheetSubtitle(ctx)}<label class="sheet-field"><i class="ph ph-shield-check" aria-hidden="true"></i><span>${tr('Grace days')}</span><input id="habit-grace" class="input" type="number" min="0" step="1" value="${ctx.esc(sheet.value)}"></label><p class="sheet-note">${tr('Grace describes recovery; recorded check-ins and streaks stay unchanged.')}</p>${sheet.error ? `<p class="validation" role="alert">${ctx.esc(sheet.error)}</p>` : ''}${applyFooter('habit-grace-apply')}`;
+  }
+  // R106: minutes, empty for none.
+  function durationSheetHtml(ctx) {
+    return `<div class="popover-title">${tr('Duration')}</div>${sheetSubtitle(ctx)}<label class="sheet-field"><i class="ph ph-timer" aria-hidden="true"></i><span>${tr('Duration in minutes (blank = none)')}</span><input id="habit-details-duration-input" class="input" type="number" min="1" max="1440" step="1" inputmode="numeric" value="${ctx.esc(sheet.value)}" data-sheet-focus></label>${sheet.error ? `<p class="validation" role="alert">${ctx.esc(sheet.error)}</p>` : ''}${applyFooter('habit-duration-apply')}`;
   }
   function readTrackingInputs(ctx) {
     sheet.target = ctx.$('#habit-tracking-target')?.value ?? sheet.target;
@@ -605,6 +613,13 @@
       const value = Number(sheet.value);
       if (!Number.isInteger(value) || value < 0) { sheet.error = tr('Enter zero or more whole days.'); ctx.refreshSheet(graceSheetHtml(ctx)); return true; }
       d.graceDays = value; closeAndRender(); return true;
+    }
+    if (action === 'habit-details-duration') { sheet = { kind: 'duration', value: d.durationMinutes ?? '', error: '' }; showSheet(ctx, el, durationSheetHtml(ctx), 'habit-duration'); return true; }
+    if (action === 'habit-duration-apply' && sheet?.kind === 'duration') {
+      sheet.value = String(ctx.$('#habit-details-duration-input')?.value ?? sheet.value).trim();
+      const value = sheet.value === '' ? null : Number(sheet.value);
+      if (value !== null && !(Number.isInteger(value) && value >= 1 && value <= 1440)) { sheet.error = tr('Duration must be 1 to 1440 minutes.'); ctx.refreshSheet(durationSheetHtml(ctx)); return true; }
+      d.durationMinutes = value; closeAndRender(); return true;
     }
     if (action === 'habit-details-continuation') { sheet = { kind: 'continuation' }; showSheet(ctx, el, choiceSheetHtml(ctx, tr('Continuation'), 'habit-details-set-continuation', Object.entries(CONTINUATION_LABELS).map(([value, label]) => [value, tr(label)]), d.continuation || 'automatic'), 'habit-continuation'); return true; }
     if (action === 'habit-details-set-continuation') { if (CONTINUATION_LABELS[el.dataset.value]) d.continuation = el.dataset.value; closeAndRender(); return true; }
@@ -742,7 +757,7 @@
 
   // The window's own actions and its sheets; true when handled. In the details window (R8c) an opener starts from a
   // fresh draft of the habit, and a change to the draft saves at once.
-  const DETAIL_OPENERS = new Set(['habit-details-name', 'habit-draft-start', 'habit-draft-area', 'habit-details-routine', 'habit-details-tracking', 'habit-draft-quick', 'habit-draft-frequency', 'habit-draft-reminders', 'habit-draft-targets', 'habit-details-grace', 'habit-details-continuation', 'habit-draft-end', 'habit-draft-goals']);
+  const DETAIL_OPENERS = new Set(['habit-details-name', 'habit-draft-start', 'habit-draft-area', 'habit-details-routine', 'habit-details-tracking', 'habit-draft-quick', 'habit-draft-frequency', 'habit-draft-reminders', 'habit-draft-targets', 'habit-details-grace', 'habit-details-duration', 'habit-details-continuation', 'habit-draft-end', 'habit-draft-goals']);
   function handleHabitWindowAction(action, el, ctx) {
     const details = ctx.modalState?.type === 'habit-details';
     if (details && DETAIL_OPENERS.has(action)) {
