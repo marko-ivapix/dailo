@@ -24,7 +24,8 @@ function moreScreen(state) {
     esc: value => String(value),
   });
   vm.createContext(context);
-  vm.runInContext(`${functionSource('moreRow').source}\n${functionSource('renderMoreScreen').source}\nthis.renderMoreScreen = renderMoreScreen;`, context);
+  // R103b: Undo snapshots and the Još count include the archived tasks (historyTasks); none are archived here.
+  vm.runInContext(`let archivedTasks = [];\n${functionSource('historyTasks').source}\n${functionSource('moreRow').source}\n${functionSource('renderMoreScreen').source}\nthis.renderMoreScreen = renderMoreScreen;`, context);
   return context.renderMoreScreen();
 }
 

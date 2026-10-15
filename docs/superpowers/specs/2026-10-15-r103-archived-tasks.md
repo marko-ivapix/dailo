@@ -24,7 +24,8 @@
 - it has **no project**, so project bars, "N done" and the Completed fold of a project stay exactly as they were;
 - it has no files (`attachmentIds`): files are kept only for the owners in the state;
 - it has no goals (`goalIds`), so goal progress is unchanged;
-- **nothing else in the data names its id.** Every string in the state is counted, and the task's own fields are subtracted. A resource's related tasks, a goal's tasks, another task's `recurrenceSuccessorId` or the settings each keep a task live, so no reference ever dangles. Startup (`validateStateV3`) and backups (`validateDomain`) therefore keep passing.
+- **nothing else in the data names its id.** Every string in the state is counted, and the task's own fields are subtracted. A resource's related tasks, a goal's tasks or the settings each keep a task live. Startup (`validateStateV3`) and backups (`validateDomain`) therefore keep passing.
+- The task's own references to tags and its area could still dangle when one is deleted later. R103b handles that (below).
 
 ## When and how
 
@@ -102,3 +103,34 @@ These are tasks older than 180 days without a project:
   - the phone (the IndexedDB upgrade in the WebView and the file mirror);
   - two devices with sync, one with archived tasks;
   - a restore of a ZIP made before R103 on a device with an archive.
+
+## R103b — fixes from the review (`2.0.0-alpha.132`)
+
+A read-only review of R103 found these, and each is fixed:
+
+1. **A deleted tag or area broke backups (high).**
+   - **What happened:** an archived task kept the deleted tag or area. Every ZIP, and so every Reset and Restore with its safety ZIP, failed with "Invalid backup: … reference". Opening such a task with a deleted area made saving fail.
+   - **Now:**
+     - Deleting a tag or an area brings its archived tasks back first (`requestDeleteEntity`), so the delete and its Undo cover them.
+     - `Core.pruneArchivedTask` drops tags and areas that no longer exist, for example after a deletion on another device. It runs:
+       - when the archive loads, and writes the corrected copy back;
+       - after a sync;
+       - when a task comes back;
+       - in the ZIP.
+2. **Undo could delete a task that had come back from the archive (medium).** This was Undo after "Sve na sutra", "Zatvori dan → sutra", an `.ics` import or a series edit. `snapshotTasks` now records the ids of the live and archived tasks together.
+3. **"Obriši završene" could bring deleted tasks back (medium).** If the state with the archived tasks could not be saved (a full storage), `unarchiveAll` now changes nothing and returns false, and clearing stops.
+4. **Poništi after restoring one archived task always failed (medium-low).** The kept archive now leaves out the tasks the restore brings into the state, so the store matches what the recovery copy recorded.
+5. **A failed archive write during sync was never repaired (low-medium).** The writes now set `archiveFailed` and fail the round. Sync stays off until the next start, and the same rows come again.
+6. **Tasks bounced between the archive and the state (low).** After a sync only the records that are not archived count as naming a task (`splitArchived`), as at archiving.
+7. **A failed archive load showed the old archive after a Reset (low).** `loadArchive` empties the memory archive first.
+8. **Counts (low):** the Još tile and the "Obriši završene zadatke" card count the archived tasks too.
+9. **Repeating tasks were never archived (design gap).** The links inside a series (`recurrence.seriesId`, `recurrenceSuccessorId`) are only compared or checked for presence and never looked up, so they no longer count as naming a task. The done occurrences of a repeating task without a project are archived now, the main growth this step was for.
+
+**Left as notes:**
+- A ZIP restore writes every task into the state first; a ZIP whose tasks fit only with the archive may need a reload after the restore.
+- A failed archive read stops sync without its own message.
+
+**Checks:**
+- `tests/archive-r103b.test.js`, written first; it failed 5/5.
+- `archive-r103` was updated with comments: the series link no longer keeps "named" live, plus the changed shapes and the version pin.
+- Chromium: see the ledger row.

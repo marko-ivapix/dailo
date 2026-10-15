@@ -2292,38 +2292,52 @@
   const ARCHIVE_AFTER_DAYS = 180;
 
   // R103: the ids of the tasks that can be archived: completed at least `days` ago, without a project (project bars and
-  // counts stay the same), files or goals, and named nowhere else in the data (a goal, a resource, another task's
-  // successor, a setting…), so moving them out leaves no dangling reference.
+  // counts stay the same), files or goals, and named nowhere else in the data (a goal, a resource, a setting…), so
+  // moving them out leaves no dangling reference. R103b: the links inside a repeating series (recurrence.seriesId and
+  // recurrenceSuccessorId) are only compared or checked for presence, never looked up, so they do not count.
+  const ARCHIVE_IGNORED_KEYS = new Set(['seriesId', 'recurrenceSuccessorId']);
+  function countArchiveRefs(value, into) {
+    if (typeof value === 'string') into.set(value, (into.get(value) || 0) + 1);
+    else if (Array.isArray(value)) value.forEach(item => countArchiveRefs(item, into));
+    else if (value && typeof value === 'object') for (const [key, item] of Object.entries(value)) if (!ARCHIVE_IGNORED_KEYS.has(key)) countArchiveRefs(item, into);
+    return into;
+  }
+  function archiveQualifies(task, cutoff) {
+    if (!task?.isCompleted || task.projectId || (task.attachmentIds || []).length || (task.goalIds || []).length) return false;
+    const day = localDateOf(String(task.completedAt || ''));
+    return Boolean(day) && day <= cutoff;
+  }
   function archivableTaskIds(state, today = dateOnly(), days = ARCHIVE_AFTER_DAYS) {
     const cutoff = addDays(today, -days);
-    const count = (value, into) => {
-      if (typeof value === 'string') into.set(value, (into.get(value) || 0) + 1);
-      else if (Array.isArray(value)) value.forEach(item => count(item, into));
-      else if (value && typeof value === 'object') Object.values(value).forEach(item => count(item, into));
-      return into;
-    };
-    const everywhere = count(state, new Map());
-    return (state?.tasks || []).filter(task => {
-      if (!task?.isCompleted || task.projectId || (task.attachmentIds || []).length || (task.goalIds || []).length) return false;
-      const day = localDateOf(String(task.completedAt || ''));
-      if (!day || day > cutoff) return false;
-      return (everywhere.get(task.id) || 0) === (count(task, new Map()).get(task.id) || 0);
-    }).map(task => task.id);
+    const everywhere = countArchiveRefs(state, new Map());
+    return (state?.tasks || []).filter(task => archiveQualifies(task, cutoff)
+      && (everywhere.get(task.id) || 0) === (countArchiveRefs(task, new Map()).get(task.id) || 0)).map(task => task.id);
   }
 
   // R103: after a sync merged the archived tasks in with the rest, which stay archived (still archivable), which come
-  // back (changed so they no longer qualify) and which were deleted on another device.
+  // back (changed so they no longer qualify, or named by a live record) and which were deleted on another device.
+  // R103b: only the records that are not archived count as naming a task, as when it was archived.
   function splitArchived(tasks, archivedIds, state, today = dateOnly()) {
     const archivedSet = new Set(archivedIds || []);
-    const archivable = new Set(archivableTaskIds(state, today));
+    const cutoff = addDays(today, -ARCHIVE_AFTER_DAYS);
+    const named = countArchiveRefs({ ...state, tasks: (state?.tasks || []).filter(task => !archivedSet.has(task.id)) }, new Map());
     const live = [], archived = [], unarchived = [];
     for (const task of tasks || []) {
       if (!archivedSet.has(task.id)) live.push(task);
-      else if (archivable.has(task.id)) archived.push(task);
+      else if (archiveQualifies(task, cutoff) && !named.get(task.id)) archived.push(task);
       else { live.push(task); unarchived.push(task.id); }
     }
     const present = new Set((tasks || []).map(task => task.id));
     return { live, archived, unarchived, removed: [...archivedSet].filter(id => !present.has(id)) };
+  }
+
+  // R103b: an archived task keeps only the tags and the area that still exist (they can be deleted on another device
+  // or before this step), so it never brings a dangling reference into a backup or back into the state.
+  function pruneArchivedTask(task, state) {
+    const tags = new Set((state?.tags || []).map(tag => tag.id)), areas = new Set((state?.areas || []).map(area => area.id));
+    const tagIds = (task.tagIds || []).filter(id => tags.has(id));
+    const areaId = task.areaId && !areas.has(task.areaId) ? null : task.areaId;
+    return tagIds.length === (task.tagIds || []).length && areaId === task.areaId ? task : { ...task, tagIds, areaId };
   }
 
   // R101: what was done — the tasks completed this month, last month and this year, the best day this month (the earliest
@@ -2963,6 +2977,7 @@
     ARCHIVE_AFTER_DAYS,
     archivableTaskIds,
     splitArchived,
+    pruneArchivedTask,
     JOURNAL_QUESTIONS,
     journalQuestion,
     completedOn,

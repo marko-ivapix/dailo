@@ -31,7 +31,8 @@ function harness(tasks, { time = '21:00', settings = {}, later = null } = {}) {
     setUndo: (message, undo) => { calls.push(['undo', message]); ctx.undo = undo; },
   });
   vm.createContext(ctx);
-  vm.runInContext(`${app.match(/  const CLOSE_DAY_LATER_KEY = [^\n]+/)[0]}\n${['snapshotTasks', 'restoreTasks', 'closeDayOpenTasks', 'closeDayNotice', 'moveTodayToTomorrow'].map(fn).join('\n')}`, ctx);
+  // R103b: Undo snapshots and the Još count include the archived tasks (historyTasks); none are archived here.
+  vm.runInContext(`let archivedTasks = [];\n${app.match(/  const CLOSE_DAY_LATER_KEY = [^\n]+/)[0]}\n${['historyTasks', 'snapshotTasks', 'restoreTasks', 'closeDayOpenTasks', 'closeDayNotice', 'moveTodayToTomorrow'].map(fn).join('\n')}`, ctx);
   return { ctx, calls, storage };
 }
 

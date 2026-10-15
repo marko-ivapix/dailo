@@ -69,7 +69,8 @@
     // the next start archives the old ones again. A task both live and archived counts once (the live one).
     const archived = storage.archivedTasks ? await storage.archivedTasks.listAll() : [];
     const live = new Set(state.tasks.map(task => task.id));
-    state.tasks = [...state.tasks, ...deepClone(archived).filter(task => !live.has(task.id))];
+    // R103b: an archived task keeps only the tags and the area that still exist, so a deleted one never blocks the ZIP.
+    state.tasks = [...state.tasks, ...deepClone(archived).filter(task => !live.has(task.id)).map(task => root.TodoCore.pruneArchivedTask(task, state))];
     const JSZip = requireZip();
     const zip = new JSZip();
     const used = new Set();

@@ -30,7 +30,8 @@ function harness(tasks) {
     setUndo: (message, undo) => { calls.push(['undo', message]); ctx.undo = undo; }, setToastMessage: text => calls.push(['toast', text]),
   });
   vm.createContext(ctx);
-  vm.runInContext(['snapshotTasks', 'restoreTasks', 'overdueMoveChanges', 'moveAllOverdueToTomorrow'].map(fn).join('\n'), ctx);
+  // R103b: Undo snapshots and the Još count include the archived tasks (historyTasks); none are archived here.
+  vm.runInContext(['historyTasks', 'snapshotTasks', 'restoreTasks', 'overdueMoveChanges', 'moveAllOverdueToTomorrow'].map(fn).join('\n') + '\nlet archivedTasks = [];', ctx);
   return { ctx, calls };
 }
 

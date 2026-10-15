@@ -1486,7 +1486,7 @@
       moreRow('saved-views', 'ph-funnel', tr('Saved Views'), count(state.savedViews)),
     ]);
     html += card(tr('Archives'), [
-      moreRow('completed', 'ph-check-circle', tr('Completed tasks'), count(state.tasks.filter(task => task.isCompleted))),
+      moreRow('completed', 'ph-check-circle', tr('Completed tasks'), count(historyTasks().filter(task => task.isCompleted))),
       moreRow('archived', 'ph-archive', tr('Archived Projects'), count(state.projects.filter(project => project.isArchived && !project.isCleaningRoom))),
     ]);
     // R15 (M5 amended): Nalog sits next to Podešavanja and carries the account state.
@@ -1683,7 +1683,7 @@
     const project = allProjects().find(item => item.id === projectId);
     const period = (days, label) => `<button class="quick-chip${periodDays === days ? ' is-selected' : ''}" type="button" data-action="completed-period" data-value="${days}" aria-pressed="${periodDays === days}">${label}</button>`;
     html += `<div class="sheet-chips completed-chips"><button class="quick-chip${project ? ' is-selected' : ''}" type="button" data-action="completed-project">${esc(project?.name || tr('All projects'))} <i class="ph ph-caret-down" aria-hidden="true"></i></button>${period(0, tr('All time'))}${period(7, tr('7 days'))}${period(30, tr('30 days'))}</div>`;
-    const clear = state.tasks.some(task => task.isCompleted) ? `<div class="today-card completed-clear"><button class="completed-clear-row" type="button" data-action="clear-completed"><i class="ph ph-trash" aria-hidden="true"></i><span class="completed-clear-main"><span class="task-title">${tr('Clear completed tasks')}</span><span class="task-meta">${tr('Permanently delete all completed tasks and their attachments.')}</span></span></button></div>` : '';
+    const clear = historyTasks().some(task => task.isCompleted) ? `<div class="today-card completed-clear"><button class="completed-clear-row" type="button" data-action="clear-completed"><i class="ph ph-trash" aria-hidden="true"></i><span class="completed-clear-main"><span class="task-title">${tr('Clear completed tasks')}</span><span class="task-meta">${tr('Permanently delete all completed tasks and their attachments.')}</span></span></button></div>` : '';
     if (!tasks.length) return html + emptyState(tr('No completed tasks match these filters.'), tr('Try a different project or time period.')) + clear;
     const groups = new Map();
     for (const task of tasks) {
@@ -3584,7 +3584,8 @@
   }
   // Copies of the tasks an action may change, and of the ids that existed, for Undo.
   function snapshotTasks(items) {
-    return { copies: items.map(item => copyTemplate(item)), ids: new Set(state.tasks.map(item => item.id)) };
+    // R103b: a task that came back from the archive meanwhile is not taken for a new one.
+    return { copies: items.map(item => copyTemplate(item)), ids: new Set(historyTasks().map(item => item.id)) };
   }
   function restoreTasks(snapshot) {
     const copies = new Map(snapshot.copies.map(item => [item.id, item]));
@@ -3851,6 +3852,8 @@
   function requestDeleteEntity(type, identity, { returnTo = null } = {}) {
     if (!state || undoHold) return;
     flushTextSave();
+    // R103b: archived tasks with this tag or area come back first, so the delete and its Undo cover them too.
+    if (type === 'tag' || type === 'area') archivedTasks.filter(item => (type === 'tag' ? (item.tagIds || []).includes(identity) : item.areaId === identity)).forEach(item => unarchiveTask(item.id));
     const source = state, located = locateDeleteEntity(type, identity);
     if (!located) { setToastMessage(tr('Delete unavailable. Reopen the current item and try again.')); return; }
     if (type === 'clear-completed' && !state.tasks.some(task => task.isCompleted)) { setToastMessage(tr('No completed tasks to clear')); return; }
@@ -4901,13 +4904,19 @@
   let archivedTasks = [], archiveFailed = false;
   // The archive in memory: what IndexedDB holds, less any task that is live again (the live one wins and the stale
   // copy leaves the store).
+  // R103b: an archive that could not be read shows nothing (never the one before a reset); a task keeps only the tags
+  // and the area that still exist, and such a corrected copy is written back.
   async function loadArchive() {
-    archiveFailed = true;
+    archiveFailed = true; archivedTasks = [];
     const stored = await TodoStorage.archivedTasks.listAll();
     const live = new Set((state?.tasks || []).map(item => item.id));
-    archivedTasks = stored.filter(item => !live.has(item.id));
+    const kept = stored.filter(item => !live.has(item.id));
+    const pruned = kept.map(item => Core.pruneArchivedTask(item, state));
     const stale = stored.filter(item => live.has(item.id)).map(item => item.id);
     if (stale.length) await TodoStorage.archivedTasks.deleteMany(stale);
+    const corrected = pruned.filter((item, index) => item !== kept[index]);
+    if (corrected.length) await TodoStorage.archivedTasks.putMany(corrected);
+    archivedTasks = pruned;
     archiveFailed = false;
   }
   function historyTasks() {
@@ -4938,17 +4947,21 @@
 
   // R103: any action on an archived task brings it back first (the live one is saved before the archived copy goes).
   function unarchiveTask(id) {
-    const item = archivedTasks.find(entry => entry.id === id);
-    if (!item || state.tasks.some(entry => entry.id === id)) return;
+    const found = archivedTasks.find(entry => entry.id === id);
+    if (!found || state.tasks.some(entry => entry.id === id)) return;
+    const item = Core.pruneArchivedTask(found, state);
     state.tasks.push(item); archivedTasks = archivedTasks.filter(entry => entry.id !== id);
     if (saveState()) TodoStorage.archivedTasks.deleteMany([id]).catch(console.error);
   }
+  // R103b: when the state with them cannot be saved, nothing changes and the caller stops.
   function unarchiveAll() {
-    if (!archivedTasks.length) return;
-    const ids = archivedTasks.map(item => item.id);
+    if (!archivedTasks.length) return true;
+    const archived = archivedTasks, previous = state.tasks;
     const live = new Set(state.tasks.map(item => item.id));
-    state.tasks.push(...archivedTasks.filter(item => !live.has(item.id))); archivedTasks = [];
-    if (saveState()) TodoStorage.archivedTasks.deleteMany(ids).catch(console.error);
+    state.tasks = [...state.tasks, ...archived.filter(item => !live.has(item.id)).map(item => Core.pruneArchivedTask(item, state))]; archivedTasks = [];
+    if (!saveState()) { state.tasks = previous; archivedTasks = archived; return false; }
+    TodoStorage.archivedTasks.deleteMany(archived.map(item => item.id)).catch(console.error);
+    return true;
   }
 
   function scheduleSync(delay = 3000) {
@@ -5008,14 +5021,19 @@
     try {
       // Records new to this device do not replay their past reminders here (audit R-3).
       state = normalizeState(Core.settleArrivedReminders(previous, Core.pruneDanglingReferences({ ...result.state, tasks: split.live }), nowIso()));
-      archivedTasks = split.archived;
+      // R103b: an archived task keeps only the tags and the area that still exist.
+      const kept = split.archived.map(item => Core.pruneArchivedTask(item, state));
+      archivedTasks = kept;
       if (!saveState()) { state = previous; archivedTasks = previousArchive; throw new Error(msg('Changes could not be saved locally. Try again.')); }
     } finally { applyingSync = false; }
-    // Only the archived tasks that arrived changed are written again.
-    const before = new Map(previousArchive.map(item => [item.id, JSON.stringify(item)]));
-    const changed = split.archived.filter(item => before.get(item.id) !== JSON.stringify(item));
-    if (changed.length) await TodoStorage.archivedTasks.putMany(changed);
-    if (split.unarchived.length || split.removed.length) await TodoStorage.archivedTasks.deleteMany([...split.unarchived, ...split.removed]);
+    // Only the archived tasks that arrived changed are written again. R103b: a failed write stops sync until the next
+    // start, and the round does not move on, so the same rows come again.
+    try {
+      const before = new Map(previousArchive.map(item => [item.id, JSON.stringify(item)]));
+      const changed = archivedTasks.filter(item => before.get(item.id) !== JSON.stringify(item));
+      if (changed.length) await TodoStorage.archivedTasks.putMany(changed);
+      if (split.unarchived.length || split.removed.length) await TodoStorage.archivedTasks.deleteMany([...split.unarchived, ...split.removed]);
+    } catch (error) { archiveFailed = true; throw error; }
     if (result.habitLogDeletes.length) await TodoStorage.habitLogs.deleteMany(result.habitLogDeletes);
     // R46: files deleted on another device leave this one (their owners already dropped them above).
     if (result.fileDeletes?.length) await TodoStorage.attachments.deleteMany(result.fileDeletes);
@@ -5853,7 +5871,7 @@
 
   // R103: the archived completed tasks go too, so they come back into the list first.
   function clearCompleted() {
-    unarchiveAll();
+    if (!unarchiveAll()) return;
     requestDeleteEntity('clear-completed', null);
   }
 
@@ -6087,7 +6105,8 @@
         : { state: createEmptyState(), attachmentRecords: [], habitLogs: [], goalHistory: [] };
       // R103: a reset empties the archive and a restore brings every task into the state (the ZIP holds them all);
       // restoring one item leaves the archive as it is.
-      op.validated.archivedTasks = selection ? op.payload.archivedTasks || [] : [];
+      // R103b: an archived task that the restore brings into the state leaves the kept archive.
+      op.validated.archivedTasks = selection ? (op.payload.archivedTasks || []).filter(item => !op.validated.state.tasks.some(entry => entry.id === item.id)) : [];
       // R75: a sealed journal opens with this device's key for the backup's cipher, or with the password at confirmation.
       op.sealedJournal = op.validated.sealedJournal || []; delete op.validated.sealedJournal;
       const storedKey = op.sealedJournal.length ? await storedJournalKeyFor(op.validated.state.settings?.journalCipher) : null;

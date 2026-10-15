@@ -40,8 +40,9 @@ test('which tasks are archived: completed 180 days ago, no project, no files, no
     ],
     resources: [{ id: 'r', title: 'r', relatedTaskIds: ['resource'] }],
   });
-  assert.deepEqual(Core.archivableTaskIds(state, TODAY), ['old']);
-  assert.deepEqual(Core.archivableTaskIds(state, TODAY, 1).sort(), ['old', 'recent', 'successor'], 'the age is a parameter; "named" stays, another task names it');
+  // R103b: a series link (recurrenceSuccessorId) is never looked up, so it no longer keeps "named" live; the resource does.
+  assert.deepEqual(Core.archivableTaskIds(state, TODAY), ['old', 'named']);
+  assert.deepEqual(Core.archivableTaskIds(state, TODAY, 1).sort(), ['named', 'old', 'recent', 'successor'], 'the age is a parameter');
 });
 
 test('after a sync, an archived task stays archived, comes back when it changed, and goes when it was deleted', () => {
@@ -93,7 +94,8 @@ test('sync sees archived tasks as present: no deletion is sent for them', () => 
   assert.match(functionSource('runSync').source, /if \(!state \|\| recovery \|\| globalOperation \|\| startupPromise \|\| storageError \|\| staleDataNotice \|\| archiveFailed\) return;/);
   const apply = functionSource('applySyncResult').source;
   assert.match(apply, /const split = archivedTasks\.length \? Core\.splitArchived\(result\.state\.tasks, archivedTasks\.map\(item => item\.id\), result\.state, Core\.dateOnly\(\)\)\n\s+: \{ live: result\.state\.tasks, archived: \[\], unarchived: \[\], removed: \[\] \};/);
-  assert.match(apply, /const changed = split\.archived\.filter\(item => before\.get\(item\.id\) !== JSON\.stringify\(item\)\);\n\s+if \(changed\.length\) await TodoStorage\.archivedTasks\.putMany\(changed\);/);
+  // R103b: the archived tasks kept after the split (with gone tags and areas dropped) are what is compared and written.
+  assert.match(apply, /const changed = archivedTasks\.filter\(item => before\.get\(item\.id\) !== JSON\.stringify\(item\)\);\n\s+if \(changed\.length\) await TodoStorage\.archivedTasks\.putMany\(changed\);/);
   assert.match(apply, /await TodoStorage\.archivedTasks\.deleteMany\(\[\.\.\.split\.unarchived, \.\.\.split\.removed\]\);/);
   assert.match(apply, /state = normalizeState\(Core\.settleArrivedReminders\(previous, Core\.pruneDanglingReferences\(\{ \.\.\.result\.state, tasks: split\.live \}\), nowIso\(\)\)\);/);
 });
@@ -101,13 +103,15 @@ test('sync sees archived tasks as present: no deletion is sent for them', () => 
 test('the app loads the archive before sync, archives at start, and brings a task back on any action', () => {
   const app = read('js/app.js');
   assert.match(functionSource('drainReady').source, /try \{ await loadArchive\(\); \} catch \(error\) \{ archiveFailed = true; console\.error\(error\); \}/);
-  assert.match(functionSource('loadArchive').source, /archiveFailed = true;\n[\s\S]*archiveFailed = false;/);
+  // R103b: the memory archive empties while it loads, so a failure never shows the one before.
+  assert.match(functionSource('loadArchive').source, /archiveFailed = true; archivedTasks = \[\];\n[\s\S]*archiveFailed = false;/);
   assert.match(functionSource('init').source, /await startReady\(\);\n[\s\S]*?await archiveOldTasks\(\)\.catch\(console\.error\);\n[\s\S]*?startSync\(\);/);
   const archive = functionSource('archiveOldTasks').source;
   assert.match(archive, /const ids = new Set\(Core\.archivableTaskIds\(state, Core\.dateOnly\(\)\)\);/);
   assert.match(archive, /await TodoStorage\.archivedTasks\.putMany\(moving\);/);
   assert.match(archive, /if \(!saveState\(\)\) \{ state\.tasks = previous; await TodoStorage\.archivedTasks\.deleteMany\(\[\.\.\.movedIds\]\); return 0; \}/);
-  assert.match(functionSource('loadArchive').source, /archivedTasks = stored\.filter\(item => !live\.has\(item\.id\)\);/);
+  // R103b: the kept tasks pass through pruneArchivedTask before they become the memory archive.
+  assert.match(functionSource('loadArchive').source, /const kept = stored\.filter\(item => !live\.has\(item\.id\)\);/);
   assert.match(functionSource('historyTasks').source, /return \[\.\.\.state\.tasks, \.\.\.archivedTasks\];/);
   assert.match(functionSource('searchResultsHtml').source, /Core\.searchItems\(historyTasks\(\), state\.projects, query\)/);
   assert.match(functionSource('renderCompleted').source, /Core\.filterCompleted\(historyTasks\(\), \{ projectId, periodDays \}, nowIso\(\)\)/);
@@ -115,13 +119,15 @@ test('the app loads the archive before sync, archives at start, and brings a tas
   assert.match(functionSource('unarchiveTask').source, /state\.tasks\.push\(item\); archivedTasks = archivedTasks\.filter\(entry => entry\.id !== id\);/);
   assert.match(app, /if \(el\?\.dataset\?\.taskId\) unarchiveTask\(el\.dataset\.taskId\);/);
   assert.match(functionSource('openTaskDetail').source, /unarchiveTask\(taskId\);/);
-  assert.match(functionSource('clearCompleted').source, /unarchiveAll\(\);\n\s+requestDeleteEntity\('clear-completed', null\);/);
+  // R103b: when the archived tasks cannot come back, clearing stops.
+  assert.match(functionSource('clearCompleted').source, /if \(!unarchiveAll\(\)\) return;\n\s+requestDeleteEntity\('clear-completed', null\);/);
 });
 
 test('reset, restore, the safety ZIP and the phone mirror include the archive', () => {
   const begin = functionSource('beginGlobalOperation').source;
   assert.match(begin, /archivedTasks: \{ listAll: async \(\) => op\.payload\.archivedTasks \|\| \[\] \}/);
-  assert.match(begin, /op\.validated\.archivedTasks = selection \? op\.payload\.archivedTasks \|\| \[\] : \[\];/);
+  // R103b: a task the one-item restore brings into the state leaves the kept archive (tests/archive-r103b.test.js).
+  assert.match(begin, /op\.validated\.archivedTasks = selection \? \(op\.payload\.archivedTasks \|\| \[\]\)\.filter\(/);
   assert.match(functionSource('verifyGlobalReplacement').source, /archivedTasks: next\.archivedTasks/);
   const commit = functionSource('commitGlobalOperation').source;
   assert.match(commit, /goalHistory: op\.validated\.goalHistory, archivedTasks: op\.validated\.archivedTasks \} \}\);/);
@@ -139,8 +145,7 @@ test('the rules and the pages say IndexedDB v2; the guide and Šta je novo expla
   assert.ok(read('novo.html').includes('<li><strong>Stari završeni zadaci u arhivi.</strong>'));
 });
 
-test('R103 is released as 2.0.0-alpha.131', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.131');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.131';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.131');
+test('R103 shipped as 2.0.0-alpha.131 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 131) >= 131);
 });

@@ -28,7 +28,8 @@ function moreScreen(sync) {
  sortedAreas: () => [], syncView: () => sync, backupReminderNotice: () => '' /* R83: the backup card sits at the top of Još */, pageHeader: title => `<header>${title}</header>`, isOpenRepeating: () => false, formatReminder: value => value });
   vm.createContext(ctx);
   // R80: the Nalog line comes from syncStatus.
-  vm.runInContext(`${fn('moreRow')}${fn('renderMoreScreen')}${fn('syncStatus')}`, ctx);
+  // R103b: Undo snapshots and the Još count include the archived tasks (historyTasks); none are archived here.
+  vm.runInContext(`let archivedTasks = [];\n${fn('historyTasks')}${fn('moreRow')}${fn('renderMoreScreen')}${fn('syncStatus')}`, ctx);
   return ctx.renderMoreScreen();
 }
 
