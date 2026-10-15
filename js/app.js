@@ -1326,7 +1326,7 @@
     }
     if (!saveState()) { restoreTasks(snapshot); render(); setToastMessage(tr('Changes could not be saved locally. Try again.')); return; }
     render();
-    setUndo(msg('Past-due tasks moved to tomorrow'), () => { restoreTasks(snapshot); saveState(); render(); });
+    setUndo(msg('Past-due tasks moved to tomorrow'), () => { restoreCopies(snapshot); saveState(); render(); });
   }
   // R83: "Sredi jedan po jedan" — the past-due tasks one at a time, as Razvrstaj redom does for Inbox.
   function openOverdueTriage() {
@@ -1358,7 +1358,8 @@
   function closeDayNotice() {
     const now = new Date(nowIso()), today = Core.dateOnly();
     const [hours, minutes] = (Core.journalReminderTime(state.settings) || '20:00').split(':').map(Number);
-    if (Core.dateOnly(now) !== today || now.getHours() * 60 + now.getMinutes() < hours * 60 + minutes) return '';
+    // R105: never before 18:00, even with a morning journal reminder.
+    if (Core.dateOnly(now) !== today || now.getHours() * 60 + now.getMinutes() < Math.max(hours * 60 + minutes, 18 * 60)) return '';
     const open = closeDayOpenTasks();
     if (!open.length) return '';
     try { if (localStorage.getItem(CLOSE_DAY_LATER_KEY) === today) return ''; } catch (_) { /* shown when storage is unavailable */ }
@@ -1377,7 +1378,7 @@
     }
     if (!saveState()) { restoreTasks(snapshot); render(); setToastMessage(tr('Changes could not be saved locally. Try again.')); return; }
     render();
-    setUndo(msg('Unfinished tasks moved to tomorrow'), () => { restoreTasks(snapshot); saveState(); render(); });
+    setUndo(msg('Unfinished tasks moved to tomorrow'), () => { restoreCopies(snapshot); saveState(); render(); });
   }
   function openCloseDayPass() {
     captureModalReturnFocus();
@@ -1965,7 +1966,9 @@
   }
 
   function habitDraft(habit = null, areaId = null) {
-    return { name: habit?.name || '', areaId: habit?.areaId || areaId || null, routine: habit?.routine || 'daily', goalIds: [...(habit?.goalIds || [])], trackingType: habit?.trackingType || 'checkbox', targetValue: habit?.targetValue ?? 1, ...(habit?.targetMode === 'atMost' ? { targetMode: 'atMost' } : {}), minimumTarget: habit?.minimumTarget ?? null, idealTarget: habit?.idealTarget ?? null, graceDays: habit?.graceDays ?? 0, unit: habit?.unit || '', quickValues: (habit?.quickValues || []).join(','), frequencyType: habit?.frequencyType || 'daily', weekdays: habit?.weekdays || [1, 2, 3, 4, 5], timesPerWeek: habit?.timesPerWeek || 4, everyNDays: habit?.everyNDays || 2, startDate: habit?.startDate || Core.dateOnly(), continuation: habit?.continuation || 'automatic', endType: habit?.endType || 'never', endDate: habit?.endDate || '', successfulPeriodsTarget: habit?.successfulPeriodsTarget || '', reminders: (habit?.reminders || []).map(item => ({ ...item })) };
+    return { name: habit?.name || '', areaId: habit?.areaId || areaId || null, routine: habit?.routine || 'daily', goalIds: [...(habit?.goalIds || [])], trackingType: habit?.trackingType || 'checkbox', targetValue: habit?.targetValue ?? 1, ...(habit?.targetMode === 'atMost' ? { targetMode: 'atMost' } : {}), minimumTarget: habit?.minimumTarget ?? null, idealTarget: habit?.idealTarget ?? null, graceDays: habit?.graceDays ?? 0, unit: habit?.unit || '', quickValues: (habit?.quickValues || []).join(','), frequencyType: habit?.frequencyType || 'daily', weekdays: habit?.weekdays || [1, 2, 3, 4, 5], timesPerWeek: habit?.timesPerWeek || 4, everyNDays: habit?.everyNDays || 2, startDate: habit?.startDate || Core.dateOnly(), continuation: habit?.continuation || 'automatic', endType: habit?.endType || 'never', endDate: habit?.endDate || '', successfulPeriodsTarget: habit?.successfulPeriodsTarget || '', reminders: (habit?.reminders || []).map(item => ({ ...item })),
+      // R105: the duration is part of the draft, so saving from "Više opcija" keeps it.
+      durationMinutes: habit?.durationMinutes ?? null };
   }
 
   function openHabitModal(habitId = null, context = {}) {
@@ -2005,9 +2008,9 @@
   }
 
   // R36 (C): the Inbox add row files a title straight into Inbox (#tags and !priority still count) and stays ready
-  // for the next one.
+  // for the next one. R105: only those are read; every other word (a repeat, a time, +project, @area) stays in the title.
   function addToInbox(rawTitle) {
-    const parsed = parseQuickAddTitle(String(rawTitle || ''), false);
+    const parsed = Core.parseQuickAdd(String(rawTitle || ''), { today: Core.dateOnly(), tags: state.tags || [], slots: [] });
     const title = String(parsed.title || '').trim();
     if (!title) return false;
     state.tasks.push(newTaskRecord({ title, tagIds: [...(parsed.tagIds || [])], priority: parsed.priority || 'none', isInbox: true, inboxOrder: nextOrder('inbox', true) }));
@@ -2332,7 +2335,8 @@
   function quickParsePreview(parsed) {
     const item = (slot, icon, text) => `<button class="quick-parse-item" type="button" data-action="quick-keep" data-slot="${esc(slot)}" aria-label="${esc(tr('Keep “{words}” in the title', { words: parsed.sources?.[slot] || text }))}"><i class="ph ${icon}" aria-hidden="true"></i>${esc(text)}</button>`;
     const items = [];
-    if (parsed.plannedDate) items.push(item('plannedDate', 'ph-calendar-check', relativeDateLabel(parsed.plannedDate)));
+    // R105: a day set by a repeat ("utorkom") has no words of its own; a tap keeps the repeat's words.
+    if (parsed.plannedDate) items.push(item(parsed.sources && !parsed.sources.plannedDate && parsed.sources.recurrence ? 'recurrence' : 'plannedDate', 'ph-calendar-check', relativeDateLabel(parsed.plannedDate)));
     if (parsed.plannedTime) items.push(item('plannedTime', 'ph-clock', parsed.plannedTime));
     // R33 (finding 32): an hourglass is the due date and a flag the priority, as in the task window.
     if (parsed.dueDate) items.push(item('dueDate', 'ph-hourglass-medium', tr('Due {date}', { date: relativeDateLabel(parsed.dueDate) })));
@@ -3593,6 +3597,11 @@
     state.tasks = state.tasks.filter(item => snapshot.ids.has(item.id)).map(item => (copies.has(item.id) ? copyTemplate(copies.get(item.id)) : item));
     added.forEach(removeCloneGoalLinks);
   }
+  // R105: a move that adds no task puts back only the copied tasks; a task added meanwhile (Quick Add, sync) stays.
+  function restoreCopies(snapshot) {
+    const copies = new Map(snapshot.copies.map(item => [item.id, item]));
+    state.tasks = state.tasks.map(item => (copies.has(item.id) ? copyTemplate(copies.get(item.id)) : item));
+  }
   // R11c (S14): the repeat controls say what they did and offer "Poništi" for the whole series.
   function controlRecurrence(taskId,action) {
     const task=getTask(taskId),rule=taskRecurrence(task);if(!rule)return;
@@ -3725,8 +3734,12 @@
     if (modalState?.type !== 'quick' || !modalState.pasteLines?.length) return;
     syncQuickDraftFromDom();
     const d = modalState.draft, created = [];
+    // R105: the +project, @area, #tags and !priority typed before the paste apply to every line; a line's own win. (The
+    // sheet's day chip already applies to all of them.)
+    const typed = parseQuickAddTitle(d.title || '', !d.explicitPlan, d.keepInTitle);
     for (const line of modalState.pasteLines) {
-      const parsed = parseQuickAddTitle(line, !d.explicitPlan);
+      const own = parseQuickAddTitle(line, !d.explicitPlan);
+      const parsed = { ...own, ...(own.projectId || own.areaId ? {} : { projectId: typed.projectId, areaId: typed.areaId }), tagIds: [...new Set([...typed.tagIds, ...own.tagIds])], priority: own.priority || typed.priority };
       const title = String(parsed.title || '').trim();
       if (!title) continue;
       const plannedDate = (d.explicitPlan ? d.plannedDate : (parsed.plannedDate || d.plannedDate)) || null;

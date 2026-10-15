@@ -59,7 +59,8 @@ test('a pasted list becomes lines without bullets or numbers, at most 100', () =
 test('the preview\'s parts are buttons that keep their words in the title', () => {
   const preview = fn('quickParsePreview');
   assert.match(preview, /const item = \(slot, icon, text\) => `<button class="quick-parse-item" type="button" data-action="quick-keep" data-slot="\$\{esc\(slot\)\}" aria-label="\$\{esc\(tr\('Keep “\{words\}” in the title', \{ words: parsed\.sources\?\.\[slot\] \|\| text \}\)\)\}"><i class="ph \$\{icon\}" aria-hidden="true"><\/i>\$\{esc\(text\)\}<\/button>`;/);
-  assert.match(preview, /if \(parsed\.plannedDate\) items\.push\(item\('plannedDate', 'ph-calendar-check', relativeDateLabel\(parsed\.plannedDate\)\)\);\n\s+if \(parsed\.plannedTime\) items\.push\(item\('plannedTime', 'ph-clock', parsed\.plannedTime\)\);/, 'the day and the time are separate');
+  // R105: a day set by a repeat keeps the repeat's words when tapped (it has no words of its own).
+  assert.match(preview, /if \(parsed\.plannedDate\) items\.push\(item\(parsed\.sources && !parsed\.sources\.plannedDate && parsed\.sources\.recurrence \? 'recurrence' : 'plannedDate', 'ph-calendar-check', relativeDateLabel\(parsed\.plannedDate\)\)\);\n\s+if \(parsed\.plannedTime\) items\.push\(item\('plannedTime', 'ph-clock', parsed\.plannedTime\)\);/, 'the day and the time are separate');
   assert.match(preview, /items\.push\(item\(`tag:\$\{tag\.id\}`, 'ph-hash', tag\.name\)\)/);
   assert.match(preview, /<span class="quick-parse-hint">\$\{tr\('Tap a part to keep it in the title\.'\)\}<\/span>/);
   assert.match(fn('parseQuickAddTitle'), /function parseQuickAddTitle\(rawTitle, parsePlan = true, keep = \[\]\) \{\n\s+return Core\.parseQuickAdd\(rawTitle, \{ today: Core\.dateOnly\(\), tags: state\.tags \|\| \[\], projects: state\.projects \|\| \[\], areas: state\.areas \|\| \[\], parsePlan, keep, sources: true \}\);/);
@@ -86,7 +87,8 @@ test('a pasted list asks first, then makes the tasks with one Poništi, or joins
   assert.match(sheet, /data-action="quick-paste-tasks">\$\{esc\(trn\(lines\.length, 'Make \{count\} task', 'Make \{count\} tasks'\)\)\}<\/button>/);
   assert.match(sheet, /data-action="quick-paste-one">\$\{tr\('As one task'\)\}<\/button>/);
   const make = fn('createPastedTasks');
-  assert.match(make, /const parsed = parseQuickAddTitle\(line, !d\.explicitPlan\);/);
+  // R105: each line is read on its own, then takes the +project, @area, #tags and !priority typed before the paste.
+  assert.match(make, /const own = parseQuickAddTitle\(line, !d\.explicitPlan\);/);
   assert.match(make, /setUndo\(trn\(created\.length, '\{count\} task added', '\{count\} tasks added'\), \(\) => \{ const ids = new Set\(created\); state\.tasks = state\.tasks\.filter\(task => !ids\.has\(task\.id\)\); saveState\(\); render\(\); \}\);/);
   assert.match(app, /else if \(action === 'quick-paste-tasks'\) createPastedTasks\(\);/);
   assert.match(app, /else if \(action === 'quick-paste-one'\) joinPastedLines\(\);/);

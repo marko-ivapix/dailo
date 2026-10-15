@@ -87,7 +87,8 @@
     if (type === 'task') {
       data = pick(['title','notes','projectId','areaId','goalIds','tagIds','priority','plannedTime','dueTime','durationMinutes']);
       const rule = normalizeRecurrenceV3(entity.recurrence);
-      data.recurrence = rule ? {frequency:rule.frequency,interval:rule.interval,...Object.fromEntries(RECURRENCE_EXTRA_KEYS.filter(key => rule[key] !== undefined).map(key => [key, templateCopy(rule[key])])),endType:rule.endType,endAfterOccurrences:rule.endAfterOccurrences,endOffsetDays:templateOffset(rule.endDate,contextDate)} : null;
+      // R105: "Od dana završetka" (R88) travels with the template too.
+      data.recurrence = rule ? {frequency:rule.frequency,interval:rule.interval,...(rule.afterCompletion ? {afterCompletion:true} : {}),...Object.fromEntries(RECURRENCE_EXTRA_KEYS.filter(key => rule[key] !== undefined).map(key => [key, templateCopy(rule[key])])),endType:rule.endType,endAfterOccurrences:rule.endAfterOccurrences,endOffsetDays:templateOffset(rule.endDate,contextDate)} : null;
       data.plannedOffsetDays = templateOffset(entity.plannedDate, contextDate);
       data.dueOffsetDays = templateOffset(entity.dueDate, contextDate);
       data.subtasks = (entity.subtasks || []).map((s, order) => ({ title:s.title, order, isCompleted:false, completedAt:null }));
@@ -107,8 +108,8 @@
         return link ? [{goalId,contributionMode:link.contributionMode,selectedTaskIndices:children.map((t,index)=>(link.selectedTaskIds || []).includes(t.id)?index:null).filter(index=>index!==null)}] : [];
       });
     } else if (type === 'habit') {
-      // R99: the routine (Jutro, Tokom dana, Veče) travels with the template too.
-      data = pick(['name','areaId','goalIds','routine','trackingType','targetValue','targetMode','minimumTarget','idealTarget','graceDays','unit','quickValues','frequencyType','weekdays','timesPerWeek','everyNDays','continuation','endType','successfulPeriodsTarget']);
+      // R99: the routine (Jutro, Tokom dana, Veče) travels with the template too. R105: and the duration (R85).
+      data = pick(['name','areaId','goalIds','routine','durationMinutes','trackingType','targetValue','targetMode','minimumTarget','idealTarget','graceDays','unit','quickValues','frequencyType','weekdays','timesPerWeek','everyNDays','continuation','endType','successfulPeriodsTarget']);
       data.endOffsetDays = templateOffset(entity.endDate, contextDate);
       data.reminders = (entity.reminders || []).map(r => ({time:r.time,enabled:r.enabled !== false}));
       data.goalLinkConfigs=(data.goalIds || []).flatMap(goalId=>{
@@ -161,7 +162,7 @@
       const tasks=(d.tasks || []).map(child=>task(child,null,project.id));
       return {project,tasks,goalLinks:configs.map(c=>({goalId:c.goalId,contributionMode:c.contributionMode,selectedTaskIds:[...new Set((c.selectedTaskIndices || []).filter(i=>Number.isInteger(i) && tasks[i]).map(i=>tasks[i].id))]}))};
     }
-    if (template.type === 'habit') return {habit:{...common,id:ids.habitId || makeId('habit'),name:d.name || '',areaId:live('areas',d.areaId),goalIds:links('goals',d.goalIds),status:'active',routine:['morning','daily','night'].includes(d.routine) ? d.routine : 'daily',trackingType:d.trackingType || 'checkbox',targetValue:d.targetValue ?? 1,...(d.targetMode === 'atMost' && d.trackingType === 'numeric' ? {targetMode:'atMost'} : {}),minimumTarget:habitTargetOrNull(d,d.minimumTarget),idealTarget:habitTargetOrNull(d,d.idealTarget),graceDays:Number.isInteger(d.graceDays) && d.graceDays >= 0 ? d.graceDays : 0,unit:d.unit || '',quickValues:d.quickValues || [],frequencyType:d.frequencyType || 'daily',weekdays:d.weekdays || [1,2,3,4,5],timesPerWeek:d.timesPerWeek || 4,everyNDays:d.everyNDays || 2,startDate:contextDate,continuation:d.continuation || 'automatic',endType:d.endType || 'never',endDate:resolve(d.endOffsetDays),successfulPeriodsTarget:d.successfulPeriodsTarget || null,reminders:(d.reminders || []).map(r=>({id:makeId('habit-reminder'),time:r.time,enabled:r.enabled !== false})),reminderFiredMoments:[],pauseIntervals:[],pauseStartedAt:null},goalLinks:configs.map(c=>({goalId:c.goalId,metric:c.metric,target:c.target}))};
+    if (template.type === 'habit') return {habit:{...common,id:ids.habitId || makeId('habit'),name:d.name || '',areaId:live('areas',d.areaId),goalIds:links('goals',d.goalIds),status:'active',routine:['morning','daily','night'].includes(d.routine) ? d.routine : 'daily',...(habitDurationOrNull(d.durationMinutes) ? {durationMinutes:habitDurationOrNull(d.durationMinutes)} : {}),trackingType:d.trackingType || 'checkbox',targetValue:d.targetValue ?? 1,...(d.targetMode === 'atMost' && d.trackingType === 'numeric' ? {targetMode:'atMost'} : {}),minimumTarget:habitTargetOrNull(d,d.minimumTarget),idealTarget:habitTargetOrNull(d,d.idealTarget),graceDays:Number.isInteger(d.graceDays) && d.graceDays >= 0 ? d.graceDays : 0,unit:d.unit || '',quickValues:d.quickValues || [],frequencyType:d.frequencyType || 'daily',weekdays:d.weekdays || [1,2,3,4,5],timesPerWeek:d.timesPerWeek || 4,everyNDays:d.everyNDays || 2,startDate:contextDate,continuation:d.continuation || 'automatic',endType:d.endType || 'never',endDate:resolve(d.endOffsetDays),successfulPeriodsTarget:d.successfulPeriodsTarget || null,reminders:(d.reminders || []).map(r=>({id:makeId('habit-reminder'),time:r.time,enabled:r.enabled !== false})),reminderFiredMoments:[],pauseIntervals:[],pauseStartedAt:null},goalLinks:configs.map(c=>({goalId:c.goalId,metric:c.metric,target:c.target}))};
     if (template.type === 'goal') return {goal:{...common,id:ids.goalId || makeId('goal'),title:d.title || '',areaId:live('areas',d.areaId),status:'active',progressMode:d.progressMode || 'manual',progressType:d.progressType || 'percentage',currentValue:0,targetValue:d.targetValue ?? 100,unit:d.unit || '',targetDate:resolve(d.targetOffsetDays),projectLinks:[],taskIds:[],habitLinks:[],completedAt:null,reminderFiredMoments:[],reminders:d.reminders || {},milestones:(d.milestones || []).map((m,order)=>({id:makeId('milestone'),title:m.title,date:resolve(m.dateOffsetDays),order,isCompleted:false,completedAt:null}))}};
     throw new Error(msg('Unsupported template type'));
   }
@@ -1670,6 +1671,21 @@
   // R92: the share of planned days done in the last 30 days (today counts once it is done). A skipped day is left out,
   // so one missed day lowers it a little instead of resetting it like a streak. Null when nothing was planned.
   function habitRecentSuccess(habit, logs, today = dateOnly(), weekRule = 'monday', days = 30) {
+    // R105: a weekly target counts whole weeks inside the window (every day of them scheduled), and this week only once
+    // its target is met, so the number does not drop while a week is still open.
+    if (habit?.frequencyType === 'timesPerWeek') {
+      const first = addDays(today, -(days - 1)), current = habitPeriodKey(habit, today, weekRule);
+      let score = 0, weeks = 0;
+      for (let start = habitPeriodKey(habit, first, weekRule); start <= current; start = addDays(start, 7)) {
+        const dates = Array.from({ length: 7 }, (_, index) => addDays(start, index)).filter(date => date <= today);
+        if (start < first || dates.some(date => !habitScheduledOn(habit, date, { historical: true }))) continue;
+        const target = habitTargetFor(habit, start);
+        const done = dates.filter(date => habitStatusForDate(habit, logs || [], date, today).status === 'done').length;
+        if (start === current && done < target) continue;
+        score += Math.min(target, done) / target; weeks += 1;
+      }
+      return weeks ? Math.round((score / weeks) * 100) : null;
+    }
     const planned = [];
     for (let offset = days - 1; offset >= 0; offset -= 1) {
       const date = addDays(today, -offset);
@@ -1944,6 +1960,8 @@
     else if (at(2) === 'i' && ['cetvrt', 'po'].includes(at(1)) && hourAt(end - 3) != null) [hour, minute, start, needsU] = [hourAt(end - 3), at(1) === 'po' ? 30 : 15, end - 3, true];
     else if (last != null && at(2) === 'u' && (part || !/^\d+$/.test(at(1)))) [hour, start, needsU] = [last, end - 1, true];
     if (hour == null) return null;
+    // R105: "do pola deset" is a deadline, which stays in the title like "do 9:30".
+    if (plain[start - 1] === 'do') return null;
     const withU = plain[start - 1] === 'u';
     if (needsU && !withU) return null;
     if (hour === 0) hour = 12;
@@ -2092,7 +2110,8 @@
         const name = token.slice(1);
         const words = cyrillicToLatin(token).toLocaleLowerCase();
         if (sigil === '#') {
-          const tag = (tags || []).find(item => item && cyrillicToLatin(normalizeTagName(item.name)).toLocaleLowerCase() === cyrillicToLatin(name).toLocaleLowerCase());
+          // R105: as +project and @area, without case, diacritics, spaces or dashes ("#kod-kuće" is "kod kuće").
+          const tag = (tags || []).find(item => item && looseName(normalizeTagName(item.name)) === looseName(name));
           if (!tag || kept(`tag:${tag.id}`, words)) return match;
           if (!result.tagIds.includes(tag.id)) result.tagIds.push(tag.id);
           read[`tag:${tag.id}`] = words;
@@ -2154,10 +2173,13 @@
 
   // R90: a pasted list as task titles: one per line, without bullets, numbers or check boxes, empty lines left out,
   // at most 100.
+  // R105: numbers go only when the numbered lines count 1, 2, 3…, so "15. maj platiti račun" keeps its day.
   function splitPastedList(text) {
-    return String(text || '').split(/\r?\n/)
-      .map(line => line.replace(/^\s*(?:[-*•–]\s+)?(?:\d{1,3}[.)]\s+)?(?:\[[ xX]?\]\s*)?/, '').trim())
-      .filter(Boolean).slice(0, 100);
+    const lines = String(text || '').split(/\r?\n/);
+    const numbers = lines.map(line => line.match(/^\s*(?:[-*•–]\s+)?(\d{1,3})[.)]\s+/)?.[1]).filter(Boolean).map(Number);
+    const counted = numbers.length > 0 && numbers.every((number, index) => number === index + 1);
+    const lead = counted ? /^\s*(?:[-*•–]\s+)?(?:\d{1,3}[.)]\s+)?(?:\[[ xX]?\]\s*)?/ : /^\s*(?:[-*•–]\s+)?(?:\[[ xX]?\]\s*)?/;
+    return lines.map(line => line.replace(lead, '').trim()).filter(Boolean).slice(0, 100);
   }
 
   // V1.5 API kept for its tests: only the trailing plan date and time.

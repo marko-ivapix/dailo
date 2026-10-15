@@ -31,7 +31,8 @@ function harness(tasks) {
   });
   vm.createContext(ctx);
   // R103b: Undo snapshots and the Još count include the archived tasks (historyTasks); none are archived here.
-  vm.runInContext(['historyTasks', 'snapshotTasks', 'restoreTasks', 'overdueMoveChanges', 'moveAllOverdueToTomorrow'].map(fn).join('\n') + '\nlet archivedTasks = [];', ctx);
+  // R105: Poništi puts back only the moved tasks (restoreCopies), so a task added meanwhile stays.
+  vm.runInContext(['historyTasks', 'snapshotTasks', 'restoreTasks', 'restoreCopies', 'overdueMoveChanges', 'moveAllOverdueToTomorrow'].map(fn).join('\n') + '\nlet archivedTasks = [];', ctx);
   return { ctx, calls };
 }
 

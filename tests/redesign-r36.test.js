@@ -47,8 +47,8 @@ test('C: Inbox has its own add row; Enter files the title in Inbox and keeps the
   assert.match(fn('renderInbox'), /const addRow = `<div class="inbox-add"><input id="inbox-add-title" class="input" type="text" maxlength="500" autocomplete="off" enterkeyhint="done" placeholder="\$\{tr\('Add to Inbox…'\)\}" aria-label="\$\{tr\('Add to Inbox'\)\}"><button class="btn-icon" type="button" data-action="inbox-add" aria-label="\$\{tr\('Add'\)\}"><i class="ph ph-plus" aria-hidden="true"><\/i><\/button><\/div>`;/);
   const calls = [];
   const ctx = withI18n({
-    Core, state: { tasks: [] }, calls, nowIso: () => '2026-10-12T08:00:00.000Z', uid: kind => `${kind}-${calls.length}`, nextOrder: () => 4,
-    parseQuickAddTitle: (title, plan) => ({ title: title.replace(' #kuca', ''), tagIds: title.includes('#kuca') ? ['t'] : [], priority: null, plan }),
+    // R105: the row reads only #tags and !priority itself (Core.parseQuickAdd with no other slots), so the real tags are given.
+    Core, state: { tasks: [], tags: [{ id: 't', name: 'kuca' }] }, calls, nowIso: () => '2026-10-12T08:00:00.000Z', uid: kind => `${kind}-${calls.length}`, nextOrder: () => 4,
     saveState: () => calls.push(['save']), render: () => calls.push(['render']), requestAnimationFrame: run => run(), $: () => ({ focus: () => calls.push(['focus']) }),
   });
   vm.createContext(ctx);

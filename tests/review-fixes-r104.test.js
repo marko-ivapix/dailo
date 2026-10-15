@@ -136,11 +136,8 @@ test('a sync paused because the archive could not be read says so in Nalog and o
   assert.ok(read('js/i18n-sr.js').includes('"Sync is paused: the archived tasks could not be read. Restart the app.": "Sinhronizacija je zaustavljena: arhivirani zadaci nisu mogli da se učitaju. Ponovo pokreni aplikaciju."'));
 });
 
-test('R104 is released as 2.0.0-alpha.133', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.133');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.133';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.133');
-  const lock = JSON.parse(read('package-lock.json'));
-  assert.deepEqual([lock.version, lock.packages[''].version], ['2.0.0-alpha.133', '2.0.0-alpha.133']);
+test('R104 shipped as 2.0.0-alpha.133 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 133) >= 133);
   assert.ok(fs.existsSync(path.join(__dirname, '..', 'docs/superpowers/specs/2026-10-15-r104-review-fixes.md')));
 });

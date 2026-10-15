@@ -55,7 +55,8 @@ test('Raspored and the week bars pass the habits and their logs; the line names 
 
 test('the habit window has the duration under "Više"; empty means no duration', () => {
   const window = functionSource('renderHabitModal', ['js/habits-ui.js']).source;
-  assert.match(window, /<div class="habit-window-target"><label for="habit-duration">\$\{tr\('Duration'\)\}<\/label><input id="habit-duration" class="input" type="number" min="1" max="1440" step="5" inputmode="numeric" value="\$\{esc\(d\.durationMinutes \?\? ''\)\}"><span>\$\{tr\('min'\)\}<\/span><\/div>/);
+  // R105: the field steps by one minute (with step 5 from 1, 30 was not a valid value).
+  assert.match(window, /<div class="habit-window-target"><label for="habit-duration">\$\{tr\('Duration'\)\}<\/label><input id="habit-duration" class="input" type="number" min="1" max="1440" step="1" inputmode="numeric" value="\$\{esc\(d\.durationMinutes \?\? ''\)\}"><span>\$\{tr\('min'\)\}<\/span><\/div>/);
   assert.match(functionSource('readHabitDraft', ['js/habits-ui.js']).source, /const duration = \$\('#habit-duration'\); if \(duration\) \{ const value = String\(duration\.value\)\.trim\(\); d\.durationMinutes = value \? Number\(value\) : null; \}/);
   const save = functionSource('saveHabitModal', ['js/habits-ui.js']).source;
   assert.match(save, /if \(d\.durationMinutes != null && !\(Number\.isInteger\(d\.durationMinutes\) && d\.durationMinutes >= 1 && d\.durationMinutes <= 1440\)\) \{ ctx\.modalState\.error = tr\('Duration must be 1 to 1440 minutes\.'\); renderModal\(\); return; \}/);
