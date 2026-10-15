@@ -65,6 +65,11 @@
     const sourceText = JSON.stringify(state);
     state = deepClone(state);
     delete state.habitLogCache; delete state.habitMetrics;
+    // R103: the archived tasks travel in data.tasks, so the ZIP keeps its format; a restore puts every task back and
+    // the next start archives the old ones again. A task both live and archived counts once (the live one).
+    const archived = storage.archivedTasks ? await storage.archivedTasks.listAll() : [];
+    const live = new Set(state.tasks.map(task => task.id));
+    state.tasks = [...state.tasks, ...deepClone(archived).filter(task => !live.has(task.id))];
     const JSZip = requireZip();
     const zip = new JSZip();
     const used = new Set();

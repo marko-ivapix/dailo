@@ -1666,7 +1666,7 @@
   // R101: what was done, over all completed tasks (whatever the chips filter): this month, last month, this year, the
   // best day this month and the run of days.
   function completedSummaryCard() {
-    const summary = Core.completionSummary(state.tasks, Core.dateOnly());
+    const summary = Core.completionSummary(historyTasks(), Core.dateOnly());
     if (!summary.month && !summary.lastMonth && !summary.year) return '';
     const tasks = count => trn(count, '{count} task', '{count} tasks');
     const totals = [tr('Last month: {tasks}', { tasks: tasks(summary.lastMonth) }), tr('This year: {tasks}', { tasks: tasks(summary.year) })].join(' · ');
@@ -1677,7 +1677,7 @@
   function renderCompleted() {
     const projectId = state.ui.completedProjectFilter || null;
     const periodDays = Number(state.ui.completedPeriod) || 0;
-    const tasks = Core.filterCompleted(state.tasks, { projectId, periodDays }, nowIso());
+    const tasks = Core.filterCompleted(historyTasks(), { projectId, periodDays }, nowIso());
     let html = pageHeader(tr('Completed tasks'), trn(tasks.length, '{count} task', '{count} tasks'), { add: false });
     html += completedSummaryCard();
     const project = allProjects().find(item => item.id === projectId);
@@ -1791,6 +1791,7 @@
   }
 
   function openTaskDetail(taskId) {
+    unarchiveTask(taskId);
     const task = getTask(taskId);
     if (!task) return;
     // R33 (finding 33): from Fokus the task window returns to Fokus, whose timer runs on wall-clock time.
@@ -2645,7 +2646,7 @@
 
   function searchResultsHtml(query) {
     if (!String(query).trim()) return `<div class="empty-state search-empty"><h3>${tr('Search tasks and projects')}</h3><p>${tr('Type a task title, note or project name.')}</p></div>`;
-    const result = Core.searchItems(state.tasks, state.projects, query);
+    const result = Core.searchItems(historyTasks(), state.projects, query);
     if (!result.tasks.length && !result.projects.length) return `<div class="empty-state search-empty"><h3>${tr('No results for “{query}”', { query: esc(query) })}</h3></div>`;
     let html = '';
     if (result.tasks.length) {
@@ -4894,6 +4895,62 @@
     return { state: 'ok', text: sync.email };
   }
 
+  // R103: the archived tasks (IndexedDB archivedTasks), loaded at start before sync may run; sync and the history
+  // (Search, Završeni zadaci) read them too. Sync stays off while the archive could not be read: a missing archived
+  // task would look deleted.
+  let archivedTasks = [], archiveFailed = false;
+  // The archive in memory: what IndexedDB holds, less any task that is live again (the live one wins and the stale
+  // copy leaves the store).
+  async function loadArchive() {
+    archiveFailed = true;
+    const stored = await TodoStorage.archivedTasks.listAll();
+    const live = new Set((state?.tasks || []).map(item => item.id));
+    archivedTasks = stored.filter(item => !live.has(item.id));
+    const stale = stored.filter(item => live.has(item.id)).map(item => item.id);
+    if (stale.length) await TodoStorage.archivedTasks.deleteMany(stale);
+    archiveFailed = false;
+  }
+  function historyTasks() {
+    return [...state.tasks, ...archivedTasks];
+  }
+  const withArchive = source => ({ ...source, tasks: [...source.tasks, ...archivedTasks] });
+
+  // R103: at start, the old completed tasks move to the archive: written there first, then left out of the saved
+  // state; a task that changed meanwhile stays where it is.
+  async function archiveOldTasks() {
+    if (archiveFailed || !state || recovery || globalOperation || startupPromise) return 0;
+    const ids = new Set(Core.archivableTaskIds(state, Core.dateOnly()));
+    if (!ids.size) return 0;
+    const moving = JSON.parse(JSON.stringify(state.tasks.filter(item => ids.has(item.id))));
+    await TodoStorage.archivedTasks.putMany(moving);
+    if (!state || recovery || globalOperation) { await TodoStorage.archivedTasks.deleteMany([...ids]); return 0; }
+    const written = new Map(moving.map(item => [item.id, JSON.stringify(item)]));
+    const moved = state.tasks.filter(item => written.get(item.id) === JSON.stringify(item));
+    const movedIds = new Set(moved.map(item => item.id));
+    const changed = [...ids].filter(id => !movedIds.has(id));
+    if (changed.length) await TodoStorage.archivedTasks.deleteMany(changed);
+    const previous = state.tasks;
+    state.tasks = state.tasks.filter(item => !movedIds.has(item.id));
+    if (!saveState()) { state.tasks = previous; await TodoStorage.archivedTasks.deleteMany([...movedIds]); return 0; }
+    archivedTasks = [...archivedTasks, ...moved];
+    return moved.length;
+  }
+
+  // R103: any action on an archived task brings it back first (the live one is saved before the archived copy goes).
+  function unarchiveTask(id) {
+    const item = archivedTasks.find(entry => entry.id === id);
+    if (!item || state.tasks.some(entry => entry.id === id)) return;
+    state.tasks.push(item); archivedTasks = archivedTasks.filter(entry => entry.id !== id);
+    if (saveState()) TodoStorage.archivedTasks.deleteMany([id]).catch(console.error);
+  }
+  function unarchiveAll() {
+    if (!archivedTasks.length) return;
+    const ids = archivedTasks.map(item => item.id);
+    const live = new Set(state.tasks.map(item => item.id));
+    state.tasks.push(...archivedTasks.filter(item => !live.has(item.id))); archivedTasks = [];
+    if (saveState()) TodoStorage.archivedTasks.deleteMany(ids).catch(console.error);
+  }
+
   function scheduleSync(delay = 3000) {
     if (!syncClient || applyingSync) return;
     clearTimeout(syncTimer);
@@ -4905,7 +4962,8 @@
     const meta = loadSyncMeta();
     syncMeta = meta;
     if (!meta.session?.accessToken) return;
-    if (!state || recovery || globalOperation || startupPromise || storageError || staleDataNotice) return;
+    // R103: never without the archive: a missing archived task would read as deleted.
+    if (!state || recovery || globalOperation || startupPromise || storageError || staleDataNotice || archiveFailed) return;
     if (syncWaiting()) { scheduleSync(15000); return; }
     syncRunning = true;
     refreshSyncCard();
@@ -4913,7 +4971,7 @@
     try {
       result = await Sync.syncOnce({
         client: syncClient, meta, mode,
-        readLocal: async () => { const habitLogs = await TodoStorage.habitLogs.listAll(); return { state, habitLogs, attachments: await syncAttachmentList() }; },
+        readLocal: async () => { const habitLogs = await TodoStorage.habitLogs.listAll(); return { state: withArchive(state), habitLogs, attachments: await syncAttachmentList() }; },
         writeLocal: applySyncResult,
         files: syncFiles,
         journal: await journalSyncOptions(),
@@ -4940,13 +4998,24 @@
 
   async function applySyncResult(result) {
     if (syncWaiting() || globalOperation || recovery) throw new Error(SYNC_DEFERRED);
-    const previous = state;
+    const previous = state, previousArchive = archivedTasks;
+    // R103: the merged tasks include the archived ones; those still old stay archived, a changed one comes back and
+    // one deleted elsewhere leaves the archive. The live state is saved first: if that fails nothing changes, and a
+    // task that came back is never missing from both places.
+    const split = archivedTasks.length ? Core.splitArchived(result.state.tasks, archivedTasks.map(item => item.id), result.state, Core.dateOnly())
+      : { live: result.state.tasks, archived: [], unarchived: [], removed: [] };
     applyingSync = true;
     try {
       // Records new to this device do not replay their past reminders here (audit R-3).
-      state = normalizeState(Core.settleArrivedReminders(previous, Core.pruneDanglingReferences(result.state), nowIso()));
-      if (!saveState()) { state = previous; throw new Error(msg('Changes could not be saved locally. Try again.')); }
+      state = normalizeState(Core.settleArrivedReminders(previous, Core.pruneDanglingReferences({ ...result.state, tasks: split.live }), nowIso()));
+      archivedTasks = split.archived;
+      if (!saveState()) { state = previous; archivedTasks = previousArchive; throw new Error(msg('Changes could not be saved locally. Try again.')); }
     } finally { applyingSync = false; }
+    // Only the archived tasks that arrived changed are written again.
+    const before = new Map(previousArchive.map(item => [item.id, JSON.stringify(item)]));
+    const changed = split.archived.filter(item => before.get(item.id) !== JSON.stringify(item));
+    if (changed.length) await TodoStorage.archivedTasks.putMany(changed);
+    if (split.unarchived.length || split.removed.length) await TodoStorage.archivedTasks.deleteMany([...split.unarchived, ...split.removed]);
     if (result.habitLogDeletes.length) await TodoStorage.habitLogs.deleteMany(result.habitLogDeletes);
     // R46: files deleted on another device leave this one (their owners already dropped them above).
     if (result.fileDeletes?.length) await TodoStorage.attachments.deleteMany(result.fileDeletes);
@@ -5782,7 +5851,9 @@
     if (file) await beginGlobalOperation('restore', file);
   }
 
+  // R103: the archived completed tasks go too, so they come back into the list first.
   function clearCompleted() {
+    unarchiveAll();
     requestDeleteEntity('clear-completed', null);
   }
 
@@ -5927,6 +5998,7 @@
       const restored = await TodoStorage.restoreRecoverySnapshot(op.snapshotId);
       await markGlobalSnapshot(op, 'rolled-back');
       state = normalizeState(restored); canonicalRaw = localStorage.getItem(STORAGE_KEY); recovery = null; globalOperation = null;
+      await loadArchive().catch(console.error); // R103: the archive came back with the recovery copy
       globalRecoveryNotice = null; render();
     } catch (error) {
       await markGlobalSnapshot(op, 'rollback-failed', { rollbackError: error.message }).catch(() => {});
@@ -5999,7 +6071,8 @@
       assertGlobalSource(op);
       op.payload = await TodoStorage.captureUserData(); assertGlobalSource(op);
       const frozenStorage = { attachments: { getMany: async ids => op.payload.attachments.filter(record => ids.includes(record.id)) },
-        habitLogs: { listAll: async () => op.payload.habitLogs }, goalHistory: { listAll: async () => op.payload.goalHistory } };
+        habitLogs: { listAll: async () => op.payload.habitLogs }, goalHistory: { listAll: async () => op.payload.goalHistory },
+        archivedTasks: { listAll: async () => op.payload.archivedTasks || [] } };
       const blob = await Backup.exportBackupV3(JSON.parse(op.stateText), frozenStorage, nowIso(), await journalBackupOptions());
       assertGlobalSource(op);
       if (!(await TodoStorage.sameUserData(await TodoStorage.captureUserData(), op.payload))) throw new Error(msg('Stored data changed during export. Retry.'));
@@ -6012,6 +6085,9 @@
       op.validated = selection ? Backup.prepareSelectiveRestore({ state: JSON.parse(op.stateText), attachmentRecords: op.payload.attachments, habitLogs: op.payload.habitLogs, goalHistory: op.payload.goalHistory }, selection.snapshot, selection.collection, selection.id)
         : reason === 'restore' ? structuredClone(await Backup.inspectBackupV3(file))
         : { state: createEmptyState(), attachmentRecords: [], habitLogs: [], goalHistory: [] };
+      // R103: a reset empties the archive and a restore brings every task into the state (the ZIP holds them all);
+      // restoring one item leaves the archive as it is.
+      op.validated.archivedTasks = selection ? op.payload.archivedTasks || [] : [];
       // R75: a sealed journal opens with this device's key for the backup's cipher, or with the password at confirmation.
       op.sealedJournal = op.validated.sealedJournal || []; delete op.validated.sealedJournal;
       const storedKey = op.sealedJournal.length ? await storedJournalKeyFor(op.validated.state.settings?.journalCipher) : null;
@@ -6037,7 +6113,7 @@
     const next = op.validated;
     if (localStorage.getItem(STORAGE_KEY) !== JSON.stringify(next.state)
       || !Core.validateStateV3(next.state).ok
-      || !(await TodoStorage.sameUserData(await TodoStorage.captureUserData(), { attachments: next.attachmentRecords, habitLogs: next.habitLogs, goalHistory: next.goalHistory }))
+      || !(await TodoStorage.sameUserData(await TodoStorage.captureUserData(), { attachments: next.attachmentRecords, habitLogs: next.habitLogs, goalHistory: next.goalHistory, archivedTasks: next.archivedTasks }))
       || localStorage.getItem(STORAGE_KEY) !== JSON.stringify(next.state) || globalOperation !== op
       || state !== op.source || compactState(state) !== op.stateText)
       throw new Error(msg('Replacement verification failed.'));
@@ -6056,6 +6132,7 @@
       const verified = await TodoStorage.verifyRecoverySnapshot(op.snapshotId);
       if (globalOperation !== op || state !== source || compactState(state) !== sourceText) throw new Error(msg('Recovery source changed during verification. Retry recovery.'));
       state = normalizeState(restored); canonicalRaw = localStorage.getItem(STORAGE_KEY); recovery = null;
+      await loadArchive().catch(console.error); // R103: the archive came back with the recovery copy
       const resumedSource = state, resumedText = compactState(state);
       statusSource = captureStatusSource();
       if (op.token) await deleteLifecycle.resume(op.token);
@@ -6105,7 +6182,7 @@
       if (!(await TodoStorage.sameUserData(await TodoStorage.captureUserData(), op.payload))) throw new Error(msg('Stored data changed during confirmation. Retry.'));
       assertGlobalSource(op);
       await markGlobalSnapshot(op, 'mutating', { destination: { rawAppData: JSON.stringify(op.validated.state),
-        attachments: op.validated.attachmentRecords, habitLogs: op.validated.habitLogs, goalHistory: op.validated.goalHistory } });
+        attachments: op.validated.attachmentRecords, habitLogs: op.validated.habitLogs, goalHistory: op.validated.goalHistory, archivedTasks: op.validated.archivedTasks } });
       assertGlobalSource(op);
       const guard = () => assertGlobalSource(op);
       guard.onCommit = () => { mutationStarted = true; };
@@ -6119,6 +6196,7 @@
       await verifyGlobalReplacement(op);
       deleteLifecycle.retire(op.token);
       state = normalizeState(op.validated.state); canonicalRaw = localStorage.getItem(STORAGE_KEY); recovery = null; modalState = null;
+      await loadArchive().catch(console.error);
       if (!op.selective) forgetSyncShadow();
       if (globalThis.DailoPlatform?.isNative) scheduleDurableMirror();
       const committedSource = captureStatusSource();
@@ -6435,6 +6513,7 @@
       return;
     }
     const action = el.dataset.action;
+    if (el?.dataset?.taskId) unarchiveTask(el.dataset.taskId);
     if (action === 'toggle-mobile-quick-add') { if (el.getAttribute('aria-expanded') === 'true') { setMobileQuickAddOpen(false); return; } const direct = quickAddDirect(); if (direct) { direct[1](); return; } setMobileQuickAddOpen(el.getAttribute('aria-expanded') !== 'true'); return; }
     if (el.closest('#mobile-quick-add-menu')) {
       setMobileQuickAddOpen(false);
@@ -7300,7 +7379,7 @@
     const durable = globalThis.DailoPlatform?.durable;
     if (!durable?.writeRecords) return recordsMirrorQueue;
     recordsMirrorQueue = recordsMirrorQueue.catch(() => {}).then(async () => {
-      for (const kind of ['habitLogs', 'goalHistory']) {
+      for (const kind of ['habitLogs', 'goalHistory', 'archivedTasks']) {
         const text = JSON.stringify(await TodoStorage[kind].listAll());
         if (text !== mirroredRecords[kind] && await durable.writeRecords(kind, text)) mirroredRecords[kind] = text;
       }
@@ -7312,7 +7391,7 @@
     const durable = globalThis.DailoPlatform?.durable;
     if (!durable?.readRecords) return 0;
     let restored = 0;
-    for (const kind of ['habitLogs', 'goalHistory']) {
+    for (const kind of ['habitLogs', 'goalHistory', 'archivedTasks']) {
       try {
         const records = await durable.readRecords(kind);
         if (records?.length) restored += await TodoStorage[kind].fillEmpty(records);
@@ -7590,6 +7669,7 @@
           continue;
         }
         canonicalRaw = committedSource;
+        try { await loadArchive(); } catch (error) { archiveFailed = true; console.error(error); }
         if (globalThis.DailoPlatform?.isNative) scheduleDurableMirror();
         runScheduledTaskTemplates({ duringStartup: true });
         render();
@@ -7636,6 +7716,7 @@
     await startReady();
     if (restored && state) setToastMessage(tr('Your data was restored from the copy Dailo keeps on this device.'));
     else if (state) announceUpdate();
+    await archiveOldTasks().catch(console.error);
     scheduleAutomaticSnapshot();
     startSync();
     updateStoragePersistence(false).catch(console.error);

@@ -102,7 +102,8 @@ test('the app mirrors the canonical text after saves (debounced) and restores it
 test('the mirror is refreshed after saves, start-up loads, restores and on pause; restore runs before loading', () => {
   const native = 'if \\(globalThis\\.DailoPlatform\\?\\.isNative\\) ';
   assert.match(region('  function saveState(', '\n  }\n'), new RegExp(`storageError = false;\\n\\s+${native}scheduleDurableMirror\\(\\);`));
-  assert.match(app, new RegExp(`canonicalRaw = committedSource;\\n\\s+${native}scheduleDurableMirror\\(\\);`));
+  // R103: the archive loads between the committed source and the mirror.
+  assert.match(app, new RegExp(`canonicalRaw = committedSource;\\n\\s+try \\{ await loadArchive\\(\\); \\} catch \\(error\\) \\{ archiveFailed = true; console\\.error\\(error\\); \\}\\n\\s+${native}scheduleDurableMirror\\(\\);`));
   assert.match(app, new RegExp(`if \\(!op\\.selective\\) forgetSyncShadow\\(\\);\\n\\s+${native}scheduleDurableMirror\\(\\);`));
   assert.match(region('  function flushPendingWork(', '\n  }\n'), /writeDurableMirror\(\)/);
   assert.match(region('  async function init(', '\n  window.TodoApp'), /await restoreDurableMirror\(\)[\s\S]*await startReady\(\);/);

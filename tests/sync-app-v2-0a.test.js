@@ -391,7 +391,8 @@ test('after a reset or a restored backup the next sync asks again instead of pus
   await vm.runInContext('runSync()', phone.context);
   assert.deepEqual(fake.rowsFor('ana@example.com').filter(row => row.type === 'tasks' && !row.deleted).map(row => row.id), ['t1', 't2'], 'nothing is deleted on the server');
   assert.deepEqual(phone.context.state.tasks.map(item => item.id), ['t1', 't2'], 'an empty device takes the account data');
-  assert.match(read('js/app.js'), /state = normalizeState\(op\.validated\.state\); canonicalRaw = localStorage\.getItem\(STORAGE_KEY\); recovery = null; modalState = null;\n\s+if \(!op\.selective\) forgetSyncShadow\(\);/);
+  // R103: the archive reloads between the new state and forgetting the shadow.
+  assert.match(read('js/app.js'), /state = normalizeState\(op\.validated\.state\); canonicalRaw = localStorage\.getItem\(STORAGE_KEY\); recovery = null; modalState = null;\n\s+await loadArchive\(\)\.catch\(console\.error\);\n\s+if \(!op\.selective\) forgetSyncShadow\(\);/);
 });
 
 test('M9: a device that still holds only its first-run examples takes the account data without the question', async () => {

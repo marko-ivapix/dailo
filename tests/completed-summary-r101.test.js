@@ -46,7 +46,8 @@ function screen(tasks = fixture()) {
     formatDate: date => `D:${date}`, nowIso: () => at(TODAY),
   };
   vm.createContext(withI18n(ctx));
-  vm.runInContext(['completedSummaryCard', 'renderCompleted'].map(name => functionSource(name).source).join('\n'), ctx);
+  // R103: the screen and its summary count the archived tasks too (historyTasks); none are archived here.
+  vm.runInContext(['historyTasks', 'completedSummaryCard', 'renderCompleted'].map(name => functionSource(name).source).join('\n') + '\nlet archivedTasks = [];', ctx);
   return ctx;
 }
 

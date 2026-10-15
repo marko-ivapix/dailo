@@ -47,7 +47,8 @@ function completedContext(extra = {}) {
   };
   vm.createContext(withI18n(ctx));
   // R101: the screen opens with the summary card (tests/completed-summary-r101.test.js).
-  vm.runInContext(['completedSummaryCard', 'renderCompleted', 'openCompletedProjectSheet'].map(fn).join('\n'), ctx);
+  // R103: the screen lists the archived tasks too (historyTasks); none are archived here.
+  vm.runInContext(['historyTasks', 'completedSummaryCard', 'renderCompleted', 'openCompletedProjectSheet'].map(fn).join('\n') + '\nlet archivedTasks = [];', ctx);
   return ctx;
 }
 

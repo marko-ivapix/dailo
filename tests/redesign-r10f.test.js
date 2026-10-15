@@ -30,7 +30,8 @@ function searchContext(query = '') {
     modalFrame: (content, cls) => `<frame ${cls}>${content}</frame>`,
   };
   vm.createContext(withI18n(ctx));
-  vm.runInContext(`${app.match(/  const SEARCH_[\s\S]*?\n\n/)[0]}${['renderSearchModal', 'searchResultsHtml', 'searchMoreNote', 'searchTaskResult'].map(fn).join('\n')}`, ctx);
+  // R103: Search reads the archived tasks too (historyTasks); none are archived here.
+  vm.runInContext(`let archivedTasks = [];\n${app.match(/  const SEARCH_[\s\S]*?\n\n/)[0]}${['historyTasks', 'renderSearchModal', 'searchResultsHtml', 'searchMoreNote', 'searchTaskResult'].map(fn).join('\n')}`, ctx);
   return ctx;
 }
 

@@ -34,6 +34,7 @@ function appRecovery(state) {
     renderModal() {}, render() {}, renderToast() {}, location: { hash: '#today' },
     setToastMessage: message => { ctx.message = message; }, setUndo: (message, fn) => { ctx.undo = fn; },
     refreshHabitMetrics: async () => {}, $: () => input,
+    loadArchive: async () => {}, // R103: the archive reloads after a commit or rollback (none here)
   };
   vm.createContext(withI18n(ctx)); vm.runInContext(code, ctx);
   return { ctx, input, begin: selection => ctx.beginGlobalOperation('restore', null, selection), commit: () => ctx.commitGlobalOperation(ctx.globalOperation) };

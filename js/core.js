@@ -2288,6 +2288,44 @@
       .slice(0, limit);
   }
 
+  // R103: completed tasks leave localStorage for IndexedDB (the store archivedTasks) this long after completion.
+  const ARCHIVE_AFTER_DAYS = 180;
+
+  // R103: the ids of the tasks that can be archived: completed at least `days` ago, without a project (project bars and
+  // counts stay the same), files or goals, and named nowhere else in the data (a goal, a resource, another task's
+  // successor, a setting…), so moving them out leaves no dangling reference.
+  function archivableTaskIds(state, today = dateOnly(), days = ARCHIVE_AFTER_DAYS) {
+    const cutoff = addDays(today, -days);
+    const count = (value, into) => {
+      if (typeof value === 'string') into.set(value, (into.get(value) || 0) + 1);
+      else if (Array.isArray(value)) value.forEach(item => count(item, into));
+      else if (value && typeof value === 'object') Object.values(value).forEach(item => count(item, into));
+      return into;
+    };
+    const everywhere = count(state, new Map());
+    return (state?.tasks || []).filter(task => {
+      if (!task?.isCompleted || task.projectId || (task.attachmentIds || []).length || (task.goalIds || []).length) return false;
+      const day = localDateOf(String(task.completedAt || ''));
+      if (!day || day > cutoff) return false;
+      return (everywhere.get(task.id) || 0) === (count(task, new Map()).get(task.id) || 0);
+    }).map(task => task.id);
+  }
+
+  // R103: after a sync merged the archived tasks in with the rest, which stay archived (still archivable), which come
+  // back (changed so they no longer qualify) and which were deleted on another device.
+  function splitArchived(tasks, archivedIds, state, today = dateOnly()) {
+    const archivedSet = new Set(archivedIds || []);
+    const archivable = new Set(archivableTaskIds(state, today));
+    const live = [], archived = [], unarchived = [];
+    for (const task of tasks || []) {
+      if (!archivedSet.has(task.id)) live.push(task);
+      else if (archivable.has(task.id)) archived.push(task);
+      else { live.push(task); unarchived.push(task.id); }
+    }
+    const present = new Set((tasks || []).map(task => task.id));
+    return { live, archived, unarchived, removed: [...archivedSet].filter(id => !present.has(id)) };
+  }
+
   // R101: what was done — the tasks completed this month, last month and this year, the best day this month (the earliest
   // of equals) and the run of days with something completed, from today or, until something is done today, from yesterday.
   function completionSummary(tasks, today = dateOnly()) {
@@ -2922,6 +2960,9 @@
     weeklyWins,
     priorityCandidates,
     completionSummary,
+    ARCHIVE_AFTER_DAYS,
+    archivableTaskIds,
+    splitArchived,
     JOURNAL_QUESTIONS,
     journalQuestion,
     completedOn,

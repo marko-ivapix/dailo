@@ -91,7 +91,7 @@ python3 -m http.server 8080
   - a ledger row with the commit hash.
 - **Data model:**
   - A data-model change gets its own data-model spec.
-  - Schema V3, IndexedDB v1 and ZIP `backupVersion: 2` stay.
+  - Schema V3, IndexedDB v2 and ZIP `backupVersion: 2` stay. IndexedDB v2 (R103) added the `archivedTasks` store; archived tasks still travel in a ZIP's `data.tasks`.
   - Device-local keys (see below) stay outside state and backups.
 - **i18n:** English source strings are the translation keys. Serbian goes into `js/i18n-sr.js`, Latin script only. `msg()` marks keys that are translated later. Node tests stay English.
 - **Product:**

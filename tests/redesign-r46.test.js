@@ -151,7 +151,8 @@ test('the migration: the record type, a private 10 MB bucket and per-user folder
 });
 
 test('the app hands its attachments to the sync and stores downloaded ones under their owner', async () => {
-  assert.match(app, /readLocal: async \(\) => \{ const habitLogs = await TodoStorage\.habitLogs\.listAll\(\); return \{ state, habitLogs, attachments: await syncAttachmentList\(\) \}; \},/);
+  // R103: the state the sync reads includes the archived tasks (withArchive).
+  assert.match(app, /readLocal: async \(\) => \{ const habitLogs = await TodoStorage\.habitLogs\.listAll\(\); return \{ state: withArchive\(state\), habitLogs, attachments: await syncAttachmentList\(\) \}; \},/);
   assert.match(app, /writeLocal: applySyncResult,\n\s+files: syncFiles,/);
   assert.match(app, /if \(result\.fileDeletes\?\.length\) await TodoStorage\.attachments\.deleteMany\(result\.fileDeletes\);/);
   // syncFiles.store puts the file in IndexedDB and adds it to the owner's attachmentIds.
