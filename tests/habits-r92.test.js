@@ -76,8 +76,7 @@ test('the new lines are Serbian; the guide explains the circle and the 30 days',
   assert.ok(read('uputstvo.html').includes('Pored niza vidiš i <strong>uspešnost za poslednjih 30 dana</strong>: jedan propušten dan je malo spusti, a ne vraća na nulu.'));
 });
 
-test('R92 is released as 2.0.0-alpha.119', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.119');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.119';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.119');
+test('R92 shipped as 2.0.0-alpha.119 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 119) >= 119);
 });

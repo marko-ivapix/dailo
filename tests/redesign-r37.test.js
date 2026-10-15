@@ -33,7 +33,8 @@ test('D: a numeric habit on Danas has one-tap quick values that add at once with
 });
 
 test('D: Nedelja shows how far a numeric day got as a partial arc', () => {
-  assert.match(habitsUi, /const fraction = habit\.trackingType === 'numeric' && day\.state !== 'done' && Number\(habit\.targetValue\) > 0 \? Math\.min\(1, Number\(day\.value \|\| 0\) \/ Number\(habit\.targetValue\)\) : 0;/);
+  // R93: a habit with a limit ("Najviše") is kept or not, so it shows no arc.
+  assert.match(habitsUi, /const fraction = habit\.trackingType === 'numeric' && habit\.targetMode !== 'atMost' && day\.state !== 'done' && Number\(habit\.targetValue\) > 0 \? Math\.min\(1, Number\(day\.value \|\| 0\) \/ Number\(habit\.targetValue\)\) : 0;/);
   assert.match(habitsUi, /\$\{fraction > 0 \? ` is-partial" style="--fraction:\$\{Math\.round\(fraction \* 100\) \/ 100\}` : ''\}/);
   assert.match(css, /\.habit-cell\.is-partial \{ background: conic-gradient\(var\(--blue-300\) calc\(var\(--fraction\) \* 1turn\), transparent 0\); \}/);
 });

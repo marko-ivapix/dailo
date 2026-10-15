@@ -231,6 +231,8 @@
       for (const key of ['targetValue','timesPerWeek','everyNDays','successfulPeriodsTarget']) positiveField(habit,key);
       // R85: a habit's duration in whole minutes.
       if (habit.durationMinutes != null && root.TodoCore.habitDurationOrNull(habit.durationMinutes) === null) fail('durationMinutes');
+      // R93: a limit ("najviše") exists only on a numeric habit.
+      if (habit.targetMode !== undefined && (habit.targetMode !== 'atMost' || habit.trackingType !== 'numeric')) fail('targetMode');
       for (const key of ['minimumTarget','idealTarget']) {
         if (habit.trackingType === 'numeric' && habit.frequencyType !== 'timesPerWeek') positiveField(habit, key);
         else if (habit[key] != null && !positiveInteger(habit[key])) fail(key);
@@ -252,6 +254,7 @@
     const templateData = data => {
       if (!object(data)) fail('Template data');
       if (data.durationMinutes != null && !positiveInteger(data.durationMinutes)) fail('Template durationMinutes');
+      if (data.targetMode !== undefined && (data.targetMode !== 'atMost' || data.trackingType !== 'numeric')) fail('Template targetMode');
       for (const key of ['minimumTarget','idealTarget']) {
         if (data.trackingType === 'numeric' && data.frequencyType !== 'timesPerWeek') positiveField(data,key);
         else if (data[key] != null && !positiveInteger(data[key])) fail('Template ' + key);
@@ -324,7 +327,9 @@
         || state.settings.weeklyReviews.some(entry => !object(entry) || !date(entry.weekStart) || !root.TodoCore.isIsoTimestamp(entry.completedAt)))) fail('weeklyReviews');
     }
     nested(logs,'Habit logs');nested(history,'Goal history');const days = new Set();
-    for (const log of logs) { ref(log.habitId,'habits');if (!log.habitId || !date(log.date) || days.has(`${log.habitId}:${log.date}`) || !['done','skipped','missed'].includes(log.status)) fail('Habit log');days.add(`${log.habitId}:${log.date}`);numberField(log,'value'); }
+    for (const log of logs) { ref(log.habitId,'habits');if (!log.habitId || !date(log.date) || days.has(`${log.habitId}:${log.date}`) || !['done','skipped','missed'].includes(log.status)) fail('Habit log');days.add(`${log.habitId}:${log.date}`);numberField(log,'value');
+      // R93: a day's note is one short line.
+      if (log.note !== undefined && (typeof log.note !== 'string' || log.note.length > 200)) fail('Habit log note'); }
     for (const event of history) { ref(event.goalId,'goals');if (!event.goalId || !['created','progressChanged','statusChanged','targetDateChanged','projectLinked','projectUnlinked','manualProgress'].includes(event.type) || !object(event.data) || typeof event.createdAt !== 'string' || !event.createdAt || !root.TodoCore.isIsoTimestamp(event.createdAt)) fail('Goal history timestamp'); }
   }
 

@@ -101,7 +101,7 @@
         return link ? [{goalId,contributionMode:link.contributionMode,selectedTaskIndices:children.map((t,index)=>(link.selectedTaskIds || []).includes(t.id)?index:null).filter(index=>index!==null)}] : [];
       });
     } else if (type === 'habit') {
-      data = pick(['name','areaId','goalIds','trackingType','targetValue','minimumTarget','idealTarget','graceDays','unit','quickValues','frequencyType','weekdays','timesPerWeek','everyNDays','continuation','endType','successfulPeriodsTarget']);
+      data = pick(['name','areaId','goalIds','trackingType','targetValue','targetMode','minimumTarget','idealTarget','graceDays','unit','quickValues','frequencyType','weekdays','timesPerWeek','everyNDays','continuation','endType','successfulPeriodsTarget']);
       data.endOffsetDays = templateOffset(entity.endDate, contextDate);
       data.reminders = (entity.reminders || []).map(r => ({time:r.time,enabled:r.enabled !== false}));
       data.goalLinkConfigs=(data.goalIds || []).flatMap(goalId=>{
@@ -154,7 +154,7 @@
       const tasks=(d.tasks || []).map(child=>task(child,null,project.id));
       return {project,tasks,goalLinks:configs.map(c=>({goalId:c.goalId,contributionMode:c.contributionMode,selectedTaskIds:[...new Set((c.selectedTaskIndices || []).filter(i=>Number.isInteger(i) && tasks[i]).map(i=>tasks[i].id))]}))};
     }
-    if (template.type === 'habit') return {habit:{...common,id:ids.habitId || makeId('habit'),name:d.name || '',areaId:live('areas',d.areaId),goalIds:links('goals',d.goalIds),status:'active',trackingType:d.trackingType || 'checkbox',targetValue:d.targetValue ?? 1,minimumTarget:habitTargetOrNull(d,d.minimumTarget),idealTarget:habitTargetOrNull(d,d.idealTarget),graceDays:Number.isInteger(d.graceDays) && d.graceDays >= 0 ? d.graceDays : 0,unit:d.unit || '',quickValues:d.quickValues || [],frequencyType:d.frequencyType || 'daily',weekdays:d.weekdays || [1,2,3,4,5],timesPerWeek:d.timesPerWeek || 4,everyNDays:d.everyNDays || 2,startDate:contextDate,continuation:d.continuation || 'automatic',endType:d.endType || 'never',endDate:resolve(d.endOffsetDays),successfulPeriodsTarget:d.successfulPeriodsTarget || null,reminders:(d.reminders || []).map(r=>({id:makeId('habit-reminder'),time:r.time,enabled:r.enabled !== false})),reminderFiredMoments:[],pauseIntervals:[],pauseStartedAt:null},goalLinks:configs.map(c=>({goalId:c.goalId,metric:c.metric,target:c.target}))};
+    if (template.type === 'habit') return {habit:{...common,id:ids.habitId || makeId('habit'),name:d.name || '',areaId:live('areas',d.areaId),goalIds:links('goals',d.goalIds),status:'active',trackingType:d.trackingType || 'checkbox',targetValue:d.targetValue ?? 1,...(d.targetMode === 'atMost' && d.trackingType === 'numeric' ? {targetMode:'atMost'} : {}),minimumTarget:habitTargetOrNull(d,d.minimumTarget),idealTarget:habitTargetOrNull(d,d.idealTarget),graceDays:Number.isInteger(d.graceDays) && d.graceDays >= 0 ? d.graceDays : 0,unit:d.unit || '',quickValues:d.quickValues || [],frequencyType:d.frequencyType || 'daily',weekdays:d.weekdays || [1,2,3,4,5],timesPerWeek:d.timesPerWeek || 4,everyNDays:d.everyNDays || 2,startDate:contextDate,continuation:d.continuation || 'automatic',endType:d.endType || 'never',endDate:resolve(d.endOffsetDays),successfulPeriodsTarget:d.successfulPeriodsTarget || null,reminders:(d.reminders || []).map(r=>({id:makeId('habit-reminder'),time:r.time,enabled:r.enabled !== false})),reminderFiredMoments:[],pauseIntervals:[],pauseStartedAt:null},goalLinks:configs.map(c=>({goalId:c.goalId,metric:c.metric,target:c.target}))};
     if (template.type === 'goal') return {goal:{...common,id:ids.goalId || makeId('goal'),title:d.title || '',areaId:live('areas',d.areaId),status:'active',progressMode:d.progressMode || 'manual',progressType:d.progressType || 'percentage',currentValue:0,targetValue:d.targetValue ?? 100,unit:d.unit || '',targetDate:resolve(d.targetOffsetDays),projectLinks:[],taskIds:[],habitLinks:[],completedAt:null,reminderFiredMoments:[],reminders:d.reminders || {},milestones:(d.milestones || []).map((m,order)=>({id:makeId('milestone'),title:m.title,date:resolve(m.dateOffsetDays),order,isCompleted:false,completedAt:null}))}};
     throw new Error(msg('Unsupported template type'));
   }
@@ -252,7 +252,9 @@
     return {
       date: today, done: rows.filter(({ day }) => day.state === 'done').length, planned: rows.length,
       items: rows.slice(0, limit).map(({ habit, day }) => ({ id: String(habit.id), name: String(habit.name || ''), done: day.state === 'done', missed: Boolean(day.marked), numeric: numeric(habit),
-        value: numeric(habit) ? Number(day.value || 0) : null, target: numeric(habit) ? Number(habit.targetValue || 0) : null, unit: numeric(habit) ? String(habit.unit || '') : '' })),
+        value: numeric(habit) ? Number(day.value || 0) : null, target: numeric(habit) ? Number(habit.targetValue || 0) : null, unit: numeric(habit) ? String(habit.unit || '') : '',
+        // R93: a limit says so ("1 / najviše 2").
+        ...(habitHasLimit(habit) ? { atMost: true } : {}) })),
       more: Math.max(0, rows.length - limit),
     };
   }
@@ -977,7 +979,7 @@
     state.habits = state.habits.map(habit => {
       const minimumTarget = habitTargetOrNull(habit, habit.minimumTarget);
       const idealTarget = habitTargetOrNull(habit, habit.idealTarget);
-      return {
+      const next = {
         ...habit,
         minimumTarget,
         idealTarget: idealTarget && minimumTarget ? Math.max(minimumTarget, idealTarget) : idealTarget,
@@ -985,6 +987,9 @@
         // R85: only a stored bad duration is cleared; older habits keep no field.
         ...(habit.durationMinutes != null && habitDurationOrNull(habit.durationMinutes) === null ? { durationMinutes: null } : {}),
       };
+      // R93: only a numeric habit has a limit ("atMost"); anything else is the usual target and keeps no field.
+      if (Object.hasOwn(next, 'targetMode') && !habitHasLimit(next)) delete next.targetMode;
+      return next;
     });
     state.templates = (state.templates || []).map(template => {
       const data = { ...(template.data || {}) };
@@ -1047,6 +1052,13 @@
 
   function getHabitTargetStatus(habit, periodStats) {
     const current = Math.max(0, safeNumber(periodStats?.currentPeriodCount ?? periodStats?.progressValue ?? periodStats?.count ?? periodStats));
+    // R93: a limit (a day's value): within it the minimum and the ideal are met, over it neither is. A weekly habit
+    // with a limit still counts its good days against the week's target.
+    if (habitHasLimit(habit) && habit.frequencyType !== 'timesPerWeek') {
+      const limit = safeNumber(habit.targetValue) > 0 ? safeNumber(habit.targetValue) : 1;
+      const within = current <= limit;
+      return { current, minimumTarget: limit, idealTarget: limit, minimumMet: within, idealMet: within, status: within ? 'within' : 'over', atMost: true };
+    }
     const fallback = habit?.frequencyType === 'timesPerWeek'
       ? positiveIntegerOrNull(habit?.timesPerWeek) || 1
       : safeNumber(habit?.targetValue) > 0 ? safeNumber(habit.targetValue) : 1;
@@ -1333,11 +1345,24 @@
     return history.sort((a, b) => a.before.localeCompare(b.before)).slice(-104);
   }
 
+  // R93: a numeric habit with a limit ("najviše 2 kafe") is done while its value stays within it, 0 included.
+  function habitHasLimit(habit) {
+    return habit?.trackingType === 'numeric' && habit?.targetMode === 'atMost';
+  }
+
   function numericHabitState(habit, rawValue) {
     const value = Math.max(0, safeNumber(rawValue));
     const target = Math.max(0, safeNumber(habit?.targetValue));
+    if (habitHasLimit(habit)) { const within = target > 0 && value <= target; return { status: within ? 'done' : 'missed', value, percent: within ? 100 : 0 }; }
     const percent = target > 0 ? clampPercent(value / target * 100) : 0;
     return { status: target > 0 && value >= target ? 'done' : 'missed', value, percent };
+  }
+
+  // R93: a short note on a checked-in day, one line of at most 200 characters (UTF-16 units, as backups count them),
+  // never ending in half an emoji.
+  function habitLogNote(value) {
+    const text = String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, 200);
+    return /[\uD800-\uDBFF]$/.test(text) ? text.slice(0, -1) : text;
   }
 
   function habitStatusForDate(habit, logs, date, today = dateOnly()) {
@@ -1364,6 +1389,8 @@
     if (status.status === 'done') return { state: 'done', planned: true, value: status.value };
     // R61: a yes/no habit marked "not done" is missed even today, and `marked` sets it apart from an untouched day.
     if (habit?.trackingType !== 'numeric' && status.logged && status.status === 'missed') return { state: 'missed', planned: habit?.frequencyType !== 'timesPerWeek', value: null, marked: true };
+    // R93: so is a day over its limit (more can only make it worse).
+    if (habitHasLimit(habit) && status.logged && status.status === 'missed') return { state: 'missed', planned: habit.frequencyType !== 'timesPerWeek', value: status.value, marked: true };
     if (habit?.frequencyType === 'timesPerWeek') {
       const week = habitPeriodKey(habit, date, weekRule);
       const done = new Set((logs || []).filter(log => log && log.date <= today && (!habit.id || log.habitId === habit.id) && habitPeriodKey(habit, log.date, weekRule) === week && habitStatusForDate(habit, logs, log.date, today).status === 'done').map(log => log.date)).size;
@@ -1545,7 +1572,7 @@
         let state = day.state;
         if (state === 'done') done += 1;
         if (!['future', 'unscheduled', 'skipped'].includes(state)) planned.push(date);
-        if (habit?.trackingType === 'numeric' && ['missed', 'open'].includes(state) && Number(day.value) > 0) state = 'partial';
+        if (habit?.trackingType === 'numeric' && !habitHasLimit(habit) && ['missed', 'open'].includes(state) && Number(day.value) > 0) state = 'partial';
         if (date.endsWith('-01')) months.push({ column, month: date.slice(5, 7) });
         days.push({ date, state });
       }
@@ -1573,7 +1600,8 @@
     if (habit?.frequencyType === 'timesPerWeek') return false;
     const day = habitStatusForDate(habit, logs || [], date, date);
     // R61: a yes/no habit marked "not done" closes the day too; a numeric one below its target still reminds.
-    return day.status === 'done' || day.status === 'skipped' || (habit?.trackingType !== 'numeric' && day.logged === true && day.status === 'missed');
+    // R93: a day over its limit is closed as well.
+    return day.status === 'done' || day.status === 'skipped' || ((habit?.trackingType !== 'numeric' || habitHasLimit(habit)) && day.logged === true && day.status === 'missed');
   }
 
   function habitReminderActive(habit, logs, now, weekStartsOn = 'monday') {
@@ -2856,6 +2884,8 @@
     habitTargetFor,
     recordHabitTargetChange,
     numericHabitState,
+    habitHasLimit,
+    habitLogNote,
     habitStatusForDate,
     habitCompletionForDates,
     deriveHabitMetrics,

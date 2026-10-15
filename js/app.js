@@ -691,7 +691,7 @@
       setModalState(value) { modalState = value; },
       get popoverEl() { return popoverEl; },
       getHabit, habitMetrics, habitDraft, openHabitModal, refreshHabitMetrics,
-      setHabitLog, updateHabitStatus, snoozeHabit, syncHabitGoalLinks,
+      setHabitLog, setHabitLogNote, updateHabitStatus, snoozeHabit, syncHabitGoalLinks,
       areaDefaults: { color: PROJECT_COLORS[0], icon: AREA_ICONS[0] },
       Core, getTask, getGoal, getProject, allProjects, sortedProjects, projectTasks, goalProgressLabel, goalStatusLabel, relativeDateLabel, formatReminder, recurrenceLabel, taskRecurrence, priorityLabel, priorityIcon, tagSummary, clampOrder, emptyState,
       render, restoreGoalFocus, captureGoalProgress, evaluateGoalProgressChanges,
@@ -1904,7 +1904,7 @@
   }
 
   function habitDraft(habit = null, areaId = null) {
-    return { name: habit?.name || '', areaId: habit?.areaId || areaId || null, routine: habit?.routine || 'daily', goalIds: [...(habit?.goalIds || [])], trackingType: habit?.trackingType || 'checkbox', targetValue: habit?.targetValue ?? 1, minimumTarget: habit?.minimumTarget ?? null, idealTarget: habit?.idealTarget ?? null, graceDays: habit?.graceDays ?? 0, unit: habit?.unit || '', quickValues: (habit?.quickValues || []).join(','), frequencyType: habit?.frequencyType || 'daily', weekdays: habit?.weekdays || [1, 2, 3, 4, 5], timesPerWeek: habit?.timesPerWeek || 4, everyNDays: habit?.everyNDays || 2, startDate: habit?.startDate || Core.dateOnly(), continuation: habit?.continuation || 'automatic', endType: habit?.endType || 'never', endDate: habit?.endDate || '', successfulPeriodsTarget: habit?.successfulPeriodsTarget || '', reminders: (habit?.reminders || []).map(item => ({ ...item })) };
+    return { name: habit?.name || '', areaId: habit?.areaId || areaId || null, routine: habit?.routine || 'daily', goalIds: [...(habit?.goalIds || [])], trackingType: habit?.trackingType || 'checkbox', targetValue: habit?.targetValue ?? 1, ...(habit?.targetMode === 'atMost' ? { targetMode: 'atMost' } : {}), minimumTarget: habit?.minimumTarget ?? null, idealTarget: habit?.idealTarget ?? null, graceDays: habit?.graceDays ?? 0, unit: habit?.unit || '', quickValues: (habit?.quickValues || []).join(','), frequencyType: habit?.frequencyType || 'daily', weekdays: habit?.weekdays || [1, 2, 3, 4, 5], timesPerWeek: habit?.timesPerWeek || 4, everyNDays: habit?.everyNDays || 2, startDate: habit?.startDate || Core.dateOnly(), continuation: habit?.continuation || 'automatic', endType: habit?.endType || 'never', endDate: habit?.endDate || '', successfulPeriodsTarget: habit?.successfulPeriodsTarget || '', reminders: (habit?.reminders || []).map(item => ({ ...item })) };
   }
 
   function openHabitModal(habitId = null, context = {}) {
@@ -4514,7 +4514,8 @@
     let status = requestedStatus; let value = requestedValue;
     // R31 (finding 9): a numeric habit can be skipped too; only a value decides done or missed.
     if (!clearing && habit.trackingType === 'numeric' && requestedStatus !== 'skipped') { const numeric = Core.numericHabitState(habit, requestedValue); status = numeric.status; value = numeric.value; }
-    const record = clearing ? null : { id: `${habitId}:${date}`, habitId, date, status: ['done', 'skipped', 'missed'].includes(status) ? status : 'done', value: value ?? null, createdAt: existing?.createdAt || nowIso(), updatedAt: nowIso() };
+    // R93: a new value or status keeps the day's note.
+    const record = clearing ? null : { id: `${habitId}:${date}`, habitId, date, status: ['done', 'skipped', 'missed'].includes(status) ? status : 'done', value: value ?? null, ...(existing?.note ? { note: existing.note } : {}), createdAt: existing?.createdAt || nowIso(), updatedAt: nowIso() };
     const previousUpdatedAt = habit.updatedAt;
     habit.updatedAt = nowIso();
     // Establish canonical ownership before touching the growing IndexedDB
@@ -4547,7 +4548,7 @@
         else if (!existing && TodoStorage.habitLogs.deleteIfCurrent) await TodoStorage.habitLogs.deleteIfCurrent(record.id, record);
         else {
           const current = await TodoStorage.habitLogs.get(record.id);
-          const stillOurRecord = current && ['id', 'habitId', 'date', 'status', 'value', 'createdAt', 'updatedAt']
+          const stillOurRecord = current && ['id', 'habitId', 'date', 'status', 'value', 'note', 'createdAt', 'updatedAt']
             .every(field => Object.is(current[field] ?? null, record[field] ?? null));
           if (stillOurRecord) {
             if (existing) await TodoStorage.habitLogs.put(existing);
@@ -4562,6 +4563,31 @@
       return null;
     }
     evaluateGoalProgressChanges(before); await evaluateHabitBoundaries(); render(); if (modalState?.type === 'habit-details') renderModal(); updateWidget(); return true;
+  }
+
+  // R93: a short note on a checked-in day ("prehlada"); an empty one removes it. A day without a check-in has none.
+  // Like a check-in, the habit's metadata is saved first (it owns the data and starts sync), then the day's record.
+  async function setHabitLogNote(habitId, date, rawNote) {
+    const habit = getHabit(habitId);
+    const existing = (state.habitLogCache?.[habitId] || []).find(log => log.date === date);
+    const text = Core.habitLogNote(rawNote);
+    if (!habit || !existing) return false;
+    if ((existing.note || '') === text) return true;
+    const record = { ...existing, updatedAt: nowIso() };
+    if (text) record.note = text; else delete record.note;
+    const previousUpdatedAt = habit.updatedAt;
+    habit.updatedAt = nowIso();
+    if (!saveState()) { habit.updatedAt = previousUpdatedAt; return null; }
+    try {
+      const putHabitLog = TodoStorage.habitLogs.putIfCurrent || TodoStorage.habitLogs.put;
+      await putHabitLog.call(TodoStorage.habitLogs, record, existing);
+      await refreshHabitMetrics();
+    } catch (error) {
+      reportStorageFailure(error);
+      return null;
+    }
+    render(); if (modalState?.type === 'habit-details') renderModal();
+    return true;
   }
 
   async function evaluateHabitBoundaries() {
@@ -7212,7 +7238,7 @@
     const number = value => Number(value || 0).toLocaleString(I18n.locale(), { maximumFractionDigits: 2 });
     return {
       title: tr('Habits'), summary: snap.planned ? tr('{done} of {total} today', { done: snap.done, total: snap.planned }) : '',
-      items: snap.items.map(item => ({ id: item.id, done: item.done, text: `${item.done ? '✓' : item.missed ? '✗' : '○'}  ${item.name}${item.numeric ? ` · ${number(item.value)}/${number(item.target)}${item.unit ? ` ${item.unit}` : ''}` : ''}` })),
+      items: snap.items.map(item => ({ id: item.id, done: item.done, text: `${item.done ? '✓' : item.missed ? '✗' : '○'}  ${item.name}${item.numeric ? ` · ${item.atMost ? tr('{value} / at most {target}', { value: number(item.value), target: number(item.target) }) : `${number(item.value)}/${number(item.target)}`}${item.unit ? ` ${item.unit}` : ''}` : ''}` })),
       more: snap.more ? tr('+ {count} more', { count: snap.more }) : '',
       empty: tr('No habits planned for today'), stale: tr('Open Dailo for today’s habits'),
     };

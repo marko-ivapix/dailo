@@ -2680,6 +2680,12 @@ a.toast-action { display: inline-flex; align-items: center; text-decoration: non
 /* R92: Navike — the line that says what ✓, ✗ and an empty circle mean. */
 .habits-legend { margin: 14px 4px 0; color: var(--ink-3); font-size: var(--text-sm); line-height: 1.45; }
 
+/* R93: the day's note in the habit's menu and the latest notes in its details. */
+.habit-note-field { grid-template-columns: auto auto minmax(0, 1fr); margin: 4px 4px 8px; }
+.habit-note-save { width: 100%; min-height: 44px; }
+.habit-notes { display: grid; gap: 8px; margin: 0; padding: 10px 14px; border: 1px solid var(--line-1); border-radius: var(--radius-md); background: var(--graphite-850); color: var(--ink-1); font-size: var(--text-base); list-style: none; overflow-wrap: anywhere; }
+.habit-note-date { display: block; color: var(--ink-3); font-size: var(--text-sm); }
+
 /* Keep primary compact actions touchable after all density rules. */
 @media (max-width: 700px), (pointer: coarse) {
   .task-actions .btn-icon,

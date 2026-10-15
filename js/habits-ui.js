@@ -57,14 +57,17 @@
     const dateAttr = date ? ` data-date="${esc(date)}"` : '';
     const status = todayStatus?.status || 'pending';
     const numeric = habit.trackingType === 'numeric';
+    // R93: a limit ("najviše 2") is done within it; over it the day shows the ✗ of "not done".
+    const atMost = numeric && habit.targetMode === 'atMost';
     // R61: "not done" is a logged missed day (Danas) or a day the caller marks (Dan, the details window).
-    const marked = !numeric && Boolean(todayStatus?.marked || (todayStatus?.logged && status === 'missed'));
+    const marked = (!numeric || atMost) && Boolean(todayStatus?.marked || (todayStatus?.logged && status === 'missed'));
     const stateLabel = tr(status === 'done' ? msg('Done') : marked ? msg('Not done') : status === 'skipped' ? msg('Skipped') : msg('Not checked in'));
     let fraction = 0; let right = '';
     if (numeric) {
       const target = Number(habit.targetValue) || 0;
-      fraction = target > 0 ? Math.min(1, Number(todayStatus?.value || 0) / target) : 0;
-      right = `${number(todayStatus?.value)} / ${number(target)}${habit.unit ? ` ${habit.unit}` : ''}`;
+      const unit = habit.unit ? ` ${habit.unit}` : '';
+      fraction = !atMost && target > 0 ? Math.min(1, Number(todayStatus?.value || 0) / target) : 0;
+      right = atMost ? tr('{value} / at most {target}', { value: number(todayStatus?.value), target: number(target) }) + unit : `${number(todayStatus?.value)} / ${number(target)}${unit}`;
     } else if (habit.frequencyType === 'timesPerWeek') {
       const metrics = habitMetrics(habit);
       fraction = metrics.currentPeriodTarget > 0 ? Math.min(1, metrics.currentPeriodCount / metrics.currentPeriodTarget) : 0;
@@ -88,12 +91,15 @@
     const habit = getHabit(habitId); if (!habit) return;
     const other = date !== Core.dateOnly();
     const dateAttr = other ? ` data-date="${esc(date)}"` : '';
-    const skipped = state.habitLogCache?.[habitId]?.find(log => log.date === date)?.status === 'skipped';
+    const entry = state.habitLogCache?.[habitId]?.find(log => log.date === date);
+    const skipped = entry?.status === 'skipped';
     const value = habit.trackingType === 'numeric' ? `<button class="popover-option" type="button" data-pop-action="habit-today-value" data-habit-id="${esc(habitId)}"${dateAttr}><i class="ph ph-pencil-simple"></i>${tr('Enter value')}</button>` : '';
     // R31 (finding 9): numeric habits can be skipped too (a sick day keeps the streak).
     const skip = `<button class="popover-option" type="button" data-pop-action="habit-today-skip" data-habit-id="${esc(habitId)}"${dateAttr}><i class="ph ph-arrow-bend-up-right"></i>${skipped ? tr('Undo skip') : other ? tr('Skip') : tr('Skip today')}</button>`;
     const details = `<button class="popover-option" type="button" data-pop-action="habit-today-details" data-habit-id="${esc(habitId)}"><i class="ph ph-chart-line-up"></i>${tr('Habit details')}</button>`;
-    openPopover(anchor, `<div class="popover-title">${esc(habit.name)}</div>${other ? `<p class="sheet-subtitle">${esc(ctx.formatDate(date, 'full'))}</p>` : ''}${value}${skip}${details}`, { type: 'habit-today-menu', habitId });
+    // R93: a checked-in day (done, not done or skipped) can carry a short note; the button or Enter saves it.
+    const note = entry ? `<div class="popover-separator"></div><label class="sheet-field habit-note-field"><i class="ph ph-note-pencil" aria-hidden="true"></i><span>${tr('Note')}</span><input id="habit-log-note" class="input" type="text" maxlength="200" value="${esc(entry.note || '')}" placeholder="${tr('Why, how it went…')}"></label><button class="btn btn-secondary habit-note-save" type="button" data-pop-action="habit-note-save" data-habit-id="${esc(habitId)}" data-date="${esc(date)}">${tr('Save note')}</button>` : '';
+    openPopover(anchor, `<div class="popover-title">${esc(habit.name)}</div>${other ? `<p class="sheet-subtitle">${esc(ctx.formatDate(date, 'full'))}</p>` : ''}${value}${skip}${details}${note}`, { type: 'habit-today-menu', habitId });
   }
 
   // H6: the value sheet with the quick values, the day's total and "Primeni".
@@ -105,7 +111,7 @@
     const chips = (habit.quickValues || []).map(value => `<button class="quick-chip" type="button" data-action="habit-value-add" data-value="${esc(value)}">+${esc(number(value))}${unit}</button>`).join('');
     const day = modalState.date && modalState.date !== ctx.Core.dateOnly() ? `<p class="sheet-subtitle">${esc(ctx.formatDate(modalState.date, 'full'))}</p>` : '';
     // R21: a sheet at every width, the total as a field row and one big "Primeni".
-    return modalFrame(`<div class="modal-inner quick-sheet habit-value-window"><div class="modal-header"><h2 class="modal-title">${esc(habit.name)}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div>${day}<p class="habit-value-summary"><strong class="habit-value-total">${esc(number(modalState.total))}</strong> / ${esc(number(habit.targetValue))}${unit}</p>${chips ? `<div class="quick-actions">${chips}</div>` : ''}<label class="sheet-field"><i class="ph ph-hash" aria-hidden="true"></i><span>${tr('Total for the day')}</span><input id="habit-value-total" class="input" type="number" min="0" step="any" value="${esc(modalState.total)}"></label><div class="quick-sheet-footer"><button class="btn btn-primary habit-window-save" type="button" data-action="habit-value-apply">${tr('Apply')}</button></div></div>`, 'quick habit-value-modal');
+    return modalFrame(`<div class="modal-inner quick-sheet habit-value-window"><div class="modal-header"><h2 class="modal-title">${esc(habit.name)}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div>${day}<p class="habit-value-summary"><strong class="habit-value-total">${esc(number(modalState.total))}</strong> / ${esc(habit.targetMode === 'atMost' ? tr('at most {target}', { target: number(habit.targetValue) }) : number(habit.targetValue))}${unit}</p>${chips ? `<div class="quick-actions">${chips}</div>` : ''}<label class="sheet-field"><i class="ph ph-hash" aria-hidden="true"></i><span>${tr('Total for the day')}</span><input id="habit-value-total" class="input" type="number" min="0" step="any" value="${esc(modalState.total)}"></label><div class="quick-sheet-footer"><button class="btn btn-primary habit-window-save" type="button" data-action="habit-value-apply">${tr('Apply')}</button></div></div>`, 'quick habit-value-modal');
   }
 
   function shiftMonth(monthKey, amount) {
@@ -244,7 +250,8 @@
         const day = found.state === 'future' && !Core.habitScheduledOn(habit, date) ? { ...found, state: 'unscheduled' } : found;
         const inactive = ['unscheduled', 'future'].includes(day.state);
         // R37 (D): a numeric day short of its target shows how far it got as an arc.
-        const fraction = habit.trackingType === 'numeric' && day.state !== 'done' && Number(habit.targetValue) > 0 ? Math.min(1, Number(day.value || 0) / Number(habit.targetValue)) : 0;
+        // R93: a limit is kept or not, so it shows no arc.
+        const fraction = habit.trackingType === 'numeric' && habit.targetMode !== 'atMost' && day.state !== 'done' && Number(habit.targetValue) > 0 ? Math.min(1, Number(day.value || 0) / Number(habit.targetValue)) : 0;
         const label = `${habit.name}, ${ctx.formatDate(date, 'full')}: ${tr(CELL_LABELS[day.marked ? 'marked' : day.state])}`;
         const pressed = habit.trackingType === 'numeric' ? '' : ` aria-pressed="${day.state === 'done'}"`;
         return `<td><button class="habit-cell is-${day.state}${day.marked ? ' is-marked' : ''}${date === week.today ? ' is-today' : ''}${fraction > 0 ? ` is-partial" style="--fraction:${Math.round(fraction * 100) / 100}` : ''}" type="button" data-action="habit-today-toggle" data-habit-id="${esc(habit.id)}" data-date="${date}"${inactive ? ' disabled' : ''} aria-label="${esc(label)}"${pressed}>${day.state === 'done' ? TICK : day.marked ? CROSS : ''}</button></td>`;
@@ -387,8 +394,9 @@
     const goals = (state.goals || []).filter(goal => (d.goalIds || []).includes(goal.id)).map(goal => goal.title).join(', ');
     const open = d.moreOpen === true;
     // R92: area and routine join the other settings under "Više opcija"; a new habit needs neither.
-    const more = open ? `<div class="habit-window-card">${habitWindowRow(ctx, 'habit-draft-area', 'ph-squares-four', tr('Area'), area, tr('No area (optional)'))}<div class="habit-window-block"><span class="habit-window-label"><i class="ph ph-clock" aria-hidden="true"></i>${tr('Routine')}</span>${habitSegment('habit-draft-routine', tr('Routine'), [['morning', tr('Morning')], ['daily', tr('Daytime')], ['night', tr('Night')]], ROUTINE_ORDER.includes(d.routine) ? d.routine : 'daily')}</div>${habitWindowRow(ctx, 'habit-draft-start', 'ph-calendar-blank', tr('Start'), startLabel(ctx, d))}${habitWindowRow(ctx, 'habit-draft-end', 'ph-flag-checkered', tr('End'), habitEndLabel(ctx, d))}${numeric || weekly ? habitWindowRow(ctx, 'habit-draft-targets', 'ph-gauge', tr('Minimum and ideal'), targets, tr('Same as the target')) : ''}${numeric ? habitWindowRow(ctx, 'habit-draft-quick', 'ph-lightning', tr('Quick values'), draftQuickValues(d).map(value => `+${plainNumber(value)}`).join('  ')) : ''}${habitWindowRow(ctx, 'habit-draft-goals', 'ph-target', tr('Linked goals'), goals, tr('None'))}<div class="habit-window-target"><label for="habit-duration">${tr('Duration')}</label><input id="habit-duration" class="input" type="number" min="1" max="1440" step="5" inputmode="numeric" value="${esc(d.durationMinutes ?? '')}"><span>${tr('min')}</span></div></div><p class="sheet-note">${tr('“Continuation” and “Grace days” are in the habit details.')}</p>` : '';
-    const tracking = `${habitSegment('habit-draft-tracking', tr('Tracking'), [['checkbox', tr('Checkbox')], ['numeric', tr('Numeric')]], numeric ? 'numeric' : 'checkbox')}${numeric ? `<div class="habit-window-target"><label for="habit-target-value">${tr('Target')}</label><input id="habit-target-value" class="input" type="number" min="0" step="any" value="${esc(d.targetValue)}"><input id="habit-unit" class="input" maxlength="20" value="${esc(d.unit)}" placeholder="${tr('unit')}" aria-label="${tr('Unit')}"><span>${tr('per day')}</span></div>` : ''}`;
+    const more = open ? `<div class="habit-window-card">${habitWindowRow(ctx, 'habit-draft-area', 'ph-squares-four', tr('Area'), area, tr('No area (optional)'))}<div class="habit-window-block"><span class="habit-window-label"><i class="ph ph-clock" aria-hidden="true"></i>${tr('Routine')}</span>${habitSegment('habit-draft-routine', tr('Routine'), [['morning', tr('Morning')], ['daily', tr('Daytime')], ['night', tr('Night')]], ROUTINE_ORDER.includes(d.routine) ? d.routine : 'daily')}</div>${habitWindowRow(ctx, 'habit-draft-start', 'ph-calendar-blank', tr('Start'), startLabel(ctx, d))}${habitWindowRow(ctx, 'habit-draft-end', 'ph-flag-checkered', tr('End'), habitEndLabel(ctx, d))}${numeric && d.targetMode !== 'atMost' || weekly ? habitWindowRow(ctx, 'habit-draft-targets', 'ph-gauge', tr('Minimum and ideal'), targets, tr('Same as the target')) : ''}${numeric ? habitWindowRow(ctx, 'habit-draft-quick', 'ph-lightning', tr('Quick values'), draftQuickValues(d).map(value => `+${plainNumber(value)}`).join('  ')) : ''}${habitWindowRow(ctx, 'habit-draft-goals', 'ph-target', tr('Linked goals'), goals, tr('None'))}<div class="habit-window-target"><label for="habit-duration">${tr('Duration')}</label><input id="habit-duration" class="input" type="number" min="1" max="1440" step="5" inputmode="numeric" value="${esc(d.durationMinutes ?? '')}"><span>${tr('min')}</span></div></div><p class="sheet-note">${tr('“Continuation” and “Grace days” are in the habit details.')}</p>` : '';
+    // R93: a numeric habit counts up to a target ("Najmanje") or stays within a limit ("Najviše").
+    const tracking = `${habitSegment('habit-draft-tracking', tr('Tracking'), [['checkbox', tr('Checkbox')], ['numeric', tr('Numeric')]], numeric ? 'numeric' : 'checkbox')}${numeric ? `${habitSegment('habit-draft-target-mode', tr('At least or at most'), [['atLeast', tr('At least')], ['atMost', tr('At most')]], d.targetMode === 'atMost' ? 'atMost' : 'atLeast')}<div class="habit-window-target"><label for="habit-target-value">${d.targetMode === 'atMost' ? tr('Limit') : tr('Target')}</label><input id="habit-target-value" class="input" type="number" min="0" step="any" value="${esc(d.targetValue)}"><input id="habit-unit" class="input" maxlength="20" value="${esc(d.unit)}" placeholder="${tr('unit')}" aria-label="${tr('Unit')}"><span>${tr('per day')}</span></div>` : ''}`;
     const card = `<div class="habit-window-card"><div class="habit-window-block"><span class="habit-window-label"><i class="ph ph-check-square" aria-hidden="true"></i>${tr('Tracking')}</span>${tracking}</div>${habitWindowRow(ctx, 'habit-draft-frequency', 'ph-repeat', tr('Frequency'), habitFrequencyLabel(ctx, d))}${habitWindowRow(ctx, 'habit-draft-reminders', 'ph-bell', tr('Reminder'), activeReminderTimes(ctx, d).join(', '))}</div>`;
     return modalFrame(`<div class="modal-inner quick-sheet habit-window"><div class="modal-header"><h2 class="modal-title">${editing ? tr('Edit habit') : tr('New habit')}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div><input id="habit-name" class="quick-title-input${error ? ' is-error' : ''}" type="text" maxlength="120" autocomplete="off" placeholder="${tr('What do you want to practice?')}" value="${esc(d.name)}" aria-label="${tr('Habit name')}">${error ? `<div class="validation" role="alert">${esc(error)}</div>` : ''}${card}<button class="habit-window-more" type="button" data-action="toggle-habit-more" aria-expanded="${open}"><strong>${tr('More settings')}</strong><span>${open ? tr('Hide') : tr('Area, routine, start, end, goals')} <i class="ph ph-caret-${open ? 'up' : 'down'}" aria-hidden="true"></i></span></button>${more}<div class="quick-sheet-footer"><span></span><button class="btn btn-primary habit-window-save" type="button" data-action="save-habit">${editing ? tr('Save changes') : tr('Create habit')}</button></div></div>`, 'quick');
   }
@@ -402,15 +410,18 @@
     const target = Core.getHabitTargetStatus(habit, metrics);
     const periods = (metrics.periods || []).filter(period => period.key <= today);
     const currentIndex = periods.findIndex(period => period.isCurrent);
+    // R93: a day of a limit habit counts only once it is checked in within the limit (an empty day is 0 but not kept).
+    const limit = Core.habitHasLimit(habit) && habit.frequencyType !== 'timesPerWeek';
+    const kept = period => (limit ? period.successful : Core.getHabitTargetStatus(habit, { currentPeriodCount: period.progressValue }).minimumMet);
     let missedDays = 0;
     for (let i = currentIndex - 1; i >= 0; i--) {
       const period = periods[i];
-      if (period.skipped || Core.getHabitTargetStatus(habit, { currentPeriodCount: period.progressValue }).minimumMet) break;
+      if (period.skipped || kept(period)) break;
       missedDays += period.dates.length;
     }
     const graceDays = Math.max(0, Number(habit.graceDays) || 0);
     if (!missedDays) return tr('No recent missed period to recover from.');
-    return `${target.minimumMet ? trn(missedDays, 'Recovered after {count} missed day.', 'Recovered after {count} missed days.') : trn(missedDays, 'Resume after {count} missed day.', 'Resume after {count} missed days.')} ${missedDays <= graceDays ? trn(graceDays, 'Within your {count}-day grace allowance.', 'Within your {count}-day grace allowance.') : trn(graceDays, 'Beyond your {count}-day grace allowance; start again today.', 'Beyond your {count}-day grace allowance; start again today.')}`;
+    return `${(limit ? Boolean(periods[currentIndex]?.successful) : target.minimumMet) ? trn(missedDays, 'Recovered after {count} missed day.', 'Recovered after {count} missed days.') : trn(missedDays, 'Resume after {count} missed day.', 'Resume after {count} missed days.')} ${missedDays <= graceDays ? trn(graceDays, 'Within your {count}-day grace allowance.', 'Within your {count}-day grace allowance.') : trn(graceDays, 'Beyond your {count}-day grace allowance; start again today.', 'Beyond your {count}-day grace allowance; start again today.')}`;
   }
 
   function renderHabitDetails(ctx) {
@@ -459,9 +470,13 @@
     if (numeric || weekly) {
       const target = Core.getHabitTargetStatus(habit, metrics);
       targetAttr = ` data-habit-target-status="${esc(target.status)}"`;
-      targetLine = `<p>${esc(tr('{current} / {minimum} minimum · {ideal} ideal', { current: plainNumber(target.current), minimum: plainNumber(target.minimumTarget), ideal: plainNumber(target.idealTarget) }))} · ${esc(target.idealMet ? tr('Ideal target met') : target.minimumMet ? tr('Minimum target met') : tr('Working toward minimum'))}</p>`;
+      // R93: a limit reads "1 / najviše 2 · U granici".
+      targetLine = target.atMost ? `<p>${esc(tr('{current} / at most {limit}', { current: plainNumber(target.current), limit: plainNumber(target.minimumTarget) }))} · ${esc(target.minimumMet ? tr('Within the limit') : tr('Over the limit'))}</p>` : `<p>${esc(tr('{current} / {minimum} minimum · {ideal} ideal', { current: plainNumber(target.current), minimum: plainNumber(target.minimumTarget), ideal: plainNumber(target.idealTarget) }))} · ${esc(target.idealMet ? tr('Ideal target met') : target.minimumMet ? tr('Minimum target met') : tr('Working toward minimum'))}</p>`;
     }
     html += `<h3 class="habit-details-label">${tr('Insight')}</h3><div class="today-card habit-details-insight"${targetAttr}><p>${esc(tr('This week: {done} of {planned}', { done: progress.done, planned: progress.planned }))}</p>${targetLine}<p class="task-meta" data-habit-recovery>${esc(habitRecovery(ctx, habit, metrics))}</p></div>`;
+    // R93: the latest notes of checked-in days, newest first.
+    const notes = logs.filter(item => item.note).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5);
+    if (notes.length) html += `<h3 class="habit-details-label">${tr('Notes')}</h3><ul class="habit-notes">${notes.map(item => `<li><span class="habit-note-date">${esc(ctx.formatDate(item.date, 'full'))}</span>${esc(item.note)}</li>`).join('')}</ul>`;
     // R54: the last 12 months as 53 weeks by 7 days, with the share done and a legend.
     const year = Core.habitYear(habit, logs, week.today, week.rule);
     const yearSummary = year.percent == null ? tr('Nothing planned in the last 12 months') : tr('{done} days done · {percent}% of planned', { done: year.done, percent: year.percent });
@@ -477,18 +492,19 @@
     const goals = (state.goals || []).filter(goal => (habit.goalIds || []).includes(goal.id)).map(goal => goal.title).join(', ');
     const targets = targetsLabel(ctx, habit);
     const grace = Math.max(0, Number(habit.graceDays) || 0);
+    const amount = `${plainNumber(habit.targetValue)}${habit.unit ? ` ${habit.unit}` : ''}`;
     // R92: the everyday settings in view, the advanced ones under "Više opcija".
     const rows = [
       row('habit-details-name', 'ph-text-aa', tr('Name'), habit.name),
       row('habit-draft-area', 'ph-squares-four', tr('Area'), area, tr('No area')),
       row('habit-details-routine', 'ph-clock', tr('Routine'), routineLabel(habit.routine)),
-      row('habit-details-tracking', 'ph-check-square', tr('Tracking'), numeric ? `${tr('Numeric')} · ${plainNumber(habit.targetValue)}${habit.unit ? ` ${habit.unit}` : ''}` : tr('Checkbox')),
+      row('habit-details-tracking', 'ph-check-square', tr('Tracking'), numeric ? `${tr('Numeric')} · ${habit.targetMode === 'atMost' ? tr('at most {target}', { target: amount }) : amount}` : tr('Checkbox')),
       row('habit-draft-frequency', 'ph-repeat', tr('Frequency'), frequency),
       row('habit-draft-reminders', 'ph-bell', tr('Reminders'), activeReminderTimes(ctx, habit).join(', ')),
     ].join('');
     const advanced = [
       numeric ? row('habit-draft-quick', 'ph-lightning', tr('Quick values'), draftQuickValues(habit).map(value => `+${plainNumber(value)}`).join('  ')) : '',
-      numeric || weekly ? row('habit-draft-targets', 'ph-gauge', tr('Minimum and ideal'), targets, tr('Same as the target')) : '',
+      numeric && habit.targetMode !== 'atMost' || weekly ? row('habit-draft-targets', 'ph-gauge', tr('Minimum and ideal'), targets, tr('Same as the target')) : '',
       row('habit-details-grace', 'ph-shield-check', tr('Grace days'), grace ? trn(grace, '{count} day', '{count} days') : tr('No grace days')),
       row('habit-details-continuation', 'ph-arrows-clockwise', tr('Continuation'), tr(CONTINUATION_LABELS[habit.continuation] || CONTINUATION_LABELS.automatic)),
       row('habit-draft-start', 'ph-calendar-blank', tr('Start'), startLabel(ctx, habit)),
@@ -518,6 +534,8 @@
     const goalsChanged = JSON.stringify([...(habit.goalIds || [])].sort()) !== JSON.stringify([...(d.goalIds || [])].sort());
     const before = goalsChanged ? captureGoalProgress() : null;
     Object.assign(habit, fields, { updatedAt: nowIso() });
+    // R93: only a numeric habit keeps a limit; "at least" is the usual target and has no field.
+    if (numeric && d.targetMode === 'atMost') habit.targetMode = 'atMost'; else delete habit.targetMode;
     if (goalsChanged) syncHabitGoalLinks(habit, d.goalIds || []);
     ctx.modalState.draft = null;
     saveState();
@@ -533,8 +551,10 @@
   function trackingSheetHtml(ctx) {
     const numeric = sheet.type === 'numeric';
     const choice = sheet.history ? `<p class="sheet-note">${tr('Tracking cannot change while this Habit has history.')}</p>` : `<div class="sheet-card" role="radiogroup" aria-label="${tr('Tracking')}">${[['checkbox', tr('Checkbox')], ['numeric', tr('Numeric')]].map(([value, label]) => radioOption('habit-tracking-type', value, label, sheet.type === value)).join('')}</div>`;
-    const target = numeric ? `<div class="habit-window-target"><label for="habit-tracking-target">${tr('Target')}</label><input id="habit-tracking-target" class="input" type="number" min="0" step="any" value="${ctx.esc(sheet.target)}"><input id="habit-tracking-unit" class="input" maxlength="20" value="${ctx.esc(sheet.unit)}" placeholder="${tr('unit')}" aria-label="${tr('Unit')}"><span>${tr('per day')}</span></div>` : '';
-    return `<div class="popover-title">${tr('Tracking')}</div>${sheetSubtitle(ctx)}${choice}${target}${sheet.error ? `<p class="validation" role="alert">${ctx.esc(sheet.error)}</p>` : ''}${applyFooter('habit-tracking-apply')}`;
+    // R93: "Najmanje" (a target) or "Najviše" (a limit).
+    const mode = numeric ? `<div class="sheet-card" role="radiogroup" aria-label="${tr('At least or at most')}">${[['atLeast', tr('At least')], ['atMost', tr('At most')]].map(([value, label]) => radioOption('habit-tracking-mode', value, label, (sheet.mode === 'atMost' ? 'atMost' : 'atLeast') === value)).join('')}</div>` : '';
+    const target = numeric ? `<div class="habit-window-target"><label for="habit-tracking-target">${sheet.mode === 'atMost' ? tr('Limit') : tr('Target')}</label><input id="habit-tracking-target" class="input" type="number" min="0" step="any" value="${ctx.esc(sheet.target)}"><input id="habit-tracking-unit" class="input" maxlength="20" value="${ctx.esc(sheet.unit)}" placeholder="${tr('unit')}" aria-label="${tr('Unit')}"><span>${tr('per day')}</span></div>` : '';
+    return `<div class="popover-title">${tr('Tracking')}</div>${sheetSubtitle(ctx)}${choice}${mode}${target}${sheet.error ? `<p class="validation" role="alert">${ctx.esc(sheet.error)}</p>` : ''}${applyFooter('habit-tracking-apply')}`;
   }
   function graceSheetHtml(ctx) {
     return `<div class="popover-title">${tr('Grace days')}</div>${sheetSubtitle(ctx)}<label class="sheet-field"><i class="ph ph-shield-check" aria-hidden="true"></i><span>${tr('Grace days')}</span><input id="habit-grace" class="input" type="number" min="0" step="1" value="${ctx.esc(sheet.value)}"></label><p class="sheet-note">${tr('Grace describes recovery; recorded check-ins and streaks stay unchanged.')}</p>${sheet.error ? `<p class="validation" role="alert">${ctx.esc(sheet.error)}</p>` : ''}${applyFooter('habit-grace-apply')}`;
@@ -561,9 +581,10 @@
     if (action === 'habit-details-routine') { sheet = { kind: 'routine' }; showSheet(ctx, el, choiceSheetHtml(ctx, tr('Routine'), 'habit-details-set-routine', [['morning', tr('Morning')], ['daily', tr('Daytime')], ['night', tr('Night')]], routineOf(d)), 'habit-routine'); return true; }
     if (action === 'habit-details-set-routine') { if (ROUTINE_ORDER.includes(el.dataset.value)) d.routine = el.dataset.value; closeAndRender(); return true; }
     if (action === 'habit-details-tracking') {
-      sheet = { kind: 'tracking', type: d.trackingType === 'numeric' ? 'numeric' : 'checkbox', target: d.targetValue, unit: d.unit || '', history: (ctx.state.habitLogCache?.[ctx.modalState.habitId] || []).length > 0, error: '' };
+      sheet = { kind: 'tracking', type: d.trackingType === 'numeric' ? 'numeric' : 'checkbox', mode: d.targetMode === 'atMost' ? 'atMost' : 'atLeast', target: d.targetValue, unit: d.unit || '', history: (ctx.state.habitLogCache?.[ctx.modalState.habitId] || []).length > 0, error: '' };
       showSheet(ctx, el, trackingSheetHtml(ctx), 'habit-tracking'); return true;
     }
+    if (action === 'habit-tracking-mode' && sheet?.kind === 'tracking') { readTrackingInputs(ctx); sheet.mode = el.dataset.value === 'atMost' ? 'atMost' : 'atLeast'; ctx.refreshSheet(trackingSheetHtml(ctx)); return true; }
     if (action === 'habit-tracking-type' && sheet?.kind === 'tracking' && !sheet.history) { readTrackingInputs(ctx); sheet.type = el.dataset.value === 'numeric' ? 'numeric' : 'checkbox'; sheet.error = ''; ctx.refreshSheet(trackingSheetHtml(ctx)); return true; }
     if (action === 'habit-tracking-apply' && sheet?.kind === 'tracking') {
       readTrackingInputs(ctx);
@@ -572,6 +593,10 @@
       if (sheet.type !== d.trackingType) { d.minimumTarget = null; d.idealTarget = null; }
       d.trackingType = sheet.type;
       if (sheet.type === 'numeric') { d.targetValue = target; d.unit = String(sheet.unit).trim(); }
+      // R93: switching between a target and a limit drops the day's minimum and ideal.
+      const atMost = sheet.type === 'numeric' && sheet.mode === 'atMost';
+      if (atMost !== (d.targetMode === 'atMost') && d.frequencyType !== 'timesPerWeek') { d.minimumTarget = null; d.idealTarget = null; }
+      if (atMost) d.targetMode = 'atMost'; else delete d.targetMode;
       closeAndRender(); return true;
     }
     if (action === 'habit-details-grace') { sheet = { kind: 'grace', value: Number(d.graceDays) || 0, error: '' }; showSheet(ctx, el, graceSheetHtml(ctx), 'habit-grace'); return true; }
@@ -745,6 +770,16 @@
       }
       ctx.renderModal(); focusSame(`[data-action="${action}"][data-value="${value}"]`); return true;
     }
+    // R93: "Najviše" makes the target a limit, which has no minimum and ideal of its own.
+    if (action === 'habit-draft-target-mode') {
+      syncDraftInputs(ctx);
+      const atMost = el.dataset.value === 'atMost';
+      if (atMost !== (d.targetMode === 'atMost')) {
+        if (atMost) d.targetMode = 'atMost'; else delete d.targetMode;
+        if (d.frequencyType !== 'timesPerWeek') { d.minimumTarget = null; d.idealTarget = null; }
+      }
+      ctx.renderModal(); focusSame(`[data-action="${action}"][data-value="${atMost ? 'atMost' : 'atLeast'}"]`); return true;
+    }
     if (action === 'habit-draft-area') { syncDraftInputs(ctx); openHabitAreaSheet(ctx, el); return true; }
     if (action === 'habit-draft-set-area') { d.areaId = (ctx.state.areas || []).some(area => area.id === el.dataset.areaId) ? el.dataset.areaId : null; ctx.closePopover(); ctx.renderModal(); return true; }
     if (action === 'habit-draft-frequency') { syncDraftInputs(ctx); openFrequencySheet(ctx, el); return true; }
@@ -837,6 +872,8 @@
     // A new weekly target applies from this week on; earlier weeks keep theirs (M11).
     if (existingId) fields.targetHistory = Core.recordHabitTargetChange(habit, fields, Core.habitPeriodKey({ frequencyType: 'timesPerWeek' }, Core.dateOnly(), Core.habitWeekRule(state.settings)));
     Object.assign(habit, fields);
+    // R93: only a numeric habit keeps a limit; "at least" is the usual target and has no field.
+    if (habit.trackingType !== 'numeric' || d.targetMode !== 'atMost') delete habit.targetMode;
     const before=ctx.modalState.templateInstance?captureGoalProgress():null;
     syncHabitGoalLinks(habit, d.goalIds,ctx.modalState.templateInstance?.goalLinks);
     if (!existingId) state.habits.push(habit);
@@ -887,7 +924,13 @@
       const habit = getHabit(el.dataset.habitId); if (!habit || date > today) return true;
       if (habit.trackingType === 'numeric') ctx.openHabitValue(habit.id, date);
       // R61: empty → done → not done (a red ✗) → empty; a skipped day goes to done.
-      else { const current = dayLog(habit.id)?.status; setHabitLog(habit.id, date, current === 'done' ? 'missed' : current === 'missed' ? null : 'done'); }
+      else {
+        const previous = dayLog(habit.id); const current = previous?.status;
+        const next = current === 'done' ? 'missed' : current === 'missed' ? null : 'done';
+        const saving = setHabitLog(habit.id, date, next);
+        // R93: an emptied day takes its note along, so Poništi brings both back.
+        if (next === null && previous?.note) saving.then(saved => { if (saved === true) ctx.setUndo(msg('Note removed'), () => setHabitLog(habit.id, date, current).then(() => ctx.setHabitLogNote(habit.id, date, previous.note))); }).catch(console.error);
+      }
       return true;
     }
     if (action === 'habit-quick-value') {
@@ -900,6 +943,13 @@
     if (action === 'habit-today-menu') { openTodayHabitMenu(ctx, el, el.dataset.habitId, date); return true; }
     if (action === 'habit-today-skip') { closePopover(); setHabitLog(el.dataset.habitId, date, dayLog(el.dataset.habitId)?.status === 'skipped' ? 'missed' : 'skipped'); return true; }
     if (action === 'habit-today-value') { closePopover(); ctx.openHabitValue(el.dataset.habitId, date); return true; }
+    // R93: the day's note from its menu; an empty field removes it.
+    if (action === 'habit-note-save') {
+      const text = $('#habit-log-note')?.value ?? '';
+      closePopover();
+      ctx.setHabitLogNote(el.dataset.habitId, date, text).then(saved => { if (saved === true) ctx.setToastMessage(Core.habitLogNote(text) ? tr('Note saved') : tr('Note removed')); }).catch(console.error);
+      return true;
+    }
     if (action === 'habits-view') { state.ui.habitsView = el.dataset.view === 'week' ? 'week' : 'day'; if (state.ui.habitsView === 'day') state.ui.habitsDay = today; saveAndRender(); return true; }
     if (action === 'habits-week') {
       const week = shownWeek(ctx, activeHabits(state));
@@ -965,6 +1015,8 @@
 
   function handleInput(event, ctx) {
     const target = event.target;
+    // R93: Enter in the day's note saves it.
+    if (event.type === 'keydown' && event.key === 'Enter' && target?.id === 'habit-log-note') { event.preventDefault(); ctx.popoverEl?.querySelector('[data-pop-action="habit-note-save"]')?.click(); return true; }
     if (!['input', 'change'].includes(event.type)) return false;
     // R8b: the window's typed fields and the live inputs of its sheets.
     if (ctx.modalState?.type === 'habit' && ['habit-name', 'habit-target-value', 'habit-unit', 'habit-duration'].includes(target.id)) { readHabitDraft(ctx); return true; }
