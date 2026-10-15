@@ -38,22 +38,21 @@ function inboxContext(data = {}) {
 
 const at = `${TODAY}T07:00:00.000Z`;
 
-test('I1, I3, I4: the top line, "Razvrstaj redom", only present types as filters, and capture groups', () => {
+test('I1, I3, I4: the top line, "Razvrstaj redom" and capture groups (R86: no type filters)', () => {
   const ctx = inboxContext({
     tasks: [{ id: 't1', title: 'Idea', isInbox: true, createdAt: at, inboxOrder: 0 }],
     notes: [{ id: 'n1', title: 'Link from Ana', isInbox: true, createdAt: at }],
   });
   const html = ctx.renderInbox();
   assert.match(html, /^<header title="Inbox" subtitle="2 items waiting to be organized"><\/header><div class="inbox-add">[\s\S]*?<\/div><button class="inbox-triage-button" type="button" data-action="inbox-triage"><i class="ph ph-stack" aria-hidden="true"><\/i><span><strong>Sort one by one<\/strong> · one at a time<\/span><i class="ph ph-caret-right" aria-hidden="true"><\/i><\/button>/);
-  const tabs = [...html.matchAll(/data-inbox-filter="(\w+)">([^<]+)<span class="inbox-filter-count">(\d+)<\/span>/g)].map(match => match.slice(1));
-  assert.deepEqual(tabs, [['all', 'All', '2'], ['tasks', 'Tasks', '1'], ['notes', 'Notes', '1']]);
+  // R86: Inbox is for emptying, so there are no type filters; it always lists everything (tests/inbox-process-r86.test.js).
+  assert.doesNotMatch(html, /data-inbox-filter|inbox-filter-count/);
   assert.match(html, /<strong>Today<\/strong><span>2<\/span>/);
   assert.match(html, /<task t1 inbox today inbox drag>/);
-  ctx.state.notes = [];
   ctx.state.ui.inboxFilter = 'notes';
-  const single = ctx.renderInbox();
-  assert.doesNotMatch(single, /inbox-filter-tabs/, 'one type: no filters');
-  assert.match(single, /<task t1/, 'a gone type falls back to all');
+  const stored = ctx.renderInbox();
+  assert.match(stored, /<task t1/, 'R86: a filter stored before hides nothing');
+  assert.match(stored, /Link from Ana/);
 });
 
 test('I6: an empty Inbox shows a check, "Inbox je prazan" and "Sve je razvrstano."', () => {
@@ -115,7 +114,7 @@ test('I2: "Razvrstaj redom" shows one item with large buttons, a counter and Pre
   let html = ctx.renderInboxTriage();
   assert.match(html, /^<frame quick inbox-triage-modal><div class="modal-inner"><div class="modal-header"><h2 class="modal-title">Sorting<\/h2>/);
   assert.match(html, /<p class="inbox-triage-meta">Task · added today<\/p><p class="inbox-triage-title">Call the bank<\/p><p class="inbox-triage-due"><span class="task-due is-today">Due today<\/span><\/p>/);
-  assert.match(html, /<div class="inbox-triage-actions"><button class="btn btn-secondary" type="button" data-action="inbox-today" data-task-id="t1">Today<\/button><button class="btn btn-secondary" type="button" data-action="inbox-tomorrow" data-task-id="t1">Tomorrow<\/button><button class="btn btn-secondary" type="button" data-action="inbox-anytime" data-task-id="t1">Anytime<\/button><button class="btn btn-secondary" type="button" data-action="inbox-date" data-task-id="t1">Date…<\/button><button class="btn btn-secondary" type="button" data-action="inbox-project" data-task-id="t1">Project…<\/button><button class="btn btn-secondary" type="button" data-action="inbox-triage-open" data-inbox-type="task" data-inbox-id="t1">Open it<\/button><\/div>/, 'R36: "Datum…" and "Otvori" too');
+  assert.match(html, /<div class="inbox-triage-actions"><button class="btn btn-secondary" type="button" data-action="inbox-today" data-task-id="t1">Today<\/button><button class="btn btn-secondary" type="button" data-action="inbox-tomorrow" data-task-id="t1">Tomorrow<\/button><button class="btn btn-secondary" type="button" data-action="inbox-anytime" data-task-id="t1">Anytime<\/button><button class="btn btn-secondary" type="button" data-action="inbox-date" data-task-id="t1">Date…<\/button><button class="btn btn-secondary" type="button" data-action="inbox-project" data-task-id="t1">Project…<\/button><button class="btn btn-secondary" type="button" data-action="inbox-complete" data-task-id="t1">Complete<\/button><button class="btn btn-secondary" type="button" data-action="inbox-to-note" data-task-id="t1">To notes<\/button><button class="btn btn-secondary" type="button" data-action="inbox-triage-open" data-inbox-type="task" data-inbox-id="t1">Open it<\/button><\/div>/, 'R36: "Datum…" and "Otvori" too; R86: "Završi" and "U beleške"');
   assert.match(html, /<div class="inbox-triage-footer"><span>1 of 2<\/span><button class="btn btn-ghost" type="button" data-action="inbox-triage-skip">Skip<\/button><\/div>/);
   assert.doesNotMatch(html, /delete/i, 'no deleting here');
   ctx.state.tasks[0].isInbox = false;

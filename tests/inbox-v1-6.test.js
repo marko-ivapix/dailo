@@ -25,7 +25,8 @@ function inboxHelpers(sourceStart, sourceEnd) {
 }
 
 test('Inbox exposes focused type filters without changing Search', () => {
-  assert.match(app, /data-action="inbox-filter"/);
+  // R86: Inbox is for emptying, so the type filters are gone (tests/inbox-process-r86.test.js); Search is unchanged.
+  assert.doesNotMatch(app, /data-action="inbox-filter"/);
   assert.match(app, /INBOX_FILTERS = \[\['all', msg\('All'\)\], \['tasks', msg\('Tasks'\)\], \['goals', msg\('Goals'\)\], \['habits', msg\('Habits'\)\], \['notes', msg\('Notes'\)\], \['resources', msg\('Resources'\)\]\]/);
   assert.match(app, /function openSearch\(\)/);
   assert.match(app, /searchResultsHtml\(modalState\.query/);
@@ -34,7 +35,8 @@ test('Inbox exposes focused type filters without changing Search', () => {
 test('Inbox groups captured items by Today, Yesterday and This week', () => {
   assert.match(app, /const order = \[msg\('Today'\), msg\('Yesterday'\), msg\('This week'\), msg\('Earlier'\)\]/);
   assert.match(app, /class="inbox-group-label"/);
-  assert.match(app, /state\.ui\.inboxFilter/);
+  // R86: the screen no longer reads the filter; the stored ui value stays valid.
+  assert.match(app, /next\.ui\.inboxFilter = INBOX_FILTERS\.some/);
 });
 
 test('Inbox keeps one-at-a-time triage actions and supports Tomorrow', () => {

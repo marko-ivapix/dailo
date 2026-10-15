@@ -386,6 +386,7 @@
     next.ui.projectCompletedExpanded = next.ui.projectCompletedExpanded || {};
     next.ui.completedProjectFilter = next.ui.completedProjectFilter || '';
     next.ui.completedPeriod = Number(next.ui.completedPeriod) || 0;
+    // R86: Inbox no longer reads the filter; it stays valid so the stored ui keeps its shape.
     next.ui.inboxFilter = INBOX_FILTERS.some(([value]) => value === next.ui.inboxFilter) ? next.ui.inboxFilter : 'all';
     // Redesign R7 (C1, C6): Nedelja, Mesec or Predstojeće; a stored V1.12 "day" view is the week on its Raspored.
     if (next.ui.calendarView === 'day') next.ui.calendarDayMode = 'schedule';
@@ -1237,17 +1238,14 @@
   }
 
   // Redesign R6 (I1–I6): the waiting count, "Razvrstaj redom", filters only for the types present, the capture groups.
+  // R86: no type filters — Inbox is for emptying, so it always lists everything.
   function renderInbox() {
-    const all = activeInboxRecords('all');
-    const present = INBOX_FILTERS.filter(([value]) => value !== 'all' && activeInboxRecords(value).length);
-    const filter = present.some(([value]) => value === state.ui.inboxFilter) ? state.ui.inboxFilter : 'all';
-    const records = activeInboxRecords(filter);
-    let html = pageHeader(tr('Inbox'), all.length ? trn(all.length, '{count} item waiting to be organized', '{count} items waiting to be organized') : tr('Nothing is waiting'), {});
+    const records = activeInboxRecords('all');
+    let html = pageHeader(tr('Inbox'), records.length ? trn(records.length, '{count} item waiting to be organized', '{count} items waiting to be organized') : tr('Nothing is waiting'), {});
     const addRow = `<div class="inbox-add"><input id="inbox-add-title" class="input" type="text" maxlength="500" autocomplete="off" enterkeyhint="done" placeholder="${tr('Add to Inbox…')}" aria-label="${tr('Add to Inbox')}"><button class="btn-icon" type="button" data-action="inbox-add" aria-label="${tr('Add')}"><i class="ph ph-plus" aria-hidden="true"></i></button></div>`;
     html += addRow;
-    if (!all.length) return html + `<div class="empty-state inbox-empty"><i class="ph ph-check-circle" aria-hidden="true"></i><h3>${tr('Inbox is empty')}</h3><p>${tr('Everything is sorted.')}</p></div>`;
+    if (!records.length) return html + `<div class="empty-state inbox-empty"><i class="ph ph-check-circle" aria-hidden="true"></i><h3>${tr('Inbox is empty')}</h3><p>${tr('Everything is sorted.')}</p></div>`;
     html += `<button class="inbox-triage-button" type="button" data-action="inbox-triage"><i class="ph ph-stack" aria-hidden="true"></i><span><strong>${tr('Sort one by one')}</strong> · ${tr('one at a time')}</span><i class="ph ph-caret-right" aria-hidden="true"></i></button>`;
-    if (present.length > 1) html += `<div class="sheet-chips inbox-filter-chips" role="group" aria-label="${tr('Filter Inbox')}">${[INBOX_FILTERS[0], ...present].map(([value, label]) => `<button class="quick-chip${filter === value ? ' is-selected' : ''}" type="button" aria-pressed="${filter === value}" data-action="inbox-filter" data-inbox-filter="${value}">${tr(label)}<span class="inbox-filter-count">${value === 'all' ? all.length : activeInboxRecords(value).length}</span></button>`).join('')}</div>`;
     const groups = new Map();
     for (const record of records) {
       const group = inboxGroupForDate(record.item.createdAt);
@@ -1263,12 +1261,28 @@
     return html;
   }
 
-  // Redesign R6 (I2): "Razvrstaj redom" — one item at a time, in the current filter's order.
+  // R86: "U beleške" — an Inbox task that was really a note becomes one: the title, the notes and the subtasks as list
+  // lines, with the area and the tags. The task leaves through the delete snapshot, so its links come back with Undo.
+  async function inboxTaskToNote(taskId) {
+    const task = getTask(taskId);
+    if (!task || undoHold || (task.attachmentIds || []).length) return;
+    flushTextSave();
+    const now = nowIso();
+    const lines = (task.subtasks || []).map(item => `- [${item.isCompleted ? 'x' : ' '}] ${item.title}`).join('\n');
+    const note = { id: uid('note'), title: task.title || tr('Note'), body: [task.notes || '', lines].filter(Boolean).join('\n\n'), areaId: Core.effectiveTaskArea(task, state.projects || []) || null, tagIds: [...(task.tagIds || [])], linkUrls: [], attachmentIds: [], favorite: false, clip: '', createdAt: now, updatedAt: now };
+    try {
+      const snapshot = await buildDeleteSnapshot('task', task.id);
+      await applyDeleteSnapshot(snapshot);
+      state.notes.push(note);
+      saveState(); render();
+      if (modalState?.type === 'inbox-triage') renderModal();
+      setUndo(msg('Moved to notes'), async () => { await restoreDeleteSnapshot(snapshot); state.notes = state.notes.filter(item => item.id !== note.id); saveState(); render(); }, () => finalizeDeleteSnapshot(snapshot), snapshot);
+    } catch (error) { render(); setToastMessage(tr('Delete failed. {error}', { error: trMessage(error.message) })); }
+  }
+  // Redesign R6 (I2): "Razvrstaj redom" — one item at a time; R86: always everything in Inbox.
   function openInboxTriage() {
-    const present = INBOX_FILTERS.filter(([value]) => value !== 'all' && activeInboxRecords(value).length);
-    const filter = present.some(([value]) => value === state.ui.inboxFilter) ? state.ui.inboxFilter : 'all';
     captureModalReturnFocus();
-    modalState = { type: 'inbox-triage', queue: activeInboxRecords(filter).map(record => [record.type, record.item.id]), index: 0 };
+    modalState = { type: 'inbox-triage', queue: activeInboxRecords('all').map(record => [record.type, record.item.id]), index: 0 };
     renderModal();
     requestAnimationFrame(() => $('#modal-root .inbox-triage-actions button')?.focus());
   }
@@ -1379,7 +1393,10 @@
     const button = (action, text, extra = '', primary = false) => `<button class="btn ${primary ? 'btn-primary' : 'btn-secondary'}" type="button" data-action="${action}" ${extra}>${text}</button>`;
     const actions = type === 'task'
       // R36 (G): a task can also get a date or be opened (the task window comes back to the sorting).
-      ? ['inbox-today', 'inbox-tomorrow', 'inbox-anytime', 'inbox-date', 'inbox-project'].map((action, index) => button(action, [tr('Today'), tr('Tomorrow'), tr('Anytime'), tr('Date…'), tr('Project…')][index], `data-task-id="${esc(id)}"`)).join('') + button('inbox-triage-open', tr('Open it'), attrs)
+      ? ['inbox-today', 'inbox-tomorrow', 'inbox-anytime', 'inbox-date', 'inbox-project'].map((action, index) => button(action, [tr('Today'), tr('Tomorrow'), tr('Anytime'), tr('Date…'), tr('Project…')][index], `data-task-id="${esc(id)}"`)).join('')
+        // R86: done on the spot, or it was really a note (a task with files stays a task).
+        + button('inbox-complete', tr('Complete'), `data-task-id="${esc(id)}"`) + ((item.attachmentIds || []).length ? '' : button('inbox-to-note', tr('To notes'), `data-task-id="${esc(id)}"`))
+        + button('inbox-triage-open', tr('Open it'), attrs)
       : button('inbox-triage-open', tr('Open details'), attrs) + button('inbox-area', tr('Area…'), attrs) + button('inbox-remove', tr('Sorted'), attrs, true);
     const due = type === 'task' && item.dueDate ? `<p class="inbox-triage-due">${todayDueLabel(item.dueDate)}</p>` : '';
     return modalFrame(`<div class="modal-inner">${header}<div class="inbox-triage-card"><p class="inbox-triage-meta">${esc(tr('{type} · added {when}', { type: tr(label), when: added }))}</p><p class="inbox-triage-title">${esc(item.title || item.name || '')}</p>${due}</div><div class="inbox-triage-actions">${actions}</div><div class="inbox-triage-footer"><span>${esc(tr('{current} of {total}', { current: queue.length - open.length + 1, total: queue.length }))}</span><button class="btn btn-ghost" type="button" data-action="inbox-triage-skip">${tr('Skip')}</button></div></div>`, 'quick inbox-triage-modal');
@@ -6197,7 +6214,6 @@
     else if (action === 'today-expand') { const key = el.dataset.todayKey; if (Object.hasOwn(TODAY_LIMITS, key)) { state.ui.todayExpanded = { ...state.ui.todayExpanded, [key]: !state.ui.todayExpanded?.[key] }; saveAndRender(); } }
     else if (action === 'add-all-suggestions') addAllSuggestions();
     else if (action === 'open-today-suggestions') { state.ui.suggestionsExpanded = true; navigate('#tasks'); }
-    else if (action === 'inbox-filter') { state.ui.inboxFilter = INBOX_FILTERS.some(([value]) => value === el.dataset.inboxFilter) ? el.dataset.inboxFilter : 'all'; saveAndRender(); }
     else if (action === 'inbox-remove') removeInboxRecord(el.dataset.inboxType, el.dataset.inboxId);
     else if (action === 'inbox-area') openInboxAreaSheet(el, el.dataset.inboxType, el.dataset.inboxId);
     else if (action === 'inbox-add') addToInbox($('#inbox-add-title')?.value);
@@ -6210,6 +6226,8 @@
     else if (action === 'inbox-today') { addTaskToToday(el.dataset.taskId); if (modalState?.type === 'inbox-triage') renderModal(); }
     else if (action === 'inbox-tomorrow') { moveTaskToTomorrow(el.dataset.taskId); if (modalState?.type === 'inbox-triage') renderModal(); }
     else if (action === 'inbox-anytime') { moveTaskToAnytime(el.dataset.taskId); if (modalState?.type === 'inbox-triage') renderModal(); }
+    else if (action === 'inbox-complete') { toggleComplete(el.dataset.taskId); if (modalState?.type === 'inbox-triage') renderModal(); }
+    else if (action === 'inbox-to-note') inboxTaskToNote(el.dataset.taskId);
     else if (action === 'overdue-triage') openOverdueTriage();
     else if (action === 'overdue-all-tomorrow') moveAllOverdueToTomorrow();
     else if (action === 'overdue-today') { const item = getTask(el.dataset.taskId); if (item) requestTaskEdit(item.id, overdueMoveChanges(item, Core.dateOnly())); }

@@ -425,7 +425,6 @@ select:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .empty-state .btn { margin-top: 18px; }
 
 /* Inbox triage surface */
-.inbox-filter-count { min-width: 18px; padding: 1px 5px; border-radius: var(--radius-pill); background: var(--surface-hover); color: var(--text-muted); font-size: var(--text-2xs); text-align: center; font-variant-numeric: tabular-nums; }
 .inbox-group { margin-top: 24px; }
 .inbox-group:first-of-type { margin-top: 0; }
 .inbox-group-label { min-height: 26px; display: flex; align-items: center; gap: 8px; margin-bottom: 5px; color: var(--text-muted); }
@@ -1115,7 +1114,6 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--blue-600); }
 .inline-add:hover, .collapsible-trigger:hover { background: var(--graphite-800); color: var(--ink-1); }
 .collapsible-trigger .left i { color: var(--blue-300); }
 
-.inbox-filter-count { background: var(--graphite-800); color: var(--ink-3); }
 .inbox-group-label { padding-bottom: 4px; border-bottom: 1px solid var(--line-1); }
 .inbox-group-label strong { color: var(--ink-3); }
 .inbox-group-label span { background: var(--graphite-800); color: var(--ink-3); font-variant-numeric: tabular-nums; }
@@ -2253,11 +2251,8 @@ body:has(#toast-root .toast) .mobile-quick-add { transform: translateY(-64px); }
 .tasks-view-switch { display: flex; width: 100%; }
 .tasks-view-switch .btn { flex: 1 1 0; }
 .calendar-day-mode .btn { padding: 4px 14px; font-size: var(--text-base); }
-.inbox-filter-chips { margin-bottom: 12px; }
 /* Project lists use the usual card (they were the darker Još card). */
 .project-list { padding: 2px; }
-.inbox-filter-chips .inbox-filter-count { margin-left: 2px; padding: 0 6px; border-radius: 999px; background: var(--graphite-800); color: var(--ink-3); font-size: var(--text-sm); font-variant-numeric: tabular-nums; }
-.inbox-filter-chips .quick-chip.is-selected .inbox-filter-count { background: var(--on-accent-wash); color: var(--on-accent); }
 /* Folds: the label and count on the left, the caret on the right. */
 .collapsible-trigger { width: 100%; justify-content: space-between; }
 /* Empty states and section labels share one look. */

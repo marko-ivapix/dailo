@@ -157,7 +157,6 @@
     "Project menu": "Meni projekta",
     "Suggested for today": "Predlozi za danas",
     "Add all to Today": "Dodaj sve u Danas",
-    "Filter Inbox": "Filtriraj Inbox",
     "Nothing waiting in Anytime.": "U „Kad stignem“ ništa ne čeka.",
     "Processed tasks without a planned date will appear here.": "Obrađeni zadaci bez planiranog datuma pojaviće se ovde.",
     "New tag": "Nova oznaka",
@@ -557,6 +556,9 @@
     "Inbox is empty.": "Inbox je prazan.",
     "Everything is sorted.": "Sve je razvrstano.",
     "Sort one by one": "Razvrstaj redom",
+    // R86: two more ways out of Razvrstaj redom
+    "To notes": "U beleške",
+    "Moved to notes": "Prebačeno u beleške",
     "one at a time": "jednu po jednu",
     "Open details": "Otvori",
     "Area…": "Oblast…",

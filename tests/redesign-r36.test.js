@@ -69,7 +69,8 @@ test('C: holding the "+" opens a new task at once', () => {
 
 test('G: triage offers "Datum…" and "Otvori" for a task', () => {
   const triage = fn('renderInboxTriage');
-  assert.match(triage, /\['inbox-today', 'inbox-tomorrow', 'inbox-anytime', 'inbox-date', 'inbox-project'\]\.map\(\(action, index\) => button\(action, \[tr\('Today'\), tr\('Tomorrow'\), tr\('Anytime'\), tr\('Date…'\), tr\('Project…'\)\]\[index\], `data-task-id="\$\{esc\(id\)\}"`\)\)\.join\(''\) \+ button\('inbox-triage-open', tr\('Open it'\), attrs\)/);
+  // R86: "Završi" and "U beleške" come before "Otvori".
+  assert.match(triage, /\['inbox-today', 'inbox-tomorrow', 'inbox-anytime', 'inbox-date', 'inbox-project'\]\.map\(\(action, index\) => button\(action, \[tr\('Today'\), tr\('Tomorrow'\), tr\('Anytime'\), tr\('Date…'\), tr\('Project…'\)\]\[index\], `data-task-id="\$\{esc\(id\)\}"`\)\)\.join\(''\)\n\s+\/\/ R86[^\n]*\n\s+\+ button\('inbox-complete', tr\('Complete'\), `data-task-id="\$\{esc\(id\)\}"`\) \+ \(\(item\.attachmentIds \|\| \[\]\)\.length \? '' : button\('inbox-to-note', tr\('To notes'\), `data-task-id="\$\{esc\(id\)\}"`\)\)\n\s+\+ button\('inbox-triage-open', tr\('Open it'\), attrs\)/);
   assert.match(app, /else if \(action === 'inbox-date'\) openPlanPicker\(el, \{ type: 'task', taskId: el\.dataset\.taskId \}\);/);
   assert.ok(sr.includes('"Date…": "Datum…"'));
 });
