@@ -121,7 +121,7 @@ python3 -m http.server 8080
 
 *Update this section on every merge.*
 
-- **`main`:** `970617b` (PR #31: R72–R82 from `ccr-95f6062b-lgg2fr`); Links and GitHub Pages passed on it, so Pages serves `2.0.0-alpha.109` (CI was still running when recorded). The work branch `ccr-95f6062b-lgg2fr` was restarted from it.
+- **`main`:** `970617b` (PR #31: R72–R82 from `ccr-95f6062b-lgg2fr`); CI, Links and GitHub Pages passed on it, so Pages serves `2.0.0-alpha.109`. The work branch `ccr-95f6062b-lgg2fr` was restarted from it.
   - R72: Još → Planiranje is Ciljevi, Projekti, Redovne obaveze, Oblasti; Nedeljni pregled in Biblioteka in place of Šabloni.
   - R73: Česta pitanja (`pitanja.html`); R74: the guide follows the app.
   - From an outside review the user accepted ("Sve se slažem, ali ostavi pod broj 1"; point 1, the Google/Apple buttons, stays while the user turns the providers on):
