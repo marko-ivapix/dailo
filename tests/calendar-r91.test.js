@@ -91,8 +91,7 @@ test('the 3-day columns are styled for a phone; the guide and the lines are Serb
   assert.ok(read('uputstvo.html').includes('U <strong>Kalendaru</strong> je i prikaz <strong>3 dana</strong>. Zadatak držiš pa ga prevučeš na drugi dan ili, u Rasporedu, na drugi sat. Zadatak koji je tu zbog roka ima peščani sat.'));
 });
 
-test('R91 is released as 2.0.0-alpha.118', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.118');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.118';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.118');
+test('R91 shipped as 2.0.0-alpha.118 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 118) >= 118);
 });

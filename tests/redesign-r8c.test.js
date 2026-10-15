@@ -87,7 +87,7 @@ test('S13: a tall window with "Navika", ⋯ and X, the name and its line, today,
   assert.match(html, /<div class="today-card habit-details-today"><article class="today-row habit-today-row" data-habit-id="h">/);
   assert.match(html, /<span class="task-meta">1\.5 \/ 2 l<\/span>/); // R17: the value joins the meta line
   assert.match(html, /<div class="habit-details-today-line"><span>Today: Not checked in<\/span><button class="btn btn-ghost" type="button" data-action="habit-today-skip" data-habit-id="h">Skip today<\/button><\/div>/, 'R31: a numeric habit can be skipped too');
-  assert.deepEqual([...html.matchAll(/<div class="habit-details-tile"><strong>([^<]+)<\/strong><span>([^<]+)<\/span><\/div>/g)].map(match => match.slice(1)), [['3 days', 'Current streak'], ['14 days', 'Longest streak'], ['120', 'Total check-ins'], [ /* the week */ html.match(/<strong>(\d+%)<\/strong><span>Done this week/)[1], 'Done this week']]);
+  assert.deepEqual([...html.matchAll(/<div class="habit-details-tile"><strong>([^<]+)<\/strong><span>([^<]+)<\/span><\/div>/g)].map(match => match.slice(1)), [['3 days', 'Current streak'], ['14 days', 'Longest streak'], ['120', 'Total check-ins'], [ /* R92: the last 30 days took the week's tile */ html.match(/<strong>(\d+%|—)<\/strong><span>Last 30 days/)[1], 'Last 30 days']]);
   assert.match(html, /<div class="quick-sheet-footer"><span><\/span><button class="btn btn-secondary habit-details-status" type="button" data-action="habit-details-status" data-habit-id="h" data-status="paused">Pause habit<\/button><\/div><\/div><\/frame>$/);
   const checkbox = detailsCtx({ trackingType: 'checkbox' }, [log('h', TODAY, 'skipped')]);
   assert.match(render(checkbox), /<span>Today: Skipped<\/span><button class="btn btn-ghost" type="button" data-action="habit-today-skip" data-habit-id="h">Undo skip<\/button>/);
@@ -136,17 +136,22 @@ test('S13: "Uvid" shows the week, the period target and the recovery line', () =
 });
 
 test('S13: "Podešavanja" lists the settings rows with their values', () => {
-  const html = render(detailsCtx({ graceDays: 2, continuation: 'askEachPeriod', endType: 'date', endDate: '2026-12-31' }));
+  // R92: the advanced rows are under "Više opcija"; the fold is open here, so the whole list shows, the everyday rows first.
+  const settingsCtx = detailsCtx({ graceDays: 2, continuation: 'askEachPeriod', endType: 'date', endDate: '2026-12-31' });
+  settingsCtx.modalState.moreOpen = true;
+  const html = render(settingsCtx);
   const rows = [...html.matchAll(/data-action="(habit-(?:draft|details)-[a-z]+)"><i class="ph [\w-]+" aria-hidden="true"><\/i><span class="task-window-row-label">([^<]+)<\/span><span class="task-window-row-value(?: is-set)?">([^<]*)<\/span>/g)].map(match => match.slice(1));
   assert.deepEqual(rows, [
     ['habit-details-name', 'Name', 'Water'], ['habit-draft-area', 'Area', 'Zdravlje'], ['habit-details-routine', 'Routine', 'Morning'],
-    ['habit-details-tracking', 'Tracking', 'Numeric · 2 l'], ['habit-draft-quick', 'Quick values', '+0.25  +0.5  +1'], ['habit-draft-frequency', 'Frequency', 'Daily'],
-    ['habit-draft-reminders', 'Reminders', '08:00'], ['habit-draft-targets', 'Minimum and ideal', 'Minimum 1.5 · ideal 1.5'], ['habit-details-grace', 'Grace days', '2 days'],
+    ['habit-details-tracking', 'Tracking', 'Numeric · 2 l'], ['habit-draft-frequency', 'Frequency', 'Daily'], ['habit-draft-reminders', 'Reminders', '08:00'],
+    ['habit-draft-quick', 'Quick values', '+0.25  +0.5  +1'], ['habit-draft-targets', 'Minimum and ideal', 'Minimum 1.5 · ideal 1.5'], ['habit-details-grace', 'Grace days', '2 days'],
     // R16: "Početak" sits before "Kraj".
     ['habit-details-continuation', 'Continuation', 'Ask each period'], ['habit-draft-start', 'Start', 'R:2026-01-01'], ['habit-draft-end', 'End', 'Until D:2026-12-31'], ['habit-draft-goals', 'Linked goals', 'Maraton'],
   ]);
   assert.match(html, /<h3 class="habit-details-label">Settings<\/h3><div class="habit-window-card">/);
-  const plainHabit = render(detailsCtx({ trackingType: 'checkbox', graceDays: 0, minimumTarget: null, reminders: [], goalIds: [], areaId: null }));
+  const plainCtx = detailsCtx({ trackingType: 'checkbox', graceDays: 0, minimumTarget: null, reminders: [], goalIds: [], areaId: null });
+  plainCtx.modalState.moreOpen = true; // R92: the grace row is under "Više opcija"
+  const plainHabit = render(plainCtx);
   assert.match(plainHabit, /Tracking<\/span><span class="task-window-row-value is-set">Checkbox<\/span>/);
   assert.doesNotMatch(plainHabit, /habit-draft-quick|habit-draft-targets/);
   assert.match(plainHabit, /Grace days<\/span><span class="task-window-row-value is-set">No grace days<\/span>/);
@@ -270,7 +275,8 @@ test('the R8c layer and the Serbian labels', () => {
   const layer = css.slice(css.indexOf('/* Redesign R8c'));
   assert.ok(layer.length > 20, 'R8c layer');
   for (const selector of ['.habit-details-title', '.habit-details-tiles', '.habit-details-tile', '.habit-details-calendar', '.habit-details-insight', '.habit-details-status']) assert.ok(layer.includes(selector), selector);
-  for (const [en, value] of [['Done this week', 'Ostvareno ove nedelje'], ['Insight', 'Uvid'], ['Settings', 'Podešavanja'], ['No grace days', 'Bez tolerancije'], ['A tap on a past day changes the history.', 'Dodir na prošli dan menja istoriju.']]) {
+  // R92: "Poslednjih 30 dana" took the week's tile.
+  for (const [en, value] of [['Last 30 days', 'Poslednjih 30 dana'], ['Insight', 'Uvid'], ['Settings', 'Podešavanja'], ['No grace days', 'Bez tolerancije'], ['A tap on a past day changes the history.', 'Dodir na prošli dan menja istoriju.']]) {
     assert.ok(sr.includes(`${JSON.stringify(en)}: ${JSON.stringify(value)}`), en);
   }
   assert.match(sr, /"This week: \{done\} of \{planned\}": "Ova nedelja: \{done\} od \{planned\}"/);

@@ -728,6 +728,8 @@ if (weekRangeText() !== thisWeekRange || window.document.querySelector('#main .h
 const startHabit = window.TodoApp.state.habits.find(habit => habit.status === 'active');
 window.location.hash = `#habit/${startHabit.id}`;
 await new Promise(resolve => setTimeout(resolve, 50));
+// R92: Početak is under "Više opcija" in the details.
+click('#modal-root .habit-details [data-action="toggle-habit-details-more"]');
 click('#modal-root .habit-details [data-action="habit-draft-start"]');
 const monthStart = `${window.TodoCore.dateOnly().slice(0, 8)}01`; // on the 1st the "Danas" chip carries the same date
 click(`.popover [data-pop-action="date-sheet-pick"][data-date="${monthStart}"]`);

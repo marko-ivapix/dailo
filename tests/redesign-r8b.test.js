@@ -76,13 +76,17 @@ test('N1, N2, N5: a tall sheet with the name, Oblast, Rutina, Praćenje, Učesta
   const html = windowHtml(windowCtx());
   assert.match(html, /^<frame quick><div class="modal-inner quick-sheet habit-window"><div class="modal-header"><h2 class="modal-title">New habit<\/h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="Close">/);
   assert.match(html, /<input id="habit-name" class="quick-title-input" type="text" maxlength="120" autocomplete="off" placeholder="What do you want to practice\?" value="" aria-label="Habit name">/);
-  assert.match(html, /<button class="task-window-row" type="button" data-action="habit-draft-area"><i class="ph ph-squares-four" aria-hidden="true"><\/i><span class="task-window-row-label">Area<\/span><span class="task-window-row-value">No area \(optional\)<\/span>/);
-  assert.match(html, /<div class="view-tabs habit-window-seg" role="group" aria-label="Routine"><button class="btn" type="button" data-action="habit-draft-routine" data-value="morning" aria-pressed="false">Morning<\/button><button class="btn is-selected" type="button" data-action="habit-draft-routine" data-value="daily" aria-pressed="true">Daytime<\/button><button class="btn" type="button" data-action="habit-draft-routine" data-value="night" aria-pressed="false">Night<\/button><\/div>/);
+  // R92: area and routine are under "Više opcija" (tests/habits-r92.test.js); the open fold shows them.
+  assert.doesNotMatch(html, /habit-draft-area|habit-draft-routine/);
+  const opened = windowCtx(); opened.modalState.draft.moreOpen = true;
+  const openedHtml = windowHtml(opened);
+  assert.match(openedHtml, /<button class="task-window-row" type="button" data-action="habit-draft-area"><i class="ph ph-squares-four" aria-hidden="true"><\/i><span class="task-window-row-label">Area<\/span><span class="task-window-row-value">No area \(optional\)<\/span>/);
+  assert.match(openedHtml, /<div class="view-tabs habit-window-seg" role="group" aria-label="Routine"><button class="btn" type="button" data-action="habit-draft-routine" data-value="morning" aria-pressed="false">Morning<\/button><button class="btn is-selected" type="button" data-action="habit-draft-routine" data-value="daily" aria-pressed="true">Daytime<\/button><button class="btn" type="button" data-action="habit-draft-routine" data-value="night" aria-pressed="false">Night<\/button><\/div>/);
   assert.match(html, /data-action="habit-draft-tracking" data-value="checkbox" aria-pressed="true">Checkbox<\/button><button class="btn" type="button" data-action="habit-draft-tracking" data-value="numeric" aria-pressed="false">Numeric<\/button>/);
   assert.doesNotMatch(html, /habit-target-value/, 'no target for a checkbox habit');
   assert.match(html, /data-action="habit-draft-frequency"><i class="ph ph-repeat" aria-hidden="true"><\/i><span class="task-window-row-label">Frequency<\/span><span class="task-window-row-value is-set">Daily<\/span>/);
   assert.match(html, /data-action="habit-draft-reminders"><i class="ph ph-bell" aria-hidden="true"><\/i><span class="task-window-row-label">Reminder<\/span><span class="task-window-row-value">Not set<\/span>/);
-  assert.match(html, /<button class="habit-window-more" type="button" data-action="toggle-habit-more" aria-expanded="false"><strong>More settings<\/strong><span>Start, end, goals <i class="ph ph-caret-down" aria-hidden="true"><\/i><\/span><\/button>/);
+  assert.match(html, /<button class="habit-window-more" type="button" data-action="toggle-habit-more" aria-expanded="false"><strong>More settings<\/strong><span>Area, routine, start, end, goals <i class="ph ph-caret-down" aria-hidden="true"><\/i><\/span><\/button>/);
   assert.doesNotMatch(html, /habit-draft-start/);
   assert.match(html, /<div class="quick-sheet-footer"><span><\/span><button class="btn btn-primary habit-window-save" type="button" data-action="save-habit">Create habit<\/button><\/div><\/div><\/frame>$/);
   assert.doesNotMatch(html, /<select|habit-reminders|habit-times-per-week|data-action="close-modal">Cancel/);
@@ -323,7 +327,7 @@ test('the R8b layer and the Serbian labels', () => {
   const layer = css.slice(css.indexOf('/* Redesign R8b'));
   assert.ok(layer.length > 20, 'R8b layer');
   for (const selector of ['.habit-window-card', '.habit-window-seg', '.habit-window-target', '.habit-window-more', '.habit-weekday.is-on', '.habit-stepper', '.habit-reminder-time']) assert.ok(layer.includes(selector), selector);
-  for (const [en, value] of [['Checkbox', 'Kvadratić'], ['Numeric', 'Brojevno'], ['Selected weekdays', 'Određeni dani'], ['Every N days', 'Na svakih N dana'], ['More settings', 'Više opcija'] /* R22c */, ['Start, end, goals', 'Početak, kraj, ciljevi'], ['On workdays', 'Radnim danima'], ['On weekends', 'Vikendom'], ['Once a week', 'Jednom nedeljno'], ['Every other day', 'Svaki drugi dan'], ['Habit created', 'Navika je napravljena'], ['Choose at least one day.', 'Izaberi bar jedan dan.']]) {
+  for (const [en, value] of [['Checkbox', 'Kvadratić'], ['Numeric', 'Brojevno'], ['Selected weekdays', 'Određeni dani'], ['Every N days', 'Na svakih N dana'], ['More settings', 'Više opcija'] /* R22c */, ['Area, routine, start, end, goals', 'Oblast, rutina, početak, kraj, ciljevi'] /* R92 */, ['On workdays', 'Radnim danima'], ['On weekends', 'Vikendom'], ['Once a week', 'Jednom nedeljno'], ['Every other day', 'Svaki drugi dan'], ['Habit created', 'Navika je napravljena'], ['Choose at least one day.', 'Izaberi bar jedan dan.']]) {
     assert.ok(sr.includes(`${JSON.stringify(en)}: ${JSON.stringify(value)}`), en);
   }
   assert.match(sr, /"Once every \{count\} days": \{ one: "Na svaki \{count\} dan", few: "Na svaka \{count\} dana", other: "Na svakih \{count\} dana" \}/);

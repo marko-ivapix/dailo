@@ -1554,6 +1554,19 @@
     return { start, weeks, months, done, percent: planned.length ? habitCompletionForDates(habit, logs, planned, today, weekRule) : null };
   }
 
+  // R92: the share of planned days done in the last 30 days (today counts once it is done). A skipped day is left out,
+  // so one missed day lowers it a little instead of resetting it like a streak. Null when nothing was planned.
+  function habitRecentSuccess(habit, logs, today = dateOnly(), weekRule = 'monday', days = 30) {
+    const planned = [];
+    for (let offset = days - 1; offset >= 0; offset -= 1) {
+      const date = addDays(today, -offset);
+      const state = habitDayState(habit, logs, date, today, weekRule).state;
+      if (['future', 'unscheduled', 'skipped'].includes(state) || (date === today && state !== 'done')) continue;
+      planned.push(date);
+    }
+    return planned.length ? habitCompletionForDates(habit, logs, planned, today, weekRule) : null;
+  }
+
   // M11: once a day is checked in (or skipped), that day's reminders stay silent; a numeric habit below its
   // target still reminds. Weekly habits are silenced by the week's target instead.
   function habitDayClosed(habit, logs, date) {
@@ -2838,6 +2851,7 @@
     habitScheduledOn,
     habitPeriodKey,
     habitWeekRule,
+    habitRecentSuccess,
     recordWeekStartChange,
     habitTargetFor,
     recordHabitTargetChange,
