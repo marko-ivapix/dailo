@@ -2250,6 +2250,8 @@
     // R33 (finding 32): an hourglass is the due date and a flag the priority, as in the task window.
     if (parsed.dueDate) items.push(item('ph-hourglass-medium', tr('Due {date}', { date: relativeDateLabel(parsed.dueDate) })));
     if (parsed.durationMinutes) items.push(item('ph-timer', durationLabel(parsed.durationMinutes)));
+    // R89: a repeat written in the title ("utorkom", "svakog drugog utorka").
+    if (parsed.recurrence) items.push(item('ph-arrows-clockwise', recurrenceLabel(parsed.recurrence)));
     const project = parsed.projectId && getProject(parsed.projectId);
     if (project) items.push(item('ph-folder-simple', project.name));
     const area = !project && parsed.areaId && getArea(parsed.areaId);
@@ -3538,7 +3540,7 @@
     const task = {
       id: uid('task'), title, notes: d.notes || '', projectId, areaId: projectId ? null : (d.areaId || parsed.areaId || null), goalIds: [...(d.goalIds || [])], plannedTime: d.explicitPlannedTime ? d.plannedTime : (d.plannedTime || parsed.plannedTime || null), dueTime: d.dueTime || null, durationMinutes: d.durationMinutes || parsed.durationMinutes || null,
       plannedDate: resolvedPlan || null, dueDate: d.dueDate || parsed.dueDate || null,
-      reminderAt: d.reminderAt || null, reminderFiredAt: null, recurrence: d.recurrence || null, tagIds: [...new Set([...(d.tagIds || []), ...parsed.tagIds])], priority: parsed.priority || d.priority || 'none', attachmentIds: [], isInbox,
+      reminderAt: d.reminderAt || null, reminderFiredAt: null, recurrence: d.recurrence || parsed.recurrence || null, tagIds: [...new Set([...(d.tagIds || []), ...parsed.tagIds])], priority: parsed.priority || d.priority || 'none', attachmentIds: [], isInbox,
       isImportant: false, isUrgent: false, isCompleted: false, completedAt: null,
       subtasks: d.subtasks.map((s, i) => ({ ...s, order: i })),
       todayOrder: resolvedPlan === Core.dateOnly() ? nextOrder('today') : null,

@@ -100,8 +100,7 @@ test('the guide explains it', () => {
   assert.ok(read('uputstvo.html').includes('Ponavljanje ide <strong>po rasporedu</strong> (na primer svakog ponedeljka) ili <strong>od dana završetka</strong>: tada sledeći dolazi tek kad završiš ovaj, na primer zalivanje cveća 3 dana posle poslednjeg.'));
 });
 
-test('R88 is released as 2.0.0-alpha.115', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.115');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.115';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.115');
+test('R88 shipped as 2.0.0-alpha.115 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 115) >= 115);
 });

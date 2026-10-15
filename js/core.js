@@ -1788,9 +1788,70 @@
   const QUICK_MINUTE_WORDS = new Set(['min', 'minut', 'minuta']);
   const INVALID = 'invalid';
 
-  // Matches names case-insensitively, ignoring spaces, "_", "-" and diacritics ("đ" as "dj").
+  // Matches names case-insensitively, ignoring spaces, "_", "-" and diacritics ("đ" as "dj"); R89: Cyrillic as Latin.
   function looseName(value) {
-    return String(value || '').toLocaleLowerCase().replace(/đ/g, 'dj').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[\s_-]+/g, '');
+    return cyrillicToLatin(String(value || '')).toLocaleLowerCase().replace(/đ/g, 'dj').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[\s_-]+/g, '');
+  }
+
+  // R89: one word without case and diacritics, Cyrillic read as Latin ("Četvrt" and "четврт" are "cetvrt").
+  const plainWord = word => cyrillicToLatin(String(word || '')).toLocaleLowerCase().replace(/đ/g, 'dj').normalize('NFD').replace(/[̀-ͯ]/g, '');
+  const QUICK_SPOKEN_HOURS = { jedan: 1, jedna: 1, dva: 2, dve: 2, tri: 3, cetiri: 4, pet: 5, sest: 6, sedam: 7, osam: 8, devet: 9, deset: 10, jedanaest: 11, dvanaest: 12 };
+
+  // R89: a spoken time at the end: "pola deset" 9:30, "četvrt do osam" 7:45, "četvrt posle osam" 8:15, and after "u":
+  // "osam i četvrt" 8:15, "osam i po" 8:30, "osam" 8:00. "ujutru" keeps the morning, "uveče" and "popodne" add twelve
+  // hours; "pola jedan" is half past noon. Quantities ("pet i po", "pola jabuke") stay in the title.
+  function quickSpokenTime(plain) {
+    let end = plain.length, part = null;
+    if (['ujutru', 'ujutro'].includes(plain[end - 1])) { part = 'am'; end -= 1; }
+    else if (['uvece', 'popodne'].includes(plain[end - 1])) { part = 'pm'; end -= 1; }
+    const hourAt = index => {
+      const word = plain[index];
+      if (/^\d{1,2}$/.test(word || '')) return Number(word) >= 1 && Number(word) <= 24 ? Number(word) : null;
+      return own(QUICK_SPOKEN_HOURS, word || '') ? QUICK_SPOKEN_HOURS[word] : null;
+    };
+    const at = offset => plain[end - offset], last = hourAt(end - 1);
+    let hour = null, minute = 0, start = null, needsU = false;
+    if (at(2) === 'pola' && last != null) [hour, minute, start] = [last - 1, 30, end - 2];
+    else if (at(3) === 'cetvrt' && at(2) === 'do' && last != null) [hour, minute, start] = [last - 1, 45, end - 3];
+    else if (at(3) === 'cetvrt' && at(2) === 'posle' && last != null) [hour, minute, start] = [last, 15, end - 3];
+    else if (at(2) === 'i' && ['cetvrt', 'po'].includes(at(1)) && hourAt(end - 3) != null) [hour, minute, start, needsU] = [hourAt(end - 3), at(1) === 'po' ? 30 : 15, end - 3, true];
+    else if (last != null && at(2) === 'u' && (part || !/^\d+$/.test(at(1)))) [hour, start, needsU] = [last, end - 1, true];
+    if (hour == null) return null;
+    const withU = plain[start - 1] === 'u';
+    if (needsU && !withU) return null;
+    if (hour === 0) hour = 12;
+    if (part === 'pm' && hour < 12) hour += 12;
+    else if (part === 'am' && hour === 12) hour = 0;
+    const value = hour <= 23 ? normalizeTime(`${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`) : null;
+    return value ? { slot: 'plannedTime', value, consumed: plain.length - (withU ? start - 1 : start) } : null;
+  }
+
+  // R89: a repeat at the end: "utorkom", "ponedeljkom i četvrtkom", "radnim danima", "vikendom", "svaki dan",
+  // "svakog meseca", "svake nedelje" (every week; "nedeljom" is Sundays), "svakog utorka", "svakog drugog utorka",
+  // "svake druge nedelje", "svaka 3 dana", "svakih 6 meseci", and "every day / monday / other monday / 3 days".
+  const QUICK_WEEKDAYS_SR_ON = { nedeljom: 0, ponedeljkom: 1, utorkom: 2, sredom: 3, cetvrtkom: 4, petkom: 5, subotom: 6 };
+  const QUICK_WEEKDAYS_SR_EVERY = { ponedeljka: 1, utorka: 2, srede: 3, cetvrtka: 4, petka: 5, subote: 6 };
+  const QUICK_ORDINALS = { drugog: 2, druge: 2, drugi: 2, treceg: 3, trece: 3, treci: 3, cetvrtog: 4, cetvrte: 4, cetvrti: 4, other: 2 };
+  const QUICK_REPEAT_UNITS = { dan: 'daily', dana: 'daily', nedelju: 'weekly', nedelje: 'weekly', nedelja: 'weekly', mesec: 'monthly', meseca: 'monthly', meseci: 'monthly', godinu: 'yearly', godine: 'yearly', godina: 'yearly', day: 'daily', days: 'daily', week: 'weekly', weeks: 'weekly', month: 'monthly', months: 'monthly', year: 'yearly', years: 'yearly' };
+  const QUICK_EVERY = new Set(['svaki', 'svakog', 'svake', 'svaku', 'svaka', 'svakih', 'every']);
+  function quickRepeat(plain) {
+    const n = plain.length, last = plain[n - 1], before = plain[n - 2], third = plain[n - 3];
+    const repeat = (consumed, frequency, interval = 1, weekdays = null) => ({ slot: 'recurrence', value: { frequency, interval, ...(weekdays ? { weekdays } : {}) }, consumed });
+    const weekday = word => (own(QUICK_WEEKDAYS_SR_EVERY, word || '') ? QUICK_WEEKDAYS_SR_EVERY[word] : own(QUICK_WEEKDAYS, word || '') ? QUICK_WEEKDAYS[word] : null);
+    if (own(QUICK_WEEKDAYS_SR_ON, last)) {
+      if (before === 'i' && own(QUICK_WEEKDAYS_SR_ON, third || '')) return repeat(3, 'weekly', 1, [...new Set([QUICK_WEEKDAYS_SR_ON[third], QUICK_WEEKDAYS_SR_ON[last]])].sort((a, b) => a - b));
+      return repeat(1, 'weekly', 1, [QUICK_WEEKDAYS_SR_ON[last]]);
+    }
+    if (before === 'radnim' && last === 'danima') return repeat(2, 'weekly', 1, [1, 2, 3, 4, 5]);
+    if (last === 'vikendom') return repeat(1, 'weekly', 1, [0, 6]);
+    if (last === 'svakodnevno') return repeat(1, 'daily');
+    if (QUICK_EVERY.has(before) && weekday(last) != null) return repeat(2, 'weekly', 1, [weekday(last)]);
+    if (QUICK_EVERY.has(before) && own(QUICK_REPEAT_UNITS, last)) return repeat(2, QUICK_REPEAT_UNITS[last]);
+    if (!QUICK_EVERY.has(third)) return null;
+    if (own(QUICK_ORDINALS, before) && weekday(last) != null) return repeat(3, 'weekly', QUICK_ORDINALS[before], [weekday(last)]);
+    if (own(QUICK_ORDINALS, before) && own(QUICK_REPEAT_UNITS, last)) return repeat(3, QUICK_REPEAT_UNITS[last], QUICK_ORDINALS[before]);
+    if (/^\d{1,2}$/.test(before || '') && Number(before) >= 1 && own(QUICK_REPEAT_UNITS, last)) return repeat(3, QUICK_REPEAT_UNITS[last], Number(before));
+    return null;
   }
 
   function nextWeekday(today, weekday) {
@@ -1842,6 +1903,10 @@
   function quickClause(words, today, parsePlan) {
     const n = words.length;
     const lower = words.map(word => word.toLocaleLowerCase());
+    // R89: a repeat and a spoken time are read first.
+    const plain = words.map(plainWord);
+    const spoken = quickRepeat(plain) || quickSpokenTime(plain);
+    if (spoken) return spoken;
     const last = lower[n - 1];
     const before = n > 1 ? lower[n - 2] : '';
     if (before === 'rok' || before === 'due') {
@@ -1895,11 +1960,11 @@
         const sigil = token[0];
         const name = token.slice(1);
         if (sigil === '#') {
-          const tag = (tags || []).find(item => item && normalizeTagName(item.name).toLocaleLowerCase() === name.toLocaleLowerCase());
+          const tag = (tags || []).find(item => item && cyrillicToLatin(normalizeTagName(item.name)).toLocaleLowerCase() === cyrillicToLatin(name).toLocaleLowerCase());
           if (!tag) return match;
           if (!result.tagIds.includes(tag.id)) result.tagIds.push(tag.id);
         } else if (sigil === '!') {
-          const priority = QUICK_PRIORITIES[name.toLocaleLowerCase()];
+          const priority = QUICK_PRIORITIES[cyrillicToLatin(name).toLocaleLowerCase()];
           if (!priority || result.priority) return match;
           result.priority = priority;
         } else {
@@ -1914,14 +1979,19 @@
     }
     const tokenFree = text.replace(/\s{2,}/g, ' ').trim();
     const words = tokenFree ? tokenFree.split(' ') : [];
+    // R89: Cyrillic is read as Latin; the title keeps the words as they were typed.
+    const latin = words.map(cyrillicToLatin);
     const found = {};
     while (words.length) {
-      const clause = quickClause(words, today, parsePlan);
+      const clause = quickClause(latin, today, parsePlan);
       if (clause === INVALID) return { ...result, title: tokens ? tokenFree : original };
       if (clause.stop || own(found, clause.slot) || (slots && !slots.includes(clause.slot)) || clause.consumed >= words.length) break;
       found[clause.slot] = clause.value;
       words.splice(words.length - clause.consumed, clause.consumed);
+      latin.splice(latin.length - clause.consumed, clause.consumed);
     }
+    // R89: a repeat with no day written is planned for its first day.
+    if (found.recurrence && !found.plannedDate && parsePlan) found.plannedDate = firstRecurrenceDate(today, found.recurrence);
     if (!Object.keys(found).length) return { ...result, title: tokens ? tokenFree : original };
     return { ...result, ...found, title: words.join(' ') };
   }
