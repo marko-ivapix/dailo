@@ -121,18 +121,17 @@ python3 -m http.server 8080
 
 *Update this section on every merge.*
 
-- **`main`:** `707f169` (PR #30: R67–R71 from the session on `claude/sleepy-gauss-7u6n19`); CI, Links and GitHub Pages passed on it, so Pages serves `2.0.0-alpha.98`. The work branch `ccr-95f6062b-lgg2fr` was restarted from it.
-  - R67: the user's own starter examples and the rough month of a task (`task.plannedMonth`, a data-model change).
-  - R68: the Redovne obaveze examples follow a researched cleaning schedule.
-  - R69: the user's Bucket list (81 items).
-  - R70: "Treba da imam", the user's list of things to own.
-  - R71: car and health dates in Redovne obaveze, the meal-plan shopping template, saved views by tag, gift ideas.
-  - Before: PR #29 (`286bb97`, R66): habits keep their place, compact windows.
-  - Before: PR #28 (`83d49d1`, R65): project colors in the sidebar.
-  - Before: PR #27 (`fbcffc7`, R59–R64):
-    - R59: the "+" adds the screen's item; R60: e-mail links lead to Dailo, Serbian templates;
-    - R61: three habit states; R62: windows keep still, task rows swipe on phones;
-    - R63: fixes from a pass in Chromium; R64: "Odjavi se" returns to the sign-in screen.
+- **`main`:** `970617b` (PR #31: R72–R82 from `ccr-95f6062b-lgg2fr`); Links and GitHub Pages passed on it, so Pages serves `2.0.0-alpha.109` (CI was still running when recorded). The work branch `ccr-95f6062b-lgg2fr` was restarted from it.
+  - R72: Još → Planiranje is Ciljevi, Projekti, Redovne obaveze, Oblasti; Nedeljni pregled in Biblioteka in place of Šabloni.
+  - R73: Česta pitanja (`pitanja.html`); R74: the guide follows the app.
+  - From an outside review the user accepted ("Sve se slažem, ali ostavi pod broj 1"; point 1, the Google/Apple buttons, stays while the user turns the providers on):
+    - R75: the encrypted journal stays sealed in ZIP backups (data model); R78: fixes from its review;
+    - R76: the phone's file mirror also keeps habit logs and goal history;
+    - R77: `.ics` events recognized again by UID (`task.icsUid`, data model);
+    - R79: "Sutra" on task notifications; R80: the sync state on the phone;
+    - R81: Šta je novo (`novo.html`); R82: a problem report carries the last errors.
+  - Before: PR #30 (`707f169`, R67–R71): the user's own examples and the rough month, the cleaning schedule, the Bucket list, "Treba da imam", more examples.
+  - Before: PR #29 (`286bb97`, R66), PR #28 (`83d49d1`, R65), PR #27 (`fbcffc7`, R59–R64).
 - **Sync:** `js/sync-config.js` holds the user's project `https://qjfpnvjuqbrmdkjxxmsq.supabase.co` and its publishable key (`docs/v2/podesavanje-supabase.md`).
   - **Checked on 2026-10-13 with the publishable key (read-only):**
     - the tables of 0001 exist, and 0005 and 0006 were run;
@@ -157,6 +156,7 @@ python3 -m http.server 8080
   - **Browser and visual checks:** the desktop layer in a wide window, the light theme, `.ics` in real calendar apps, dictation in Chrome and Safari, and the link preview in messengers.
 - **Open review items:**
   - Security finding 1: the shared `github.io` origin waits for a custom domain (`docs/superpowers/specs/2026-10-12-security-review.md`).
+  - A privacy-policy sentence about problem reports (version, device, up to five cleaned errors) waits for the user's approval (R82).
   - The privacy policy says the Supabase project runs in Frankfurt; asked with the region among the account items, the user answered "Nalog i eposta sve je okej" (2026-10-13).
   - The controller named in `privatnost.html` and `uslovi.html` is Marko Radičević, as the user gave it.
 - **Device-local keys** (outside state and backups):
