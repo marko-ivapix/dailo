@@ -1736,6 +1736,10 @@
     "{hours} h {minutes} min": "{hours} h {minutes} min",
     "{hours} h": "{hours} h",
     "Duration": "Trajanje",
+    // R85: habit durations in the day's capacity
+    "min": "min",
+    "Planned {planned} of {capacity}, habits {habits}": "Planirano {planned} od {capacity}, od toga navike {habits}",
+    "Duration must be 1 to 1440 minutes.": "Trajanje mora biti od 1 do 1440 minuta.",
     "Remove duration": "Ukloni trajanje",
     "Planned {planned} of {capacity}": "Planirano {planned} od {capacity}",
     "Over capacity by {over}": "Preko kapaciteta za {over}",

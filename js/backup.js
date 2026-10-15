@@ -227,6 +227,8 @@
       enumField(habit,'status',['active','paused','archived']);enumField(habit,'trackingType',['checkbox','numeric']);enumField(habit,'frequencyType',['daily','weekdays','timesPerWeek','everyNDays']);enumField(habit,'continuation',['automatic','askEachPeriod','onePeriod']);enumField(habit,'endType',['never','date','successfulPeriods']);
       for (const key of ['startDate','endDate']) dateField(habit,key);
       for (const key of ['targetValue','timesPerWeek','everyNDays','successfulPeriodsTarget']) positiveField(habit,key);
+      // R85: a habit's duration in whole minutes.
+      if (habit.durationMinutes != null && root.TodoCore.habitDurationOrNull(habit.durationMinutes) === null) fail('durationMinutes');
       for (const key of ['minimumTarget','idealTarget']) {
         if (habit.trackingType === 'numeric' && habit.frequencyType !== 'timesPerWeek') positiveField(habit, key);
         else if (habit[key] != null && !positiveInteger(habit[key])) fail(key);

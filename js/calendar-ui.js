@@ -60,7 +60,7 @@
   // R47d (K8): wide screens give each week day a thin bar of its planned time against the daily capacity.
   function dayLoadBar(ctx, date) {
     const capacity = ctx.Core.dailyCapacityMinutes(ctx.state.settings);
-    const load = ctx.Core.dayLoad(ctx.listTasks(), date);
+    const load = ctx.Core.dayLoad(ctx.listTasks(), date, ctx.state.habits, Object.values(ctx.state.habitLogCache || {}).flat());
     if (!capacity || !load.minutes) return '';
     const percent = Math.min(100, Math.round(load.minutes / capacity * 100));
     return `<span class="calendar-load${load.minutes > capacity ? ' is-over' : ''}" title="${ctx.esc(tr('Planned {planned} of {capacity}', { planned: ctx.durationLabel(load.minutes), capacity: ctx.durationLabel(capacity) }))}" aria-hidden="true"><span style="width:${percent}%"></span></span>`;
@@ -191,13 +191,14 @@
     const items = Core.calendarDayItems(listed(ctx), date);
     const dueTasks = items.untimed.filter(task => !task.plannedDate);
     const dueRows = [...items.deadlines.map(item => ctx.deadlineRow(item)), ...dueTasks.map(task => ctx.calendarTaskRow(task))];
-    const load = Core.dayLoad(tasks, date);
+    // R85: the habits planned that day count too.
+    const load = Core.dayLoad(tasks, date, state.habits, Object.values(state.habitLogCache || {}).flat());
     const capacity = Core.dailyCapacityMinutes(state.settings);
     let html = '<div class="day-view">';
     if (capacity && load.withDuration) {
       const over = load.minutes > capacity;
       const percent = Math.min(100, Math.round(load.minutes / capacity * 100));
-      html += `<div class="day-capacity${over ? ' is-over' : ''}" data-day-capacity role="status"><span>${esc(tr('Planned {planned} of {capacity}', { planned: ctx.durationLabel(load.minutes), capacity: ctx.durationLabel(capacity) }))}</span><span class="day-capacity-bar" aria-hidden="true"><span style="width:${percent}%"></span></span>${over ? `<strong>${esc(tr('Over capacity by {over}', { over: ctx.durationLabel(load.minutes - capacity) }))}</strong>` : ''}</div>`;
+      html += `<div class="day-capacity${over ? ' is-over' : ''}" data-day-capacity role="status"><span>${esc(load.habitMinutes ? tr('Planned {planned} of {capacity}, habits {habits}', { planned: ctx.durationLabel(load.minutes), capacity: ctx.durationLabel(capacity), habits: ctx.durationLabel(load.habitMinutes) }) : tr('Planned {planned} of {capacity}', { planned: ctx.durationLabel(load.minutes), capacity: ctx.durationLabel(capacity) }))}</span><span class="day-capacity-bar" aria-hidden="true"><span style="width:${percent}%"></span></span>${over ? `<strong>${esc(tr('Over capacity by {over}', { over: ctx.durationLabel(load.minutes - capacity) }))}</strong>` : ''}</div>`;
     }
     if (!schedule.blocks.length && !schedule.unscheduled.length && !dueRows.length) return `${html}${emptyDay(date < Core.dateOnly())}</div>`;
     if (dueRows.length) html += `<section class="section day-deadlines"><div class="section-header"><h2 class="section-label">${tr('Due this day')}</h2><span class="section-count">${dueRows.length}</span></div><div class="task-list today-card" data-list-context="calendar">${dueRows.join('')}</div></section>`;

@@ -382,7 +382,7 @@
     const targets = targetsLabel(ctx, d);
     const goals = (state.goals || []).filter(goal => (d.goalIds || []).includes(goal.id)).map(goal => goal.title).join(', ');
     const open = d.moreOpen === true;
-    const more = open ? `<div class="habit-window-card">${habitWindowRow(ctx, 'habit-draft-start', 'ph-calendar-blank', tr('Start'), startLabel(ctx, d))}${habitWindowRow(ctx, 'habit-draft-end', 'ph-flag-checkered', tr('End'), habitEndLabel(ctx, d))}${numeric || weekly ? habitWindowRow(ctx, 'habit-draft-targets', 'ph-gauge', tr('Minimum and ideal'), targets, tr('Same as the target')) : ''}${numeric ? habitWindowRow(ctx, 'habit-draft-quick', 'ph-lightning', tr('Quick values'), draftQuickValues(d).map(value => `+${plainNumber(value)}`).join('  ')) : ''}${habitWindowRow(ctx, 'habit-draft-goals', 'ph-target', tr('Linked goals'), goals, tr('None'))}</div><p class="sheet-note">${tr('“Continuation” and “Grace days” are in the habit details.')}</p>` : '';
+    const more = open ? `<div class="habit-window-card">${habitWindowRow(ctx, 'habit-draft-start', 'ph-calendar-blank', tr('Start'), startLabel(ctx, d))}${habitWindowRow(ctx, 'habit-draft-end', 'ph-flag-checkered', tr('End'), habitEndLabel(ctx, d))}${numeric || weekly ? habitWindowRow(ctx, 'habit-draft-targets', 'ph-gauge', tr('Minimum and ideal'), targets, tr('Same as the target')) : ''}${numeric ? habitWindowRow(ctx, 'habit-draft-quick', 'ph-lightning', tr('Quick values'), draftQuickValues(d).map(value => `+${plainNumber(value)}`).join('  ')) : ''}${habitWindowRow(ctx, 'habit-draft-goals', 'ph-target', tr('Linked goals'), goals, tr('None'))}<div class="habit-window-target"><label for="habit-duration">${tr('Duration')}</label><input id="habit-duration" class="input" type="number" min="1" max="1440" step="5" inputmode="numeric" value="${esc(d.durationMinutes ?? '')}"><span>${tr('min')}</span></div></div><p class="sheet-note">${tr('“Continuation” and “Grace days” are in the habit details.')}</p>` : '';
     const tracking = `${habitSegment('habit-draft-tracking', tr('Tracking'), [['checkbox', tr('Checkbox')], ['numeric', tr('Numeric')]], numeric ? 'numeric' : 'checkbox')}${numeric ? `<div class="habit-window-target"><label for="habit-target-value">${tr('Target')}</label><input id="habit-target-value" class="input" type="number" min="0" step="any" value="${esc(d.targetValue)}"><input id="habit-unit" class="input" maxlength="20" value="${esc(d.unit)}" placeholder="${tr('unit')}" aria-label="${tr('Unit')}"><span>${tr('per day')}</span></div>` : ''}`;
     const card = `<div class="habit-window-card">${habitWindowRow(ctx, 'habit-draft-area', 'ph-squares-four', tr('Area'), area, tr('No area (optional)'))}<div class="habit-window-block"><span class="habit-window-label"><i class="ph ph-clock" aria-hidden="true"></i>${tr('Routine')}</span>${habitSegment('habit-draft-routine', tr('Routine'), [['morning', tr('Morning')], ['daily', tr('Daytime')], ['night', tr('Night')]], ROUTINE_ORDER.includes(d.routine) ? d.routine : 'daily')}</div><div class="habit-window-block"><span class="habit-window-label"><i class="ph ph-check-square" aria-hidden="true"></i>${tr('Tracking')}</span>${tracking}</div>${habitWindowRow(ctx, 'habit-draft-frequency', 'ph-repeat', tr('Frequency'), habitFrequencyLabel(ctx, d))}${habitWindowRow(ctx, 'habit-draft-reminders', 'ph-bell', tr('Reminder'), activeReminderTimes(ctx, d).join(', '))}</div>`;
     return modalFrame(`<div class="modal-inner quick-sheet habit-window"><div class="modal-header"><h2 class="modal-title">${editing ? tr('Edit habit') : tr('New habit')}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div><input id="habit-name" class="quick-title-input${error ? ' is-error' : ''}" type="text" maxlength="120" autocomplete="off" placeholder="${tr('What do you want to practice?')}" value="${esc(d.name)}" aria-label="${tr('Habit name')}">${error ? `<div class="validation" role="alert">${esc(error)}</div>` : ''}${card}<button class="habit-window-more" type="button" data-action="toggle-habit-more" aria-expanded="${open}"><strong>${tr('More settings')}</strong><span>${open ? tr('Hide') : tr('Start, end, goals')} <i class="ph ph-caret-${open ? 'up' : 'down'}" aria-hidden="true"></i></span></button>${more}<div class="quick-sheet-footer"><span></span><button class="btn btn-primary habit-window-save" type="button" data-action="save-habit">${editing ? tr('Save changes') : tr('Create habit')}</button></div></div>`, 'quick');
@@ -799,6 +799,8 @@
     const name = $('#habit-name'); if (name) d.name = name.value;
     const target = $('#habit-target-value'); if (target) d.targetValue = Number(target.value);
     const unit = $('#habit-unit'); if (unit) d.unit = String(unit.value).trim();
+    // R85: the duration (minutes) counts toward the day's capacity; empty means none.
+    const duration = $('#habit-duration'); if (duration) { const value = String(duration.value).trim(); d.durationMinutes = value ? Number(value) : null; }
     if (typeof d.quickValues === 'string') d.quickValues = d.quickValues.split(',').map(value => Number(value.trim())).filter(value => Number.isFinite(value) && value > 0);
     return d;
   }
@@ -814,10 +816,13 @@
     if (d.frequencyType === 'everyNDays' && (!Number.isInteger(d.everyNDays) || d.everyNDays < 1)) { ctx.modalState.error = tr('Every N days must be a positive whole number.'); renderModal(); return; }
     if (d.endType === 'date' && !d.endDate) { ctx.modalState.error = tr('Choose an end date.'); renderModal(); return; }
     if (d.endType === 'successfulPeriods' && (!Number.isInteger(d.successfulPeriodsTarget) || d.successfulPeriodsTarget < 1)) { ctx.modalState.error = tr('Successful periods must be a positive whole number.'); renderModal(); return; }
+    if (d.durationMinutes != null && !(Number.isInteger(d.durationMinutes) && d.durationMinutes >= 1 && d.durationMinutes <= 1440)) { ctx.modalState.error = tr('Duration must be 1 to 1440 minutes.'); renderModal(); return; }
     const { moreOpen, quickValuesSet, ...draftFields } = d;
     const fields = { ...draftFields, name: String(d.name).trim(), quickValues: d.trackingType === 'numeric' ? draftQuickValues(d) : (d.quickValues || []), reminders: d.reminders, updatedAt: nowIso() };
     const existingId = ctx.modalState.habitId;
     const habit = existingId ? getHabit(existingId) : { id: uid('habit'), goalIds: [], status: 'active', reminderFiredMoments: [], isInbox: Boolean(ctx.modalState.templateContext?.inbox), createdAt: nowIso() };
+    // R85: a habit that never had a duration gets no empty field, so sync has nothing new to send.
+    if (fields.durationMinutes == null && !Object.hasOwn(habit, 'durationMinutes')) delete fields.durationMinutes;
     // A new weekly target applies from this week on; earlier weeks keep theirs (M11).
     if (existingId) fields.targetHistory = Core.recordHabitTargetChange(habit, fields, Core.habitPeriodKey({ frequencyType: 'timesPerWeek' }, Core.dateOnly(), Core.habitWeekRule(state.settings)));
     Object.assign(habit, fields);
@@ -950,7 +955,7 @@
     const target = event.target;
     if (!['input', 'change'].includes(event.type)) return false;
     // R8b: the window's typed fields and the live inputs of its sheets.
-    if (ctx.modalState?.type === 'habit' && ['habit-name', 'habit-target-value', 'habit-unit'].includes(target.id)) { readHabitDraft(ctx); return true; }
+    if (ctx.modalState?.type === 'habit' && ['habit-name', 'habit-target-value', 'habit-unit', 'habit-duration'].includes(target.id)) { readHabitDraft(ctx); return true; }
     if (target.id === 'habit-freq-start' && sheet?.kind === 'frequency') { if (ctx.Core.parseDateOnly(target.value)) { sheet.startDate = target.value; ctx.refreshSheet(frequencySheetHtml(ctx)); } return true; }
     if (target.matches?.('[data-habit-reminder-index]') && sheet?.kind === 'reminders') { sheet.times[Number(target.dataset.habitReminderIndex)] = target.value; return true; }
     return false;

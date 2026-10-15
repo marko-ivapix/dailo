@@ -137,7 +137,8 @@ test('capacity is shown only in the Calendar day view; durations format as befor
   assert.equal(vm.runInContext('durationLabel(120)', context), '2 h');
   assert.equal(vm.runInContext('durationLabel(390)', context), '6 h 30 min');
   assert.doesNotMatch(app, /todayCapacityItem|data-today-capacity/);
-  assert.match(read('js/calendar-ui.js'), /const load = Core\.dayLoad\(tasks, date\);/);
+  // R85: the day's load also gets the habits and their logs.
+  assert.match(read('js/calendar-ui.js'), /const load = Core\.dayLoad\(tasks, date, state\.habits, Object\.values\(state\.habitLogCache \|\| \{\}\)\.flat\(\)\);/);
 });
 
 test('Settings offers the daily capacity and the app stores a valid choice', () => {

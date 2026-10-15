@@ -969,6 +969,8 @@
         minimumTarget,
         idealTarget: idealTarget && minimumTarget ? Math.max(minimumTarget, idealTarget) : idealTarget,
         graceDays: Number.isInteger(Number(habit.graceDays)) && Number(habit.graceDays) >= 0 ? Number(habit.graceDays) : 0,
+        // R85: only a stored bad duration is cleared; older habits keep no field.
+        ...(habit.durationMinutes != null && habitDurationOrNull(habit.durationMinutes) === null ? { durationMinutes: null } : {}),
       };
     });
     state.templates = (state.templates || []).map(template => {
@@ -1048,10 +1050,20 @@
     return Number.isInteger(value) && value >= 0 && value <= 1440 ? value : 360;
   }
 
-  function dayLoad(tasks, date) {
+  // R85: a habit's duration, whole minutes from 1 to 1440, or null.
+  function habitDurationOrNull(value) {
+    return Number.isInteger(value) && value >= 1 && value <= 1440 ? value : null;
+  }
+  // R85: the habits planned that day (with days of their own, not "X puta nedeljno") and not done yet add their
+  // duration; habitMinutes says how much of the load is theirs.
+  function dayLoad(tasks, date, habits = [], logs = []) {
     const open = (tasks || []).filter(task => task && !task.isCompleted && task.plannedDate === date);
     const durations = open.map(task => positiveIntegerOrNull(task.durationMinutes));
-    return { minutes: durations.reduce((total, minutes) => total + (minutes || 0), 0), withDuration: durations.filter(Boolean).length, withoutDuration: durations.filter(minutes => !minutes).length };
+    const done = new Set((logs || []).filter(log => log && log.date === date && log.status === 'done').map(log => log.habitId));
+    const habitDurations = (habits || []).filter(habit => habit && habit.frequencyType !== 'timesPerWeek' && !done.has(habit.id) && habitScheduledOn(habit, date))
+      .map(habit => habitDurationOrNull(habit.durationMinutes)).filter(Boolean);
+    const habitMinutes = habitDurations.reduce((total, minutes) => total + minutes, 0);
+    return { minutes: durations.reduce((total, minutes) => total + (minutes || 0), 0) + habitMinutes, withDuration: durations.filter(Boolean).length + habitDurations.length, withoutDuration: durations.filter(minutes => !minutes).length, ...(habitMinutes ? { habitMinutes } : {}) };
   }
 
   // One day as a schedule: timed blocks (a missing duration is estimated), tasks without a time, and the hour range to draw.
@@ -2679,6 +2691,7 @@
     weeklyReviewLog,
     dailyCapacityMinutes,
     dayLoad,
+    habitDurationOrNull,
     daySchedule,
     recordWeeklyReview,
     weeklyReviewDue,
