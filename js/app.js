@@ -2242,30 +2242,40 @@
   }
 
   // What the title will set, shown under it while typing (V1.10). Empty when nothing is recognized.
+  // R90: each part is a button: a tap keeps its words in the title (`quick-keep`); the day and the time are separate.
   function quickParsePreview(parsed) {
-    const item = (icon, text) => `<span class="quick-parse-item"><i class="ph ${icon}" aria-hidden="true"></i>${esc(text)}</span>`;
+    const item = (slot, icon, text) => `<button class="quick-parse-item" type="button" data-action="quick-keep" data-slot="${esc(slot)}" aria-label="${esc(tr('Keep “{words}” in the title', { words: parsed.sources?.[slot] || text }))}"><i class="ph ${icon}" aria-hidden="true"></i>${esc(text)}</button>`;
     const items = [];
-    if (parsed.plannedDate) items.push(item('ph-calendar-check', parsed.plannedTime ? `${relativeDateLabel(parsed.plannedDate)} ${parsed.plannedTime}` : relativeDateLabel(parsed.plannedDate)));
-    else if (parsed.plannedTime) items.push(item('ph-clock', parsed.plannedTime));
+    if (parsed.plannedDate) items.push(item('plannedDate', 'ph-calendar-check', relativeDateLabel(parsed.plannedDate)));
+    if (parsed.plannedTime) items.push(item('plannedTime', 'ph-clock', parsed.plannedTime));
     // R33 (finding 32): an hourglass is the due date and a flag the priority, as in the task window.
-    if (parsed.dueDate) items.push(item('ph-hourglass-medium', tr('Due {date}', { date: relativeDateLabel(parsed.dueDate) })));
-    if (parsed.durationMinutes) items.push(item('ph-timer', durationLabel(parsed.durationMinutes)));
+    if (parsed.dueDate) items.push(item('dueDate', 'ph-hourglass-medium', tr('Due {date}', { date: relativeDateLabel(parsed.dueDate) })));
+    if (parsed.durationMinutes) items.push(item('durationMinutes', 'ph-timer', durationLabel(parsed.durationMinutes)));
     // R89: a repeat written in the title ("utorkom", "svakog drugog utorka").
-    if (parsed.recurrence) items.push(item('ph-arrows-clockwise', recurrenceLabel(parsed.recurrence)));
+    if (parsed.recurrence) items.push(item('recurrence', 'ph-arrows-clockwise', recurrenceLabel(parsed.recurrence)));
     const project = parsed.projectId && getProject(parsed.projectId);
-    if (project) items.push(item('ph-folder-simple', project.name));
+    if (project) items.push(item('projectId', 'ph-folder-simple', project.name));
     const area = !project && parsed.areaId && getArea(parsed.areaId);
-    if (area) items.push(item('ph-squares-four', area.name));
-    for (const tag of (parsed.tagIds || []).map(getTag).filter(Boolean)) items.push(item('ph-hash', tag.name));
-    if (parsed.priority) items.push(item('ph-flag', priorityLabel(parsed.priority)));
-    return items.length ? `<div class="quick-parse-preview" data-quick-preview role="group" aria-label="${tr('Recognized in title')}">${items.join('')}</div>` : '';
+    if (area) items.push(item('areaId', 'ph-squares-four', area.name));
+    for (const tag of (parsed.tagIds || []).map(getTag).filter(Boolean)) items.push(item(`tag:${tag.id}`, 'ph-hash', tag.name));
+    if (parsed.priority) items.push(item('priority', 'ph-flag', priorityLabel(parsed.priority)));
+    return items.length ? `<div class="quick-parse-preview" data-quick-preview role="group" aria-label="${tr('Recognized in title')}">${items.join('')}<span class="quick-parse-hint">${tr('Tap a part to keep it in the title.')}</span></div>` : '';
+  }
+
+  // R90: while a #tag, +project or @area is typed at the end of the title, the existing names to complete it with.
+  function quickSuggestHtml(title) {
+    const items = Core.quickSuggestions(title, { tags: state.tags || [], projects: state.projects || [], areas: state.areas || [] }) || [];
+    return items.length ? `<div class="quick-suggest" role="group" aria-label="${tr('Suggestions')}">${items.map(item => `<button class="quick-chip" type="button" data-action="quick-suggest" data-insert="${esc(item.insert)}">${esc(item.insert.charAt(0) + item.label)}</button>`).join('')}</div>` : '';
   }
 
   // Redesign R4 (Q1, Q2, S7): Quick Add as a bottom sheet. The title, the Smart Quick Add preview, the date and
   // place selectors, the template chip, "Više opcija" (saves and opens the task window) and "Dodaj zadatak".
   function renderQuickModal() {
     const d = modalState.draft;
-    const parsed = parseQuickAddTitle(d.title, !d.explicitPlan);
+    const parsed = parseQuickAddTitle(d.title, !d.explicitPlan, d.keepInTitle);
+    // R90: a pasted list waits for a choice: that many tasks, or one.
+    const lines = modalState.pasteLines || [];
+    const paste = lines.length ? `<div class="quick-paste" role="group" aria-label="${tr('Pasted list')}"><p><strong>${esc(trn(lines.length, 'A list of {count} line', 'A list of {count} lines'))}</strong></p><ul class="quick-paste-lines">${lines.slice(0, 5).map(line => `<li>${esc(line)}</li>`).join('')}${lines.length > 5 ? `<li>${esc(tr('… and {count} more', { count: lines.length - 5 }))}</li>` : ''}</ul><div class="quick-paste-actions"><button class="btn btn-primary" type="button" data-action="quick-paste-tasks">${esc(trn(lines.length, 'Make {count} task', 'Make {count} tasks'))}</button><button class="btn btn-ghost" type="button" data-action="quick-paste-one">${tr('As one task')}</button></div></div>` : '';
     const plan = d.explicitPlan ? d.plannedDate : (parsed.plannedDate || d.plannedDate);
     const time = d.explicitPlannedTime ? d.plannedTime : (d.plannedTime || parsed.plannedTime);
     const titleInput = `<input id="quick-title" class="quick-title-input${modalState.error ? ' is-error' : ''}" type="text" maxlength="500" autocomplete="off" placeholder="${tr('What needs to be done?')}" value="${esc(d.title)}" aria-label="${tr('Task title')}" />`;
@@ -2276,6 +2286,8 @@
       ${dictate ? `<div class="quick-title-row">${titleInput}${dictate}</div>` : titleInput}
       ${modalState.error ? `<div class="validation">${esc(modalState.error)}</div>` : ''}
       ${modalState.draft.notes ? `<p class="quick-shared-note"><i class="ph ph-link" aria-hidden="true"></i><span>${esc(modalState.draft.notes)}</span></p>` : ''}
+      ${paste}
+      <div class="quick-suggest-slot" data-quick-suggest-slot>${quickSuggestHtml(d.title)}</div>
       <div class="quick-parse-slot" data-quick-preview-slot aria-live="polite">${quickParsePreview(parsed)}</div>
       <div class="quick-selectors"><button class="quick-selector" type="button" data-action="quick-plan-picker"><i class="ph ph-calendar-check" aria-hidden="true"></i><span data-quick-plan-label>${esc(quickPlanLabel(plan, time))}</span><i class="ph ph-caret-right" aria-hidden="true"></i></button><button class="quick-selector" type="button" data-action="quick-project-picker"><i class="ph ph-folder-simple" aria-hidden="true"></i><span data-quick-place-label>${esc(quickPlace(d, parsed).label)}</span><i class="ph ph-caret-right" aria-hidden="true"></i></button></div>
       ${quickTemplateRow()}
@@ -2290,7 +2302,7 @@
 
   // Where a Quick Add task goes: its project, "Bez projekta" (it skips Inbox) or Inbox. A picked place wins over a
   // parsed +project; a task with a date and no project is never in Inbox.
-  function quickPlace(d, parsed = parseQuickAddTitle(d.title, !d.explicitPlan)) {
+  function quickPlace(d, parsed = parseQuickAddTitle(d.title, !d.explicitPlan, d.keepInTitle)) {
     const projectId = d.placePicked ? (d.projectId || null) : (d.projectId || parsed.projectId || null);
     const plan = d.explicitPlan ? d.plannedDate : (parsed.plannedDate || d.plannedDate);
     const processed = d.processed ?? Boolean(modalState?.defaults?.processed);
@@ -3528,7 +3540,7 @@
     if (!modalState || modalState.type !== 'quick') return;
     syncQuickDraftFromDom();
     const d = modalState.draft;
-    const parsed = parseQuickAddTitle(d.title, !d.explicitPlan);
+    const parsed = parseQuickAddTitle(d.title, !d.explicitPlan, d.keepInTitle);
     const title = String(parsed.title || '').trim();
     const resolvedPlan = d.explicitPlan ? d.plannedDate : (parsed.plannedDate || d.plannedDate);
     if (!title) {
@@ -3579,8 +3591,78 @@
     const title = $('#quick-title'); if (title) modalState.draft.title = title.value;
   }
 
-  function parseQuickAddTitle(rawTitle, parsePlan = true) {
-    return Core.parseQuickAdd(rawTitle, { today: Core.dateOnly(), tags: state.tags || [], projects: state.projects || [], areas: state.areas || [], parsePlan });
+  // R90: `keep` holds the parts the person kept in the title; `sources` says which words set each part.
+  function parseQuickAddTitle(rawTitle, parsePlan = true, keep = []) {
+    return Core.parseQuickAdd(rawTitle, { today: Core.dateOnly(), tags: state.tags || [], projects: state.projects || [], areas: state.areas || [], parsePlan, keep, sources: true });
+  }
+
+  // R90: a tapped part of the preview stays in the title; its words are not read again while they stay the same.
+  function keepInQuickTitle(slot) {
+    if (modalState?.type !== 'quick') return;
+    syncQuickDraftFromDom();
+    const d = modalState.draft;
+    const text = parseQuickAddTitle(d.title, !d.explicitPlan, d.keepInTitle).sources?.[slot];
+    if (!text) return;
+    d.keepInTitle = [...(d.keepInTitle || []), { slot, text }];
+    renderModal();
+    focusQuickTitleEnd();
+  }
+  // R90: a suggestion completes the #tag, +project or @area being typed.
+  function applyQuickSuggestion(insert) {
+    if (modalState?.type !== 'quick' || !insert) return;
+    syncQuickDraftFromDom();
+    const d = modalState.draft;
+    d.title = `${d.title.replace(/(^|\s)[#+@]\S*$/, '$1')}${insert} `;
+    renderModal();
+    focusQuickTitleEnd();
+  }
+  function focusQuickTitleEnd() {
+    const input = $('#quick-title');
+    if (!input) return;
+    input.focus();
+    input.setSelectionRange?.(input.value.length, input.value.length);
+  }
+  // R90: a pasted list (two lines or more) is offered as that many tasks, after a confirmation in the sheet.
+  function handlePaste(event) {
+    if (modalState?.type !== 'quick' || event.target?.id !== 'quick-title') return;
+    const lines = Core.splitPastedList(event.clipboardData?.getData('text') || '');
+    if (lines.length < 2) return;
+    event.preventDefault();
+    syncQuickDraftFromDom();
+    modalState.pasteLines = lines;
+    renderModal();
+  }
+  // R90 (AGENTS.md exception, the user's choice): each line becomes a task the way a title would (its day, time,
+  // repeat, project and tags), in the sheet's place and day; one Poništi removes them all.
+  function createPastedTasks() {
+    if (modalState?.type !== 'quick' || !modalState.pasteLines?.length) return;
+    syncQuickDraftFromDom();
+    const d = modalState.draft, created = [];
+    for (const line of modalState.pasteLines) {
+      const parsed = parseQuickAddTitle(line, !d.explicitPlan);
+      const title = String(parsed.title || '').trim();
+      if (!title) continue;
+      const plannedDate = (d.explicitPlan ? d.plannedDate : (parsed.plannedDate || d.plannedDate)) || null;
+      const { projectId, isInbox } = quickPlace(d, parsed);
+      const task = newTaskRecord({ title, projectId, areaId: projectId ? null : (d.areaId || parsed.areaId || null), plannedDate, plannedTime: parsed.plannedTime || null, dueDate: parsed.dueDate || null, durationMinutes: parsed.durationMinutes || null, tagIds: [...new Set([...(d.tagIds || []), ...parsed.tagIds])], priority: parsed.priority || 'none', isInbox,
+        todayOrder: plannedDate === Core.dateOnly() ? nextOrder('today') : null, projectOrder: projectId ? nextOrder(`project:${projectId}`) : null, inboxOrder: isInbox ? nextOrder('inbox') : null });
+      if (parsed.recurrence) task.recurrence = { ...Core.normalizeRecurrenceV3(parsed.recurrence), seriesId: task.id };
+      state.tasks.push(task);
+      created.push(task.id);
+    }
+    if (!created.length) return;
+    saveState(); closeModal(); render();
+    setUndo(trn(created.length, '{count} task added', '{count} tasks added'), () => { const ids = new Set(created); state.tasks = state.tasks.filter(task => !ids.has(task.id)); saveState(); render(); });
+  }
+  // R90: "Kao jedan zadatak" puts the pasted lines into the title, one after another.
+  function joinPastedLines() {
+    if (modalState?.type !== 'quick' || !modalState.pasteLines?.length) return;
+    syncQuickDraftFromDom();
+    const d = modalState.draft;
+    d.title = [d.title.trim(), ...modalState.pasteLines].filter(Boolean).join(' ').slice(0, 500);
+    modalState.pasteLines = null;
+    renderModal();
+    focusQuickTitleEnd();
   }
 
   function nextOrder(context, atTop = false) {
@@ -6314,6 +6396,10 @@
     else if (action === 'quick-template') openQuickTemplatePicker(el);
     else if (action === 'quick-template-clear') { clearQuickTemplate(); renderModal(); requestAnimationFrame(() => $('[data-action="quick-template"]')?.focus()); }
     else if (action === 'quick-more-options') createTask(false, true);
+    else if (action === 'quick-keep') keepInQuickTitle(el.dataset.slot);
+    else if (action === 'quick-suggest') applyQuickSuggestion(el.dataset.insert);
+    else if (action === 'quick-paste-tasks') createPastedTasks();
+    else if (action === 'quick-paste-one') joinPastedLines();
     else if (action === 'create-task') createTask(false);
     else if (action === 'create-task-continue') createTask(true);
     else if (action === 'close-modal') closeModal();
@@ -6466,8 +6552,9 @@
     if (modalState?.type === 'quick') {
       if (event.target.id === 'quick-title') {
         const d = modalState.draft; d.title = event.target.value; modalState.error = '';
-        const parsed = parseQuickAddTitle(event.target.value, !d.explicitPlan);
+        const parsed = parseQuickAddTitle(event.target.value, !d.explicitPlan, d.keepInTitle);
         const slot = document.querySelector('[data-quick-preview-slot]'); if (slot) slot.innerHTML = quickParsePreview(parsed);
+        const suggest = document.querySelector('[data-quick-suggest-slot]'); if (suggest) suggest.innerHTML = quickSuggestHtml(event.target.value);
         if (!d.explicitPlan) d.parsedPlanDate = parsed.plannedDate;
         // Redesign R4: the selectors follow the title without redrawing the field.
         const planLabel = document.querySelector('[data-quick-plan-label]'); if (planLabel) planLabel.textContent = quickPlanLabel(d.explicitPlan ? d.plannedDate : (parsed.plannedDate || d.plannedDate), d.explicitPlannedTime ? d.plannedTime : (d.plannedTime || parsed.plannedTime));
@@ -6947,6 +7034,8 @@
       else accountSubmit();
     });
     document.addEventListener('input', handleInput);
+    // R90: a list pasted into Quick Add.
+    document.addEventListener('paste', handlePaste);
     document.addEventListener('change', handleChange);
     document.addEventListener('blur', handleBlur, true);
     document.addEventListener('keydown', handleKeydown);

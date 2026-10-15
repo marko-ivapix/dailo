@@ -28,7 +28,8 @@ test('3: Quick Add reads "18h", "u 18h" and "u 18" as a time; short hours and "2
   assert.deepEqual(parse('Napiši izveštaj za 2 sata'), ['Napiši izveštaj', null, null, 120]);
   assert.deepEqual(parse('Plati račune za 3 dana'), ['Plati račune', '2026-10-15', null, null], 'za N dana is still a date');
   assert.deepEqual(parse('Kupi mleko sutra u 25h'), ['Kupi mleko sutra u 25h', null, null, null], 'an hour that does not exist is left alone');
-  assert.match(fn('quickParsePreview'), /item\('ph-timer', durationLabel\(parsed\.durationMinutes\)\)/);
+  // R90: each part of the preview names its slot first, so a tap can keep it in the title.
+  assert.match(fn('quickParsePreview'), /item\('durationMinutes', 'ph-timer', durationLabel\(parsed\.durationMinutes\)\)/);
 });
 
 function pickerCtx(source, projects) {

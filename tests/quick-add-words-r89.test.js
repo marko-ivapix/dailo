@@ -97,7 +97,8 @@ test('Cyrillic typing is recognized; the title keeps its script; tags, projects 
 });
 
 test('Quick Add shows the repeat it recognized and gives it to the task; a repeat picked in the sheet wins', () => {
-  assert.match(functionSource('quickParsePreview').source, /if \(parsed\.recurrence\) items\.push\(item\('ph-arrows-clockwise', recurrenceLabel\(parsed\.recurrence\)\)\);/);
+  // R90: each part of the preview names its slot, so a tap can keep it in the title.
+  assert.match(functionSource('quickParsePreview').source, /if \(parsed\.recurrence\) items\.push\(item\('recurrence', 'ph-arrows-clockwise', recurrenceLabel\(parsed\.recurrence\)\)\);/);
   assert.match(functionSource('createTask').source, /recurrence: d\.recurrence \|\| parsed\.recurrence \|\| null,/);
 });
 
@@ -108,8 +109,7 @@ test('the guide lists the new words', () => {
   assert.ok(guide.includes('Reči za datum, vreme i ponavljanje prepoznaje i kad ih otkucaš ćirilicom.'), 'the public pages stay in Latin script');
 });
 
-test('R89 is released as 2.0.0-alpha.116', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.116');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.116';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.116');
+test('R89 shipped as 2.0.0-alpha.116 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 116) >= 116);
 });

@@ -114,8 +114,9 @@ test('29: dragging a sheet\'s header down closes it', () => {
 });
 
 test('32: an hourglass is the due date and a flag the priority everywhere; Bez projekta has its own icon', () => {
-  assert.match(fn('quickParsePreview'), /item\('ph-hourglass-medium', tr\('Due \{date\}'/);
-  assert.match(fn('quickParsePreview'), /item\('ph-flag', priorityLabel\(parsed\.priority\)\)/);
+  // R90: each part of the preview names its slot first, so a tap can keep it in the title.
+  assert.match(fn('quickParsePreview'), /item\('dueDate', 'ph-hourglass-medium', tr\('Due \{date\}'/);
+  assert.match(fn('quickParsePreview'), /item\('priority', 'ph-flag', priorityLabel\(parsed\.priority\)\)/);
   assert.match(app, /data-route="project\/none"><i class="ph ph-circle-dashed project-row-icon"/);
 });
 

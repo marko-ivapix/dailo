@@ -1731,6 +1731,15 @@
 
     // V1.10 Smart Quick Add (js/app.js)
     "Recognized in title": "Prepoznato u naslovu",
+    "Keep “{words}” in the title": "Ostavi „{words}“ u naslovu",
+    "Tap a part to keep it in the title.": "Dodirni deo da ostane u naslovu.",
+    "Suggestions": "Predlozi",
+    "Pasted list": "Nalepljena lista",
+    "As one task": "Kao jedan zadatak",
+    "… and {count} more": "… i još {count}",
+    "A list of {count} lines": { one: "Lista od {count} reda", few: "Lista od {count} reda", other: "Lista od {count} redova" },
+    "Make {count} tasks": { one: "Napravi {count} zadatak", few: "Napravi {count} zadatka", other: "Napravi {count} zadataka" },
+    "{count} tasks added": { one: "Dodat je {count} zadatak", few: "Dodata su {count} zadatka", other: "Dodato je {count} zadataka" },
 
     // V1.11 Weekly review (js/review-ui.js, js/app.js)
     "Weekly review": "Nedeljni pregled",

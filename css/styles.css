@@ -2644,6 +2644,16 @@ a.toast-action { display: inline-flex; align-items: center; text-decoration: non
 /* R87: a subtask being renamed: the title field takes the room next to ↑ and ↓. */
 .subtask-row > .subtask-title-input { flex: 1; min-width: 0; }
 
+/* R90: Quick Add while typing: the preview's parts are buttons (44 px to touch), suggestions, a pasted list. */
+.quick-parse-item { cursor: pointer; font: inherit; position: relative; }
+.quick-parse-item::after { content: ""; position: absolute; inset: -9px 0; }
+.quick-parse-hint { flex-basis: 100%; color: var(--ink-4); font-size: var(--text-sm); }
+.quick-suggest { display: flex; flex-wrap: wrap; gap: 6px; margin-top: var(--space-2); }
+.quick-suggest-slot:empty { display: none; }
+.quick-paste { margin-top: var(--space-2); padding: var(--space-3); border: 1px solid var(--line-2); border-radius: var(--radius-md); background: var(--graphite-850); }
+.quick-paste-lines { margin: var(--space-2) 0; padding-left: 20px; color: var(--ink-2); }
+.quick-paste-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+
 /* Keep primary compact actions touchable after all density rules. */
 @media (max-width: 700px), (pointer: coarse) {
   .task-actions .btn-icon,

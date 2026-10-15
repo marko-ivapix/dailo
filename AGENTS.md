@@ -41,7 +41,7 @@ If a summary document conflicts with current source/tests, document the discrepa
 - IndexedDB stores large/growing data such as attachments, Habit logs, Goal history and recovery snapshots.
 - Existing V1.2 user data must migrate safely to schema V3.
 - Existing Search behavior must not be redesigned in V1.7.
-- No bulk-selection/bulk-action UI. Exception (the user's choice, 2026-10-15): "Sve na sutra" for past-due tasks on Danas (R83) and the evening "Zatvori dan" (R84), each one tap with Undo; there is still no selection of several items.
+- No bulk-selection/bulk-action UI. Exception (the user's choice, 2026-10-15): "Sve na sutra" for past-due tasks on Danas (R83) and the evening "Zatvori dan" (R84), each one tap with Undo; and a list pasted into Quick Add, which becomes several new tasks only after a confirmation, with one Undo (R90); there is still no selection of several items.
 
 ## Product rules that must not be broken
 

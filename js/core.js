@@ -1950,28 +1950,36 @@
   }
 
   // Parses a Quick Add title into task fields. Pure: `tags`, `projects` and `areas` are the existing records to match.
-  function parseQuickAdd(rawTitle, { today = dateOnly(), tags = [], projects = [], areas = [], parsePlan = true, tokens = true, slots = null } = {}) {
+  // R90: `keep` lists parts the person kept in the title ({ slot, text }); they are not read while their words stay the
+  // same. With `sources`, the result says which words set each part (Latin, lower case; tags as "tag:<id>").
+  function parseQuickAdd(rawTitle, { today = dateOnly(), tags = [], projects = [], areas = [], parsePlan = true, tokens = true, slots = null, keep = [], sources = false } = {}) {
     const original = String(rawTitle || '');
     const result = { title: original, plannedDate: null, plannedTime: null, dueDate: null, durationMinutes: null, priority: null, tagIds: [], projectId: null, areaId: null };
+    const read = {};
+    const kept = (slot, words) => (keep || []).some(item => item && item.slot === slot && item.text === words);
     let text = original;
     if (tokens) {
       const findLoose = (records, name) => (records || []).find(record => record && !record.isArchived && looseName(record.name) === looseName(name));
       text = original.replace(/(^|\s)(#[^\s#]+|![^\s!]+|[+@][^\s+@#!]+)(?=\s|$)/g, (match, prefix, token) => {
         const sigil = token[0];
         const name = token.slice(1);
+        const words = cyrillicToLatin(token).toLocaleLowerCase();
         if (sigil === '#') {
           const tag = (tags || []).find(item => item && cyrillicToLatin(normalizeTagName(item.name)).toLocaleLowerCase() === cyrillicToLatin(name).toLocaleLowerCase());
-          if (!tag) return match;
+          if (!tag || kept(`tag:${tag.id}`, words)) return match;
           if (!result.tagIds.includes(tag.id)) result.tagIds.push(tag.id);
+          read[`tag:${tag.id}`] = words;
         } else if (sigil === '!') {
           const priority = QUICK_PRIORITIES[cyrillicToLatin(name).toLocaleLowerCase()];
-          if (!priority || result.priority) return match;
+          if (!priority || result.priority || kept('priority', words)) return match;
           result.priority = priority;
+          read.priority = words;
         } else {
           const key = sigil === '+' ? 'projectId' : 'areaId';
           const record = findLoose(sigil === '+' ? projects : areas, name);
-          if (!record || result[key]) return match;
+          if (!record || result[key] || kept(key, words)) return match;
           result[key] = record.id;
+          read[key] = words;
         }
         return prefix;
       });
@@ -1982,18 +1990,47 @@
     // R89: Cyrillic is read as Latin; the title keeps the words as they were typed.
     const latin = words.map(cyrillicToLatin);
     const found = {};
+    // R90: kept words move to the end of the title and the reading goes on to their left.
+    const tail = [];
     while (words.length) {
       const clause = quickClause(latin, today, parsePlan);
-      if (clause === INVALID) return { ...result, title: tokens ? tokenFree : original };
-      if (clause.stop || own(found, clause.slot) || (slots && !slots.includes(clause.slot)) || clause.consumed >= words.length) break;
-      found[clause.slot] = clause.value;
-      words.splice(words.length - clause.consumed, clause.consumed);
+      if (clause === INVALID) return withSources({ ...result, title: tokens ? tokenFree : original });
+      if (clause.stop || own(found, clause.slot) || (slots && !slots.includes(clause.slot)) || (clause.consumed >= words.length && !tail.length)) break;
+      const phrase = latin.slice(latin.length - clause.consumed).join(' ').toLocaleLowerCase();
+      const taken = words.splice(words.length - clause.consumed, clause.consumed);
       latin.splice(latin.length - clause.consumed, clause.consumed);
+      if (kept(clause.slot, phrase)) { tail.unshift(...taken); continue; }
+      found[clause.slot] = clause.value;
+      read[clause.slot] = phrase;
     }
+    words.push(...tail);
     // R89: a repeat with no day written is planned for its first day.
     if (found.recurrence && !found.plannedDate && parsePlan) found.plannedDate = firstRecurrenceDate(today, found.recurrence);
-    if (!Object.keys(found).length) return { ...result, title: tokens ? tokenFree : original };
-    return { ...result, ...found, title: words.join(' ') };
+    if (!Object.keys(found).length) return withSources({ ...result, title: tokens ? words.join(' ') : original });
+    return withSources({ ...result, ...found, title: words.join(' ') });
+    function withSources(value) { return sources ? { ...value, sources: read } : value; }
+  }
+
+  // R90: while a #tag, +project or @area is typed at the end of a title, the existing names that begin with what is
+  // typed (without case and diacritics, Cyrillic as Latin), at most five; null when the last word is no such token.
+  // Spaces in a name become dashes, which the parser reads as the same name.
+  function quickSuggestions(title, { tags = [], projects = [], areas = [] } = {}, limit = 5) {
+    const match = String(title || '').match(/(?:^|\s)([#+@])(\S*)$/);
+    if (!match) return null;
+    const [, sigil, typed] = match;
+    const records = sigil === '#' ? tags : sigil === '+' ? projects : areas;
+    const start = looseName(typed);
+    return (records || []).filter(record => record && record.name && !record.isArchived && record.status !== 'archived')
+      .filter(record => looseName(record.name).startsWith(start) && looseName(record.name) !== start)
+      .slice(0, limit).map(record => ({ insert: `${sigil}${String(record.name).trim().replace(/\s+/g, '-')}`, label: record.name }));
+  }
+
+  // R90: a pasted list as task titles: one per line, without bullets, numbers or check boxes, empty lines left out,
+  // at most 100.
+  function splitPastedList(text) {
+    return String(text || '').split(/\r?\n/)
+      .map(line => line.replace(/^\s*(?:[-*•–]\s+)?(?:\d{1,3}[.)]\s+)?(?:\[[ xX]?\]\s*)?/, '').trim())
+      .filter(Boolean).slice(0, 100);
   }
 
   // V1.5 API kept for its tests: only the trailing plan date and time.
@@ -2726,6 +2763,8 @@
     weeklyReviewStats,
     normalizeRecurrence,
     normalizeRecurrenceV3,
+    quickSuggestions,
+    splitPastedList,
     shouldGenerateRecurrence,
     splitRecurrenceForFuture,
     makeUuid,
