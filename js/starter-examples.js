@@ -342,5 +342,62 @@
     return out;
   }
 
-  return { PREFIX, workspaceExamples };
+  // R99: the built-in gallery of ready-made templates. "Iz šablona" and Šabloni offer the ones not yet among the
+  // user's templates; picking one fills the window and saves nothing, "Dodaj u moje šablone" makes it the user's own.
+  // [key, type, name, icon, the project's tasks ([title, checklist]) or the habit's own fields].
+  const GALLERY_PREFIX = 'template-gallery-v1';
+  const GALLERY = [
+    ['travel', 'project', msg('Packing for a trip'), 'ph-suitcase-rolling', [
+      [msg('Documents'), [msg('ID card or passport'), msg('Health insurance card'), msg('Tickets and bookings'), msg('Cash and cards')]],
+      [msg('Clothes'), [msg('T-shirts'), msg('Trousers'), msg('Underwear and socks'), msg('A jacket'), msg('Comfortable shoes')]],
+      [msg('Hygiene'), [msg('Toothbrush and toothpaste'), msg('Shampoo'), msg('Deodorant'), msg('Medicines')]],
+      [msg('Electronics'), [msg('Phone charger'), msg('Power bank'), msg('Headphones'), msg('Plug adapter')]],
+      [msg('Before you leave'), [msg('Close the windows'), msg('Unplug the appliances'), msg('Take out the rubbish'), msg('Lock the door')]],
+    ]],
+    ['moving', 'project', msg('Moving house'), 'ph-truck', [
+      [msg('Book a van or movers'), []],
+      [msg('Get boxes and tape'), []],
+      [msg('Pack room by room'), [msg('Kitchen'), msg('Living Room'), msg('Bedroom'), msg('Bathroom')]],
+      [msg('Report the new address'), [msg('Police (ID card)'), msg('Bank'), msg('Employer')]],
+      [msg('Move the bills'), [msg('Electricity'), msg('Internet'), msg('Water'), msg('Heating')]],
+      [msg('Clean the old flat'), []],
+      [msg('Read the meters and hand over the keys'), []],
+    ]],
+    ['exam', 'project', msg('Exam'), 'ph-graduation-cap', [
+      [msg('Register for the exam'), []],
+      [msg('Find out what the exam covers'), []],
+      [msg('Get the books and notes'), []],
+      [msg('Make a study plan by days'), []],
+      [msg('Go through the material once'), []],
+      [msg('Solve old exam papers'), []],
+      [msg('Revise the material'), []],
+      [msg('Pack for the exam day'), [msg('Student ID'), msg('ID card'), msg('Pens'), msg('Water')]],
+    ]],
+    ['morning', 'habit', msg('Morning routine'), 'ph-sun-horizon', { routine: 'morning', reminders: [{ time: '07:00', enabled: true }] }],
+  ];
+  const galleryName = value => String(value || '').trim().toLocaleLowerCase();
+
+  // The entries of one type (or all) that are not among the user's templates yet, by key or by name.
+  function galleryEntries(view, type = null) {
+    const templates = view?.templates || [];
+    return GALLERY.filter(([key, kind, name]) => (!type || kind === type) && !templates.some(item => item?.sampleKey === `${GALLERY_PREFIX}:${key}` || galleryName(item?.name) === galleryName(tr(name))))
+      .map(([key, kind, name, icon, content]) => ({ key, type: kind, name: tr(name), icon, count: kind === 'project' ? content.length : 0 }));
+  }
+
+  // A full template record, built like the user's own ("Sačuvaj kao šablon"), so it passes the same checks.
+  function galleryTemplate(key, { Core, uid, today, timestamp, PROJECT_COLORS = [] }) {
+    const index = GALLERY.findIndex(item => item[0] === key);
+    if (index < 0) return null;
+    const [, type, name, , content] = GALLERY[index];
+    const base = { id: uid('template'), sampleKey: `${GALLERY_PREFIX}:${key}`, name: tr(name), type, createdAt: timestamp, updatedAt: timestamp };
+    if (type === 'project') {
+      const source = { id: `${GALLERY_PREFIX}:${key}`, name: tr(name), areaId: null, goalIds: [], color: PROJECT_COLORS.length ? PROJECT_COLORS[index % PROJECT_COLORS.length] : undefined };
+      const tasks = content.map(([title, items], projectOrder) => ({ id: `${source.id}:${projectOrder}`, title: tr(title), projectId: source.id, projectOrder, subtasks: items.map((item, order) => ({ title: tr(item), order })) }));
+      return { ...base, data: Core.templateFromEntity('project', source, { tasks, goals: [] }, today).data };
+    }
+    const habit = { name: tr(name), areaId: null, goalIds: [], trackingType: 'checkbox', targetValue: 1, minimumTarget: null, idealTarget: null, graceDays: 0, unit: '', quickValues: [], frequencyType: 'daily', weekdays: [1, 2, 3, 4, 5], timesPerWeek: 4, everyNDays: 2, continuation: 'automatic', endType: 'never', successfulPeriodsTarget: null, ...content };
+    return { ...base, data: Core.templateFromEntity('habit', habit, {}, today).data };
+  }
+
+  return { PREFIX, workspaceExamples, galleryEntries, galleryTemplate };
 });

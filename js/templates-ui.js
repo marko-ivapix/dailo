@@ -34,6 +34,17 @@
     const title = data.title || data.name || '';
     return [title !== template.name ? title : '', count].filter(Boolean).join(' · ');
   }
+  // R99: a task template also says whether it repeats or is made once on a set day (until that day has come).
+  function templateMeta(template, ctx) {
+    const data = template.data || {};
+    const repeats = template.type === 'task' && data.recurrence?.frequency ? tr('Repeats') : '';
+    const once = template.type === 'task' && data.scheduleEnabled && data.scheduleDate && data.scheduleGeneratedOn !== data.scheduleDate ? tr('Made once on {date}', { date: ctx.formatDate ? ctx.formatDate(data.scheduleDate) : data.scheduleDate }) : '';
+    return [templateDetail(template), repeats, once].filter(Boolean).join(' · ');
+  }
+  // R99: the gallery's projects say how many tasks they have; its one habit is daily, in the morning.
+  function galleryDetail(entry) {
+    return entry.type === 'project' ? `${tr('Project')} · ${trn(entry.count, '{count} task', '{count} tasks')}` : [tr('Habit'), tr('Every day'), tr('Morning')].join(' · ');
+  }
 
   function renderTemplates(ctx) {
     const { state, templateTypes, pageHeader, esc } = ctx;
@@ -41,17 +52,26 @@
     for (const type of templateTypes) {
       const rows = state.templates.filter(template => template.type === type);
       if (!rows.length) continue;
-      html += `<section class="section templates-group"><div class="section-header"><h2 class="section-label"><i class="ph ${GROUP_ICONS[type] || 'ph-copy'}" aria-hidden="true"></i> ${GROUP_LABELS[type] ? tr(GROUP_LABELS[type]) : typeLabel(ctx, type)} · ${rows.length}</h2></div><div class="today-card templates-list">${rows.map(template => `<button class="template-list-row" type="button" data-action="template-open" data-template-id="${esc(template.id)}"><span class="template-list-main"><span class="task-title">${esc(template.name)}</span><span class="task-meta">${esc(templateDetail(template))}</span></span></button>`).join('')}</div></section>`;
+      html += `<section class="section templates-group"><div class="section-header"><h2 class="section-label"><i class="ph ${GROUP_ICONS[type] || 'ph-copy'}" aria-hidden="true"></i> ${GROUP_LABELS[type] ? tr(GROUP_LABELS[type]) : typeLabel(ctx, type)} · ${rows.length}</h2></div><div class="today-card templates-list">${rows.map(template => `<button class="template-list-row" type="button" data-action="template-open" data-template-id="${esc(template.id)}"><span class="template-list-main"><span class="task-title">${esc(template.name)}</span><span class="task-meta">${esc(templateMeta(template, ctx))}</span></span></button>`).join('')}</div></section>`;
     }
     if (!state.templates.length) html += `<p class="today-empty">${tr('No templates yet. Create one or save an existing item as a template.')}</p>`;
-    return `${html}<div class="today-card templates-add"><button class="inline-add" type="button" data-action="new-template"><i class="ph ph-plus" aria-hidden="true"></i> ${tr('New template')}</button></div><p class="sheet-note templates-note">${tr('“Save as template” in the menu of a task, project, habit or goal also makes one.')}</p>`;
+    // R99: the built-in gallery, with the entries not yet among the user's templates.
+    const gallery = ctx.templateGallery?.() || [];
+    const ready = gallery.length ? `<section class="section templates-gallery"><div class="section-header"><h2 class="section-label">${tr('Ready-made templates')}</h2></div><p class="sheet-note">${tr('Use one as it is, or add it to your templates and change it.')}</p><div class="today-card templates-list">${gallery.map(entry => `<button class="template-gallery-row" type="button" data-action="template-gallery-open" data-gallery-key="${esc(entry.key)}"><i class="ph ${entry.icon}" aria-hidden="true"></i><span class="template-list-main"><span class="task-title">${esc(entry.name)}</span><span class="task-meta">${esc(galleryDetail(entry))}</span></span></button>`).join('')}</div></section>` : '';
+    return `${html}<div class="today-card templates-add"><button class="inline-add" type="button" data-action="new-template"><i class="ph ph-plus" aria-hidden="true"></i> ${tr('New template')}</button></div><p class="sheet-note templates-note">${tr('“Save as template” in the menu of a task, project, habit or goal also makes one.')}</p>${ready}`;
+  }
+
+  function openGallerySheet(ctx, anchor, key) {
+    const entry = (ctx.templateGallery?.() || []).find(item => item.key === key); if (!entry) return;
+    const id = ctx.esc(entry.key);
+    ctx.openPopover(anchor, `<div class="popover-title">${ctx.esc(entry.name)}</div><p class="sheet-subtitle">${ctx.esc(galleryDetail(entry))}</p><button class="btn btn-primary sheet-primary" type="button" data-pop-action="use-gallery-template" data-gallery-key="${id}">${tr('Use template')}</button><div class="sheet-card sheet-menu"><button class="popover-option" type="button" data-pop-action="add-gallery-template" data-gallery-key="${id}"><i class="ph ph-plus"></i>${tr('Add to my templates')}</button></div>`, { type: 'gallery-sheet', key });
   }
 
   function openTemplateSheet(ctx, anchor, templateId) {
     const { state, esc } = ctx;
     const template = state.templates.find(item => item.id === templateId); if (!template) return;
     const id = esc(template.id);
-    ctx.openPopover(anchor, `<div class="popover-title">${esc(template.name)}</div><p class="sheet-subtitle">${esc(templateDetail(template))}</p><button class="btn btn-primary sheet-primary" type="button" data-pop-action="use-template" data-template-id="${id}">${tr('Use template')}</button><div class="sheet-card sheet-menu"><button class="popover-option" type="button" data-pop-action="edit-template" data-template-id="${id}"><i class="ph ph-pencil-simple"></i>${tr('Edit template')}</button><button class="popover-option" type="button" data-pop-action="duplicate-template" data-template-id="${id}"><i class="ph ph-copy"></i>${tr('Duplicate template')}</button><button class="popover-option is-danger" type="button" data-pop-action="delete-template" data-template-id="${id}"><i class="ph ph-trash"></i>${tr('Delete template')}</button></div>`, { type: 'template-sheet', templateId });
+    ctx.openPopover(anchor, `<div class="popover-title">${esc(template.name)}</div><p class="sheet-subtitle">${esc(templateMeta(template, ctx))}</p><button class="btn btn-primary sheet-primary" type="button" data-pop-action="use-template" data-template-id="${id}">${tr('Use template')}</button><div class="sheet-card sheet-menu"><button class="popover-option" type="button" data-pop-action="edit-template" data-template-id="${id}"><i class="ph ph-pencil-simple"></i>${tr('Edit template')}</button><button class="popover-option" type="button" data-pop-action="duplicate-template" data-template-id="${id}"><i class="ph ph-copy"></i>${tr('Duplicate template')}</button><button class="popover-option is-danger" type="button" data-pop-action="delete-template" data-template-id="${id}"><i class="ph ph-trash"></i>${tr('Delete template')}</button></div>`, { type: 'template-sheet', templateId });
   }
 
   function openTypeSheet(ctx, anchor) {
@@ -105,15 +125,17 @@
       more += field('reminderOffsetDays', tr('Reminder: days after the day it is made (blank = none)'), 'number') + (data.reminderOffsetDays != null ? field('reminderTime', tr('Reminder time'), 'time') : '');
       more += field('durationMinutes', tr('Duration in minutes (blank = none)'), 'number');
       const recurrence = data.recurrence || {};
-      more += templateField(ctx, recurrence, 'frequency', tr('Repeat'), 'text', [['', tr('Does not repeat')], ['daily', tr('Daily')], ['weekly', tr('Weekly')], ['monthly', tr('Monthly')], ['yearly', tr('Yearly')]], `${prefix}recurrence.`);
+      let repeat = templateField(ctx, recurrence, 'frequency', tr('How often'), 'text', [['', tr('Does not repeat')], ['daily', tr('Daily')], ['weekly', tr('Weekly')], ['monthly', tr('Monthly')], ['yearly', tr('Yearly')]], `${prefix}recurrence.`);
       if (recurrence.frequency) {
-        more += templateField(ctx, recurrence, 'interval', tr('Repeat interval'), 'number', null, `${prefix}recurrence.`);
-        more += recurrence.frequency === 'weekly' ? templateField(ctx, recurrence, 'weekdays', tr('On these days'), 'weekdays', null, `${prefix}recurrence.`) : '';
-        more += templateField(ctx, recurrence, 'endType', tr('Repeat end condition'), 'text', [['never', tr('Never')], ['date', tr('On relative date')], ['afterOccurrences', tr('After N occurrences')]], `${prefix}recurrence.`);
-        more += recurrence.endType === 'date' ? templateField(ctx, recurrence, 'endOffsetDays', tr('Repeat end day offset'), 'number', null, `${prefix}recurrence.`) : '';
-        more += recurrence.endType === 'afterOccurrences' ? templateField(ctx, recurrence, 'endAfterOccurrences', tr('Repeat total occurrences'), 'number', null, `${prefix}recurrence.`) : '';
+        repeat += templateField(ctx, recurrence, 'interval', tr('Repeat interval'), 'number', null, `${prefix}recurrence.`);
+        repeat += recurrence.frequency === 'weekly' ? templateField(ctx, recurrence, 'weekdays', tr('On these days'), 'weekdays', null, `${prefix}recurrence.`) : '';
+        repeat += templateField(ctx, recurrence, 'endType', tr('Repeat end condition'), 'text', [['never', tr('Never')], ['date', tr('On relative date')], ['afterOccurrences', tr('After N occurrences')]], `${prefix}recurrence.`);
+        repeat += recurrence.endType === 'date' ? templateField(ctx, recurrence, 'endOffsetDays', tr('Repeat end day offset'), 'number', null, `${prefix}recurrence.`) : '';
+        repeat += recurrence.endType === 'afterOccurrences' ? templateField(ctx, recurrence, 'endAfterOccurrences', tr('Repeat total occurrences'), 'number', null, `${prefix}recurrence.`) : '';
       }
-      if (!prefix) more += field('scheduleEnabled', tr('Create automatically on date'), 'boolean') + (data.scheduleEnabled ? field('scheduleDate', tr('Automatic creation date'), 'date') : '');
+      // R99: the repeat and "Napravi jednom, na zadati dan" are two separate parts, so one is not taken for the other.
+      more += `<fieldset class="template-section"><legend>${tr('Repeat')}</legend>${repeat}</fieldset>`;
+      if (!prefix) more += `<fieldset class="template-section"><legend>${tr('Make it once, on a set day')}</legend><p class="sheet-note">${tr('On that day Dailo makes one task from this template by itself. That is not a repeat: for a task that comes back, use Repeat.')}</p>${field('scheduleEnabled', tr('Create automatically on date'), 'boolean')}${data.scheduleEnabled ? field('scheduleDate', tr('Automatic creation date'), 'date') : ''}</fieldset>`;
     } else if (type === 'project') {
       html += templateRows(ctx, 'tasks', data.tasks || [], prefix, 'task');
       more += field('color', tr('Color'), 'color');
@@ -251,6 +273,9 @@
       const element = event?.target?.closest?.('[data-action], [data-pop-action]');
       if (!element) return false;
       if (action === 'template-open') openTemplateSheet(ctx, element, element.dataset.templateId);
+      else if (action === 'template-gallery-open') openGallerySheet(ctx, element, element.dataset.galleryKey);
+      else if (action === 'use-gallery-template') { ctx.closePopover(); ctx.useGalleryTemplate(element.dataset.galleryKey); }
+      else if (action === 'add-gallery-template') { ctx.closePopover(); ctx.addGalleryTemplate(element.dataset.galleryKey); }
       else if (action === 'new-template') openTypeSheet(ctx, element);
       else if (action === 'new-template-type') openEditor(ctx, null, ctx.templateTypes.includes(element.dataset.templateType) ? element.dataset.templateType : 'task');
       else if (action === 'use-template' && element.dataset.popAction) { ctx.closePopover(); ctx.useTemplate(element.dataset.templateId); }

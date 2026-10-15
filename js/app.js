@@ -720,6 +720,7 @@
       readAutoBackup, readTextSize, applyTextSize, readTheme,
       saveTextFile: (text, name, type) => globalThis.DailoPlatform.files.saveFile(new Blob([text], { type }), name, name),
       templateTypes: TEMPLATE_TYPES, templateLabel, openTemplateEditorFromSource, saveTemplateRecord, duplicateTemplateRecord, useTemplate,
+      useGalleryTemplate, addGalleryTemplate, templateGallery,
       captureModalReturnFocus,
       durationLabel,
       plannedMonthLabel,
@@ -2084,8 +2085,8 @@
     else if (modalState.type === 'inbox-triage') root.innerHTML = renderInboxTriage();
     else if (modalState.type === 'overdue-triage') root.innerHTML = renderOverdueTriage();
     else if (modalState.type === 'close-day') root.innerHTML = renderCloseDayPass();
-    // R20: "Iz šablona" is a chip under the window title, and only when templates of that type exist.
-    if (['project','habit','goal'].includes(modalState.type) && !modalState.taskId && !modalState.projectId && !modalState.habitId && !modalState.goalId && state.templates.some(template => template.type === modalState.type)) {
+    // R20: "Iz šablona" is a chip under the window title, and only when templates of that type exist (R99: or the gallery has one).
+    if (['project','habit','goal'].includes(modalState.type) && !modalState.taskId && !modalState.projectId && !modalState.habitId && !modalState.goalId && (state.templates.some(template => template.type === modalState.type) || templateGallery(modalState.type).length)) {
       $('.modal-header', root)?.insertAdjacentHTML('afterend', `<div class="quick-template-row"><button class="quick-chip" type="button" data-action="from-template"><i class="ph ph-copy" aria-hidden="true"></i>${tr('From template')}</button></div>`);
     }
     root.dataset.modalType = modalState.type;
@@ -2208,6 +2209,24 @@
     if (template.type === 'project') openProjectModal(); else if (template.type === 'habit') openHabitModal(); else openGoalModal();
     openTemplatePicker(); chooseTemplate(template.id);
   }
+
+  // R99: the built-in gallery (js/starter-examples.js): the entries not yet among the user's templates, and a full record.
+  function templateGallery(type) { return window.DailoStarterExamples?.galleryEntries?.(state, type) || []; }
+  function galleryTemplateRecord(key) {
+    return window.DailoStarterExamples?.galleryTemplate?.(key, { Core, uid, today: Core.dateOnly(), timestamp: nowIso(), PROJECT_COLORS }) || null;
+  }
+  // "Upotrebi šablon" on Šabloni: the new-item window filled from it, as with the user's own; nothing is saved yet.
+  function useGalleryTemplate(key) {
+    const template = galleryTemplateRecord(key); if (!template) return;
+    if (template.type === 'project') openProjectModal(); else openHabitModal();
+    openTemplatePicker(); chooseTemplate(null, template);
+  }
+  // "Dodaj u moje šablone": the user's own copy, to change and use again.
+  function addGalleryTemplate(key) {
+    const template = galleryTemplateRecord(key); if (!template) return;
+    state.templates.push(template); saveAndRender();
+    setToastMessage(tr('Template added: {name}', { name: template.name }));
+  }
   function openTemplatePicker() {
     if(modalState.type==='quick')syncQuickDraftFromDom();
     if(modalState.type==='habit')readHabitDraft();
@@ -2218,11 +2237,15 @@
   }
   function renderTemplatePicker() {
     const rows=state.templates.filter(t=>t.type===modalState.kind);
+    // R99: the gallery's entries follow the user's own under "Gotovi šabloni".
+    const gallery = templateGallery(modalState.kind);
+    const ready = gallery.length ? `<h3 class="sheet-group-title">${tr('Ready-made templates')}</h3><div class="sheet-card">${gallery.map(entry => `<button class="sheet-row template-choice" type="button" data-action="choose-gallery-template" data-gallery-key="${esc(entry.key)}"><i class="ph ${entry.icon}" aria-hidden="true"></i><span>${esc(entry.name)}</span></button>`).join('')}</div>` : '';
     // R21: the templates as rows in one card, like the other choice sheets.
-    return modalFrame(`<div class="modal-inner quick-sheet template-picker-window"><div class="modal-header"><h2 class="modal-title">${tr({ task: msg('From task template'), project: msg('From project template'), habit: msg('From habit template'), goal: msg('From goal template') }[modalState.kind] || msg('From template'))}</h2><button class="btn-icon" type="button" data-action="template-picker-back" aria-label="${tr('Back')}"><i class="ph ph-x"></i></button></div>${rows.length?`<div class="sheet-card">${rows.map(t=>`<button class="sheet-row template-choice" type="button" data-action="choose-template" data-template-id="${esc(t.id)}"><i class="ph ph-copy" aria-hidden="true"></i><span>${esc(t.name)}</span></button>`).join('')}</div>`:`<p class="sheet-note">${tr('No templates of this type yet.')}</p>`}</div>`,'quick');
+    return modalFrame(`<div class="modal-inner quick-sheet template-picker-window"><div class="modal-header"><h2 class="modal-title">${tr({ task: msg('From task template'), project: msg('From project template'), habit: msg('From habit template'), goal: msg('From goal template') }[modalState.kind] || msg('From template'))}</h2><button class="btn-icon" type="button" data-action="template-picker-back" aria-label="${tr('Back')}"><i class="ph ph-x"></i></button></div>${rows.length?`<div class="sheet-card">${rows.map(t=>`<button class="sheet-row template-choice" type="button" data-action="choose-template" data-template-id="${esc(t.id)}"><i class="ph ph-copy" aria-hidden="true"></i><span>${esc(t.name)}</span></button>`).join('')}</div>`:ready?'':`<p class="sheet-note">${tr('No templates of this type yet.')}</p>`}${ready}</div>`,'quick');
   }
-  function chooseTemplate(id) {
-    const template=state.templates.find(t=>t.id===id); if(!template)return;
+  // R99: `given` is a gallery template, used without being saved.
+  function chooseTemplate(id, given = null) {
+    const template = given || state.templates.find(t => t.id === id); if (!template) return;
     const previous=modalState.previous;const context=previous.templateContext || {};
     const contextDate=context.plannedDate || context.targetDate || context.startDate || Core.dateOnly();
     const out=Core.instantiateTemplate(template,contextDate,{state,makeId:uid,nowIso:nowIso()});
@@ -6389,6 +6412,7 @@
     if(action==='from-template')openTemplatePicker();
     else if(action==='more-route'){closePopover();navigate(el.dataset.moreRoute);}
     else if(action==='choose-template')chooseTemplate(el.dataset.templateId);
+    else if(action==='choose-gallery-template')chooseTemplate(null, galleryTemplateRecord(el.dataset.galleryKey));
     else if(action==='template-picker-back'){if(modalState.previous?.type==='goal')closeModal();else{modalState=modalState.previous;renderModal();}}
     else if(action==='use-template')useTemplate(el.dataset.templateId);
     else if (action === 'quick-add') { const context = el.closest('#mobile-quick-add-menu') ? routeQuickAddContext() : { projectId: el.dataset.projectId || null, areaId: el.dataset.areaId || null, today: el.dataset.today === 'true', anytime: el.dataset.anytime === 'true', plannedDate: Core.parseDateOnly(el.dataset.date) ? el.dataset.date : null }; if (context) openQuickAdd(context); else setToastMessage(tr('Restore the project to add tasks.')); }

@@ -274,6 +274,8 @@
       for (const key of ['plannedOffsetDays','dueOffsetDays','reminderOffsetDays','targetOffsetDays','endOffsetDays','dateOffsetDays']) if (data[key] != null && !Number.isInteger(data[key])) fail(`Template ${key}`);
       for (const key of ['plannedTime','dueTime','reminderTime','time']) if (data[key] != null && root.TodoCore.normalizeTime(data[key]) !== data[key]) fail(`Template ${key}`);
       for (const key of ['targetValue','target','timesPerWeek','everyNDays','successfulPeriodsTarget','interval','endAfterOccurrences']) positiveField(data,key);
+      // R99: a habit template keeps its routine.
+      enumField(data,'routine',['morning','daily','night']);
       enumField(data,'priority',['none','low','medium','high']);enumField(data,'frequencyType',['daily','weekdays','timesPerWeek','everyNDays']);enumField(data,'trackingType',['checkbox','numeric']);enumField(data,'progressMode',['manual','linkedTasks','linkedHabits','milestones']);enumField(data,'progressType',['percentage','numeric']);enumField(data,'frequency',['daily','weekly','monthly','yearly']);
       for (const key of ['tasks','subtasks','milestones','goalLinkConfigs']) if (data[key] != null) { if (!Array.isArray(data[key])) fail(`Template ${key}`);data[key].forEach(templateData); }
       if (data.reminders != null) { if (Array.isArray(data.reminders)) data.reminders.forEach(templateData);else templateData(data.reminders); }

@@ -2680,6 +2680,16 @@ a.toast-action { display: inline-flex; align-items: center; text-decoration: non
 /* R92: Navike — the line that says what ✓, ✗ and an empty circle mean. */
 .habits-legend { margin: 14px 4px 0; color: var(--ink-3); font-size: var(--text-sm); line-height: 1.45; }
 
+/* R99: the built-in template gallery and the template editor's two separate parts (the repeat, made once on a day). */
+.templates-gallery { margin-top: 24px; }
+.templates-gallery > .sheet-note { margin: 0 2px 8px; }
+.template-gallery-row { width: 100%; min-height: 44px; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 12px; padding: 10px; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.template-gallery-row > .ph { color: var(--ink-3); }
+.templates-list > .template-gallery-row + .template-gallery-row { border-top: 1px solid var(--line-1); }
+.template-gallery-row:focus-visible { outline: none; box-shadow: var(--focus-ring-inset); }
+.template-section { display: grid; gap: 8px; min-width: 0; margin: 12px 0 0; padding: 10px 12px; border: 1px solid var(--line-2); border-radius: var(--radius-md); }
+.template-section legend { padding-inline: 4px; color: var(--ink-2); font-weight: 600; }
+
 /* R98: the journal's question about the day, what was completed that day and the mood insight. */
 .journal-question { display: grid; gap: 8px; margin: 0 0 10px; padding: 10px 12px; border: 1px solid var(--line-1); border-radius: var(--radius-md); background: var(--graphite-850); }
 .journal-question-text { margin: 0; color: var(--ink-1); font-size: var(--text-base); font-weight: 500; }

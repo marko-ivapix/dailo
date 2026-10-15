@@ -80,9 +80,8 @@ test('loading turns the empty text already stored into null, so the backup works
   assert.equal(kept.endDate, '2026-12-31', 'a real end date stays');
 });
 
-test('R98b is released as 2.0.0-alpha.126', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.126');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.126';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.126');
+test('R98b shipped as 2.0.0-alpha.126 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 126) >= 126);
   assert.ok(read('novo.html').includes('<li><strong>Rezervna kopija ponovo radi uz nove navike.</strong>'));
 });

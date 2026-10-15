@@ -108,6 +108,7 @@ test('7: "Prijavi se" in the phone app\'s transfer notice opens Nalog', () => {
 test('8: "Iz šablona" is a chip under the window title, only when templates of that type exist', () => {
   const render = fn('renderModal');
   assert.doesNotMatch(render, /insertAdjacentHTML\('afterbegin',`<button class="btn btn-ghost" type="button" data-action="from-template"/);
+  // R99: or when the built-in gallery has one of that type (tests/templates-r99.test.js).
   assert.match(render, /state\.templates\.some\(template => template\.type === modalState\.type\)/);
   assert.match(render, /\$\('\.modal-header', root\)\?\.insertAdjacentHTML\('afterend', `<div class="quick-template-row"><button class="quick-chip" type="button" data-action="from-template"><i class="ph ph-copy" aria-hidden="true"><\/i>\$\{tr\('From template'\)\}<\/button><\/div>`\)/);
 });

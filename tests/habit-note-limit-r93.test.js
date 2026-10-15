@@ -89,7 +89,8 @@ test('the window offers "Najmanje / Najviše" for a numeric habit; the row and t
   assert.match(row, /right = atMost \? tr\('\{value\} \/ at most \{target\}', \{ value: number\(todayStatus\?\.value\), target: number\(target\) \}\)/);
   const details = habitsFn('renderHabitDetails');
   assert.match(details, /target\.atMost \? `<p>\$\{esc\(tr\('\{current\} \/ at most \{limit\}', \{ current: plainNumber\(target\.current\), limit: plainNumber\(target\.minimumTarget\) \}\)\)\} · \$\{esc\(target\.minimumMet \? tr\('Within the limit'\) : tr\('Over the limit'\)\)\}<\/p>`/);
-  assert.match(read('js/core.js'), /data = pick\(\['name','areaId','goalIds','trackingType','targetValue','targetMode',/, 'templates keep the limit');
+  // R99: a habit template also keeps the routine, picked after the goals.
+  assert.match(read('js/core.js'), /data = pick\(\['name','areaId','goalIds','routine','trackingType','targetValue','targetMode',/, 'templates keep the limit');
   const widget = Core.habitsWidgetSnapshot([coffee()], { h: [log({ date: '2026-10-15', id: 'h:2026-10-15', value: 3 })] }, '2026-10-15');
   assert.deepEqual([widget.items[0].atMost, widget.items[0].missed, widget.items[0].done], [true, true, false], 'the phone widget shows the ✗');
   assert.match(functionSource('habitsWidgetPart').source, /item\.atMost \? tr\('\{value\} \/ at most \{target\}', \{ value: number\(item\.value\), target: number\(item\.target\) \}\)/);
