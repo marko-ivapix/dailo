@@ -766,6 +766,16 @@
         const view = copyTemplate(source); view.id = uid('view'); view.name = tr('{name} (copy)', { name: source.name }); view.isPinned = false; view.createdAt = view.updatedAt = nowIso(); state.savedViews.push(view); saveAndRender();
         setToastMessage(tr('View duplicated'));
       },
+      // R100: the tag a ready-made view needs ("Čekam"), found by name or made once; and a ready-made view added and opened.
+      ensureTag(name) {
+        const key = Core.normalizeTagName(name).toLocaleLowerCase();
+        const found = state.tags.find(tag => Core.normalizeTagName(tag.name).toLocaleLowerCase() === key);
+        if (found) return found.id;
+        const tag = { id: uid('tag'), name: Core.normalizeTagName(name), color: '#9AA0A6', createdAt: nowIso(), updatedAt: nowIso() };
+        state.tags.push(tag);
+        return tag.id;
+      },
+      addSavedView(view) { state.savedViews.push(view); saveState(); navigate(`saved-view/${view.id}`); setToastMessage(tr('View added')); },
       toggleSavedViewPin(id) {
         const view = state.savedViews.find(item => item.id === id);
         if (!view) return;

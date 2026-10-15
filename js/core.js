@@ -15,9 +15,15 @@
       if (has(key) && (key === 'areaId' || view.type === 'tasks') && !(state[collection] || []).some(x=>x.id===f[key])) return [];
     }
     const same = (item,key) => !has(key) || item[key] === f[key];
+    // R100: a tasks view can also ask for this week or today (planned or due then), a duration of at most N minutes and
+    // no due date.
+    const weekStart = f.period === 'thisWeek' ? weekStartFor(today, state.settings?.weekStartsOn) : null;
+    const range = f.period === 'today' ? [today, today] : weekStart ? [weekStart, addDays(weekStart, 6)] : null;
+    const inRange = date => Boolean(date) && date >= range[0] && date <= range[1];
+    const r100 = item => (!range || inRange(item.plannedDate) || inRange(item.dueDate)) && (!has('maxMinutes') || Number.isInteger(item.durationMinutes) && item.durationMinutes <= f.maxMinutes) && (f.noDue !== true || !item.dueDate);
     return (state[view.type] || []).filter(item => {
       if (has('areaId') && (view.type === 'tasks' ? effectiveTaskArea(item,state.projects) : item.areaId) !== f.areaId) return false;
-      if (view.type === 'tasks') return same(item,'projectId') && same(item,'priority') && same(item,'plannedDate') && same(item,'dueDate') && (!has('tagId') || (item.tagIds || []).includes(f.tagId)) && (!has('completion') || f.completion === 'open' && !item.isCompleted || f.completion === 'completed' && !!item.isCompleted);
+      if (view.type === 'tasks') return r100(item) && same(item,'projectId') && same(item,'priority') && same(item,'plannedDate') && same(item,'dueDate') && (!has('tagId') || (item.tagIds || []).includes(f.tagId)) && (!has('completion') || f.completion === 'open' && !item.isCompleted || f.completion === 'completed' && !!item.isCompleted);
       if (view.type === 'goals') return same(item,'status') && same(item,'targetDate');
       return same(item,'status') && same(item,'trackingType') && same(item,'frequencyType');
     });

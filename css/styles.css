@@ -2680,6 +2680,10 @@ a.toast-action { display: inline-flex; align-items: center; text-decoration: non
 /* R92: Navike — the line that says what ✓, ✗ and an empty circle mean. */
 .habits-legend { margin: 14px 4px 0; color: var(--ink-3); font-size: var(--text-sm); line-height: 1.45; }
 
+/* R100: the ready-made saved views, each added with one tap. */
+.views-ready { margin-top: 24px; }
+.view-ready-add { color: var(--accent); }
+
 /* R99: the built-in template gallery and the template editor's two separate parts (the repeat, made once on a day). */
 .templates-gallery { margin-top: 24px; }
 .templates-gallery > .sheet-note { margin: 0 2px 8px; }

@@ -289,6 +289,10 @@
       enumField(item.filters,'priority',['none','low','medium','high']);
       enumField(item.filters,'status',item.type==='goals'?['active','paused','completed','archived']:['active','paused','archived']);
       for (const key of ['plannedDate','dueDate','targetDate']) dateField(item.filters,key);
+      // R100: this week or today, a duration of at most N whole minutes, and no due date.
+      enumField(item.filters,'period',['today','thisWeek']);
+      if (item.filters.maxMinutes != null && !positiveInteger(item.filters.maxMinutes)) fail('Saved View maxMinutes');
+      if (item.filters.noDue != null && item.filters.noDue !== true) fail('Saved View noDue');
     }
     if (state.settings?.focusTaskIds != null) {
       if (!Array.isArray(state.settings.focusTaskIds) || new Set(state.settings.focusTaskIds).size !== state.settings.focusTaskIds.length) fail('focusTaskIds');
