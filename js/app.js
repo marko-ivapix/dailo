@@ -5824,16 +5824,37 @@
       const at = new Date(Math.ceil((Date.parse(nowIso()) + 3600000) / 60000) * 60000).toISOString();
       task.reminderAt = at; task.updatedAt = nowIso();
       if (saveState()) { render(); setToastMessage(tr('Reminder moved to {time}', { time: formatReminder(at) })); }
+    } else if (kind === 'task' && action === 'tomorrow') {
+      const task = getTask(id); if (!task || task.isCompleted) return;
+      if (modalState?.type === 'task' && modalState.taskId === id) { flushTextSave(); closeModal(); }
+      planTaskForTomorrowFromNotification(id);
     } else if (kind === 'habit' && action === 'checkin') {
       const habit = getHabit(id); if (!habit) return;
       setHabitLog(id, Core.dateOnly(), 'done', habit.trackingType === 'numeric' ? habit.targetValue : null);
     }
   }
 
+  // R79: "Sutra" on a task notification plans the task for tomorrow, like the plan picker, and moves its own
+  // reminder to the same time tomorrow; a planned-time reminder follows the day by itself. A repeating task asks
+  // "this or future" through moveTaskToTomorrow, as the swipe does.
+  function planTaskForTomorrowFromNotification(taskId) {
+    const task = getTask(taskId); if (!task || task.isCompleted) return;
+    if (taskRecurrence(task)) { moveTaskToTomorrow(taskId); return; }
+    const tomorrow = Core.addDays(Core.dateOnly(), 1);
+    const at = task.reminderAt ? new Date(task.reminderAt) : null;
+    const reminderAt = at && Number.isFinite(at.getTime())
+      ? Core.combineDateTime(tomorrow, `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`) : task.reminderAt;
+    const prev = { plannedDate: task.plannedDate, isInbox: task.isInbox, todayOrder: task.todayOrder, reminderAt: task.reminderAt };
+    Object.assign(task, { plannedDate: tomorrow, isInbox: false, todayOrder: null, reminderAt, updatedAt: nowIso() });
+    if (!saveState()) { Object.assign(task, prev); return; }
+    render();
+    setUndo(msg('Task moved to Tomorrow'), () => { const current = getTask(taskId); if (!current) return; Object.assign(current, prev, { updatedAt: nowIso() }); saveState(); render(); });
+  }
+
   // R23: the buttons phone notifications carry, named in Serbian; "foreground" brings Dailo up to act.
   function notificationActionTypes() {
     return [
-      { id: 'dailo-task', actions: [{ id: 'complete', title: tr('Complete'), foreground: true }, { id: 'snooze', title: tr('Snooze 1 hour'), foreground: true }] },
+      { id: 'dailo-task', actions: [{ id: 'complete', title: tr('Complete'), foreground: true }, { id: 'snooze', title: tr('Snooze 1 hour'), foreground: true }, { id: 'tomorrow', title: tr('Tomorrow'), foreground: true }] },
       { id: 'dailo-habit', actions: [{ id: 'checkin', title: tr('Check in'), foreground: true }] },
     ];
   }
