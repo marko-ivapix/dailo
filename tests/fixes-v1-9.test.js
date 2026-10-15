@@ -31,6 +31,7 @@ test('G1: a favorite knowledge item renders an existing Phosphor fill star', () 
     state: { notes: [note], resources: [], tags: [], areas: [], ui: { knowledgeFilters: {} } },
     knowledgeCollection: type => (type === 'note' ? 'notes' : 'resources'),
     pageHeader: () => '', esc: value => String(value), getArea: () => null,
+    Core, // R102: the notes search folds through Core.searchFold.
   });
   assert.match(html, /knowledge-favorite is-favorite[^>]*><i class="ph-fill ph-star"><\/i>/);
   assert.doesNotMatch(read('js/knowledge.js'), /ph-star-fill/);

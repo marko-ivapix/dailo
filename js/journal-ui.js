@@ -8,7 +8,6 @@
   const WEEKDAYS = [msg('Sun'), msg('Mon'), msg('Tue'), msg('Wed'), msg('Thu'), msg('Fri'), msg('Sat')];
   let query = '';
 
-  const plainText = value => String(value || '').toLocaleLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd');
   const cap = text => text.charAt(0).toLocaleUpperCase() + text.slice(1);
   const entryFor = (ctx, date) => ctx.Core.journalEntryFor(ctx.state, date);
   const moodOf = item => (item?.mood ? MOODS[item.mood - 1] : null);
@@ -25,8 +24,9 @@
 
   function listHtml(ctx) {
     const { esc, formatDate } = ctx;
-    const q = plainText(query.trim());
-    const items = (ctx.state.journal || []).filter(item => item.text || item.mood).filter(item => !q || plainText(item.text).includes(q)).sort((a, b) => b.date.localeCompare(a.date));
+    // R102: the same fold as every search (Cyrillic, diacritics, "đ"/"dj").
+    const q = ctx.Core.searchFold(query.trim());
+    const items = (ctx.state.journal || []).filter(item => item.text || item.mood).filter(item => !q || ctx.Core.searchFold(item.text).includes(q)).sort((a, b) => b.date.localeCompare(a.date));
     if (!items.length) return q ? `<div class="empty-state"><h3>${tr('No entries with those words')}</h3><p>${tr('The search looks only at the journal text.')}</p></div>` : `<div class="empty-state"><h3>${tr('The journal is empty')}</h3><p>${tr('A tap on a day or “+” opens that day’s entry.')}</p></div>`;
     return `<div class="today-card journal-list">${items.map(item => {
       const mood = moodOf(item);

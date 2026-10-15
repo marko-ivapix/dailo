@@ -739,13 +739,20 @@
       .sort((a, b) => String(b.completedAt || '').localeCompare(String(a.completedAt || '')));
   }
 
+  // R102: search text without case, diacritics or script — Cyrillic reads as Latin, and "đ", "dj" and "ђ" all read as
+  // "d" — so "cacak" and "Чачак" find "Čačak" and "Djordje" finds "Đorđe". Both the text and the words pass through it.
+  function searchFold(value) {
+    return cyrillicToLatin(String(value ?? '')).toLocaleLowerCase().replace(/đ/g, 'd').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/dj/g, 'd');
+  }
+
+  // R102: the matching folds (searchFold); the ranking and the scope stay as they were.
   function searchItems(tasks, projects, rawQuery) {
-    const query = String(rawQuery || '').trim().toLocaleLowerCase();
+    const query = searchFold(String(rawQuery || '').trim());
     if (!query) return { tasks: [], projects: [] };
     const scored = [];
     for (const task of tasks) {
-      const title = String(task.title || '').toLocaleLowerCase();
-      const notes = String(task.notes || '').toLocaleLowerCase();
+      const title = searchFold(task.title);
+      const notes = searchFold(task.notes);
       let rank = null;
       if (title === query) rank = 0;
       else if (title.includes(query)) rank = 1;
@@ -754,7 +761,7 @@
     }
     scored.sort((a, b) => a.rank - b.rank || String(b.task.updatedAt || '').localeCompare(String(a.task.updatedAt || '')));
     const projectMatches = projects
-      .filter(p => String(p.name || '').toLocaleLowerCase().includes(query))
+      .filter(p => searchFold(p.name).includes(query))
       .sort((a, b) => String(a.name).localeCompare(String(b.name)));
     return { tasks: scored, projects: projectMatches };
   }
@@ -2979,6 +2986,7 @@
     laterToday,
     filterCompleted,
     searchItems,
+    searchFold,
     validateState,
     migrateStateV2,
     migrateStateV3,

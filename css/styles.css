@@ -2680,6 +2680,18 @@ a.toast-action { display: inline-flex; align-items: center; text-decoration: non
 /* R92: Navike — the line that says what ✓, ✗ and an empty circle mean. */
 .habits-legend { margin: 14px 4px 0; color: var(--ink-3); font-size: var(--text-sm); line-height: 1.45; }
 
+/* R102: the command palette (Ctrl/Cmd+K). */
+.palette-window { display: grid; gap: 10px; }
+.palette-list { display: grid; gap: 2px; max-height: min(calc(var(--viewport-height) * .6), 420px); overflow-y: auto; }
+.palette-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; width: 100%; min-height: 44px; padding: 8px 10px; border: 0; border-radius: var(--radius-sm); background: none; color: var(--ink-1); font: inherit; text-align: left; cursor: pointer; }
+.palette-row > .ph { color: var(--ink-3); }
+.palette-row.is-active,
+.palette-row:hover { background: var(--graphite-800); }
+.palette-row:focus-visible { outline: none; box-shadow: var(--focus-ring-inset); }
+.palette-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.palette-kind { color: var(--ink-3); font-size: var(--text-sm); }
+.palette-hint { margin: 0; }
+
 /* R101: Završeni zadaci opens with what was done. */
 .completed-summary { display: grid; gap: 4px; padding: 12px 14px; margin-bottom: 12px; }
 .completed-summary-label { margin: 0; color: var(--ink-3); font-size: var(--text-sm); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }

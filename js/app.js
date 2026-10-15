@@ -721,6 +721,7 @@
       saveTextFile: (text, name, type) => globalThis.DailoPlatform.files.saveFile(new Blob([text], { type }), name, name),
       templateTypes: TEMPLATE_TYPES, templateLabel, openTemplateEditorFromSource, saveTemplateRecord, duplicateTemplateRecord, useTemplate,
       useGalleryTemplate, addGalleryTemplate, templateGallery,
+      openSearch, openKnowledgeWindow, openPalette,
       captureModalReturnFocus,
       durationLabel,
       plannedMonthLabel,
@@ -1897,12 +1898,22 @@
     focusNextTask(taskId);
   }
 
-  function openSearch() {
+  // R102: the palette's "Pretraži „…“" opens Search with its words.
+  function openSearch(query = '') {
     captureModalReturnFocus();
     closePopover();
-    modalState = { type: 'search', query: '' };
+    modalState = { type: 'search', query: String(query || '') };
     renderModal();
     requestAnimationFrame(() => $('#search-query')?.focus());
+  }
+
+  // R102: the command palette (js/palette-ui.js), opened with Ctrl/Cmd+K.
+  function openPalette() {
+    captureModalReturnFocus();
+    closePopover();
+    modalState = { type: 'palette', query: '', selected: 0 };
+    renderModal();
+    requestAnimationFrame(() => $('#palette-query')?.focus());
   }
 
   function openProjectModal(projectId = null, context = {}) {
@@ -2709,7 +2720,7 @@
     const ordered = [...activeAreas.flatMap(area => projects.filter(project => project.areaId === area.id)), ...projects.filter(project => !activeAreas.some(area => area.id === project.areaId))];
     const option = project => {
       const area = getArea(project.areaId);
-      return `<button class="popover-option sheet-option${project.id === currentId ? ' is-selected' : ''}" type="button" data-sheet-item data-search="${esc(project.name.toLowerCase())}" data-pop-action="set-project" data-project-id="${esc(project.id)}" ${attrs}><span class="project-dot" style="--project-color:${esc(project.color)}"></span><span class="sheet-option-label">${esc(project.name)}${area ? `<small>${esc(tr('Area: {area}', { area: area.name }))}</small>` : ''}</span><span class="sheet-radio${project.id === currentId ? ' is-on' : ''}" aria-hidden="true"></span></button>`;
+      return `<button class="popover-option sheet-option${project.id === currentId ? ' is-selected' : ''}" type="button" data-sheet-item data-search="${esc(Core.searchFold(project.name))}" data-pop-action="set-project" data-project-id="${esc(project.id)}" ${attrs}><span class="project-dot" style="--project-color:${esc(project.color)}"></span><span class="sheet-option-label">${esc(project.name)}${area ? `<small>${esc(tr('Area: {area}', { area: area.name }))}</small>` : ''}</span><span class="sheet-radio${project.id === currentId ? ' is-on' : ''}" aria-hidden="true"></span></button>`;
     };
     // Redesign R4: in Quick Add the sheet asks where the task goes, with Inbox and "Bez projekta" on top.
     const quick = target.type === 'quick';
@@ -2817,7 +2828,7 @@
     const attrs = `data-target-type="${target.type}"${target.taskId ? ` data-task-id="${esc(target.taskId)}"` : ''}`;
     const source = target.type === 'quick' ? modalState?.draft : getTask(target.taskId);
     const tags = [...(state.tags || [])].sort((a, b) => String(a.name).localeCompare(String(b.name)));
-    const options = tags.map(tag => { const on = ids.has(tag.id); return `<button class="popover-option sheet-option${on ? ' is-selected' : ''}" type="button" data-sheet-item data-search="${esc(String(tag.name).toLowerCase())}" data-pop-action="tag-sheet-toggle" data-tag-id="${esc(tag.id)}" aria-pressed="${on}"><span class="tag-dot" style="--tag-color:${esc(tag.color)}"></span><span class="sheet-option-label">${esc(tag.name)}</span><span class="sheet-check${on ? ' is-on' : ''}" aria-hidden="true">${on ? '<i class="ph ph-check"></i>' : ''}</span></button>`; }).join('');
+    const options = tags.map(tag => { const on = ids.has(tag.id); return `<button class="popover-option sheet-option${on ? ' is-selected' : ''}" type="button" data-sheet-item data-search="${esc(Core.searchFold(tag.name))}" data-pop-action="tag-sheet-toggle" data-tag-id="${esc(tag.id)}" aria-pressed="${on}"><span class="tag-dot" style="--tag-color:${esc(tag.color)}"></span><span class="sheet-option-label">${esc(tag.name)}</span><span class="sheet-check${on ? ' is-on' : ''}" aria-hidden="true">${on ? '<i class="ph ph-check"></i>' : ''}</span></button>`; }).join('');
     return `<div class="popover-title">${tr('Tags')}</div>${source?.title ? `<p class="sheet-subtitle">${esc(source.title)}</p>` : ''}<label class="sheet-search"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input class="input" type="search" data-sheet-search placeholder="${tr('Search tags')}" aria-label="${tr('Search tags')}"></label><div class="sheet-card">${options || `<div class="popover-empty">${tr('No tags yet')}</div>`}<button class="popover-option sheet-option sheet-add" type="button" data-pop-action="inline-new-tag" ${attrs}><i class="ph ph-plus" aria-hidden="true"></i>${tr('New tag')}</button></div><div class="sheet-footer"><span></span><button class="btn btn-primary" type="button" data-pop-action="tag-sheet-apply">${tr('Apply')}</button></div>`;
   }
   function toggleTagSheet(button) {
@@ -6658,7 +6669,8 @@
     if (event.target.matches?.('textarea[data-autogrow]')) autoGrow(event.target);
     // Redesign R3 (E8, E9): the search field of a sheet filters its rows.
     if (event.target.matches?.('[data-sheet-search]')) {
-      const query = event.target.value.trim().toLowerCase();
+      // R102: the same fold as every search; the rows carry folded names.
+      const query = Core.searchFold(event.target.value.trim());
       popoverEl?.querySelectorAll('[data-sheet-item]').forEach(item => { item.hidden = Boolean(query) && !String(item.dataset.search || '').includes(query); });
       return;
     }
@@ -6778,6 +6790,8 @@
       if (event.key === '[' && !event.ctrlKey && !event.metaKey && !event.altKey && wideScreen()) { event.preventDefault(); callDomainHook('handleAction', 'toggle-sidebar', null); return; }
       const command=Object.keys(SHORTCUT_DEFAULTS).find(key=>combination && state.settings.shortcuts[key]===combination);
       if(command){event.preventDefault();if(command==='newTask'){const direct=quickAddDirect();if(direct)direct[1]();else openQuickAdd();}else if(command==='search')openSearch();else navigate(command);return;}
+      // R102: Ctrl/Cmd+K opens the command palette (unless a shortcut in Podešavanja took it).
+      if (combination === 'Ctrl/Cmd+K') { event.preventDefault(); openPalette(); return; }
       // Preserve the existing convenient Search alias, without bypassing suppression.
       if(state.settings.shortcuts.search !== null && event.key==='/' && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey){event.preventDefault();openSearch();return;}
       if (!event.ctrlKey && !event.metaKey && !event.altKey && DESKTOP_KEYS[event.key]) { event.preventDefault(); navigate(DESKTOP_KEYS[event.key]); return; }

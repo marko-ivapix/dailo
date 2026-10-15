@@ -58,8 +58,9 @@
   // R35 (A): Beleške and Resursi search their own items (names, text, clip, author and links), every word in any
   // order and without diacritics. The words live only on this screen; global Search is unchanged.
   const queries = { note: '', resource: '' };
-  const fold = value => String(value || '').toLocaleLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd');
-  function matchesQuery(type, item, query) {
+  // R102: the same fold as every search (Cyrillic, diacritics, "đ"/"dj").
+  function matchesQuery(context, type, item, query) {
+    const fold = context.Core.searchFold;
     const words = fold(query).split(/\s+/).filter(Boolean);
     if (!words.length) return true;
     const text = fold([item.title, type === 'note' ? item.body : item.description, item.clip, item.author, ...(item.linkUrls || [])].join('\n'));
@@ -75,7 +76,7 @@
       && (filters.favorite !== 'true' || item.favorite === true)
       && (!filters.areaId || (filters.areaId === '__none' ? !item.areaId : item.areaId === filters.areaId))
       && (!filters.tagId || (item.tagIds || []).includes(filters.tagId))
-      && matchesQuery(type, item, queries[type]))
+      && matchesQuery(context, type, item, queries[type]))
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
     const any = filters.favorite === 'true' || FILTER_FIELDS[type].some(field => filters[field]);
     const narrowed = any || Boolean(queries[type].trim());
@@ -345,7 +346,7 @@
     const [, label, collection] = RELATIONS.find(([field]) => field === sheet.field);
     // R33 (finding 27): the chosen items first, then open ones by name; a search field filters the rest.
     const items = relationChoices(state[collection], sheet.ids);
-    return `${sheetHead(context, tr(label))}<label class="sheet-search"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input class="input" type="search" data-sheet-search placeholder="${tr('Search')}" aria-label="${tr('Search')}"></label><div class="sheet-card">${items.map(item => `<button class="popover-option sheet-option" type="button" data-sheet-item data-search="${esc(String(item.title || item.name || '').toLowerCase())}" data-pop-action="knowledge-relation-toggle" data-id="${esc(item.id)}" aria-pressed="${sheet.ids.includes(item.id)}"><span class="sheet-option-label">${esc(item.title || item.name)}</span><span class="sheet-check${sheet.ids.includes(item.id) ? ' is-on' : ''}" aria-hidden="true"></span></button>`).join('') || `<p class="sheet-note">${tr('No items.')}</p>`}</div>${applyFooter('knowledge-relations-apply')}`;
+    return `${sheetHead(context, tr(label))}<label class="sheet-search"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input class="input" type="search" data-sheet-search placeholder="${tr('Search')}" aria-label="${tr('Search')}"></label><div class="sheet-card">${items.map(item => `<button class="popover-option sheet-option" type="button" data-sheet-item data-search="${esc(context.Core.searchFold(item.title || item.name))}" data-pop-action="knowledge-relation-toggle" data-id="${esc(item.id)}" aria-pressed="${sheet.ids.includes(item.id)}"><span class="sheet-option-label">${esc(item.title || item.name)}</span><span class="sheet-check${sheet.ids.includes(item.id) ? ' is-on' : ''}" aria-hidden="true"></span></button>`).join('') || `<p class="sheet-note">${tr('No items.')}</p>`}</div>${applyFooter('knowledge-relations-apply')}`;
   }
   const WINDOW_ACTIONS = new Set(['knowledge-window-favorite', 'knowledge-menu', 'knowledge-area', 'knowledge-set-area', 'knowledge-type', 'knowledge-set-type', 'knowledge-status', 'knowledge-set-status', 'knowledge-author', 'knowledge-author-apply', 'knowledge-reviewed', 'knowledge-reviewed-apply', 'knowledge-reviewed-clear', 'knowledge-tags', 'knowledge-tag-toggle', 'knowledge-tags-apply', 'knowledge-relations', 'knowledge-relation-toggle', 'knowledge-relations-apply', 'knowledge-clip', 'knowledge-clip-apply']);
   function handleWindowAction(action, el, context) {
