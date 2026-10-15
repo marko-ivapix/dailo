@@ -38,10 +38,12 @@ test('the beta guide is a self-contained Serbian page with install, data, backup
   assert.match(html, /<html lang="sr-Latn">/);
   assert.match(html, /<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">/);
   assert.doesNotMatch(html, /[Ѐ-ӿ]/, 'Latin script only');
-  for (const heading of ['Instalacija na iPhone', 'Tvoji podaci', 'Rezervne kopije', 'Bez interneta i nove verzije', 'Šta još ne radi', 'Prijava problema']) {
+  // R74: the guide's install section covers iPhone, Android and the computer, so its heading is "Instalacija", and
+  // the backup button is now "Izvezi ZIP" (docs/superpowers/specs/2026-10-15-r74-guide-update.md).
+  for (const heading of ['Instalacija', 'Tvoji podaci', 'Rezervne kopije', 'Bez interneta i nove verzije', 'Šta još ne radi', 'Prijava problema']) {
     assert.match(html, new RegExp(`<h2[^>]*>${heading}</h2>`), heading);
   }
-  for (const label of ['Dodaj na početni ekran', 'Podešavanja', 'Izvezi rezervnu kopiju', 'Osveži', 'Prijavi problem']) assert.ok(html.includes(label), label);
+  for (const label of ['Dodaj na početni ekran', 'Podešavanja', 'Izvezi ZIP', 'Osveži', 'Prijavi problem']) assert.ok(html.includes(label), label);
   assert.match(html, /href="mailto:marko\.radicevic@ivapix\.cloud"/);
   assert.match(html, /href="\.\/"/, 'links back to the app');
   const references = [...html.matchAll(/(?:href|src)="([^"]+)"/g)].map(match => match[1]);

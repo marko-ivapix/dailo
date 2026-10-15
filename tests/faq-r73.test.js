@@ -60,8 +60,7 @@ test('the link check covers the page and the 404 page links it', async () => {
   assert.ok(read('404.html').includes('href="pitanja.html"'));
 });
 
-test('R73 is released as 2.0.0-alpha.100', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.100');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.100';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.100');
+test('R73 shipped as 2.0.0-alpha.100 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 100) >= 100);
 });

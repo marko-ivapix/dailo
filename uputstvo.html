@@ -4,13 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#0F1114">
-  <title>Dailo — uputstvo za beta testere</title>
-  <meta name="description" content="Kako se Dailo instalira na iPhone, gde su tvoji podaci, kako se pravi rezervna kopija i kako se prijavljuje problem.">
+  <title>Dailo — uputstvo</title>
+  <meta name="description" content="Kako se Dailo instalira, kako rade nalog i sinhronizacija, gde su tvoji podaci, kako se pravi rezervna kopija i kako se prijavljuje problem.">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Dailo">
   <meta property="og:locale" content="sr_RS">
-  <meta property="og:title" content="Dailo — uputstvo za beta testere">
-  <meta property="og:description" content="Kako se Dailo instalira na iPhone, gde su tvoji podaci, kako se pravi rezervna kopija i kako se prijavljuje problem.">
+  <meta property="og:title" content="Dailo — uputstvo">
+  <meta property="og:description" content="Kako se Dailo instalira, kako rade nalog i sinhronizacija, gde su tvoji podaci, kako se pravi rezervna kopija i kako se prijavljuje problem.">
   <meta property="og:url" content="https://marko-ivapix.github.io/dailo/uputstvo.html">
   <meta property="og:image" content="https://marko-ivapix.github.io/dailo/icons/og-image.png">
   <meta property="og:image:width" content="1200">
@@ -58,42 +58,56 @@
 </head>
 <body>
   <main>
-    <h1>Dailo — uputstvo za beta testere</h1>
-    <p class="lead">Hvala što testiraš Dailo. Dailo je lični planer zadataka, navika i ciljeva koji radi na tvom telefonu, bez naloga i bez servera.</p>
+    <h1>Dailo — uputstvo</h1>
+    <p class="lead">Dailo je lični planer zadataka, navika i ciljeva. Radi na telefonu i računaru, i bez interneta. Nalog nije obavezan: bez njega podaci ostaju samo na tvom uređaju. Dailo je još u razvoju, pa hvala što ga isprobavaš.</p>
 
     <section>
-      <h2>Instalacija na iPhone</h2>
+      <h2>Instalacija</h2>
       <ol>
-        <li>Otvori <strong>marko-ivapix.github.io/dailo</strong> u <strong>Safariju</strong>.</li>
-        <li>Dodirni dugme <strong>Deli</strong> (kvadrat sa strelicom nagore).</li>
-        <li>Izaberi <strong>Dodaj na početni ekran</strong>, pa <strong>Dodaj</strong>.</li>
-        <li>Otvaraj Dailo sa početnog ekrana, kao svaku drugu aplikaciju.</li>
+        <li><strong>iPhone:</strong> otvori <strong>marko-ivapix.github.io/dailo</strong> u <strong>Safariju</strong>, dodirni <strong>Deli</strong> (kvadrat sa strelicom nagore), pa <strong>Dodaj na početni ekran</strong> i <strong>Dodaj</strong>.</li>
+        <li><strong>Android:</strong> otvori istu adresu u Chrome-u, pa u meniju izaberi <strong>Instaliraj aplikaciju</strong>.</li>
+        <li><strong>Računar:</strong> u Chrome-u ili Edge-u klikni ikonicu za instalaciju u adresnoj traci.</li>
       </ol>
-      <p class="note">Prvo instaliraj, pa tek onda unosi podatke. Safari i instalirana aplikacija čuvaju podatke odvojeno.</p>
-      <p>Na Android telefonu: otvori adresu u Chrome-u, pa u meniju izaberi <strong>Instaliraj aplikaciju</strong>.</p>
+      <p>Posle toga otvaraj Dailo sa početnog ekrana, kao svaku drugu aplikaciju.</p>
+      <p class="note">Na iPhone-u prvo instaliraj, pa tek onda unosi podatke. Safari i instalirana aplikacija čuvaju podatke odvojeno.</p>
+    </section>
+
+    <section>
+      <h2>Nalog i sinhronizacija</h2>
+      <p>Pri prvom pokretanju biraš <strong>Registruj se</strong>, <strong>Prijavi se</strong> ili <strong>Nastavi bez naloga</strong>. Nalog ti treba samo ako želiš iste podatke na više uređaja.</p>
+      <ul>
+        <li><strong>Registracija:</strong> upiši e-adresu i lozinku. Na e-adresu stiže kod; upiši ga u Dailo. Ako kod ne stigne, dodirni <strong>Pošalji novi kod</strong>.</li>
+        <li><strong>Sinhronizacija:</strong> prijavi se istom e-adresom na svakom uređaju. Promene stižu same; u <strong>Još → Nalog</strong> možeš dodirnuti i <strong>Sinhronizuj sada</strong>.</li>
+        <li><strong>Lozinka:</strong> ako je ne pamtiš, na ekranu za prijavu dodirni <strong>Zaboravljena lozinka?</strong>.</li>
+        <li><strong>Šifrovan dnevnik</strong> (u <strong>Još → Nalog</strong>): dnevnik ide na server samo šifrovan, lozinkom koju znaš samo ti. Bez te lozinke dnevnik sa servera ne može da se pročita, pa je čuvaj.</li>
+        <li><strong>Odjavi se</strong> vraća na ekran za prijavu. Podaci na tom uređaju ostaju.</li>
+        <li><strong>Obriši nalog</strong> (u <strong>Još → Nalog</strong>, uz upisano <code>OBRIŠI</code>) briše nalog i sve podatke na serveru. Podaci na uređaju ostaju.</li>
+      </ul>
     </section>
 
     <section>
       <h2>Tvoji podaci</h2>
       <ul>
-        <li>Sve što uneseš ostaje <strong>samo na tvom uređaju</strong>. Ne postoji nalog, server ni sinhronizacija, i niko drugi ne vidi tvoje podatke.</li>
-        <li>U <strong>Podešavanja → Podaci</strong>, red <strong>Trajno čuvanje</strong> treba da piše „odobreno“. Tada telefon neće sam brisati podatke aplikacije.</li>
+        <li>Sve što uneseš čuva se <strong>na tvom uređaju</strong>. Ako imaš nalog, kopija se čuva i na serveru u Evropskoj uniji (Supabase, Frankfurt), da bi stigla na tvoje druge uređaje. Više u <a href="privatnost.html">Politici privatnosti</a>.</li>
+        <li>U pregledaču, u <strong>Podešavanja → Podaci</strong>, red <strong>Trajno čuvanje</strong> treba da piše „Uključeno“. Tada pregledač neće sam brisati podatke aplikacije.</li>
       </ul>
-      <p class="note">Ako obrišeš Dailo sa početnog ekrana, brišu se i njegovi podaci. Pre toga napravi rezervnu kopiju.</p>
+      <p class="note">Ako obrišeš Dailo sa početnog ekrana ili obrišeš podatke sajta u pregledaču, brišu se i podaci na tom uređaju. Bez naloga pre toga napravi rezervnu kopiju.</p>
     </section>
 
     <section>
       <h2>Rezervne kopije</h2>
       <ol>
-        <li>Otvori <strong>Podešavanja → Podaci</strong> i dodirni <strong>Izvezi rezervnu kopiju</strong>.</li>
-        <li>Sačuvaj ZIP fajl u aplikaciju Fajlovi ili na iCloud Drive.</li>
-        <li>Za povratak podataka koristi <strong>Uvezi rezervnu kopiju</strong> i upiši <code>RESTORE</code> kad aplikacija to zatraži.</li>
+        <li>Otvori <strong>Podešavanja → Podaci</strong> i dodirni <strong>Izvezi ZIP</strong>.</li>
+        <li>Sačuvaj fajl na sigurno mesto, na primer u Fajlove, iCloud Drive ili Google Drive.</li>
+        <li>Za povratak podataka koristi <strong>Uvezi ZIP</strong>. Dailo prvo proveri fajl i sam napravi sigurnosnu kopiju trenutnih podataka, pa traži da upišeš <code>VRATI</code>.</li>
       </ol>
-      <p>Kad prođe 7 dana od poslednje rezervne kopije, Dailo te podseti na ekranu <strong>Danas</strong>. Interval se menja u Podešavanjima.</p>
+      <p><strong>Podsetnik za rezervnu kopiju:</strong> kad prođe 7 dana od poslednje kopije, Dailo te podseti na ekranu <strong>Danas</strong>. Broj dana menjaš u istom delu Podešavanja.</p>
+      <p><strong>Automatska rezervna kopija</strong> (samo u aplikaciji za telefon): jednom nedeljno sačuva ZIP u <strong>Dokumenti/Dailo</strong> na telefonu i čuva poslednje četiri kopije.</p>
     </section>
 
     <section>
       <h2>Brzo dodavanje</h2>
+      <p>Dugme <strong>+</strong> dodaje stavku ekrana na kom si: na Danas zadatak, na Navike naviku, na Ciljevi cilj. Drži <strong>+</strong> za meni sa svim vrstama.</p>
       <p>Ceo zadatak može da stane u jedan red. Ispod naslova odmah vidiš šta je Dailo prepoznao.</p>
       <ul>
         <li>Kada: <code>danas</code>, <code>sutra</code>, <code>prekosutra</code>, <code>u sredu</code>, <code>za 3 dana</code>, <code>15.10.</code>, i vreme <code>u 9:30</code>.</li>
@@ -106,35 +120,54 @@
     </section>
 
     <section>
+      <h2>Pokreti i navike</h2>
+      <ul>
+        <li>Prevuci zadatak <strong>udesno</strong>: završen je.</li>
+        <li>Prevuci ga <strong>ulevo</strong>: biraš mu datum.</li>
+        <li>Drži red pa ga prevuci <strong>gore ili dole</strong>: menjaš redosled.</li>
+      </ul>
+      <p>Kod navike dodir na krug menja stanje: urađeno (✓), pa <strong>Nije urađeno</strong> (crveni ✗), pa prazno. Navika sa brojem, na primer čaše vode, otvara unos vrednosti. Navike ostaju na svom mestu kad im promeniš stanje.</p>
+    </section>
+
+    <section>
       <h2>Raspored dana</h2>
-      <p>U <strong>Kalendaru</strong> izaberi <strong>Dan</strong>: zadaci sa vremenom stoje po satima, a zadacima iz liste <strong>Bez vremena</strong> vreme dodeljuješ jednim dodirom. Trajanje zadatka biraš čipom <strong>Trajanje</strong> u Brzom dodavanju ili pišeš <code>45min</code> u naslovu.</p>
-      <p><strong>Dnevni kapacitet</strong> (Podešavanja, podrazumevano 6 h) pokazuje na ekranu <strong>Danas</strong> i u rasporedu da li je za taj dan planirano više nego što stane.</p>
+      <p>U <strong>Kalendaru</strong> dodirni dan, pa ispod izaberi <strong>Raspored</strong>. Zadaci sa vremenom stoje po satima, a zadacima iz liste <strong>Bez vremena</strong> vreme upisuješ odmah u redu. Trajanje zadatka biraš čipom <strong>Trajanje</strong> ili pišeš <code>45min</code> u naslovu.</p>
+      <p><strong>Dnevni kapacitet</strong> (<strong>Podešavanja → Opšte</strong>, podrazumevano 6 h) pokazuje u rasporedu koliko je planirano i da li je za taj dan planirano više nego što stane.</p>
     </section>
 
     <section>
       <h2>Nedeljni pregled</h2>
-      <p>Pred kraj nedelje Dailo na ekranu <strong>Danas</strong> predloži <strong>Nedeljni pregled</strong>; možeš ga otvoriti i iz menija <strong>Još</strong>. U nekoliko koraka isprazniš Inbox, središ zakasnele zadatke, pogledaš narednih 7 dana, ciljeve, navike i oblasti, pa dodirneš <strong>Završi nedeljni pregled</strong>.</p>
+      <p>Nalazi se u <strong>Još → Biblioteka</strong>. Kad dođe kraj nedelje, na njegovom polju piše „Vreme je za pregled ove nedelje“. U nekoliko koraka isprazniš Inbox, središ zakasnele zadatke, pogledaš narednih 7 dana, ciljeve, navike i oblasti, pa dodirneš <strong>Završi nedeljni pregled</strong>.</p>
+    </section>
+
+    <section>
+      <h2>Podsetnici</h2>
+      <p>Podešavaš ih u <strong>Podešavanja → Podsetnici</strong>. Dugme <strong>Probni podsetnik</strong> pošalje podsetnik za pet sekundi, da vidiš da obaveštenja rade.</p>
+      <ul>
+        <li><strong>U pregledaču</strong> podsetnici stižu samo dok je Dailo otvoren.</li>
+        <li><strong>U aplikaciji za telefon</strong> stižu i kad je zatvorena, ako dozvoliš obaveštenja.</li>
+      </ul>
     </section>
 
     <section>
       <h2>Bez interneta i nove verzije</h2>
-      <p class="ok">Kad jednom otvoriš Dailo sa internetom, radi i bez njega, na primer u avionskom režimu.</p>
+      <p class="ok">Kad jednom otvoriš Dailo sa internetom, radi i bez njega, na primer u avionskom režimu. Ako imaš nalog, promene se pošalju kad se veza vrati.</p>
       <p>Kad izađe nova verzija, dole se pojavi obaveštenje sa dugmetom <strong>Osveži</strong>. Dodirni ga kad ti odgovara; podaci ostaju.</p>
     </section>
 
     <section>
       <h2>Šta još ne radi</h2>
       <ul>
-        <li>Podaci postoje samo na jednom uređaju. Sinhronizacija između telefona i računara stiže sa mobilnom aplikacijom (V2.0).</li>
-        <li>Podsetnici i obaveštenja rade samo dok je Dailo otvoren.</li>
-        <li>Prenos podataka sa jednog uređaja na drugi ide samo preko rezervne kopije (ZIP).</li>
+        <li>Prijava preko Google-a i Apple-a još nije uključena. Nalog se za sada pravi e-adresom i lozinkom.</li>
+        <li>Aplikacija za telefon još nije u App Store-u ni na Google Play-u. Do tada Dailo instaliraj sa početnog ekrana, kao u delu Instalacija.</li>
       </ul>
     </section>
 
     <section>
       <h2>Prijava problema</h2>
-      <p>U <strong>Podešavanja → O aplikaciji</strong> dodirni <strong>Prijavi problem</strong>. Otvoriće se e-poruka sa verzijom aplikacije i podacima o uređaju; tvoji zadaci i beleške se ne šalju.</p>
+      <p>U <strong>Podešavanja → Pomoć</strong> dodirni <strong>Prijavi problem</strong>. Otvoriće se e-poruka sa verzijom aplikacije i podacima o uređaju; tvoji zadaci i beleške se ne šalju.</p>
       <p>Možeš pisati i direktno na <a href="mailto:marko.radicevic@ivapix.cloud">marko.radicevic@ivapix.cloud</a>. Opiši korake, šta se desilo i šta je trebalo da se desi. Snimak ekrana mnogo pomaže.</p>
+      <p>Kratke odgovore na najčešća pitanja naći ćeš u <a href="pitanja.html">Čestim pitanjima</a>.</p>
     </section>
 
     <a class="back" href="./">Otvori Dailo</a>
