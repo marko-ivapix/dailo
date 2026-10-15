@@ -6744,8 +6744,9 @@
   }
 
   // Native durable mirror (audit M5): the canonical metadata text is also kept as a file in the app's Library
-  // directory, so a WebView store the system cleared can be restored at start. Habit logs, goal history and files
-  // stay in IndexedDB (and sync); the web has no mirror. Call sites check isNative inline, like the other platform hooks.
+  // directory, so a WebView store the system cleared can be restored at start. Since R76 habit logs and goal history
+  // have files too; attachments stay in IndexedDB (and sync); the web has no mirror. Call sites check isNative inline,
+  // like the other platform hooks.
   let mirrorTimer = null;
   function scheduleDurableMirror(delay = 1000) {
     if (!globalThis.DailoPlatform?.isNative) return;
@@ -6756,8 +6757,37 @@
     clearTimeout(mirrorTimer);
     mirrorTimer = null;
     const text = localStorage.getItem(STORAGE_KEY);
-    if (text && globalThis.DailoPlatform?.isNative) globalThis.DailoPlatform.durable.write(text).catch(console.error);
+    if (text && globalThis.DailoPlatform?.isNative) { globalThis.DailoPlatform.durable.write(text).catch(console.error); queueRecordsMirror(); }
     updateWidget();
+  }
+
+  // R76: habit logs and goal history live in IndexedDB, which the system can clear together with the WebView store.
+  // Each kind is written again only when its records changed; the runs are queued, so an older list never lands last.
+  const mirroredRecords = { habitLogs: null, goalHistory: null };
+  let recordsMirrorQueue = Promise.resolve();
+  function queueRecordsMirror() {
+    const durable = globalThis.DailoPlatform?.durable;
+    if (!durable?.writeRecords) return recordsMirrorQueue;
+    recordsMirrorQueue = recordsMirrorQueue.catch(() => {}).then(async () => {
+      for (const kind of ['habitLogs', 'goalHistory']) {
+        const text = JSON.stringify(await TodoStorage[kind].listAll());
+        if (text !== mirroredRecords[kind] && await durable.writeRecords(kind, text)) mirroredRecords[kind] = text;
+      }
+    }).catch(console.error);
+    return recordsMirrorQueue;
+  }
+  // R76: the records come back only with a restored metadata text, and only into empty stores, so they match it.
+  async function restoreRecordsMirror() {
+    const durable = globalThis.DailoPlatform?.durable;
+    if (!durable?.readRecords) return 0;
+    let restored = 0;
+    for (const kind of ['habitLogs', 'goalHistory']) {
+      try {
+        const records = await durable.readRecords(kind);
+        if (records?.length) restored += await TodoStorage[kind].fillEmpty(records);
+      } catch (error) { console.error(error); }
+    }
+    return restored;
   }
 
   // R28: the Android "Danas" widget gets a small snapshot after each change — today's open tasks, late ones first —
@@ -6794,6 +6824,7 @@
     const text = await platform.durable.read();
     if (!text) return false;
     localStorage.setItem(STORAGE_KEY, text);
+    await restoreRecordsMirror();
     return true;
   }
 

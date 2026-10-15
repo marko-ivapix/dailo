@@ -166,6 +166,22 @@
     return unique.length;
   }
 
+  // R76: puts mirrored records back into an empty store in one transaction; every record is checked first, so it is
+  // all or nothing. A store that already has records is left alone.
+  async function fillEmptyStore(storeName, records, fields, label) {
+    for (const record of records || []) requireRecord(record, fields, label);
+    if (memoryMode()) {
+      if (memoryStores[storeName].size) return 0;
+      for (const record of records || []) memoryStores[storeName].set(record.id, clone(record));
+      return (records || []).length;
+    }
+    return withStore(storeName, 'readwrite', async store => {
+      if (await requestPromise(store.count())) return 0;
+      for (const record of records || []) store.put(record);
+      return (records || []).length;
+    });
+  }
+
   async function clearStore(storeName) {
     if (memoryMode()) {
       const count = memoryStores[storeName].size;
@@ -379,6 +395,7 @@
     async listByHabit(habitId) { return listByIndex('habitLogs', 'habitId', habitId); },
     async listAll() { return listRecords('habitLogs'); },
     async deleteMany(ids) { return deleteManyRecords('habitLogs', ids); },
+    async fillEmpty(records) { return fillEmptyStore('habitLogs', records, ['id', 'habitId', 'date'], 'habit log'); },
     async clearAll() { return clearStore('habitLogs'); }
   };
 
@@ -388,6 +405,7 @@
     async listByGoal(goalId) { return listByIndex('goalHistory', 'goalId', goalId); },
     async listAll() { return listRecords('goalHistory'); },
     async deleteMany(ids) { return deleteManyRecords('goalHistory', ids); },
+    async fillEmpty(records) { return fillEmptyStore('goalHistory', records, ['id', 'goalId'], 'goal history'); },
     async clearAll() { return clearStore('goalHistory'); }
   };
 
