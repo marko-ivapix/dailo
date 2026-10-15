@@ -4867,7 +4867,9 @@
   function syncView() {
     const meta = syncMeta || loadSyncMeta();
     return { configured: Boolean(syncClient), signedIn: Boolean(meta.session?.accessToken), email: meta.session?.user?.email || '', name: meta.session?.user?.name || '', serverCheck,
-      running: syncRunning, lastSyncAt: meta.lastSyncAt || null, lastError: meta.lastError || '', fileError: meta.fileError || '', live: liveSync?.status() === 'live', journalPurgeError: meta.journalPurgeError || '', tooLarge: meta.tooLarge || [] };
+      running: syncRunning, lastSyncAt: meta.lastSyncAt || null, lastError: meta.lastError || '', fileError: meta.fileError || '', live: liveSync?.status() === 'live', journalPurgeError: meta.journalPurgeError || '', tooLarge: meta.tooLarge || [],
+      // R104: sync is paused while the archived tasks could not be read.
+      archiveError: archiveFailed };
   }
 
   function editingText() {
@@ -4891,6 +4893,8 @@
     const sync = syncView();
     if (!sync.configured) return { state: 'off', text: tr('Data is on this device only') };
     if (!sync.signedIn) return { state: 'signed-out', text: tr('Not signed in') };
+    // R104: Nalog says why sync is paused.
+    if (sync.archiveError) return { state: 'error', text: tr('Sync failed — see Account.') };
     if (sync.running) return { state: 'running', text: tr('Syncing…') };
     if (globalThis.navigator?.onLine === false) return { state: 'offline', text: tr('Waiting for a connection') };
     if (sync.lastError) return { state: 'error', text: tr('Sync failed — see Account.') };
@@ -5017,13 +5021,17 @@
     // task that came back is never missing from both places.
     const split = archivedTasks.length ? Core.splitArchived(result.state.tasks, archivedTasks.map(item => item.id), result.state, Core.dateOnly())
       : { live: result.state.tasks, archived: [], unarchived: [], removed: [] };
+    const archivedIds = new Set(split.archived.map(item => item.id));
     applyingSync = true;
     try {
-      // Records new to this device do not replay their past reminders here (audit R-3).
-      state = normalizeState(Core.settleArrivedReminders(previous, Core.pruneDanglingReferences({ ...result.state, tasks: split.live }), nowIso()));
       // R103b: an archived task keeps only the tags and the area that still exist.
-      const kept = split.archived.map(item => Core.pruneArchivedTask(item, state));
-      archivedTasks = kept;
+      const arrived = split.archived.map(item => Core.pruneArchivedTask(item, result.state));
+      // Records new to this device do not replay their past reminders here (audit R-3). R104: the archived tasks that
+      // arrived are normalized with the live ones (a bad row is repaired or refused like any other), and nothing
+      // changes until all of it worked.
+      const merged = normalizeState(Core.settleArrivedReminders(withArchive(previous), Core.pruneDanglingReferences({ ...result.state, tasks: [...split.live, ...arrived] }), nowIso()));
+      state = { ...merged, tasks: merged.tasks.filter(item => !archivedIds.has(item.id)) };
+      archivedTasks = merged.tasks.filter(item => archivedIds.has(item.id));
       if (!saveState()) { state = previous; archivedTasks = previousArchive; throw new Error(msg('Changes could not be saved locally. Try again.')); }
     } finally { applyingSync = false; }
     // Only the archived tasks that arrived changed are written again. R103b: a failed write stops sync until the next
@@ -5037,7 +5045,8 @@
     if (result.habitLogDeletes.length) await TodoStorage.habitLogs.deleteMany(result.habitLogDeletes);
     // R46: files deleted on another device leave this one (their owners already dropped them above).
     if (result.fileDeletes?.length) await TodoStorage.attachments.deleteMany(result.fileDeletes);
-    for (const log of result.habitLogPuts) await TodoStorage.habitLogs.put(log);
+    // R104: a pulled day's note is one short line, as when it is typed here.
+    for (const log of result.habitLogPuts) await TodoStorage.habitLogs.put(Object.hasOwn(log, 'note') ? { ...log, note: Core.habitLogNote(log.note) } : log);
     await refreshHabitMetrics();
     render();
   }

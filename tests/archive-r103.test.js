@@ -97,7 +97,8 @@ test('sync sees archived tasks as present: no deletion is sent for them', () => 
   // R103b: the archived tasks kept after the split (with gone tags and areas dropped) are what is compared and written.
   assert.match(apply, /const changed = archivedTasks\.filter\(item => before\.get\(item\.id\) !== JSON\.stringify\(item\)\);\n\s+if \(changed\.length\) await TodoStorage\.archivedTasks\.putMany\(changed\);/);
   assert.match(apply, /await TodoStorage\.archivedTasks\.deleteMany\(\[\.\.\.split\.unarchived, \.\.\.split\.removed\]\);/);
-  assert.match(apply, /state = normalizeState\(Core\.settleArrivedReminders\(previous, Core\.pruneDanglingReferences\(\{ \.\.\.result\.state, tasks: split\.live \}\), nowIso\(\)\)\);/);
+  // R104: the archived tasks that arrived are normalized with the live ones, then split off again.
+  assert.match(apply, /const merged = normalizeState\(Core\.settleArrivedReminders\(withArchive\(previous\), Core\.pruneDanglingReferences\(\{ \.\.\.result\.state, tasks: \[\.\.\.split\.live, \.\.\.arrived\] \}\), nowIso\(\)\)\);\n\s+state = \{ \.\.\.merged, tasks: merged\.tasks\.filter\(item => !archivedIds\.has\(item\.id\)\) \};/);
 });
 
 test('the app loads the archive before sync, archives at start, and brings a task back on any action', () => {

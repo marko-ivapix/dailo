@@ -939,11 +939,13 @@
       const habit = getHabit(el.dataset.habitId); if (!habit || habit.trackingType !== 'numeric') return true;
       const previous = dayLog(habit.id);
       const total = Math.round((Number(previous?.value || 0) + Number(el.dataset.value || 0)) * 1000) / 1000;
-      setHabitLog(habit.id, today, 'done', total).then(() => ctx.setUndo(msg('Value added'), () => setHabitLog(habit.id, today, previous?.status === 'skipped' ? 'skipped' : 'done', previous ? previous.value : 0))).catch(console.error);
+      // R104: Poništi brings the day back as it was; a day without a value before is empty again (a limit habit reads 0 as kept).
+      setHabitLog(habit.id, today, 'done', total).then(() => ctx.setUndo(msg('Value added'), () => (previous ? setHabitLog(habit.id, today, previous.status === 'skipped' ? 'skipped' : 'done', previous.value) : setHabitLog(habit.id, today, null)))).catch(console.error);
       return true;
     }
     if (action === 'habit-today-menu') { openTodayHabitMenu(ctx, el, el.dataset.habitId, date); return true; }
-    if (action === 'habit-today-skip') { closePopover(); setHabitLog(el.dataset.habitId, date, dayLog(el.dataset.habitId)?.status === 'skipped' ? 'missed' : 'skipped'); return true; }
+    // R104: "Poništi preskakanje" empties the day of a number habit (a limit habit would read it as kept); a yes/no habit keeps R61.
+    if (action === 'habit-today-skip') { closePopover(); const habit = getHabit(el.dataset.habitId); setHabitLog(el.dataset.habitId, date, dayLog(el.dataset.habitId)?.status === 'skipped' ? (habit?.trackingType === 'numeric' ? null : 'missed') : 'skipped'); return true; }
     if (action === 'habit-today-value') { closePopover(); ctx.openHabitValue(el.dataset.habitId, date); return true; }
     // R93: the day's note from its menu; an empty field removes it.
     if (action === 'habit-note-save') {
@@ -1018,7 +1020,8 @@
   function handleInput(event, ctx) {
     const target = event.target;
     // R93: Enter in the day's note saves it.
-    if (event.type === 'keydown' && event.key === 'Enter' && target?.id === 'habit-log-note') { event.preventDefault(); ctx.popoverEl?.querySelector('[data-pop-action="habit-note-save"]')?.click(); return true; }
+    // R104: not while a word is still being composed.
+    if (event.type === 'keydown' && event.key === 'Enter' && target?.id === 'habit-log-note' && !event.isComposing) { event.preventDefault(); ctx.popoverEl?.querySelector('[data-pop-action="habit-note-save"]')?.click(); return true; }
     if (!['input', 'change'].includes(event.type)) return false;
     // R8b: the window's typed fields and the live inputs of its sheets.
     if (ctx.modalState?.type === 'habit' && ['habit-name', 'habit-target-value', 'habit-unit', 'habit-duration'].includes(target.id)) { readHabitDraft(ctx); return true; }

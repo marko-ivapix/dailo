@@ -71,16 +71,16 @@ test('the app keeps the archive consistent with tags, areas, Undo, restores and 
   assert.match(load, /archiveFailed = true; archivedTasks = \[\];/);
   assert.match(load, /const pruned = kept\.map\(item => Core\.pruneArchivedTask\(item, state\)\);/);
   const apply = functionSource('applySyncResult').source;
-  assert.match(apply, /const kept = split\.archived\.map\(item => Core\.pruneArchivedTask\(item, state\)\);/);
+  // R104: pruned against the arrived tags and areas, before the normalization that every task now goes through.
+  assert.match(apply, /const arrived = split\.archived\.map\(item => Core\.pruneArchivedTask\(item, result\.state\)\);/);
   assert.match(apply, /catch \(error\) \{ archiveFailed = true; throw error; \}/);
   assert.match(functionSource('beginGlobalOperation').source, /op\.validated\.archivedTasks = selection \? \(op\.payload\.archivedTasks \|\| \[\]\)\.filter\(item => !op\.validated\.state\.tasks\.some\(entry => entry\.id === item\.id\)\) : \[\];/);
   assert.match(app, /moreRow\('completed', 'ph-check-circle', tr\('Completed tasks'\), count\(historyTasks\(\)\.filter\(task => task\.isCompleted\)\)\)/);
   assert.match(functionSource('renderCompleted').source, /const clear = historyTasks\(\)\.some\(task => task\.isCompleted\)/);
 });
 
-test('R103b is released as 2.0.0-alpha.132', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.132');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.132';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.132');
+test('R103b shipped as 2.0.0-alpha.132 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 132) >= 132);
   assert.ok(read('docs/superpowers/specs/2026-10-15-r103-archived-tasks.md').includes('## R103b'));
 });

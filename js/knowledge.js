@@ -281,7 +281,9 @@
     try { link = new URL(url); } catch (_) { /* not an address */ }
     if (!link || !['http:', 'https:', 'mailto:'].includes(link.protocol)) return `<span class="knowledge-link">${esc(url)}</span>`;
     const mail = link.protocol === 'mailto:';
-    const site = mail ? decodeURIComponent(link.pathname) : link.hostname.replace(/^www\./, '');
+    let site = mail ? link.pathname : link.hostname.replace(/^www\./, '');
+    // R104: a stray "%" in an address is shown as typed instead of breaking the window.
+    if (mail) try { site = decodeURIComponent(site); } catch (_) { /* shown as typed */ }
     const rest = mail ? '' : `${link.pathname === '/' ? '' : link.pathname}${link.search}`;
     return `<a class="knowledge-link-card" href="${esc(url)}" target="_blank" rel="noopener noreferrer"><i class="ph ${mail ? 'ph-envelope-simple' : 'ph-globe'}" aria-hidden="true"></i><span class="knowledge-link-card-text"><strong>${esc(site)}</strong>${rest ? `<small>${esc(rest)}</small>` : ''}</span><i class="ph ph-arrow-square-out" aria-hidden="true"></i></a>`;
   }

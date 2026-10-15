@@ -1963,6 +1963,7 @@
     "Waiting for a connection": "Čeka se veza",
     "Sync failed": "Sinhronizacija nije uspela",
     "Sync failed — see Account.": "Sinhronizacija nije uspela — pogledaj Nalog.",
+    "Sync is paused: the archived tasks could not be read. Restart the app.": "Sinhronizacija je zaustavljena: arhivirani zadaci nisu mogli da se učitaju. Ponovo pokreni aplikaciju.",
     "Sync now": "Sinhronizuj sada",
     "Sign out": "Odjavi se",
     "Code from the e-mail": "Kod iz e-poruke",

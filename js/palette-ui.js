@@ -80,7 +80,8 @@
         refresh(ctx);
         return true;
       }
-      if (event.key === 'Enter') { event.preventDefault(); run(ctx); return true; }
+      // R104: not while a word is still being composed.
+      if (event.key === 'Enter' && !event.isComposing) { event.preventDefault(); run(ctx); return true; }
       return false;
     },
     handleAction(action, event, ctx) {

@@ -2333,11 +2333,14 @@
 
   // R103b: an archived task keeps only the tags and the area that still exist (they can be deleted on another device
   // or before this step), so it never brings a dangling reference into a backup or back into the state.
+  // R104: tags that are not a list (a bad row from sync) read as none.
   function pruneArchivedTask(task, state) {
     const tags = new Set((state?.tags || []).map(tag => tag.id)), areas = new Set((state?.areas || []).map(area => area.id));
-    const tagIds = (task.tagIds || []).filter(id => tags.has(id));
+    const listed = Array.isArray(task.tagIds) ? task.tagIds : [];
+    const tagIds = listed.filter(id => tags.has(id));
     const areaId = task.areaId && !areas.has(task.areaId) ? null : task.areaId;
-    return tagIds.length === (task.tagIds || []).length && areaId === task.areaId ? task : { ...task, tagIds, areaId };
+    if (Array.isArray(task.tagIds) && tagIds.length === listed.length && areaId === task.areaId) return task;
+    return { ...task, tagIds, ...(areaId === task.areaId ? {} : { areaId }) };
   }
 
   // R101: what was done — the tasks completed this month, last month and this year, the best day this month (the earliest
@@ -2453,24 +2456,25 @@
     const state = JSON.parse(JSON.stringify(input));
     const ids = key => new Set((Array.isArray(state[key]) ? state[key] : []).filter(item => item && item.id).map(item => item.id));
     const projects = ids('projects'), areas = ids('areas'), goals = ids('goals'), tasks = ids('tasks'), habits = ids('habits');
-    const keep = (list, valid) => Array.isArray(list) ? list.filter(id => valid.has(id)) : list;
+    // R104: only a list that is there is filtered; a missing field stays missing (an empty key fails the V3 check).
+    const keep = (item, field, valid) => { if (Array.isArray(item[field])) item[field] = item[field].filter(id => valid.has(id)); };
     const area = item => { if (item && item.areaId && !areas.has(item.areaId)) item.areaId = null; };
     for (const task of state.tasks || []) {
       if (!task) continue;
       if (task.projectId && !projects.has(task.projectId)) task.projectId = null;
       area(task);
-      task.goalIds = keep(task.goalIds, goals);
+      keep(task, 'goalIds', goals);
     }
-    for (const project of state.projects || []) { if (!project) continue; area(project); project.goalIds = keep(project.goalIds, goals); }
+    for (const project of state.projects || []) { if (!project) continue; area(project); keep(project, 'goalIds', goals); }
     for (const key of ['notes', 'resources', 'goals', 'habits']) for (const item of state[key] || []) area(item);
     // R97: a note's links to projects and goals.
-    for (const note of state.notes || []) { if (!note) continue; note.relatedProjectIds = keep(note.relatedProjectIds, projects); note.relatedGoalIds = keep(note.relatedGoalIds, goals); }
+    for (const note of state.notes || []) { if (!note) continue; keep(note, 'relatedProjectIds', projects); keep(note, 'relatedGoalIds', goals); }
     for (const resource of state.resources || []) {
       if (!resource) continue;
-      resource.relatedTaskIds = keep(resource.relatedTaskIds, tasks);
-      resource.relatedProjectIds = keep(resource.relatedProjectIds, projects);
-      resource.relatedGoalIds = keep(resource.relatedGoalIds, goals);
-      resource.relatedHabitIds = keep(resource.relatedHabitIds, habits);
+      keep(resource, 'relatedTaskIds', tasks);
+      keep(resource, 'relatedProjectIds', projects);
+      keep(resource, 'relatedGoalIds', goals);
+      keep(resource, 'relatedHabitIds', habits);
     }
     return state;
   }
