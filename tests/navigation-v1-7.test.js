@@ -12,7 +12,8 @@ const calendar = fs.readFileSync(require.resolve('../js/calendar-ui.js'), 'utf8'
 const moreRoutes = [
   ['areas', 'Areas'], ['tags', 'Tags'], ['notes', 'Notes'], ['resources', 'Resources'],
   // R11d (S4, M4): Čišćenje is now "Redovne obaveze".
-  ['cleaning', 'Recurring tasks'], ['templates', 'Templates'], ['saved-views', 'Saved Views'],
+  // R72: Šabloni left Još at the user's request (reached by "Sačuvaj kao šablon" and "Iz šablona"); Projekti joined it.
+  ['cleaning', 'Recurring tasks'], ['projects', 'Projects'], ['saved-views', 'Saved Views'],
   ['completed', 'Completed tasks'] /* R22c: the tile names the screen */, ['archived', 'Archived Projects'], ['goals', 'Goals'], ['review', 'Weekly review'],
   ['settings', 'Settings']
 ];

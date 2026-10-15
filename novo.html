@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="sr-Latn">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0F1114">
+  <title>Dailo — Šta je novo</title>
+  <meta name="description" content="Šta se promenilo u aplikaciji Dailo u poslednjim verzijama: nove mogućnosti i ispravke, ukratko i po danima.">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Dailo">
+  <meta property="og:locale" content="sr_RS">
+  <meta property="og:title" content="Dailo — Šta je novo">
+  <meta property="og:description" content="Šta se promenilo u aplikaciji Dailo u poslednjim verzijama: nove mogućnosti i ispravke, ukratko i po danima.">
+  <meta property="og:url" content="https://marko-ivapix.github.io/dailo/novo.html">
+  <meta property="og:image" content="https://marko-ivapix.github.io/dailo/icons/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Dailo: zadaci, navike, ciljevi i dnevnik na jednom mestu">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="vendor/fonts/fonts.css">
+  <style>
+    :root {
+      --bg: #0F1114;
+      --card: #14171B;
+      --line: #2D3239;
+      --ink-1: #F3F4F6;
+      --ink-2: #D5D9DF;
+      --ink-3: #9199A4;
+      --blue: #8590FF;
+      --mint: #3ED7BA;
+      --yellow: #F5B942;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink-2);
+      font: 16px/1.6 Geist, system-ui, -apple-system, sans-serif;
+      padding: calc(24px + env(safe-area-inset-top)) 16px calc(32px + env(safe-area-inset-bottom));
+    }
+    main { max-width: 680px; margin: 0 auto; }
+    h1, h2 { font-family: "Space Grotesk", Geist, system-ui, sans-serif; color: var(--ink-1); line-height: 1.25; }
+    h1 { font-size: 28px; margin: 0 0 8px; }
+    h2 { font-size: 19px; margin: 0 0 8px; }
+    .lead { color: var(--ink-3); margin: 0 0 24px; }
+    section { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; margin: 0 0 14px; }
+    p { margin: 0 0 10px; }
+    ol, ul { margin: 0 0 10px; padding-left: 22px; }
+    li { margin: 0 0 6px; }
+    strong { color: var(--ink-1); }
+    a { color: var(--blue); }
+    .note { border-left: 3px solid var(--yellow); padding-left: 12px; color: var(--ink-1); }
+    .ok { border-left: 3px solid var(--mint); padding-left: 12px; }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 14px; color: var(--ink-1); background: #1A1D22; border-radius: 6px; padding: 1px 6px; }
+    .back { display: inline-block; margin-top: 8px; padding: 10px 16px; border-radius: 10px; background: #0619FE; color: #fff; text-decoration: none; font-weight: 600; }
+    .version { color: var(--ink-3); font-size: 14px; margin: 0 0 8px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Dailo — Šta je novo</h1>
+    <p class="lead">Ukratko, šta se promenilo u poslednjim verzijama. Najnovije je na vrhu.</p>
+
+    <section>
+      <h2>15. oktobar 2026.</h2>
+      <p class="version">Verzije 2.0.0-alpha.101 do 2.0.0-alpha.109</p>
+      <ul>
+        <li><strong>Šifrovan dnevnik ostaje šifrovan i u rezervnoj kopiji.</strong> Ako je u <strong>Još → Nalog</strong> uključen šifrovan dnevnik, ZIP kopija više ne sadrži čitljiv dnevnik. Pri vraćanju kopije na drugom uređaju upisuješ lozinku dnevnika; bez nje se vraća sve ostalo.</li>
+        <li><strong>Na telefonu se čuvaju i navike i istorija ciljeva.</strong> Aplikacija za telefon ih sada kopira u svoj fajl, kao i zadatke, pa se vraćaju ako telefon obriše podatke aplikacije.</li>
+        <li><strong>Kalendar (.ics) bez duplikata.</strong> Kad isti kalendar uvezeš ponovo, Dailo prepoznaje već uvezene događaje, čak i kad su u međuvremenu preimenovani ili pomereni.</li>
+        <li><strong>Dugme „Sutra“ u obaveštenju.</strong> Pored „Završi“ i „Odloži 1 sat“, podsetnik za zadatak ima i „Sutra“: zadatak se planira za sutra, a podsetnik prelazi na isto vreme sutra.</li>
+        <li><strong>Stanje sinhronizacije na telefonu.</strong> <strong>Još → Nalog</strong> pokazuje kad je poslednja sinhronizacija, „Čeka se veza“ bez interneta ili grešku, a na dugmetu „Još“ se pojavi crvena tačka kad sinhronizacija ne uspe.</li>
+        <li><strong>Prijava problema šalje i poslednje greške.</strong> E-poruka iz <strong>Podešavanja → Pomoć → Prijavi problem</strong> sada sadrži i do pet poslednjih grešaka sa ovog uređaja, bez tvojih podataka. Poruku vidiš pre slanja.</li>
+        <li><strong>Ova strana.</strong> „Šta je novo“ je u <strong>Podešavanja → Pomoć</strong>, a posle ažuriranja Dailo jednom javi da je stigla nova verzija.</li>
+        <li><strong>Novo uputstvo.</strong> <a href="uputstvo.html">Uputstvo</a> sada opisuje nalog i sinhronizaciju, rezervne kopije, pokrete, raspored dana i podsetnike.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>14. oktobar 2026.</h2>
+      <ul>
+        <li><strong>Još → Planiranje:</strong> Ciljevi, Projekti, Redovne obaveze i Oblasti. <strong>Nedeljni pregled</strong> je u Biblioteci, na mestu Šablona; šabloni i dalje rade iz prozora zadatka, projekta, navike i cilja.</li>
+        <li><strong>Česta pitanja.</strong> Kratki odgovori o nalogu, podacima, rezervnim kopijama, podsetnicima i pokretima, u <strong>Podešavanja → Pomoć</strong> i na strani <a href="pitanja.html">Česta pitanja</a>.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>13. oktobar 2026.</h2>
+      <ul>
+        <li><strong>Navike imaju tri stanja</strong>: urađeno (✓), nije urađeno (crveni ✗) i prazno, i ostaju na svom mestu kad im promeniš stanje.</li>
+        <li><strong>Dugme +</strong> dodaje stavku ekrana na kom si: na Navike naviku, na Ciljevi cilj.</li>
+        <li><strong>Okvirno:</strong> zadatku možeš dati samo mesec, bez tačnog dana; takvi zadaci stoje u Predstojećem, po mesecima.</li>
+        <li><strong>Novi primeri:</strong> Redovne obaveze po rasporedu čišćenja, auto i zdravlje, Bucket lista, „Treba da imam“, ideje za poklone i spisak za kupovinu iz plana obroka.</li>
+        <li><strong>Boje projekata</strong> se vide u bočnom meniju na računaru.</li>
+        <li><strong>„Odjavi se“</strong> vraća na ekran za prijavu.</li>
+        <li>Na telefonu prevlačenje zadatka udesno i ulevo radi pouzdano, a prozori više ne skaču dok se osvežavaju. E-poruke za potvrdu naloga stižu na srpskom.</li>
+      </ul>
+    </section>
+
+    <p>Detaljnije: <a href="uputstvo.html">Uputstvo</a> i <a href="pitanja.html">Česta pitanja</a>.</p>
+
+    <a class="back" href="./">Otvori Dailo</a>
+  </main>
+</body>
+</html>

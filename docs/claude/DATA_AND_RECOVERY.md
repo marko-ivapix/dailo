@@ -36,6 +36,8 @@ Do not confuse these versions:
 
 `exportBackupV3` refers to the V3 state payload, not to ZIP format 3. The current implementation exports `backupVersion: 2` and accepts backup versions `1` and `2`. The manifest's historical `appVersion: '1.3'` is not the current product release label; since V1.9 the release label is the separate `releaseVersion` field. Older ZIPs without `releaseVersion` remain importable.
 
+Since R75 (`2.0.0-alpha.102`), when `settings.journalCipher` is set and the exporting device has the journal key, `data.journal` holds sealed entries `{ id, date, sealed: { v: 1, iv, ct } }` instead of readable ones; the ZIP stays `backupVersion: 2`. `inspectBackupV3` sets them apart as `sealedJournal`, and the restore opens them with the device key or the journal password (`docs/superpowers/specs/2026-10-15-r75-backup-journal-sealed.md`).
+
 ## Startup and V1.2 → V3 migration
 
 1. `app.js` opens Storage and reads the saved metadata.

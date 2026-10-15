@@ -34,9 +34,8 @@
     const sections = Core.deriveTodaySections(ctx.listTasks(), Core.dateOnly());
     const todayCount = sections.overdue.length + sections.today.length || '';
     const inboxCount = ctx.activeInboxRecords('all').length || '';
-    const sync = ctx.syncView();
-    const syncLine = !sync.configured ? tr('Data is on this device only') : !sync.signedIn ? tr('Not signed in') : sync.running ? tr('Syncing…')
-      : sync.lastSyncAt ? tr('Synced {time}', { time: new Date(sync.lastSyncAt).toLocaleTimeString(I18n.locale(), { hour: '2-digit', minute: '2-digit' }) }) : sync.email;
+    // R80: the same line as on the phone, so a failed sync shows here too.
+    const syncLine = ctx.syncStatus().text;
     const pinned = [
       ...ctx.sortedAreas().filter(area => area.status !== 'archived' && area.isPinned).map(area => sidebarItem(`area/${encodeURIComponent(area.id)}`, area.icon || 'ph-squares-four', area.name)),
       ...(state.savedViews || []).filter(view => view.isPinned).map(view => sidebarItem(`saved-view/${encodeURIComponent(view.id)}`, 'ph-funnel', view.name)),
@@ -49,8 +48,9 @@
       + `<nav class="sidebar-nav" aria-label="${tr('Main screens')}">${sidebarItem('today', 'ph-sun', tr('Today'), todayCount)}<div class="sidebar-drop" data-sidebar-drop="tomorrow"><i class="ph ph-arrow-bend-down-right" aria-hidden="true"></i><span class="sidebar-label">${tr('Drag here for tomorrow')}</span></div>${sidebarItem('inbox', 'ph-tray', tr('Inbox'), inboxCount, true)}${sidebarItem('tasks', 'ph-list-checks', tr('Tasks'))}${sidebarItem('calendar', 'ph-calendar-blank', tr('Calendar'))}${sidebarItem('habits', 'ph-repeat', tr('Habits'))}</nav>`
       + sidebarGroup('pinned', tr('Pinned'), pinned, false)
       + sidebarGroup('projects', tr('Projects'), projectItems, false)
-      + sidebarGroup('planning', tr('Planning'), [sidebarItem('goals', 'ph-target', tr('Goals')), sidebarItem('areas', 'ph-squares-four', tr('Areas')), sidebarItem('cleaning', 'ph-arrows-clockwise', tr('Recurring tasks')), sidebarItem('review', 'ph-clipboard-text', tr('Weekly review'))])
-      + sidebarGroup('library', tr('Library'), [sidebarItem('notes', 'ph-note', tr('Notes')), sidebarItem('journal', 'ph-book-open', tr('Journal')), sidebarItem('resources', 'ph-link', tr('Resources')), sidebarItem('tags', 'ph-tag', tr('Tags')), sidebarItem('templates', 'ph-copy', tr('Templates')), sidebarItem('saved-views', 'ph-funnel', tr('Saved Views'))])
+      // R72: the groups follow Još (Projekti have their own group above); Šabloni left the menu.
+      + sidebarGroup('planning', tr('Planning'), [sidebarItem('goals', 'ph-target', tr('Goals')), sidebarItem('cleaning', 'ph-arrows-clockwise', tr('Recurring tasks')), sidebarItem('areas', 'ph-squares-four', tr('Areas'))])
+      + sidebarGroup('library', tr('Library'), [sidebarItem('notes', 'ph-note', tr('Notes')), sidebarItem('journal', 'ph-book-open', tr('Journal')), sidebarItem('resources', 'ph-link', tr('Resources')), sidebarItem('tags', 'ph-tag', tr('Tags')), sidebarItem('review', 'ph-clipboard-text', tr('Weekly review')), sidebarItem('saved-views', 'ph-funnel', tr('Saved Views'))])
       + sidebarGroup('archives', tr('Archives'), [sidebarItem('completed', 'ph-check-circle', tr('Completed tasks')), sidebarItem('archived', 'ph-archive', tr('Archived Projects'))])
       + `<div class="sidebar-bottom">${sidebarItem('settings', 'ph-gear', tr('Settings'))}${sidebarItem('account', 'ph-user-circle', tr('Account'))}</div>`;
   }

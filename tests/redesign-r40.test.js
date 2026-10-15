@@ -164,7 +164,9 @@ function harness({ fake = createFakeSupabase(), meta = null, storage: entries = 
     Core: { pruneDanglingReferences: require('../js/core.js').pruneDanglingReferences, settleArrivedReminders: require('../js/core.js').settleArrivedReminders },
     nowIso: () => '2026-10-12T08:00:00.000Z',
     saveState: () => true, refreshHabitMetrics: async () => {},
-    render() { calls.renders += 1; }, renderModal() { calls.modals += 1; }, closePopover() {}, captureModalReturnFocus() {}, restoreModalReturnFocus() {}, closeModal() { context.modalState = null; },
+    render() { calls.renders += 1; }, renderModal() { calls.modals += 1; }, closePopover() {},
+    // R80: a sync state change refreshes the tab's dot and the sidebar line.
+    renderMobileBottomNav() {}, renderSidebar() {}, captureModalReturnFocus() {}, restoreModalReturnFocus() {}, closeModal() { context.modalState = null; },
     currentRoute: () => ({ type: 'today' }), openConfirm() {},
     setToastMessage(message) { calls.toasts.push(message); },
     inputs: {},
@@ -398,7 +400,8 @@ test('links back into the app, the Google mark and the terms pages', () => {
   assert.match(read('privatnost.html'), /Supabase/);
   assert.equal(Release.TERMS_URL, 'https://marko-ivapix.github.io/dailo/uslovi.html');
   assert.equal(Release.PRIVACY_URL, 'https://marko-ivapix.github.io/dailo/privatnost.html');
-  assert.match(fn('startPlatform'), /onlinePages: \{ 'uputstvo\.html': Release\.GUIDE_URL, 'uslovi\.html': Release\.TERMS_URL, 'privatnost\.html': Release\.PRIVACY_URL \}/);
+  // R73 added Česta pitanja and R81 Šta je novo to the pages the phone app opens online.
+  assert.match(fn('startPlatform'), /onlinePages: \{ 'uputstvo\.html': Release\.GUIDE_URL, 'uslovi\.html': Release\.TERMS_URL, 'privatnost\.html': Release\.PRIVACY_URL, 'pitanja\.html': Release\.FAQ_URL, 'novo\.html': Release\.WHATS_NEW_URL \}/);
 });
 
 test('style: a full screen above the bottom bar, in tokens only', () => {

@@ -9,7 +9,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 export const SITE = 'https://marko-ivapix.github.io/dailo/';
-export const PAGES = ['index.html', '404.html', 'privatnost.html', 'uslovi.html', 'uputstvo.html'];
+export const PAGES = ['index.html', '404.html', 'privatnost.html', 'uslovi.html', 'uputstvo.html', 'pitanja.html', 'novo.html'];
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SKIP = /^(mailto:|tel:|data:|blob:)/;

@@ -58,7 +58,8 @@ test('A: the tap handler hears which button was pressed', () => {
 });
 
 test('A: the app names the buttons in Serbian and gives tasks and habits their buttons', () => {
-  assert.match(fn('notificationActionTypes'), /\{ id: 'dailo-task', actions: \[\{ id: 'complete', title: tr\('Complete'\), foreground: true \}, \{ id: 'snooze', title: tr\('Snooze 1 hour'\), foreground: true \}\] \}/);
+  // R79: a third task button, "Sutra", follows these two (tests/notification-tomorrow-r79.test.js).
+  assert.match(fn('notificationActionTypes'), /\{ id: 'dailo-task', actions: \[\{ id: 'complete', title: tr\('Complete'\), foreground: true \}, \{ id: 'snooze', title: tr\('Snooze 1 hour'\), foreground: true \}, /);
   assert.match(fn('notificationActionTypes'), /\{ id: 'dailo-habit', actions: \[\{ id: 'checkin', title: tr\('Check in'\), foreground: true \}\] \}/);
   assert.match(fn('startPlatform'), /platform\.notifications\.setActionTypes\?\.\(notificationActionTypes\(\)\);/);
   assert.match(fn('reconcileNotifications'), /actionType: item\.kind === 'task' \? 'dailo-task' : item\.kind === 'habit' \? 'dailo-habit' : undefined/);

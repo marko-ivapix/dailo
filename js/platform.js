@@ -13,7 +13,8 @@
   const SHARE_DIR = 'dailo-share';
   const BACKUP_DIR = 'Dailo'; // R27: Documents/Dailo on the phone
   const MIRROR = 'dailo/state.json';
-  const MIRROR_TMP = 'dailo/state.json.tmp';
+  // R76: habit logs and goal history (IndexedDB) get mirror files of their own; attachments do not.
+  const RECORD_MIRRORS = { habitLogs: 'dailo/habit-logs.json', goalHistory: 'dailo/goal-history.json' };
   const CHUNK_BYTES = 3 * 256 * 1024; // a multiple of 3, so every base64 chunk can be appended as is
 
   // FNV-1a over the UTF-16 code units, folded to a positive 31-bit integer (Android and iOS both accept it).
@@ -187,28 +188,36 @@
     // interrupted write never leaves nothing behind. Writes are queued so two of them never interleave.
     let mirrorQueue = Promise.resolve();
     const isStateText = text => { try { const value = JSON.parse(text); return Boolean(value) && typeof value === 'object' && !Array.isArray(value); } catch (_) { return false; } };
-    function writeMirror(text) {
-      if (!isNative || typeof text !== 'string' || !isStateText(text)) return Promise.resolve(false);
+    const isRecordsText = text => { try { const value = JSON.parse(text); return Array.isArray(value) && value.every(item => Boolean(item) && typeof item === 'object' && !Array.isArray(item)); } catch (_) { return false; } };
+    function writeSafely(file, text, valid) {
+      if (!isNative || typeof text !== 'string' || !valid(text)) return Promise.resolve(false);
       const fs = plugin('Filesystem');
       const run = async () => {
-        await fs.writeFile({ path: MIRROR_TMP, data: text, directory: 'LIBRARY', encoding: 'utf8', recursive: true });
-        try { await fs.deleteFile({ path: MIRROR, directory: 'LIBRARY' }); } catch (_) { /* first write */ }
-        await fs.rename({ from: MIRROR_TMP, to: MIRROR, directory: 'LIBRARY', toDirectory: 'LIBRARY' });
+        await fs.writeFile({ path: `${file}.tmp`, data: text, directory: 'LIBRARY', encoding: 'utf8', recursive: true });
+        try { await fs.deleteFile({ path: file, directory: 'LIBRARY' }); } catch (_) { /* first write */ }
+        await fs.rename({ from: `${file}.tmp`, to: file, directory: 'LIBRARY', toDirectory: 'LIBRARY' });
         return true;
       };
       mirrorQueue = mirrorQueue.catch(() => {}).then(run);
       return mirrorQueue;
     }
-    async function readMirror() {
+    async function readSafely(file, valid) {
       if (!isNative) return null;
       const fs = plugin('Filesystem');
-      for (const path of [MIRROR, MIRROR_TMP]) {
+      for (const path of [file, `${file}.tmp`]) {
         try {
           const { data } = await fs.readFile({ path, directory: 'LIBRARY', encoding: 'utf8' });
-          if (typeof data === 'string' && isStateText(data)) return data;
+          if (typeof data === 'string' && valid(data)) return data;
         } catch (_) { /* missing or unreadable: try the next copy */ }
       }
       return null;
+    }
+    const writeMirror = text => writeSafely(MIRROR, text, isStateText);
+    const readMirror = () => readSafely(MIRROR, isStateText);
+    const writeRecords = (kind, text) => (RECORD_MIRRORS[kind] ? writeSafely(RECORD_MIRRORS[kind], text, isRecordsText) : Promise.resolve(false));
+    async function readRecords(kind) {
+      const text = RECORD_MIRRORS[kind] ? await readSafely(RECORD_MIRRORS[kind], isRecordsText) : null;
+      return text ? JSON.parse(text) : null;
     }
 
     // Reminders as phone notifications (app only, audit M6). The app hands over the full list of upcoming
@@ -366,7 +375,7 @@
       files: Object.freeze({ saveFile, openFile, cleanupSharedFiles, saveBackupCopy }),
       links: Object.freeze({ openExternal, closeExternal, interceptExternalLinks, onAppLink }),
       storage: Object.freeze({ status: storageStatus }),
-      durable: Object.freeze({ write: writeMirror, read: readMirror }),
+      durable: Object.freeze({ write: writeMirror, read: readMirror, writeRecords, readRecords }),
       notifications: Object.freeze({ permission: notificationPermission, requestPermission: requestNotificationPermission, exactAlarms, allowExactAlarms, reconcile, test: testNotification, onOpen: onNotificationOpen, setActionTypes, notificationId }),
       haptics,
       security: Object.freeze({ available: lockAvailable, unlock }),

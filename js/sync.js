@@ -844,5 +844,5 @@
     return Boolean(config && /^https:\/\/[^\s/]+/.test(config.url || '') && typeof config.anonKey === 'string' && config.anonKey.length > 20);
   }
 
-  return Object.freeze({ COLLECTIONS, DEVICE_SETTINGS, SYNC_RECORD_LIMIT, SyncError, serverMessage, authLanding, safeAttachmentData, passwordProblem, createCodeVerifier, codeChallenge, collectRecords, hashRecord, recordFingerprint, untouchedSample, diffRecords, applyRemote, createClient, createRealtime, syncOnce, isConfigured, JOURNAL_ITERATIONS, journalCipherValid, createJournalCipher, unlockJournalCipher, exportJournalKey, importJournalKey, forgetJournalShadow });
+  return Object.freeze({ COLLECTIONS, DEVICE_SETTINGS, SYNC_RECORD_LIMIT, SyncError, serverMessage, authLanding, safeAttachmentData, passwordProblem, createCodeVerifier, codeChallenge, collectRecords, hashRecord, recordFingerprint, untouchedSample, diffRecords, applyRemote, createClient, createRealtime, syncOnce, isConfigured, JOURNAL_ITERATIONS, journalCipherValid, createJournalCipher, unlockJournalCipher, exportJournalKey, importJournalKey, sealJournalRecord, openJournalData, forgetJournalShadow });
 });

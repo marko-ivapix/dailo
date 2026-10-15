@@ -45,7 +45,8 @@ test('M5: Settings has Opšte, Podaci, Pomoć and Računar in that order (R15: N
     ['General', ['Week starts on', 'Daily capacity', 'Theme', 'Text size']], // R39: Tema
     ['Reminders', ['Browser reminders', 'Test reminder', 'Default reminder time', 'Reminder at the planned time', 'Journal reminder']],
     ['Data', ['Data health', 'Backup', 'Backup reminder', 'Restore from backup', 'Calendar file (.ics)' /* R52 */, 'Local snapshots', 'Persistent storage', 'Populate demo workspace', 'Reset app data']],
-    ['Help', ['Guide', 'Report a problem', 'Install app', 'Privacy', 'About']],
+    // R73: Česta pitanja follow Uputstvo in Pomoć. R81: Šta je novo follows them.
+    ['Help', ['Guide', 'FAQ', "What's new", 'Report a problem', 'Install app', 'Privacy', 'About']],
     ['Computer', ['Search', 'Compact density']],
   ]);
   // R32: the backup line lists only what is known (no "Nema" or "Još nije provereno").

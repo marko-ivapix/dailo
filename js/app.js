@@ -723,6 +723,7 @@
       looseTasks(completed) { return listTasks().filter(task => !task.projectId && !task.isInbox && Boolean(task.isCompleted) === completed); },
       goalPercent(goal) { return Math.round(Core.computeGoalProgress(goal, state, state.habitMetrics || {}).percent); },
       syncView,
+      syncStatus,
       reviewTaskRow(task, context, options = {}) {
         return taskRow(task, context, options);
       },
@@ -766,7 +767,7 @@
       release: Release,
       environmentInfo() {
         // R17: inside the phone app Dailo is installed, so Pomoć does not show the Safari steps.
-        return { userAgent: navigator.userAgent || '', standalone: Boolean(globalThis.DailoPlatform?.isNative) || navigator.standalone === true || Boolean(window.matchMedia?.('(display-mode: standalone)').matches), persistence: storagePersistence.state };
+        return { userAgent: navigator.userAgent || '', standalone: Boolean(globalThis.DailoPlatform?.isNative) || navigator.standalone === true || Boolean(window.matchMedia?.('(display-mode: standalone)').matches), persistence: storagePersistence.state, errors: readErrorLog() };
       },
       storagePersistence: () => storagePersistence,
       installPrompt: () => Boolean(installPromptEvent),
@@ -1053,6 +1054,8 @@
     const badge = $('#mobile-inbox-badge');
     const count = activeInboxRecords('all').length;
     if (badge) { badge.textContent = count > 99 ? '99+' : String(count); badge.hidden = count === 0; }
+    const syncAlert = $('#mobile-sync-alert');
+    if (syncAlert) syncAlert.hidden = syncStatus().state !== 'error';
   }
 
   function storageWarningHtml() {
@@ -1320,22 +1323,25 @@
     // R32 (finding 37): the review tile says whether this week is done; the notice left Danas in R14.
     const lastReview = Core.weeklyReviewLog(state.settings)[0];
     const reviewNote = Core.weeklyReviewDue(state.settings, Core.dateOnly(), state.settings.weekStartsOn) ? tr('Time for this week\'s review') : lastReview ? tr('Last: {date}', { date: formatDate(Core.localDateOf(lastReview.completedAt)) }) : '';
-    const sync = syncView();
-    const accountText = sync.configured && sync.signedIn ? sync.email : sync.configured ? tr('Sign in') : tr('Data is on this device only');
+    // R80: the Nalog tile carries the sync state; signed out it still invites to sign in.
+    const status = syncStatus();
+    const accountText = status.state === 'signed-out' ? tr('Sign in') : status.text;
     let html = pageHeader(tr('More'), '', { add: false });
     if (pinned.length) html += card(tr('Pinned'), pinned);
+    // R72: Planiranje is Ciljevi, Projekti (Zadaci → Projekti), Redovne obaveze and Oblasti; Nedeljni pregled moved to
+    // Biblioteka in the place of Šabloni, which left the menu ("Sačuvaj kao šablon" and "Iz šablona" stay).
     html += card(tr('Planning'), [
       moreRow('goals', 'ph-target', tr('Goals'), count((state.goals || []).filter(goal => goal.status === 'active'))),
-      moreRow('areas', 'ph-squares-four', tr('Areas'), count((state.areas || []).filter(area => area.status !== 'archived'))),
+      moreRow('projects', 'ph-folder', tr('Projects'), count(state.projects.filter(project => !project.isArchived && !project.isCleaningRoom))),
       moreRow('cleaning', 'ph-arrows-clockwise', tr('Recurring tasks'), count(state.tasks.filter(isOpenRepeating))),
-      moreRow('review', 'ph-clipboard-text', tr('Weekly review'), '', reviewNote),
+      moreRow('areas', 'ph-squares-four', tr('Areas'), count((state.areas || []).filter(area => area.status !== 'archived'))),
     ]);
     html += card(tr('Library'), [
       moreRow('notes', 'ph-note', tr('Notes'), count(state.notes)),
       moreRow('journal', 'ph-book-open', tr('Journal'), count(state.journal)),
       moreRow('resources', 'ph-link', tr('Resources'), count(state.resources)),
       moreRow('tags', 'ph-tag', tr('Tags'), count(state.tags)),
-      moreRow('templates', 'ph-copy', tr('Templates'), count(state.templates)),
+      moreRow('review', 'ph-clipboard-text', tr('Weekly review'), '', reviewNote),
       moreRow('saved-views', 'ph-funnel', tr('Saved Views'), count(state.savedViews)),
     ]);
     html += card(tr('Archives'), [
@@ -2464,7 +2470,9 @@
   // button and Otkaži as full-width buttons. On a phone it opens at the bottom like every other window.
   function renderConfirmModal() {
     const phrase = modalState.phrase ? `<label class="sheet-label" for="global-confirm-phrase">${tr('Type {word} to continue', { word: esc(modalState.phrase) })}<input id="global-confirm-phrase" class="input" autocomplete="off" autocapitalize="characters" spellcheck="false" /></label>` : '';
-    return modalFrame(`<div class="modal-inner quick-sheet choice-window confirm-window"><div class="modal-header"><h2 class="modal-title">${esc(tr(modalState.title))}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close dialog')}"><i class="ph ph-x"></i></button></div>${modalState.message ? `<p class="dialog-copy">${esc(tr(modalState.message, modalState.messageParams))}</p>` : ''}${phrase}<div class="sheet-actions"><button class="btn ${modalState.confirmKind === 'primary' ? 'btn-primary' : 'btn-danger'}" type="button" data-action="confirm-action">${esc(tr(modalState.confirmLabel || msg('Delete')))}</button><button class="btn btn-secondary" type="button" data-action="close-modal">${tr('Cancel')}</button></div></div>`, 'quick confirm-modal');
+    // R75: a backup with a sealed journal asks for the journal password next to the typed word.
+    const journal = modalState.journalPassword ? `<label class="sheet-label" for="global-confirm-journal-password">${tr('Journal password')}<input id="global-confirm-journal-password" class="input" type="password" autocomplete="off" /></label>` : '';
+    return modalFrame(`<div class="modal-inner quick-sheet choice-window confirm-window"><div class="modal-header"><h2 class="modal-title">${esc(tr(modalState.title))}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close dialog')}"><i class="ph ph-x"></i></button></div>${modalState.message ? `<p class="dialog-copy">${esc(tr(modalState.message, modalState.messageParams))}</p>` : ''}${phrase}${journal}<div class="sheet-actions"><button class="btn ${modalState.confirmKind === 'primary' ? 'btn-primary' : 'btn-danger'}" type="button" data-action="confirm-action">${esc(tr(modalState.confirmLabel || msg('Delete')))}</button><button class="btn btn-secondary" type="button" data-action="close-modal">${tr('Cancel')}</button></div></div>`, 'quick confirm-modal');
   }
 
 
@@ -4023,7 +4031,7 @@
     const spoken = toastMessage || (undoState ? tr(undoState.message) : '') || globalRecoveryNotice?.message || '';
     if (status && status.textContent !== spoken) status.textContent = spoken;
     const undo = undoState ? `<div class="toast"><i class="ph-fill ph-check-circle toast-icon"></i><span class="toast-message">${esc(tr(undoState.message))}</span><button class="toast-action" type="button" data-action="undo">${tr('Undo')}</button></div>` : '';
-    const info = toastMessage ? `<div class="toast"><i class="ph ph-info toast-icon" style="color:var(--info)"></i><span class="toast-message">${esc(toastMessage)}</span>${toastLink ? `<button class="toast-action" type="button" data-action="toast-open-task" data-task-id="${esc(toastLink.taskId)}">${esc(tr(toastLink.label))}</button>` : ''}</div>` : '';
+    const info = toastMessage ? `<div class="toast"><i class="ph ph-info toast-icon" style="color:var(--info)"></i><span class="toast-message">${esc(toastMessage)}</span>${toastLink ? (toastLink.href ? `<a class="toast-action" href="${esc(toastLink.href)}" target="_blank" rel="noopener">${esc(tr(toastLink.label))}</a>` : `<button class="toast-action" type="button" data-action="toast-open-task" data-task-id="${esc(toastLink.taskId)}">${esc(tr(toastLink.label))}</button>`) : ''}</div>` : '';
     const failed = [...failedDeleteSnapshots][0];
     const recoveryNotice = failed && !undoHold ? `<div class="toast" role="alert"><i class="ph ph-warning toast-icon"></i><span class="toast-message">${esc(trMessage(failed.recoveryError))} · ${tr('Snapshot retained')}</span><button class="toast-action" type="button" data-action="retry-delete-recovery">${tr('Retry recovery')}</button></div>` : '';
     const globalNotice = globalRecoveryNotice ? `<div class="toast" role="alert"><span class="toast-message">${esc(globalRecoveryNotice.message)}</span><button class="toast-action" data-action="retry-global-recovery">${tr('Retry')}</button></div>` : '';
@@ -4485,8 +4493,22 @@
     return Boolean(modalState || undoState || undoHold || textSaveTimer || dragState || editingText());
   }
 
+  // R80: Još shows the sync state too; elsewhere only the tab's dot and the sidebar line follow it.
   function refreshSyncCard() {
-    if (['settings', 'account'].includes(currentRoute().type) && !editingText()) render();
+    if (['settings', 'account', 'more'].includes(currentRoute().type) && !editingText()) render();
+    else { renderMobileBottomNav(); renderSidebar(); }
+  }
+
+  // R80: one line for the sync state on the phone (Još → Nalog, the tab's dot) and the computer (the sidebar).
+  function syncStatus() {
+    const sync = syncView();
+    if (!sync.configured) return { state: 'off', text: tr('Data is on this device only') };
+    if (!sync.signedIn) return { state: 'signed-out', text: tr('Not signed in') };
+    if (sync.running) return { state: 'running', text: tr('Syncing…') };
+    if (globalThis.navigator?.onLine === false) return { state: 'offline', text: tr('Waiting for a connection') };
+    if (sync.lastError) return { state: 'error', text: tr('Sync failed — see Account.') };
+    if (sync.lastSyncAt) return { state: 'ok', text: tr('Synced {time}', { time: new Date(sync.lastSyncAt).toLocaleTimeString(I18n.locale(), { hour: '2-digit', minute: '2-digit' }) }) };
+    return { state: 'ok', text: sync.email };
   }
 
   function scheduleSync(delay = 3000) {
@@ -5132,7 +5154,9 @@
   function startSync() {
     if (!syncClient) return;
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') scheduleSync(500); else liveSync?.disconnect(); });
-    window.addEventListener('online', () => scheduleSync(500));
+    window.addEventListener('online', () => { scheduleSync(500); refreshSyncCard(); });
+    // R80: losing the connection shows "Čeka se veza" at once.
+    window.addEventListener('offline', () => refreshSyncCard());
     setInterval(() => scheduleSync(0), 5 * 60 * 1000);
     scheduleSync(1000);
   }
@@ -5326,7 +5350,7 @@
     if (!Backup || !Attachments) { updateBackupStatus({ snapshotAvailable, validationResult: msg('Export failed: backup is unavailable') }, source); setToastMessage(tr('Backup is unavailable in this browser')); return; }
     setToastMessage(tr('Preparing backup...'));
     try {
-      const blob = await Backup.exportBackupV3(state, TodoStorage, nowIso());
+      const blob = await Backup.exportBackupV3(state, TodoStorage, nowIso(), await journalBackupOptions());
       // In the app the share sheet can be cancelled; only a delivered file counts as an export (audit P-2).
       if (await downloadBackup(blob) === 'cancelled') {
         updateBackupStatus({ snapshotAvailable: await hasRetainedRecoverySnapshot(snapshotAvailable), validationResult: msg('Export cancelled') }, source);
@@ -5468,7 +5492,7 @@
   }
 
   async function abandonGlobalOperation(op, message = msg('Operation canceled. Existing data was kept.'), statusPatch = null) {
-    if (op.busy) return;
+    if (op.busy) { if (op.unlocking) op.cancelRequested = true; return; }
     op.busy = true;
     const returnFocus = modalReturnFocus;
     modalState = null; renderModal();
@@ -5533,6 +5557,48 @@
     return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase();
   }
 
+  // R75: the key for a backup's cipher when this device already has it (the same salt), or null.
+  async function storedJournalKeyFor(cipher) {
+    const stored = journalCipherStored();
+    if (!Sync?.journalCipherValid?.(cipher) || stored?.salt !== cipher.salt || typeof stored.key !== 'string') return null;
+    try { return await Sync.importJournalKey(stored.key); } catch (_) { return null; }
+  }
+
+  // R75: with the encrypted journal on and its key on this device, every ZIP the app writes carries the journal sealed.
+  async function journalBackupOptions() {
+    if (!state?.settings?.journalCipher) return {};
+    const key = await deviceJournalKey();
+    return key ? { sealJournal: async item => (await Sync.sealJournalRecord(key, { data: item })).data } : {};
+  }
+
+  // R75: opens a backup's sealed journal with a key and puts it into the state to restore; throws when it does not open.
+  async function openRestoredJournal(op, key) {
+    const entries = await Backup.openJournalEntries(op.sealedJournal, sealed => Sync.openJournalData(key, sealed));
+    if (!entries) throw new Error(msg('The journal in this backup could not be opened.'));
+    const next = { ...op.validated.state, journal: [...(op.validated.state.journal || []), ...entries] };
+    Backup.validateDomain(next, op.validated.habitLogs, op.validated.goalHistory);
+    op.validated.state = JSON.parse(compactState(normalizeState(next)));
+    op.journalOpened = entries.length;
+    op.journalKey = key; op.sealedJournal = [];
+  }
+
+  // R75: the journal password typed in the restore window opens the sealed journal; without one the rest is restored.
+  async function unlockRestoredJournal(op) {
+    const password = $('#global-confirm-journal-password')?.value || '';
+    if (!password) { op.journalSkipped = true; return true; }
+    // R78: the check can take seconds on a phone; the window says so, and Otkaži meanwhile is kept for afterwards.
+    op.busy = true; op.unlocking = true;
+    setToastMessage(tr('Checking the journal password…'));
+    try {
+      const key = await Sync.unlockJournalCipher(op.validated.state.settings.journalCipher, password);
+      if (!key) { setToastMessage(tr('The journal password is wrong.')); return false; }
+      await openRestoredJournal(op, key);
+      op.journalSkipped = false;
+      return true;
+    } catch (error) { setToastMessage(trMessage(error.message)); return false; }
+    finally { op.unlocking = false; op.busy = false; }
+  }
+
   async function beginGlobalOperation(reason, file = null, selection = null) {
     if (globalOperation) return;
     await (startupPromise || Promise.resolve());
@@ -5547,7 +5613,7 @@
       op.payload = await TodoStorage.captureUserData(); assertGlobalSource(op);
       const frozenStorage = { attachments: { getMany: async ids => op.payload.attachments.filter(record => ids.includes(record.id)) },
         habitLogs: { listAll: async () => op.payload.habitLogs }, goalHistory: { listAll: async () => op.payload.goalHistory } };
-      const blob = await Backup.exportBackupV3(JSON.parse(op.stateText), frozenStorage, nowIso());
+      const blob = await Backup.exportBackupV3(JSON.parse(op.stateText), frozenStorage, nowIso(), await journalBackupOptions());
       assertGlobalSource(op);
       if (!(await TodoStorage.sameUserData(await TodoStorage.captureUserData(), op.payload))) throw new Error(msg('Stored data changed during export. Retry.'));
       assertGlobalSource(op);
@@ -5559,6 +5625,10 @@
       op.validated = selection ? Backup.prepareSelectiveRestore({ state: JSON.parse(op.stateText), attachmentRecords: op.payload.attachments, habitLogs: op.payload.habitLogs, goalHistory: op.payload.goalHistory }, selection.snapshot, selection.collection, selection.id)
         : reason === 'restore' ? structuredClone(await Backup.inspectBackupV3(file))
         : { state: createEmptyState(), attachmentRecords: [], habitLogs: [], goalHistory: [] };
+      // R75: a sealed journal opens with this device's key for the backup's cipher, or with the password at confirmation.
+      op.sealedJournal = op.validated.sealedJournal || []; delete op.validated.sealedJournal;
+      const storedKey = op.sealedJournal.length ? await storedJournalKeyFor(op.validated.state.settings?.journalCipher) : null;
+      if (storedKey) await openRestoredJournal(op, storedKey);
       op.validated.state = JSON.parse(compactState(normalizeState(op.validated.state)));
       assertGlobalSource(op);
       updateBackupStatus({ snapshotAvailable: true, validationResult: reason === 'restore' ? msg('Backup validated and recovery copy ready') : msg('Recovery copy ready') }, op);
@@ -5568,8 +5638,10 @@
       const selectedItem = selection && op.validated.state[selection.collection].find(item => item.id === selection.id);
       const summary = selection ? tr('Restore “{name}” and its owned files/history. Other records stay current. Undo is available until further data changes.', { name: selectedItem.title || selectedItem.name })
         : reason === 'restore' ? tr('{tasks} tasks, {projects} projects, {goals} Goals, {habits} Habits, {notes} Notes, {resources} Resources, {files} files, {logs} logs and {events} history events will be restored.', { tasks: op.validated.state.tasks.length, projects: op.validated.state.projects.length, goals: op.validated.state.goals.length, habits: op.validated.state.habits.length, notes: op.validated.state.notes.length, resources: op.validated.state.resources.length, files: op.validated.attachmentRecords.length, logs: op.validated.habitLogs.length, events: op.validated.goalHistory.length }) : '';
-      openConfirm({ title: reason === 'reset' ? msg('Reset all app data?') : selection ? msg('Restore selected entity?') : msg('Restore backup?'), message: [tr('A safety ZIP was downloaded and an internal recovery copy was created.'), summary].filter(Boolean).join(' '),
-        phrase: CONFIRM_WORDS[reason], confirmLabel: reason === 'reset' ? msg('Reset app') : msg('Restore backup'),
+      const journalNote = op.journalKey ? tr('The encrypted journal ({count} entries) opens with the key on this device.', { count: op.journalOpened })
+        : op.sealedJournal.length ? tr('The journal in this backup is encrypted ({count} entries). Enter the journal password to restore it too; without it everything else is restored.', { count: op.sealedJournal.length }) : '';
+      openConfirm({ title: reason === 'reset' ? msg('Reset all app data?') : selection ? msg('Restore selected entity?') : msg('Restore backup?'), message: [tr('A safety ZIP was downloaded and an internal recovery copy was created.'), summary, journalNote].filter(Boolean).join(' '),
+        phrase: CONFIRM_WORDS[reason], journalPassword: op.sealedJournal.length > 0, confirmLabel: reason === 'reset' ? msg('Reset app') : msg('Restore backup'),
         onConfirm: () => commitGlobalOperation(op), onCancel: () => abandonGlobalOperation(op) });
     } catch (error) { await abandonGlobalOperation(op, tr('Safety preparation failed: {error}. Nothing was replaced. Retry the operation.', { error: trMessage(error.message) }), { snapshotAvailable: false, validationResult: `${msg('Recovery preparation failed')}: ${error.message}` }); }
   }
@@ -5632,6 +5704,13 @@
   async function commitGlobalOperation(op) {
     if (globalOperation !== op || op.busy) return;
     if (plainWord($('#global-confirm-phrase')?.value) !== plainWord(CONFIRM_WORDS[op.reason])) { setToastMessage(tr('Type {word} exactly to continue.', { word: CONFIRM_WORDS[op.reason] })); return; }
+    if (op.sealedJournal?.length) {
+      const unlocked = await unlockRestoredJournal(op);
+      // R78: Otkaži pressed while the password was checked wins once the check ends; nothing is replaced.
+      if (op.cancelRequested) { await abandonGlobalOperation(op); return; }
+      if (!unlocked) return;
+    }
+    if (globalOperation !== op || op.busy) return;
     op.busy = true;
     let mutationStarted = false;
     try {
@@ -5657,6 +5736,7 @@
       if (globalThis.DailoPlatform?.isNative) scheduleDurableMirror();
       const committedSource = captureStatusSource();
       globalOperation = phaseError ? op : null; renderModal(); location.hash = '#today'; render();
+      if (op.journalKey && state.settings?.journalCipher) await storeJournalKey(state.settings.journalCipher.salt, op.journalKey);
       try {
         if (phaseError) throw phaseError;
         if (op.selective) {
@@ -5665,7 +5745,7 @@
         } else {
           await cleanupGlobalSnapshot(op);
           updateBackupStatus({ lastImport: op.reason === 'restore' ? nowIso() : state.settings.backupStatus?.lastImport || null, snapshotAvailable: false, validationResult: op.reason === 'restore' ? msg('Import restored and verified') : msg('Reset verified') }, committedSource);
-          setToastMessage(op.reason === 'reset' ? tr('App data reset and verified.') : tr('Backup restored and verified.'));
+          setToastMessage(op.reason === 'reset' ? tr('App data reset and verified.') : op.journalSkipped ? tr('Backup restored without the encrypted journal.') : tr('Backup restored and verified.'));
         }
       }
       catch (error) { updateBackupStatus({ snapshotAvailable: true, validationResult: `${msg('Replacement verified; recovery cleanup failed')}: ${error.message}` }, committedSource); globalNotice(tr('New data is verified. Recovery copy cleanup failed: {error}. Retry cleanup.', { error: trMessage(error.message) }), async () => { await markGlobalSnapshot(op, 'committed'); await cleanupGlobalSnapshot(op); updateBackupStatus({ lastImport: op.reason === 'restore' ? nowIso() : state.settings.backupStatus?.lastImport || null, snapshotAvailable: false, validationResult: op.reason === 'restore' ? msg('Import restored and verified') : msg('Reset verified') }, committedSource); if (globalOperation === op) globalOperation = null; globalRecoveryNotice = null; renderToast(); }); }
@@ -5764,16 +5844,37 @@
       const at = new Date(Math.ceil((Date.parse(nowIso()) + 3600000) / 60000) * 60000).toISOString();
       task.reminderAt = at; task.updatedAt = nowIso();
       if (saveState()) { render(); setToastMessage(tr('Reminder moved to {time}', { time: formatReminder(at) })); }
+    } else if (kind === 'task' && action === 'tomorrow') {
+      const task = getTask(id); if (!task || task.isCompleted) return;
+      if (modalState?.type === 'task' && modalState.taskId === id) { flushTextSave(); closeModal(); }
+      planTaskForTomorrowFromNotification(id);
     } else if (kind === 'habit' && action === 'checkin') {
       const habit = getHabit(id); if (!habit) return;
       setHabitLog(id, Core.dateOnly(), 'done', habit.trackingType === 'numeric' ? habit.targetValue : null);
     }
   }
 
+  // R79: "Sutra" on a task notification plans the task for tomorrow, like the plan picker, and moves its own
+  // reminder to the same time tomorrow; a planned-time reminder follows the day by itself. A repeating task asks
+  // "this or future" through moveTaskToTomorrow, as the swipe does.
+  function planTaskForTomorrowFromNotification(taskId) {
+    const task = getTask(taskId); if (!task || task.isCompleted) return;
+    if (taskRecurrence(task)) { moveTaskToTomorrow(taskId); return; }
+    const tomorrow = Core.addDays(Core.dateOnly(), 1);
+    const at = task.reminderAt ? new Date(task.reminderAt) : null;
+    const reminderAt = at && Number.isFinite(at.getTime())
+      ? Core.combineDateTime(tomorrow, `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`) : task.reminderAt;
+    const prev = { plannedDate: task.plannedDate, isInbox: task.isInbox, todayOrder: task.todayOrder, reminderAt: task.reminderAt };
+    Object.assign(task, { plannedDate: tomorrow, isInbox: false, todayOrder: null, reminderAt, updatedAt: nowIso() });
+    if (!saveState()) { Object.assign(task, prev); return; }
+    render();
+    setUndo(msg('Task moved to Tomorrow'), () => { const current = getTask(taskId); if (!current) return; Object.assign(current, prev, { updatedAt: nowIso() }); saveState(); render(); });
+  }
+
   // R23: the buttons phone notifications carry, named in Serbian; "foreground" brings Dailo up to act.
   function notificationActionTypes() {
     return [
-      { id: 'dailo-task', actions: [{ id: 'complete', title: tr('Complete'), foreground: true }, { id: 'snooze', title: tr('Snooze 1 hour'), foreground: true }] },
+      { id: 'dailo-task', actions: [{ id: 'complete', title: tr('Complete'), foreground: true }, { id: 'snooze', title: tr('Snooze 1 hour'), foreground: true }, { id: 'tomorrow', title: tr('Tomorrow'), foreground: true }] },
       { id: 'dailo-habit', actions: [{ id: 'checkin', title: tr('Check in'), foreground: true }] },
     ];
   }
@@ -6691,8 +6792,9 @@
   }
 
   // Native durable mirror (audit M5): the canonical metadata text is also kept as a file in the app's Library
-  // directory, so a WebView store the system cleared can be restored at start. Habit logs, goal history and files
-  // stay in IndexedDB (and sync); the web has no mirror. Call sites check isNative inline, like the other platform hooks.
+  // directory, so a WebView store the system cleared can be restored at start. Since R76 habit logs and goal history
+  // have files too; attachments stay in IndexedDB (and sync); the web has no mirror. Call sites check isNative inline,
+  // like the other platform hooks.
   let mirrorTimer = null;
   function scheduleDurableMirror(delay = 1000) {
     if (!globalThis.DailoPlatform?.isNative) return;
@@ -6703,8 +6805,37 @@
     clearTimeout(mirrorTimer);
     mirrorTimer = null;
     const text = localStorage.getItem(STORAGE_KEY);
-    if (text && globalThis.DailoPlatform?.isNative) globalThis.DailoPlatform.durable.write(text).catch(console.error);
+    if (text && globalThis.DailoPlatform?.isNative) { globalThis.DailoPlatform.durable.write(text).catch(console.error); queueRecordsMirror(); }
     updateWidget();
+  }
+
+  // R76: habit logs and goal history live in IndexedDB, which the system can clear together with the WebView store.
+  // Each kind is written again only when its records changed; the runs are queued, so an older list never lands last.
+  const mirroredRecords = { habitLogs: null, goalHistory: null };
+  let recordsMirrorQueue = Promise.resolve();
+  function queueRecordsMirror() {
+    const durable = globalThis.DailoPlatform?.durable;
+    if (!durable?.writeRecords) return recordsMirrorQueue;
+    recordsMirrorQueue = recordsMirrorQueue.catch(() => {}).then(async () => {
+      for (const kind of ['habitLogs', 'goalHistory']) {
+        const text = JSON.stringify(await TodoStorage[kind].listAll());
+        if (text !== mirroredRecords[kind] && await durable.writeRecords(kind, text)) mirroredRecords[kind] = text;
+      }
+    }).catch(console.error);
+    return recordsMirrorQueue;
+  }
+  // R76: the records come back only with a restored metadata text, and only into empty stores, so they match it.
+  async function restoreRecordsMirror() {
+    const durable = globalThis.DailoPlatform?.durable;
+    if (!durable?.readRecords) return 0;
+    let restored = 0;
+    for (const kind of ['habitLogs', 'goalHistory']) {
+      try {
+        const records = await durable.readRecords(kind);
+        if (records?.length) restored += await TodoStorage[kind].fillEmpty(records);
+      } catch (error) { console.error(error); }
+    }
+    return restored;
   }
 
   // R28: the Android "Danas" widget gets a small snapshot after each change — today's open tasks, late ones first —
@@ -6741,7 +6872,41 @@
     const text = await platform.durable.read();
     if (!text) return false;
     localStorage.setItem(STORAGE_KEY, text);
+    await restoreRecordsMirror();
     return true;
+  }
+
+  // R82: the last errors on this device (device-local, at most 10) for "Prijavi problem": the time, the version, the
+  // file and line, and the message cleaned by Release.cleanErrorText — never the user's data. A repeat counts up.
+  const ERROR_LOG_KEY = 'dailoErrorLog';
+  function readErrorLog() {
+    try { const value = JSON.parse(localStorage.getItem(ERROR_LOG_KEY) || '[]'); return Array.isArray(value) ? value : []; } catch (_) { return []; }
+  }
+  function recordError(message, where) {
+    const text = Release.cleanErrorText ? Release.cleanErrorText(message) : '';
+    if (!text) return;
+    try {
+      const log = readErrorLog();
+      const place = String(where || '').split('/').pop().slice(0, 60);
+      if (log[0]?.message === text && log[0]?.where === place) log[0] = { ...log[0], at: new Date().toISOString(), count: (log[0].count || 1) + 1 };
+      else log.unshift({ at: new Date().toISOString(), version: Release.APP_VERSION, where: place, message: text, count: 1 });
+      localStorage.setItem(ERROR_LOG_KEY, JSON.stringify(log.slice(0, 10)));
+    } catch (_) { /* the log is only a help */ }
+  }
+  function captureErrors() {
+    window.addEventListener('error', event => recordError(event.message || event.error?.message, event.filename ? `${event.filename}:${event.lineno || ''}` : ''));
+    window.addEventListener('unhandledrejection', event => recordError(event.reason?.message || event.reason, ''));
+    const original = console.error.bind(console);
+    console.error = (...args) => { original(...args); recordError(args.map(arg => arg?.message || arg).join(' '), ''); };
+  }
+
+  // R81: after an update one toast says so and links "Šta je novo"; a first start only remembers the version. The
+  // version this device last started is device-local (outside state, backups and sync).
+  const SEEN_VERSION_KEY = 'dailoSeenVersion';
+  function announceUpdate() {
+    let seen;
+    try { seen = localStorage.getItem(SEEN_VERSION_KEY); localStorage.setItem(SEEN_VERSION_KEY, Release.APP_VERSION); } catch (_) { return; }
+    if (seen && seen !== Release.APP_VERSION) setToastMessage(tr('Dailo is updated to {version}.', { version: Release.APP_VERSION }), { href: 'novo.html', label: msg("What's new") });
   }
 
   // Typing and drafts are saved when the page is hidden or the app goes to the background: iOS can end a
@@ -6783,7 +6948,7 @@
     if (autoBackupRunning || !state || globalOperation || recovery || startupPromise || !Backup || !globalThis.DailoPlatform?.isNative) return false;
     autoBackupRunning = true;
     try {
-      const blob = await Backup.exportBackupV3(state, TodoStorage, nowIso());
+      const blob = await Backup.exportBackupV3(state, TodoStorage, nowIso(), await journalBackupOptions());
       const saved = await globalThis.DailoPlatform.files.saveBackupCopy(blob, `dailo-auto-${Core.dateOnly()}.zip`, { keep: 4, prefix: 'dailo-auto-' });
       writeAutoBackup({ lastAt: nowIso(), lastFile: `${saved.folder}/${saved.name}`, error: null });
       if (announce) setToastMessage(tr('Backup saved to {folder}', { folder: saved.folder }));
@@ -6850,7 +7015,7 @@
     platform.lifecycle.onResume(resumeApp);
     platform.lifecycle.onPause(lockJournalAgain);
     platform.backButton.setHandler(handleBackButton);
-    platform.links.interceptExternalLinks(document, { onlinePages: { 'uputstvo.html': Release.GUIDE_URL, 'uslovi.html': Release.TERMS_URL, 'privatnost.html': Release.PRIVACY_URL } });
+    platform.links.interceptExternalLinks(document, { onlinePages: { 'uputstvo.html': Release.GUIDE_URL, 'uslovi.html': Release.TERMS_URL, 'privatnost.html': Release.PRIVACY_URL, 'pitanja.html': Release.FAQ_URL, 'novo.html': Release.WHATS_NEW_URL } });
     platform.files.cleanupSharedFiles().catch(console.error);
     platform.notifications.setActionTypes?.(notificationActionTypes());
     platform.notifications.onOpen(openNotificationTarget);
@@ -6977,6 +7142,7 @@
   }
 
   async function init() {
+    captureErrors();
     applyTheme(readTheme());
     applyTextSize(readTextSize());
     attachEvents();
@@ -6986,6 +7152,7 @@
     try { restored = await restoreDurableMirror(); } catch (error) { console.error(error); }
     await startReady();
     if (restored && state) setToastMessage(tr('Your data was restored from the copy Dailo keeps on this device.'));
+    else if (state) announceUpdate();
     scheduleAutomaticSnapshot();
     startSync();
     updateStoragePersistence(false).catch(console.error);

@@ -332,7 +332,8 @@ test('the app wires sync into saving, startup, dialogs, actions and the domain c
   }
   assert.match(app, /syncView,/, 'Settings reads the sync view from the domain context');
   assert.match(app, /visibilitychange[\s\S]*?scheduleSync\(500\)/);
-  assert.match(app, /addEventListener\('online', \(\) => scheduleSync\(500\)\)/);
+  // R80: coming back online also refreshes the sync line.
+  assert.match(app, /addEventListener\('online', \(\) => \{ scheduleSync\(500\); refreshSyncCard\(\); \}\)/);
   assert.match(app, /setInterval\(\(\) => scheduleSync\(0\), 5 \* 60 \* 1000\)/);
 });
 

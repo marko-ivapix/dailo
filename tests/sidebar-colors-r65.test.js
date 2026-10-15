@@ -25,7 +25,8 @@ function sidebar(projects) {
   vm.runInContext(read('js/sidebar-ui.js'), context);
   const ctx = {
     state: { savedViews: [], notes: [] }, Core, esc, currentRoute: () => ({ type: 'today' }), bottomNavRoute: () => 'today',
-    listTasks: () => [], activeInboxRecords: () => [], syncView: () => ({ configured: false }),
+    // R80: the Još tile and the sidebar take their sync line from syncStatus.
+    listTasks: () => [], activeInboxRecords: () => [], syncView: () => ({ configured: false }), syncStatus: () => ({ state: 'off', text: 'Data is on this device only' }),
     sortedAreas: () => [], sortedProjects: () => projects, projectTasks: () => [],
   };
   return module.renderRoute({ type: 'sidebar' }, ctx);

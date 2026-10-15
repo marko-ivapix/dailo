@@ -686,11 +686,23 @@
     "Reset": "Resetuj",
     "About": "O aplikaciji",
     "Report a problem": "Prijavi problem",
-    "Opens an e-mail with the app version and device details. Your data is not attached.": "Otvara e-poruku sa verzijom aplikacije i podacima o uređaju. Tvoji podaci se ne prilažu.",
+    "Opens an e-mail with the app version, device details and recent errors. Your data is not attached.": "Otvara e-poruku sa verzijom aplikacije, podacima o uređaju i poslednjim greškama. Tvoji podaci se ne prilažu.",
+    // R82: the last errors in a problem report
+    "Recent errors (no personal data):": "Poslednje greške (bez ličnih podataka):",
+    "none": "nema",
     "Privacy": "Privatnost",
     "Your data stays only on this device. Dailo has no server or account.": "Tvoji podaci ostaju samo na ovom uređaju. Dailo nema server ni nalog.",
     "How to install Dailo, keep backups and report problems.": "Kako se Dailo instalira, kako se čuvaju rezervne kopije i kako se prijavljuje problem.",
     "Open guide": "Otvori uputstvo",
+    // R73: the Česta pitanja page in Podešavanja → Pomoć.
+    "FAQ": "Česta pitanja",
+    "Short answers about the account, your data, backups, reminders and gestures.": "Kratki odgovori o nalogu, podacima, rezervnim kopijama, podsetnicima i pokretima.",
+    "Open FAQ": "Otvori pitanja",
+    // R81: Šta je novo
+    "What's new": "Šta je novo",
+    "The changes in recent versions, in short.": "Ukratko, šta se promenilo u poslednjim verzijama.",
+    "See what's new": "Pogledaj novo",
+    "Dailo is updated to {version}.": "Dailo je ažuriran na {version}.",
 
     // Calendar and task rows / Task Properties (js/calendar-ui.js, js/tasks-ui.js)
     "Done": "Urađeno",
@@ -951,6 +963,12 @@
     "The journal will go to the server readable again, and every device forgets the journal password.": "Dnevnik će se na server ponovo slati nešifrovan, a svi uređaji zaboravljaju lozinku dnevnika.",
     "Sync is running. Try again in a moment.": "Sinhronizacija je u toku. Pokušaj ponovo za trenutak.",
     "The journal password is wrong.": "Lozinka dnevnika nije tačna.",
+    // R75: the encrypted journal in ZIP backups
+    "The journal in this backup is encrypted ({count} entries). Enter the journal password to restore it too; without it everything else is restored.": "Dnevnik u ovoj kopiji je šifrovan (unosa: {count}). Upiši lozinku dnevnika da se vrati i on; bez nje se vraća sve ostalo.",
+    "The encrypted journal ({count} entries) opens with the key on this device.": "Šifrovan dnevnik (unosa: {count}) otvara se ključem sa ovog uređaja.",
+    "The journal in this backup could not be opened.": "Dnevnik iz ove kopije nije mogao da se otvori.",
+    "Backup restored without the encrypted journal.": "Rezervna kopija je vraćena bez šifrovanog dnevnika.",
+    "Checking the journal password…": "Proveravam lozinku dnevnika…",
     "The journal is encrypted. The server sees only ciphertext.": "Dnevnik je šifrovan. Server vidi samo šifrovan tekst.",
     "The journal is unlocked on this device.": "Dnevnik je otključan na ovom uređaju.",
     "Journal encryption is off.": "Šifrovanje dnevnika je isključeno.",
@@ -1741,6 +1759,8 @@
     "Everything stays only on this device. Backups are in Settings → Data.": "Sve ostaje samo na ovom uređaju. Rezervne kopije su u Podešavanja → Podaci.",
     "Last sync": "Poslednja sinhronizacija",
     "Syncing…": "Sinhronizacija u toku…",
+    "Waiting for a connection": "Čeka se veza",
+    "Sync failed — see Account.": "Sinhronizacija nije uspela — pogledaj Nalog.",
     "Sync now": "Sinhronizuj sada",
     "Sign out": "Odjavi se",
     "Code from the e-mail": "Kod iz e-poruke",
