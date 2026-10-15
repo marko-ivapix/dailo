@@ -77,6 +77,9 @@
     validateDomain(state, habitLogs, goalHistory);
     validateIds(state, records);
     root.TodoStorage.verifyAttachmentReferences(state, records);
+    // R75: with the encrypted journal on and its key at hand, the journal travels sealed ({ id, date, sealed }), the
+    // way sync sends it. The readable entries were validated above; the key never enters a backup.
+    if (options.sealJournal && state.settings?.journalCipher && state.journal?.length) state.journal = await Promise.all(state.journal.map(item => options.sealJournal(item)));
     // The import would refuse anything over these limits, so the export stops first (audit E-1).
     const attachmentBytes = records.reduce((sum, record) => sum + (Number(record.blob?.size ?? record.size) || 0), 0);
     if (records.length + 1 > limits.maxZipEntries) throw new Error(`${msg('Backup exceeds ZIP entry limit')}: ${limits.maxZipEntries}`);
@@ -416,6 +419,40 @@
     });
   }
 
+  // R75: sealed journal entries leave the state before validation and come back only when opened with the journal key.
+  // Each is exactly { id, date, sealed: { v: 1, iv, ct } }, needs the backup's journalCipher, and a day appears once.
+  function takeSealedJournal(data) {
+    if (!Array.isArray(data?.journal)) return [];
+    const isSealed = item => item && typeof item === 'object' && !Array.isArray(item) && 'sealed' in item;
+    const sealed = data.journal.filter(isSealed);
+    if (!sealed.length) return [];
+    const fail = () => { throw new Error(`${msg('Invalid backup')}: journal`); };
+    const base64 = (value, length) => typeof value === 'string' && value.length % 4 === 0 && /^[A-Za-z0-9+/]+={0,2}$/.test(value)
+      && (length == null || Math.floor(value.length * 3 / 4) - (value.endsWith('==') ? 2 : value.endsWith('=') ? 1 : 0) === length);
+    if (!data.settings?.journalCipher) fail();
+    const days = new Set(data.journal.filter(item => !isSealed(item)).map(item => item?.date));
+    for (const item of sealed) {
+      const box = item.sealed;
+      if (Object.keys(item).sort().join() !== 'date,id,sealed' || typeof item.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(item.date)
+        || item.id !== root.TodoCore.journalEntryId(item.date) || days.has(item.date)
+        || !box || typeof box !== 'object' || box.v !== 1 || !base64(box.iv, 12) || !base64(box.ct)) fail();
+      days.add(item.date);
+    }
+    data.journal = data.journal.filter(item => !isSealed(item));
+    return sealed;
+  }
+
+  // R75: opens every sealed entry with the given opener (Sync.openJournalData with a key); null if any does not open.
+  async function openJournalEntries(sealed, open) {
+    const entries = [];
+    for (const item of sealed || []) {
+      const entry = await open(item);
+      if (!entry) return null;
+      entries.push(entry);
+    }
+    return entries;
+  }
+
   async function inspectBackupV3(fileOrBlob, options = {}) {
     const limits = limitOptions(options);
     const JSZip = requireZip();
@@ -439,6 +476,7 @@
     }
     if (!manifest || ![1, 2, BACKUP_VERSION].includes(manifest.backupVersion)) throw new Error(msg('Unsupported backup version'));
     if (manifest.backupVersion >= 2 && manifest.data?.version !== 3) throw new Error(msg('Invalid V3 backup state'));
+    const sealedJournal = manifest.backupVersion >= 2 ? takeSealedJournal(manifest.data) : [];
     if (manifest.backupVersion >= 2) validateDomain(manifest.data, manifest.habitLogs, manifest.goalHistory);
     if (!Array.isArray(manifest.attachments)) throw new Error(msg('Invalid attachment manifest'));
     if (manifest.attachments.length > limits.maxAttachments) throw new Error(`${msg('Backup exceeds attachment count limit')}: ${limits.maxAttachments}`);
@@ -490,7 +528,8 @@
       attachmentRecords: records,
       habitLogs,
       goalHistory,
-      summary: { exportedAt: manifest.exportedAt, tasks: state.tasks.length, projects: state.projects.length, tags: state.tags.length, goals: state.goals.length, habits: state.habits.length, notes: state.notes.length, resources: state.resources.length, attachments: records.length, habitLogs: habitLogs.length, goalHistory: goalHistory.length, totalSize, ...(repair.warnings.length ? { warnings: repair.warnings } : {}) }
+      sealedJournal,
+      summary: { exportedAt: manifest.exportedAt, ...(sealedJournal.length ? { sealedJournal: sealedJournal.length } : {}), tasks: state.tasks.length, projects: state.projects.length, tags: state.tags.length, goals: state.goals.length, habits: state.habits.length, notes: state.notes.length, resources: state.resources.length, attachments: records.length, habitLogs: habitLogs.length, goalHistory: goalHistory.length, totalSize, ...(repair.warnings.length ? { warnings: repair.warnings } : {}) }
     };
   }
 
@@ -596,5 +635,5 @@
     }
   }
 
-  return { BACKUP_VERSION, LIMITS, exportBackup, inspectBackup, exportBackupV3, inspectBackupV3, prepareSelectiveRestore, restoreBackup, validateDomain, safeName };
+  return { BACKUP_VERSION, LIMITS, exportBackup, inspectBackup, exportBackupV3, inspectBackupV3, openJournalEntries, prepareSelectiveRestore, restoreBackup, validateDomain, safeName };
 });

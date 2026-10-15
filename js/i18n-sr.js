@@ -955,6 +955,11 @@
     "The journal will go to the server readable again, and every device forgets the journal password.": "Dnevnik će se na server ponovo slati nešifrovan, a svi uređaji zaboravljaju lozinku dnevnika.",
     "Sync is running. Try again in a moment.": "Sinhronizacija je u toku. Pokušaj ponovo za trenutak.",
     "The journal password is wrong.": "Lozinka dnevnika nije tačna.",
+    // R75: the encrypted journal in ZIP backups
+    "The journal in this backup is encrypted ({count} entries). Enter the journal password to restore it too; without it everything else is restored.": "Dnevnik u ovoj kopiji je šifrovan (unosa: {count}). Upiši lozinku dnevnika da se vrati i on; bez nje se vraća sve ostalo.",
+    "The encrypted journal ({count} entries) opens with the key on this device.": "Šifrovan dnevnik (unosa: {count}) otvara se ključem sa ovog uređaja.",
+    "The journal in this backup could not be opened.": "Dnevnik iz ove kopije nije mogao da se otvori.",
+    "Backup restored without the encrypted journal.": "Rezervna kopija je vraćena bez šifrovanog dnevnika.",
     "The journal is encrypted. The server sees only ciphertext.": "Dnevnik je šifrovan. Server vidi samo šifrovan tekst.",
     "The journal is unlocked on this device.": "Dnevnik je otključan na ovom uređaju.",
     "Journal encryption is off.": "Šifrovanje dnevnika je isključeno.",

@@ -49,7 +49,8 @@ function harness({ meta = null, native = true, busy = false } = {}) {
   });
   ctx.globalThis = ctx;
   vm.createContext(ctx);
-  vm.runInContext(`${app.match(/const AUTO_BACKUP_KEY = [^\n]+/)[0]}\nlet autoBackupRunning = false;\n${['readAutoBackup', 'writeAutoBackup', 'autoBackupDue', 'runAutoBackup'].map(fn).join('\n')}`, ctx);
+  // R75: the run asks journalBackupOptions whether to seal the journal; without a journal cipher it seals nothing.
+  vm.runInContext(`${app.match(/const AUTO_BACKUP_KEY = [^\n]+/)[0]}\nlet autoBackupRunning = false;\n${['readAutoBackup', 'writeAutoBackup', 'autoBackupDue', 'runAutoBackup', 'journalBackupOptions'].map(fn).join('\n')}`, ctx);
   return { ctx, calls, storage };
 }
 

@@ -80,8 +80,7 @@ test('reporting a problem goes through Podešavanja → Pomoć and the FAQ is li
   assert.ok(report.includes('href="pitanja.html"'));
 });
 
-test('R74 is released as 2.0.0-alpha.101', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.101');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.101';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.101');
+test('R74 shipped as 2.0.0-alpha.101 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 101) >= 101);
 });

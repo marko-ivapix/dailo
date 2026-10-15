@@ -61,7 +61,7 @@ A device on alpha.77 or older does not know `sealed`. It shows a sealed entry as
 
 ## Backups
 
-- **ZIP backups:** they contain the readable journal (local data) and `settings.journalCipher`.
+- **ZIP backups:** they contain the readable journal (local data) and `settings.journalCipher`. *Changed in R75 (`2026-10-15-r75-backup-journal-sealed.md`): with the key on the exporting device, the journal in the ZIP is sealed.*
 - **Validation:** `Backup.validateDomain` accepts a missing setting or a well-formed one (`v` 1, base64 salt, integer iterations 1,000–10,000,000 (the app uses 600,000; the lower bound only checks the shape), `check` with `iv` and `ct`), and rejects anything else.
 - **Import:** a backup restored on another device brings the setting with it, so that device is locked until the password is entered.
 

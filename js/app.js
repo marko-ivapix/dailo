@@ -2466,7 +2466,9 @@
   // button and Otkaži as full-width buttons. On a phone it opens at the bottom like every other window.
   function renderConfirmModal() {
     const phrase = modalState.phrase ? `<label class="sheet-label" for="global-confirm-phrase">${tr('Type {word} to continue', { word: esc(modalState.phrase) })}<input id="global-confirm-phrase" class="input" autocomplete="off" autocapitalize="characters" spellcheck="false" /></label>` : '';
-    return modalFrame(`<div class="modal-inner quick-sheet choice-window confirm-window"><div class="modal-header"><h2 class="modal-title">${esc(tr(modalState.title))}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close dialog')}"><i class="ph ph-x"></i></button></div>${modalState.message ? `<p class="dialog-copy">${esc(tr(modalState.message, modalState.messageParams))}</p>` : ''}${phrase}<div class="sheet-actions"><button class="btn ${modalState.confirmKind === 'primary' ? 'btn-primary' : 'btn-danger'}" type="button" data-action="confirm-action">${esc(tr(modalState.confirmLabel || msg('Delete')))}</button><button class="btn btn-secondary" type="button" data-action="close-modal">${tr('Cancel')}</button></div></div>`, 'quick confirm-modal');
+    // R75: a backup with a sealed journal asks for the journal password next to the typed word.
+    const journal = modalState.journalPassword ? `<label class="sheet-label" for="global-confirm-journal-password">${tr('Journal password')}<input id="global-confirm-journal-password" class="input" type="password" autocomplete="off" /></label>` : '';
+    return modalFrame(`<div class="modal-inner quick-sheet choice-window confirm-window"><div class="modal-header"><h2 class="modal-title">${esc(tr(modalState.title))}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close dialog')}"><i class="ph ph-x"></i></button></div>${modalState.message ? `<p class="dialog-copy">${esc(tr(modalState.message, modalState.messageParams))}</p>` : ''}${phrase}${journal}<div class="sheet-actions"><button class="btn ${modalState.confirmKind === 'primary' ? 'btn-primary' : 'btn-danger'}" type="button" data-action="confirm-action">${esc(tr(modalState.confirmLabel || msg('Delete')))}</button><button class="btn btn-secondary" type="button" data-action="close-modal">${tr('Cancel')}</button></div></div>`, 'quick confirm-modal');
   }
 
 
@@ -5328,7 +5330,7 @@
     if (!Backup || !Attachments) { updateBackupStatus({ snapshotAvailable, validationResult: msg('Export failed: backup is unavailable') }, source); setToastMessage(tr('Backup is unavailable in this browser')); return; }
     setToastMessage(tr('Preparing backup...'));
     try {
-      const blob = await Backup.exportBackupV3(state, TodoStorage, nowIso());
+      const blob = await Backup.exportBackupV3(state, TodoStorage, nowIso(), await journalBackupOptions());
       // In the app the share sheet can be cancelled; only a delivered file counts as an export (audit P-2).
       if (await downloadBackup(blob) === 'cancelled') {
         updateBackupStatus({ snapshotAvailable: await hasRetainedRecoverySnapshot(snapshotAvailable), validationResult: msg('Export cancelled') }, source);
@@ -5535,6 +5537,46 @@
     return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase();
   }
 
+  // R75: the key for a backup's cipher when this device already has it (the same salt), or null.
+  async function storedJournalKeyFor(cipher) {
+    const stored = journalCipherStored();
+    if (!Sync?.journalCipherValid?.(cipher) || stored?.salt !== cipher.salt || typeof stored.key !== 'string') return null;
+    try { return await Sync.importJournalKey(stored.key); } catch (_) { return null; }
+  }
+
+  // R75: with the encrypted journal on and its key on this device, every ZIP the app writes carries the journal sealed.
+  async function journalBackupOptions() {
+    if (!state?.settings?.journalCipher) return {};
+    const key = await deviceJournalKey();
+    return key ? { sealJournal: async item => (await Sync.sealJournalRecord(key, { data: item })).data } : {};
+  }
+
+  // R75: opens a backup's sealed journal with a key and puts it into the state to restore; throws when it does not open.
+  async function openRestoredJournal(op, key) {
+    const entries = await Backup.openJournalEntries(op.sealedJournal, sealed => Sync.openJournalData(key, sealed));
+    if (!entries) throw new Error(msg('The journal in this backup could not be opened.'));
+    const next = { ...op.validated.state, journal: [...(op.validated.state.journal || []), ...entries] };
+    Backup.validateDomain(next, op.validated.habitLogs, op.validated.goalHistory);
+    op.validated.state = JSON.parse(compactState(normalizeState(next)));
+    op.journalOpened = entries.length;
+    op.journalKey = key; op.sealedJournal = [];
+  }
+
+  // R75: the journal password typed in the restore window opens the sealed journal; without one the rest is restored.
+  async function unlockRestoredJournal(op) {
+    const password = $('#global-confirm-journal-password')?.value || '';
+    if (!password) { op.journalSkipped = true; return true; }
+    op.busy = true;
+    try {
+      const key = await Sync.unlockJournalCipher(op.validated.state.settings.journalCipher, password);
+      if (!key) { setToastMessage(tr('The journal password is wrong.')); return false; }
+      await openRestoredJournal(op, key);
+      op.journalSkipped = false;
+      return true;
+    } catch (error) { setToastMessage(trMessage(error.message)); return false; }
+    finally { op.busy = false; }
+  }
+
   async function beginGlobalOperation(reason, file = null, selection = null) {
     if (globalOperation) return;
     await (startupPromise || Promise.resolve());
@@ -5549,7 +5591,7 @@
       op.payload = await TodoStorage.captureUserData(); assertGlobalSource(op);
       const frozenStorage = { attachments: { getMany: async ids => op.payload.attachments.filter(record => ids.includes(record.id)) },
         habitLogs: { listAll: async () => op.payload.habitLogs }, goalHistory: { listAll: async () => op.payload.goalHistory } };
-      const blob = await Backup.exportBackupV3(JSON.parse(op.stateText), frozenStorage, nowIso());
+      const blob = await Backup.exportBackupV3(JSON.parse(op.stateText), frozenStorage, nowIso(), await journalBackupOptions());
       assertGlobalSource(op);
       if (!(await TodoStorage.sameUserData(await TodoStorage.captureUserData(), op.payload))) throw new Error(msg('Stored data changed during export. Retry.'));
       assertGlobalSource(op);
@@ -5561,6 +5603,10 @@
       op.validated = selection ? Backup.prepareSelectiveRestore({ state: JSON.parse(op.stateText), attachmentRecords: op.payload.attachments, habitLogs: op.payload.habitLogs, goalHistory: op.payload.goalHistory }, selection.snapshot, selection.collection, selection.id)
         : reason === 'restore' ? structuredClone(await Backup.inspectBackupV3(file))
         : { state: createEmptyState(), attachmentRecords: [], habitLogs: [], goalHistory: [] };
+      // R75: a sealed journal opens with this device's key for the backup's cipher, or with the password at confirmation.
+      op.sealedJournal = op.validated.sealedJournal || []; delete op.validated.sealedJournal;
+      const storedKey = op.sealedJournal.length ? await storedJournalKeyFor(op.validated.state.settings?.journalCipher) : null;
+      if (storedKey) await openRestoredJournal(op, storedKey);
       op.validated.state = JSON.parse(compactState(normalizeState(op.validated.state)));
       assertGlobalSource(op);
       updateBackupStatus({ snapshotAvailable: true, validationResult: reason === 'restore' ? msg('Backup validated and recovery copy ready') : msg('Recovery copy ready') }, op);
@@ -5570,8 +5616,10 @@
       const selectedItem = selection && op.validated.state[selection.collection].find(item => item.id === selection.id);
       const summary = selection ? tr('Restore “{name}” and its owned files/history. Other records stay current. Undo is available until further data changes.', { name: selectedItem.title || selectedItem.name })
         : reason === 'restore' ? tr('{tasks} tasks, {projects} projects, {goals} Goals, {habits} Habits, {notes} Notes, {resources} Resources, {files} files, {logs} logs and {events} history events will be restored.', { tasks: op.validated.state.tasks.length, projects: op.validated.state.projects.length, goals: op.validated.state.goals.length, habits: op.validated.state.habits.length, notes: op.validated.state.notes.length, resources: op.validated.state.resources.length, files: op.validated.attachmentRecords.length, logs: op.validated.habitLogs.length, events: op.validated.goalHistory.length }) : '';
-      openConfirm({ title: reason === 'reset' ? msg('Reset all app data?') : selection ? msg('Restore selected entity?') : msg('Restore backup?'), message: [tr('A safety ZIP was downloaded and an internal recovery copy was created.'), summary].filter(Boolean).join(' '),
-        phrase: CONFIRM_WORDS[reason], confirmLabel: reason === 'reset' ? msg('Reset app') : msg('Restore backup'),
+      const journalNote = op.journalKey ? tr('The encrypted journal ({count} entries) opens with the key on this device.', { count: op.journalOpened })
+        : op.sealedJournal.length ? tr('The journal in this backup is encrypted ({count} entries). Enter the journal password to restore it too; without it everything else is restored.', { count: op.sealedJournal.length }) : '';
+      openConfirm({ title: reason === 'reset' ? msg('Reset all app data?') : selection ? msg('Restore selected entity?') : msg('Restore backup?'), message: [tr('A safety ZIP was downloaded and an internal recovery copy was created.'), summary, journalNote].filter(Boolean).join(' '),
+        phrase: CONFIRM_WORDS[reason], journalPassword: op.sealedJournal.length > 0, confirmLabel: reason === 'reset' ? msg('Reset app') : msg('Restore backup'),
         onConfirm: () => commitGlobalOperation(op), onCancel: () => abandonGlobalOperation(op) });
     } catch (error) { await abandonGlobalOperation(op, tr('Safety preparation failed: {error}. Nothing was replaced. Retry the operation.', { error: trMessage(error.message) }), { snapshotAvailable: false, validationResult: `${msg('Recovery preparation failed')}: ${error.message}` }); }
   }
@@ -5634,6 +5682,8 @@
   async function commitGlobalOperation(op) {
     if (globalOperation !== op || op.busy) return;
     if (plainWord($('#global-confirm-phrase')?.value) !== plainWord(CONFIRM_WORDS[op.reason])) { setToastMessage(tr('Type {word} exactly to continue.', { word: CONFIRM_WORDS[op.reason] })); return; }
+    if (op.sealedJournal?.length && !(await unlockRestoredJournal(op))) return;
+    if (globalOperation !== op || op.busy) return;
     op.busy = true;
     let mutationStarted = false;
     try {
@@ -5657,6 +5707,7 @@
       state = normalizeState(op.validated.state); canonicalRaw = localStorage.getItem(STORAGE_KEY); recovery = null; modalState = null;
       if (!op.selective) forgetSyncShadow();
       if (globalThis.DailoPlatform?.isNative) scheduleDurableMirror();
+      if (op.journalKey) await storeJournalKey(state.settings.journalCipher.salt, op.journalKey);
       const committedSource = captureStatusSource();
       globalOperation = phaseError ? op : null; renderModal(); location.hash = '#today'; render();
       try {
@@ -5667,7 +5718,7 @@
         } else {
           await cleanupGlobalSnapshot(op);
           updateBackupStatus({ lastImport: op.reason === 'restore' ? nowIso() : state.settings.backupStatus?.lastImport || null, snapshotAvailable: false, validationResult: op.reason === 'restore' ? msg('Import restored and verified') : msg('Reset verified') }, committedSource);
-          setToastMessage(op.reason === 'reset' ? tr('App data reset and verified.') : tr('Backup restored and verified.'));
+          setToastMessage(op.reason === 'reset' ? tr('App data reset and verified.') : op.journalSkipped ? tr('Backup restored without the encrypted journal.') : tr('Backup restored and verified.'));
         }
       }
       catch (error) { updateBackupStatus({ snapshotAvailable: true, validationResult: `${msg('Replacement verified; recovery cleanup failed')}: ${error.message}` }, committedSource); globalNotice(tr('New data is verified. Recovery copy cleanup failed: {error}. Retry cleanup.', { error: trMessage(error.message) }), async () => { await markGlobalSnapshot(op, 'committed'); await cleanupGlobalSnapshot(op); updateBackupStatus({ lastImport: op.reason === 'restore' ? nowIso() : state.settings.backupStatus?.lastImport || null, snapshotAvailable: false, validationResult: op.reason === 'restore' ? msg('Import restored and verified') : msg('Reset verified') }, committedSource); if (globalOperation === op) globalOperation = null; globalRecoveryNotice = null; renderToast(); }); }
@@ -6785,7 +6836,7 @@
     if (autoBackupRunning || !state || globalOperation || recovery || startupPromise || !Backup || !globalThis.DailoPlatform?.isNative) return false;
     autoBackupRunning = true;
     try {
-      const blob = await Backup.exportBackupV3(state, TodoStorage, nowIso());
+      const blob = await Backup.exportBackupV3(state, TodoStorage, nowIso(), await journalBackupOptions());
       const saved = await globalThis.DailoPlatform.files.saveBackupCopy(blob, `dailo-auto-${Core.dateOnly()}.zip`, { keep: 4, prefix: 'dailo-auto-' });
       writeAutoBackup({ lastAt: nowIso(), lastFile: `${saved.folder}/${saved.name}`, error: null });
       if (announce) setToastMessage(tr('Backup saved to {folder}', { folder: saved.folder }));
