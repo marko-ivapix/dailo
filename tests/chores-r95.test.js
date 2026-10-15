@@ -104,8 +104,7 @@ test('the new lines are Serbian; the guide explains the bar', () => {
   assert.ok(read('uputstvo.html').includes('U <strong>Redovnim obavezama</strong> svaka obaveza ima traku koja se polako puni dok ne dođe vreme. Kad prođe njen dan, piše „Vreme je“, bez crvenog „Kasni“, a kad je uradiš, traka kreće ispočetka.'));
 });
 
-test('R95 is released as 2.0.0-alpha.122', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.122');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.122';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.122');
+test('R95 shipped as 2.0.0-alpha.122 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 122) >= 122);
 });

@@ -57,7 +57,8 @@ test('the weekly review finds the active projects without a next step', () => {
   assert.match(ui, /data-action="review-projects"/);
   assert.match(ui, /review\.projects\.onHold\.length \? tr\('On hold: \{count\}', \{ count: review\.projects\.onHold\.length \}\) : ''/, 'only the statuses that have projects');
   assert.match(ui, /if \(action === 'review-projects'\) \{ ctx\.state\.ui\.tasksView = 'projects'; ctx\.saveState\(\); ctx\.navigate\('tasks'\); return true; \}/);
-  for (const [number, title] of [[5, 'Goals'], [6, 'Habits'], [7, 'Areas']]) assert.match(ui, new RegExp(`step\\(${number}, tr\\('${title}'\\)`), `${title} moves to step ${number}`);
+  // R96: goals, habits and areas became one step (5), and the priorities are step 6.
+  assert.match(ui, /step\(5, tr\('Goals, habits and areas'\)/);
 });
 
 test('backups accept only the two stored statuses; sync carries the field', () => {

@@ -1215,6 +1215,10 @@
     html += gestureHint(overdueRows.length + plannedRows.length > 0);
     // R47c (K7): the tasks on the left and the habits on the right where there is room; a phone reads them in turn.
     let main = '';
+    // R96: the week's priorities from the weekly review lead the day, with a way into Fokus.
+    const listed = listTasks();
+    const priorities = Core.selectFocusTasks(listed, state.settings?.focusTaskIds).map(id => listed.find(task => task.id === id)).filter(Boolean);
+    if (priorities.length) main += section('priorities', tr("This week's priorities"), priorities.length, `<div class="today-card today-priorities">${priorities.map(task => `<button class="today-priority" type="button" data-action="open-task" data-task-id="${esc(task.id)}"><i class="ph ph-star" aria-hidden="true"></i><span>${esc(task.title)}</span></button>`).join('')}</div><button class="btn btn-ghost today-priorities-focus" type="button" data-action="priority-focus"><i class="ph ph-target" aria-hidden="true"></i> ${tr('Focus on them')}</button>`);
     // R83: past-due tasks can be gone through one at a time, or all moved to tomorrow (an AGENTS.md exception).
     let overdueBody = '';
     if (sections.overdue.length) overdueBody = `<div class="today-overdue-actions"><button class="btn btn-secondary" type="button" data-action="overdue-triage">${tr('Go through them')}</button><button class="btn btn-ghost" type="button" data-action="overdue-all-tomorrow">${tr('All to tomorrow')}</button></div>`;
@@ -1777,9 +1781,11 @@
     loadTaskAttachments(taskId);
   }
 
+  // R96: the week's priorities come first, then what is past due and planned today.
   function focusableTasks() {
     const sections = Core.deriveTodaySections(state.tasks, Core.dateOnly());
-    return [...sections.overdue, ...sections.today];
+    const priorities = Core.selectFocusTasks(listTasks(), state.settings.focusTaskIds).map(getTask).filter(Boolean);
+    return [...new Set([...priorities, ...sections.overdue, ...sections.today])];
   }
 
   function createFocusTimer() {
@@ -6391,6 +6397,7 @@
     else if (action === 'open-search') openSearch();
     else if (action === 'calendar-today') calendarToday();
     else if (action === 'tasks-view') { state.ui.tasksView = el.dataset.view === 'projects' ? 'projects' : 'anytime'; saveAndRender(); }
+    else if (action === 'priority-focus') { const first = Core.selectFocusTasks(listTasks(), state.settings.focusTaskIds)[0]; if (first) openFocusMode(first); }
     else if (action === 'toggle-projects-resting') { const key = el.dataset.fold === 'projectsSomedayOpen' ? 'projectsSomedayOpen' : 'projectsOnHoldOpen'; state.ui[key] = state.ui[key] !== true; saveAndRender(); }
     else if (action === 'delete-draft-goal-milestone') deleteDraftGoalMilestone(el.dataset.milestoneId);
     else if (action === 'delete-milestone') deleteMilestone(el.dataset.goalId, el.dataset.milestoneId);

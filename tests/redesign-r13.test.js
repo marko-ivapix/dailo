@@ -73,7 +73,8 @@ function render(state = fixture(), extra = {}) {
 test('S5: the "Poslednjih 7 dana" card with seven columns, a selectable day and three numbers', () => {
   const view = render();
   const html = view.html();
-  assert.match(html, /^<header title="Weekly review" subtitle="Week of F:2026-10-05"><\/header><div class="weekly-review"><h2 class="review-card-title">Last 7 days<\/h2><div class="today-card review-chart-card"><div class="review-chart" role="group" aria-label="Completed tasks per day"><p class="review-chart-title">Completed tasks per day<\/p><div class="review-columns">/);
+  // R96: the subtitle also says how long the review takes.
+  assert.match(html, /^<header title="Weekly review" subtitle="Week of F:2026-10-05 · about 10 minutes"><\/header><div class="weekly-review"><h2 class="review-card-title">Last 7 days<\/h2><div class="today-card review-chart-card"><div class="review-chart" role="group" aria-label="Completed tasks per day"><p class="review-chart-title">Completed tasks per day<\/p><div class="review-columns">/);
   const columns = [...html.matchAll(/<button class="review-column( is-selected)?" type="button" data-action="review-day-bar" data-date="([^"]+)" aria-pressed="(\w+)" aria-label="([^"]+)"><span class="review-column-value">([^<]*)<\/span><span class="review-column-fill" style="height:(\d+)%"><\/span><span class="review-column-day">(\w+)<\/span><\/button>/g)];
   assert.deepEqual(columns.map(match => [match[2], match[3], match[5], match[6], match[7]]), [['2026-10-04', 'false', '', '50', 'Sun'], ['2026-10-05', 'false', '', '0', 'Mon'], ['2026-10-06', 'false', '', '0', 'Tue'], ['2026-10-07', 'false', '', '0', 'Wed'], ['2026-10-08', 'false', '', '50', 'Thu'], ['2026-10-09', 'false', '', '0', 'Fri'], ['2026-10-10', 'true', '2', '100', 'Sat']]);
   assert.equal(columns[6][4], 'FULL:2026-10-10: 2 completed');

@@ -2680,6 +2680,20 @@ a.toast-action { display: inline-flex; align-items: center; text-decoration: non
 /* R92: Navike — the line that says what ✓, ✗ and an empty circle mean. */
 .habits-legend { margin: 14px 4px 0; color: var(--ink-3); font-size: var(--text-sm); line-height: 1.45; }
 
+/* R96: the review's wins, a skipped step, the merged look and the priorities (also at the top of Danas). */
+.review-wins { display: grid; gap: 6px; padding: 10px 14px; }
+.review-win { display: flex; align-items: flex-start; gap: 8px; margin: 0; color: var(--ink-1); font-size: var(--text-base); line-height: 1.4; }
+.review-win i { margin-top: 2px; color: var(--success); }
+.review-skip, .review-unskip { min-height: 44px; margin-top: 6px; color: var(--ink-3); font-size: var(--text-sm); }
+.review-step.is-skipped .weekly-review-number { opacity: .5; }
+.review-subtitle { margin: 12px 2px 6px; color: var(--ink-3); font-size: var(--text-sm); font-weight: 600; }
+.review-priority { display: flex; align-items: center; gap: 8px; padding-right: 8px; }
+.review-priority .review-row { flex: 1 1 auto; min-width: 0; }
+.today-priorities { padding: 4px; }
+.today-priority { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 8px 10px; border: 0; border-radius: var(--radius-sm); background: none; color: var(--ink-1); font: inherit; text-align: left; cursor: pointer; }
+.today-priority i { color: var(--warning); }
+.today-priorities-focus { margin-top: 6px; }
+
 /* R95: a chore's bar fills slowly until it is time; on Redovne obaveze a passed day is due, not late. */
 .chore-bar { display: block; max-width: 180px; height: 4px; margin-top: 6px; border-radius: 2px; background: var(--line-2); overflow: hidden; }
 .chore-bar i { display: block; height: 100%; border-radius: 2px; background: var(--blue-300); }

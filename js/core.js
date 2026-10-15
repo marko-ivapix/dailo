@@ -895,6 +895,32 @@
     };
   }
 
+  // R96: the wins of the last 7 days on the weekly review — tasks completed (newest first) and goals reached.
+  function weeklyWins(state, today = dateOnly()) {
+    const first = addDays(today, -6);
+    const inWindow = value => { const date = localDateOf(value); return Boolean(date) && date >= first && date <= today; };
+    return {
+      tasks: (state?.tasks || []).filter(task => task && task.isCompleted && inWindow(task.completedAt)).sort((a, b) => String(b.completedAt).localeCompare(String(a.completedAt))),
+      goals: (state?.goals || []).filter(goal => goal && goal.status === 'completed' && inWindow(goal.completedAt)),
+    };
+  }
+
+  // R96: what could be a priority for the coming week — each active project's next step, then what is planned or due
+  // in the next 7 days, then Kad stignem without a project, then the later steps of projects. Open, out of Inbox, not
+  // repeating, not already chosen; at most `limit`.
+  function priorityCandidates(state, today = dateOnly(), exclude = [], limit = 6) {
+    const skip = new Set(exclude || []);
+    const open = (state?.tasks || []).filter(task => task && !task.isCompleted && !task.isInbox && !task.recurrence && !skip.has(task.id));
+    const order = (a, b) => (Number.isFinite(a.projectOrder) ? a.projectOrder : 999999) - (Number.isFinite(b.projectOrder) ? b.projectOrder : 999999) || String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
+    const active = (state?.projects || []).filter(project => project && !project.isArchived && !project.isCleaningRoom && projectStatus(project) === 'active');
+    const nextSteps = active.map(project => open.filter(task => task.projectId === project.id).sort(order)[0]).filter(Boolean);
+    const week = addDays(today, 7);
+    const dated = task => task.plannedDate || task.dueDate;
+    const soon = open.filter(task => dated(task) && dated(task) <= week).sort((a, b) => String(dated(a)).localeCompare(String(dated(b))));
+    const anytime = deriveAnytime(open, state?.projects);
+    return [...new Set([...nextSteps, ...soon, ...anytime.filter(task => !task.projectId), ...anytime])].slice(0, limit);
+  }
+
   // Redesign R13 (S5): "Poslednjih 7 dana" on the weekly review — completed tasks per day for today and the six days
   // before, the previous 7 days' total, tasks created in the window, and this week's habits so far (planned days and
   // how many were done; a weekly-target habit counts its target and at most the target as done). Null when nothing
@@ -2813,6 +2839,8 @@
     projectStatus,
     recurrenceSpanDays,
     choreProgress,
+    weeklyWins,
+    priorityCandidates,
     deriveUpcoming,
     deriveUpcomingV3,
     normalizePlannedMonth,
