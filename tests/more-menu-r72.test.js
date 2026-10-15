@@ -19,7 +19,8 @@ function moreScreen(state) {
   const context = withI18n({
     state, Core: { weeklyReviewLog: () => [], weeklyReviewDue: () => false, dateOnly: () => '2026-10-14' },
     sortedAreas: () => [], isOpenRepeating: task => Boolean(task.recurrence) && !task.isCompleted, formatDate: value => value,
-    syncView: () => ({ configured: false }), pageHeader: title => `<h1>${title}</h1>`,
+    // R80: the Još tile and the sidebar take their sync line from syncStatus.
+    syncView: () => ({ configured: false }), syncStatus: () => ({ state: 'off', text: 'Data is on this device only' }), pageHeader: title => `<h1>${title}</h1>`,
     esc: value => String(value),
   });
   vm.createContext(context);
@@ -61,7 +62,7 @@ test('the wide-screen sidebar follows: Planning without Projekti, Library with N
   vm.runInContext(read('js/sidebar-ui.js'), context);
   const html = module.renderRoute({ type: 'sidebar' }, {
     state: { savedViews: [], notes: [] }, Core, esc: String, currentRoute: () => ({ type: 'today' }), bottomNavRoute: () => 'today',
-    listTasks: () => [], activeInboxRecords: () => [], syncView: () => ({ configured: false }), sortedAreas: () => [], sortedProjects: () => [], projectTasks: () => [],
+    listTasks: () => [], activeInboxRecords: () => [], syncView: () => ({ configured: false }), syncStatus: () => ({ state: 'off', text: 'Data is on this device only' }), sortedAreas: () => [], sortedProjects: () => [], projectTasks: () => [],
   });
   const group = key => routesIn(html.match(new RegExp(`data-group="${key}"[^>]*>.*?</section>`))[0]);
   assert.deepEqual(JSON.parse(JSON.stringify(group('planning'))), ['goals', 'cleaning', 'areas']);

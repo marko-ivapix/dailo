@@ -1751,6 +1751,8 @@
     "Everything stays only on this device. Backups are in Settings → Data.": "Sve ostaje samo na ovom uređaju. Rezervne kopije su u Podešavanja → Podaci.",
     "Last sync": "Poslednja sinhronizacija",
     "Syncing…": "Sinhronizacija u toku…",
+    "Waiting for a connection": "Čeka se veza",
+    "Sync failed — see Account.": "Sinhronizacija nije uspela — pogledaj Nalog.",
     "Sync now": "Sinhronizuj sada",
     "Sign out": "Odjavi se",
     "Code from the e-mail": "Kod iz e-poruke",

@@ -164,7 +164,9 @@ function harness({ fake = createFakeSupabase(), meta = null, storage: entries = 
     Core: { pruneDanglingReferences: require('../js/core.js').pruneDanglingReferences, settleArrivedReminders: require('../js/core.js').settleArrivedReminders },
     nowIso: () => '2026-10-12T08:00:00.000Z',
     saveState: () => true, refreshHabitMetrics: async () => {},
-    render() { calls.renders += 1; }, renderModal() { calls.modals += 1; }, closePopover() {}, captureModalReturnFocus() {}, restoreModalReturnFocus() {}, closeModal() { context.modalState = null; },
+    render() { calls.renders += 1; }, renderModal() { calls.modals += 1; }, closePopover() {},
+    // R80: a sync state change refreshes the tab's dot and the sidebar line.
+    renderMobileBottomNav() {}, renderSidebar() {}, captureModalReturnFocus() {}, restoreModalReturnFocus() {}, closeModal() { context.modalState = null; },
     currentRoute: () => ({ type: 'today' }), openConfirm() {},
     setToastMessage(message) { calls.toasts.push(message); },
     inputs: {},

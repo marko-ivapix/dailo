@@ -27,7 +27,8 @@ function moreScreen(sync) {
   const ctx = withI18n({ state, esc, Core: require('../js/core.js'), formatDate: String, // R32: the review tile line
  sortedAreas: () => [], syncView: () => sync, pageHeader: title => `<header>${title}</header>`, isOpenRepeating: () => false, formatReminder: value => value });
   vm.createContext(ctx);
-  vm.runInContext(`${fn('moreRow')}${fn('renderMoreScreen')}`, ctx);
+  // R80: the Nalog line comes from syncStatus.
+  vm.runInContext(`${fn('moreRow')}${fn('renderMoreScreen')}${fn('syncStatus')}`, ctx);
   return ctx.renderMoreScreen();
 }
 
@@ -95,7 +96,8 @@ test('M5: Podešavanja no longer has the Nalog group, and sync events re-render 
   const settings = adapter.renderRoute({ type: 'settings' }, baseCtx({ configured: true, signedIn: true, email: 'ana@example.com' }));
   assert.doesNotMatch(settings, /data-settings-sync|sync-sign-out/);
   assert.match(settings, /data-privacy-note/, 'the privacy line stays in Pomoć');
-  assert.match(fn('refreshSyncCard'), /if \(\['settings', 'account'\]\.includes\(currentRoute\(\)\.type\) && !editingText\(\)\) render\(\);/);
+  // R80: Još shows the sync state too, so it re-renders with Podešavanja and Nalog.
+  assert.match(fn('refreshSyncCard'), /if \(\['settings', 'account', 'more'\]\.includes\(currentRoute\(\)\.type\) && !editingText\(\)\) render\(\);/);
 });
 
 test('the Serbian text', () => {

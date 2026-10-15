@@ -723,6 +723,7 @@
       looseTasks(completed) { return listTasks().filter(task => !task.projectId && !task.isInbox && Boolean(task.isCompleted) === completed); },
       goalPercent(goal) { return Math.round(Core.computeGoalProgress(goal, state, state.habitMetrics || {}).percent); },
       syncView,
+      syncStatus,
       reviewTaskRow(task, context, options = {}) {
         return taskRow(task, context, options);
       },
@@ -1053,6 +1054,8 @@
     const badge = $('#mobile-inbox-badge');
     const count = activeInboxRecords('all').length;
     if (badge) { badge.textContent = count > 99 ? '99+' : String(count); badge.hidden = count === 0; }
+    const syncAlert = $('#mobile-sync-alert');
+    if (syncAlert) syncAlert.hidden = syncStatus().state !== 'error';
   }
 
   function storageWarningHtml() {
@@ -1320,8 +1323,9 @@
     // R32 (finding 37): the review tile says whether this week is done; the notice left Danas in R14.
     const lastReview = Core.weeklyReviewLog(state.settings)[0];
     const reviewNote = Core.weeklyReviewDue(state.settings, Core.dateOnly(), state.settings.weekStartsOn) ? tr('Time for this week\'s review') : lastReview ? tr('Last: {date}', { date: formatDate(Core.localDateOf(lastReview.completedAt)) }) : '';
-    const sync = syncView();
-    const accountText = sync.configured && sync.signedIn ? sync.email : sync.configured ? tr('Sign in') : tr('Data is on this device only');
+    // R80: the Nalog tile carries the sync state; signed out it still invites to sign in.
+    const status = syncStatus();
+    const accountText = status.state === 'signed-out' ? tr('Sign in') : status.text;
     let html = pageHeader(tr('More'), '', { add: false });
     if (pinned.length) html += card(tr('Pinned'), pinned);
     // R72: Planiranje is Ciljevi, Projekti (Zadaci → Projekti), Redovne obaveze and Oblasti; Nedeljni pregled moved to
@@ -4489,8 +4493,22 @@
     return Boolean(modalState || undoState || undoHold || textSaveTimer || dragState || editingText());
   }
 
+  // R80: Još shows the sync state too; elsewhere only the tab's dot and the sidebar line follow it.
   function refreshSyncCard() {
-    if (['settings', 'account'].includes(currentRoute().type) && !editingText()) render();
+    if (['settings', 'account', 'more'].includes(currentRoute().type) && !editingText()) render();
+    else { renderMobileBottomNav(); renderSidebar(); }
+  }
+
+  // R80: one line for the sync state on the phone (Još → Nalog, the tab's dot) and the computer (the sidebar).
+  function syncStatus() {
+    const sync = syncView();
+    if (!sync.configured) return { state: 'off', text: tr('Data is on this device only') };
+    if (!sync.signedIn) return { state: 'signed-out', text: tr('Not signed in') };
+    if (sync.running) return { state: 'running', text: tr('Syncing…') };
+    if (globalThis.navigator?.onLine === false) return { state: 'offline', text: tr('Waiting for a connection') };
+    if (sync.lastError) return { state: 'error', text: tr('Sync failed — see Account.') };
+    if (sync.lastSyncAt) return { state: 'ok', text: tr('Synced {time}', { time: new Date(sync.lastSyncAt).toLocaleTimeString(I18n.locale(), { hour: '2-digit', minute: '2-digit' }) }) };
+    return { state: 'ok', text: sync.email };
   }
 
   function scheduleSync(delay = 3000) {
@@ -5136,7 +5154,9 @@
   function startSync() {
     if (!syncClient) return;
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') scheduleSync(500); else liveSync?.disconnect(); });
-    window.addEventListener('online', () => scheduleSync(500));
+    window.addEventListener('online', () => { scheduleSync(500); refreshSyncCard(); });
+    // R80: losing the connection shows "Čeka se veza" at once.
+    window.addEventListener('offline', () => refreshSyncCard());
     setInterval(() => scheduleSync(0), 5 * 60 * 1000);
     scheduleSync(1000);
   }

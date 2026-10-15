@@ -34,9 +34,8 @@
     const sections = Core.deriveTodaySections(ctx.listTasks(), Core.dateOnly());
     const todayCount = sections.overdue.length + sections.today.length || '';
     const inboxCount = ctx.activeInboxRecords('all').length || '';
-    const sync = ctx.syncView();
-    const syncLine = !sync.configured ? tr('Data is on this device only') : !sync.signedIn ? tr('Not signed in') : sync.running ? tr('Syncing…')
-      : sync.lastSyncAt ? tr('Synced {time}', { time: new Date(sync.lastSyncAt).toLocaleTimeString(I18n.locale(), { hour: '2-digit', minute: '2-digit' }) }) : sync.email;
+    // R80: the same line as on the phone, so a failed sync shows here too.
+    const syncLine = ctx.syncStatus().text;
     const pinned = [
       ...ctx.sortedAreas().filter(area => area.status !== 'archived' && area.isPinned).map(area => sidebarItem(`area/${encodeURIComponent(area.id)}`, area.icon || 'ph-squares-four', area.name)),
       ...(state.savedViews || []).filter(view => view.isPinned).map(view => sidebarItem(`saved-view/${encodeURIComponent(view.id)}`, 'ph-funnel', view.name)),
