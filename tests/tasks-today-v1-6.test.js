@@ -65,7 +65,8 @@ test('Today counts overdue and planned work; suggestions moved to Zadaci', () =>
   vm.createContext(withI18n(context));
   vm.runInContext(`const TODAY_LIMITS = { overdue: 3, today: 5, habits: 5 };\n${fn('todayLimited')}${fn('todayDueLabel')}${fn('deadlineRow')}${fn('listTasks')}${fn('renderToday')}${fn('screenColumns')}`, context);
   const html = vm.runInContext('renderToday()', context);
-  assert.match(html, /Past due<\/h2><span class="section-count">1<\/span><\/div><div class="task-list today-card"><t overdue>/);
+  // R83: past-due tasks get "Sredi jedan po jedan" and "Sve na sutra" above their list.
+  assert.match(html, /Past due<\/h2><span class="section-count">1<\/span><\/div><div class="today-overdue-actions">[\s\S]*?<\/div><div class="task-list today-card"><t overdue>/);
   assert.match(html, /Planned today<\/h2><span class="section-count">1<\/span>/);
   assert.doesNotMatch(html, /<t suggested>/);
 });

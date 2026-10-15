@@ -25,7 +25,7 @@ const rule = selector => {
 function moreScreen(sync) {
   const state = { goals: [{ id: 'g', status: 'active' }], areas: [], tasks: [], projects: [], notes: [], journal: [], resources: [], tags: [], templates: [], savedViews: [], settings: {} };
   const ctx = withI18n({ state, esc, Core: require('../js/core.js'), formatDate: String, // R32: the review tile line
- sortedAreas: () => [], syncView: () => sync, pageHeader: title => `<header>${title}</header>`, isOpenRepeating: () => false, formatReminder: value => value });
+ sortedAreas: () => [], syncView: () => sync, backupReminderNotice: () => '' /* R83: the backup card sits at the top of Još */, pageHeader: title => `<header>${title}</header>`, isOpenRepeating: () => false, formatReminder: value => value });
   vm.createContext(ctx);
   // R80: the Nalog line comes from syncStatus.
   vm.runInContext(`${fn('moreRow')}${fn('renderMoreScreen')}${fn('syncStatus')}`, ctx);

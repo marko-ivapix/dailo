@@ -58,7 +58,8 @@ test('J4: "Ne danas" hides it until tomorrow, on this device only', () => {
 });
 
 test('J4: Today shows the notice after the backup reminder (R14: the weekly-review notice left Today)', () => {
-  assert.match(app, /html \+= backupReminderNotice\(\);\n    \/\/ R14[^\n]*\n    html \+= callDomainHook\('renderRoute', \{ type: 'journal-notice' \}\) \|\| '';/);
+  // R83: the backup reminder left Danas for Još, so the journal notice follows the first-run card.
+  assert.match(app, /if \(!transfer\) html \+= sampleNotice\(\);\n    \/\/ R83[^\n]*\n    \/\/ R14[^\n]*\n    html \+= callDomainHook\('renderRoute', \{ type: 'journal-notice' \}\) \|\| '';/);
 });
 
 test('J6: Settings → Opšte → "Podsetnik za dnevnik" applies at once', () => {

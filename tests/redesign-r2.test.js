@@ -148,7 +148,8 @@ test('T1, T6: the header, the notices and the sections in order with their count
     { id: 'h2', name: 'Walk', status: 'active', frequencyType: 'daily', startDate: day(-10) },
   ];
   const html = renderTodayWith({ tasks, goals, habits }, { native: true, logs: { h1: [{ habitId: 'h1', date: TODAY, status: 'done' }] } });
-  assert.match(html, new RegExp(`^<header title="Today" eyebrow="LONG\\(${TODAY}\\)" add="false"></header><transfer><backup><journal>`));
+  // R83: the backup reminder is no longer on Danas (it sits at the top of Još).
+  assert.match(html, new RegExp(`^<header title="Today" eyebrow="LONG\\(${TODAY}\\)" add="false"></header><transfer><journal>`));
   const order = [...html.matchAll(/data-today-section="([^"]+)"/g)].map(match => match[1]);
   assert.deepEqual(order, ['overdue', 'today', 'habits', 'completed']);
   assert.match(html, /<h2 class="section-label danger">Past due<\/h2><span class="section-count">2<\/span>/);

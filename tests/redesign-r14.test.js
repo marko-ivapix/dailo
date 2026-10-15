@@ -37,7 +37,8 @@ test('T1: every header stays one row, with the search as a visible button at the
 
 test('T6: Today no longer shows the weekly review notice; the review stays in Još', () => {
   assert.doesNotMatch(app, /weeklyReviewNotice|data-weekly-review-notice/);
-  assert.match(fn('renderToday'), /html \+= backupReminderNotice\(\);\n    \/\/ R14 \(T6 amended\)[^\n]*\n    html \+= callDomainHook\('renderRoute', \{ type: 'journal-notice' \}\) \|\| '';/);
+  // R83: the backup reminder moved to Još; the journal notice still follows without a weekly review notice.
+  assert.match(fn('renderToday'), /\/\/ R83[^\n]*\n    \/\/ R14 \(T6 amended\)[^\n]*\n    html \+= callDomainHook\('renderRoute', \{ type: 'journal-notice' \}\) \|\| '';/);
   for (const key of ['Time for the weekly review', 'Start review', 'A few minutes to empty the Inbox, catch up on overdue tasks and look at the week ahead.']) assert.ok(!sr.includes(JSON.stringify(key)), key);
   assert.equal(typeof Core.weeklyReviewDue, 'function', 'Core keeps the rule');
   assert.match(app, /moreRow\('review', 'ph-clipboard-text', tr\('Weekly review'\), '', reviewNote\)/); // R32: with this week's state

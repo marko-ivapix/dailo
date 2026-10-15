@@ -1054,8 +1054,14 @@
     const badge = $('#mobile-inbox-badge');
     const count = activeInboxRecords('all').length;
     if (badge) { badge.textContent = count > 99 ? '99+' : String(count); badge.hidden = count === 0; }
+    // R80: red while the last sync failed; R83: amber while a backup is due.
     const syncAlert = $('#mobile-sync-alert');
-    if (syncAlert) syncAlert.hidden = syncStatus().state !== 'error';
+    if (syncAlert) {
+      const failed = syncStatus().state === 'error', backup = !failed && backupReminderDue();
+      syncAlert.hidden = !failed && !backup;
+      syncAlert.classList.toggle('is-backup', backup);
+      syncAlert.setAttribute('aria-label', failed ? tr('Sync failed') : tr('Time for a backup'));
+    }
   }
 
   function storageWarningHtml() {
@@ -1184,7 +1190,7 @@
     html += transfer;
     // R30 (finding 5): one first-run card at a time; the phone app's transfer question comes first.
     if (!transfer) html += sampleNotice();
-    html += backupReminderNotice();
+    // R83: the backup reminder moved to the top of Još, with a dot on the Još tab.
     // R14 (T6 amended): the weekly review prompt left Today; the review stays in Još.
     html += callDomainHook('renderRoute', { type: 'journal-notice' }) || '';
     const section = (key, label, count, body, danger = false) => `<section class="section today-section today-section--${key}" data-today-section="${key}"><div class="section-header"><h2 class="section-label${danger ? ' danger' : ''}">${label}</h2><span class="section-count">${count}</span></div>${body}</section>`;
@@ -1201,7 +1207,10 @@
     html += gestureHint(overdueRows.length + plannedRows.length > 0);
     // R47c (K7): the tasks on the left and the habits on the right where there is room; a phone reads them in turn.
     let main = '';
-    if (overdueRows.length) main += section('overdue', tr('Past due'), overdueRows.length, `<div class="task-list today-card">${todayLimited('overdue', overdueRows)}</div>`, true);
+    // R83: past-due tasks can be gone through one at a time, or all moved to tomorrow (an AGENTS.md exception).
+    let overdueBody = '';
+    if (sections.overdue.length) overdueBody = `<div class="today-overdue-actions"><button class="btn btn-secondary" type="button" data-action="overdue-triage">${tr('Go through them')}</button><button class="btn btn-ghost" type="button" data-action="overdue-all-tomorrow">${tr('All to tomorrow')}</button></div>`;
+    if (overdueRows.length) main += section('overdue', tr('Past due'), overdueRows.length, `${overdueBody}<div class="task-list today-card">${todayLimited('overdue', overdueRows)}</div>`, true);
     main += section('today', tr('Planned today'), plannedRows.length, `<div class="task-list today-card" data-list-context="today">${plannedRows.length ? todayLimited('today', plannedRows) : `<p class="today-empty">${tr('Nothing planned. “+” adds a task for today.')}</p>`}</div><button class="inline-add" type="button" data-action="quick-add" data-today="true"><i class="ph ph-plus"></i> ${tr('Add task')}</button>`);
     // R30 (finding 8): tasks due today and missed plans wait in Zadaci → "Predlozi za danas"; Danas links there.
     const suggestions = Core.deriveTodaySections(listTasks(), today).suggestions;
@@ -1260,6 +1269,44 @@
     modalState = { type: 'inbox-triage', queue: activeInboxRecords(filter).map(record => [record.type, record.item.id]), index: 0 };
     renderModal();
     requestAnimationFrame(() => $('#modal-root .inbox-triage-actions button')?.focus());
+  }
+  // R83: a past-due task moves to a day with its deadline and its plan, so it shows on that day's Danas.
+  function overdueMoveChanges(task, day) {
+    return { dueDate: day, plannedDate: day, isInbox: false, todayOrder: day === Core.dateOnly() ? nextOrder('today') : null };
+  }
+  // R83 (an AGENTS.md exception, the user's choice): "Sve na sutra" moves every past-due task to tomorrow in one step
+  // with Undo. A repeating task moves only this occurrence, as "Samo ovo" would, so its series keeps its day.
+  function moveAllOverdueToTomorrow() {
+    const tomorrow = Core.addDays(Core.dateOnly(), 1);
+    const tasks = listTasks().filter(item => Core.isOverdue(item, Core.dateOnly()));
+    if (!tasks.length) return;
+    const snapshot = snapshotTasks(tasks);
+    for (const item of tasks) {
+      if (taskRecurrence(item) && !item.recurrenceBaseline) { item.recurrenceBaseline = copyTemplate(item); delete item.recurrenceBaseline.recurrenceBaseline; }
+      Object.assign(item, { dueDate: tomorrow, plannedDate: tomorrow, isInbox: false, todayOrder: null, updatedAt: nowIso() });
+    }
+    if (!saveState()) { restoreTasks(snapshot); render(); setToastMessage(tr('Changes could not be saved locally. Try again.')); return; }
+    render();
+    setUndo(msg('Past-due tasks moved to tomorrow'), () => { restoreTasks(snapshot); saveState(); render(); });
+  }
+  // R83: "Sredi jedan po jedan" — the past-due tasks one at a time, as Razvrstaj redom does for Inbox.
+  function openOverdueTriage() {
+    captureModalReturnFocus();
+    modalState = { type: 'overdue-triage', queue: Core.deriveTodaySections(listTasks(), Core.dateOnly()).overdue.map(item => item.id), index: 0 };
+    renderModal();
+    requestAnimationFrame(() => $('#modal-root .inbox-triage-actions button')?.focus());
+  }
+  function renderOverdueTriage() {
+    const open = (modalState.queue || []).filter(id => { const item = getTask(id); return Boolean(item && Core.isOverdue(item, Core.dateOnly())); });
+    const header = `<div class="modal-header"><h2 class="modal-title">${tr('Past due')}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div>`;
+    if (!open.length) return modalFrame(`<div class="modal-inner">${header}<div class="empty-state inbox-empty"><i class="ph ph-check-circle" aria-hidden="true"></i><h3>${tr('Finished')}</h3><p>${tr('Nothing is past due.')}</p></div><div class="quick-sheet-footer"><button class="btn btn-primary habit-window-save" type="button" data-action="close-modal">${tr('Close')}</button></div></div>`, 'quick inbox-triage-modal');
+    if (modalState.index >= open.length) modalState.index = 0;
+    const item = getTask(open[modalState.index]);
+    const attrs = `data-task-id="${esc(item.id)}"`;
+    const button = (action, text, kind = 'btn-secondary') => `<button class="btn ${kind}" type="button" data-action="${action}" ${attrs}>${text}</button>`;
+    const actions = [button('overdue-today', tr('Today')), button('overdue-tomorrow', tr('Tomorrow')), button('overdue-due', tr('New deadline…')), button('overdue-no-due', tr('No deadline')),
+      button('overdue-complete', tr('Complete'), 'btn-primary'), button('overdue-open', tr('Open it')), button('overdue-delete', tr('Delete'), 'btn-ghost')].join('');
+    return modalFrame(`<div class="modal-inner">${header}<div class="inbox-triage-card"><p class="inbox-triage-meta">${esc(tr('Due was {date}', { date: formatDate(item.dueDate) }))}</p><p class="inbox-triage-title">${esc(item.title || '')}</p></div><div class="inbox-triage-actions">${actions}</div><div class="inbox-triage-footer"><span>${esc(tr('{current} of {total}', { current: modalState.index + 1, total: open.length }))}</span><button class="btn btn-ghost" type="button" data-action="overdue-skip">${tr('Skip')}</button></div></div>`, 'quick inbox-triage-modal');
   }
   function inboxTriageOpen(type, id) {
     const item = inboxItem(type, id);
@@ -1327,6 +1374,7 @@
     const status = syncStatus();
     const accountText = status.state === 'signed-out' ? tr('Sign in') : status.text;
     let html = pageHeader(tr('More'), '', { add: false });
+    html += backupReminderNotice();
     if (pinned.length) html += card(tr('Pinned'), pinned);
     // R72: Planiranje is Ciljevi, Projekti (Zadaci → Projekti), Redovne obaveze and Oblasti; Nedeljni pregled moved to
     // Biblioteka in the place of Šabloni, which left the menu ("Sačuvaj kao šablon" and "Iz šablona" stay).
@@ -1628,7 +1676,7 @@
     else captureModalReturnFocus();
     closePopover();
     // R36 (G): opened from Razvrstaj redom it returns there too.
-    const back = focus || (modalState?.type === 'inbox-triage' ? modalState : null);
+    const back = focus || (['inbox-triage', 'overdue-triage'].includes(modalState?.type) ? modalState : null);
     modalState = { type: 'task', taskId, titleDraft: task.title, notesDraft: task.notes || '', error: '', attachmentRecords: [], attachmentMessage: '', ...(back ? { returnTo: back } : {}) };
     renderModal();
     // R14: the window opens without the keyboard; a tap on the title edits it.
@@ -1882,7 +1930,7 @@
       if (flushTaskDraft(() => closeModal())) return;
       const back = modalState.returnTo; modalState = back; renderModal(); startFocusTimer(); return;
     }
-    if (modalState?.type === 'task' && modalState.returnTo?.type === 'inbox-triage') {
+    if (modalState?.type === 'task' && ['inbox-triage', 'overdue-triage'].includes(modalState.returnTo?.type)) {
       if (flushTaskDraft(() => closeModal())) return;
       modalState = modalState.returnTo; renderModal(); return;
     }
@@ -1933,6 +1981,7 @@
     else if (modalState.type === 'recurrence-scope') root.innerHTML = renderRecurrenceScope();
     else if (modalState.type === 'sync-choice') root.innerHTML = renderSyncChoice();
     else if (modalState.type === 'inbox-triage') root.innerHTML = renderInboxTriage();
+    else if (modalState.type === 'overdue-triage') root.innerHTML = renderOverdueTriage();
     // R20: "Iz šablona" is a chip under the window title, and only when templates of that type exist.
     if (['project','habit','goal'].includes(modalState.type) && !modalState.taskId && !modalState.projectId && !modalState.habitId && !modalState.goalId && state.templates.some(template => template.type === modalState.type)) {
       $('.modal-header', root)?.insertAdjacentHTML('afterend', `<div class="quick-template-row"><button class="quick-chip" type="button" data-action="from-template"><i class="ph ph-copy" aria-hidden="true"></i>${tr('From template')}</button></div>`);
@@ -3531,7 +3580,8 @@
     return entity ? { entity, parent, array, collection, field, id } : null;
   }
 
-  function requestDeleteEntity(type, identity) {
+  // R83: a window that asked for the delete (the past-due pass) comes back after it or after Otkaži.
+  function requestDeleteEntity(type, identity, { returnTo = null } = {}) {
     if (!state || undoHold) return;
     flushTextSave();
     const source = state, located = locateDeleteEntity(type, identity);
@@ -3562,6 +3612,7 @@
     let dialog;
     openConfirm({ title: type === 'clear-completed' ? msg('Delete all completed tasks?') : type === 'attachment' ? msg('Delete this attachment?') : tr('Delete “{name}”?', { name: located.entity.name || located.entity.title }),
       message: messages[type], confirmLabel: confirmLabels[type] || msg('Delete'),
+      ...(returnTo ? { returnTo } : {}),
       onConfirm: () => {
         if (dialog.busy) return;
         dialog.busy = true;
@@ -5276,14 +5327,18 @@
   }
 
   // Today notice when the last ZIP export is older than the reminder interval (V1.9).
-  function backupReminderNotice() {
+  // R83: whether a backup is due drives both the card at the top of Još and the dot on the Još tab.
+  function backupReminderDue() {
+    if (!state) return false;
     let snoozedUntil = null;
     try { snoozedUntil = localStorage.getItem('todoAppBackupReminderSnoozedUntil'); } catch (error) { snoozedUntil = null; }
+    return Core.backupReminderDue({ lastExport: state.settings.backupStatus?.lastExport || null, reminderDays: Core.backupReminderDays(state.settings), snoozedUntil, oldestCreatedAt: Core.oldestCreatedAt(state), now: nowIso() });
+  }
+  function backupReminderNotice() {
+    if (!backupReminderDue()) return '';
     const lastExport = state.settings.backupStatus?.lastExport || null;
-    const due = Core.backupReminderDue({ lastExport, reminderDays: Core.backupReminderDays(state.settings), snoozedUntil, oldestCreatedAt: Core.oldestCreatedAt(state), now: nowIso() });
-    if (!due) return '';
     const last = lastExport && !Number.isNaN(Date.parse(lastExport)) ? tr('Last backup: {date}.', { date: new Date(lastExport).toLocaleDateString(I18n.locale()) }) : tr('No backup yet.');
-    return `<section class="backup-reminder" data-backup-reminder role="status" aria-label="${tr('Backup reminder')}"><i class="ph ph-shield-check backup-reminder-icon" aria-hidden="true"></i><div class="backup-reminder-copy"><strong>${tr('Back up your data')}</strong><span>${esc(last)} ${tr('Dailo keeps everything only on this device.')}</span></div><div class="backup-reminder-actions"><button class="btn btn-primary" type="button" data-action="export-backup">${tr('Export backup')}</button><button class="btn btn-ghost" type="button" data-action="snooze-backup-reminder">${tr('Remind me tomorrow')}</button></div></section>`;
+    return `<section class="backup-reminder" data-backup-reminder role="status" aria-label="${tr('Backup reminder')}"><i class="ph ph-shield-check backup-reminder-icon" aria-hidden="true"></i><div class="backup-reminder-copy"><strong>${tr('Back up your data')}</strong><span>${esc(last)} ${syncView().signedIn ? tr('Your account keeps a copy on the server; a ZIP is a copy only you keep.') : tr('Dailo keeps everything only on this device.')}</span></div><div class="backup-reminder-actions"><button class="btn btn-primary" type="button" data-action="export-backup">${tr('Export backup')}</button><button class="btn btn-ghost" type="button" data-action="snooze-backup-reminder">${tr('Remind me tomorrow')}</button></div></section>`;
   }
 
   function snoozeBackupReminder() {
@@ -6101,6 +6156,16 @@
     else if (action === 'inbox-today') { addTaskToToday(el.dataset.taskId); if (modalState?.type === 'inbox-triage') renderModal(); }
     else if (action === 'inbox-tomorrow') { moveTaskToTomorrow(el.dataset.taskId); if (modalState?.type === 'inbox-triage') renderModal(); }
     else if (action === 'inbox-anytime') { moveTaskToAnytime(el.dataset.taskId); if (modalState?.type === 'inbox-triage') renderModal(); }
+    else if (action === 'overdue-triage') openOverdueTriage();
+    else if (action === 'overdue-all-tomorrow') moveAllOverdueToTomorrow();
+    else if (action === 'overdue-today') { const item = getTask(el.dataset.taskId); if (item) requestTaskEdit(item.id, overdueMoveChanges(item, Core.dateOnly())); }
+    else if (action === 'overdue-tomorrow') { const item = getTask(el.dataset.taskId); if (item) requestTaskEdit(item.id, overdueMoveChanges(item, Core.addDays(Core.dateOnly(), 1))); }
+    else if (action === 'overdue-due') showTaskDuePicker(el.dataset.taskId, el);
+    else if (action === 'overdue-no-due') requestTaskEdit(el.dataset.taskId, { dueDate: null, dueTime: null });
+    else if (action === 'overdue-complete') { toggleComplete(el.dataset.taskId); if (modalState?.type === 'overdue-triage') renderModal(); }
+    else if (action === 'overdue-open') openTaskDetail(el.dataset.taskId);
+    else if (action === 'overdue-delete') requestDeleteEntity('task', el.dataset.taskId, { returnTo: modalState });
+    else if (action === 'overdue-skip') { modalState.index += 1; renderModal(); }
     else if (action === 'task-project-picker') showTaskProjectPicker(el.dataset.taskId, el);
     else if (action === 'task-plan-picker') showTaskPlanPicker(el.dataset.taskId, el);
     else if (action === 'task-area-picker') openTaskAreaSheet(el, el.dataset.taskId);

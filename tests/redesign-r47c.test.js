@@ -26,7 +26,8 @@ test('screenColumns: the main part, the side part and what follows, in the order
 
 test('Danas: overdue, planned and the suggestions on the left, the habits on the right, Završeno under the tasks', () => {
   const today = fn(app, 'renderToday');
-  assert.match(today, /let main = '';\n    if \(overdueRows\.length\) main \+= section\('overdue'/);
+  // R83: the past-due actions are prepared between the start of the main part and the overdue section.
+  assert.match(today, /let main = '';\n(?:    \/\/ R83[^\n]*\n    let overdueBody = '';\n    if \(sections\.overdue\.length\) overdueBody = [^\n]*\n)    if \(overdueRows\.length\) main \+= section\('overdue'/);
   assert.match(today, /main \+= section\('today', tr\('Planned today'\)/);
   assert.match(today, /if \(suggestions\.length\) main \+= `<button class="today-suggestions-link"/);
   assert.match(today, /const side = habits\.length \? section\('habits', tr\('Habits'\)/);

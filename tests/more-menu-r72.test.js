@@ -20,7 +20,7 @@ function moreScreen(state) {
     state, Core: { weeklyReviewLog: () => [], weeklyReviewDue: () => false, dateOnly: () => '2026-10-14' },
     sortedAreas: () => [], isOpenRepeating: task => Boolean(task.recurrence) && !task.isCompleted, formatDate: value => value,
     // R80: the Još tile and the sidebar take their sync line from syncStatus.
-    syncView: () => ({ configured: false }), syncStatus: () => ({ state: 'off', text: 'Data is on this device only' }), pageHeader: title => `<h1>${title}</h1>`,
+    syncView: () => ({ configured: false }), syncStatus: () => ({ state: 'off', text: 'Data is on this device only' }), backupReminderNotice: () => '' /* R83 */, pageHeader: title => `<h1>${title}</h1>`,
     esc: value => String(value),
   });
   vm.createContext(context);

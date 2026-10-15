@@ -83,8 +83,7 @@ test('Pomoć, the FAQ and the guide say the report carries the recent errors', (
   for (const page of ['pitanja.html', 'uputstvo.html']) assert.ok(read(page).includes('verzijom aplikacije, podacima o uređaju i poslednjim greškama'), page);
 });
 
-test('R82 is released as 2.0.0-alpha.109', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.109');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.109';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.109');
+test('R82 shipped as 2.0.0-alpha.109 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 109) >= 109);
 });
