@@ -767,7 +767,7 @@
       release: Release,
       environmentInfo() {
         // R17: inside the phone app Dailo is installed, so Pomoć does not show the Safari steps.
-        return { userAgent: navigator.userAgent || '', standalone: Boolean(globalThis.DailoPlatform?.isNative) || navigator.standalone === true || Boolean(window.matchMedia?.('(display-mode: standalone)').matches), persistence: storagePersistence.state };
+        return { userAgent: navigator.userAgent || '', standalone: Boolean(globalThis.DailoPlatform?.isNative) || navigator.standalone === true || Boolean(window.matchMedia?.('(display-mode: standalone)').matches), persistence: storagePersistence.state, errors: readErrorLog() };
       },
       storagePersistence: () => storagePersistence,
       installPrompt: () => Boolean(installPromptEvent),
@@ -6876,6 +6876,30 @@
     return true;
   }
 
+  // R82: the last errors on this device (device-local, at most 10) for "Prijavi problem": the time, the version, the
+  // file and line, and the message cleaned by Release.cleanErrorText — never the user's data. A repeat counts up.
+  const ERROR_LOG_KEY = 'dailoErrorLog';
+  function readErrorLog() {
+    try { const value = JSON.parse(localStorage.getItem(ERROR_LOG_KEY) || '[]'); return Array.isArray(value) ? value : []; } catch (_) { return []; }
+  }
+  function recordError(message, where) {
+    const text = Release.cleanErrorText ? Release.cleanErrorText(message) : '';
+    if (!text) return;
+    try {
+      const log = readErrorLog();
+      const place = String(where || '').split('/').pop().slice(0, 60);
+      if (log[0]?.message === text && log[0]?.where === place) log[0] = { ...log[0], at: new Date().toISOString(), count: (log[0].count || 1) + 1 };
+      else log.unshift({ at: new Date().toISOString(), version: Release.APP_VERSION, where: place, message: text, count: 1 });
+      localStorage.setItem(ERROR_LOG_KEY, JSON.stringify(log.slice(0, 10)));
+    } catch (_) { /* the log is only a help */ }
+  }
+  function captureErrors() {
+    window.addEventListener('error', event => recordError(event.message || event.error?.message, event.filename ? `${event.filename}:${event.lineno || ''}` : ''));
+    window.addEventListener('unhandledrejection', event => recordError(event.reason?.message || event.reason, ''));
+    const original = console.error.bind(console);
+    console.error = (...args) => { original(...args); recordError(args.map(arg => arg?.message || arg).join(' '), ''); };
+  }
+
   // R81: after an update one toast says so and links "Šta je novo"; a first start only remembers the version. The
   // version this device last started is device-local (outside state, backups and sync).
   const SEEN_VERSION_KEY = 'dailoSeenVersion';
@@ -7118,6 +7142,7 @@
   }
 
   async function init() {
+    captureErrors();
     applyTheme(readTheme());
     applyTextSize(readTextSize());
     attachEvents();

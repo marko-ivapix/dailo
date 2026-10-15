@@ -9,7 +9,7 @@
   const tr = (text, params) => (root.TodoI18n ? root.TodoI18n.tr(text, params) : String(text).replace(/\{(\w+)\}/g, (match, key) => (params && key in params ? String(params[key]) : match)));
 
   // Single source for the release version. sw.js repeats it in its cache name; tests keep them equal.
-  const APP_VERSION = '2.0.0-alpha.108';
+  const APP_VERSION = '2.0.0-alpha.109';
   // Beta problem reports go to this address by e-mail. Empty hides the report link.
   const REPORT_EMAIL = 'marko.radicevic@ivapix.cloud';
   // The tester guide is not packaged in the native app; the app opens this online copy instead.
@@ -25,8 +25,18 @@
   const WHATS_NEW_URL = 'https://marko-ivapix.github.io/dailo/novo.html';
   const EMAIL_PATTERN = /^[^\s@?&#]+@[^\s@?&#]+\.[^\s@?&#]+$/;
 
-  // Builds a mailto: link with version and device details only; app data is never included.
-  function problemReportMailto({ email, version = APP_VERSION, userAgent = '', standalone = false, persistence = 'unknown' } = {}) {
+  // R82: an error message for the report: quoted text and e-mail addresses are cut out, so no user data goes along.
+  const QUOTED = /["'“”„‘’«»][^"'“”„‘’«»]*["'“”„‘’«»]/g;
+  function cleanErrorText(text) {
+    return String(text ?? '').replace(/[^\s@"'“”„‘’«»<>()]+@[^\s@"'“”„‘’«»<>()]+\.[^\s@"'“”„‘’«»<>():]+/g, '[e-mail]')
+      .replace(QUOTED, '"…"').replace(/\s+/g, ' ').trim().slice(0, 160);
+  }
+  const errorLine = entry => [String(entry?.at || '').slice(0, 16).replace('T', ' '), entry?.version, entry?.where, cleanErrorText(entry?.message)]
+    .filter(Boolean).join(' · ') + (entry?.count > 1 ? ` (×${entry.count})` : '');
+
+  // Builds a mailto: link with version and device details only; app data is never included. R82: the last errors
+  // on this device (at most five, cleaned) go along.
+  function problemReportMailto({ email, version = APP_VERSION, userAgent = '', standalone = false, persistence = 'unknown', errors = [] } = {}) {
     if (typeof email !== 'string' || !EMAIL_PATTERN.test(email)) return null;
     const subject = tr('Dailo {version} — problem report', { version });
     const body = [
@@ -38,9 +48,12 @@
       tr('Device: {device}', { device: userAgent }),
       tr('Installed (standalone): {value}', { value: standalone ? tr('yes') : tr('no') }),
       tr('Persistent storage: {value}', { value: persistence }),
+      '',
+      tr('Recent errors (no personal data):'),
+      ...(Array.isArray(errors) && errors.length ? errors.slice(0, 5).map(errorLine) : [tr('none')]),
     ].join('\r\n');
     return `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   }
 
-  return Object.freeze({ APP_VERSION, REPORT_EMAIL, APP_URL, GUIDE_URL, TERMS_URL, PRIVACY_URL, FAQ_URL, WHATS_NEW_URL, problemReportMailto });
+  return Object.freeze({ APP_VERSION, REPORT_EMAIL, APP_URL, GUIDE_URL, TERMS_URL, PRIVACY_URL, FAQ_URL, WHATS_NEW_URL, cleanErrorText, problemReportMailto });
 });

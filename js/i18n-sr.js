@@ -686,7 +686,10 @@
     "Reset": "Resetuj",
     "About": "O aplikaciji",
     "Report a problem": "Prijavi problem",
-    "Opens an e-mail with the app version and device details. Your data is not attached.": "Otvara e-poruku sa verzijom aplikacije i podacima o uređaju. Tvoji podaci se ne prilažu.",
+    "Opens an e-mail with the app version, device details and recent errors. Your data is not attached.": "Otvara e-poruku sa verzijom aplikacije, podacima o uređaju i poslednjim greškama. Tvoji podaci se ne prilažu.",
+    // R82: the last errors in a problem report
+    "Recent errors (no personal data):": "Poslednje greške (bez ličnih podataka):",
+    "none": "nema",
     "Privacy": "Privatnost",
     "Your data stays only on this device. Dailo has no server or account.": "Tvoji podaci ostaju samo na ovom uređaju. Dailo nema server ni nalog.",
     "How to install Dailo, keep backups and report problems.": "Kako se Dailo instalira, kako se čuvaju rezervne kopije i kako se prijavljuje problem.",
