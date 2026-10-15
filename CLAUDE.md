@@ -163,7 +163,7 @@ python3 -m http.server 8080
   - `dailoSync`, `dailoNotified`, `dailoNotifyAsked`, `dailoSample`, `dailoTransferDismissed`;
   - `dailoJournalLater`, `dailoPlannedFired`, `dailoJournalLock`, `dailoAutoBackup`, `dailoSampleNotice`;
   - `dailoGestureHint`, `dailoTextSize`, `dailoTheme`, `dailoWelcome`;
-  - `dailoSidebar`, `dailoSidebarFolds`, `dailoJournalKey`.
+  - `dailoSidebar`, `dailoSidebarFolds`, `dailoJournalKey`, `dailoSeenVersion`.
 
 ## The `.claude/` folder
 

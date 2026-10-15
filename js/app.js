@@ -4031,7 +4031,7 @@
     const spoken = toastMessage || (undoState ? tr(undoState.message) : '') || globalRecoveryNotice?.message || '';
     if (status && status.textContent !== spoken) status.textContent = spoken;
     const undo = undoState ? `<div class="toast"><i class="ph-fill ph-check-circle toast-icon"></i><span class="toast-message">${esc(tr(undoState.message))}</span><button class="toast-action" type="button" data-action="undo">${tr('Undo')}</button></div>` : '';
-    const info = toastMessage ? `<div class="toast"><i class="ph ph-info toast-icon" style="color:var(--info)"></i><span class="toast-message">${esc(toastMessage)}</span>${toastLink ? `<button class="toast-action" type="button" data-action="toast-open-task" data-task-id="${esc(toastLink.taskId)}">${esc(tr(toastLink.label))}</button>` : ''}</div>` : '';
+    const info = toastMessage ? `<div class="toast"><i class="ph ph-info toast-icon" style="color:var(--info)"></i><span class="toast-message">${esc(toastMessage)}</span>${toastLink ? (toastLink.href ? `<a class="toast-action" href="${esc(toastLink.href)}" target="_blank" rel="noopener">${esc(tr(toastLink.label))}</a>` : `<button class="toast-action" type="button" data-action="toast-open-task" data-task-id="${esc(toastLink.taskId)}">${esc(tr(toastLink.label))}</button>`) : ''}</div>` : '';
     const failed = [...failedDeleteSnapshots][0];
     const recoveryNotice = failed && !undoHold ? `<div class="toast" role="alert"><i class="ph ph-warning toast-icon"></i><span class="toast-message">${esc(trMessage(failed.recoveryError))} · ${tr('Snapshot retained')}</span><button class="toast-action" type="button" data-action="retry-delete-recovery">${tr('Retry recovery')}</button></div>` : '';
     const globalNotice = globalRecoveryNotice ? `<div class="toast" role="alert"><span class="toast-message">${esc(globalRecoveryNotice.message)}</span><button class="toast-action" data-action="retry-global-recovery">${tr('Retry')}</button></div>` : '';
@@ -6876,6 +6876,15 @@
     return true;
   }
 
+  // R81: after an update one toast says so and links "Šta je novo"; a first start only remembers the version. The
+  // version this device last started is device-local (outside state, backups and sync).
+  const SEEN_VERSION_KEY = 'dailoSeenVersion';
+  function announceUpdate() {
+    let seen;
+    try { seen = localStorage.getItem(SEEN_VERSION_KEY); localStorage.setItem(SEEN_VERSION_KEY, Release.APP_VERSION); } catch (_) { return; }
+    if (seen && seen !== Release.APP_VERSION) setToastMessage(tr('Dailo is updated to {version}.', { version: Release.APP_VERSION }), { href: 'novo.html', label: msg("What's new") });
+  }
+
   // Typing and drafts are saved when the page is hidden or the app goes to the background: iOS can end a
   // backgrounded app without `pagehide` (audit P-4).
   // A recurring task's draft would open the "this or future" question, so only an unloading page flushes it.
@@ -6982,7 +6991,7 @@
     platform.lifecycle.onResume(resumeApp);
     platform.lifecycle.onPause(lockJournalAgain);
     platform.backButton.setHandler(handleBackButton);
-    platform.links.interceptExternalLinks(document, { onlinePages: { 'uputstvo.html': Release.GUIDE_URL, 'uslovi.html': Release.TERMS_URL, 'privatnost.html': Release.PRIVACY_URL, 'pitanja.html': Release.FAQ_URL } });
+    platform.links.interceptExternalLinks(document, { onlinePages: { 'uputstvo.html': Release.GUIDE_URL, 'uslovi.html': Release.TERMS_URL, 'privatnost.html': Release.PRIVACY_URL, 'pitanja.html': Release.FAQ_URL, 'novo.html': Release.WHATS_NEW_URL } });
     platform.files.cleanupSharedFiles().catch(console.error);
     platform.notifications.setActionTypes?.(notificationActionTypes());
     platform.notifications.onOpen(openNotificationTarget);
@@ -7118,6 +7127,7 @@
     try { restored = await restoreDurableMirror(); } catch (error) { console.error(error); }
     await startReady();
     if (restored && state) setToastMessage(tr('Your data was restored from the copy Dailo keeps on this device.'));
+    else if (state) announceUpdate();
     scheduleAutomaticSnapshot();
     startSync();
     updateStoragePersistence(false).catch(console.error);

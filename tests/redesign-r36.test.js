@@ -37,7 +37,8 @@ test('C: a new task says where it went, and "Otvori" opens it', () => {
   assert.equal(ctx.addedMessage({ projectId: 'p' }), 'Added to Selidba');
   assert.equal(ctx.addedMessage({}), 'Added to Anytime');
   assert.match(fn('createTask'), /setToastMessage\(addedMessage\(task\), \{ label: msg\('Open it'\), taskId: task\.id \}\);/);
-  assert.match(fn('renderToast'), /toastLink \? `<button class="toast-action" type="button" data-action="toast-open-task" data-task-id="\$\{esc\(toastLink\.taskId\)\}">\$\{esc\(tr\(toastLink\.label\)\)\}<\/button>` : ''/);
+  // R81: a link toast ("Šta je novo") comes first; a task toast keeps this button.
+  assert.match(fn('renderToast'), /: `<button class="toast-action" type="button" data-action="toast-open-task" data-task-id="\$\{esc\(toastLink\.taskId\)\}">\$\{esc\(tr\(toastLink\.label\)\)\}<\/button>`\) : ''/);
   assert.match(app, /else if \(action === 'toast-open-task'\) \{ const id = el\.dataset\.taskId; setToastMessage\(null\); openTaskDetail\(id\); \}/);
   for (const [en, value] of [['Added to Inbox', 'Dodato u Inbox'], ['Added for {date}', 'Dodato za {date}'], ['Added to {place}', 'Dodato u {place}'], ['Added to Anytime', 'Dodato u Kad stignem'], ['Open it', 'Otvori']]) assert.ok(sr.includes(`${JSON.stringify(en)}: ${JSON.stringify(value)}`), en);
 });

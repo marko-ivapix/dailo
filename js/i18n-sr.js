@@ -695,6 +695,11 @@
     "FAQ": "Česta pitanja",
     "Short answers about the account, your data, backups, reminders and gestures.": "Kratki odgovori o nalogu, podacima, rezervnim kopijama, podsetnicima i pokretima.",
     "Open FAQ": "Otvori pitanja",
+    // R81: Šta je novo
+    "What's new": "Šta je novo",
+    "The changes in recent versions, in short.": "Ukratko, šta se promenilo u poslednjim verzijama.",
+    "See what's new": "Pogledaj novo",
+    "Dailo is updated to {version}.": "Dailo je ažuriran na {version}.",
 
     // Calendar and task rows / Task Properties (js/calendar-ui.js, js/tasks-ui.js)
     "Done": "Urađeno",
