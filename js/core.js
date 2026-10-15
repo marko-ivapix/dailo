@@ -1048,8 +1048,12 @@
       }
       return { ...template, data };
     });
+    // R97: a note's links to projects and goals keep only what still exists; an older note keeps no field.
+    const liveIds = key => new Set((state[key] || []).map(item => item.id));
+    const noteLinks = { relatedProjectIds: liveIds('projects'), relatedGoalIds: liveIds('goals') };
     state.notes = (state.notes || []).map(note => ({
       ...note, favorite: note.favorite === true, clip: typeof note.clip === 'string' ? note.clip : '',
+      ...Object.fromEntries(Object.entries(noteLinks).filter(([field]) => Array.isArray(note[field])).map(([field, ids]) => [field, note[field].filter(id => ids.has(id))])),
     }));
     state.resources = (state.resources || []).map(resource => ({
       ...resource,
@@ -2333,6 +2337,8 @@
     }
     for (const project of state.projects || []) { if (!project) continue; area(project); project.goalIds = keep(project.goalIds, goals); }
     for (const key of ['notes', 'resources', 'goals', 'habits']) for (const item of state[key] || []) area(item);
+    // R97: a note's links to projects and goals.
+    for (const note of state.notes || []) { if (!note) continue; note.relatedProjectIds = keep(note.relatedProjectIds, projects); note.relatedGoalIds = keep(note.relatedGoalIds, goals); }
     for (const resource of state.resources || []) {
       if (!resource) continue;
       resource.relatedTaskIds = keep(resource.relatedTaskIds, tasks);
@@ -2436,7 +2442,7 @@
         }
         if (Object.hasOwn(item, 'areaId') && !isNullableEntityId(item.areaId)) return `invalid-${key}-area-id`;
         if (Object.hasOwn(item, 'linkUrls') && (!Array.isArray(item.linkUrls) || item.linkUrls.some(url => typeof url !== 'string'))) return `invalid-${key}-links`;
-        for (const field of ['attachmentIds', ...(key === 'resources' ? ['relatedTaskIds', 'relatedProjectIds', 'relatedGoalIds', 'relatedHabitIds'] : [])]) {
+        for (const field of ['attachmentIds', ...(key === 'resources' ? ['relatedTaskIds', 'relatedProjectIds', 'relatedGoalIds', 'relatedHabitIds'] : ['relatedProjectIds', 'relatedGoalIds'])]) {
           if (Object.hasOwn(item, field) && !entityIdArrayIsValid(item[field])) return `invalid-${key}-${field}`;
         }
       }

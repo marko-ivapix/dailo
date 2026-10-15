@@ -6,6 +6,9 @@
   const RESOURCE_TYPES = { book: msg('Book'), video: msg('Video'), article: msg('Article'), course: msg('Course'), document: msg('Document'), other: msg('Other') };
   const RESOURCE_STATUSES = { unread: msg('Unread'), reading: msg('Reading'), completed: msg('Completed') };
   const RELATIONS = [['relatedTaskIds', msg('Related Tasks'), 'tasks'], ['relatedProjectIds', msg('Related Projects'), 'projects'], ['relatedGoalIds', msg('Related Goals'), 'goals'], ['relatedHabitIds', msg('Related Habits'), 'habits']];
+  // R97: a note links to projects and goals; a resource to tasks, projects, goals and habits.
+  const NOTE_RELATIONS = RELATIONS.filter(([field]) => ['relatedProjectIds', 'relatedGoalIds'].includes(field));
+  const relationsFor = type => (type === 'resource' ? RELATIONS : NOTE_RELATIONS);
   const FILTER_FIELDS = { note: ['areaId', 'tagId'], resource: ['type', 'status', 'areaId', 'tagId'] };
 
   function favoriteButton(context, type, item) {
@@ -24,10 +27,12 @@
   function renderKnowledgeRow(context, type, item) {
     const { esc, getArea, state } = context;
     const area = getArea(item.areaId)?.name;
-    const web = type === 'resource' ? webLink(item) : null;
+    // R97: a note names the site of its first web link too, and its row opens it.
+    const web = webLink(item);
+    const links = web ? `${web.site}${item.linkUrls.length > 1 ? ` +${item.linkUrls.length - 1}` : ''}` : item.linkUrls.length ? trn(item.linkUrls.length, '{count} link', '{count} links') : '';
     const meta = type === 'resource'
       ? [`${tr(RESOURCE_TYPES[item.type] || 'Article')} · ${tr(RESOURCE_STATUSES[item.status] || 'Unread')}`, web?.site, area]
-      : [area || tr('No area'), item.linkUrls.length ? trn(item.linkUrls.length, '{count} link', '{count} links') : '', item.attachmentIds.length ? trn(item.attachmentIds.length, '{count} file', '{count} files') : ''];
+      : [area || tr('No area'), links, item.attachmentIds.length ? trn(item.attachmentIds.length, '{count} file', '{count} files') : ''];
     const dots = (item.tagIds || []).map(id => state.tags.find(tag => tag.id === id)).filter(Boolean).map(tag => `<span class="knowledge-tag-dot" style="--tag-color:${esc(tag.color)}" role="img" aria-label="${esc(tr('Tag: {name}', { name: tag.name }))}"></span>`).join('');
     return `<div class="today-row knowledge-row"><i class="ph ${knowledgeIcon(type)} knowledge-row-icon" aria-hidden="true"></i><button class="today-row-main" type="button" data-route="${type}/${esc(item.id)}"><span class="task-title">${esc(item.title)}</span><span class="task-meta">${esc(meta.filter(Boolean).join(' · '))}${dots}</span></button>${web ? `<a class="btn-icon knowledge-row-link" href="${esc(web.url)}" target="_blank" rel="noopener noreferrer" aria-label="${esc(tr('Open link: {site}', { site: web.site }))}"><i class="ph ph-arrow-square-out" aria-hidden="true"></i></a>` : ''}${favoriteButton(context, type, item)}</div>`;
   }
@@ -169,8 +174,8 @@
       || d.reviewedAt && (!Core.parseDateOnly(d.reviewedAt) || Core.dateOnly(Core.parseDateOnly(d.reviewedAt)) !== d.reviewedAt))) {
       return { error: tr('Choose a valid type, reading status and review date.') };
     }
-    if (type === 'resource' && RELATIONS.some(([field, , collection]) => d[field].some(id => !state[collection].some(candidate => candidate.id === id)))) {
-      return { error: tr('A related item changed. Reopen this Resource before saving.') };
+    if (relationsFor(type).some(([field, , collection]) => d[field].some(id => !state[collection].some(candidate => candidate.id === id)))) {
+      return { error: type === 'resource' ? tr('A related item changed. Reopen this Resource before saving.') : tr('A related item changed. Reopen this note before saving.') };
     }
     return { checked };
   }
@@ -182,6 +187,7 @@
       Object.assign(item, { type: d.resourceType, status: d.resourceStatus, author: d.author.trim(), reviewedAt: d.reviewedAt || null });
       for (const [field] of RELATIONS) item[field] = [...d[field]];
     }
+    if (type === 'note') for (const [field] of NOTE_RELATIONS) if (d[field].length || Object.hasOwn(item, field)) item[field] = [...d[field]];
   }
 
   // An existing item saves each change at once; a refused change leaves the item and the window as they were.
@@ -267,11 +273,27 @@
   function windowRow(context, action, icon, label, value, empty = tr('Not set'), extra = '') {
     return `<button class="task-window-row" type="button" data-action="${action}"${extra}><i class="ph ${icon}" aria-hidden="true"></i><span class="task-window-row-label">${label}</span><span class="task-window-row-value${value ? ' is-set' : ''}">${context.esc(value || empty)}</span><i class="ph ph-caret-right task-window-row-caret" aria-hidden="true"></i></button>`;
   }
+  // R97: a link is a card with its site and the rest of its address; nothing is fetched from it.
   function linkHtml(context, url) {
     const { esc } = context;
-    let safe = false;
-    try { safe = ['http:', 'https:', 'mailto:'].includes(new URL(url).protocol); } catch (_) {}
-    return safe ? `<a class="knowledge-link" href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(url)}</a>` : `<span class="knowledge-link">${esc(url)}</span>`;
+    let link = null;
+    try { link = new URL(url); } catch (_) { /* not an address */ }
+    if (!link || !['http:', 'https:', 'mailto:'].includes(link.protocol)) return `<span class="knowledge-link">${esc(url)}</span>`;
+    const mail = link.protocol === 'mailto:';
+    const site = mail ? decodeURIComponent(link.pathname) : link.hostname.replace(/^www\./, '');
+    const rest = mail ? '' : `${link.pathname === '/' ? '' : link.pathname}${link.search}`;
+    return `<a class="knowledge-link-card" href="${esc(url)}" target="_blank" rel="noopener noreferrer"><i class="ph ${mail ? 'ph-envelope-simple' : 'ph-globe'}" aria-hidden="true"></i><span class="knowledge-link-card-text"><strong>${esc(site)}</strong>${rest ? `<small>${esc(rest)}</small>` : ''}</span><i class="ph ph-arrow-square-out" aria-hidden="true"></i></a>`;
+  }
+
+  // R97: the notes and resources linked to a project or goal, for its screen; nothing when none is.
+  function linkedKnowledge(context, field, id, style) {
+    const items = [...(context.state.notes || []).map(item => ['note', item]), ...(context.state.resources || []).map(item => ['resource', item])]
+      .filter(([, item]) => Array.isArray(item[field]) && item[field].includes(id));
+    if (!items.length) return '';
+    const rows = `<div class="today-card">${items.map(([type, item]) => renderKnowledgeRow(context, type, item)).join('')}</div>`;
+    return style === 'section'
+      ? `<section class="section knowledge-linked"><div class="section-header"><h2 class="section-label">${tr('Notes and resources')}</h2><span class="section-count">${items.length}</span></div>${rows}</section>`
+      : `<h3 class="goal-details-label">${tr('Notes and resources')} · ${items.length}</h3>${rows.replace('<div class="today-card">', '<div class="today-card knowledge-linked-card">')}`;
   }
   const names = (context, collection, ids) => context.state[collection].filter(item => ids.includes(item.id)).map(item => item.title || item.name).join(', ');
 
@@ -289,7 +311,7 @@
     if (d.clip) html += `<h3 class="goal-details-label">${tr('Clipped text')}</h3><blockquote class="knowledge-clip-quote">${esc(d.clip)}</blockquote>`;
     html += `<h3 class="goal-details-label">${tr('Links')} · ${d.linkUrls.length}</h3><div class="habit-window-card knowledge-links">${d.linkUrls.map((url, index) => `<div class="knowledge-link-row">${linkHtml(context, url)}<button class="btn-icon" type="button" data-action="remove-knowledge-link" data-link-index="${index}" aria-label="${tr('Remove link')}"><i class="ph ph-x"></i></button></div>`).join('')}<div class="knowledge-link-add"><input id="knowledge-link" class="input" type="url" inputmode="url" autocomplete="off" placeholder="https://…" value="${esc(d.linkDraft)}" aria-label="${tr('New link')}"><button class="btn btn-secondary" type="button" data-action="add-knowledge-link">${tr('Add')}</button></div></div>`;
     const tags = context.state.tags.filter(tag => d.tagIds.includes(tag.id)).map(tag => tag.name).join(', ');
-    const relations = resource ? RELATIONS.map(([field, label, collection]) => windowRow(context, 'knowledge-relations', 'ph-link-simple', tr(label), names(context, collection, d[field]), tr('None'), ` data-field="${field}"`)).join('') : '';
+    const relations = relationsFor(type).map(([field, label, collection]) => windowRow(context, 'knowledge-relations', 'ph-link-simple', tr(label), names(context, collection, d[field]), tr('None'), ` data-field="${field}"`)).join('');
     html += `<h3 class="goal-details-label">${tr('Organization')}</h3><div class="habit-window-card">${windowRow(context, 'knowledge-tags', 'ph-tag', tr('Tags'), tags, tr('None'))}${relations}${windowRow(context, 'knowledge-clip', 'ph-quotes', tr('Clipped text'), d.clip ? tr('Added') : '', tr('None'))}</div>`;
     // R33 (finding 26): the attachments take the same group look as Tekst, Linkovi and Organizacija.
     html += `<div class="task-window-attachments">${renderAttachmentsSection({ ownerType: type, ownerId: modalState.ownerId })}</div>`;
@@ -356,7 +378,7 @@
     if (action === 'knowledge-reviewed-clear') return apply(() => { d.reviewedAt = ''; });
     if (action === 'knowledge-tags') { sheet = { kind: 'tags', ids: [...d.tagIds] }; context.openPopover(el, multiSheetHtml(context), { type: 'knowledge-tags' }); return true; }
     if (action === 'knowledge-relations') {
-      if (type !== 'resource' || !RELATIONS.some(([field]) => field === el.dataset.field)) return true;
+      if (!relationsFor(type).some(([field]) => field === el.dataset.field)) return true;
       sheet = { kind: 'relations', field: el.dataset.field, ids: [...d[el.dataset.field]] }; context.openPopover(el, multiSheetHtml(context), { type: 'knowledge-relations' }); return true;
     }
     if ((action === 'knowledge-tag-toggle' || action === 'knowledge-relation-toggle') && sheet) {
@@ -378,6 +400,7 @@
       // R10b: app.js opens the window on top of the list.
       if (route.type === 'note' || route.type === 'resource') return renderKnowledgeList(context, route.type);
       if (route.type === 'modal' && route.modalType === 'knowledge') return renderKnowledgeModal(context);
+      if (route.type === 'knowledge-linked') return linkedKnowledge(context, route.field, route.id, route.style);
     },
     handleAction(action, event, context) {
       // Attachment selection/drop must capture the draft before app.js rerenders.

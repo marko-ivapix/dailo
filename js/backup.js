@@ -198,6 +198,12 @@
         if (!Array.isArray(item[field]) || item[field].some(id => !name(id))) fail(field);
         refs(item, field, target);
       }
+      // R97: a note's links to projects and goals, once it has any.
+      if (collection === 'notes') for (const [field, target] of Object.entries({ relatedProjectIds: 'projects', relatedGoalIds: 'goals' })) {
+        if (item[field] === undefined) continue;
+        if (!Array.isArray(item[field]) || item[field].some(id => !name(id))) fail(field);
+        refs(item, field, target);
+      }
       if (collection === 'resources') {
         enumField(item, 'type', ['book', 'video', 'article', 'course', 'document', 'other']);
         enumField(item, 'status', ['unread', 'reading', 'completed']);

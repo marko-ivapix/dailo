@@ -129,8 +129,7 @@ test('the new lines are Serbian; the guide follows', () => {
   assert.ok(read('uputstvo.html').includes('Traje oko 10 minuta i počinje pobedama iz poslednjih 7 dana. Svaki korak možeš da preskočiš. Na kraju biraš do tri prioriteta za sledeću nedelju: stoje na vrhu ekrana Danas, a <strong>Fokusiraj se na njih</strong> ih otvara u Fokusu.'));
 });
 
-test('R96 is released as 2.0.0-alpha.123', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.123');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.123';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.123');
+test('R96 shipped as 2.0.0-alpha.123 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 123) >= 123);
 });

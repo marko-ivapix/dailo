@@ -81,7 +81,8 @@ test('S3: one list per screen, newest first, with the star, tag dots and the met
   const notes = module.renderRoute({ type: 'notes' }, ctx);
   assert.match(notes, /^<header title="Notes" subtitle="2 notes" add="false"><\/header><label class="sheet-search knowledge-search">[\s\S]*?<\/label><div class="sheet-chips knowledge-chips"><button class="quick-chip" type="button" data-action="knowledge-favorite-filter" data-owner-type="note" aria-pressed="false"><i class="ph ph-star" aria-hidden="true"><\/i> Favorites<\/button><button class="quick-chip" type="button" data-action="knowledge-filter" data-owner-type="note" data-field="areaId">Area <i class="ph ph-caret-down" aria-hidden="true"><\/i><\/button><button class="quick-chip" type="button" data-action="knowledge-filter" data-owner-type="note" data-field="tagId">Tag <i class="ph ph-caret-down" aria-hidden="true"><\/i><\/button><\/div><div id="knowledge-results"><div class="today-card knowledge-list">/);
   assert.deepEqual([...notes.matchAll(/data-route="note\/(\w+)"/g)].map(match => match[1]), ['n2', 'n1']);
-  assert.match(notes, /<div class="today-row knowledge-row"><i class="ph ph-note knowledge-row-icon" aria-hidden="true"><\/i><button class="today-row-main" type="button" data-route="note\/n1"><span class="task-title">Meeting<\/span><span class="task-meta">Work · 2 links · 1 file<span class="knowledge-tag-dot" style="--tag-color:#4f8cff" role="img" aria-label="Tag: Reading"><\/span><\/span><\/button><button class="btn-icon knowledge-favorite " type="button" data-action="toggle-knowledge-favorite" data-owner-type="note" data-owner-id="n1"/);
+  // R97: a note names the site of its first web link (+ the others) and its row opens it.
+  assert.match(notes, /<div class="today-row knowledge-row"><i class="ph ph-note knowledge-row-icon" aria-hidden="true"><\/i><button class="today-row-main" type="button" data-route="note\/n1"><span class="task-title">Meeting<\/span><span class="task-meta">Work · a\.example \+1 · 1 file<span class="knowledge-tag-dot" style="--tag-color:#4f8cff" role="img" aria-label="Tag: Reading"><\/span><\/span><\/button><a class="btn-icon knowledge-row-link" href="https:\/\/a\.example" target="_blank" rel="noopener noreferrer" aria-label="Open link: a\.example"><i class="ph ph-arrow-square-out" aria-hidden="true"><\/i><\/a><button class="btn-icon knowledge-favorite " type="button" data-action="toggle-knowledge-favorite" data-owner-type="note" data-owner-id="n1"/);
   assert.match(notes, /data-route="note\/n2"><span class="task-title">Ideas<\/span><span class="task-meta">No area<\/span><\/button><button class="btn-icon knowledge-favorite is-favorite"/);
   const resources = module.renderRoute({ type: 'resources' }, ctx);
   assert.deepEqual([...resources.matchAll(/data-action="knowledge-filter" data-owner-type="resource" data-field="(\w+)">(\w[\w ]*) </g)].map(match => match.slice(1)), [['type', 'Type'], ['status', 'Status'], ['areaId', 'Area'], ['tagId', 'Tag']]);
@@ -128,7 +129,8 @@ test('S3: a resource opens in a window like the task window', () => {
     ['knowledge-tags', 'Tags', 'Reading'], ['knowledge-relations', 'Related Tasks', 'Read'], ['knowledge-relations', 'Related Projects', 'None'], ['knowledge-relations', 'Related Goals', 'None'], ['knowledge-relations', 'Related Habits', 'None'], ['knowledge-clip', 'Clipped text', 'None'],
   ]);
   assert.match(html, /<h3 class="goal-details-label">Description<\/h3><textarea id="knowledge-text" class="input knowledge-text" rows="5" data-autogrow placeholder="Description">Original description<\/textarea>/);
-  assert.match(html, /<h3 class="goal-details-label">Links · 1<\/h3><div class="habit-window-card knowledge-links"><div class="knowledge-link-row"><a class="knowledge-link" href="https:\/\/example\.com" target="_blank" rel="noopener noreferrer">https:\/\/example\.com<\/a><button class="btn-icon" type="button" data-action="remove-knowledge-link" data-link-index="0" aria-label="Remove link"><i class="ph ph-x"><\/i><\/button><\/div><div class="knowledge-link-add"><input id="knowledge-link" class="input" type="url" inputmode="url" autocomplete="off" placeholder="https:\/\/…" value="" aria-label="New link"><button class="btn btn-secondary" type="button" data-action="add-knowledge-link">Add<\/button><\/div><\/div>/);
+  // R97: a link is a card with its site.
+  assert.match(html, /<h3 class="goal-details-label">Links · 1<\/h3><div class="habit-window-card knowledge-links"><div class="knowledge-link-row"><a class="knowledge-link-card" href="https:\/\/example\.com" target="_blank" rel="noopener noreferrer"><i class="ph ph-globe" aria-hidden="true"><\/i><span class="knowledge-link-card-text"><strong>example\.com<\/strong><\/span><i class="ph ph-arrow-square-out" aria-hidden="true"><\/i><\/a><button class="btn-icon" type="button" data-action="remove-knowledge-link" data-link-index="0" aria-label="Remove link"><i class="ph ph-x"><\/i><\/button><\/div><div class="knowledge-link-add"><input id="knowledge-link" class="input" type="url" inputmode="url" autocomplete="off" placeholder="https:\/\/…" value="" aria-label="New link"><button class="btn btn-secondary" type="button" data-action="add-knowledge-link">Add<\/button><\/div><\/div>/);
   assert.match(html, /<h3 class="goal-details-label">Organization<\/h3><div class="habit-window-card">/);
   assert.match(html, /<div class="task-window-attachments"><div data-attachment-owner="resource:r"><\/div><\/div><\/div><\/frame>$/, 'no footer for a saved item (R33: attachments in the group look)');
   assert.doesNotMatch(html, /<select|data-action="save-knowledge"|form-hint/);
@@ -137,7 +139,8 @@ test('S3: a resource opens in a window like the task window', () => {
   note.state.notes[0].clip = '<b>excerpt</b>';
   openItem(module, note.ctx, 'note', 'n1');
   const noteHtml = windowHtml(module, note.ctx);
-  assert.deepEqual(rowsOf(noteHtml), [['knowledge-tags', 'Tags', 'Reading'], ['knowledge-clip', 'Clipped text', 'Added']]);
+  // R97: a note links to projects and goals too.
+  assert.deepEqual(rowsOf(noteHtml), [['knowledge-tags', 'Tags', 'Reading'], ['knowledge-relations', 'Related Projects', 'None'], ['knowledge-relations', 'Related Goals', 'None'], ['knowledge-clip', 'Clipped text', 'Added']]);
   assert.match(noteHtml, /<h2 class="task-window-kind">Note<\/h2>[\s\S]*placeholder="Note name"[\s\S]*<h3 class="goal-details-label">Text<\/h3><textarea id="knowledge-text" class="input knowledge-text" rows="5" data-autogrow placeholder="Note text">Agenda<\/textarea><h3 class="goal-details-label">Clipped text<\/h3><blockquote class="knowledge-clip-quote">&lt;b>excerpt&lt;\/b><\/blockquote>/);
 });
 
@@ -224,7 +227,8 @@ test('S3: a change that would break the item is refused and the item stays as it
   act(module, ctx, 'remove-knowledge-link', { linkIndex: '0' });
   assert.deepEqual([...item.linkUrls], ['https://example.com']);
   assert.equal(ctx.modalState.error, 'Resource needs at least one URL, image, or attached file.');
-  assert.match(windowHtml(module, ctx), /<a class="knowledge-link" href="https:\/\/example\.com"[\s\S]*<p class="validation" role="alert">Resource needs at least one URL, image, or attached file\.<\/p>/);
+  // R97: the link is a card.
+  assert.match(windowHtml(module, ctx), /<a class="knowledge-link-card" href="https:\/\/example\.com"[\s\S]*<p class="validation" role="alert">Resource needs at least one URL, image, or attached file\.<\/p>/);
   ctx.saveState = () => false;
   act(module, ctx, 'knowledge-status');
   act(module, ctx, 'knowledge-set-status', { value: 'completed' });

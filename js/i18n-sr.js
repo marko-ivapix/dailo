@@ -886,6 +886,8 @@
     "Add to priorities: {task}": "Dodaj u prioritete: {task}",
     "This week's priorities": "Prioriteti ove nedelje",
     "Focus on them": "Fokusiraj se na njih",
+    "Notes and resources": "Beleške i resursi",
+    "A related item changed. Reopen this note before saving.": "Povezana stavka se promenila. Ponovo otvori belešku pre čuvanja.",
     "Unlike a repeating task, a chore has no strict deadline: its bar fills slowly until it is time, and doing it starts the bar again.": "Za razliku od ponavljajućeg zadatka, obaveza nema strog rok: traka se polako puni dok ne dođe vreme, a kad je uradiš, kreće ispočetka.",
     "Swap the winter and summer clothes": "Zameni zimsku i letnju garderobu",
     "Have the air conditioner serviced before summer": "Servisiraj klimu pre leta",

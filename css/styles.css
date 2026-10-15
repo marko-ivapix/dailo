@@ -2680,6 +2680,16 @@ a.toast-action { display: inline-flex; align-items: center; text-decoration: non
 /* R92: Navike — the line that says what ✓, ✗ and an empty circle mean. */
 .habits-legend { margin: 14px 4px 0; color: var(--ink-3); font-size: var(--text-sm); line-height: 1.45; }
 
+/* R97: a link is a card with its site; a project lists the notes and resources linked to it. */
+.knowledge-link-card { display: flex; align-items: center; gap: 10px; flex: 1 1 auto; min-width: 0; min-height: 44px; padding: 6px 4px; color: var(--ink-1); text-decoration: none; }
+.knowledge-link-card > i { flex: none; color: var(--ink-3); }
+.knowledge-link-card-text { display: grid; flex: 1 1 auto; min-width: 0; }
+.knowledge-link-card-text strong { overflow: hidden; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.knowledge-link-card small { overflow: hidden; color: var(--ink-3); font-size: var(--text-sm); text-overflow: ellipsis; white-space: nowrap; }
+.knowledge-linked { margin-top: 12px; }
+.knowledge-linked .knowledge-row, .knowledge-linked-card .knowledge-row { min-height: 56px; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; }
+.knowledge-linked .knowledge-row:has(.knowledge-row-link), .knowledge-linked-card .knowledge-row:has(.knowledge-row-link) { grid-template-columns: auto minmax(0, 1fr) auto auto; }
+
 /* R96: the review's wins, a skipped step, the merged look and the priorities (also at the top of Danas). */
 .review-wins { display: grid; gap: 6px; padding: 10px 14px; }
 .review-win { display: flex; align-items: flex-start; gap: 8px; margin: 0; color: var(--ink-1); font-size: var(--text-base); line-height: 1.4; }

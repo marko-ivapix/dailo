@@ -31,6 +31,8 @@
     if (openTasks.length) html += `<div class="task-list today-card" data-list-context="project:${esc(projectId)}">${openTasks.map((task, index) => renderProjectTaskRow(task, projectId, { draggable: !archived, today: true, hidePlace: true, nextStep: index === 0 && status === 'active' && !archived })).join('')}</div>`;
     else if (!archived) html += `<p class="today-empty">${tr('No open tasks.')}</p>`;
     if (!archived) html += `<button class="inline-add" type="button" data-action="quick-add" data-project-id="${esc(projectId)}"><i class="ph ph-plus"></i> ${tr('Add task')}</button>`;
+    // R97: the notes and resources linked to the project.
+    html += ctx.linkedKnowledgeHtml?.('relatedProjectIds', projectId, 'section') || '';
     html += completedSection(ctx, projectId, completed, task => renderProjectTaskRow(task, projectId, { completed: true, today: true, hidePlace: true }));
     return html;
   }

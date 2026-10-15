@@ -745,6 +745,8 @@
       repeatEditorState, repeatEditorHtml, repeatEditorUpdate, repeatEditorError, repeatEditorSetStart, repeatRuleFromSheet, repeatFocusSelector, readRepeatInputs,
       renderChoreRow(task, options = {}) { return taskRow(task, 'cleaning', { today: true, metaText: options.metaText, metaLead: options.metaLead, bar: options.bar }); },
       renderGoalListRow(goal) { return callDomainHook('renderRoute', { type: 'goal-list-row', goal }) || ''; },
+      // R97: the notes and resources linked to a project or goal.
+      linkedKnowledgeHtml(field, id, style) { return callDomainHook('renderRoute', { type: 'knowledge-linked', field, id, style }) || ''; },
       renderHabitListRow(habit) { return callDomainHook('renderRoute', { type: 'habit-list-row', habit }) || ''; },
       projectOverviewRow(project) { return projectOverviewRow(project, listTasks()); },
       renderSavedViewItem(view, item, today) {
@@ -3889,6 +3891,11 @@
       const field = { project: 'relatedProjectIds', goal: 'relatedGoalIds', habit: 'relatedHabitIds' }[type];
       if (field) arrayEffect('resources', resource, field, id => id === identity);
     }
+    // R97: a note's link to a deleted project or goal goes with it, and comes back with Poništi.
+    for (const note of state.notes || []) {
+      const field = { project: 'relatedProjectIds', goal: 'relatedGoalIds' }[type];
+      if (field) arrayEffect('notes', note, field, id => id === identity);
+    }
     if (type === 'area') for (const collection of ['tasks', 'projects', 'goals', 'habits', 'notes', 'resources'])
       for (const owner of state[collection]) if (owner.areaId === identity)
         snapshot.effects.push({ collection, owner, field: 'areaId', scalar: true, before: owner.areaId, after: null });
@@ -4093,6 +4100,9 @@
         if (entry.entity.areaId && !exists('areas', entry.entity.areaId)) throw new Error(msg('The Area no longer exists. Restore it before retrying Undo.'));
         if (entry.collection === 'resources') for (const [field, collection] of Object.entries({ relatedTaskIds: 'tasks', relatedProjectIds: 'projects', relatedGoalIds: 'goals', relatedHabitIds: 'habits' }))
           if (entry.entity[field].some(id => !exists(collection, id))) throw new Error(msg('A related item no longer exists. Restore it before retrying Undo.'));
+        // R97: a note's links to projects and goals.
+        if (entry.collection === 'notes') for (const [field, collection] of Object.entries({ relatedProjectIds: 'projects', relatedGoalIds: 'goals' }))
+          if ((entry.entity[field] || []).some(id => !exists(collection, id))) throw new Error(msg('A related item no longer exists. Restore it before retrying Undo.'));
       }
     }
     if (snapshot.attachmentOwner && !state[snapshot.attachmentOwnerCollection].includes(snapshot.attachmentOwner)) throw new Error(msg('Attachment owner changed.'));
