@@ -166,6 +166,8 @@
       for (const key of ['todayOrder','projectOrder','inboxOrder']) numberField(task,key,-Infinity);
       if (task.durationMinutes != null && !positiveInteger(task.durationMinutes)) fail('durationMinutes');
       if (task.plannedMonth != null && root.TodoCore.normalizePlannedMonth(task.plannedMonth) !== task.plannedMonth) fail('plannedMonth');
+      // R77: the calendar UID of a task made from an imported event.
+      if (task.icsUid != null && !root.TodoCore.validIcsUid(task.icsUid)) fail('icsUid');
       if (task.subtasks != null) {
         nested(task.subtasks,'subtasks');
         for (const sub of task.subtasks) {

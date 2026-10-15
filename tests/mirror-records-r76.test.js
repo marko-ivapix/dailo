@@ -120,8 +120,7 @@ test('the records come back only together with a restored state', async () => {
   assert.deepEqual(present.fills, [], 'a device with its data keeps its stores as they are');
 });
 
-test('R76 is released as 2.0.0-alpha.103', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.103');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.103';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.103');
+test('R76 shipped as 2.0.0-alpha.103 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 103) >= 103);
 });

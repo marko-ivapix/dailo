@@ -78,9 +78,10 @@ test('the import plan: from today on, no repeats, no duplicates of open tasks, a
   ];
   const existing = [task('x', { title: 'kupovina', plannedDate: '2026-10-21' })];
   const plan = JSON.parse(JSON.stringify(Core.icsImportTasks(events, existing, '2026-10-12')));
+  // R77: a draft also keeps the event's UID (task.icsUid), so a later import recognizes it.
   assert.deepEqual(plan.drafts, [
-    { title: 'Lekar', notes: 'Ponesi knjižicu', plannedDate: '2026-10-20', plannedTime: '10:00', durationMinutes: 60 },
-    { title: '', notes: '', plannedDate: '2026-10-22', plannedTime: '08:00', durationMinutes: null },
+    { title: 'Lekar', notes: 'Ponesi knjižicu', plannedDate: '2026-10-20', plannedTime: '10:00', durationMinutes: 60, icsUid: '1' },
+    { title: '', notes: '', plannedDate: '2026-10-22', plannedTime: '08:00', durationMinutes: null, icsUid: '5' },
   ]);
   assert.deepEqual([plan.past, plan.recurring, plan.duplicates, plan.overLimit], [1, 1, 1, 0]);
   const many = Array.from({ length: 520 }, (_, index) => ({ ...events[0], uid: String(index), summary: `E${index}` }));

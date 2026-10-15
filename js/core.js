@@ -657,6 +657,8 @@
       reminderAt,
       reminderFiredAt: null,
       plannedMonth: null,
+      // R77: the next occurrence is Dailo's own, not the calendar event the first task came from.
+      ...(task.icsUid != null || source.icsUid != null ? { icsUid: null } : {}),
       recurrence:{...recurrence,seriesId:recurrence.seriesId || task.id,occurrencesCreated:recurrence.occurrencesCreated+1,skipNext:false},
       recurrenceBaseline:null,
       recurrenceSuccessorId:null,
@@ -948,6 +950,8 @@
       ...task, durationMinutes: positiveIntegerOrNull(task.durationMinutes),
       // R67: only a stored bad month is cleared; older tasks keep no field, so sync has nothing new to send.
       ...(task.plannedMonth != null && normalizePlannedMonth(task.plannedMonth) !== task.plannedMonth ? { plannedMonth: null } : {}),
+      // R77: likewise only a stored bad calendar UID is cleared.
+      ...(task.icsUid != null && !validIcsUid(task.icsUid) ? { icsUid: null } : {}),
     }));
     state.goals = state.goals.map(goal => ({
       ...goal,
@@ -2515,14 +2519,29 @@
       const span = end && !end.allDay ? Math.round((end.instant - start.instant) / 60000) : props.DURATION ? icsDurationMinutes(props.DURATION.value) : null;
       durationMinutes = span > 0 ? span : null;
     }
-    return { uid: icsUnescape(props.UID?.value || ''), summary: icsUnescape(props.SUMMARY?.value || ''), description: icsUnescape(props.DESCRIPTION?.value || ''), date: start.date, time: start.time, durationMinutes, allDay: start.allDay, recurring: Boolean(props.RRULE || props.RDATE) };
+    // R77: one changed occurrence of a series shares the series UID; its RECURRENCE-ID tells it apart.
+    const recurrenceId = String(props['RECURRENCE-ID']?.value || '').trim();
+    return { uid: icsUnescape(props.UID?.value || ''), summary: icsUnescape(props.SUMMARY?.value || ''), description: icsUnescape(props.DESCRIPTION?.value || ''), date: start.date, time: start.time, durationMinutes, allDay: start.allDay, recurring: Boolean(props.RRULE || props.RDATE), ...(recurrenceId ? { recurrenceId } : {}) };
+  }
+
+  // R77: the calendar UID a task made from an event keeps (task.icsUid): text of 1–500 characters, no control characters.
+  function validIcsUid(value) {
+    return typeof value === 'string' && value.trim().length > 0 && value.length <= 500 && !/[\u0000-\u001f\u007f]/.test(value);
   }
 
   // Which events become tasks: from today on, not repeating (Dailo's own repeat rule is set by hand), not the same
   // title, day and time as an open task (or an earlier event in the file), and at most `limit` per file.
+  // R77: nor an event imported before — its UID is on a task, open or completed — nor one of Dailo's own exported
+  // events (`<task id>-plan@dailo`, `<task id>-due@dailo`) whose task is here; a draft keeps the event's UID.
   function icsImportTasks(events, tasks, today, limit = 500) {
     const key = (title, date, time) => `${String(title || '').trim().toLocaleLowerCase()}|${date}|${time || ''}`;
     const seen = new Set((tasks || []).filter(task => task && !task.isCompleted && task.plannedDate).map(task => key(task.title, task.plannedDate, task.plannedTime)));
+    const taskIds = new Set((tasks || []).map(task => task?.id).filter(Boolean));
+    const uids = new Set((tasks || []).map(task => task?.icsUid).filter(validIcsUid));
+    const uidOf = event => {
+      const uid = event.uid && event.recurrenceId ? `${event.uid}#${event.recurrenceId}` : event.uid;
+      return validIcsUid(uid) ? uid : null;
+    };
     const drafts = [];
     let past = 0;
     let recurring = 0;
@@ -2533,11 +2552,14 @@
       if (event.date < today) { past += 1; continue; }
       const title = String(event.summary || '').trim();
       const id = key(title, event.date, event.time);
-      if (seen.has(id)) { duplicates += 1; continue; }
+      const uid = uidOf(event);
+      const own = /^(.+)-(?:plan|due)@dailo$/.exec(String(event.uid || ''));
+      if (uid && uids.has(uid) || own && taskIds.has(own[1]) || seen.has(id)) { duplicates += 1; continue; }
       if (drafts.length >= limit) { overLimit += 1; continue; }
       seen.add(id);
+      if (uid) uids.add(uid);
       const minutes = Number.isInteger(event.durationMinutes) && event.durationMinutes > 0 && event.durationMinutes <= 1440 ? event.durationMinutes : null;
-      drafts.push({ title, notes: String(event.description || '').trim(), plannedDate: event.date, plannedTime: event.time || null, durationMinutes: minutes });
+      drafts.push({ title, notes: String(event.description || '').trim(), plannedDate: event.date, plannedTime: event.time || null, durationMinutes: minutes, ...(uid ? { icsUid: uid } : {}) });
     }
     return { drafts, past, recurring, duplicates, overLimit };
   }
@@ -2561,6 +2583,7 @@
     calendarIcs,
     parseIcsEvents,
     icsImportTasks,
+    validIcsUid,
     addDays,
     pruneDanglingReferences,
     attachmentOpensInline,
