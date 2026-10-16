@@ -61,3 +61,9 @@ The plan records 3c as done in R114 and says why the sync stays.
   - "Odjavi se" on Nalog: Danas behind the sign-in screen;
   - "Obriši nalog" with OBRIŠI;
   - the first-sync choice on a device with its own data: each of the three options, and "Otkaži i odjavi se".
+
+## Review
+
+- **Result:** a read-only review of `b2c1bef` found no behavior difference. It found no missed live name and no module that answers these actions or this window first. The helpers taken once are constants or a function declaration. `TodoStorage` loads before the module.
+- **Records:** `CLAUDE.md` and `CONTINUATION.md` made the narrowing read as settled. They now say that the user has not answered yet. A missing comma in `PROJECT_MAP.md` is fixed.
+- **Noted for the next step:** the commit title lacked the version (`… (2.0.0-alpha.144)`), as the `release-step` skill asks. History is not rewritten.
