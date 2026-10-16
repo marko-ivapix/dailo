@@ -1,10 +1,21 @@
 # Claude Code continuation handoff
 
-**Updated:** 2026-10-09\
-**Product:** Dailo local-first productivity prototype  
-**Current release:** `2.0.0-alpha.3` on `main` — PR #8 (merge commit `6b5166f`, 2026-10-09) brought in the Capacitor modernization M1–M10 plus M11 (the user's decisions on habit history, reminders after check-in and Search), developed on `feature/capacitor-modernization` (audit, plan and ledger listed below), together with V2.0-a Sync in the web app (`2.0.0-alpha.1`, on `ccr-95f6062b-lgg2fr`: Steps 1–2 `65aeabf`, Step 3 `7a834db`, Step 4 `73fd942`) and the redesign decision log. Sync stays off until the user supplies the Supabase project URL and public key for `js/sync-config.js`. Before PR #8, `main` carried V1.12 Duration and time-blocking (`1.12.0`, commit `d00855b`), after V1.10 Smart Quick Add (`c64bd81`) and V1.11 Weekly review (`5bbd820`). All three were merged into `main` together through PR #7 (`31fb23d`) and are packaged as `Dailo-v1.12-distributable.zip` (the current artifact, built from the commit that carries these docs and added in the next commit; it closes roadmap Phase 4). `main` carries V1.9.1 (PR #6, `3597343`): V1.9 Beta-ready (PR #5) plus plan Step 7 — problem-report address, Serbian tester guide `uputstvo.html`, beta checklist `docs/beta/provera-pre-bete.md` — packaged as `Dailo-v1.9.1-distributable.zip` (previous artifact). Behavior baseline V1.7, visual layer V1.8 (`Dailo-v1.8-distributable.zip` is an older artifact)\
-**Manual:** iPhone B1–B5 passed (user report, 2026-10-08); the update notice (B6) and B7–B30 are open (B25–B30 cover the V1.10 Quick Add syntax, the duration chip, the weekly review, the Calendar day view, daily capacity and drag on Mac)\
-**Next:** the user builds the app on the Mac per `docs/v2/capacitor-mac.md` and reports the first native checks (create a task, close, reopen; reminders; Back; export). Then the redesign in versioned steps. Still open from before: the user creates the Supabase project (`docs/v2/podesavanje-supabase.md`) and sends the project URL and public key; then the sync checks B31–B36. The first Capacitor shell (V2.0-b, `51c098f`, `2bfc2d0`, `d41d203`) was reverted on 2026-10-08 and restored in M8 after the user chose Capacitor on 2026-10-09. The V2.0 spec (`docs/superpowers/specs/2026-10-08-todo-v2-0-design.md`) was approved on 2026-10-08 and `AGENTS.md` was amended: optional Supabase sync is allowed, the app keeps working without an account, and the service-role key never enters the repository
+**Updated:** 2026-10-16\
+**Product:** Dailo local-first productivity prototype\
+**`main`:** `99c1e9e` (PR #32: R83–R106), GitHub Pages serves `2.0.0-alpha.135`\
+**Work branch:** `ccr-95f6062b-lgg2fr` at `2.0.0-alpha.144`, not merged yet:
+- R107: Reset with or without a copy;
+- R108: sheet footers above the system buttons;
+- R109: Projekti as their own screen;
+- the module split of `js/app.js`:
+  - R110 `js/drag-ui.js`;
+  - R111 and R111b `js/quick-add-ui.js`;
+  - R112–R114 `js/account-ui.js` (the welcome screen, the account windows, signing out, deleting the account and the first-sync choice).
+
+**Manual:** what the user has reported and what is still open is in `CLAUDE.md` → "Current state" (beta checklist B6–B52, phone and iPhone checks, two devices).\
+**Next:** R114 narrowed step 3c of `docs/superpowers/plans/2026-10-12-app-js-modules.md` and left the sync itself in `app.js` (the plan says why). The user agreed on 2026-10-16 ("slažem se, ostavi sinhronizaciju u app.js"), so part 3 is done. Next: a pull request into `main` when the user asks.
+
+**From here down** this file is the `2.0.0-alpha.3` handoff of 2026-10-09, kept for its baseline and protocol. Newer steps are in `docs/superpowers/progress-redesign.md`.
 
 This is the shortest reliable handoff for continuing the project in Claude Code. Read it after `AGENTS.md` and before opening individual modules.
 

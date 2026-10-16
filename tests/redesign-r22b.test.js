@@ -22,13 +22,13 @@ test('the R22b layer comes after R22a', () => {
   assert.ok(layerStart > css.indexOf('/* Redesign R22a'));
 });
 
-test('segments: the Inbox filter is a row of pills, Zadaci\'s switch is full width, Lista / Raspored is readable', () => {
+test('segments: the Inbox filter is a row of pills, Zadaci\'s switch left (R109), Lista / Raspored is readable', () => {
   const inbox = fn('renderInbox');
   // R86: the Inbox filter pills are gone; Inbox always lists everything (tests/inbox-process-r86.test.js).
   assert.doesNotMatch(inbox, /inbox-filter-chips|data-action="inbox-filter"/);
   assert.doesNotMatch(app, /role="tablist"|class="inbox-filter-tab/);
-  has('.tasks-view-switch { display: flex; width: 100%; }');
-  has('.tasks-view-switch .btn { flex: 1 1 0; }');
+  // R109: Zadaci's switch left with the projects, and its rules with it.
+  assert.ok(!css.includes('.tasks-view-switch'), 'no switch rules');
   has('.calendar-day-mode .btn { padding: 4px 14px; font-size: var(--text-base); }');
 });
 

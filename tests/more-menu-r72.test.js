@@ -48,13 +48,14 @@ test('Još: Planiranje is Ciljevi, Projekti, Redovne obaveze, Oblasti; Bibliotek
   assert.match(html, /data-route="projects"><i class="ph ph-folder more-row-icon" aria-hidden="true"><\/i><span class="more-row-value">2<\/span><span class="more-row-label">Projects<\/span>/, 'the open projects, without archived ones and Redovne obaveze groups');
 });
 
-test('the Projekti tile opens Zadaci → Projekti; templates still work from the windows', () => {
-  assert.match(read('js/app.js'), /if \(location\.hash === '#projects' && state\?\.ui\) \{ state\.ui\.tasksView = 'projects'; history\.replaceState\(null, '', '#tasks'\); \}/);
+test('the Projekti tile opens Projekti; templates still work from the windows', () => {
+  // R109: Projekti are a screen of their own; #projects no longer turns into Zadaci → Projekti.
+  assert.match(read('js/app.js'), /else if \(route\.type === 'projects'\) content = renderProjectsScreen\(\);/);
   assert.match(read('js/app.js'), /data-pop-action="save-template"/, '"Sačuvaj kao šablon" stays in the menus');
   assert.match(read('js/app.js'), /data-action="from-template"/, '"Iz šablona" stays in the windows');
 });
 
-test('the wide-screen sidebar follows: Planning without Projekti, Library with Nedeljni pregled, no Šabloni', () => {
+test('the wide-screen sidebar follows: Planning with Projekti (R109), Library with Nedeljni pregled, no Šabloni', () => {
   let module = null;
   const context = withI18n({ window: {}, location: { hash: '#today' }, localStorage: { getItem: () => null }, document: { documentElement: { dataset: {} } }, Intl, Date, JSON, Math, parseInt, Object, Array, String, Set });
   context.window.TodoI18n = context.TodoI18n;
@@ -66,7 +67,8 @@ test('the wide-screen sidebar follows: Planning without Projekti, Library with N
     listTasks: () => [], activeInboxRecords: () => [], syncView: () => ({ configured: false }), syncStatus: () => ({ state: 'off', text: 'Data is on this device only' }), sortedAreas: () => [], sortedProjects: () => [], projectTasks: () => [],
   });
   const group = key => routesIn(html.match(new RegExp(`data-group="${key}"[^>]*>.*?</section>`))[0]);
-  assert.deepEqual(JSON.parse(JSON.stringify(group('planning'))), ['goals', 'cleaning', 'areas']);
+  // R109: Planiranje follows Još: Ciljevi, Projekti, Redovne obaveze, Oblasti.
+  assert.deepEqual(JSON.parse(JSON.stringify(group('planning'))), ['goals', 'projects', 'cleaning', 'areas']);
   assert.deepEqual(JSON.parse(JSON.stringify(group('library'))), ['notes', 'journal', 'resources', 'tags', 'review', 'saved-views']);
   assert.doesNotMatch(html, /data-route="templates"/);
 });

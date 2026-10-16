@@ -9,11 +9,12 @@ const fs = require('node:fs');
 const path = require('node:path');
 const Core = require('../js/core.js');
 const Release = require('../js/release.js');
-const { functionSource } = require('./support/source.js');
+const { appSource, functionSource } = require('./support/source.js');
 
 const read = file => fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
 const fn = name => functionSource(name).source;
-const app = read('js/app.js');
+// R111: Quick Add moved to js/quick-add-ui.js, which reads the live state through the context (app.state).
+const app = appSource();
 const TODAY = '2026-10-15'; // a Thursday
 const tags = [{ id: 'tg', name: 'Posao' }];
 const projects = [{ id: 'pr', name: 'Klijenti' }];
@@ -63,7 +64,7 @@ test('the preview\'s parts are buttons that keep their words in the title', () =
   assert.match(preview, /if \(parsed\.plannedDate\) items\.push\(item\(parsed\.sources && !parsed\.sources\.plannedDate && parsed\.sources\.recurrence \? 'recurrence' : 'plannedDate', 'ph-calendar-check', relativeDateLabel\(parsed\.plannedDate\)\)\);\n\s+if \(parsed\.plannedTime\) items\.push\(item\('plannedTime', 'ph-clock', parsed\.plannedTime\)\);/, 'the day and the time are separate');
   assert.match(preview, /items\.push\(item\(`tag:\$\{tag\.id\}`, 'ph-hash', tag\.name\)\)/);
   assert.match(preview, /<span class="quick-parse-hint">\$\{tr\('Tap a part to keep it in the title\.'\)\}<\/span>/);
-  assert.match(fn('parseQuickAddTitle'), /function parseQuickAddTitle\(rawTitle, parsePlan = true, keep = \[\]\) \{\n\s+return Core\.parseQuickAdd\(rawTitle, \{ today: Core\.dateOnly\(\), tags: state\.tags \|\| \[\], projects: state\.projects \|\| \[\], areas: state\.areas \|\| \[\], parsePlan, keep, sources: true \}\);/);
+  assert.match(fn('parseQuickAddTitle'), /function parseQuickAddTitle\(rawTitle, parsePlan = true, keep = \[\]\) \{\n\s+return Core\.parseQuickAdd\(rawTitle, \{ today: Core\.dateOnly\(\), tags: app\.state\.tags \|\| \[\], projects: app\.state\.projects \|\| \[\], areas: app\.state\.areas \|\| \[\], parsePlan, keep, sources: true \}\);/);
   const keep = fn('keepInQuickTitle');
   assert.match(keep, /const text = parseQuickAddTitle\(d\.title, !d\.explicitPlan, d\.keepInTitle\)\.sources\?\.\[slot\];/);
   assert.match(keep, /d\.keepInTitle = \[\.\.\.\(d\.keepInTitle \|\| \[\]\), \{ slot, text \}\];/);
@@ -72,7 +73,7 @@ test('the preview\'s parts are buttons that keep their words in the title', () =
 });
 
 test('suggestions show under the title and complete the word', () => {
-  assert.match(fn('quickSuggestHtml'), /const items = Core\.quickSuggestions\(title, \{ tags: state\.tags \|\| \[\], projects: state\.projects \|\| \[\], areas: state\.areas \|\| \[\] \}\) \|\| \[\];/);
+  assert.match(fn('quickSuggestHtml'), /const items = Core\.quickSuggestions\(title, \{ tags: app\.state\.tags \|\| \[\], projects: app\.state\.projects \|\| \[\], areas: app\.state\.areas \|\| \[\] \}\) \|\| \[\];/);
   assert.match(fn('quickSuggestHtml'), /<button class="quick-chip" type="button" data-action="quick-suggest" data-insert="\$\{esc\(item\.insert\)\}">/);
   assert.match(fn('renderQuickModal'), /<div class="quick-suggest-slot" data-quick-suggest-slot>\$\{quickSuggestHtml\(d\.title\)\}<\/div>/);
   assert.match(app, /const suggest = document\.querySelector\('\[data-quick-suggest-slot\]'\); if \(suggest\) suggest\.innerHTML = quickSuggestHtml\(event\.target\.value\);/);
@@ -89,7 +90,7 @@ test('a pasted list asks first, then makes the tasks with one Poništi, or joins
   const make = fn('createPastedTasks');
   // R105: each line is read on its own, then takes the +project, @area, #tags and !priority typed before the paste.
   assert.match(make, /const own = parseQuickAddTitle\(line, !d\.explicitPlan\);/);
-  assert.match(make, /setUndo\(trn\(created\.length, '\{count\} task added', '\{count\} tasks added'\), \(\) => \{ const ids = new Set\(created\); state\.tasks = state\.tasks\.filter\(task => !ids\.has\(task\.id\)\); saveState\(\); render\(\); \}\);/);
+  assert.match(make, /setUndo\(trn\(created\.length, '\{count\} task added', '\{count\} tasks added'\), \(\) => \{ const ids = new Set\(created\); app\.state\.tasks = app\.state\.tasks\.filter\(task => !ids\.has\(task\.id\)\); saveState\(\); render\(\); \}\);/);
   assert.match(app, /else if \(action === 'quick-paste-tasks'\) createPastedTasks\(\);/);
   assert.match(app, /else if \(action === 'quick-paste-one'\) joinPastedLines\(\);/);
   assert.match(read('AGENTS.md'), /and a list pasted into Quick Add, which becomes several new tasks only after a confirmation, with one Undo \(R90\)/);

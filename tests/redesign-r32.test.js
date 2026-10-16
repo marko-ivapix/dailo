@@ -52,7 +52,8 @@ test('17: Android Back never walks the browser history; the app decides and othe
 });
 
 test('17: every screen under Još starts with "‹ Još" (or the screen it was opened from)', () => {
-  assert.match(constLine('LIBRARY_ROUTES'), /\['settings', 'account', 'goals', 'areas', 'notes', 'resources', 'tags', 'templates', 'saved-views', 'cleaning', 'review', 'journal', 'completed', 'archived'\]/);
+  // R109: Projekti joined them, next to Ciljevi.
+  assert.match(constLine('LIBRARY_ROUTES'), /\['settings', 'account', 'goals', 'projects', 'areas', 'notes', 'resources', 'tags', 'templates', 'saved-views', 'cleaning', 'review', 'journal', 'completed', 'archived'\]/);
   assert.match(fn('renderMain'), /if \(LIBRARY_ROUTES\.includes\(route\.type\) && !content\.includes\('class="screen-back"'\)\) content = backLink\('more', tr\('More'\)\) \+ content;/);
 });
 

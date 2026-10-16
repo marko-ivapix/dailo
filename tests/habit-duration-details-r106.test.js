@@ -79,10 +79,7 @@ test('the guide and Šta je novo mention it', () => {
   assert.ok(read('novo.html').includes('<li><strong>Trajanje navike u detaljima.</strong>'));
 });
 
-test('R106 is released as 2.0.0-alpha.135', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.135');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.135';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.135');
-  const lock = JSON.parse(read('package-lock.json'));
-  assert.deepEqual([lock.version, lock.packages[''].version], ['2.0.0-alpha.135', '2.0.0-alpha.135']);
+test('R106 shipped as 2.0.0-alpha.135 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 135) >= 135);
 });

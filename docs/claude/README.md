@@ -1,12 +1,14 @@
 # Claude documentation index
 
+**Updated 2026-10-16** at `2.0.0-alpha.144`. `PROJECT_MAP.md` and `ARCHITECTURE.md` describe the modules split out of `js/app.js` (R56, R110–R114), and `CONTINUATION.md` has a current header. The rest is as synchronized below; for anything newer, `CLAUDE.md` → "Current state" and the ledgers (`docs/superpowers/progress-redesign.md`) are current, and the source and its tests win.
+
 These files are the current implementation handoff for Claude and other agents. They were synchronized on 2026-10-08 against the V2.0-a source, tests and progress ledgers (V2.0-a Sync in the web app at `65aeabf`, `7a834db` and the release commit, on branch `ccr-95f6062b-lgg2fr`; V1.10 Smart Quick Add at `c64bd81`, V1.11 Weekly review at `5bbd820` and V1.12 Duration and time-blocking at `d00855b`, merged into `main` together through PR #7 (`31fb23d`); V1.9 merged through PR #5 and V1.9.1, which completes its Step 7, through PR #6).
 
 | File | Use it for |
 | --- | --- |
 | `CONTINUATION.md` | Current handoff, verified baseline, honest acceptance boundary and next-work protocol |
 | `PROJECT_MAP.md` | File/module inventory and where to start a change |
-| `ARCHITECTURE.md` | Boot, adapter dispatch, localization, service worker, data protection, Quick Add parsing, weekly review, time-blocking and capacity, optional sync, rendering, events and derived views |
+| `ARCHITECTURE.md` | Boot, adapter dispatch, the modules split out of `app.js` and their contract, localization, service worker, data protection, Quick Add parsing, weekly review, time-blocking and capacity, optional sync, rendering, events and derived views |
 | `DOMAIN_MODEL.md` | Entity shape, relationships, lifecycle and invariants |
 | `FEATURES.md` | Current feature inventory, evidence and stale-summary warnings |
 | `DATA_AND_RECOVERY.md` | localStorage, IndexedDB, migration, backup, rollback and the sync server copy |

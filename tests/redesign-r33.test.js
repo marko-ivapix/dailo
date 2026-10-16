@@ -8,6 +8,7 @@ const vm = require('node:vm');
 const Release = require('../js/release.js');
 const { withI18n } = require('./support/i18n.js');
 
+const { appSource, functionSource } = require('./support/source.js');
 const read = file => fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
 const app = read('js/app.js');
 const css = read('css/styles.css');
@@ -15,7 +16,8 @@ const tasksUi = read('js/tasks-ui.js');
 const templatesUi = read('js/templates-ui.js');
 const habitsUi = read('js/habits-ui.js');
 const knowledge = read('js/knowledge.js');
-const fn = name => { const start = app.search(new RegExp(`\\n  (async )?function ${name}\\(`)) + 1; assert.ok(start > 0, name); return app.slice(start, app.indexOf('\n  }\n', start) + 4); };
+// R110: the drag code moved to js/drag-ui.js; functionSource finds a function in any file (the same slice as before).
+const fn = name => functionSource(name).source;
 const plain = value => JSON.parse(JSON.stringify(value));
 
 test('22: the task title is a growing text field; Oblast and Ciljevi are rows with sheets; Važno and Hitno are gone', () => {
@@ -171,7 +173,8 @@ function touchHarness() {
     document: { body: { classList: { add() {}, remove() {} } }, elementFromPoint: () => ctx.over },
     reorderTasks: (...args) => calls.push(['tasks', ...args]), reorderSubtasks: (...args) => calls.push(['subtasks', ...args]) };
   vm.createContext(ctx);
-  const constLine = name => app.match(new RegExp(`\\n  const ${name} = [^\\n]+`))[0];
+  // R110: REORDER_ROWS lives in js/drag-ui.js, dropGroup still in app.js.
+  const constLine = name => appSource().match(new RegExp(`\\n  const ${name} = [^\\n]+`))[0];
   vm.runInContext(`var touchReorder = null, taskSwipeState = null, suppressTaskSwipeClick = false;\n${constLine('REORDER_ROWS')}\n${constLine('dropGroup')}\n${['sameReorderList', 'handleTouchReorderStart', 'startTouchReorder', 'handleTouchReorderMove', 'finishTouchReorder', 'cancelTouchReorder'].map(fn).join('')}`, ctx);
   const drag = (source, target) => {
     const event = (type, y) => ({ type, pointerType: 'touch', isPrimary: true, pointerId: 1, clientX: 0, clientY: y, target: source, preventDefault() {} });

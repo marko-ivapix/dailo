@@ -90,5 +90,5 @@ test('Today shows the notice, its actions are wired, and a first sync from the e
   assert.match(app, /const transfer = globalThis\.DailoPlatform\?\.isNative \? transferNotice\(\) : '';\n\s+html \+= transfer;\n[^\n]*\n\s+if \(!transfer\) html \+= sampleNotice\(\);\n\s+\/\/ R83: the backup reminder moved to the top of Još/); // R30: the examples card waits for the transfer question
   assert.match(app, /action === 'dismiss-transfer-notice'\) \{ dismissTransferNotice\(\); render\(\); \}/);
   const run = fn('runSync');
-  assert.match(run, /if \(result\.status === 'choose' && syncMeta === meta\) \{[\s\S]*?if \(untouchedSample\(\) && await TodoStorage\.createAutomaticSnapshot\(state, new Date\(\), \{ force: true \}\)[\s\S]*?return runSync\('server'\);[\s\S]*openSyncChoice\(\);/);
+  assert.match(run, /if \(result\.status === 'choose' && syncMeta === meta\) \{[\s\S]*?if \(untouchedSample\(\) && await TodoStorage\.createAutomaticSnapshot\(state, new Date\(\), \{ force: true \}\)[\s\S]*?return runSync\('server'\);[\s\S]*accountAction\('sync-choice-open'\);/); // R114: the question is the account module's
 });

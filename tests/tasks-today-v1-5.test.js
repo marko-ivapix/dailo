@@ -5,6 +5,7 @@ const vm = require('node:vm');
 const { withI18n, runInNewContextWithI18n } = require('./support/i18n.js');
 const { foldButton } = require('./support/fold.js');
 const Core = require('../js/core.js');
+const { functionSource, withApp } = require('./support/source.js');
 
 function taskState(tasks, focusTaskIds = []) {
   return { version: 3, tasks, projects: [], tags: [], areas: [], goals: [], habits: [], notes: [], resources: [], templates: [], savedViews: [], settings: { focusTaskIds }, ui: {} };
@@ -30,18 +31,18 @@ test('load/save normalizes focus IDs to three existing open tasks in requested o
 });
 
 test('Add another retains implicit Today and resets explicit times before parsing the second task', () => {
-  const source = fs.readFileSync(require.resolve('../js/app.js'), 'utf8');
-  const create = source.slice(source.indexOf('  function createTask('), source.indexOf('  function syncQuickDraftFromDom()'));
-  const parse = source.slice(source.indexOf('  function parseQuickAddTitle('), source.indexOf('  function nextOrder('));
+  // R111: these moved to js/quick-add-ui.js (read through functionSource) and read the state and window through `app`.
+  const create = ['createTask', 'addedMessage'].map(name => functionSource(name).source).join('\n');
+  const parse = functionSource('parseQuickAddTitle').source;
   // Redesign R4: createTask files the task through quickPlace.
-  const place = source.slice(source.indexOf('  function quickPlace('), source.indexOf('  // S7: the "Iz šablona" chip'));
+  const place = functionSource('quickPlace').source;
   const today = Core.dateOnly();
   const defaults = { projectId: null, areaId: null, plannedDate: today, explicitPlan: false };
   const context = { Core, state: taskState([]), modalState: { type: 'quick', defaults,
     draft: { title: 'First today 09:30', explicitPlan: false, plannedDate: today, plannedTime: '14:00', dueTime: '15:00', explicitPlannedTime: true, subtasks: [] } },
     syncQuickDraftFromDom() {}, uid: () => 'task', nowIso: () => new Date().toISOString(), nextOrder: () => 0,
     saveState() {}, closeModal() {}, render() {}, renderModal() {}, requestAnimationFrame() {}, $() {}, getProject: () => null, setToastMessage() {}, lowerFirst: String, relativeDateLabel: String /* R36 */ };
-  vm.createContext(withI18n(context));
+  vm.createContext(withApp(withI18n(context)));
   vm.runInContext(`${parse}\n${place}\n${create}\ncreateTask(true)`, context);
   assert.equal(context.modalState.draft.explicitPlan, false);
   assert.equal(context.modalState.draft.plannedTime, null);

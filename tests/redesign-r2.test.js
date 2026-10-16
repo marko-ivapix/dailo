@@ -11,10 +11,12 @@ const { withI18n, runInNewContextWithI18n } = require('./support/i18n.js');
 const { foldButton } = require('./support/fold.js');
 const { screenColumns } = require('./support/columns.js');
 
+const { functionSource } = require('./support/source.js');
 const read = file => fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
 const app = read('js/app.js');
 const sr = read('js/i18n-sr.js');
-const fn = name => { const start = app.search(new RegExp(`\\n  (async )?function ${name}\\(`)) + 1; assert.ok(start > 0, name); return app.slice(start, app.indexOf('\n  }\n', start) + 4); };
+// R110: the drag code moved to js/drag-ui.js; functionSource finds a function in any file (the same slice as before).
+const fn = name => functionSource(name).source;
 const constLine = name => app.match(new RegExp(`  const ${name} = [^\\n]+\\n`))[0];
 
 const TODAY = Core.dateOnly();
@@ -297,7 +299,9 @@ test('a long press runs the element\'s long-press action once and swallows the c
   stopped = false;
   ctx.handleLongPressClick({ preventDefault() {}, stopPropagation() { stopped = true; } });
   assert.equal(stopped, false, 'only the one click');
-  const attach = fn('attachEvents');
+  // R110: the listeners moved from attachEvents to js/drag-ui.js's attach(), unchanged and in the same order.
+  // R113 review: the file is named, since js/quick-add-ui.js has an attach() too.
+  const attach = functionSource('attach', ['js/drag-ui.js']).source;
   for (const line of ["document.addEventListener('pointerdown', handleLongPressStart);", "document.addEventListener('pointerup', cancelLongPress);", "document.addEventListener('pointercancel', cancelLongPress);", "document.addEventListener('click', handleLongPressClick, true);"]) assert.ok(attach.includes(line), line);
   assert.match(attach, /document\.addEventListener\('contextmenu', event => \{ if \(event\.target\.closest\?\.\('\[data-long-press\]'\)\) event\.preventDefault\(\); \}\);/);
 });
@@ -310,7 +314,8 @@ test('Z2 early: the suggestions card is at the top of Zadaci with "+ Danas" and 
   assert.match(screen, /foldButton\('toggle-suggestions', tr\('Suggested for today'\), suggestions\.length, open\)/);
   assert.match(screen, /taskRow\(item\.task, 'suggestion', \{ today: true, addToday: true, suggestionReason: item\.reason \}\)/);
   assert.match(screen, /data-action="add-all-suggestions"/);
-  assert.ok(screen.indexOf('data-tasks-suggestions') < screen.indexOf('tasks-view-switch'), 'above the switch');
+  // R109: the switch left with the projects; the suggestions stay above "Kad stignem".
+  assert.ok(screen.indexOf('data-tasks-suggestions') < screen.indexOf("tr('Sorted tasks without a planned day, by project.')"), 'above Kad stignem');
 });
 
 test('T2, M3, M6: the removed cards, capacity item and Today settings are gone; stored values stay', () => {

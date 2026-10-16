@@ -10,7 +10,8 @@ const Release = require('../js/release.js');
 
 const read = file => fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
 const app = read('js/app.js');
-const fn = name => { const start = app.search(new RegExp(`\\n  (async )?function ${name}\\(`)) + 1; assert.ok(start > 0, name); return app.slice(start, app.indexOf('\n  }\n', start) + 4); };
+// R114: signing out moved to js/account-ui.js; functionSource finds a function in any file.
+const fn = name => require('./support/source.js').functionSource(name).source;
 const session = (token = 'jwt-1') => ({ accessToken: token, user: { id: 'user-1' } });
 
 function harness() {
@@ -134,7 +135,8 @@ test('the app: a change pokes a sync; the socket opens after a sync, closes in t
   assert.match(fn('connectLiveSync'), /if \(liveSync && document\.visibilityState !== 'hidden' && session\?\.accessToken\) liveSync\.connect\(session\);/);
   assert.match(fn('startSync'), /if \(document\.visibilityState === 'visible'\) scheduleSync\(500\); else liveSync\?\.disconnect\(\);/);
   assert.match(fn('signOutSync'), /liveSync\?\.disconnect\(\);/);
-  assert.match(app, /clearTimeout\(syncTimer\);\n\s+liveSync\?\.disconnect\(\);\n(\s+forgetJournalKey\(\);\n)?\s+syncMeta = \{\};/);
+  // R114: signing out and deleting the account are the account module's; they read the timer and set the record through the context.
+  assert.match(read('js/account-ui.js'), /clearTimeout\(app\.syncTimer\);\n\s+liveSync\?\.disconnect\(\);\n(\s+forgetJournalKey\(\);\n)?\s+app\.setSyncMeta\(\{\}\);/);
   assert.match(fn('syncView'), /live: liveSync\?\.status\(\) === 'live'/);
   // R58: the CSP names this project's host only (tests/security-r58.test.js keeps it equal to js/sync-config.js).
   assert.match(read('index.html'), /connect-src 'self' https:\/\/[a-z0-9]+\.supabase\.co wss:\/\/[a-z0-9]+\.supabase\.co;/);

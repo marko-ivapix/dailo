@@ -9,10 +9,12 @@ const vm = require('node:vm');
 const Core = require('../js/core.js');
 const Release = require('../js/release.js');
 const { withI18n } = require('./support/i18n.js');
+const { appSource, functionSource } = require('./support/source.js');
 
 const read = file => fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
-const app = read('js/app.js');
-const fn = name => { const start = app.search(new RegExp(`\\n  (async )?function ${name}\\(`)) + 1; assert.ok(start > 0, name); return app.slice(start, app.indexOf('\n  }\n', start) + 4); };
+// R111: Quick Add and its dictation moved to js/quick-add-ui.js; the app is read across its files.
+const app = appSource();
+const fn = name => functionSource(name).source;
 
 test('Cyrillic becomes Latin, digraphs included; Latin and other text stay', () => {
   assert.equal(Core.cyrillicToLatin('Купи млеко у Ђурђевој улици, Љубо, Џеп и Њива сутра у 18h'), 'Kupi mleko u Đurđevoj ulici, Ljubo, Džep i Njiva sutra u 18h');
@@ -69,7 +71,9 @@ test('errors say what happened; closing Quick Add stops listening', () => {
   assert.deepEqual(h.calls.splice(0), [['toast', 'The microphone is not allowed. Allow it in the browser settings.']]);
   h.context.stopDictation();
   assert.deepEqual(h.calls.splice(0), ['abort']);
-  assert.match(fn('closeModal'), /stopDictation\(\);/);
+  // R111: closeModal asks the Quick Add module to stop listening.
+  assert.match(fn('closeModal'), /quickAddAction\('quick-stop-dictation'\);/);
+  assert.match(functionSource('handleAction', ['js/quick-add-ui.js']).source, /if \(action === 'quick-stop-dictation'\) \{ stopDictation\(\); return true; \}/);
 });
 
 test('the button is there only where the browser recognizes speech', () => {

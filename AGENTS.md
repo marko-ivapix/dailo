@@ -148,9 +148,9 @@ Undo must restore the full relevant snapshot, including links/history/attachment
 
 Global destructive actions such as Reset and Restore/Replace All use stronger protection:
 
-1. Generate/download safety ZIP.
+1. Generate/download safety ZIP. R107: Reset makes the safety ZIP unless the user turns off "Sačuvaj kopiju pre brisanja" (on by default); without it the window says the data cannot come back, and after the verified reset the device's local snapshots and automatic backup files are deleted too. Restore always makes it. (User's decision, 2026-10-16: "da, uradi tako, neka bude uključena".)
 2. Create internal recovery snapshot.
-3. Require typed confirmation (`RESET` or `RESTORE`).
+3. Require typed confirmation (`RESET` or `RESTORE`; the Serbian UI asks for `RESETUJ` / `VRATI`).
 4. Execute.
 5. Verify.
 6. Roll back from recovery snapshot on failure.

@@ -17,7 +17,7 @@ const vm = require('node:vm');
 const Core = require('../js/core.js');
 const Release = require('../js/release.js');
 const { withI18n } = require('./support/i18n.js');
-const { functionSource } = require('./support/source.js');
+const { functionSource, withApp } = require('./support/source.js');
 
 const read = file => fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
 const fn = name => functionSource(name).source;
@@ -104,7 +104,7 @@ test('what was typed before a paste applies to every pasted line', () => {
     syncQuickDraftFromDom() {}, newTaskRecord: fields => ({ id: `t${tasks.length + 1}`, ...fields }), nextOrder: () => 1, getProject: id => state.projects.find(item => item.id === id),
     saveState: () => true, closeModal: () => calls.push('close'), render() {}, setUndo: () => calls.push('undo'),
   });
-  vm.createContext(ctx);
+  vm.createContext(withApp(ctx)); // R111: the Quick Add module reads the state and window through `app`
   vm.runInContext(['parseQuickAddTitle', 'quickPlace', 'createPastedTasks'].map(fn).join('\n'), ctx);
   ctx.createPastedTasks();
   assert.deepEqual(plain(tasks.map(item => [item.title, item.projectId, item.tagIds, item.priority, item.plannedDate])), [

@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const Core = require('../js/core.js');
+const { functionSource, withApp } = require('./support/source.js');
 
 // 2026-10-07 is a Wednesday (sreda).
 const TODAY = '2026-10-07';
@@ -48,9 +49,9 @@ test('English Quick Add keywords keep working', () => {
 });
 
 test('Quick Add without date parsing reads the same Serbian and English time phrases', () => {
-  const source = fs.readFileSync(require.resolve('../js/app.js'), 'utf8');
-  const parseTitle = source.slice(source.indexOf('  function parseQuickAddTitle('), source.indexOf('  function nextOrder('));
-  const context = vm.createContext({ Core, state: { tags: [] } });
+  // R111: parseQuickAddTitle moved to js/quick-add-ui.js and reads the state through the context.
+  const parseTitle = functionSource('parseQuickAddTitle').source;
+  const context = vm.createContext(withApp({ Core, state: { tags: [] } }));
   vm.runInContext(parseTitle, context);
   // V1.10 adds more fields; this test keeps checking the V1.9 ones.
   const pick = ({ title, plannedDate, plannedTime, tagIds, priority }) => ({ title, plannedDate, plannedTime, tagIds, priority });

@@ -159,6 +159,8 @@
   --font-ui: "Geist", "Segoe UI", system-ui, -apple-system, sans-serif;
   /* Viewport height; the dynamic viewport (below) excludes the browser bars and follows the keyboard (audit P-5). */
   --viewport-height: 100vh;
+  /* R108: the bottom system inset: Capacitor's injected value (0 while the keyboard is open), else the browser's. */
+  --safe-bottom: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
 }
 @supports (height: 100dvh) { :root { --viewport-height: 100dvh; } }
 
@@ -1453,7 +1455,6 @@ a.btn { text-decoration: none; }
 .more-row-label { flex: 1; min-width: 0; display: grid; gap: 2px; }
 .more-row-label small { color: var(--ink-3); font-size: var(--text-sm); }
 .more-row-value { color: var(--ink-3); font-variant-numeric: tabular-nums; }
-.tasks-view-switch { margin-bottom: 12px; }
 
 /* Redesign R2 — Today (T1–T7, T2a, G6, H6). */
 .page-eyebrow { margin: 0 0 2px; color: var(--ink-3); font-size: var(--text-md); font-weight: 500; }
@@ -2247,9 +2248,7 @@ body:has(#toast-root .toast) .mobile-quick-add { transform: translateY(-64px); }
 }
 
 /* Redesign R22b — one look for segments, folds, empty states, labels, big buttons, Settings and the confirm dialog (2026-10-11). */
-/* Segments: Zadaci's switch is full width like the others; Lista / Raspored is readable. */
-.tasks-view-switch { display: flex; width: 100%; }
-.tasks-view-switch .btn { flex: 1 1 0; }
+/* Segments: Lista / Raspored is readable. (R109: Zadaci's switch left with the projects.) */
 .calendar-day-mode .btn { padding: 4px 14px; font-size: var(--text-base); }
 /* Project lists use the usual card (they were the darker Još card). */
 .project-list { padding: 2px; }
@@ -2765,6 +2764,10 @@ a.toast-action { display: inline-flex; align-items: center; text-decoration: non
 .habit-note-save { width: 100%; min-height: 44px; }
 .habit-notes { display: grid; gap: 8px; margin: 0; padding: 10px 14px; border: 1px solid var(--line-1); border-radius: var(--radius-md); background: var(--graphite-850); color: var(--ink-1); font-size: var(--text-base); list-style: none; overflow-wrap: anywhere; }
 .habit-note-date { display: block; color: var(--ink-3); font-size: var(--text-sm); }
+
+/* R108: a long sheet's sticky footer stays above the phone's system buttons while it scrolls; at the end its negative
+   margin gives the inset back to the sheet's own bottom padding. */
+:is(.task-window-footer, .sheet-footer, .quick-sheet-footer) { margin-bottom: calc(-1 * var(--safe-bottom)); padding-bottom: calc(4px + var(--safe-bottom)); }
 
 /* Keep primary compact actions touchable after all density rules. */
 @media (max-width: 700px), (pointer: coarse) {

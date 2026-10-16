@@ -93,13 +93,6 @@
   let canonicalRaw = null;
   let textSaveTimer = null;
   let lastToday = Core.dateOnly();
-  let dragState = null;
-  let taskSwipeState = null;
-  // R44: a horizontal swipe over the week bar or the rings on Navike (start point), and the click it must swallow.
-  let weekSwipe = null;
-  let suppressWeekSwipeClick = false;
-  let suppressTaskSwipeClick = false;
-  let touchReorder = null;
   let modalReturnFocus = null;
   let popoverReturnFocus = null;
   const knowledgeAttachmentCache = new Map();
@@ -121,12 +114,12 @@
   }
 
   // R9c–R10d (K12): on Ciljevi, Beleške, Resursi, Oznake, Šabloni and Sačuvani prikazi the floating "+" adds what belongs
-  // there and its label says what;
+  // there and its label says what (R109: on Projekti too, a new project);
   // elsewhere it opens the menu.
-  const QUICK_ADD_DIRECT = Object.freeze({ '#goals': [msg('New goal'), () => openGoalModal()], '#habits': [msg('New habit'), () => openHabitModal()], '#areas': [msg('New area'), () => callDomainHook('handleAction', 'new-area', { target: $('#mobile-quick-add-toggle') })], '#notes': [msg('New note'), () => openKnowledgeWindow('note')], '#resources': [msg('New resource'), () => openKnowledgeWindow('resource')], '#tags': [msg('New tag'), () => openTagModal()], '#templates': [msg('New template'), () => callDomainHook('handleAction', 'new-template', { target: $('#mobile-quick-add-toggle') })], '#saved-views': [msg('New saved view'), () => callDomainHook('handleAction', 'new-saved-view', { target: $('#mobile-quick-add-toggle') })], '#cleaning': [msg('New recurring task'), () => callDomainHook('handleAction', 'new-cleaning-chore', { target: $('#mobile-quick-add-toggle') })], '#journal': [msg('Today’s entry'), () => callDomainHook('handleAction', 'open-journal', { target: $('#mobile-quick-add-toggle') })] });
+  const QUICK_ADD_DIRECT = Object.freeze({ '#goals': [msg('New goal'), () => openGoalModal()], '#habits': [msg('New habit'), () => openHabitModal()], '#areas': [msg('New area'), () => callDomainHook('handleAction', 'new-area', { target: $('#mobile-quick-add-toggle') })], '#notes': [msg('New note'), () => openKnowledgeWindow('note')], '#resources': [msg('New resource'), () => openKnowledgeWindow('resource')], '#tags': [msg('New tag'), () => openTagModal()], '#templates': [msg('New template'), () => callDomainHook('handleAction', 'new-template', { target: $('#mobile-quick-add-toggle') })], '#saved-views': [msg('New saved view'), () => callDomainHook('handleAction', 'new-saved-view', { target: $('#mobile-quick-add-toggle') })], '#cleaning': [msg('New recurring task'), () => callDomainHook('handleAction', 'new-cleaning-chore', { target: $('#mobile-quick-add-toggle') })], '#journal': [msg('Today’s entry'), () => callDomainHook('handleAction', 'open-journal', { target: $('#mobile-quick-add-toggle') })], '#projects': [msg('New project'), () => openProjectModal()] });
   // R59: on the task screens the "+" opens a new task there at once (Danas plans it for today, a project, an area or a
   // tag files it there, Kalendar plans it for the shown day); the menu stays where no type belongs (Još, Podešavanja…).
-  const TASK_SCREENS = new Set(['today', 'inbox', 'tasks', 'calendar', 'upcoming', 'anytime', 'projects', 'project', 'area', 'tag']);
+  const TASK_SCREENS = new Set(['today', 'inbox', 'tasks', 'calendar', 'upcoming', 'anytime', 'project', 'area', 'tag']);
   const NEW_TASK_HERE = Object.freeze([msg('New task'), () => { const context = routeQuickAddContext(); if (context) openQuickAdd(context); else setToastMessage(tr('Restore the project to add tasks.')); }]);
   // R47a (K12): on a wide screen the "+" never opens the menu: where nothing else belongs it adds a task.
   const DESKTOP_NEW_TASK = Object.freeze([msg('New task'), () => openQuickAdd({})]);
@@ -715,6 +708,19 @@
       foldButton,
       journalCipherStatus,
       bottomNavRoute, activeInboxRecords, renderSidebar,
+      // R110: what js/drag-ui.js needs.
+      haptic, toggleComplete, reorderTasks, reorderSubtasks, dropGroup, receiveAttachmentFiles, addTaskToToday, moveTaskToTomorrow, quickAddDirect, setMobileQuickAddOpen, routeQuickAddContext, callDomainHook,
+      // R111: what js/quick-add-ui.js needs.
+      getTag, lowerFirst, newTaskRecord, nextOrder, openTaskDetail, syncTemplateEntityGoalLinks, openProjectPicker,
+      // R112: what js/account-ui.js needs; the sync record, the return focus and the start-up flags are read live.
+      syncClient, loadSyncMeta, saveSyncMeta, restoreModalReturnFocus, runSync,
+      get syncMeta() { return syncMeta; }, setSyncMeta(value) { syncMeta = value; },
+      get modalReturnFocus() { return modalReturnFocus; }, setModalReturnFocus(value) { modalReturnFocus = value; },
+      get recovery() { return recovery; }, get storageError() { return storageError; }, get staleDataNotice() { return staleDataNotice; }, get globalOperation() { return globalOperation; },
+      // R113: what the account windows need; whether a sync is running is read live.
+      storeJournalKey, forgetJournalKey, scheduleSync, get syncRunning() { return syncRunning; },
+      // R114: what signing out, deleting the account and the first-sync choice need; the sync's timer is read live.
+      liveSync, SYNC_META_KEY, plainWord, get syncTimer() { return syncTimer; },
       colorName,
       journalLock,
       readAutoBackup, readTextSize, applyTextSize, readTheme,
@@ -730,6 +736,8 @@
       looseTasks(completed) { return listTasks().filter(task => !task.projectId && !task.isInbox && Boolean(task.isCompleted) === completed); },
       goalPercent(goal) { return Math.round(Core.computeGoalProgress(goal, state, state.habitMetrics || {}).percent); },
       syncView,
+      // R107: the reset's copy choice for Podešavanja.
+      resetKeepCopy: () => resetKeepCopy,
       syncStatus,
       reviewTaskRow(task, context, options = {}) {
         return taskRow(task, context, options);
@@ -1018,8 +1026,6 @@
   }
   function render() {
     const focused = focusDescriptor(document.activeElement);
-    // R22c: the old #projects address opens Zadaci → Projekti.
-    if (location.hash === '#projects' && state?.ui) { state.ui.tasksView = 'projects'; history.replaceState(null, '', '#tasks'); }
     const route = location.hash || '#today';
     trackScreen(route);
     renderView();
@@ -1051,7 +1057,8 @@
   }
 
   // Redesign R1 (G1, M4): six bottom items; every other route lights up the item it lives under.
-  const BOTTOM_NAV_PARENT = { anytime: 'tasks', projects: 'tasks', project: 'tasks', upcoming: 'calendar', habit: 'habits' };
+  // R109: Projekti and a project's screen live under Još, as Ciljevi and Oblasti do.
+  const BOTTOM_NAV_PARENT = { anytime: 'tasks', upcoming: 'calendar', habit: 'habits' };
   function bottomNavRoute(route) {
     if (['today', 'inbox', 'tasks', 'calendar', 'habits', 'more'].includes(route.type)) return route.type;
     return BOTTOM_NAV_PARENT[route.type] || 'more';
@@ -1089,7 +1096,8 @@
     return '';
   }
 
-  const LIBRARY_ROUTES = ['settings', 'account', 'goals', 'areas', 'notes', 'resources', 'tags', 'templates', 'saved-views', 'cleaning', 'review', 'journal', 'completed', 'archived'];
+  // R109: Projekti sit under Još like Ciljevi and Oblasti.
+  const LIBRARY_ROUTES = ['settings', 'account', 'goals', 'projects', 'areas', 'notes', 'resources', 'tags', 'templates', 'saved-views', 'cleaning', 'review', 'journal', 'completed', 'archived'];
   function renderMain() {
     // R34 (finding 19): the density is a desktop choice; CSS applies it from 1024 px on, so phones keep their sizes.
     document.documentElement.dataset.density = state.settings.compactDensity === false ? 'comfortable' : 'compact';
@@ -1103,6 +1111,7 @@
       if (route.type === 'today') content = renderToday();
       else if (route.type === 'more') content = renderMoreScreen();
       else if (route.type === 'tasks') content = renderTasksScreen();
+      else if (route.type === 'projects') content = renderProjectsScreen();
       else if (route.type === 'inbox') content = renderInbox();
       else if (route.type === 'anytime') content = renderAnytime();
       else if (route.type === 'tags') content = renderTags();
@@ -1470,7 +1479,7 @@
     let html = pageHeader(tr('More'), '', { add: false });
     html += backupReminderNotice();
     if (pinned.length) html += card(tr('Pinned'), pinned);
-    // R72: Planiranje is Ciljevi, Projekti (Zadaci → Projekti), Redovne obaveze and Oblasti; Nedeljni pregled moved to
+    // R72: Planiranje is Ciljevi, Projekti (R109: a screen of its own), Redovne obaveze and Oblasti; Nedeljni pregled moved to
     // Biblioteka in the place of Šabloni, which left the menu ("Sačuvaj kao šablon" and "Iz šablona" stay).
     html += card(tr('Planning'), [
       moreRow('goals', 'ph-target', tr('Goals'), count((state.goals || []).filter(goal => goal.status === 'active'))),
@@ -1515,21 +1524,17 @@
     return `<button class="project-row" type="button" data-route="project/${esc(project.id)}"><span class="project-dot" style="--project-color:${esc(project.color)}" aria-hidden="true"></span><span class="project-row-main"><span class="task-title">${esc(project.name)}</span><span class="task-meta">${esc(trn(open.length, '{count} open', '{count} open'))}${next ? ` · ${todayDueLabel(next.dueDate)}` : ''}</span>${line}<span class="project-row-bar" aria-hidden="true"><i style="width:${percent}%;background:${esc(project.color)}"></i></span></span></button>`;
   }
 
-  // Redesign R1 + R5 (Z1–Z6): the summary, the suggestions, and "Kad stignem" by project or the projects by area.
+  // Redesign R1 + R5 (Z1–Z6): the summary, the suggestions, and "Kad stignem" by project. R109: the projects left for
+  // a screen of their own (renderProjectsScreen), as Ciljevi and Oblasti have.
   function renderTasksScreen() {
-    const view = state.ui.tasksView === 'projects' ? 'projects' : 'anytime';
     const tasks = listTasks();
-    // R11d (S4): groups of Redovne obaveze stay out of Zadaci → Projekti.
-    const projects = sortedProjects().filter(project => !project.isCleaningRoom);
     // R33 (finding 36): Kad stignem keeps the order set in each project (then the oldest first).
     const byProjectOrder = (a, b) => clampOrder(a.projectOrder) - clampOrder(b.projectOrder) || String(a.createdAt || '').localeCompare(String(b.createdAt || ''));
     // R94: the undated tasks of projects on hold or for someday wait there.
     const later = Core.deriveAnytime(tasks, state.projects).sort(byProjectOrder);
     const open = tasks.filter(task => !task.isCompleted && !task.isInbox).length;
-    const summary = `${trn(open, '{count} open task', '{count} open tasks')} · ${trn(projects.length, '{count} project', '{count} projects')}`;
-    const tab = (key, label) => `<button class="btn ${view === key ? 'is-selected' : ''}" type="button" data-action="tasks-view" data-view="${key}" aria-pressed="${view === key}">${label}</button>`;
     const group = (label, count, rows, color = '') => `<section class="section tasks-group"><div class="section-header"><h2 class="section-label tasks-group-label">${color ? `<span class="project-dot" style="--project-color:${esc(color)}" aria-hidden="true"></span>` : ''}${esc(label)}</h2><span class="section-count">${count}</span></div>${rows}</section>`;
-    let html = pageHeader(tr('Tasks'), summary, { add: false });
+    let html = pageHeader(tr('Tasks'), trn(open, '{count} open task', '{count} open tasks'), { add: false });
     // Redesign R2 (T2a, Z2): the suggestions that left Today, folded, with "+ Danas" per row.
     const suggestions = Core.deriveTodaySections(tasks, Core.dateOnly()).suggestions;
     if (suggestions.length) {
@@ -1537,28 +1542,6 @@
       html += `<section class="tasks-suggestions" data-tasks-suggestions>${foldButton('toggle-suggestions', tr('Suggested for today'), suggestions.length, open)}`;
       if (open) html += `<div class="task-list today-card">${suggestions.map(item => taskRow(item.task, 'suggestion', { today: true, addToday: true, suggestionReason: item.reason })).join('')}</div>${suggestions.some(item => !taskRecurrence(item.task)) ? `<button class="btn btn-ghost" type="button" data-action="add-all-suggestions"><i class="ph ph-plus-circle"></i> ${tr('Add all to Today')}</button>` : ''}`;
       html += `</section>`;
-    }
-    html += `<div class="view-tabs tasks-view-switch" role="group" aria-label="${tr('Tasks')}">${tab('anytime', `${tr('Anytime')} · ${later.length}`)}${tab('projects', tr('Projects'))}</div>`;
-    if (view === 'projects') {
-      const loose = tasks.filter(task => !task.projectId && !task.isInbox && !task.isCompleted).length;
-      html += `<div class="today-card project-list"><button class="project-row" type="button" data-route="project/none"><i class="ph ph-circle-dashed project-row-icon" aria-hidden="true"></i><span class="project-row-main"><span class="task-title">${tr('No project')}</span><span class="task-meta">${esc(trn(loose, '{count} open', '{count} open'))}</span></span></button></div>`;
-      // R94: the active projects by area; those on hold and for someday fold below them.
-      const active = projects.filter(project => Core.projectStatus(project) === 'active');
-      const areas = sortedAreas().filter(area => area.status !== 'archived');
-      for (const area of areas) {
-        const list = active.filter(project => project.areaId === area.id);
-        if (list.length) html += group(area.name, list.length, `<div class="today-card project-list">${list.map(project => projectOverviewRow(project, tasks)).join('')}</div>`);
-      }
-      const unassigned = active.filter(project => !areas.some(area => area.id === project.areaId));
-      if (unassigned.length) html += group(tr('No area'), unassigned.length, `<div class="today-card project-list">${unassigned.map(project => projectOverviewRow(project, tasks)).join('')}</div>`);
-      for (const [status, label, key] of [['onHold', tr('On hold'), 'projectsOnHoldOpen'], ['someday', tr('Someday'), 'projectsSomedayOpen']]) {
-        const list = projects.filter(project => Core.projectStatus(project) === status);
-        if (!list.length) continue;
-        const open = state.ui[key] === true;
-        html += `<section class="section">${foldButton('toggle-projects-resting', label, list.length, open, ` data-fold="${key}"`)}${open ? `<div class="today-card project-list">${list.map(project => projectOverviewRow(project, tasks)).join('')}</div>` : ''}</section>`;
-      }
-      html += `<button class="inline-add" type="button" data-action="new-project"><i class="ph ph-plus"></i> ${tr('New project')}</button>`;
-      return html;
     }
     html += `<p class="tasks-note">${tr('Sorted tasks without a planned day, by project.')}</p>`;
     // R94: say how many wait in projects on hold or for someday, so nothing seems lost.
@@ -1575,6 +1558,35 @@
     }
     html += restingNote;
     html += `<button class="inline-add" type="button" data-action="quick-add" data-anytime="true"><i class="ph ph-plus"></i> ${tr('Add task')}</button>`;
+    return html;
+  }
+
+  // R109: Projekti, a screen of their own under Još → Planiranje, as Ciljevi and Oblasti: "Bez projekta", the active
+  // projects by area (R94), then those on hold and for someday folded, and "+ Novi projekat".
+  function renderProjectsScreen() {
+    const tasks = listTasks();
+    // R11d (S4): groups of Redovne obaveze stay out of Projekti.
+    const projects = sortedProjects().filter(project => !project.isCleaningRoom);
+    const group = (label, count, rows) => `<section class="section tasks-group"><div class="section-header"><h2 class="section-label tasks-group-label">${esc(label)}</h2><span class="section-count">${count}</span></div>${rows}</section>`;
+    let html = pageHeader(tr('Projects'), trn(projects.length, '{count} project', '{count} projects'), { add: false });
+    const loose = tasks.filter(task => !task.projectId && !task.isInbox && !task.isCompleted).length;
+    html += `<div class="today-card project-list"><button class="project-row" type="button" data-route="project/none"><i class="ph ph-circle-dashed project-row-icon" aria-hidden="true"></i><span class="project-row-main"><span class="task-title">${tr('No project')}</span><span class="task-meta">${esc(trn(loose, '{count} open', '{count} open'))}</span></span></button></div>`;
+    // R94: the active projects by area; those on hold and for someday fold below them.
+    const active = projects.filter(project => Core.projectStatus(project) === 'active');
+    const areas = sortedAreas().filter(area => area.status !== 'archived');
+    for (const area of areas) {
+      const list = active.filter(project => project.areaId === area.id);
+      if (list.length) html += group(area.name, list.length, `<div class="today-card project-list">${list.map(project => projectOverviewRow(project, tasks)).join('')}</div>`);
+    }
+    const unassigned = active.filter(project => !areas.some(area => area.id === project.areaId));
+    if (unassigned.length) html += group(tr('No area'), unassigned.length, `<div class="today-card project-list">${unassigned.map(project => projectOverviewRow(project, tasks)).join('')}</div>`);
+    for (const [status, label, key] of [['onHold', tr('On hold'), 'projectsOnHoldOpen'], ['someday', tr('Someday'), 'projectsSomedayOpen']]) {
+      const list = projects.filter(project => Core.projectStatus(project) === status);
+      if (!list.length) continue;
+      const open = state.ui[key] === true;
+      html += `<section class="section">${foldButton('toggle-projects-resting', label, list.length, open, ` data-fold="${key}"`)}${open ? `<div class="today-card project-list">${list.map(project => projectOverviewRow(project, tasks)).join('')}</div>` : ''}</section>`;
+    }
+    html += `<button class="inline-add" type="button" data-action="new-project"><i class="ph ph-plus"></i> ${tr('New project')}</button>`;
     return html;
   }
 
@@ -1723,73 +1735,11 @@
     return `<div class="recovery"><div class="recovery-card"><h1>${unsupported ? tr('This data is from a newer version.') : tr("We couldn't load your local data.")}</h1><p>${unsupported ? tr("Dailo can't safely read this saved format.") : tr('Your saved data appears to be invalid. Nothing has been overwritten.')}</p><div class="recovery-actions"><button class="btn btn-secondary" type="button" data-action="retry-load">${tr('Retry')}</button><button class="btn btn-danger" type="button" data-action="recovery-reset">${tr('Reset local data')}</button></div></div></div>`;
   }
 
-  // R53: voice input in Quick Add where the browser recognizes speech (Chrome, Edge, Safari). The phone apps keep the
-  // keyboard's own dictation key, since their WebViews have no speech recognition.
-  const SpeechRecognitionImpl = globalThis.SpeechRecognition || globalThis.webkitSpeechRecognition || null;
-  const DICTATION_ERRORS = { 'not-allowed': msg('The microphone is not allowed. Allow it in the browser settings.'), 'service-not-allowed': msg('The microphone is not allowed. Allow it in the browser settings.'), 'no-speech': msg('Nothing was heard. Try again.'), 'audio-capture': msg('No microphone was found.'), network: msg('Speech recognition is not available right now.') };
-  let dictation = null;
-
-  // A tap listens once; the words join the title live (Cyrillic becomes Latin) and the preview of dates and tags
-  // follows. A second tap stops.
-  function toggleDictation() {
-    if (dictation) { dictation.stop(); return; }
-    const field = $('#quick-title');
-    if (!SpeechRecognitionImpl || !field) return;
-    const recognition = new SpeechRecognitionImpl();
-    recognition.lang = I18n.locale().startsWith('sr') ? 'sr-RS' : I18n.locale();
-    recognition.interimResults = true;
-    recognition.continuous = false;
-    const base = field.value.trim();
-    recognition.onresult = event => {
-      const heard = Core.cyrillicToLatin(Array.from(event.results, result => result[0]?.transcript || '').join('')).replace(/\s+/g, ' ').trim();
-      field.value = [base, heard].filter(Boolean).join(' ');
-      field.dispatchEvent(new Event('input', { bubbles: true }));
-    };
-    recognition.onerror = event => { if (DICTATION_ERRORS[event.error]) setToastMessage(tr(DICTATION_ERRORS[event.error])); };
-    recognition.onend = () => { dictation = null; setDictationState(false); $('#quick-title')?.focus(); };
-    dictation = recognition;
-    setDictationState(true);
-    try { recognition.start(); } catch (_) { dictation = null; setDictationState(false); }
-  }
-
-  function setDictationState(on) {
-    const button = $('#quick-dictation');
-    if (!button) return;
-    button.classList.toggle('is-listening', on);
-    button.setAttribute('aria-pressed', String(on));
-    button.setAttribute('aria-label', on ? tr('Stop dictation') : tr('Dictate the task'));
-  }
-
-  function stopDictation() {
-    dictation?.abort();
-    dictation = null;
-  }
-
-  function openQuickAdd(context = {}) {
-    captureModalReturnFocus();
-    closePopover();
-    const defaults = {
-      projectId: context.projectId || null,
-      areaId: context.areaId || null,
-      plannedDate: context.plannedDate || context.day || (context.today ? Core.dateOnly() : null),
-      explicitPlan: Boolean(context.plannedDate),
-      processed: Boolean(context.anytime),
-    };
-    modalState = {
-      type: 'quick',
-      templateContext: context,
-      defaults,
-      draft: {
-        title: context.title || '', notes: context.notes || '', projectId: defaults.projectId, areaId: defaults.areaId, plannedDate: defaults.plannedDate, parsedPlanDate: null, explicitPlan: defaults.explicitPlan,
-        dueDate: null, plannedTime: null, dueTime: null, explicitPlannedTime: false, reminderAt: null, reminderFiredAt: null, recurrence: null, tagIds: [...(context.tagIds || [])], priority: 'none', subtasks: [],
-      },
-      error: '',
-    };
-    // R12b (J9): "+ Zadatak za sutra" comes back to the journal entry when Quick Add closes.
-    if (context.returnTo) modalState.returnTo = context.returnTo;
-    renderModal();
-    requestAnimationFrame(() => $('#quick-title')?.focus());
-  }
+  // R111: the Quick Add sheet lives in js/quick-add-ui.js. Its callers here, in the other modules and on window.TodoApp
+  // open it through that module, and app.js asks it by name for the few things it needs (the dictation stop, a task
+  // template, the typed title). These go to that module alone, since the other modules' handleAction expects a click.
+  const quickAddAction = (action, payload = null) => window.TodoDomainModules?.getAdapters().find(adapter => adapter.name === 'quick-add')?.handleAction(action, payload, domainContext());
+  const openQuickAdd = (context = {}) => quickAddAction('quick-open', context);
 
   function openTaskDetail(taskId) {
     unarchiveTask(taskId);
@@ -2060,7 +2010,7 @@
   }
 
   function closeModal() {
-    stopDictation();
+    quickAddAction('quick-stop-dictation');
     if (modalState?.type === 'focus') stopFocusTimer();
     // R12b (J2): an entry emptied of text and mood leaves when its window closes.
     if (modalState?.type === 'journal') callDomainHook('handleAction', 'journal-closing', null);
@@ -2109,7 +2059,6 @@
     const scrolled = steady ? [...root.querySelectorAll('.modal-backdrop, .modal')].map(el => el.scrollTop) : [];
     const domainContent = callDomainHook('renderRoute', { type: 'modal', modalType: modalState.type });
     if (domainContent !== undefined) root.innerHTML = domainContent;
-    else if (modalState.type === 'quick') root.innerHTML = renderQuickModal();
     else if (modalState.type === 'search') root.innerHTML = renderSearchModal();
     else if (modalState.type === 'tag') root.innerHTML = renderTagModal();
     else if (modalState.type === 'confirm') root.innerHTML = renderConfirmModal();
@@ -2118,7 +2067,6 @@
     else if (modalState.type === 'local-snapshots') root.innerHTML = renderLocalSnapshotsModal();
     else if (modalState.type === 'template-picker') root.innerHTML = renderTemplatePicker();
     else if (modalState.type === 'recurrence-scope') root.innerHTML = renderRecurrenceScope();
-    else if (modalState.type === 'sync-choice') root.innerHTML = renderSyncChoice();
     else if (modalState.type === 'inbox-triage') root.innerHTML = renderInboxTriage();
     else if (modalState.type === 'overdue-triage') root.innerHTML = renderOverdueTriage();
     else if (modalState.type === 'close-day') root.innerHTML = renderCloseDayPass();
@@ -2242,7 +2190,7 @@
   // "Upotrebi šablon" opens the usual new-item window, already filled; the user still saves it.
   function useTemplate(id) {
     const template = state.templates.find(item => item.id === id); if (!template) return;
-    if (template.type === 'task') { openQuickAdd(); applyQuickTemplate(template.id); renderModal(); return; }
+    if (template.type === 'task') { openQuickAdd(); quickAddAction('quick-template-apply', { templateId: template.id }); renderModal(); return; }
     if (template.type === 'project') openProjectModal(); else if (template.type === 'habit') openHabitModal(); else openGoalModal();
     openTemplatePicker(); chooseTemplate(template.id);
   }
@@ -2265,7 +2213,7 @@
     setToastMessage(tr('Template added: {name}', { name: template.name }));
   }
   function openTemplatePicker() {
-    if(modalState.type==='quick')syncQuickDraftFromDom();
+    if(modalState.type==='quick')quickAddAction('quick-sync-draft');
     if(modalState.type==='habit')readHabitDraft();
     if(modalState.type==='goal') readGoalDraft();
     const previous=modalState;const type=previous.type==='quick'?'task':previous.type;
@@ -2328,140 +2276,6 @@
         goal.projectLinks=[...(goal.projectLinks || []),{projectId:item.id,contributionMode:config?.contributionMode || 'allTasks',selectedTaskIds:[...(config?.selectedTaskIds || [])]}];
       }
     }
-  }
-
-  // What the title will set, shown under it while typing (V1.10). Empty when nothing is recognized.
-  // R90: each part is a button: a tap keeps its words in the title (`quick-keep`); the day and the time are separate.
-  function quickParsePreview(parsed) {
-    const item = (slot, icon, text) => `<button class="quick-parse-item" type="button" data-action="quick-keep" data-slot="${esc(slot)}" aria-label="${esc(tr('Keep “{words}” in the title', { words: parsed.sources?.[slot] || text }))}"><i class="ph ${icon}" aria-hidden="true"></i>${esc(text)}</button>`;
-    const items = [];
-    // R105: a day set by a repeat ("utorkom") has no words of its own; a tap keeps the repeat's words.
-    if (parsed.plannedDate) items.push(item(parsed.sources && !parsed.sources.plannedDate && parsed.sources.recurrence ? 'recurrence' : 'plannedDate', 'ph-calendar-check', relativeDateLabel(parsed.plannedDate)));
-    if (parsed.plannedTime) items.push(item('plannedTime', 'ph-clock', parsed.plannedTime));
-    // R33 (finding 32): an hourglass is the due date and a flag the priority, as in the task window.
-    if (parsed.dueDate) items.push(item('dueDate', 'ph-hourglass-medium', tr('Due {date}', { date: relativeDateLabel(parsed.dueDate) })));
-    if (parsed.durationMinutes) items.push(item('durationMinutes', 'ph-timer', durationLabel(parsed.durationMinutes)));
-    // R89: a repeat written in the title ("utorkom", "svakog drugog utorka").
-    if (parsed.recurrence) items.push(item('recurrence', 'ph-arrows-clockwise', recurrenceLabel(parsed.recurrence)));
-    const project = parsed.projectId && getProject(parsed.projectId);
-    if (project) items.push(item('projectId', 'ph-folder-simple', project.name));
-    const area = !project && parsed.areaId && getArea(parsed.areaId);
-    if (area) items.push(item('areaId', 'ph-squares-four', area.name));
-    for (const tag of (parsed.tagIds || []).map(getTag).filter(Boolean)) items.push(item(`tag:${tag.id}`, 'ph-hash', tag.name));
-    if (parsed.priority) items.push(item('priority', 'ph-flag', priorityLabel(parsed.priority)));
-    return items.length ? `<div class="quick-parse-preview" data-quick-preview role="group" aria-label="${tr('Recognized in title')}">${items.join('')}<span class="quick-parse-hint">${tr('Tap a part to keep it in the title.')}</span></div>` : '';
-  }
-
-  // R90: while a #tag, +project or @area is typed at the end of the title, the existing names to complete it with.
-  function quickSuggestHtml(title) {
-    const items = Core.quickSuggestions(title, { tags: state.tags || [], projects: state.projects || [], areas: state.areas || [] }) || [];
-    return items.length ? `<div class="quick-suggest" role="group" aria-label="${tr('Suggestions')}">${items.map(item => `<button class="quick-chip" type="button" data-action="quick-suggest" data-insert="${esc(item.insert)}">${esc(item.insert.charAt(0) + item.label)}</button>`).join('')}</div>` : '';
-  }
-
-  // Redesign R4 (Q1, Q2, S7): Quick Add as a bottom sheet. The title, the Smart Quick Add preview, the date and
-  // place selectors, the template chip, "Više opcija" (saves and opens the task window) and "Dodaj zadatak".
-  function renderQuickModal() {
-    const d = modalState.draft;
-    const parsed = parseQuickAddTitle(d.title, !d.explicitPlan, d.keepInTitle);
-    // R90: a pasted list waits for a choice: that many tasks, or one.
-    const lines = modalState.pasteLines || [];
-    const paste = lines.length ? `<div class="quick-paste" role="group" aria-label="${tr('Pasted list')}"><p><strong>${esc(trn(lines.length, 'A list of {count} line', 'A list of {count} lines'))}</strong></p><ul class="quick-paste-lines">${lines.slice(0, 5).map(line => `<li>${esc(line)}</li>`).join('')}${lines.length > 5 ? `<li>${esc(tr('… and {count} more', { count: lines.length - 5 }))}</li>` : ''}</ul><div class="quick-paste-actions"><button class="btn btn-primary" type="button" data-action="quick-paste-tasks">${esc(trn(lines.length, 'Make {count} task', 'Make {count} tasks'))}</button><button class="btn btn-ghost" type="button" data-action="quick-paste-one">${tr('As one task')}</button></div></div>` : '';
-    const plan = d.explicitPlan ? d.plannedDate : (parsed.plannedDate || d.plannedDate);
-    const time = d.explicitPlannedTime ? d.plannedTime : (d.plannedTime || parsed.plannedTime);
-    const titleInput = `<input id="quick-title" class="quick-title-input${modalState.error ? ' is-error' : ''}" type="text" maxlength="500" autocomplete="off" placeholder="${tr('What needs to be done?')}" value="${esc(d.title)}" aria-label="${tr('Task title')}" />`;
-    // R53: the microphone, where the browser recognizes speech.
-    const dictate = SpeechRecognitionImpl ? `<button id="quick-dictation" class="btn-icon quick-dictation" type="button" data-action="quick-dictate" aria-pressed="false" aria-label="${tr('Dictate the task')}"><i class="ph ph-microphone" aria-hidden="true"></i></button>` : '';
-    return modalFrame(`<div class="modal-inner quick-sheet">
-      <div class="modal-header"><h2 class="modal-title">${tr('New task')}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div>
-      ${dictate ? `<div class="quick-title-row">${titleInput}${dictate}</div>` : titleInput}
-      ${modalState.error ? `<div class="validation">${esc(modalState.error)}</div>` : ''}
-      ${modalState.draft.notes ? `<p class="quick-shared-note"><i class="ph ph-link" aria-hidden="true"></i><span>${esc(modalState.draft.notes)}</span></p>` : ''}
-      ${paste}
-      <div class="quick-suggest-slot" data-quick-suggest-slot>${quickSuggestHtml(d.title)}</div>
-      <div class="quick-parse-slot" data-quick-preview-slot aria-live="polite">${quickParsePreview(parsed)}</div>
-      <div class="quick-selectors"><button class="quick-selector" type="button" data-action="quick-plan-picker"><i class="ph ph-calendar-check" aria-hidden="true"></i><span data-quick-plan-label>${esc(quickPlanLabel(plan, time))}</span><i class="ph ph-caret-right" aria-hidden="true"></i></button><button class="quick-selector" type="button" data-action="quick-project-picker"><i class="ph ph-folder-simple" aria-hidden="true"></i><span data-quick-place-label>${esc(quickPlace(d, parsed).label)}</span><i class="ph ph-caret-right" aria-hidden="true"></i></button></div>
-      ${quickTemplateRow()}
-      <button class="quick-more-options" type="button" data-action="quick-more-options"><span>${tr('More options')}</span><span class="quick-more-meta">${tr('Due date, reminder, tags')}</span><i class="ph ph-caret-right" aria-hidden="true"></i></button>
-      <div class="quick-sheet-footer"><span class="shortcut-hint">${tr('↵ Add · ⇧↵ Add another')}</span><button class="btn btn-secondary quick-add-continue" type="button" data-action="create-task-continue">${tr('Add and continue')}</button><button class="btn btn-primary quick-add-button" type="button" data-action="create-task">${tr('Add task')}</button></div>
-    </div>`, 'quick');
-  }
-
-  function quickPlanLabel(plan, time) {
-    return plan ? `${relativeDateLabel(plan)}${time ? ` · ${time}` : ''}` : tr('No date');
-  }
-
-  // Where a Quick Add task goes: its project, "Bez projekta" (it skips Inbox) or Inbox. A picked place wins over a
-  // parsed +project; a task with a date and no project is never in Inbox.
-  function quickPlace(d, parsed = parseQuickAddTitle(d.title, !d.explicitPlan, d.keepInTitle)) {
-    const projectId = d.placePicked ? (d.projectId || null) : (d.projectId || parsed.projectId || null);
-    const plan = d.explicitPlan ? d.plannedDate : (parsed.plannedDate || d.plannedDate);
-    const processed = d.processed ?? Boolean(modalState?.defaults?.processed);
-    const isInbox = !projectId && !processed && !plan;
-    return { projectId, isInbox, label: projectId ? (getProject(projectId)?.name || tr('No project')) : isInbox ? tr('Inbox') : tr('No project') };
-  }
-
-  // S7: the "Iz šablona" chip, shown only when task templates exist.
-  function quickTemplateRow() {
-    const templates = (state.templates || []).filter(template => template.type === 'task');
-    if (!templates.length) return '';
-    const chosen = modalState.quickTemplate && templates.find(template => template.id === modalState.quickTemplate.id);
-    if (!chosen) return `<div class="quick-template-row"><button class="quick-chip" type="button" data-action="quick-template"><i class="ph ph-copy" aria-hidden="true"></i>${tr('From template')}</button></div>`;
-    return `<div class="quick-template-row"><button class="quick-chip is-selected" type="button" data-action="quick-template"><i class="ph ph-copy" aria-hidden="true"></i>${esc(tr('Template: {name}', { name: chosen.name }))}</button><button class="quick-chip" type="button" data-action="quick-template-clear" aria-label="${tr('Remove template')}"><i class="ph ph-x" aria-hidden="true"></i></button></div><p class="quick-template-summary">${esc(quickTemplateSummary(chosen))}</p>`;
-  }
-
-  function quickTemplateSummary(template) {
-    const item = Core.instantiateTemplate(template, Core.dateOnly(), { state, makeId: () => 'preview', nowIso: nowIso() }).task;
-    return [item.plannedDate && relativeDateLabel(item.plannedDate), item.dueDate && tr('Due {date}', { date: relativeDateLabel(item.dueDate) }), item.subtasks.length && trn(item.subtasks.length, '{count} subtask', '{count} subtasks'), ...(item.tagIds || []).map(getTag).filter(Boolean).map(tag => `#${tag.name}`)].filter(Boolean).join(' · ') || item.title || template.name;
-  }
-
-  function openQuickTemplatePicker(anchor) {
-    const templates = (state.templates || []).filter(template => template.type === 'task');
-    const current = modalState?.quickTemplate?.id;
-    const html = `<div class="popover-title">${tr('Task template')}</div><div class="sheet-card">${templates.map(template => `<button class="popover-option sheet-option${template.id === current ? ' is-selected' : ''}" type="button" data-pop-action="quick-template-pick" data-template-id="${esc(template.id)}"><i class="ph ph-copy" aria-hidden="true"></i><span class="sheet-option-label">${esc(template.name)}<small>${esc(quickTemplateSummary(template))}</small></span><span class="sheet-radio${template.id === current ? ' is-on' : ''}" aria-hidden="true"></span></button>`).join('')}</div>`;
-    openPopover(anchor, html, { type: 'quick-template' });
-  }
-
-  // S7: a template fills what the draft does not have yet. A typed title, a picked date and a picked place win;
-  // the due date moves with the plan. ✕ restores what the template replaced.
-  const QUICK_TEMPLATE_FIELDS = ['plannedDate', 'plannedTime', 'dueDate', 'dueTime', 'subtasks', 'tagIds', 'priority', 'notes', 'durationMinutes', 'reminderAt', 'recurrence', 'goalIds', 'projectId', 'areaId'];
-  function applyQuickTemplate(id) {
-    const template = (state.templates || []).find(item => item.id === id && item.type === 'task');
-    if (!template || modalState?.type !== 'quick') return;
-    syncQuickDraftFromDom();
-    if (modalState.quickTemplate) clearQuickTemplate();
-    const d = modalState.draft;
-    const offset = Number.isInteger(template.data?.plannedOffsetDays) ? template.data.plannedOffsetDays : 0;
-    const context = d.explicitPlan && d.plannedDate ? Core.addDays(d.plannedDate, -offset) : (modalState.templateContext?.plannedDate || Core.dateOnly());
-    const out = Core.instantiateTemplate(template, context, { state, makeId: uid, nowIso: nowIso() });
-    const item = out.task;
-    const before = copyTemplate(Object.fromEntries([...QUICK_TEMPLATE_FIELDS, 'title'].map(key => [key, d[key] ?? null])));
-    if (!String(d.title || '').trim()) d.title = item.title || '';
-    if (!d.explicitPlan && item.plannedDate) { d.plannedDate = item.plannedDate; if (!d.plannedTime) d.plannedTime = item.plannedTime || null; }
-    if (!d.dueDate) { d.dueDate = item.dueDate || null; d.dueTime = d.dueTime || item.dueTime || null; }
-    if (!d.subtasks?.length) d.subtasks = item.subtasks || [];
-    d.tagIds = [...new Set([...(d.tagIds || []), ...(item.tagIds || [])])];
-    if (!d.priority || d.priority === 'none') d.priority = item.priority || 'none';
-    for (const key of ['notes', 'durationMinutes', 'reminderAt', 'recurrence']) if (!d[key]) d[key] = item[key] ?? d[key] ?? null;
-    d.goalIds = [...new Set([...(d.goalIds || []), ...(item.goalIds || [])])];
-    if (!d.placePicked && !d.projectId && item.projectId) { d.projectId = item.projectId; d.areaId = null; }
-    else if (!d.projectId && !d.areaId && item.areaId) d.areaId = item.areaId;
-    modalState.quickTemplate = { id, title: item.title || '', before };
-    modalState.templateInstance = out;
-  }
-  function clearQuickTemplate() {
-    const applied = modalState?.quickTemplate;
-    if (!applied) return;
-    syncQuickDraftFromDom();
-    const d = modalState.draft;
-    const title = d.title === applied.title ? applied.before.title : d.title;
-    for (const key of QUICK_TEMPLATE_FIELDS) {
-      if ((key === 'plannedDate' || key === 'plannedTime') && d.explicitPlan) continue;
-      if ((key === 'projectId' || key === 'areaId') && d.placePicked) continue;
-      d[key] = applied.before[key];
-    }
-    d.title = title || '';
-    modalState.quickTemplate = null;
-    modalState.templateInstance = null;
   }
 
   function priorityLabel(value) {
@@ -3632,139 +3446,6 @@
     if (!asked && previous.isInbox) setUndo(projectId ? msg('Task moved to project') : msg('Task sorted'), () => { const current = getTask(taskId); if (!current) return; Object.assign(current, previous, { updatedAt: nowIso() }); saveState(); render(); renderModal(); });
   }
 
-  function createTask(keepOpen = false, openWindow = false) {
-    if (!modalState || modalState.type !== 'quick') return;
-    syncQuickDraftFromDom();
-    const d = modalState.draft;
-    const parsed = parseQuickAddTitle(d.title, !d.explicitPlan, d.keepInTitle);
-    const title = String(parsed.title || '').trim();
-    const resolvedPlan = d.explicitPlan ? d.plannedDate : (parsed.plannedDate || d.plannedDate);
-    if (!title) {
-      modalState.error = tr('Task needs a title.');
-      renderModal(); requestAnimationFrame(() => $('#quick-title')?.focus()); return;
-    }
-    // Picker values win over parsed ones; a project wins over an Area; a picked place wins over +project (R4).
-    const { projectId, isInbox } = quickPlace(d, parsed);
-    const task = {
-      id: uid('task'), title, notes: d.notes || '', projectId, areaId: projectId ? null : (d.areaId || parsed.areaId || null), goalIds: [...(d.goalIds || [])], plannedTime: d.explicitPlannedTime ? d.plannedTime : (d.plannedTime || parsed.plannedTime || null), dueTime: d.dueTime || null, durationMinutes: d.durationMinutes || parsed.durationMinutes || null,
-      plannedDate: resolvedPlan || null, dueDate: d.dueDate || parsed.dueDate || null,
-      reminderAt: d.reminderAt || null, reminderFiredAt: null, recurrence: d.recurrence || parsed.recurrence || null, tagIds: [...new Set([...(d.tagIds || []), ...parsed.tagIds])], priority: parsed.priority || d.priority || 'none', attachmentIds: [], isInbox,
-      isImportant: false, isUrgent: false, isCompleted: false, completedAt: null,
-      subtasks: d.subtasks.map((s, i) => ({ ...s, order: i })),
-      todayOrder: resolvedPlan === Core.dateOnly() ? nextOrder('today') : null,
-      projectOrder: projectId ? nextOrder(`project:${projectId}`) : null,
-      inboxOrder: isInbox ? nextOrder('inbox', true) : null,
-      createdAt: nowIso(), updatedAt: nowIso(),
-    };
-    if(task.recurrence)task.recurrence={...Core.normalizeRecurrenceV3(task.recurrence),seriesId:task.id};
-    state.tasks.push(task);
-    if(modalState.templateInstance)syncTemplateEntityGoalLinks('task',task);
-    saveState();
-    // R36 (C): the toast says where the task went; "Otvori" opens it.
-    if (!openWindow) setToastMessage(addedMessage(task), { label: msg('Open it'), taskId: task.id });
-    if (keepOpen) {
-      const defaults = modalState.defaults;
-      modalState = { type: 'quick', templateContext: modalState.templateContext, defaults, draft: { title: '', notes: '', projectId: defaults.projectId, areaId: defaults.areaId, plannedDate: defaults.plannedDate, parsedPlanDate: null, explicitPlan: Boolean(defaults.explicitPlan), dueDate: null, plannedTime: null, dueTime: null, explicitPlannedTime: false, reminderAt: null, reminderFiredAt: null, recurrence: null, tagIds: [], priority: 'none', subtasks: [] }, error: '' };
-      render(); renderModal(); requestAnimationFrame(() => $('#quick-title')?.focus());
-    } else {
-      closeModal(); render();
-      if (openWindow) openTaskDetail(task.id);
-    }
-  }
-
-  // R36 (C): where a new task went: Inbox, Danas, a date, its project or Kad stignem.
-  function addedMessage(task) {
-    if (task.isInbox) return tr('Added to Inbox');
-    if (task.plannedDate === Core.dateOnly()) return tr('Added to Today');
-    if (task.plannedDate) return tr('Added for {date}', { date: lowerFirst(relativeDateLabel(task.plannedDate)) });
-    const project = task.projectId && getProject(task.projectId);
-    if (project) return tr('Added to {place}', { place: project.name });
-    return tr('Added to Anytime');
-  }
-
-  function syncQuickDraftFromDom() {
-    if (modalState?.type !== 'quick') return;
-    const title = $('#quick-title'); if (title) modalState.draft.title = title.value;
-  }
-
-  // R90: `keep` holds the parts the person kept in the title; `sources` says which words set each part.
-  function parseQuickAddTitle(rawTitle, parsePlan = true, keep = []) {
-    return Core.parseQuickAdd(rawTitle, { today: Core.dateOnly(), tags: state.tags || [], projects: state.projects || [], areas: state.areas || [], parsePlan, keep, sources: true });
-  }
-
-  // R90: a tapped part of the preview stays in the title; its words are not read again while they stay the same.
-  function keepInQuickTitle(slot) {
-    if (modalState?.type !== 'quick') return;
-    syncQuickDraftFromDom();
-    const d = modalState.draft;
-    const text = parseQuickAddTitle(d.title, !d.explicitPlan, d.keepInTitle).sources?.[slot];
-    if (!text) return;
-    d.keepInTitle = [...(d.keepInTitle || []), { slot, text }];
-    renderModal();
-    focusQuickTitleEnd();
-  }
-  // R90: a suggestion completes the #tag, +project or @area being typed.
-  function applyQuickSuggestion(insert) {
-    if (modalState?.type !== 'quick' || !insert) return;
-    syncQuickDraftFromDom();
-    const d = modalState.draft;
-    d.title = `${d.title.replace(/(^|\s)[#+@]\S*$/, '$1')}${insert} `;
-    renderModal();
-    focusQuickTitleEnd();
-  }
-  function focusQuickTitleEnd() {
-    const input = $('#quick-title');
-    if (!input) return;
-    input.focus();
-    input.setSelectionRange?.(input.value.length, input.value.length);
-  }
-  // R90: a pasted list (two lines or more) is offered as that many tasks, after a confirmation in the sheet.
-  function handlePaste(event) {
-    if (modalState?.type !== 'quick' || event.target?.id !== 'quick-title') return;
-    const lines = Core.splitPastedList(event.clipboardData?.getData('text') || '');
-    if (lines.length < 2) return;
-    event.preventDefault();
-    syncQuickDraftFromDom();
-    modalState.pasteLines = lines;
-    renderModal();
-  }
-  // R90 (AGENTS.md exception, the user's choice): each line becomes a task the way a title would (its day, time,
-  // repeat, project and tags), in the sheet's place and day; one Poništi removes them all.
-  function createPastedTasks() {
-    if (modalState?.type !== 'quick' || !modalState.pasteLines?.length) return;
-    syncQuickDraftFromDom();
-    const d = modalState.draft, created = [];
-    // R105: the +project, @area, #tags and !priority typed before the paste apply to every line; a line's own win. (The
-    // sheet's day chip already applies to all of them.)
-    const typed = parseQuickAddTitle(d.title || '', !d.explicitPlan, d.keepInTitle);
-    for (const line of modalState.pasteLines) {
-      const own = parseQuickAddTitle(line, !d.explicitPlan);
-      const parsed = { ...own, ...(own.projectId || own.areaId ? {} : { projectId: typed.projectId, areaId: typed.areaId }), tagIds: [...new Set([...typed.tagIds, ...own.tagIds])], priority: own.priority || typed.priority };
-      const title = String(parsed.title || '').trim();
-      if (!title) continue;
-      const plannedDate = (d.explicitPlan ? d.plannedDate : (parsed.plannedDate || d.plannedDate)) || null;
-      const { projectId, isInbox } = quickPlace(d, parsed);
-      const task = newTaskRecord({ title, projectId, areaId: projectId ? null : (d.areaId || parsed.areaId || null), plannedDate, plannedTime: parsed.plannedTime || null, dueDate: parsed.dueDate || null, durationMinutes: parsed.durationMinutes || null, tagIds: [...new Set([...(d.tagIds || []), ...parsed.tagIds])], priority: parsed.priority || 'none', isInbox,
-        todayOrder: plannedDate === Core.dateOnly() ? nextOrder('today') : null, projectOrder: projectId ? nextOrder(`project:${projectId}`) : null, inboxOrder: isInbox ? nextOrder('inbox') : null });
-      if (parsed.recurrence) task.recurrence = { ...Core.normalizeRecurrenceV3(parsed.recurrence), seriesId: task.id };
-      state.tasks.push(task);
-      created.push(task.id);
-    }
-    if (!created.length) return;
-    saveState(); closeModal(); render();
-    setUndo(trn(created.length, '{count} task added', '{count} tasks added'), () => { const ids = new Set(created); state.tasks = state.tasks.filter(task => !ids.has(task.id)); saveState(); render(); });
-  }
-  // R90: "Kao jedan zadatak" puts the pasted lines into the title, one after another.
-  function joinPastedLines() {
-    if (modalState?.type !== 'quick' || !modalState.pasteLines?.length) return;
-    syncQuickDraftFromDom();
-    const d = modalState.draft;
-    d.title = [d.title.trim(), ...modalState.pasteLines].filter(Boolean).join(' ').slice(0, 500);
-    modalState.pasteLines = null;
-    renderModal();
-    focusQuickTitleEnd();
-  }
-
   function nextOrder(context, atTop = false) {
     let values = [];
     if (context === 'today') values = state.tasks.filter(t => !t.isCompleted && t.plannedDate === Core.dateOnly()).map(t => t.todayOrder).filter(Number.isFinite);
@@ -4890,9 +4571,10 @@
     return Boolean(active?.matches?.('input:not([type="checkbox"]):not([type="radio"]):not([type="button"]), textarea, select, [contenteditable="true"]'));
   }
 
-  // Pulled data is applied only when nothing on screen holds unsaved or reversible work.
+  // Pulled data is applied only when nothing on screen holds unsaved or reversible work (R110: js/drag-ui.js says when a
+  // drag is under way).
   function syncWaiting() {
-    return Boolean(modalState || undoState || undoHold || textSaveTimer || dragState || editingText());
+    return Boolean(modalState || undoState || undoHold || textSaveTimer || callDomainHook('isDragging') || editingText());
   }
 
   // R80: Još shows the sync state too; elsewhere only the tab's dot and the sidebar line follow it.
@@ -5021,7 +4703,7 @@
         setToastMessage(tr('Loading your account data in place of the examples.'));
         return runSync('server');
       }
-      openSyncChoice();
+      accountAction('sync-choice-open');
     }
     refreshSyncCard();
   }
@@ -5111,415 +4793,12 @@
     render();
   }
 
-  // R43: Nalog → "Promeni lozinku" and "Promeni e-adresu", each a sheet with a form. The password step may turn into
-  // the current password or a code the server e-mails; the new address is confirmed by its code (and, with secure
-  // e-mail change on the server, by one sent to the current address).
-  function openAccountWindow(kind) {
-    const session = loadSyncMeta().session;
-    if (!syncClient || !session?.accessToken || modalState) return;
-    captureModalReturnFocus(); closePopover();
-    modalState = { type: kind === 'email' ? 'account-email' : 'account-password', step: kind === 'email' ? 'email' : 'new', currentEmail: session.user?.email || '',
-      password: '', confirm: '', current: '', code: '', email: '', pending: false, busy: false, error: '' };
-    renderModal();
-  }
-
-  function setAccountWindow(changes) {
-    if (!['account-password', 'account-email'].includes(modalState?.type)) return;
-    modalState = { ...modalState, ...changes };
-    renderModal();
-  }
-
-  function accountFields() {
-    const windowState = modalState;
-    for (const [key, id] of [['password', 'account-password'], ['confirm', 'account-password-confirm'], ['current', 'account-current'], ['code', 'account-code'], ['email', 'account-email']]) {
-      const field = $(`#${id}`);
-      if (field) windowState[key] = ['code', 'email'].includes(key) ? String(field.value ?? '').trim() : String(field.value ?? '');
-    }
-    return windowState;
-  }
-
-  // The session for an account change, refreshed and stored when it was about to expire.
-  async function currentSession() {
-    const meta = loadSyncMeta();
-    const session = await syncClient.ensureSession(meta.session);
-    if (session !== meta.session) { syncMeta = { ...meta, session }; saveSyncMeta(); }
-    return session;
-  }
-
-  function closeAccountWindow(message) {
-    modalState = null;
-    renderModal();
-    const target = modalReturnFocus;
-    modalReturnFocus = null;
-    if (target) restoreModalReturnFocus(target);
-    render();
-    setToastMessage(message);
-  }
-
-  async function accountSubmit() {
-    if (modalState?.type === 'journal-cipher') return journalCipherSubmit();
-    if (!syncClient || !['account-password', 'account-email'].includes(modalState?.type) || modalState.busy) return;
-    const windowState = accountFields();
-    return windowState.type === 'account-password' ? accountPasswordSubmit(windowState) : accountEmailSubmit(windowState);
-  }
-
-  async function accountPasswordSubmit(windowState) {
-    const code = windowState.code.replace(/\s+/g, '');
-    const problem = Sync.passwordProblem(windowState.password) || (windowState.confirm !== windowState.password ? msg('The passwords do not match.') : '')
-      || (windowState.step === 'current' && !windowState.current ? msg('Enter your password.') : '')
-      || (windowState.step === 'nonce' && !/^\d{6,10}$/.test(code) ? msg('Enter the code from the e-mail.') : '');
-    if (problem) { setAccountWindow({ error: problem }); return; }
-    setAccountWindow({ busy: true, error: '' });
-    let session;
-    try {
-      session = await currentSession();
-      await syncClient.updatePassword(session, windowState.password, { nonce: windowState.step === 'nonce' ? code : '', currentPassword: windowState.step === 'current' ? windowState.current : '' });
-      closeAccountWindow(tr('Password changed. Other devices will sign in again.'));
-    } catch (error) {
-      if (error?.reason === 'reauthentication_needed') {
-        try { await syncClient.reauthenticate(session); setAccountWindow({ step: 'nonce', code: '', busy: false }); }
-        catch (sent) { setAccountWindow({ busy: false, error: sent?.message || String(sent) }); }
-      } else if (error?.reason === 'current_password_required') setAccountWindow({ step: 'current', busy: false });
-      else setAccountWindow({ busy: false, error: error?.message || String(error) });
-    }
-  }
-
-  async function accountEmailSubmit(windowState) {
-    if (windowState.step === 'email') {
-      const email = windowState.email;
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setAccountWindow({ error: msg('Enter a valid e-mail address.') }); return; }
-      if (email.toLowerCase() === windowState.currentEmail.toLowerCase()) { setAccountWindow({ error: msg('This is already your e-mail address.') }); return; }
-      setAccountWindow({ busy: true, error: '' });
-      try {
-        await syncClient.changeEmail(await currentSession(), email);
-        setAccountWindow({ step: 'code', code: '', pending: false, busy: false });
-      } catch (error) {
-        setAccountWindow({ busy: false, error: error?.reason === 'email_exists' ? msg('Another account already uses this e-mail address.') : error?.message || String(error) });
-      }
-      return;
-    }
-    const code = windowState.code.replace(/\s+/g, '');
-    if (!/^\d{6,10}$/.test(code)) { setAccountWindow({ error: msg('Enter the code from the e-mail.') }); return; }
-    setAccountWindow({ busy: true, error: '' });
-    // The code may come from the new address or, with secure e-mail change, from the current one.
-    let result = null;
-    let failure = null;
-    for (const address of [windowState.email, windowState.currentEmail]) {
-      try { result = await syncClient.verifyEmailChange(address, code); break; }
-      catch (error) { failure = error; if (!(error?.status >= 400 && error?.status < 500) || error.status === 429) break; }
-    }
-    if (!result) {
-      setAccountWindow({ busy: false, error: failure?.status === 429 || !(failure?.status >= 400) ? failure?.message || String(failure) : msg('The code is wrong or has expired.') });
-      return;
-    }
-    if (result.pending) { setAccountWindow({ busy: false, pending: true, code: '' }); return; }
-    completeSignIn(result.session);
-    closeAccountWindow(tr('E-mail address changed: {email}', { email: result.session.user.email }));
-  }
-
-  // R40: the welcome screen (first launch, and "Prijavi se" / "Napravi nalog" on Nalog). Sign-in is by e-mail and
-  // password, with a code from the e-mail to confirm a new account or set a new password, or with Google or Apple
-  // through the browser (PKCE). The device-local key "dailoWelcome" (outside state, backups and sync) remembers that
-  // the first screen was answered.
-  const WELCOME_KEY = 'dailoWelcome';
-  const WELCOME_MODES = ['sign-in', 'sign-up', 'confirm', 'reset', 'reset-code'];
-  const AUTH_REDIRECT_APP = 'dailo://auth';
-
-  function welcomeDue() {
-    if (!syncClient || loadSyncMeta().session?.accessToken) return false;
-    try { return !localStorage.getItem(WELCOME_KEY); } catch (_) { return false; }
-  }
-
-  function rememberWelcome() {
-    try { localStorage.setItem(WELCOME_KEY, '1'); } catch (_) { /* the screen comes back at the next start */ }
-  }
-
-  function openWelcome(mode = 'sign-in', { firstRun = false } = {}) {
-    if (!syncClient || (modalState && modalState.type !== 'welcome')) return;
-    if (!modalState) { captureModalReturnFocus(); closePopover(); }
-    modalState = { type: 'welcome', mode: WELCOME_MODES.includes(mode) ? mode : 'sign-in', name: '', email: '', password: '', confirm: '', code: '', terms: false,
-      showPassword: false, busy: false, error: '', firstRun, onCancel: closeWelcome };
-    renderModal();
-  }
-
-  // R60: a link from an account e-mail lands here with its outcome in the address. Only the message is taken: the
-  // session in it is never used, so a link from someone else cannot sign this device into their account.
-  const AUTH_LANDING_MESSAGES = Object.freeze({
-    confirmed: msg('Your e-mail address is confirmed. Sign in with your password.'),
-    email: msg('Your new e-mail address is confirmed.'),
-    recovery: msg('For a new password, use the code from the e-mail: Sign in → Forgot password?'),
-    expired: msg('The link has expired or was already used. Ask for a new code in Dailo.'),
-    failed: msg('The link did not work. Ask for a new code in Dailo.'),
-  });
-  function consumeAuthLanding() {
-    const landing = Sync?.authLanding?.(location.hash) || (loadSyncMeta().pkce ? null : Sync?.authLanding?.(location.search));
-    if (!landing) return false;
-    history.replaceState(null, '', location.pathname);
-    setToastMessage(tr(AUTH_LANDING_MESSAGES[landing.kind]));
-    if (landing.kind === 'confirmed' && syncClient && !loadSyncMeta().session?.accessToken) openWelcome('sign-in');
-    return true;
-  }
-
-  // At start: a Google or Apple sign-in coming back to the web page, otherwise the first screen when it is due.
-  function startWelcome() {
-    const returning = consumeAuthRedirect();
-    if (returning) return returning;
-    if (consumeAuthLanding()) return true;
-    if (welcomeDue() && state && !recovery && !storageError && !staleDataNotice && !globalOperation && !modalState) openWelcome('sign-in', { firstRun: true });
-  }
-
-  // Back and Escape step from the other steps to sign-in, then close the screen like "Nastavi bez naloga".
-  function closeWelcome() {
-    if (modalState?.type !== 'welcome') return;
-    if (modalState.mode !== 'sign-in') { welcomeMode('sign-in'); return; }
-    if (modalState.firstRun) rememberWelcome();
-    dismissWelcome();
-  }
-
-  function skipWelcome() {
-    rememberWelcome();
-    dismissWelcome();
-  }
-
-  function dismissWelcome() {
-    if (modalState?.type === 'welcome') { modalState = null; renderModal(); }
-    const target = modalReturnFocus;
-    modalReturnFocus = null;
-    if (target) restoreModalReturnFocus(target);
-  }
-
-  function setWelcome(changes) {
-    if (modalState?.type !== 'welcome') return;
-    modalState = { ...modalState, ...changes };
-    renderModal();
-  }
-
-  // What is typed stays in the window's state, so a redraw (an error, the eye, another step) keeps it.
-  function welcomeFields() {
-    const welcome = modalState;
-    const fields = { name: 'welcome-name', email: 'welcome-email', password: 'welcome-password', confirm: 'welcome-password-confirm', code: 'welcome-code' };
-    for (const [key, id] of Object.entries(fields)) {
-      const field = $(`#${id}`);
-      if (field) welcome[key] = ['password', 'confirm'].includes(key) ? String(field.value ?? '') : String(field.value ?? '').trim();
-    }
-    const terms = $('#welcome-terms');
-    if (terms) welcome.terms = Boolean(terms.checked);
-    return welcome;
-  }
-
-  function welcomeMode(mode) {
-    if (modalState?.type !== 'welcome' || !WELCOME_MODES.includes(mode)) return;
-    welcomeFields();
-    setWelcome({ mode, password: '', confirm: '', code: '', error: '', busy: false });
-  }
-
-  function toggleWelcomePassword() {
-    if (modalState?.type !== 'welcome') return;
-    welcomeFields();
-    setWelcome({ showPassword: !modalState.showPassword });
-  }
-
-  const welcomeCode = welcome => String(welcome.code || '').replace(/\s+/g, '');
-
-  function welcomeProblem(welcome) {
-    const { mode } = welcome;
-    if (['sign-in', 'sign-up', 'reset'].includes(mode) && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(welcome.email)) return msg('Enter a valid e-mail address.');
-    if (mode === 'sign-in' && !welcome.password) return msg('Enter your password.');
-    if (['confirm', 'reset-code'].includes(mode) && !/^\d{6,10}$/.test(welcomeCode(welcome))) return msg('Enter the code from the e-mail.');
-    if (['sign-up', 'reset-code'].includes(mode)) {
-      const weak = Sync.passwordProblem(welcome.password);
-      if (weak) return weak;
-      if (welcome.confirm !== welcome.password) return msg('The passwords do not match.');
-    }
-    if (mode === 'sign-up' && !welcome.terms) return msg('Accept the Terms of Use and the Privacy Policy to continue.');
-    return '';
-  }
-
-  // R42: the client already turns Supabase's answers into sentences; a refused code reads the same whatever its cause.
-  function welcomeErrorText(error, mode) {
-    if (['confirm', 'reset-code'].includes(mode) && error?.status >= 400 && error?.status < 500 && ![429, 422].includes(error.status)) return msg('The code is wrong or has expired.');
-    return error?.message || String(error);
-  }
-
-  async function welcomeSubmit() {
-    if (!syncClient || modalState?.type !== 'welcome' || modalState.busy) return;
-    const welcome = welcomeFields();
-    const problem = welcomeProblem(welcome);
-    if (problem) { setWelcome({ error: problem }); return; }
-    const { mode, email } = welcome;
-    setWelcome({ busy: true, error: '' });
-    try {
-      if (mode === 'sign-in') await finishWelcome(await syncClient.signIn(email, welcome.password));
-      else if (mode === 'sign-up') {
-        const result = await syncClient.signUp(email, welcome.password, { fullName: welcome.name, termsAcceptedAt: nowIso() });
-        if (result.session) await finishWelcome(result.session);
-        else setWelcome({ mode: 'confirm', busy: false, code: '' });
-      } else if (mode === 'confirm') await finishWelcome(await syncClient.verifyCode(email, welcomeCode(welcome)));
-      else if (mode === 'reset') {
-        await syncClient.requestPasswordReset(email);
-        setWelcome({ mode: 'reset-code', busy: false, code: '', password: '', confirm: '' });
-      } else if (mode === 'reset-code') {
-        const session = await syncClient.verifyRecovery(email, welcomeCode(welcome));
-        await syncClient.updatePassword(session, welcome.password);
-        await finishWelcome(session, true);
-      }
-    } catch (error) {
-      // An address that was never confirmed gets a new code; an address that has an account goes to sign-in.
-      if (mode === 'sign-in' && (error?.reason === 'email_not_confirmed' || /not confirmed/i.test(error?.message || ''))) {
-        try { await syncClient.resendSignUp(email); } catch (_) { /* "Pošalji novi kod" asks again */ }
-        setWelcome({ mode: 'confirm', busy: false, code: '', error: msg('Confirm the e-mail address first. We sent a new code.') });
-      } else if (mode === 'sign-up' && error?.reason === 'user_already_exists') {
-        setWelcome({ mode: 'sign-in', busy: false, password: '', confirm: '', error: msg('An account with this e-mail address already exists. Sign in.') });
-      } else setWelcome({ busy: false, error: welcomeErrorText(error, mode) });
-    }
-  }
-
-  async function welcomeResend() {
-    if (!syncClient || modalState?.type !== 'welcome' || modalState.busy) return;
-    const welcome = welcomeFields();
-    setWelcome({ busy: true, error: '' });
-    try {
-      if (welcome.mode === 'reset-code') await syncClient.requestPasswordReset(welcome.email);
-      else await syncClient.resendSignUp(welcome.email);
-      setWelcome({ busy: false });
-      setToastMessage(tr('A new code was sent.'));
-    } catch (error) { setWelcome({ busy: false, error: welcomeErrorText(error, welcome.mode) }); }
-  }
-
-  // The shadow describes one account; another account on this device starts again with the first-sync choice.
-  function completeSignIn(session) {
-    const previous = loadSyncMeta();
-    syncMeta = previous.userId === session.user.id ? { ...previous, session, lastError: null } : { userId: session.user.id, session };
-    delete syncMeta.pkce;
-    saveSyncMeta();
-  }
-
-  async function finishWelcome(session, passwordSaved = false) {
-    completeSignIn(session);
-    rememberWelcome();
-    dismissWelcome();
-    render();
-    const email = session.user?.email || '';
-    setToastMessage(passwordSaved ? tr('Password saved. Signed in: {email}', { email }) : tr('Signed in: {email}', { email }));
-    await runSync();
-  }
-
-  // Google and Apple: the provider is checked first, the code verifier stays in the device-local sync record, and
-  // the provider returns to this page (web) or to dailo://auth through the system browser (app).
-  async function startProviderSignIn(provider) {
-    if (!syncClient || !['google', 'apple'].includes(provider) || modalState?.type !== 'welcome' || modalState.busy) return;
-    welcomeFields();
-    setWelcome({ busy: true, error: '' });
-    try {
-      const settings = await syncClient.authSettings();
-      if (!settings?.external?.[provider]) {
-        setWelcome({ busy: false, error: provider === 'google' ? msg('Sign-in with Google is not turned on yet.') : msg('Sign-in with Apple is not turned on yet.') });
-        return;
-      }
-      const verifier = Sync.createCodeVerifier();
-      const codeChallenge = await Sync.codeChallenge(verifier);
-      const platform = globalThis.DailoPlatform;
-      const redirectTo = platform?.isNative ? AUTH_REDIRECT_APP : `${location.origin}${location.pathname}`;
-      syncMeta = { ...loadSyncMeta(), pkce: { verifier, provider, at: Date.now() } };
-      saveSyncMeta();
-      const url = syncClient.authorizeUrl({ provider, redirectTo, codeChallenge });
-      if (platform?.isNative) { setWelcome({ busy: false }); platform.links.openExternal(url); }
-      else location.assign(url);
-    } catch (error) { setWelcome({ busy: false, error: welcomeErrorText(error, 'provider') }); }
-  }
-
-  async function finishProviderSignIn(params) {
-    if (!syncClient) return;
-    globalThis.DailoPlatform?.links?.closeExternal?.();
-    const pending = loadSyncMeta().pkce;
-    const failure = params.get('error_description') || params.get('error');
-    const code = params.get('code');
-    let problem = failure ? `${msg('Sign-in did not finish')}: ${failure}` : !code || !pending?.verifier ? msg('Sign-in did not finish. Try again.') : '';
-    if (!problem) {
-      try { await finishWelcome(await syncClient.exchangeCode(code, pending.verifier)); return; }
-      catch (error) { problem = error?.message || String(error); }
-    }
-    syncMeta = loadSyncMeta();
-    delete syncMeta.pkce;
-    saveSyncMeta();
-    if (modalState?.type !== 'welcome') openWelcome('sign-in');
-    if (modalState?.type === 'welcome') setWelcome({ busy: false, error: problem });
-    else setToastMessage(trMessage(problem));
-  }
-
-  // The web page comes back from Google or Apple with ?code= (or ?error=). Only a sign-in this device started counts.
-  function consumeAuthRedirect() {
-    const params = new URLSearchParams(location.search);
-    if (!params.has('code') && !params.has('error')) return false;
-    if (!syncClient || !loadSyncMeta().pkce) return false;
-    history.replaceState(null, '', location.pathname + location.hash);
-    return finishProviderSignIn(params);
-  }
-
-  async function signOutSync() {
-    const meta = loadSyncMeta();
-    clearTimeout(syncTimer);
-    liveSync?.disconnect();
-    forgetJournalKey();
-    syncMeta = {};
-    try { localStorage.removeItem(SYNC_META_KEY); } catch (error) { console.error(error); }
-    render();
-    if (meta.session && syncClient) await syncClient.signOut(meta.session);
-  }
-
-  // R64: "Odjavi se" returns to the first screen, Danas behind the sign-in screen, to sign in again or go on without
-  // an account. The session ends on this device at once; the server is told meanwhile, so a slow network holds nothing.
-  function signOutToWelcome() {
-    const done = signOutSync();
-    navigate('today');
-    openWelcome('sign-in', { firstRun: true });
-    return done;
-  }
-
-  function deleteSyncAccount() {
-    const word = 'OBRIŠI';
-    openConfirm({ title: msg('Delete your sync account?'), message: msg('This deletes your account and all synced data on the server. Data on this device stays.'),
-      phrase: word, confirmLabel: msg('Delete account'),
-      onConfirm: async () => {
-        if (plainWord($('#global-confirm-phrase')?.value) !== plainWord(word)) { setToastMessage(tr('Type {word} exactly to continue.', { word })); return; }
-        modalState = null; renderModal();
-        try { await syncClient.deleteAccount(await syncClient.ensureSession(loadSyncMeta().session)); }
-        catch (error) { setToastMessage(tr('The account could not be deleted: {error}', { error: trMessage(error.message) })); return; }
-        clearTimeout(syncTimer);
-        liveSync?.disconnect();
-        forgetJournalKey();
-        syncMeta = {};
-        try { localStorage.removeItem(SYNC_META_KEY); } catch (error) { console.error(error); }
-        render();
-        setToastMessage(tr('The account and its synced data were deleted. Data on this device stays.'));
-      } });
-  }
-
-  // First sync on a device when both the device and the account have data.
-  function openSyncChoice() {
-    if (modalState) return; // The next sync asks again.
-    captureModalReturnFocus(); closePopover();
-    modalState = { type: 'sync-choice', onCancel: async () => { modalState = null; renderModal(); await signOutSync(); } };
-    renderModal();
-  }
-
-  function renderSyncChoice() {
-    const option = (mode, title, copy) => `<button class="sync-choice-option" type="button" data-action="sync-choose" data-mode="${mode}"><strong>${title}</strong><span>${copy}</span></button>`;
-    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">${tr('Data on this device and in your account')}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close dialog')}"><i class="ph ph-x"></i></button></div>
-      <p class="dialog-copy">${tr('This device and your account both have data. Choose what to keep. A local recovery copy is made first.')}</p>
-      ${option('merge', tr('Merge'), tr('Keep everything. When an item was changed in both places, the newer change wins.'))}
-      ${option('server', tr('Keep the account data'), tr('This device gets the data from your account. Items that exist only on this device are removed.'))}
-      ${option('device', tr('Keep this device’s data'), tr('Your account gets the data from this device. Items that exist only in the account are removed.'))}
-      <div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">${tr('Cancel and sign out')}</button></div></div></div>`);
-  }
-
-  async function chooseSyncMode(mode) {
-    if (!['merge', 'server', 'device'].includes(mode) || modalState?.type !== 'sync-choice') return;
-    modalState = null; renderModal();
-    try { await TodoStorage.createAutomaticSnapshot(state, new Date(), { force: true }); }
-    catch (error) { setToastMessage(tr('Sync did not start because the recovery copy failed: {error}', { error: trMessage(error.message) })); return; }
-    await runSync(mode);
-  }
+  // R112: the welcome screen and sign-in live in js/account-ui.js, and since R113 the account windows too; since R114
+  // also finishing a sign-in, signing out, deleting the account and the first-sync choice. app.js asks it by name: at
+  // start, when a form is sent, when Google or Apple returns to the app, to put the screen away for a shortcut, and
+  // when the first sync finds data on both sides. These go to that module alone, since the other modules'
+  // handleAction expects a click.
+  const accountAction = (action, payload = null) => window.TodoDomainModules?.getAdapters().find(adapter => adapter.name === 'account')?.handleAction(action, payload, domainContext());
 
   // R51: the encrypted journal (docs/superpowers/specs/2026-10-12-r51-journal-encryption.md). The key counts only for
   // the account's current cipher; without it a device with encryption on is locked and leaves the journal alone.
@@ -5572,68 +4851,6 @@
     } catch (error) { meta.journalPurgeError = error.message; }
     if (syncMeta === meta) saveSyncMeta();
     refreshSyncCard();
-  }
-
-  function openJournalCipherWindow(mode) {
-    const status = journalCipherStatus();
-    const allowed = { enable: 'off', unlock: 'locked', disable: 'on' };
-    if (!syncClient || !loadSyncMeta().session?.accessToken || modalState || allowed[mode] !== status) return;
-    captureModalReturnFocus(); closePopover();
-    modalState = { type: 'journal-cipher', mode, password: '', confirm: '', busy: false, error: '' };
-    renderModal();
-  }
-
-  function setJournalWindow(changes) {
-    if (modalState?.type !== 'journal-cipher') return;
-    modalState = { ...modalState, ...changes };
-    renderModal();
-  }
-
-  async function journalCipherSubmit() {
-    if (modalState?.type !== 'journal-cipher' || modalState.busy) return;
-    const windowState = modalState;
-    windowState.password = String($('#journal-password')?.value ?? windowState.password);
-    windowState.confirm = String($('#journal-password-confirm')?.value ?? windowState.confirm);
-    if (windowState.mode === 'enable') {
-      const problem = Sync.passwordProblem(windowState.password);
-      if (problem) { setJournalWindow({ error: problem }); return; }
-      if (windowState.password !== windowState.confirm) { setJournalWindow({ error: msg('The passwords do not match.') }); return; }
-    }
-    setJournalWindow({ busy: true, error: '' });
-    if (syncRunning) { setJournalWindow({ busy: false, error: msg('Sync is running. Try again in a moment.') }); return; }
-    const meta = loadSyncMeta();
-    let message;
-    try {
-      if (windowState.mode === 'enable') {
-        const { cipher, key } = await Sync.createJournalCipher(windowState.password);
-        state.settings.journalCipher = cipher;
-        if (!saveState()) { delete state.settings.journalCipher; throw new Error(msg('Changes could not be saved locally. Try again.')); }
-        await storeJournalKey(cipher.salt, key);
-        // Every entry goes again, sealed; then the readable versions leave the server history.
-        Sync.forgetJournalShadow(meta);
-        meta.purgeJournalHistory = true;
-        message = tr('The journal is encrypted. The server sees only ciphertext.');
-      } else if (windowState.mode === 'unlock') {
-        const key = await Sync.unlockJournalCipher(state.settings.journalCipher, windowState.password);
-        if (!key) { setJournalWindow({ busy: false, error: msg('The journal password is wrong.') }); return; }
-        await storeJournalKey(state.settings.journalCipher.salt, key);
-        // The next pull fetches the sealed entries this device left out while it was locked.
-        meta.cursor = null;
-        message = tr('The journal is unlocked on this device.');
-      } else {
-        delete state.settings.journalCipher;
-        if (!saveState()) throw new Error(msg('Changes could not be saved locally. Try again.'));
-        forgetJournalKey();
-        // Every entry goes again, readable.
-        Sync.forgetJournalShadow(meta);
-        delete meta.purgeJournalHistory; delete meta.journalPurgeError;
-        message = tr('Journal encryption is off.');
-      }
-    } catch (error) { setJournalWindow({ busy: false, error: error.message }); return; }
-    syncMeta = meta;
-    saveSyncMeta();
-    closeAccountWindow(message);
-    scheduleSync(300);
   }
 
   // R50: the socket follows the account and the screen: it opens after a successful sync while the app is in front,
@@ -5897,8 +5114,10 @@
     requestDeleteEntity('clear-completed', null);
   }
 
+  // R107: "Sačuvaj kopiju pre brisanja" in Podešavanja → Podaci, on by default and again after each reset.
+  let resetKeepCopy = true;
   function resetApp() {
-    return beginGlobalOperation('reset');
+    return beginGlobalOperation('reset', null, null, { keepCopy: resetKeepCopy });
   }
 
   async function openLocalSnapshots() {
@@ -5975,6 +5194,14 @@
 
   async function cleanupGlobalSnapshot(op) {
     if (op.snapshotId) await TodoStorage.recoverySnapshots.deleteMany([op.snapshotId]);
+  }
+  // R107: after a verified reset without a copy, no old data stays on the device: the local snapshots and the phone's
+  // automatic backup files go too.
+  async function eraseDeviceCopies() {
+    const left = await TodoStorage.recoverySnapshots.listAll();
+    if (left.length) await TodoStorage.recoverySnapshots.deleteMany(left.map(item => item.id));
+    const files = globalThis.DailoPlatform?.files;
+    if (files?.deleteBackupCopies) { await files.deleteBackupCopies({ prefix: 'dailo-auto-' }); writeAutoBackup({ lastAt: null, lastFile: null, error: null }); }
   }
 
   async function markGlobalSnapshot(op, phase, details = {}) {
@@ -6098,26 +5325,29 @@
     finally { op.unlocking = false; op.busy = false; }
   }
 
-  async function beginGlobalOperation(reason, file = null, selection = null) {
+  async function beginGlobalOperation(reason, file = null, selection = null, options = {}) {
     if (globalOperation) return;
     await (startupPromise || Promise.resolve());
     if (!state || recovery) { globalNotice(tr('Safety backup cannot represent this unreadable saved data. Nothing was changed. Use Retry after repairing or recovering the original local data.'), () => startReady()); return; }
     flushTextSave();
-    const op = { reason, source: state, busy: false, selective: selection };
+    // R107: only a reset may go without the safety ZIP, when the user turned the copy off.
+    const op = { reason, source: state, busy: false, selective: selection, keepCopy: reason !== 'reset' || options.keepCopy !== false };
     globalOperation = op;
     try {
       op.token = await deleteLifecycle.hold();
       op.raw = canonicalRaw; op.stateText = compactState(state);
       assertGlobalSource(op);
       op.payload = await TodoStorage.captureUserData(); assertGlobalSource(op);
-      const frozenStorage = { attachments: { getMany: async ids => op.payload.attachments.filter(record => ids.includes(record.id)) },
-        habitLogs: { listAll: async () => op.payload.habitLogs }, goalHistory: { listAll: async () => op.payload.goalHistory },
-        archivedTasks: { listAll: async () => op.payload.archivedTasks || [] } };
-      const blob = await Backup.exportBackupV3(JSON.parse(op.stateText), frozenStorage, nowIso(), await journalBackupOptions());
-      assertGlobalSource(op);
-      if (!(await TodoStorage.sameUserData(await TodoStorage.captureUserData(), op.payload))) throw new Error(msg('Stored data changed during export. Retry.'));
-      assertGlobalSource(op);
-      if (await downloadBackup(blob) === 'cancelled') throw new Error(msg('The safety ZIP was not saved.'));
+      if (op.keepCopy) {
+        const frozenStorage = { attachments: { getMany: async ids => op.payload.attachments.filter(record => ids.includes(record.id)) },
+          habitLogs: { listAll: async () => op.payload.habitLogs }, goalHistory: { listAll: async () => op.payload.goalHistory },
+          archivedTasks: { listAll: async () => op.payload.archivedTasks || [] } };
+        const blob = await Backup.exportBackupV3(JSON.parse(op.stateText), frozenStorage, nowIso(), await journalBackupOptions());
+        assertGlobalSource(op);
+        if (!(await TodoStorage.sameUserData(await TodoStorage.captureUserData(), op.payload))) throw new Error(msg('Stored data changed during export. Retry.'));
+        assertGlobalSource(op);
+        if (await downloadBackup(blob) === 'cancelled') throw new Error(msg('The safety ZIP was not saved.'));
+      }
       op.snapshotId = await TodoStorage.createRecoverySnapshot(reason, state, TodoStorage);
       const snapshot = await TodoStorage.recoverySnapshots.get(op.snapshotId);
       assertGlobalSource(op);
@@ -6144,7 +5374,10 @@
         : reason === 'restore' ? tr('{tasks} tasks, {projects} projects, {goals} Goals, {habits} Habits, {notes} Notes, {resources} Resources, {files} files, {logs} logs and {events} history events will be restored.', { tasks: op.validated.state.tasks.length, projects: op.validated.state.projects.length, goals: op.validated.state.goals.length, habits: op.validated.state.habits.length, notes: op.validated.state.notes.length, resources: op.validated.state.resources.length, files: op.validated.attachmentRecords.length, logs: op.validated.habitLogs.length, events: op.validated.goalHistory.length }) : '';
       const journalNote = op.journalKey ? tr('The encrypted journal ({count} entries) opens with the key on this device.', { count: op.journalOpened })
         : op.sealedJournal.length ? tr('The journal in this backup is encrypted ({count} entries). Enter the journal password to restore it too; without it everything else is restored.', { count: op.sealedJournal.length }) : '';
-      openConfirm({ title: reason === 'reset' ? msg('Reset all app data?') : selection ? msg('Restore selected entity?') : msg('Restore backup?'), message: [tr('A safety ZIP was downloaded and an internal recovery copy was created.'), summary, journalNote].filter(Boolean).join(' '),
+      // R107: without a copy the window says so; with an account signed in, it says where the account's data stays.
+      const copyNote = op.keepCopy ? tr('A safety ZIP was downloaded and an internal recovery copy was created.') : tr('No copy is kept: afterwards the data cannot be brought back. The local snapshots and the phone\'s automatic backups are deleted too.');
+      const accountNote = reason === 'reset' && syncView().signedIn ? tr('An account is signed in on this device: this deletes only the data on the device, and the account\'s data comes back with the next sync. To delete everything, first delete the account (More → Account → Delete account), then reset.') : '';
+      openConfirm({ title: reason === 'reset' ? msg('Reset all app data?') : selection ? msg('Restore selected entity?') : msg('Restore backup?'), message: [copyNote, summary, journalNote, accountNote].filter(Boolean).join(' '),
         phrase: CONFIRM_WORDS[reason], journalPassword: op.sealedJournal.length > 0, confirmLabel: reason === 'reset' ? msg('Reset app') : msg('Restore backup'),
         onConfirm: () => commitGlobalOperation(op), onCancel: () => abandonGlobalOperation(op) });
     } catch (error) { await abandonGlobalOperation(op, tr('Safety preparation failed: {error}. Nothing was replaced. Retry the operation.', { error: trMessage(error.message) }), { snapshotAvailable: false, validationResult: `${msg('Recovery preparation failed')}: ${error.message}` }); }
@@ -6250,6 +5483,7 @@
           setUndo(msg('Selected entity restored'), () => undoSelectiveRestore(op), () => op.keepRecovery ? true : cleanupGlobalSnapshot(op));
         } else {
           await cleanupGlobalSnapshot(op);
+          if (!op.keepCopy) { await eraseDeviceCopies(); resetKeepCopy = true; }
           updateBackupStatus({ lastImport: op.reason === 'restore' ? nowIso() : state.settings.backupStatus?.lastImport || null, snapshotAvailable: false, validationResult: op.reason === 'restore' ? msg('Import restored and verified') : msg('Reset verified') }, committedSource);
           setToastMessage(op.reason === 'reset' ? tr('App data reset and verified.') : op.journalSkipped ? tr('Backup restored without the encrypted journal.') : tr('Backup restored and verified.'));
         }
@@ -6505,7 +5739,7 @@
     if (route.type === 'tag') return getTag(route.id) ? { tagIds: [route.id] } : {};
     if (route.type === 'project' && route.id === 'none') return { anytime: true };
     if (route.type === 'project') return getProject(route.id)?.isArchived ? null : { projectId: route.id };
-    if (route.type === 'tasks' && state.ui.tasksView !== 'projects') return { anytime: true };
+    if (route.type === 'tasks') return { anytime: true };
     // R7 (C8); R31 (finding 15): on a past day "+" plans for today, so a new task is not late at once.
     if (route.type === 'calendar' && state.ui.calendarView !== 'upcoming') return { day: calendarDate() < Core.dateOnly() ? Core.dateOnly() : calendarDate() };
     return {};
@@ -6583,7 +5817,6 @@
     else if (action === 'toggle-complete') toggleComplete(el.dataset.taskId);
     else if (action === 'open-search') openSearch();
     else if (action === 'calendar-today') calendarToday();
-    else if (action === 'tasks-view') { state.ui.tasksView = el.dataset.view === 'projects' ? 'projects' : 'anytime'; saveAndRender(); }
     else if (action === 'priority-focus') { const first = Core.selectFocusTasks(listTasks(), state.settings.focusTaskIds)[0]; if (first) openFocusMode(first); }
     else if (action === 'toggle-projects-resting') { const key = el.dataset.fold === 'projectsSomedayOpen' ? 'projectsSomedayOpen' : 'projectsOnHoldOpen'; state.ui[key] = state.ui[key] !== true; saveAndRender(); }
     else if (action === 'delete-draft-goal-milestone') deleteDraftGoalMilestone(el.dataset.milestoneId);
@@ -6642,17 +5875,6 @@
     else if (action === 'task-tags-picker') openTagPicker(el, { type: 'task', taskId: el.dataset.taskId });
     else if (action === 'task-priority-picker') openPriorityPicker(el, { type: 'task', taskId: el.dataset.taskId });
     else if (action === 'task-duration-picker') openTaskDurationPicker(el, el.dataset.taskId);
-    else if (action === 'quick-project-picker') openProjectPicker(el, { type: 'quick' });
-    else if (action === 'quick-plan-picker') openPlanPicker(el, { type: 'quick' });
-    else if (action === 'quick-template') openQuickTemplatePicker(el);
-    else if (action === 'quick-template-clear') { clearQuickTemplate(); renderModal(); requestAnimationFrame(() => $('[data-action="quick-template"]')?.focus()); }
-    else if (action === 'quick-more-options') createTask(false, true);
-    else if (action === 'quick-keep') keepInQuickTitle(el.dataset.slot);
-    else if (action === 'quick-suggest') applyQuickSuggestion(el.dataset.insert);
-    else if (action === 'quick-paste-tasks') createPastedTasks();
-    else if (action === 'quick-paste-one') joinPastedLines();
-    else if (action === 'create-task') createTask(false);
-    else if (action === 'create-task-continue') createTask(true);
     else if (action === 'close-modal') closeModal();
     else if (action === 'modal-backdrop' && event.target === el) closeModal();
     else if (action === 'toggle-subtask') toggleSubtask(el.dataset.taskId, el.dataset.subtaskId);
@@ -6663,20 +5885,8 @@
     else if (action === 'select-tag-color') { modalState.draft.color = el.dataset.color; renderModal(); }
     else if (action === 'save-tag') saveTagModal();
     else if (action === 'confirm-action') { const fn = modalState.onConfirm; if (typeof fn === 'function') fn(); }
-    else if (action === 'open-welcome') openWelcome(el.dataset.mode);
-    else if (action === 'welcome-mode') welcomeMode(el.dataset.mode);
-    else if (action === 'welcome-skip') skipWelcome();
-    else if (action === 'welcome-provider') startProviderSignIn(el.dataset.provider);
-    else if (action === 'welcome-resend') welcomeResend();
-    else if (action === 'welcome-toggle-password') toggleWelcomePassword();
     else if (action === 'sync-now') runSync().catch(console.error);
     else if (action === 'sync-check-server') runServerCheck();
-    else if (action === 'account-change-password') openAccountWindow('password');
-    else if (action === 'account-change-email') openAccountWindow('email');
-    else if (['journal-cipher-enable', 'journal-cipher-unlock', 'journal-cipher-disable'].includes(action)) openJournalCipherWindow(action.slice('journal-cipher-'.length));
-    else if (action === 'sync-sign-out') signOutToWelcome();
-    else if (action === 'sync-delete-account') deleteSyncAccount();
-    else if (action === 'sync-choose') chooseSyncMode(el.dataset.mode);
     else if (action === 'undo') doUndo();
     else if (action === 'retry-delete-recovery') retryFailedDeleteRecovery();
     else if (action === 'enable-notifications') enableBrowserNotifications();
@@ -6692,7 +5902,6 @@
     else if (action === 'request-storage-persistence') updateStoragePersistence(true).catch(console.error);
     else if (action === 'import-backup') chooseImportBackup();
     else if (action === 'export-ics') exportIcsAction();
-    else if (action === 'quick-dictate') toggleDictation();
     else if (action === 'import-ics') $('#ics-import-input')?.click();
     else if (action === 'clear-completed') clearCompleted();
     else if (action === 'completed-project') openCompletedProjectSheet(el);
@@ -6713,8 +5922,6 @@
     const action = button.dataset.popAction;
     if (action?.startsWith('repeat-') && handleRepeatAction(action, button)) return;
     if (action === 'close-sheet') closePopover();
-    else if (action === 'quick-place' && modalState?.type === 'quick') { const inbox = button.dataset.place === 'inbox'; Object.assign(modalState.draft, { projectId: null, processed: !inbox, placePicked: true }); closePopover(); renderModal(); }
-    else if (action === 'quick-template-pick') { const id = button.dataset.templateId; closePopover(); applyQuickTemplate(id); renderModal(); requestAnimationFrame(() => $('#quick-title')?.focus()); }
     else if (action === 'date-sheet-pick' && dateSheet) {
       dateSheet.time = $('#date-sheet-time', popoverEl)?.value ?? dateSheet.time;
       dateSheet.date = button.dataset.date;
@@ -6801,18 +6008,6 @@
       return;
     }
     if (callDomainHook('handleInput', event) !== undefined) return;
-    if (modalState?.type === 'quick') {
-      if (event.target.id === 'quick-title') {
-        const d = modalState.draft; d.title = event.target.value; modalState.error = '';
-        const parsed = parseQuickAddTitle(event.target.value, !d.explicitPlan, d.keepInTitle);
-        const slot = document.querySelector('[data-quick-preview-slot]'); if (slot) slot.innerHTML = quickParsePreview(parsed);
-        const suggest = document.querySelector('[data-quick-suggest-slot]'); if (suggest) suggest.innerHTML = quickSuggestHtml(event.target.value);
-        if (!d.explicitPlan) d.parsedPlanDate = parsed.plannedDate;
-        // Redesign R4: the selectors follow the title without redrawing the field.
-        const planLabel = document.querySelector('[data-quick-plan-label]'); if (planLabel) planLabel.textContent = quickPlanLabel(d.explicitPlan ? d.plannedDate : (parsed.plannedDate || d.plannedDate), d.explicitPlannedTime ? d.plannedTime : (d.plannedTime || parsed.plannedTime));
-        const placeLabel = document.querySelector('[data-quick-place-label]'); if (placeLabel) placeLabel.textContent = quickPlace(modalState.draft, parsed).label;
-      }
-    }
     if (modalState?.type === 'task') {
       const task = getTask(modalState.taskId);
       if (!task) return;
@@ -6842,6 +6037,7 @@
     if (event.target.id === 'journal-reminder-time') { const value = event.target.value; if (value === 'off' || Core.normalizeTime(value) === value) { state.settings.journalReminderTime = value === 'off' ? null : value; saveAndRender(); } return; }
     // R18: the reminder settings apply at once (the phone plan is rebuilt on save).
     if (event.target.id === 'default-reminder-time') { const value = Core.normalizeTime(event.target.value); if (value) { state.settings.defaultReminderTime = value; saveAndRender(); } return; }
+    if (event.target.id === 'reset-keep-copy') { resetKeepCopy = event.target.checked; return; }
     if (event.target.id === 'auto-backup') { writeAutoBackup({ enabled: event.target.checked }); if (event.target.checked) runAutoBackup({ announce: true }); render(); return; }
     if (event.target.id === 'planned-time-reminders') { state.settings.plannedTimeReminders = event.target.checked; saveAndRender(); return; }
     if (event.target.id === 'journal-notifications') { state.settings.journalNotifications = event.target.checked; saveAndRender(); return; }
@@ -6917,9 +6113,6 @@
       if (!event.ctrlKey && !event.metaKey && !event.altKey && DESKTOP_KEYS[event.key]) { event.preventDefault(); navigate(DESKTOP_KEYS[event.key]); return; }
     }
 
-    if (modalState?.type === 'quick' && target?.id === 'quick-title' && event.key === 'Enter') {
-      event.preventDefault(); createTask(event.shiftKey); return;
-    }
     // R36 (C): Enter in the Inbox add row files the title.
     if (event.key === 'Enter' && event.target.id === 'inbox-add-title') { event.preventDefault(); addToInbox(event.target.value); return; }
     if (callDomainHook('handleInput', event) !== undefined) return;
@@ -6938,337 +6131,8 @@
     }
   }
 
-  function resetTaskSwipe(row, originalStyle) {
-    if (!row) return;
-    row.style.background = originalStyle.background;
-    row.style.borderColor = originalStyle.borderColor;
-    row.style.touchAction = originalStyle.touchAction;
-  }
-
-  function handleTaskSwipeStart(event) {
-    if (window.innerWidth > 700 || event.pointerType === 'mouse' || !event.isPrimary || event.button !== 0) return;
-    const row = event.target.closest('.task-row');
-    if (!row || row.classList.contains('is-completed') || event.target.closest('button, input, textarea, select, [contenteditable]')) return;
-    taskSwipeState = {
-      row,
-      pointerId: event.pointerId,
-      startX: event.clientX,
-      startY: event.clientY,
-      distance: 0,
-      swiping: false,
-      originalStyle: { background: row.style.background, borderColor: row.style.borderColor, touchAction: row.style.touchAction }
-    };
-    row.style.touchAction = 'pan-y';
-    row.setPointerCapture?.(event.pointerId);
-  }
-
-  function handleTaskSwipeMove(event) {
-    if (touchReorder?.active) return;
-    const swipe = taskSwipeState;
-    if (!swipe || swipe.pointerId !== event.pointerId) return;
-    const horizontal = event.clientX - swipe.startX;
-    const vertical = event.clientY - swipe.startY;
-    if (Math.abs(vertical) > Math.abs(horizontal) && Math.abs(vertical) > 8) {
-      resetTaskSwipe(swipe.row, swipe.originalStyle);
-      taskSwipeState = null;
-      return;
-    }
-    if (Math.abs(horizontal) <= Math.abs(vertical)) return;
-    event.preventDefault();
-    swipe.distance = horizontal;
-    swipe.swiping = true;
-    // R23: a light tick when the swipe passes the point where releasing acts. R25 (D): to the right it completes
-    // the task (green), to the left it opens the date sheet (blue).
-    const reach = Math.abs(horizontal);
-    if (!swipe.armed && reach >= 96) { swipe.armed = true; haptic('tick'); }
-    else if (swipe.armed && reach < 96) swipe.armed = false;
-    const progress = Math.min(1, reach / 96);
-    const tint = horizontal < 0 ? '83, 98, 255' : '48, 203, 173';
-    swipe.row.style.background = `rgba(${tint}, ${0.14 + progress * 0.22})`;
-    swipe.row.style.borderColor = `rgba(${tint}, ${0.3 + progress * 0.5})`;
-  }
-
-  function finishTaskSwipe(event) {
-    const swipe = taskSwipeState;
-    if (!swipe || swipe.pointerId !== event.pointerId) return;
-    taskSwipeState = null;
-    swipe.row.releasePointerCapture?.(event.pointerId);
-    resetTaskSwipe(swipe.row, swipe.originalStyle);
-    if (!swipe.swiping) return;
-    suppressTaskSwipeClick = true;
-    setTimeout(() => { suppressTaskSwipeClick = false; }, 0);
-    if (event.type === 'pointercancel') return;
-    if (swipe.distance >= 96) toggleComplete(swipe.row.dataset.taskId);
-    else if (swipe.distance <= -96) openPlanPicker(swipe.row, { type: 'task', taskId: swipe.row.dataset.taskId });
-  }
-
-  // R25 (E): touch reordering — hold a row for a moment, then drag it up or down within its own list. Moving before
-  // the hold ends scrolls or swipes as before; while a row is dragged the page does not scroll.
-  // R33 (findings 35, 36): subtasks reorder the same way, and an Inbox row stays within its capture group.
-  const REORDER_ROWS = '.task-row[draggable="true"], .subtask-row[draggable="true"]';
+  // R33 (finding 36): an Inbox row reorders only within its capture group; touch, mouse and the move buttons use it.
   const dropGroup = row => row?.closest('.inbox-group-items') || null;
-  function sameReorderList(reorder, over) {
-    if (reorder.subtask) return over.classList.contains('subtask-row') && over.dataset.parentTaskId === reorder.context;
-    return !over.classList.contains('subtask-row') && over.dataset.listContext === reorder.context && dropGroup(over) === reorder.group;
-  }
-  function handleTouchReorderStart(event) {
-    if (event.pointerType === 'mouse' || !event.isPrimary || touchReorder) return;
-    const row = event.target.closest?.(REORDER_ROWS);
-    if (!row || event.target.closest('button, input, textarea, select, a, [contenteditable]')) return;
-    const subtask = row.classList.contains('subtask-row');
-    const reorder = { row, subtask, id: subtask ? row.dataset.subtaskId : row.dataset.taskId, context: subtask ? row.dataset.parentTaskId : row.dataset.listContext, group: dropGroup(row), pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, active: false, target: null };
-    reorder.timer = setTimeout(() => startTouchReorder(reorder), 350);
-    touchReorder = reorder;
-  }
-
-  function startTouchReorder(reorder) {
-    if (touchReorder !== reorder) return;
-    reorder.active = true; reorder.timer = null;
-    // R62: the swipe waits, so a clear move to the side after the hold still completes the task or picks its date.
-    if (taskSwipeState?.row === reorder.row) { resetTaskSwipe(taskSwipeState.row, taskSwipeState.originalStyle); reorder.swipe = taskSwipeState; taskSwipeState = null; }
-    reorder.row.releasePointerCapture?.(reorder.pointerId);
-    reorder.row.classList.add('is-dragging', 'is-touch-dragging');
-    document.body.classList.add('task-drag-active');
-    haptic('tick');
-  }
-
-  function handleTouchReorderMove(event) {
-    const reorder = touchReorder;
-    if (!reorder || reorder.pointerId !== event.pointerId) return;
-    const dx = event.clientX - reorder.startX, dy = event.clientY - reorder.startY;
-    if (!reorder.active) { if (Math.abs(dx) > 8 || Math.abs(dy) > 8) cancelTouchReorder(); return; }
-    // R62: until the lifted row has moved up or down, a clear move to the side puts it down and swipes instead.
-    if (!reorder.vertical && reorder.swipe && Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy)) {
-      const swipe = reorder.swipe;
-      cancelTouchReorder();
-      taskSwipeState = swipe;
-      handleTaskSwipeMove(event);
-      return;
-    }
-    if (Math.abs(dy) > 12) reorder.vertical = true;
-    event.preventDefault();
-    reorder.row.style.transform = `translateY(${dy}px)`;
-    const over = document.elementFromPoint(event.clientX, event.clientY)?.closest?.(REORDER_ROWS);
-    const target = over && over !== reorder.row && sameReorderList(reorder, over) ? over : null;
-    if (target !== reorder.target) { reorder.target?.classList.remove('is-drop-target'); target?.classList.add('is-drop-target'); reorder.target = target; }
-  }
-
-  function finishTouchReorder(event) {
-    const reorder = touchReorder;
-    if (!reorder || reorder.pointerId !== event.pointerId) return;
-    const target = reorder.active && event.type !== 'pointercancel' ? reorder.target : null;
-    const wasActive = reorder.active;
-    cancelTouchReorder();
-    if (wasActive) { suppressTaskSwipeClick = true; setTimeout(() => { suppressTaskSwipeClick = false; }, 0); }
-    if (target && reorder.subtask) reorderSubtasks(reorder.context, reorder.id, target.dataset.subtaskId);
-    else if (target) reorderTasks(reorder.context, reorder.id, target.dataset.taskId);
-  }
-
-  function cancelTouchReorder() {
-    const reorder = touchReorder;
-    if (!reorder) return;
-    clearTimeout(reorder.timer);
-    reorder.row.style.transform = '';
-    reorder.row.classList.remove('is-dragging', 'is-touch-dragging');
-    reorder.target?.classList.remove('is-drop-target');
-    document.body.classList.remove('task-drag-active');
-    touchReorder = null;
-  }
-
-  // R62: nor while a row is swiped to the side, so a slight slant does not turn the swipe into a scroll.
-  // R91: nor while a calendar task is dragged.
-  function blockTouchScroll(event) {
-    if ((touchReorder?.active || taskSwipeState?.swiping || calendarTouch?.active) && event.cancelable !== false) event.preventDefault();
-  }
-
-  // R91: on a touch screen, hold a calendar task (a card, a row of the day's list, a Raspored block or a task without
-  // a time) and drag it onto a day (the week strip, a 3-day column, a month day) or an hour of Raspored; it is planned
-  // there like a mouse drop (dropTaskOnDay, with Poništi and the repeat question).
-  const CALENDAR_TOUCH_SOURCES = '[data-calendar-drag="task"], .task-row[data-list-context="calendar"]';
-  const CALENDAR_TOUCH_TARGETS = '[data-calendar-time], [data-calendar-date]';
-  let calendarTouch = null;
-  function handleCalendarTouchStart(event) {
-    if (event.pointerType === 'mouse' || !event.isPrimary || calendarTouch || touchReorder || currentRoute().type !== 'calendar') return;
-    const source = event.target.closest?.(CALENDAR_TOUCH_SOURCES);
-    if (!source || source.classList.contains('is-completed') || event.target.closest('input, textarea, select, .complete-control')) return;
-    const id = source.dataset.calendarItemId || source.dataset.taskId;
-    if (!getTask(id)) return;
-    const drag = { source, id, pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, active: false, target: null };
-    drag.timer = setTimeout(() => startCalendarTouch(drag), 400);
-    calendarTouch = drag;
-  }
-  function startCalendarTouch(drag) {
-    if (calendarTouch !== drag) return;
-    drag.active = true; drag.timer = null;
-    if (taskSwipeState?.row === drag.source) { resetTaskSwipe(taskSwipeState.row, taskSwipeState.originalStyle); taskSwipeState = null; }
-    drag.source.releasePointerCapture?.(drag.pointerId);
-    drag.source.classList.add('is-touch-dragging');
-    document.body.classList.add('task-drag-active');
-    haptic('tick');
-  }
-  function handleCalendarTouchMove(event) {
-    const drag = calendarTouch;
-    if (!drag || drag.pointerId !== event.pointerId) return;
-    const dx = event.clientX - drag.startX, dy = event.clientY - drag.startY;
-    if (!drag.active) { if (Math.abs(dx) > 8 || Math.abs(dy) > 8) cancelCalendarTouch(); return; }
-    event.preventDefault();
-    drag.source.style.transform = `translate(${dx}px, ${dy}px)`;
-    const target = document.elementFromPoint(event.clientX, event.clientY)?.closest?.(CALENDAR_TOUCH_TARGETS) || null;
-    if (target !== drag.target) { drag.target?.classList.remove('is-drop-target'); target?.classList.add('is-drop-target'); drag.target = target; }
-  }
-  function finishCalendarTouch(event) {
-    const drag = calendarTouch;
-    if (!drag || drag.pointerId !== event.pointerId) return;
-    const target = drag.active && event.type !== 'pointercancel' ? drag.target : null;
-    const wasActive = drag.active;
-    cancelCalendarTouch();
-    if (wasActive) { suppressTaskSwipeClick = true; setTimeout(() => { suppressTaskSwipeClick = false; }, 0); }
-    const date = target?.closest('[data-calendar-date]')?.dataset.calendarDate;
-    if (Core.parseDateOnly(date)) dropTaskOnDay(drag.id, date, Core.normalizeTime(target.dataset.calendarTime));
-  }
-  function cancelCalendarTouch() {
-    const drag = calendarTouch;
-    if (!drag) return;
-    clearTimeout(drag.timer);
-    drag.source.style.transform = '';
-    drag.source.classList.remove('is-touch-dragging');
-    drag.target?.classList.remove('is-drop-target');
-    document.body.classList.remove('task-drag-active');
-    calendarTouch = null;
-  }
-
-  // R44: on Navike a horizontal swipe over the week bar or the rings pages the week, like ‹ and ›: to the left is
-  // the next week, to the right the previous one. It presses the arrow, so its limits and disabled state apply.
-  function handleWeekSwipeStart(event) {
-    weekSwipe = null;
-    if (!['touch', 'pen'].includes(event.pointerType) || event.isPrimary === false) return;
-    if (!event.target?.closest?.('.habit-rings, .habits-week-nav')) return;
-    weekSwipe = { x: event.clientX, y: event.clientY };
-  }
-  function finishWeekSwipe(event) {
-    const start = weekSwipe;
-    weekSwipe = null;
-    if (!start) return;
-    const dx = event.clientX - start.x;
-    const dy = event.clientY - start.y;
-    if (Math.abs(dx) < 48 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
-    const arrow = document.querySelector(`#main [data-action="habits-week"][data-shift="${dx < 0 ? '1' : '-1'}"]`);
-    if (arrow && !arrow.disabled) arrow.click();
-    // Then the click the browser sends after the swipe must not open the ring under the finger (pressing the arrow
-    // first keeps that guard off its own click); a swipe that ends without a click clears it shortly.
-    suppressWeekSwipeClick = true;
-    setTimeout(() => { suppressWeekSwipeClick = false; }, 400);
-  }
-  function handleWeekSwipeClick(event) {
-    if (!suppressWeekSwipeClick) return;
-    suppressWeekSwipeClick = false;
-    event.preventDefault();
-    event.stopImmediatePropagation();
-  }
-
-  function handleTaskSwipeClick(event) {
-    if (!suppressTaskSwipeClick) return;
-    suppressTaskSwipeClick = false;
-    event.preventDefault();
-    event.stopImmediatePropagation();
-  }
-
-  function handleDragStart(event) {
-    if (touchReorder) { event.preventDefault(); return; }
-    const calendar = event.target.closest('[data-calendar-drag][draggable="true"]');
-    if (calendar) { dragState = { type: `calendar-${calendar.dataset.calendarDrag}`, id: calendar.dataset.calendarItemId }; event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', dragState.id); calendar.classList.add('is-dragging'); document.body.classList.add('task-drag-active'); return; }
-    const sub = event.target.closest('.subtask-row[draggable="true"]');
-    if (sub) { dragState = { type: 'subtask', id: sub.dataset.subtaskId, parentId: sub.dataset.parentTaskId }; event.dataTransfer.effectAllowed = 'move'; sub.classList.add('is-dragging'); return; }
-    const row = event.target.closest('.task-row[draggable="true"]');
-    if (row) { dragState = { type: 'task', id: row.dataset.taskId, context: row.dataset.listContext, group: dropGroup(row) }; event.dataTransfer.effectAllowed = 'move'; row.classList.add('is-dragging'); document.body.classList.add('task-drag-active'); }
-  }
-
-  function handleDragOver(event) {
-    const dropZone = event.target.closest?.('.attachment-drop-zone');
-    if (dropZone && event.dataTransfer?.types?.includes('Files')) { event.preventDefault(); dropZone.classList.add('is-dragover'); return; }
-    if (!dragState) return;
-    // R47d (K9): a task row or a calendar card can land on Danas, "Sutra" or a project in the sidebar.
-    const sidebarTarget = ['task', 'calendar-task'].includes(dragState.type) && sidebarDropTarget(event.target);
-    if (sidebarTarget) { event.preventDefault(); sidebarTarget.element.classList.add('is-drop-target'); return; }
-    const calendarTarget = event.target.closest('[data-calendar-time], [data-calendar-date]');
-    if (calendarTarget && ['calendar-task'].includes(dragState.type)) { event.preventDefault(); calendarTarget.classList.add('is-drop-target'); return; }
-    if (dragState.type.startsWith('calendar-')) return;
-    if (dragState.type === 'subtask') {
-      const target = event.target.closest('.subtask-row[draggable="true"]'); if (!target || target.dataset.parentTaskId !== dragState.parentId || target.dataset.subtaskId === dragState.id) return; event.preventDefault(); target.classList.add('is-drop-target'); return;
-    }
-    const target = event.target.closest('.task-row[draggable="true"]');
-    if (!target || target.dataset.listContext !== dragState.context || dropGroup(target) !== dragState.group || target.dataset.taskId === dragState.id) return;
-    event.preventDefault(); target.classList.add('is-drop-target');
-  }
-
-  function handleDragLeave(event) {
-    const dz=event.target.closest?.('.attachment-drop-zone'); if(dz) dz.classList.remove('is-dragover');
-    event.target.closest('.is-drop-target')?.classList.remove('is-drop-target');
-  }
-
-  function handleDrop(event) {
-    const dropZone = event.target.closest?.('.attachment-drop-zone');
-    if (dropZone && event.dataTransfer?.files?.length) { event.preventDefault(); dropZone.classList.remove('is-dragover'); receiveAttachmentFiles(dropZone.dataset, [...event.dataTransfer.files]); return; }
-    if (!dragState) return;
-    event.preventDefault();
-    const sidebarTarget = ['task', 'calendar-task'].includes(dragState.type) && sidebarDropTarget(event.target);
-    if (sidebarTarget) dropTaskOnSidebar(dragState.id, sidebarTarget);
-    else if (dragState.type.startsWith('calendar-')) {
-      const target = event.target.closest('[data-calendar-time], [data-calendar-date]');
-      if (target) {
-        const date = target.closest('[data-calendar-date]')?.dataset.calendarDate;
-        const time = Core.normalizeTime(target.dataset.calendarTime);
-        if (Core.parseDateOnly(date) && dragState.type === 'calendar-task') dropTaskOnDay(dragState.id, date, time);
-      }
-    } else if (dragState.type === 'subtask') {
-      const target = event.target.closest('.subtask-row[draggable="true"]'); if (target && target.dataset.parentTaskId === dragState.parentId) reorderSubtasks(dragState.parentId, dragState.id, target.dataset.subtaskId);
-    } else {
-      const target = event.target.closest('.task-row[draggable="true"]'); if (target && target.dataset.listContext === dragState.context && dropGroup(target) === dragState.group) reorderTasks(dragState.context, dragState.id, target.dataset.taskId);
-    }
-    cleanupDrag();
-  }
-
-  // R47d (K9): the sidebar's drop targets: Danas, "Prevuci ovde za sutra" and the projects.
-  function sidebarDropTarget(element) {
-    const target = element?.closest?.('#desktop-sidebar [data-sidebar-drop], #desktop-sidebar [data-route="today"], #desktop-sidebar [data-route^="project/"]');
-    if (!target) return null;
-    if (target.dataset.sidebarDrop === 'tomorrow') return { element: target, kind: 'tomorrow' };
-    if (target.dataset.route === 'today') return { element: target, kind: 'today' };
-    return { element: target, kind: 'project', projectId: decodeURIComponent(target.dataset.route.slice('project/'.length)) };
-  }
-
-  // Each move says what it did and offers Poništi; a repeating task's date asks "Samo ovo / Ovo i buduća" first (S14).
-  function dropTaskOnSidebar(taskId, target) {
-    if (target.kind === 'today') addTaskToToday(taskId);
-    else if (target.kind === 'tomorrow') moveTaskToTomorrow(taskId);
-    else moveTaskToProject(taskId, target.projectId);
-  }
-
-  function moveTaskToProject(taskId, projectId) {
-    const task = getTask(taskId);
-    if (!task || !getProject(projectId) || (task.projectId === projectId && !task.isInbox)) return;
-    const previous = { projectId: task.projectId ?? null, areaId: task.areaId ?? null, isInbox: task.isInbox };
-    if (requestTaskEdit(taskId, { projectId, areaId: null, isInbox: false })) return;
-    setUndo(msg('Task moved to project'), () => { const current = getTask(taskId); if (!current) return; Object.assign(current, previous, { updatedAt: nowIso() }); saveState(); render(); });
-  }
-
-  // R47d (K9): a task dropped on a calendar day (or an hour of Raspored) is planned there, with Poništi; the
-  // "Samo ovo / Ovo i buduća" question of a repeating task has its own.
-  function dropTaskOnDay(taskId, date, time) {
-    const task = getTask(taskId);
-    if (!task || (task.plannedDate === date && (!time || task.plannedTime === time) && !task.isInbox)) return;
-    const previous = { plannedDate: task.plannedDate ?? null, plannedTime: task.plannedTime ?? null, isInbox: task.isInbox, todayOrder: task.todayOrder ?? null };
-    if (requestTaskEdit(taskId, { plannedDate: date, ...(time ? { plannedTime: time } : {}), isInbox: false })) return;
-    const today = Core.dateOnly();
-    setUndo(date === today ? msg('Task moved to Today') : date === Core.addDays(today, 1) ? msg('Task moved to Tomorrow') : msg('Task moved to another day'), () => {
-      const current = getTask(taskId); if (!current) return;
-      Object.assign(current, previous, { updatedAt: nowIso() }); saveState(); render();
-    });
-  }
-
-  function handleDragEnd() { cleanupDrag(); }
-  function cleanupDrag() { $$('.is-dragging, .is-drop-target').forEach(el => el.classList.remove('is-dragging', 'is-drop-target')); document.body.classList.remove('task-drag-active'); dragState = null; }
-
   function reorderTasks(context, sourceId, targetId) {
     let items;
     let field;
@@ -7289,77 +6153,23 @@
     const [moved]=ids.splice(from,1); ids.splice(to,0,moved); ids.forEach((id,i)=>{ const s=task.subtasks.find(x=>x.id===id); if(s)s.order=i; }); task.updatedAt=nowIso(); saveState(); renderModal(); render();
   }
 
-  // Redesign R2 (T5): a long press on an element with data-long-press runs that action (the habit menu on
-  // Today), and the click that follows the press is swallowed. The menu is also reachable by a tap or keyboard.
-  let longPressTimer = null, longPressFired = false;
-  function handleLongPressStart(event) {
-    if (!event.isPrimary || event.button > 0) return;
-    const el = event.target.closest?.('[data-long-press]');
-    if (!el) return;
-    clearTimeout(longPressTimer); longPressFired = false;
-    longPressTimer = setTimeout(() => { longPressTimer = null; longPressFired = true; runLongPress(el); }, 500);
-  }
-  // R36 (C): holding the "+" opens a new task at once where a tap opens the menu. R59: where a tap adds directly,
-  // holding it opens the menu, so every type stays one hold away.
-  function runLongPress(el) {
-    if (el.dataset.longPress === 'quick-add-task') { haptic('tick'); if (quickAddDirect()) { setMobileQuickAddOpen(true); return; } setMobileQuickAddOpen(false); const context = routeQuickAddContext(); if (context) openQuickAdd(context); else setToastMessage(tr('Restore the project to add tasks.')); return; }
-    callDomainHook('handleAction', el.dataset.longPress, { target: el });
-  }
-  function cancelLongPress() {
-    clearTimeout(longPressTimer); longPressTimer = null;
-  }
-  function handleLongPressClick(event) {
-    if (!longPressFired) return;
-    longPressFired = false; event.preventDefault(); event.stopPropagation();
-  }
-
   function attachEvents() {
-    document.addEventListener('pointerdown', handleLongPressStart);
-    document.addEventListener('pointerup', cancelLongPress);
-    document.addEventListener('pointercancel', cancelLongPress);
-    document.addEventListener('pointermove', event => { if (longPressTimer && (Math.abs(event.movementX) > 4 || Math.abs(event.movementY) > 4)) cancelLongPress(); });
-    document.addEventListener('click', handleLongPressClick, true);
-    document.addEventListener('contextmenu', event => { if (event.target.closest?.('[data-long-press]')) event.preventDefault(); });
-    document.addEventListener('pointerdown', handleTaskSwipeStart);
-    document.addEventListener('pointermove', handleTaskSwipeMove, { passive: false });
-    document.addEventListener('pointerup', finishTaskSwipe);
-    document.addEventListener('pointercancel', finishTaskSwipe);
-    document.addEventListener('click', handleTaskSwipeClick, true);
-    document.addEventListener('pointerdown', handleWeekSwipeStart);
-    document.addEventListener('pointerup', finishWeekSwipe);
-    document.addEventListener('pointercancel', () => { weekSwipe = null; });
-    document.addEventListener('click', handleWeekSwipeClick, true);
-    document.addEventListener('pointerdown', handleTouchReorderStart);
-    document.addEventListener('pointermove', handleTouchReorderMove, { passive: false });
-    document.addEventListener('pointerup', finishTouchReorder);
-    document.addEventListener('pointercancel', finishTouchReorder);
-    document.addEventListener('pointerdown', handleCalendarTouchStart);
-    document.addEventListener('pointermove', handleCalendarTouchMove, { passive: false });
-    document.addEventListener('pointerup', finishCalendarTouch);
-    document.addEventListener('pointercancel', finishCalendarTouch);
-    document.addEventListener('touchmove', blockTouchScroll, { passive: false });
-    document.addEventListener('contextmenu', event => { if (touchReorder || taskSwipeState || calendarTouch) event.preventDefault(); });
+    // R110: the drag, swipe and long-press listeners live in js/drag-ui.js; each module with attach() wires its own.
+    for (const adapter of window.TodoDomainModules?.getAdapters() || []) adapter.attach?.(domainContext());
     document.addEventListener('click', handleClick);
     // R40: the welcome screen is a form, so Enter and the phone's "Go" key send it and password managers see it.
     document.addEventListener('submit', event => {
       const form = event.target?.closest?.('[data-welcome-form], [data-account-form]');
       if (!form) return;
       event.preventDefault();
-      if (form.matches('[data-welcome-form]')) welcomeSubmit();
-      else accountSubmit();
+      if (form.matches('[data-welcome-form]')) accountAction('welcome-submit');
+      else accountAction('account-submit');
     });
     document.addEventListener('input', handleInput);
-    // R90: a list pasted into Quick Add.
-    document.addEventListener('paste', handlePaste);
     document.addEventListener('change', handleChange);
     document.addEventListener('blur', handleBlur, true);
     document.addEventListener('keydown', handleKeydown);
     document.addEventListener('keydown', handleDblKeyActivation);
-    document.addEventListener('dragstart', handleDragStart);
-    document.addEventListener('dragover', handleDragOver);
-    document.addEventListener('dragleave', handleDragLeave);
-    document.addEventListener('drop', handleDrop);
-    document.addEventListener('dragend', handleDragEnd);
     // The first-sync choice stays open across a route change: closing it would run its cancel, which signs out (audit P-3).
     // R40: the welcome screen stays over a change of address too (the first start replaces an empty one with #today).
     window.addEventListener('hashchange', () => { closePopover(); if (!['sync-choice', 'welcome'].includes(modalState?.type)) closeModal(); render(); });
@@ -7650,10 +6460,10 @@
     if (!['new-task', 'today', 'journal', 'share', 'auth', 'habits', 'habit-done'].includes(target)) return false;
     // R40: a Google or Apple sign-in comes back as dailo://auth?code=… (or ?error=…).
     // R58: only a sign-in this device started counts, so a crafted link cannot put text into the sign-in screen.
-    if (target === 'auth') { if (!loadSyncMeta().pkce) return false; finishProviderSignIn(link.searchParams); return true; }
+    if (target === 'auth') { if (!loadSyncMeta().pkce) return false; accountAction('welcome-provider-return', { params: link.searchParams }); return true; }
     closePopover();
     // A shortcut or shared text puts the welcome screen away; it comes back at the next start.
-    if (modalState?.type === 'welcome') dismissWelcome();
+    if (modalState?.type === 'welcome') accountAction('welcome-dismiss');
     else if (modalState) { flushTextSave(); closeModal(); }
     if (target === 'new-task') openQuickAdd({});
     else if (target === 'share') {
@@ -7763,7 +6573,7 @@
     updateStoragePersistence(false).catch(console.error);
     registerServiceWorker();
     startPlatform();
-    startWelcome();
+    accountAction('welcome-start');
     // replace, not assign: the first screen must not leave an extra step for Back.
     if (!location.hash) location.replace('#today');
     setInterval(() => {

@@ -7,10 +7,12 @@ const fs = require('node:fs');
 const path = require('node:path');
 const Core = require('../js/core.js');
 const Release = require('../js/release.js');
+const { appSource } = require('./support/source.js');
 const { runInNewContextWithI18n } = require('./support/i18n.js');
 
 const read = file => fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
-const app = read('js/app.js');
+// R111: Quick Add moved to js/quick-add-ui.js; the app is read across its files (functionSource finds a function in any).
+const app = appSource();
 const css = read('css/styles.css');
 const sr = read('js/i18n-sr.js');
 const plain = value => JSON.parse(JSON.stringify(value));
@@ -168,7 +170,7 @@ test('J9: "+ Zadatak za sutra" takes the selection or a "Sutra:" line, plans the
   ctx.inputs['#journal-text'] = { value: 'Old', selectionStart: 0, selectionEnd: 0 };
   act(adapter, ctx, 'journal-task-tomorrow');
   assert.deepEqual(ctx.calls.at(-1)[1], { plannedDate: TODAY, title: '', returnTo: { type: 'journal', date: '2026-10-01' } }, 'never before today');
-  assert.match(app, /if \(context\.returnTo\) modalState\.returnTo = context\.returnTo;/);
+  assert.match(app, /if \(context\.returnTo\) app\.modalState\.returnTo = context\.returnTo;/); // R111: the window is read through the context
   assert.match(app, /title: context\.title \|\| '', notes: context\.notes \|\| ''/); // R24: shared text can bring notes
 });
 

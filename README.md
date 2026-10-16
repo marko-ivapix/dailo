@@ -35,7 +35,23 @@ The step-by-step Serbian guide for the Mac, iPhone and Android phone is `docs/v2
 - GitHub Pages serves the repository over HTTPS at `https://marko-ivapix.github.io/dailo/`. All paths and the manifest/service-worker scope are relative (`./`), so install and offline start work under the `/dailo/` sub-path; the user confirmed both on iPhone from this URL on 2026-10-08. Pages publishes `main`, which carries V1.9.1 since PR #6; V1.10, V1.11 and V1.12 are there since PR #7; V2.0-a, the Capacitor app and `2.0.0-alpha.3` since PR #8 (2026-10-09).
 - The Serbian beta tester guide is at `https://marko-ivapix.github.io/dailo/uputstvo.html` (also linked from Settings → About). It is not precached, so it opens only online.
 
-## 2.0.0-alpha.3 — Capacitor app and modernization (current release)
+## Current state (2026-10-16)
+
+- **`main` and the web:** `2.0.0-alpha.135` (PR #32), served by GitHub Pages.
+- **The work branch:** `ccr-95f6062b-lgg2fr` is at `2.0.0-alpha.144` (R107–R114, not merged yet).
+- **What changed since `2.0.0-alpha.3`:** the redesign in numbered steps (R1–R114). In short, what each version brought is in `novo.html` (Šta je novo, in Serbian), and every step with its spec, checks and commit is in `docs/superpowers/progress-redesign.md`. The larger additions:
+  - **Sync:** sign-in with e-mail and password, Google or Apple; changes arrive in real time; the journal can be encrypted; attachments sync; the user's Supabase project is configured in `js/sync-config.js`.
+  - **Phones:** Android and iPhone widgets and the share extension.
+  - **Computer:** a desktop layer from 1024 px wide.
+  - **Features:** calendar `.ics` export and import, voice input in Quick Add, an archive for old completed tasks (IndexedDB v2), a command palette, and Projekti as a screen of their own.
+- **Code layout:**
+  - `js/app.js` is being split into modules, one part per release: `js/sidebar-ui.js`, `js/drag-ui.js`, `js/quick-add-ui.js` and `js/account-ui.js` (the plan is `docs/superpowers/plans/2026-10-12-app-js-modules.md`).
+  - The current architecture for agents is in `CLAUDE.md` and `docs/claude/`.
+- **Manual checks:** what the user has checked on devices, and what still waits, is in `CLAUDE.md` → "Current state" and `docs/beta/provera-pre-bete.md`.
+
+The sections below describe earlier releases as they were then. For current behavior, read the source, its tests and `novo.html`.
+
+## 2.0.0-alpha.3 — Capacitor app and modernization (earlier release)
 
 The same app now also runs as a native app for iPhone and Android through Capacitor 8 (`cloud.ivapix.dailo`), after a technical audit (`docs/superpowers/specs/2026-10-09-modernization-capacitor-audit.md`) and ten phases (`docs/superpowers/plans/2026-10-09-modernization-capacitor.md`, evidence in `docs/superpowers/progress-modernization.md`). Merged into `main` through PR #8 (`6b5166f`, 2026-10-09).
 

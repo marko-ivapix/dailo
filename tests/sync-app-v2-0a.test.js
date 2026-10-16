@@ -7,6 +7,7 @@ const { withI18n, runInNewContextWithI18n } = require('./support/i18n.js');
 const { createFakeSupabase } = require('./support/fake-supabase.js');
 const Sync = require('../js/sync.js');
 const Release = require('../js/release.js');
+const { appSource, accountCode, withAccount } = require('./support/source.js');
 
 const read = file => fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
 const clone = value => JSON.parse(JSON.stringify(value));
@@ -102,6 +103,8 @@ function syncHarness({ state = baseState(), habitLogs = [], meta = null, fake = 
     syncMeta: null, syncTimer: null, syncRunning: false, applyingSync: false, liveSync: null /* R50: no Realtime here */,
     state: clone(state), recovery: null, globalOperation: null, startupPromise: null, storageError: false, staleDataNotice: null,
     modalState: null, undoState: null, undoHold: null, textSaveTimer: null, dragState: null, modalReturnFocus: null, restoreModalReturnFocus() {},
+    // R110: the drag state lives in js/drag-ui.js; syncWaiting asks it through callDomainHook('isDragging').
+    callDomainHook: hook => (hook === 'isDragging' ? Boolean(context.dragState) : undefined),
     document: { activeElement: null },
     localStorage: { getItem: key => (storage.has(key) ? storage.get(key) : null), setItem: (key, value) => storage.set(key, String(value)), removeItem: key => storage.delete(key) },
     setTimeout: (fn, delay) => { calls.timers.push(delay); return calls.timers.length; }, clearTimeout() {},
@@ -128,10 +131,12 @@ function syncHarness({ state = baseState(), habitLogs = [], meta = null, fake = 
     inputs: {}, $: selector => (selector.startsWith('#') && selector.slice(1) in context.inputs ? { value: context.inputs[selector.slice(1)] } : null),
     modalFrame: content => content, esc,
   };
-  vm.createContext(withI18n(context));
+  vm.createContext(withAccount(withI18n(context))); // R112: with the welcome screen of js/account-ui.js
   // R22b: the typed word is compared with plainWord, which lives with the other confirm words.
   const plainStart = app.indexOf('\n  function plainWord(') + 1;
   vm.runInContext(app.slice(start, end) + app.slice(plainStart, app.indexOf('\n  }\n', plainStart) + 4), context);
+  // R112: the welcome screen joins the sandbox; R113: accountCode() (once accountWelcome()) also loads the account windows.
+  vm.runInContext(accountCode(), context);
   return { context, storage, logs, calls, fake, meta: () => JSON.parse(storage.get('dailoSync') || '{}') };
 }
 
@@ -320,13 +325,14 @@ test('sign-out keeps local data, and account deletion needs the typed word', asy
 });
 
 test('the app wires sync into saving, startup, dialogs, actions and the domain context', () => {
-  const app = read('js/app.js');
+  const app = appSource(); // R112: the welcome screen's actions are in js/account-ui.js
   assert.match(app, /const Sync = window\.DailoSync \|\| null;/);
   // R60: the client also says where the links in the account e-mails go (tests/emails-r60.test.js).
   assert.match(app, /const syncClient = Sync\?\.isConfigured\(syncConfig\) \? Sync\.createClient\(\{ url: syncConfig\.url, anonKey: syncConfig\.anonKey, emailRedirect: Release\.APP_URL \}\) : null;/);
   assert.match(app, /scheduleAutomaticSnapshot\(\);\n\s+scheduleSync\(\);\n\s+return true;/, 'every successful save schedules a sync');
   assert.match(app, /await startReady\(\);[\s\S]*?startSync\(\);[\s\S]*?registerServiceWorker\(\);/, 'sync starts after the data is ready');
-  assert.match(app, /else if \(modalState\.type === 'sync-choice'\) root\.innerHTML = renderSyncChoice\(\);/);
+  // R114: the account module draws the first-sync choice when renderModal asks the modules first.
+  assert.match(app, /if \(route\?\.type === 'modal' && route\.modalType === 'sync-choice'\) return renderSyncChoice\(\);/);
   for (const action of ['open-welcome', 'welcome-mode', 'welcome-provider', 'sync-now', 'sync-sign-out', 'sync-delete-account', 'sync-choose']) {
     assert.match(app, new RegExp(`action === '${action}'`), `${action} is handled`);
   }

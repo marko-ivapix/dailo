@@ -268,11 +268,16 @@ quick-add komande poput `tomorrow`, skeniranje slike ili offline queue?
 ## Kako je projekat napravljen
 
 - Vanilla HTML/CSS/JavaScript, bez frameworka i bez sopstvenog backend-a (od V2.0-a opciona Supabase sinhronizacija).
-- Metadata je u `localStorage`, a fajlovi, Habit logs i Goal history u
-  IndexedDB.
+- Metadata je u `localStorage`. U IndexedDB su fajlovi, Habit logs, Goal history i, od R103, stari završeni zadaci (`archivedTasks`).
 - `js/core.js` sadrži pravila i izračunavanja.
-- `js/*-ui.js` moduli prikazuju pojedinačne delove aplikacije.
-- `js/app.js` povezuje rute, modalne prozore, događaje i čuvanje podataka.
+- `js/*-ui.js` moduli prikazuju pojedinačne delove aplikacije: ekrane, prozore, bočni meni i paletu komandi.
+- Od R110 do R114 iz `js/app.js` su izdvojeni:
+  - prevlačenje i potezi (`js/drag-ui.js`);
+  - Brzi unos (`js/quick-add-ui.js`);
+  - nalog (`js/account-ui.js`): ekran dobrodošlice, prozori naloga, odjava, brisanje naloga i izbor pri prvoj sinhronizaciji.
+
+  Plan je u `docs/superpowers/plans/2026-10-12-app-js-modules.md`. Sama sinhronizacija ostaje u `js/app.js`, jer menja podatke aplikacije i pokreće se pri svakom čuvanju.
+- `js/app.js` povezuje rute, zajedničke prozore, događaje, čuvanje podataka i sinhronizaciju (oko 6.590 redova, ranije 7.800).
 - Today, Upcoming, Calendar i Saved Views su izvedeni prikazi nad istim zapisima.
 
 ## Pokretanje
@@ -284,6 +289,17 @@ python3 -m http.server 8080
 Zatim otvoriti `http://localhost:8080`. Service worker se registruje samo na `https:` ili `localhost`. GitHub Pages verzija je na `https://marko-ivapix.github.io/dailo/` i prikazuje `main`: V1.9.1 je tamo od PR #6, a V1.10–V1.12 stižu posle spajanja u `main` kroz jedan zajednički PR. Uputstvo za testere: `https://marko-ivapix.github.io/dailo/uputstvo.html`.
 
 ## Trenutni status
+
+**Stanje 16. oktobra 2026:**
+- `main` je na `2.0.0-alpha.135` (PR #32, R83–R106), i to prikazuje GitHub Pages.
+- Radna grana `ccr-95f6062b-lgg2fr` je na `2.0.0-alpha.144`. Na njoj su:
+  - brisanje sa kopijom ili bez nje (R107);
+  - dugmad na dnu prozora iznad sistemskih dugmadi (R108);
+  - Projekti kao poseban ekran (R109);
+  - podela `js/app.js` na module (R110–R114).
+- Šta je korisnik proverio i šta još čeka ručnu proveru vodi se u `CLAUDE.md` → „Current state“ i u `docs/beta/provera-pre-bete.md` (B6–B52).
+
+Tekst ispod je istorija do `2.0.0-alpha.3`.
 
 V1.9 je završen kao V1.9.1 (koraci 1–7), spojen u `main` kroz PR #6 i proveren
 automatskim testovima prema `docs/superpowers/progress-v1-9.md` (335 Node

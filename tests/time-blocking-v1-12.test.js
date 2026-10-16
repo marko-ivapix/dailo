@@ -13,6 +13,7 @@ require('../js/storage.js');
 global.JSZip = require('../vendor/jszip.min.js');
 const Backup = require('../js/backup.js');
 const Release = require('../js/release.js');
+const { appSource } = require('./support/source.js');
 
 const DAY = '2026-10-09';
 const task = (id, fields = {}) => ({ id, title: id, isCompleted: false, isInbox: false, plannedDate: DAY, plannedTime: null, durationMinutes: null, dueDate: null, todayOrder: null, tagIds: [], subtasks: [], ...fields });
@@ -158,7 +159,7 @@ test('Settings offers the daily capacity and the app stores a valid choice', () 
 // Redesign R4: Quick Add has no duration chip any more. A typed "45 min" is still recognized, and the task window's
 // Trajanje sheet (R3) sets the duration with the same preset values.
 test('Quick Add has a duration chip with preset values that wins over the parsed duration', () => {
-  const app = read('js/app.js');
+  const app = appSource(); // R111: createTask moved to js/quick-add-ui.js
   assert.doesNotMatch(app, /quick-duration-picker|function openDurationPicker|setQuickDuration/);
   assert.match(app, /durationMinutes: d\.durationMinutes \|\| parsed\.durationMinutes \|\| null/, 'a parsed duration still applies');
   const picker = app.slice(app.indexOf('  function openTaskDurationPicker('), app.indexOf('  function setTaskDuration('));

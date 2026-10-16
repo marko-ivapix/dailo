@@ -53,7 +53,7 @@ Every change the user asks for ships as one numbered step (`R58`, `R59`, …), w
 
    All must pass. If an older test breaks, fix the cause, or update the test with a comment explaining why it changed. Never skip a test.
 8. **Ledger.** Add a row to `docs/superpowers/progress-redesign.md`: `| R<NN> <title> | pending | <spec, what changed, checks with exact counts, manual-pending> |`.
-9. **Commit** as `feat(R<NN>): <what> (2.0.0-alpha.<V>)` (or `fix`/`refactor`), with the trailers from the session's system reminder.
+9. **Commit** as `feat(R<NN>): <what> (2.0.0-alpha.<V>)` (or `fix`/`refactor`), with the trailers from the session's system reminder, but the co-author line without the model's name (`Co-Authored-By: Claude <noreply@anthropic.com>`; CLAUDE.md, "No model identifiers").
 10. **Record the hash and push.**
     - Put the short hash into the row in place of `pending`.
     - Commit `docs: record the R<NN> commit in the redesign ledger`.

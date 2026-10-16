@@ -109,7 +109,8 @@ test('10: the project screen and "Bez projekta" use the usual header with the co
     pageHeader: (title, subtitle, options) => `<header title="${title}" subtitle="${subtitle}" menu="${options.projectMenu || ''}" color="${options.color || ''}"></header>`,
   };
   const html = projects.renderRoute({ type: 'project', id: 'p' }, ctx);
-  assert.match(html, /^<div class="screen-topbar"><button class="screen-back" type="button" data-route="tasks"><i class="ph ph-caret-left" aria-hidden="true"><\/i>Tasks<\/button><\/div><header title="Site" subtitle="0 open" menu="p" color="#2fbf71"><\/header>/);
+  // R109: a project opened directly goes back to Projekti, a screen of their own.
+  assert.match(html, /^<div class="screen-topbar"><button class="screen-back" type="button" data-route="projects"><i class="ph ph-caret-left" aria-hidden="true"><\/i>Projects<\/button><\/div><header title="Site" subtitle="0 open" menu="p" color="#2fbf71"><\/header>/);
   assert.match(html, /<p class="today-empty">No open tasks\.<\/p><button class="inline-add"/, '11: an empty project says so');
   const loose = projects.renderRoute({ type: 'project', id: 'none' }, ctx);
   assert.match(loose, /<header title="No project" subtitle="0 open" menu="" color=""><\/header>/);

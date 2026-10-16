@@ -709,7 +709,12 @@
     "Permanently delete all completed tasks and their attachments.": "Trajno briše sve završene zadatke i njihove priloge.",
     "Clear": "Obriši",
     "Reset app data": "Resetuj podatke aplikacije",
-    "A safety ZIP is created first, then local tasks, projects, tags, attachments and preferences are cleared.": "Prvo se pravi sigurnosni ZIP, a zatim se brišu lokalni zadaci, projekti, oznake, prilozi i podešavanja.",
+    // R107: a reset with or without a copy
+    "Clears the tasks, projects, tags, attachments and preferences on this device.": "Briše zadatke, projekte, oznake, priloge i podešavanja na ovom uređaju.",
+    "Keep a copy before deleting": "Sačuvaj kopiju pre brisanja",
+    "A ZIP with all the data. Without it the reset cannot be undone, and the local snapshots and the phone's automatic backups are deleted too.": "ZIP sa svim podacima. Bez nje brisanje ne može da se poništi, a brišu se i lokalni snimci i automatske kopije na telefonu.",
+    "No copy is kept: afterwards the data cannot be brought back. The local snapshots and the phone's automatic backups are deleted too.": "Kopija se ne čuva: posle ovoga podaci ne mogu da se vrate. Brišu se i lokalni snimci i automatske kopije na telefonu.",
+    "An account is signed in on this device: this deletes only the data on the device, and the account's data comes back with the next sync. To delete everything, first delete the account (More → Account → Delete account), then reset.": "Na ovom uređaju je prijavljen nalog: ovo briše samo podatke na uređaju, a podaci sa naloga se vraćaju pri sledećoj sinhronizaciji. Da obrišeš sve, prvo obriši nalog (Još → Nalog → Obriši nalog), pa resetuj.",
     "Reset": "Resetuj",
     "About": "O aplikaciji",
     "Report a problem": "Prijavi problem",

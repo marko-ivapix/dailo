@@ -36,7 +36,8 @@ test('novo.html: a Serbian public page with a description and the sharing previe
 test('the changes are grouped by day, newest first, and name what really changed', () => {
   const html = read('novo.html');
   const days = [...html.matchAll(/<h2>([^<]+)<\/h2>/g)].map(match => match[1]);
-  assert.deepEqual(days.slice(0, 3), ['15. oktobar 2026.', '14. oktobar 2026.', '13. oktobar 2026.']);
+  // R107: a new day (16 October) on top; the older days follow in order.
+  assert.deepEqual(days.slice(0, 4), ['16. oktobar 2026.', '15. oktobar 2026.', '14. oktobar 2026.', '13. oktobar 2026.']);
   assert.ok(html.includes(Release.APP_VERSION), 'the newest version is named');
   for (const fact of ['Sutra', 'šifrovan', '.ics', 'Čeka se veza', 'Još → Nalog', 'Česta pitanja', 'Nedeljni pregled', 'Okvirno', 'Odjavi se', 'tri stanja']) assert.ok(html.includes(fact), fact);
   assert.ok(html.includes('href="uputstvo.html"') && html.includes('href="pitanja.html"'));

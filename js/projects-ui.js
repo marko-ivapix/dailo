@@ -20,7 +20,7 @@
     const summary = [area?.name, trn(openTasks.length, '{count} open', '{count} open'), completed.length ? trn(completed.length, '{count} done', '{count} done') : ''].filter(Boolean).join(' · ');
     // R17: "‹ Zadaci" above the usual header (color dot, name, summary, search and the project's ⋯); R22a: "‹" names
     // the screen the project was opened from.
-    let html = ctx.backLink('tasks', tr('Tasks')) + ctx.pageHeader(project.name, summary, { add: false, projectMenu: projectId, color: project.color });
+    let html = ctx.backLink('projects', tr('Projects')) + ctx.pageHeader(project.name, summary, { add: false, projectMenu: projectId, color: project.color });
     if (archived) html += `<section class="weekly-review-notice project-archived-notice" role="status"><i class="ph ph-archive weekly-review-notice-icon" aria-hidden="true"></i><div class="backup-reminder-copy"><strong>${tr('Archived project')}</strong><span>${tr('Its tasks stay out of every list until you restore it.')}</span></div><div class="backup-reminder-actions"><button class="btn btn-secondary" type="button" data-action="restore-project" data-project-id="${esc(projectId)}">${tr('Restore')}</button></div></section>`;
     // R94: Aktivan, Na čekanju or Nekad; a project that is not active keeps its undated tasks out of Kad stignem.
     if (!archived && !project.isCleaningRoom) {
@@ -48,7 +48,7 @@
     const { esc, taskRow } = ctx;
     const open = ctx.looseTasks(false);
     const completed = ctx.looseTasks(true);
-    let html = ctx.backLink('tasks', tr('Tasks')) + ctx.pageHeader(tr('No project'), trn(open.length, '{count} open', '{count} open'), { add: false });
+    let html = ctx.backLink('projects', tr('Projects')) + ctx.pageHeader(tr('No project'), trn(open.length, '{count} open', '{count} open'), { add: false });
     html += open.length ? `<div class="task-list today-card">${open.map(task => taskRow(task, 'anytime', { today: true })).join('')}</div>` : `<p class="today-empty">${tr('No sorted tasks without a project.')}</p>`;
     html += `<button class="inline-add" type="button" data-action="quick-add" data-anytime="true"><i class="ph ph-plus"></i> ${tr('Add task')}</button>`;
     html += completedSection(ctx, 'none', completed, task => taskRow(task, 'completed', { today: true }));

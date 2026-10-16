@@ -9,14 +9,16 @@ const { withI18n, runInNewContextWithI18n } = require('./support/i18n.js');
 const { createFakeSupabase } = require('./support/fake-supabase.js');
 const Sync = require('../js/sync.js');
 const Release = require('../js/release.js');
+const { appSource, functionSource, accountCode, withAccount } = require('./support/source.js');
 
 const read = file => fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
-const app = read('js/app.js');
+// R112: the welcome screen and sign-in moved to js/account-ui.js; the app is read across its files.
+const app = appSource();
 const css = read('css/styles.css');
 const sr = read('js/i18n-sr.js');
 const clone = value => JSON.parse(JSON.stringify(value));
 const esc = value => String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-const fn = name => { const start = app.search(new RegExp(`\\n  (async )?function ${name}\\(`)) + 1; assert.ok(start > 0, name); return app.slice(start, app.indexOf('\n  }\n', start) + 4); };
+const fn = name => functionSource(name).source;
 const clientFor = fake => Sync.createClient({ url: fake.url, anonKey: fake.anonKey, fetch: fake.fetch, now: fake.now });
 const WEAK = 'The password needs at least 8 characters, with a digit and a letter.';
 
@@ -156,6 +158,8 @@ function harness({ fake = createFakeSupabase(), meta = null, storage: entries = 
     state: { version: 3, tasks: [], projects: [], tags: [], areas: [], goals: [], habits: [], notes: [], resources: [], templates: [], savedViews: [], settings: {}, ui: {} },
     recovery: null, globalOperation: null, startupPromise: null, storageError: false, staleDataNotice: null,
     modalState: null, undoState: null, undoHold: null, textSaveTimer: null, dragState: null, modalReturnFocus: null,
+    // R110: the drag state lives in js/drag-ui.js; syncWaiting asks it through callDomainHook('isDragging').
+    callDomainHook: hook => (hook === 'isDragging' ? Boolean(context.dragState) : undefined),
     document: { activeElement: null },
     localStorage: { getItem: key => (storage.has(key) ? storage.get(key) : null), setItem: (key, value) => storage.set(key, String(value)), removeItem: key => storage.delete(key) },
     setTimeout: () => 1, clearTimeout() {}, requestAnimationFrame: run => run(),
@@ -176,8 +180,10 @@ function harness({ fake = createFakeSupabase(), meta = null, storage: entries = 
     DailoPlatform: native ? { isNative: true, links: { openExternal(url) { calls.opened.push(url); }, closeExternal() { calls.closedBrowser += 1; } } } : { isNative: false, links: {} },
     modalFrame: content => content, esc,
   };
-  vm.createContext(withI18n(context));
+  vm.createContext(withAccount(withI18n(context)));
   vm.runInContext(app.slice(start, end), context);
+  // R112: the welcome screen joins the sandbox; R113: accountCode() (once accountWelcome()) also loads the account windows.
+  vm.runInContext(accountCode(), context);
   const run = code => vm.runInContext(code, context);
   return { context, storage, calls, fake, run, meta: () => JSON.parse(storage.get('dailoSync') || '{}'), welcome: () => context.modalState };
 }
@@ -355,21 +361,23 @@ test('Google in the phone app: the system browser, dailo://auth, and a refusal s
   // The app's link handler hands dailo://auth to the sign-in before it closes any window.
   const link = fn('handleIncomingLink');
   // R58: dailo://auth counts only while this device has a sign-in pending.
-  assert.match(link, /if \(target === 'auth'\) \{ if \(!loadSyncMeta\(\)\.pkce\) return false; finishProviderSignIn\(link\.searchParams\); return true; \}\n    closePopover\(\);/);
+  // R112: the sign-in is the account module's, asked by name.
+  assert.match(link, /if \(target === 'auth'\) \{ if \(!loadSyncMeta\(\)\.pkce\) return false; accountAction\('welcome-provider-return', \{ params: link\.searchParams \}\); return true; \}\n    closePopover\(\);/);
   assert.match(link, /\['new-task', 'today', 'journal', 'share', 'auth'(, '[a-z-]+')*\]\.includes\(target\)/);
-  assert.match(link, /if \(modalState\?\.type === 'welcome'\) dismissWelcome\(\);\n    else if \(modalState\) \{ flushTextSave\(\); closeModal\(\); \}/, 'a shortcut puts the screen away without answering it');
+  assert.match(link, /if \(modalState\?\.type === 'welcome'\) accountAction\('welcome-dismiss'\);\n    else if \(modalState\) \{ flushTextSave\(\); closeModal\(\); \}/, 'a shortcut puts the screen away without answering it');
   assert.match(read('js/platform.js'), /function closeExternal\(\) \{\n      if \(!isNative\) return;\n      Promise\.resolve\(plugin\('Browser'\)\?\.close\?\.\(\)\)/);
   assert.match(read('js/platform.js'), /links: Object\.freeze\(\{ openExternal, closeExternal, interceptExternalLinks, onAppLink \}\)/);
 });
 
 test('wiring: start, the form, the actions, Nalog and the old e-mail code', () => {
-  assert.match(fn('init'), /startPlatform\(\);\n    startWelcome\(\);/);
+  assert.match(fn('init'), /startPlatform\(\);\n    accountAction\('welcome-start'\);/); // R112: asked by name
   // The first start replaces an empty address with #today; that change of address must not close the screen.
   assert.ok(app.includes("window.addEventListener('hashchange', () => { closePopover(); if (!['sync-choice', 'welcome'].includes(modalState?.type)) closeModal(); render(); });"));
   // R43: the account sheets share the listener.
-  assert.match(app, /document\.addEventListener\('submit', event => \{\n      const form = event\.target\?\.closest\?\.\('\[data-welcome-form\], \[data-account-form\]'\);\n      if \(!form\) return;\n      event\.preventDefault\(\);\n      if \(form\.matches\('\[data-welcome-form\]'\)\) welcomeSubmit\(\);/);
+  assert.match(app, /document\.addEventListener\('submit', event => \{\n      const form = event\.target\?\.closest\?\.\('\[data-welcome-form\], \[data-account-form\]'\);\n      if \(!form\) return;\n      event\.preventDefault\(\);\n      if \(form\.matches\('\[data-welcome-form\]'\)\) accountAction\('welcome-submit'\);/); // R112
   for (const [action, call] of [['open-welcome', 'openWelcome(el.dataset.mode)'], ['welcome-mode', 'welcomeMode(el.dataset.mode)'], ['welcome-skip', 'skipWelcome()'], ['welcome-provider', 'startProviderSignIn(el.dataset.provider)'], ['welcome-resend', 'welcomeResend()'], ['welcome-toggle-password', 'toggleWelcomePassword()']]) {
-    assert.ok(app.includes(`else if (action === '${action}') ${call};`), action);
+    // R112: the account module's handleAction answers them.
+    assert.ok(functionSource('handleAction', ['js/account-ui.js']).source.includes(`if (action === '${action}') ${call};`), action);
   }
   for (const gone of ['function requestSyncCode', 'function verifySyncCode', "'sync-request-code'", "'sync-change-email'", 'syncUi']) assert.ok(!app.includes(gone), gone);
   assert.match(fn('syncView'), /name: meta\.session\?\.user\?\.name \|\| ''/);

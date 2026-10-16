@@ -98,15 +98,15 @@ python3 -m http.server 8080
   - no bulk-selection UI;
   - global Search ranking and scope unchanged;
   - deletion is confirmation → delete → Undo;
-  - Reset and Restore need a safety ZIP, a recovery snapshot and the typed words RESETUJ / VRATI.
+  - Reset and Restore need a recovery snapshot and the typed words RESETUJ / VRATI. Restore always makes a safety ZIP; Reset makes one unless the user turns off "Sačuvaj kopiju pre brisanja" (R107, on by default), and then also deletes the local snapshots and the phone's automatic backups.
 - **CSS:**
   - Colors and sizes are `:root` tokens.
   - New rules go before `/* Keep primary compact actions touchable after all density rules. */`.
   - Every class the markup uses must be styled (`tests/design-v1-8.test.js`), and dead selectors are not allowed (`tests/redesign-r34.test.js`).
 - **Code shape:**
   - Screens are domain modules (`window.TodoDomainModules.register`, `domainContext()`).
-  - Code leaving `js/app.js` follows `docs/superpowers/plans/2026-10-12-app-js-modules.md`.
-  - Tests find moved functions through `tests/support/source.js`.
+  - Code leaving `js/app.js` follows `docs/superpowers/plans/2026-10-12-app-js-modules.md`. A moved part reads the live state through `domainContext()` (`app.state`, `app.modalState`, …) and writes it only through its setters; `app.js` calls it by name (`quickAddAction`, `accountAction`).
+  - Tests find moved functions through `tests/support/source.js`. `functionSource` searches in file-name order, so name the file for `use` and `handleAction`, which several modules have.
 - **`REPORT_EMAIL`** in `js/release.js` is the address the user supplied. Never change it to one the user has not given.
 - **Secrets never enter the repository:**
   - the Supabase service-role key;
@@ -116,22 +116,36 @@ python3 -m http.server 8080
   `js/sync-config.js` holds only the project URL and the publishable key. `android/app/debug.keystore` (password `android`) is the intentional shared debug key.
 - **Manual checks are never reported as passed** unless the user reports them. This covers phones, iPhone and Mac builds, visual checks, real Supabase sign-ins and the beta checklist. Record the user's words as given.
 - **No model identifiers** go into commits, PR titles or bodies, code or docs.
+  - Commits end with `Co-Authored-By: Claude <noreply@anthropic.com>`, without the model's name, and the `Claude-Session:` line.
+  - The user agreed on 2026-10-16 ("moze").
+  - Earlier commits keep their trailers; history is not rewritten.
 
 ## Current state
 
 *Update this section on every merge.*
 
-- **`main`:** `970617b` (PR #31: R72–R82 from `ccr-95f6062b-lgg2fr`); CI, Links and GitHub Pages passed on it, so Pages serves `2.0.0-alpha.109`. The work branch `ccr-95f6062b-lgg2fr` was restarted from it.
-  - R72: Još → Planiranje is Ciljevi, Projekti, Redovne obaveze, Oblasti; Nedeljni pregled in Biblioteka in place of Šabloni.
-  - R73: Česta pitanja (`pitanja.html`); R74: the guide follows the app.
-  - From an outside review the user accepted ("Sve se slažem, ali ostavi pod broj 1"; point 1, the Google/Apple buttons, stays while the user turns the providers on):
-    - R75: the encrypted journal stays sealed in ZIP backups (data model); R78: fixes from its review;
-    - R76: the phone's file mirror also keeps habit logs and goal history;
-    - R77: `.ics` events recognized again by UID (`task.icsUid`, data model);
-    - R79: "Sutra" on task notifications; R80: the sync state on the phone;
-    - R81: Šta je novo (`novo.html`); R82: a problem report carries the last errors.
-  - Before: PR #30 (`707f169`, R67–R71): the user's own examples and the rough month, the cleaning schedule, the Bucket list, "Treba da imam", more examples.
-  - Before: PR #29 (`286bb97`, R66), PR #28 (`83d49d1`, R65), PR #27 (`fbcffc7`, R59–R64).
+- **`main`:** `99c1e9e` (PR #32: R83–R106 from `ccr-95f6062b-lgg2fr`); GitHub Pages serves `2.0.0-alpha.135` (see the ledger row for the runs). The work branch `ccr-95f6062b-lgg2fr` was restarted from it.
+  - From the user's list ("sve odradi osim ciljeva"; projects and areas stay as they are, "Ostaje kao sada"; the bulk moves as an AGENTS.md exception; the archive at the end):
+    - R83–R84: Danas — past-due tasks and Zatvori dan, one by one or all to tomorrow;
+    - R85 (data model): habit durations in the day's capacity; R106: a Trajanje row in Detalji navike;
+    - R86–R90: Inbox without type filters, Kad radim / Rok, "Od dana završetka" (R88, data model), Quick Add reads spoken times, repeats and Cyrillic, suggests #/+/@ and takes pasted lists;
+    - R91–R93: Kalendar 3 dana; Navike with 30-day success, a note on the day and limits (R93, data model);
+    - R94–R97: project status and next step (data model), the Redovne obaveze bar, a 10-minute weekly review, note links to projects and goals (data model);
+    - R98–R102: the journal asks about the day, ready-made templates and views (R100, data model), the completed summary, search without diacritics and across scripts, a Ctrl/Cmd+K palette;
+    - R103 (data model): old completed tasks in IndexedDB v2 `archivedTasks`; R103b: fixes from its review.
+  - R104–R105: fixes from read-only code reviews of R83–R102 and a security review of the branch (among them, sync had stopped applying pulls with notes older than R97).
+  - Before: PR #31 (`970617b`, R72–R82): Još → Planiranje, Česta pitanja, the guide, the outside-review fixes R75–R82, Šta je novo.
+  - Before: PR #30 (`707f169`, R67–R71), PR #29 (`286bb97`, R66), PR #28 (`83d49d1`, R65), PR #27 (`fbcffc7`, R59–R64).
+- **Work branch `ccr-95f6062b-lgg2fr`** (not merged yet; `2.0.0-alpha.144`):
+  - R107: Reset with or without a copy;
+  - R108: sheet footers above the system buttons;
+  - R109: Projekti as their own screen;
+  - the module split of `js/app.js` (7,801 → 6,588 lines):
+    - R110: `js/drag-ui.js`;
+    - R111 and R111b: `js/quick-add-ui.js`;
+    - R112–R114: `js/account-ui.js`, the welcome screen, the account windows, signing out, deleting the account and the first-sync choice.
+  - R114 narrowed step 3c: the sync itself stays in `app.js` (it replaces the state and the archive and runs on every save; the plan says why). The user had asked for "kreni sa 3c", where the plan's 3c was the sync itself; told of the narrowing, the user agreed on 2026-10-16 ("slažem se, ostavi sinhronizaciju u app.js").
+  - Next: a pull request into `main` when the user asks.
 - **Sync:** `js/sync-config.js` holds the user's project `https://qjfpnvjuqbrmdkjxxmsq.supabase.co` and its publishable key (`docs/v2/podesavanje-supabase.md`).
   - **Checked on 2026-10-13 with the publishable key (read-only):**
     - the tables of 0001 exist, and 0005 and 0006 were run;
@@ -147,12 +161,18 @@ python3 -m http.server 8080
   - notifications arrive (alpha.41);
   - on 2026-10-13, on the web: R59 "da"; R61 "imaju 3 stanja" (the jumping order fixed in R66); R62 and R63 "mislim da je okej"; R65 "okej"; account and e-mail (Serbian e-mails with the code, links, password length, region, SMTP) "Nalog i eposta sve je okej".
 
-  The `2.0.0-alpha.83` debug APK was also sent on 2026-10-12; no separate report came for it. The `2.0.0-alpha.98` debug APK was sent on 2026-10-13, built from `claude/sleepy-gauss-7u6n19` at `af8ba56`; on 2026-10-14 the user reported "Radi", and about R66 "Navike stoje na mestu, sve je okej".
+  The `2.0.0-alpha.83` debug APK was also sent on 2026-10-12; no separate report came for it. The `2.0.0-alpha.98` debug APK was sent on 2026-10-13, built from `claude/sleepy-gauss-7u6n19` at `af8ba56`; on 2026-10-14 the user reported "Radi", and about R66 "Navike stoje na mestu, sve je okej". The `2.0.0-alpha.135` debug APK was sent on 2026-10-16, built from `ccr-95f6062b-lgg2fr` at `0029e97` (`main` `99c1e9e` plus the beta checklist update); on 2026-10-16 the user reported "instalirao sam, sve radi" (no beta items named). The `2.0.0-alpha.137` debug APK (R107 optional reset copy, R108 sheet footers above the system buttons) was sent on 2026-10-16, built from `ccr-95f6062b-lgg2fr` at `b0a9503`; no report yet.
 - **Manual-pending:**
-  - **Beta checklist:** B6–B42.
+  - **Beta checklist:** B6–B52.
   - **iPhone:** the build on the user's Mac, plus the widgets and share extension, which need a paid team (`docs/v2/ios-widgeti.md`).
   - **Android release:** the upload key, the GitHub secrets and Play Console (`docs/v2/android-izdanje.md`).
-  - **Two devices:** real sign-ins and sync, realtime and the encrypted journal.
+  - **Two devices:** real sign-ins and sync, realtime and the encrypted journal; since PR #32 also one device with archived tasks and one with notes made before R97, all on the same version (older versions drop day notes and "Od dana završetka").
+  - **Phone (PR #32):** the IndexedDB v2 upgrade in the WebView and the archived-tasks mirror, dragging in the calendar, pasting into Quick Add, the habit duration row.
+  - **Phone (work branch):**
+    - R107: a reset without a copy also removes the files in Documents/Dailo;
+    - R108: the sheet footers on more than one device;
+    - R109: Projekti;
+    - after the module split (R110–R114), these should work as in `2.0.0-alpha.138`: swipes and hold-and-drag, Quick Add (including "Kao jedan zadatak"), the welcome screen, "Odjavi se", "Obriši nalog", the first-sync choice (its three options and "Otkaži i odjavi se"), and the password, e-mail and journal-password windows.
   - **Browser and visual checks:** the desktop layer in a wide window, the light theme, `.ics` in real calendar apps, dictation in Chrome and Safari, and the link preview in messengers.
 - **Open review items:**
   - Security finding 1: the shared `github.io` origin waits for a custom domain (`docs/superpowers/specs/2026-10-12-security-review.md`).

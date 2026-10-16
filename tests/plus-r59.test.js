@@ -46,6 +46,8 @@ test('on every task screen the "+" opens a new task there, with that screen\'s c
 test('the other screens keep their own item; screens without one keep the menu', () => {
   assert.equal(harness('#habits').direct()[0], 'New habit');
   assert.equal(harness('#goals').direct()[0], 'New goal');
+  // R109: Projekti are a screen of their own and add a project.
+  assert.equal(harness('#projects').direct()[0], 'New project');
   assert.equal(harness('#areas').direct()[0], 'New area');
   assert.equal(harness('#cleaning').direct()[0], 'New recurring task');
   assert.equal(harness('#notes').direct()[0], 'New note');
