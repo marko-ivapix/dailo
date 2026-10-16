@@ -125,10 +125,7 @@ test('Podešavanja has the choice, on by default; the rule, the strings and the 
   assert.ok(read('uputstvo.html').includes('<strong>Sačuvaj kopiju pre brisanja</strong>'));
 });
 
-test('R107 is released as 2.0.0-alpha.136', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.136');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.136';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.136');
-  const lock = JSON.parse(read('package-lock.json'));
-  assert.deepEqual([lock.version, lock.packages[''].version], ['2.0.0-alpha.136', '2.0.0-alpha.136']);
+test('R107 shipped as 2.0.0-alpha.136 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 136) >= 136);
 });
