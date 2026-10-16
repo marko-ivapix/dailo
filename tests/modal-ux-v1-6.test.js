@@ -1,9 +1,11 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const { appSource } = require('./support/source.js');
 
 const tasksUi = fs.readFileSync(require.resolve('../js/tasks-ui.js'), 'utf8');
-const app = fs.readFileSync(require.resolve('../js/app.js'), 'utf8');
+// R111: Quick Add moved to js/quick-add-ui.js; the app is read across its files (functionSource finds a function in any).
+const app = appSource();
 const html = fs.readFileSync(require.resolve('../index.html'), 'utf8');
 const css = fs.readFileSync(require.resolve('../css/styles.css'), 'utf8');
 

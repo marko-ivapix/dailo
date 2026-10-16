@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const { withI18n } = require('./support/i18n.js');
+const { functionSource, withApp } = require('./support/source.js');
 const Core = require('../js/core.js');
 const Release = require('../js/release.js');
 
@@ -93,8 +94,6 @@ test('V1.5 and V1.9 Quick Add results are unchanged', () => {
 });
 
 function appContext(modalDraft = {}) {
-  const source = fs.readFileSync(require.resolve('../js/app.js'), 'utf8');
-  const slice = (from, to) => source.slice(source.indexOf(from), source.indexOf(to));
   const today = Core.dateOnly();
   const defaults = { projectId: null, areaId: null, plannedDate: null, explicitPlan: false };
   const state = { tasks: [], tags: [...tags], projects: [...projects], areas: [...areas], settings: {} };
@@ -102,9 +101,10 @@ function appContext(modalDraft = {}) {
     syncQuickDraftFromDom() {}, uid: () => 'task_1', nowIso: () => '2026-10-07T10:00:00.000Z', nextOrder: () => 0,
     saveState() {}, closeModal() {}, render() {}, renderModal() {}, requestAnimationFrame() {}, $() {}, syncTemplateEntityGoalLinks() {}, getProject: id => state.projects.find(project => project.id === id),
     setToastMessage() {} /* R36: where the task went */ };
-  vm.createContext(withI18n(context));
+  vm.createContext(withApp(withI18n(context)));
   // Redesign R4: createTask files the task through quickPlace (picked place, parsed project, Inbox).
-  vm.runInContext(`${slice('  function createTask(', '  function syncQuickDraftFromDom()')}\n${slice('  function parseQuickAddTitle(', '  function nextOrder(')}\n${slice('  function quickPlace(', '  // S7: the "Iz šablona" chip')}`, context);
+  // R111: these moved to js/quick-add-ui.js, read through functionSource (the same functions the slices held).
+  vm.runInContext(['createTask', 'addedMessage', 'parseQuickAddTitle', 'quickPlace'].map(name => functionSource(name).source).join('\n'), context);
   return { context, today };
 }
 
@@ -131,12 +131,11 @@ test('saving applies parsed fields, keeps picker values first, and files a parse
 });
 
 test('the Quick Add preview lists what the title will set and hides when nothing is recognized', () => {
-  const source = fs.readFileSync(require.resolve('../js/app.js'), 'utf8');
-  const slice = (from, to) => source.slice(source.indexOf(from), source.indexOf(to));
   const context = { Core, state: { tags, projects, areas }, esc: value => String(value), getProject: id => projects.find(p => p.id === id), getArea: id => areas.find(a => a.id === id), getTag: id => tags.find(t => t.id === id),
     relativeDateLabel: value => `D:${value}`, priorityLabel: value => `P:${value}`, durationLabel: minutes => `${minutes} min` }; // R30: the preview shows durations through durationLabel
-  vm.createContext(withI18n(context));
-  vm.runInContext(`${slice('  function parseQuickAddTitle(', '  function nextOrder(')}\n${slice('  function quickParsePreview(', '  function renderQuickModal(')}`, context);
+  vm.createContext(withApp(withI18n(context)));
+  // R111: these moved to js/quick-add-ui.js, read through functionSource.
+  vm.runInContext(['parseQuickAddTitle', 'quickParsePreview'].map(name => functionSource(name).source).join('\n'), context);
   const html = vm.runInContext("quickParsePreview(parseQuickAddTitle('Ponuda +Klijenti @Zdravlje #posao !visok rok petak 45min sutra u 9:30'))", context);
   assert.match(html, /^<div class="quick-parse-preview" data-quick-preview role="group" aria-label="Recognized in title">/);
   for (const part of ['ph-calendar-check', 'D:', '09:30', 'ph-hourglass-medium', 'Due D:', 'ph-timer', '45 min', 'ph-folder-simple', 'Klijenti', 'ph-hash', 'posao', 'ph-flag', 'P:high'] /* R33: hourglass = due, flag = priority */) assert.ok(html.includes(part), part);

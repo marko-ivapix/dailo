@@ -11,9 +11,10 @@ const Release = require('../js/release.js');
 const I18n = require('../js/i18n.js');
 const { withI18n } = require('./support/i18n.js');
 
-const { functionSource } = require('./support/source.js');
+const { appSource, functionSource } = require('./support/source.js');
 const read = file => fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
-const app = read('js/app.js');
+// R111: Quick Add moved to js/quick-add-ui.js; the app is read across its files (functionSource finds a function in any).
+const app = appSource();
 const sr = read('js/i18n-sr.js');
 const css = read('css/styles.css');
 // R110: the drag code moved to js/drag-ui.js; functionSource finds a function in any file (the same slice as before).

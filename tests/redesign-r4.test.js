@@ -8,12 +8,15 @@ const vm = require('node:vm');
 const Core = require('../js/core.js');
 const Release = require('../js/release.js');
 const { withI18n } = require('./support/i18n.js');
+const { appSource, functionSource, withApp } = require('./support/source.js');
 
 const read = file => fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
-const app = read('js/app.js');
+// R111: Quick Add moved to js/quick-add-ui.js; the app is read across its files and the sheet reads the sandbox's
+// state and window through `app`.
+const app = appSource();
 const sr = read('js/i18n-sr.js');
 const css = read('css/styles.css');
-const fn = name => { const start = app.search(new RegExp(`\\n  (async )?function ${name}\\(`)) + 1; assert.ok(start > 0, name); return app.slice(start, app.indexOf('\n  }\n', start) + 4); };
+const fn = name => functionSource(name).source;
 const constLine = name => app.match(new RegExp(`  const ${name} = [^\\n]+\\n`))[0];
 const TODAY = Core.dateOnly();
 const day = offset => Core.addDays(TODAY, offset);
@@ -42,7 +45,7 @@ function quickContext(draft = {}, extra = {}) {
     ...extra,
   };
   ctx.SpeechRecognitionImpl = null; // R53: no speech recognition here, so the plain title field
-  vm.createContext(withI18n(ctx));
+  vm.createContext(withApp(withI18n(ctx)));
   // R90: the sheet also draws the #/+/@ suggestions.
   vm.runInContext(`${constLine('QUICK_TEMPLATE_FIELDS')}${['parseQuickAddTitle', 'quickParsePreview', 'quickSuggestHtml', 'renderQuickModal', 'quickPlanLabel', 'quickPlace', 'quickTemplateRow', 'quickTemplateSummary', 'openQuickTemplatePicker', 'applyQuickTemplate', 'clearQuickTemplate', 'syncQuickDraftFromDom', 'createTask', 'projectPickerGroups', 'openProjectPicker', 'setProject'].map(fn).join('')}`, ctx);
   return ctx;
@@ -93,7 +96,8 @@ test('"Gde ide zadatak" adds Inbox and Bez projekta above the projects', () => {
   ctx.setProject('quick', '', 'p1');
   assert.equal(ctx.modalState.draft.placePicked, true);
   assert.equal(ctx.modalState.draft.projectId, 'p1');
-  assert.match(app, /else if \(action === 'quick-place' && modalState\?\.type === 'quick'\) \{ const inbox = button\.dataset\.place === 'inbox'; Object\.assign\(modalState\.draft, \{ projectId: null, processed: !inbox, placePicked: true \}\); closePopover\(\); renderModal\(\); \}/);
+  // R111: the place sheet's answer is the Quick Add module's, reading the window through the context.
+  assert.match(app, /if \(action === 'quick-place' && app\.modalState\?\.type === 'quick'\) \{ const inbox = button\.dataset\.place === 'inbox'; Object\.assign\(app\.modalState\.draft, \{ projectId: null, processed: !inbox, placePicked: true \}\); closePopover\(\); renderModal\(\); return true; \}/);
 });
 
 test('createTask files a "Bez projekta" task outside Inbox and an Inbox task in Inbox', () => {
@@ -142,7 +146,8 @@ test('S7: a template fills what is missing; a typed title, a picked date and a p
   assert.ok(typed.calls.some(call => call[0] === 'goalLinks'), 'template goal links are kept');
   // R10d moved the Templates screen's "Upotrebi" into useTemplate(); a task template still fills Quick Add.
   assert.match(app, /action==='use-template'\)useTemplate\(el\.dataset\.templateId\);/);
-  assert.match(app, /if \(template\.type === 'task'\) \{ openQuickAdd\(\); applyQuickTemplate\(template\.id\); renderModal\(\); return; \}/);
+  // R111: the template is filled in by the Quick Add module.
+  assert.match(app, /if \(template\.type === 'task'\) \{ openQuickAdd\(\); quickAddAction\('quick-template-apply', \{ templateId: template\.id \}\); renderModal\(\); return; \}/);
 });
 
 test('the template sheet lists task templates with their summary', () => {
@@ -167,7 +172,8 @@ test('"Više opcija" saves the task and opens its task window', () => {
 
 test('typing updates the date and place labels without redrawing the field', () => {
   assert.match(app, /const planLabel = document\.querySelector\('\[data-quick-plan-label\]'\); if \(planLabel\) planLabel\.textContent = quickPlanLabel\(/);
-  assert.match(app, /const placeLabel = document\.querySelector\('\[data-quick-place-label\]'\); if \(placeLabel\) placeLabel\.textContent = quickPlace\(modalState\.draft, parsed\)\.label;/);
+  // R111: the typing is the Quick Add module's, reading the window through the context.
+  assert.match(app, /const placeLabel = document\.querySelector\('\[data-quick-place-label\]'\); if \(placeLabel\) placeLabel\.textContent = quickPlace\(app\.modalState\.draft, parsed\)\.label;/);
 });
 
 test('R4 shipped as 2.0.0-alpha.9 or later (the newest release test pins the exact version)', () => {

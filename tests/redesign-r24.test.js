@@ -7,13 +7,15 @@ const path = require('node:path');
 const vm = require('node:vm');
 const Core = require('../js/core.js');
 const Release = require('../js/release.js');
+const { appSource, functionSource } = require('./support/source.js');
 const Platform = require('../js/platform.js');
 const { withI18n } = require('./support/i18n.js');
 
 const read = file => fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
 const exists = file => fs.existsSync(path.join(__dirname, '..', file));
-const app = read('js/app.js');
-const fn = name => { const start = app.search(new RegExp(`\\n  (async )?function ${name}\\(`)) + 1; assert.ok(start > 0, name); return app.slice(start, app.indexOf('\n  }\n', start) + 4); };
+// R111: Quick Add moved to js/quick-add-ui.js; the app is read across its files (functionSource finds a function in any).
+const app = appSource();
+const fn = name => functionSource(name).source;
 
 test('C: shared text becomes a Quick Add draft — the subject or first line as the title, the rest and the link as notes', () => {
   assert.deepEqual(Core.sharedTextDraft({ subject: 'Kako uštedeti struju', text: 'https://example.com/clanak' }), { title: 'Kako uštedeti struju', notes: 'https://example.com/clanak' });
@@ -84,7 +86,8 @@ test('B, C: the phone app hears links through the App plugin; the web reads its 
 
 test('C: Quick Add shows the shared link that will be saved with the task', () => {
   assert.match(app, /notes: context\.notes \|\| '',/);
-  assert.match(app, /\$\{modalState\.draft\.notes \? `<p class="quick-shared-note"><i class="ph ph-link" aria-hidden="true"><\/i><span>\$\{esc\(modalState\.draft\.notes\)\}<\/span><\/p>` : ''\}/);
+  // R111: the sheet reads its window through the context.
+  assert.match(app, /\$\{app\.modalState\.draft\.notes \? `<p class="quick-shared-note"><i class="ph ph-link" aria-hidden="true"><\/i><span>\$\{esc\(app\.modalState\.draft\.notes\)\}<\/span><\/p>` : ''\}/);
   assert.match(read('css/styles.css'), /\.quick-shared-note \{/);
 });
 

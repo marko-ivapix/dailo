@@ -102,7 +102,7 @@ function gestureHarness() {
   // R91: blockTouchScroll and the long-press menu also know the calendar's touch drag (calendarTouch).
   vm.runInContext(`let taskSwipeState = null; let suppressTaskSwipeClick = false; let touchReorder = null; let calendarTouch = null;\n${constLine('REORDER_ROWS')}\n${constLine('dropGroup')}\n${fns.map(name => functionSource(name).source).join('\n')}\nthis.swiping = () => Boolean(taskSwipeState?.swiping);`, ctx);
   const event = (type, row, x, y) => ({ type, pointerType: 'touch', isPrimary: true, button: 0, pointerId: 1, clientX: x, clientY: y, target: { closest: selector => (/button|input/.test(selector) ? null : row) }, preventDefault() { calls.push(['prevent', type]); } });
-  // The page listens in this order (attachEvents): swipe first, then the touch reorder.
+  // The page listens in this order (js/drag-ui.js attach(), R110): swipe first, then the touch reorder.
   const down = (row, x, y) => { ctx.handleTaskSwipeStart(event('pointerdown', row, x, y)); ctx.handleTouchReorderStart(event('pointerdown', row, x, y)); };
   const move = (row, x, y) => { ctx.handleTaskSwipeMove(event('pointermove', row, x, y)); ctx.handleTouchReorderMove(event('pointermove', row, x, y)); };
   const up = (row, x, y) => { ctx.finishTaskSwipe(event('pointerup', row, x, y)); ctx.finishTouchReorder(event('pointerup', row, x, y)); };

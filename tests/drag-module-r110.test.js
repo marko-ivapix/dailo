@@ -13,7 +13,7 @@ const vm = require('node:vm');
 const Core = require('../js/core.js');
 const Release = require('../js/release.js');
 const { withI18n } = require('./support/i18n.js');
-const { APP_FILES, functionSource } = require('./support/source.js');
+const { APP_FILES, functionSource, contextKeys } = require('./support/source.js');
 
 const read = file => fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
 const fn = name => functionSource(name).source;
@@ -93,8 +93,9 @@ test('the module registers as "drag", wires the same listeners in the same order
   assert.ok(attach.includes(LISTENERS.map(line => `    ${line}`).join('\n')), 'the listeners, unchanged and in order');
   // Everything the module takes from the context is there.
   const taken = attach.match(/\(\{ ([^}]+) \} = ctx\);/)[1].split(', ');
-  const context = fn('domainContext');
-  for (const name of taken) assert.match(context, new RegExp(`[\\s,{]${name.replace(/\$/g, '\\$')}[,(\\s]`), `domainContext gives ${name}`);
+  // R111: checked against the context's own keys (the R110 review), not any mention in its source.
+  const keys = contextKeys();
+  for (const name of taken) assert.ok(keys.has(name), `domainContext gives ${name}`);
   assert.match(app, /\n      \/\/ R110: what js\/drag-ui\.js needs\.\n      haptic, toggleComplete, reorderTasks, reorderSubtasks, dropGroup, receiveAttachmentFiles, addTaskToToday, moveTaskToTomorrow, quickAddDirect, setMobileQuickAddOpen, routeQuickAddContext, callDomainHook,\n/);
 
   const { adapter, listeners, timers } = loadModule();
@@ -131,19 +132,18 @@ test('app.js keeps the glue: attachEvents lets each module attach, and a pull wa
 });
 
 test('the module loads before app.js, is precached, and the tests read it as part of the app', () => {
-  assert.match(read('index.html'), /<script src="js\/palette-ui\.js"><\/script>\n  <script src="js\/drag-ui\.js"><\/script>\n  <script src="js\/app\.js"><\/script>/);
-  assert.match(read('sw.js'), /'js\/palette-ui\.js',\n  'js\/drag-ui\.js',\n  'js\/app\.js',/);
-  assert.deepEqual(APP_FILES, ['js/sidebar-ui.js', 'js/drag-ui.js', 'js/app.js']);
+  // R111: js/quick-add-ui.js comes next, still before app.js.
+  const html = read('index.html');
+  assert.match(html, /<script src="js\/palette-ui\.js"><\/script>\n  <script src="js\/drag-ui\.js"><\/script>\n/);
+  assert.ok(html.indexOf('src="js/drag-ui.js"') < html.indexOf('src="js/app.js"'));
+  assert.match(read('sw.js'), /'js\/palette-ui\.js',\n  'js\/drag-ui\.js',\n/);
+  assert.ok(APP_FILES.indexOf('js/drag-ui.js') === 1 && APP_FILES.at(-1) === 'js/app.js', APP_FILES.join());
   const plan = read('docs/superpowers/plans/2026-10-12-app-js-modules.md');
   assert.match(plan, /\| R110 \| [^\n]+ \| `js\/drag-ui\.js` \| `2\.0\.0-alpha\.139` \|/);
   assert.ok(plan.includes('`attach(ctx)`') && plan.includes('`isDragging`'));
 });
 
-test('R110 is released as 2.0.0-alpha.139', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.139');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.139';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.139');
-  const lock = JSON.parse(read('package-lock.json'));
-  assert.deepEqual([lock.version, lock.packages[''].version], ['2.0.0-alpha.139', '2.0.0-alpha.139']);
-  assert.ok(read('novo.html').includes('2.0.0-alpha.139'), 'Šta je novo names the version');
+test('R110 shipped as 2.0.0-alpha.139 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 139) >= 139);
 });

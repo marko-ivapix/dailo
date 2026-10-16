@@ -8,6 +8,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 const Core = require('../js/core.js');
 const Release = require('../js/release.js');
+const { functionSource } = require('./support/source.js');
 const { I18n, withI18n, runInNewContextWithI18n } = require('./support/i18n.js');
 
 const read = file => fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
@@ -15,7 +16,8 @@ const app = read('js/app.js');
 const calendar = read('js/calendar-ui.js');
 const css = read('css/styles.css');
 const sr = read('js/i18n-sr.js');
-const fn = name => { const start = app.search(new RegExp(`\\n  (async )?function ${name}\\(`)) + 1; assert.ok(start > 0, name); return app.slice(start, app.indexOf('\n  }\n', start) + 4); };
+// R111: Quick Add moved to js/quick-add-ui.js; the app is read across its files (functionSource finds a function in any).
+const fn = name => functionSource(name).source;
 const TODAY = Core.dateOnly();
 const DAY = '2026-10-14'; // a Wednesday; its Monday week is 12–18 October
 const esc = value => String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
