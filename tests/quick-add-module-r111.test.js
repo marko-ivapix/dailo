@@ -81,7 +81,9 @@ test('app.js keeps the glue: openQuickAdd, the dictation stop, the template and 
 test('the module registers as "quick-add" and takes only what the context gives', () => {
   const module = read('js/quick-add-ui.js');
   assert.match(module, /window\.TodoDomainModules\?\.register\(\{\n    name: 'quick-add',\n    attach,\n    renderRoute,\n    handleAction,\n    handleInput,\n  \}\);/);
-  const taken = fn('use').match(/\(\{ ([^}]+) \} = ctx\);/)[1].split(', ');
+  // R112: js/account-ui.js has a use() too and sorts first, so the lookup names the file.
+  const taken = functionSource('use', ['js/quick-add-ui.js']).source.match(/\(\{ ([^}]+) \} = ctx\);/)[1].split(', ');
+  assert.ok(taken.includes('openProjectPicker') && taken.length > 25, 'Quick Add\'s own helpers');
   const keys = contextKeys();
   for (const name of taken) assert.ok(keys.has(name), `domainContext gives ${name}`);
   // The live state and window are read through the context, never kept.

@@ -84,3 +84,10 @@ Nothing changes for the user. The code moves:
   - "Odjavi se";
   - Google or Apple once they are turned on;
   - an e-mail link's message.
+
+## Review
+
+- **Finding:** a read-only review of `cbdd2df` found no behavior difference, but one test that now checks less.
+  - R111's check that Quick Add takes only what the context gives looked up `use()` with no file. Since R112, `js/account-ui.js` has a `use()` too and sorts first, so the check read the account module's 13 helpers instead of Quick Add's 30.
+- **Fix:** a follow-up test commit (no new version) pins the lookup to its file in both tests, and checks that each list is that module's own.
+- **Optional, not changed:** `welcome-open` reads `event.mode` without `?.`. Its only caller passes a payload.

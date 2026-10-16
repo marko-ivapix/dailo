@@ -50,7 +50,9 @@ test('app.js asks the module by name', () => {
 test('the module registers as "account", takes only what the context gives and reads the live state through it', () => {
   const module = read('js/account-ui.js');
   assert.match(module, /window\.TodoDomainModules\?\.register\(\{\n    name: 'account',\n    handleAction,\n  \}\);/);
-  const taken = fn('use').match(/\(\{ ([^}]+) \} = ctx\);/)[1].split(', ');
+  // Several modules have a use(); the lookup names this one (the R112 review).
+  const taken = functionSource('use', ['js/account-ui.js']).source.match(/\(\{ ([^}]+) \} = ctx\);/)[1].split(', ');
+  assert.ok(taken.includes('completeSignIn'), 'the account module\'s own helpers');
   const keys = contextKeys();
   for (const name of taken) assert.ok(keys.has(name), `domainContext gives ${name}`);
   const code = module.replace(/\/\/[^\n]*/g, '');
