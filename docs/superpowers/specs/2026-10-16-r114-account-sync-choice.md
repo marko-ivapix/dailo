@@ -2,7 +2,7 @@
 
 **Date:** 2026-10-16 · **Release:** `2.0.0-alpha.144` · No data-model change. · **Plan:** `docs/superpowers/plans/2026-10-12-app-js-modules.md` (part 3, step 3c).
 
-**Status:** the user's request. After R113 the user said: "kreni sa 3c". The step was narrowed while it was measured (below); the user is told in the report and has not answered yet.
+**Status:** the user's request. After R113 the user said: "kreni sa 3c". The step was narrowed while it was measured (below). Told of this in the report, the user agreed: "slažem se, ostavi sinhronizaciju u app.js".
 
 ## The change
 
@@ -26,7 +26,7 @@ Nothing changes for the user. The code moves:
 
 ## Why the sync itself stays in `app.js`
 
-The plan had 3c take the sync itself as well. Measuring it showed why it should stay, so this step moves only the account's side; if the user wants the sync moved anyway, that is a separate step:
+The plan had 3c take the sync itself as well. Measuring it showed why it should stay, so this step moves only the account's side, and the user agreed ("slažem se, ostavi sinhronizaciju u app.js"):
 
 - `applySyncResult` replaces the app's state and the archived tasks (R103). Moving it would hand a module the state itself, through a `setState` and a `setArchivedTasks`, which no module has.
 - `scheduleSync` runs on every save, so every save would go through a module call.
@@ -65,5 +65,5 @@ The plan records 3c as done in R114 and says why the sync stays.
 ## Review
 
 - **Result:** a read-only review of `b2c1bef` found no behavior difference. It found no missed live name and no module that answers these actions or this window first. The helpers taken once are constants or a function declaration. `TodoStorage` loads before the module.
-- **Records:** `CLAUDE.md` and `CONTINUATION.md` made the narrowing read as settled. They now say that the user has not answered yet. A missing comma in `PROJECT_MAP.md` is fixed.
+- **Records:** `CLAUDE.md` and `CONTINUATION.md` made the narrowing read as settled. They then said that the user had not answered yet; the user's answer came afterwards ("slažem se, ostavi sinhronizaciju u app.js") and is recorded there. A missing comma in `PROJECT_MAP.md` is fixed.
 - **Noted for the next step:** the commit title lacked the version (`… (2.0.0-alpha.144)`), as the `release-step` skill asks. History is not rewritten.

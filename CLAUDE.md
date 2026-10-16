@@ -144,7 +144,8 @@ python3 -m http.server 8080
     - R110: `js/drag-ui.js`;
     - R111 and R111b: `js/quick-add-ui.js`;
     - R112–R114: `js/account-ui.js`, the welcome screen, the account windows, signing out, deleting the account and the first-sync choice.
-  - R114 narrowed step 3c: the sync itself stays in `app.js` (it replaces the state and the archive and runs on every save; the plan says why). The user was asked for "kreni sa 3c", where the plan's 3c was the sync itself; the narrowing is in the report, and the user has not answered yet. Moving the sync anyway would be a step of its own.
+  - R114 narrowed step 3c: the sync itself stays in `app.js` (it replaces the state and the archive and runs on every save; the plan says why). The user had asked for "kreni sa 3c", where the plan's 3c was the sync itself; told of the narrowing, the user agreed on 2026-10-16 ("slažem se, ostavi sinhronizaciju u app.js").
+  - Next: a pull request into `main` when the user asks.
 - **Sync:** `js/sync-config.js` holds the user's project `https://qjfpnvjuqbrmdkjxxmsq.supabase.co` and its publishable key (`docs/v2/podesavanje-supabase.md`).
   - **Checked on 2026-10-13 with the publishable key (read-only):**
     - the tables of 0001 exist, and 0005 and 0006 were run;

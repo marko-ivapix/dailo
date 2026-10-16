@@ -13,7 +13,7 @@
   - R112–R114 `js/account-ui.js` (the welcome screen, the account windows, signing out, deleting the account and the first-sync choice).
 
 **Manual:** what the user has reported and what is still open is in `CLAUDE.md` → "Current state" (beta checklist B6–B52, phone and iPhone checks, two devices).\
-**Next:** R114 narrowed step 3c of `docs/superpowers/plans/2026-10-12-app-js-modules.md` and left the sync itself in `app.js` (the plan says why). The user has not answered yet whether that stays; if the sync should move anyway, that is a step of its own. Then a pull request into `main` when the user asks.
+**Next:** R114 narrowed step 3c of `docs/superpowers/plans/2026-10-12-app-js-modules.md` and left the sync itself in `app.js` (the plan says why). The user agreed on 2026-10-16 ("slažem se, ostavi sinhronizaciju u app.js"), so part 3 is done. Next: a pull request into `main` when the user asks.
 
 **From here down** this file is the `2.0.0-alpha.3` handoff of 2026-10-09, kept for its baseline and protocol. Newer steps are in `docs/superpowers/progress-redesign.md`.
 
