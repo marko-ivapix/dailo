@@ -39,10 +39,7 @@ test('the Android app hands the inset to the page', () => {
   assert.ok(read('novo.html').includes('Dugme na dnu prozora više nije ispod sistemskih dugmadi'));
 });
 
-test('R108 is released as 2.0.0-alpha.137', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.137');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.137';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.137');
-  const lock = JSON.parse(read('package-lock.json'));
-  assert.deepEqual([lock.version, lock.packages[''].version], ['2.0.0-alpha.137', '2.0.0-alpha.137']);
+test('R108 shipped as 2.0.0-alpha.137 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 137) >= 137);
 });

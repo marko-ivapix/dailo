@@ -121,12 +121,12 @@
   }
 
   // R9c–R10d (K12): on Ciljevi, Beleške, Resursi, Oznake, Šabloni and Sačuvani prikazi the floating "+" adds what belongs
-  // there and its label says what;
+  // there and its label says what (R109: on Projekti too, a new project);
   // elsewhere it opens the menu.
-  const QUICK_ADD_DIRECT = Object.freeze({ '#goals': [msg('New goal'), () => openGoalModal()], '#habits': [msg('New habit'), () => openHabitModal()], '#areas': [msg('New area'), () => callDomainHook('handleAction', 'new-area', { target: $('#mobile-quick-add-toggle') })], '#notes': [msg('New note'), () => openKnowledgeWindow('note')], '#resources': [msg('New resource'), () => openKnowledgeWindow('resource')], '#tags': [msg('New tag'), () => openTagModal()], '#templates': [msg('New template'), () => callDomainHook('handleAction', 'new-template', { target: $('#mobile-quick-add-toggle') })], '#saved-views': [msg('New saved view'), () => callDomainHook('handleAction', 'new-saved-view', { target: $('#mobile-quick-add-toggle') })], '#cleaning': [msg('New recurring task'), () => callDomainHook('handleAction', 'new-cleaning-chore', { target: $('#mobile-quick-add-toggle') })], '#journal': [msg('Today’s entry'), () => callDomainHook('handleAction', 'open-journal', { target: $('#mobile-quick-add-toggle') })] });
+  const QUICK_ADD_DIRECT = Object.freeze({ '#goals': [msg('New goal'), () => openGoalModal()], '#habits': [msg('New habit'), () => openHabitModal()], '#areas': [msg('New area'), () => callDomainHook('handleAction', 'new-area', { target: $('#mobile-quick-add-toggle') })], '#notes': [msg('New note'), () => openKnowledgeWindow('note')], '#resources': [msg('New resource'), () => openKnowledgeWindow('resource')], '#tags': [msg('New tag'), () => openTagModal()], '#templates': [msg('New template'), () => callDomainHook('handleAction', 'new-template', { target: $('#mobile-quick-add-toggle') })], '#saved-views': [msg('New saved view'), () => callDomainHook('handleAction', 'new-saved-view', { target: $('#mobile-quick-add-toggle') })], '#cleaning': [msg('New recurring task'), () => callDomainHook('handleAction', 'new-cleaning-chore', { target: $('#mobile-quick-add-toggle') })], '#journal': [msg('Today’s entry'), () => callDomainHook('handleAction', 'open-journal', { target: $('#mobile-quick-add-toggle') })], '#projects': [msg('New project'), () => openProjectModal()] });
   // R59: on the task screens the "+" opens a new task there at once (Danas plans it for today, a project, an area or a
   // tag files it there, Kalendar plans it for the shown day); the menu stays where no type belongs (Još, Podešavanja…).
-  const TASK_SCREENS = new Set(['today', 'inbox', 'tasks', 'calendar', 'upcoming', 'anytime', 'projects', 'project', 'area', 'tag']);
+  const TASK_SCREENS = new Set(['today', 'inbox', 'tasks', 'calendar', 'upcoming', 'anytime', 'project', 'area', 'tag']);
   const NEW_TASK_HERE = Object.freeze([msg('New task'), () => { const context = routeQuickAddContext(); if (context) openQuickAdd(context); else setToastMessage(tr('Restore the project to add tasks.')); }]);
   // R47a (K12): on a wide screen the "+" never opens the menu: where nothing else belongs it adds a task.
   const DESKTOP_NEW_TASK = Object.freeze([msg('New task'), () => openQuickAdd({})]);
@@ -1020,8 +1020,6 @@
   }
   function render() {
     const focused = focusDescriptor(document.activeElement);
-    // R22c: the old #projects address opens Zadaci → Projekti.
-    if (location.hash === '#projects' && state?.ui) { state.ui.tasksView = 'projects'; history.replaceState(null, '', '#tasks'); }
     const route = location.hash || '#today';
     trackScreen(route);
     renderView();
@@ -1053,7 +1051,8 @@
   }
 
   // Redesign R1 (G1, M4): six bottom items; every other route lights up the item it lives under.
-  const BOTTOM_NAV_PARENT = { anytime: 'tasks', projects: 'tasks', project: 'tasks', upcoming: 'calendar', habit: 'habits' };
+  // R109: Projekti and a project's screen live under Još, as Ciljevi and Oblasti do.
+  const BOTTOM_NAV_PARENT = { anytime: 'tasks', upcoming: 'calendar', habit: 'habits' };
   function bottomNavRoute(route) {
     if (['today', 'inbox', 'tasks', 'calendar', 'habits', 'more'].includes(route.type)) return route.type;
     return BOTTOM_NAV_PARENT[route.type] || 'more';
@@ -1091,7 +1090,8 @@
     return '';
   }
 
-  const LIBRARY_ROUTES = ['settings', 'account', 'goals', 'areas', 'notes', 'resources', 'tags', 'templates', 'saved-views', 'cleaning', 'review', 'journal', 'completed', 'archived'];
+  // R109: Projekti sit under Još like Ciljevi and Oblasti.
+  const LIBRARY_ROUTES = ['settings', 'account', 'goals', 'projects', 'areas', 'notes', 'resources', 'tags', 'templates', 'saved-views', 'cleaning', 'review', 'journal', 'completed', 'archived'];
   function renderMain() {
     // R34 (finding 19): the density is a desktop choice; CSS applies it from 1024 px on, so phones keep their sizes.
     document.documentElement.dataset.density = state.settings.compactDensity === false ? 'comfortable' : 'compact';
@@ -1105,6 +1105,7 @@
       if (route.type === 'today') content = renderToday();
       else if (route.type === 'more') content = renderMoreScreen();
       else if (route.type === 'tasks') content = renderTasksScreen();
+      else if (route.type === 'projects') content = renderProjectsScreen();
       else if (route.type === 'inbox') content = renderInbox();
       else if (route.type === 'anytime') content = renderAnytime();
       else if (route.type === 'tags') content = renderTags();
@@ -1472,7 +1473,7 @@
     let html = pageHeader(tr('More'), '', { add: false });
     html += backupReminderNotice();
     if (pinned.length) html += card(tr('Pinned'), pinned);
-    // R72: Planiranje is Ciljevi, Projekti (Zadaci → Projekti), Redovne obaveze and Oblasti; Nedeljni pregled moved to
+    // R72: Planiranje is Ciljevi, Projekti (R109: a screen of its own), Redovne obaveze and Oblasti; Nedeljni pregled moved to
     // Biblioteka in the place of Šabloni, which left the menu ("Sačuvaj kao šablon" and "Iz šablona" stay).
     html += card(tr('Planning'), [
       moreRow('goals', 'ph-target', tr('Goals'), count((state.goals || []).filter(goal => goal.status === 'active'))),
@@ -1517,21 +1518,17 @@
     return `<button class="project-row" type="button" data-route="project/${esc(project.id)}"><span class="project-dot" style="--project-color:${esc(project.color)}" aria-hidden="true"></span><span class="project-row-main"><span class="task-title">${esc(project.name)}</span><span class="task-meta">${esc(trn(open.length, '{count} open', '{count} open'))}${next ? ` · ${todayDueLabel(next.dueDate)}` : ''}</span>${line}<span class="project-row-bar" aria-hidden="true"><i style="width:${percent}%;background:${esc(project.color)}"></i></span></span></button>`;
   }
 
-  // Redesign R1 + R5 (Z1–Z6): the summary, the suggestions, and "Kad stignem" by project or the projects by area.
+  // Redesign R1 + R5 (Z1–Z6): the summary, the suggestions, and "Kad stignem" by project. R109: the projects left for
+  // a screen of their own (renderProjectsScreen), as Ciljevi and Oblasti have.
   function renderTasksScreen() {
-    const view = state.ui.tasksView === 'projects' ? 'projects' : 'anytime';
     const tasks = listTasks();
-    // R11d (S4): groups of Redovne obaveze stay out of Zadaci → Projekti.
-    const projects = sortedProjects().filter(project => !project.isCleaningRoom);
     // R33 (finding 36): Kad stignem keeps the order set in each project (then the oldest first).
     const byProjectOrder = (a, b) => clampOrder(a.projectOrder) - clampOrder(b.projectOrder) || String(a.createdAt || '').localeCompare(String(b.createdAt || ''));
     // R94: the undated tasks of projects on hold or for someday wait there.
     const later = Core.deriveAnytime(tasks, state.projects).sort(byProjectOrder);
     const open = tasks.filter(task => !task.isCompleted && !task.isInbox).length;
-    const summary = `${trn(open, '{count} open task', '{count} open tasks')} · ${trn(projects.length, '{count} project', '{count} projects')}`;
-    const tab = (key, label) => `<button class="btn ${view === key ? 'is-selected' : ''}" type="button" data-action="tasks-view" data-view="${key}" aria-pressed="${view === key}">${label}</button>`;
     const group = (label, count, rows, color = '') => `<section class="section tasks-group"><div class="section-header"><h2 class="section-label tasks-group-label">${color ? `<span class="project-dot" style="--project-color:${esc(color)}" aria-hidden="true"></span>` : ''}${esc(label)}</h2><span class="section-count">${count}</span></div>${rows}</section>`;
-    let html = pageHeader(tr('Tasks'), summary, { add: false });
+    let html = pageHeader(tr('Tasks'), trn(open, '{count} open task', '{count} open tasks'), { add: false });
     // Redesign R2 (T2a, Z2): the suggestions that left Today, folded, with "+ Danas" per row.
     const suggestions = Core.deriveTodaySections(tasks, Core.dateOnly()).suggestions;
     if (suggestions.length) {
@@ -1539,28 +1536,6 @@
       html += `<section class="tasks-suggestions" data-tasks-suggestions>${foldButton('toggle-suggestions', tr('Suggested for today'), suggestions.length, open)}`;
       if (open) html += `<div class="task-list today-card">${suggestions.map(item => taskRow(item.task, 'suggestion', { today: true, addToday: true, suggestionReason: item.reason })).join('')}</div>${suggestions.some(item => !taskRecurrence(item.task)) ? `<button class="btn btn-ghost" type="button" data-action="add-all-suggestions"><i class="ph ph-plus-circle"></i> ${tr('Add all to Today')}</button>` : ''}`;
       html += `</section>`;
-    }
-    html += `<div class="view-tabs tasks-view-switch" role="group" aria-label="${tr('Tasks')}">${tab('anytime', `${tr('Anytime')} · ${later.length}`)}${tab('projects', tr('Projects'))}</div>`;
-    if (view === 'projects') {
-      const loose = tasks.filter(task => !task.projectId && !task.isInbox && !task.isCompleted).length;
-      html += `<div class="today-card project-list"><button class="project-row" type="button" data-route="project/none"><i class="ph ph-circle-dashed project-row-icon" aria-hidden="true"></i><span class="project-row-main"><span class="task-title">${tr('No project')}</span><span class="task-meta">${esc(trn(loose, '{count} open', '{count} open'))}</span></span></button></div>`;
-      // R94: the active projects by area; those on hold and for someday fold below them.
-      const active = projects.filter(project => Core.projectStatus(project) === 'active');
-      const areas = sortedAreas().filter(area => area.status !== 'archived');
-      for (const area of areas) {
-        const list = active.filter(project => project.areaId === area.id);
-        if (list.length) html += group(area.name, list.length, `<div class="today-card project-list">${list.map(project => projectOverviewRow(project, tasks)).join('')}</div>`);
-      }
-      const unassigned = active.filter(project => !areas.some(area => area.id === project.areaId));
-      if (unassigned.length) html += group(tr('No area'), unassigned.length, `<div class="today-card project-list">${unassigned.map(project => projectOverviewRow(project, tasks)).join('')}</div>`);
-      for (const [status, label, key] of [['onHold', tr('On hold'), 'projectsOnHoldOpen'], ['someday', tr('Someday'), 'projectsSomedayOpen']]) {
-        const list = projects.filter(project => Core.projectStatus(project) === status);
-        if (!list.length) continue;
-        const open = state.ui[key] === true;
-        html += `<section class="section">${foldButton('toggle-projects-resting', label, list.length, open, ` data-fold="${key}"`)}${open ? `<div class="today-card project-list">${list.map(project => projectOverviewRow(project, tasks)).join('')}</div>` : ''}</section>`;
-      }
-      html += `<button class="inline-add" type="button" data-action="new-project"><i class="ph ph-plus"></i> ${tr('New project')}</button>`;
-      return html;
     }
     html += `<p class="tasks-note">${tr('Sorted tasks without a planned day, by project.')}</p>`;
     // R94: say how many wait in projects on hold or for someday, so nothing seems lost.
@@ -1577,6 +1552,35 @@
     }
     html += restingNote;
     html += `<button class="inline-add" type="button" data-action="quick-add" data-anytime="true"><i class="ph ph-plus"></i> ${tr('Add task')}</button>`;
+    return html;
+  }
+
+  // R109: Projekti, a screen of their own under Još → Planiranje, as Ciljevi and Oblasti: "Bez projekta", the active
+  // projects by area (R94), then those on hold and for someday folded, and "+ Novi projekat".
+  function renderProjectsScreen() {
+    const tasks = listTasks();
+    // R11d (S4): groups of Redovne obaveze stay out of Projekti.
+    const projects = sortedProjects().filter(project => !project.isCleaningRoom);
+    const group = (label, count, rows) => `<section class="section tasks-group"><div class="section-header"><h2 class="section-label tasks-group-label">${esc(label)}</h2><span class="section-count">${count}</span></div>${rows}</section>`;
+    let html = pageHeader(tr('Projects'), trn(projects.length, '{count} project', '{count} projects'), { add: false });
+    const loose = tasks.filter(task => !task.projectId && !task.isInbox && !task.isCompleted).length;
+    html += `<div class="today-card project-list"><button class="project-row" type="button" data-route="project/none"><i class="ph ph-circle-dashed project-row-icon" aria-hidden="true"></i><span class="project-row-main"><span class="task-title">${tr('No project')}</span><span class="task-meta">${esc(trn(loose, '{count} open', '{count} open'))}</span></span></button></div>`;
+    // R94: the active projects by area; those on hold and for someday fold below them.
+    const active = projects.filter(project => Core.projectStatus(project) === 'active');
+    const areas = sortedAreas().filter(area => area.status !== 'archived');
+    for (const area of areas) {
+      const list = active.filter(project => project.areaId === area.id);
+      if (list.length) html += group(area.name, list.length, `<div class="today-card project-list">${list.map(project => projectOverviewRow(project, tasks)).join('')}</div>`);
+    }
+    const unassigned = active.filter(project => !areas.some(area => area.id === project.areaId));
+    if (unassigned.length) html += group(tr('No area'), unassigned.length, `<div class="today-card project-list">${unassigned.map(project => projectOverviewRow(project, tasks)).join('')}</div>`);
+    for (const [status, label, key] of [['onHold', tr('On hold'), 'projectsOnHoldOpen'], ['someday', tr('Someday'), 'projectsSomedayOpen']]) {
+      const list = projects.filter(project => Core.projectStatus(project) === status);
+      if (!list.length) continue;
+      const open = state.ui[key] === true;
+      html += `<section class="section">${foldButton('toggle-projects-resting', label, list.length, open, ` data-fold="${key}"`)}${open ? `<div class="today-card project-list">${list.map(project => projectOverviewRow(project, tasks)).join('')}</div>` : ''}</section>`;
+    }
+    html += `<button class="inline-add" type="button" data-action="new-project"><i class="ph ph-plus"></i> ${tr('New project')}</button>`;
     return html;
   }
 
@@ -6524,7 +6528,7 @@
     if (route.type === 'tag') return getTag(route.id) ? { tagIds: [route.id] } : {};
     if (route.type === 'project' && route.id === 'none') return { anytime: true };
     if (route.type === 'project') return getProject(route.id)?.isArchived ? null : { projectId: route.id };
-    if (route.type === 'tasks' && state.ui.tasksView !== 'projects') return { anytime: true };
+    if (route.type === 'tasks') return { anytime: true };
     // R7 (C8); R31 (finding 15): on a past day "+" plans for today, so a new task is not late at once.
     if (route.type === 'calendar' && state.ui.calendarView !== 'upcoming') return { day: calendarDate() < Core.dateOnly() ? Core.dateOnly() : calendarDate() };
     return {};
@@ -6602,7 +6606,6 @@
     else if (action === 'toggle-complete') toggleComplete(el.dataset.taskId);
     else if (action === 'open-search') openSearch();
     else if (action === 'calendar-today') calendarToday();
-    else if (action === 'tasks-view') { state.ui.tasksView = el.dataset.view === 'projects' ? 'projects' : 'anytime'; saveAndRender(); }
     else if (action === 'priority-focus') { const first = Core.selectFocusTasks(listTasks(), state.settings.focusTaskIds)[0]; if (first) openFocusMode(first); }
     else if (action === 'toggle-projects-resting') { const key = el.dataset.fold === 'projectsSomedayOpen' ? 'projectsSomedayOpen' : 'projectsOnHoldOpen'; state.ui[key] = state.ui[key] !== true; saveAndRender(); }
     else if (action === 'delete-draft-goal-milestone') deleteDraftGoalMilestone(el.dataset.milestoneId);

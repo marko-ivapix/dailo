@@ -49,15 +49,17 @@ function screenContext(ui = {}) {
     projectTasks: (id, done = false) => tasks.filter(task => task.projectId === id && Boolean(task.isCompleted) === done), // R94: a row names its next step
   };
   vm.createContext(withI18n(ctx));
-  vm.runInContext(['listTasks', 'todayDueLabel', 'projectOverviewRow', 'renderTasksScreen'].map(fn).join(''), ctx);
+  // R109: Projekti are their own screen (renderProjectsScreen).
+  vm.runInContext(['listTasks', 'todayDueLabel', 'projectOverviewRow', 'renderTasksScreen', 'renderProjectsScreen'].map(fn).join(''), ctx);
   return ctx;
 }
 
 test('Z5: Kad stignem groups open unplanned tasks by project, "Bez projekta" first; archived and Inbox tasks stay out', () => {
   const ctx = screenContext();
   const html = ctx.renderTasksScreen();
-  assert.match(html, /<header title="Tasks" subtitle="3 open tasks · 2 projects"><\/header>/);
-  assert.match(html, /data-action="tasks-view" data-view="anytime" aria-pressed="true">Anytime · 2<\/button>/);
+  // R109: the projects count and the Kad stignem / Projekti switch left with the projects.
+  assert.match(html, /<header title="Tasks" subtitle="3 open tasks"><\/header>/);
+  assert.doesNotMatch(html, /data-action="tasks-view"/);
   assert.match(html, /<p class="tasks-note">Sorted tasks without a planned day, by project\.<\/p>/);
   const groups = [...html.matchAll(/<h2 class="section-label tasks-group-label">(?:<span class="project-dot" style="--project-color:#\w+" aria-hidden="true"><\/span>)?([^<]+)<\/h2><span class="section-count">(\d+)<\/span>/g)].map(match => [match[1], match[2]]);
   assert.deepEqual(groups, [['No project', '1'], ['Selidba', '1']]);
@@ -69,8 +71,9 @@ test('Z5: Kad stignem groups open unplanned tasks by project, "Bez projekta" fir
 });
 
 test('Z6: Projekti has "Bez projekta", the projects grouped by area with counts, due dates and bars, and "+ Novi projekat"', () => {
-  const ctx = screenContext({ tasksView: 'projects' });
-  const html = ctx.renderTasksScreen();
+  // R109: on their own screen.
+  const ctx = screenContext();
+  const html = ctx.renderProjectsScreen();
   // R17: list rows lost the "›" arrow.
   assert.match(html, /<button class="project-row" type="button" data-route="project\/none"><i class="ph ph-circle-dashed project-row-icon" aria-hidden="true"><\/i><span class="project-row-main"><span class="task-title">No project<\/span><span class="task-meta">1 open<\/span><\/span><\/button>/);
   assert.match(html, /<h2 class="section-label tasks-group-label">Kuća<\/h2><span class="section-count">1<\/span>/);
@@ -111,8 +114,8 @@ function projectCtx(extra = {}) {
 
 test('Z7: the project screen has "‹ Zadaci", ⋯, the color, area · counts, the goal, the tasks, "+ Dodaj zadatak" and done folded', () => {
   const html = projectModule().renderRoute({ type: 'project', id: 'p1' }, projectCtx());
-  // R17: "‹ Zadaci" above the usual header; the ⋯ and the color dot live in the header.
-  assert.match(html, /^<div class="screen-topbar"><button class="screen-back" type="button" data-route="tasks"><i class="ph ph-caret-left" aria-hidden="true"><\/i>Tasks<\/button><\/div><header title="Selidba" subtitle="Kuća · 2 open · 1 done" menu="p1" color="#111111"><\/header>/);
+  // R17: the back link above the usual header; the ⋯ and the color dot live in the header. R109: "‹ Projekti".
+  assert.match(html, /^<div class="screen-topbar"><button class="screen-back" type="button" data-route="projects"><i class="ph ph-caret-left" aria-hidden="true"><\/i>Projects<\/button><\/div><header title="Selidba" subtitle="Kuća · 2 open · 1 done" menu="p1" color="#111111"><\/header>/);
   assert.match(html, /<button class="project-goal-link" type="button" data-route="goal\/g1"><i class="ph ph-target" aria-hidden="true"><\/i>Goal: Novi stan · 45%<\/button>/);
   assert.match(html, /<div class="task-list today-card" data-list-context="project:p1"><row b drag today noplace><row c drag today noplace><\/div><button class="inline-add" type="button" data-action="quick-add" data-project-id="p1">/);
   assert.match(html, /data-action="toggle-project-completed" data-project-id="p1" aria-expanded="false"><span class="left">Completed · 1<\/span>/);

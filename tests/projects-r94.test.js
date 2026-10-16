@@ -56,7 +56,8 @@ test('the weekly review finds the active projects without a next step', () => {
   assert.match(ui, /row\(ctx, `project\/\$\{item\.id\}`, item\.name \|\| tr\('Untitled'\), tr\('No next step'\)\)/);
   assert.match(ui, /data-action="review-projects"/);
   assert.match(ui, /review\.projects\.onHold\.length \? tr\('On hold: \{count\}', \{ count: review\.projects\.onHold\.length \}\) : ''/, 'only the statuses that have projects');
-  assert.match(ui, /if \(action === 'review-projects'\) \{ ctx\.state\.ui\.tasksView = 'projects'; ctx\.saveState\(\); ctx\.navigate\('tasks'\); return true; \}/);
+  // R109: "Pregledaj ih" opens Projekti, a screen of their own.
+  assert.match(ui, /if \(action === 'review-projects'\) \{ ctx\.navigate\('projects'\); return true; \}/);
   // R96: goals, habits and areas became one step (5), and the priorities are step 6.
   assert.match(ui, /step\(5, tr\('Goals, habits and areas'\)/);
 });
@@ -82,8 +83,9 @@ test('the project screen sets the status and marks the next step', () => {
   assert.match(read('js/app.js'), /openProjectModal, saveProjectModal, archiveProject, restoreProject, deleteProject, setProjectStatus,/);
 });
 
-test('Zadaci → Projekti folds the projects on hold and for someday; rows say the next step; the sidebar keeps the active ones', () => {
-  const screen = fn('renderTasksScreen');
+test('Projekti fold the projects on hold and for someday; rows say the next step; the sidebar keeps the active ones', () => {
+  // R109: the projects left Zadaci for a screen of their own.
+  const screen = fn('renderProjectsScreen');
   assert.match(screen, /const active = projects\.filter\(project => Core\.projectStatus\(project\) === 'active'\);/);
   assert.match(screen, /for \(const \[status, label, key\] of \[\['onHold', tr\('On hold'\), 'projectsOnHoldOpen'\], \['someday', tr\('Someday'\), 'projectsSomedayOpen'\]\]\)/);
   assert.match(screen, /foldButton\('toggle-projects-resting', label, list\.length, open, ` data-fold="\$\{key\}"`\)/);

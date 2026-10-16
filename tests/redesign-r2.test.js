@@ -310,7 +310,8 @@ test('Z2 early: the suggestions card is at the top of Zadaci with "+ Danas" and 
   assert.match(screen, /foldButton\('toggle-suggestions', tr\('Suggested for today'\), suggestions\.length, open\)/);
   assert.match(screen, /taskRow\(item\.task, 'suggestion', \{ today: true, addToday: true, suggestionReason: item\.reason \}\)/);
   assert.match(screen, /data-action="add-all-suggestions"/);
-  assert.ok(screen.indexOf('data-tasks-suggestions') < screen.indexOf('tasks-view-switch'), 'above the switch');
+  // R109: the switch left with the projects; the suggestions stay above "Kad stignem".
+  assert.ok(screen.indexOf('data-tasks-suggestions') < screen.indexOf("tr('Sorted tasks without a planned day, by project.')"), 'above Kad stignem');
 });
 
 test('T2, M3, M6: the removed cards, capacity item and Today settings are gone; stored values stay', () => {

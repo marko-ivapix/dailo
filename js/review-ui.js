@@ -145,7 +145,8 @@
     handleAction(action, event, ctx) {
       const el = event?.target?.closest?.('[data-action]');
       if (action === 'review-day-bar') { selectedDay = el?.dataset?.date || null; ctx.render(); return true; }
-      if (action === 'review-projects') { ctx.state.ui.tasksView = 'projects'; ctx.saveState(); ctx.navigate('tasks'); return true; }
+      // R109: Projekti are their own screen.
+      if (action === 'review-projects') { ctx.navigate('projects'); return true; }
       // R96: this week's skipped steps live in ui (this device); a new week starts with none.
       if (action === 'review-skip' || action === 'review-unskip') {
         const key = String(el?.dataset?.step || '');

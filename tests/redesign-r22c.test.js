@@ -74,9 +74,11 @@ test('wording: one name for finishing a goal, "Više opcija", the ellipsis, "Zav
   assert.match(app, /moreRow\('completed', 'ph-check-circle', tr\('Completed tasks'\),/);
 });
 
-test('leftovers: #projects opens Zadaci → Projekti, long titles wrap, the habit chart text is readable', () => {
+test('leftovers: #projects opens Projekti, long titles wrap, the habit chart text is readable', () => {
   assert.doesNotMatch(read('js/projects-ui.js'), /function renderProjects\(|route\.type === 'projects'/);
-  assert.match(fn('render'), /if \(location\.hash === '#projects' && state\?\.ui\) \{ state\.ui\.tasksView = 'projects'; history\.replaceState\(null, '', '#tasks'\); \}/);
+  // R109: #projects is a screen of its own again (app.js renderProjectsScreen), no longer Zadaci → Projekti.
+  assert.doesNotMatch(fn('render'), /tasksView = 'projects'/);
+  assert.match(fn('renderMain'), /else if \(route\.type === 'projects'\) content = renderProjectsScreen\(\);/);
   has('.page-title { overflow-wrap: anywhere; }');
   has('.habits-chart-axis { font-size: var(--text-xs); }');
 });

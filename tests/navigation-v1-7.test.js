@@ -31,8 +31,9 @@ test('the Još screen and Zadaci reach every secondary route', () => {
     assert.match(screens, new RegExp(`'${route}'`), route);
     assert.match(screens, new RegExp(`tr\\('${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}'\\)`), label);
   }
-  assert.match(screens, /tr\('Anytime'\)/);
-  assert.match(screens, /tr\('Projects'\)/);
+  // R109: Zadaci is "Kad stignem" by project without a switch, and Projekti are a screen of their own.
+  assert.match(screens, /tr\('Sorted tasks without a planned day, by project\.'\)/);
+  assert.match(screens, /function renderProjectsScreen\(\) \{[\s\S]*?tr\('Projects'\)/);
   assert.match(app, /data-action="open-search"/);
 });
 

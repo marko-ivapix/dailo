@@ -54,7 +54,8 @@ test('7: the project, "Bez projekta", tag, area and saved view screens have the 
   assert.match(fn('announceRoute'), /renderedTitle = name \|\| '';/);
   assert.match(fn('domainContext'), /\n      backLink,\n/);
   const projects = read('js/projects-ui.js');
-  assert.equal((projects.match(/ctx\.backLink\('tasks', tr\('Tasks'\)\) \+ ctx\.pageHeader\(/g) || []).length, 2);
+  // R109: they fall back to Projekti, a screen of their own.
+  assert.equal((projects.match(/ctx\.backLink\('projects', tr\('Projects'\)\) \+ ctx\.pageHeader\(/g) || []).length, 2);
   assert.doesNotMatch(projects, /const backLink = /);
   assert.match(fn('renderTag'), /let html = backLink\('tags', tr\('Tags'\)\) \+ pageHeader\(tag\.name/);
   assert.match(read('js/areas-ui.js'), /let html = ctx\.backLink\('areas', tr\('Areas'\)\) \+ pageHeader\(area\.name/);

@@ -44,20 +44,19 @@ test('the bottom item lights up for nested routes', () => {
   const ctx = {};
   vm.createContext(ctx);
   vm.runInContext(`${app.match(/  const BOTTOM_NAV_PARENT = [^\n]+\n/)[0]}${fn('bottomNavRoute')}`, ctx);
-  const cases = { today: 'today', inbox: 'inbox', anytime: 'tasks', projects: 'tasks', project: 'tasks', calendar: 'calendar', upcoming: 'calendar', habits: 'habits', habit: 'habits', goals: 'more', goal: 'more', areas: 'more', area: 'more', notes: 'more', note: 'more', resources: 'more', settings: 'more', completed: 'more', archived: 'more', 'saved-view': 'more', more: 'more', tasks: 'tasks' };
+  // R109: Projekti and a project's screen live under Još, as Ciljevi and Oblasti.
+  const cases = { today: 'today', inbox: 'inbox', anytime: 'tasks', projects: 'more', project: 'more', calendar: 'calendar', upcoming: 'calendar', habits: 'habits', habit: 'habits', goals: 'more', goal: 'more', areas: 'more', area: 'more', notes: 'more', note: 'more', resources: 'more', settings: 'more', completed: 'more', archived: 'more', 'saved-view': 'more', more: 'more', tasks: 'tasks' };
   for (const [type, expected] of Object.entries(cases)) assert.equal(ctx.bottomNavRoute({ type }), expected, type);
   assert.match(fn('renderMobileBottomNav'), /bottomNavRoute\(route\)/);
 });
 
-test('Z1/Z3: Zadaci has a summary and a Kad stignem / Projekti switch remembered on the device', () => {
+test('Z1/Z3: Zadaci has a summary; R109: the Kad stignem / Projekti switch left, Projekti are a screen of their own', () => {
   const screen = fn('renderTasksScreen');
-  assert.match(screen, /state\.ui\.tasksView === 'projects'/);
-  assert.match(screen, /data-action="tasks-view" data-view="\$\{key\}"/);
-  // Redesign R5 (Z5): the Kad stignem tab shows its count.
-  assert.match(screen, /tab\('anytime', `\$\{tr\('Anytime'\)\} · \$\{later\.length\}`\)\}\$\{tab\('projects', tr\('Projects'\)\)/);
-  assert.match(screen, /aria-pressed/);
-  assert.match(screen, /data-action="new-project"/);
-  assert.match(app, /action === 'tasks-view'\) \{ state\.ui\.tasksView = el\.dataset\.view === 'projects' \? 'projects' : 'anytime'; saveAndRender\(\); \}/);
+  assert.doesNotMatch(screen, /state\.ui\.tasksView|data-action="tasks-view"/);
+  assert.match(screen, /trn\(open, '\{count\} open task', '\{count\} open tasks'\)/);
+  assert.match(fn('renderProjectsScreen'), /data-action="new-project"/);
+  assert.doesNotMatch(app, /action === 'tasks-view'/);
+  // The stored ui value stays valid for older devices and is no longer read.
   assert.match(app, /next\.ui\.tasksView = next\.ui\.tasksView === 'projects' \? 'projects' : 'anytime';/);
   assert.match(sr, /"Anytime": "Kad stignem"/);
   assert.doesNotMatch(sr, /Bilo kada/, 'renamed everywhere');

@@ -49,7 +49,7 @@
       + sidebarGroup('pinned', tr('Pinned'), pinned, false)
       + sidebarGroup('projects', tr('Projects'), projectItems, false)
       // R72: the groups follow Još (Projekti have their own group above); Šabloni left the menu.
-      + sidebarGroup('planning', tr('Planning'), [sidebarItem('goals', 'ph-target', tr('Goals')), sidebarItem('cleaning', 'ph-arrows-clockwise', tr('Recurring tasks')), sidebarItem('areas', 'ph-squares-four', tr('Areas'))])
+      + sidebarGroup('planning', tr('Planning'), [sidebarItem('goals', 'ph-target', tr('Goals')), sidebarItem('projects', 'ph-folder', tr('Projects')), sidebarItem('cleaning', 'ph-arrows-clockwise', tr('Recurring tasks')), sidebarItem('areas', 'ph-squares-four', tr('Areas'))])
       + sidebarGroup('library', tr('Library'), [sidebarItem('notes', 'ph-note', tr('Notes')), sidebarItem('journal', 'ph-book-open', tr('Journal')), sidebarItem('resources', 'ph-link', tr('Resources')), sidebarItem('tags', 'ph-tag', tr('Tags')), sidebarItem('review', 'ph-clipboard-text', tr('Weekly review')), sidebarItem('saved-views', 'ph-funnel', tr('Saved Views'))])
       + sidebarGroup('archives', tr('Archives'), [sidebarItem('completed', 'ph-check-circle', tr('Completed tasks')), sidebarItem('archived', 'ph-archive', tr('Archived Projects'))])
       + `<div class="sidebar-bottom">${sidebarItem('settings', 'ph-gear', tr('Settings'))}${sidebarItem('account', 'ph-user-circle', tr('Account'))}</div>`;
