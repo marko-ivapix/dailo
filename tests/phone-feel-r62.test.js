@@ -10,7 +10,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const Release = require('../js/release.js');
-const { functionSource } = require('./support/source.js');
+const { appSource, functionSource } = require('./support/source.js');
 
 const read = file => fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
 const app = read('js/app.js');
@@ -96,7 +96,8 @@ function gestureHarness() {
     reorderTasks: (...args) => calls.push(['reorder', ...args]), reorderSubtasks: () => {}, haptic: () => {}, Math,
   };
   vm.createContext(ctx);
-  const constLine = name => app.match(new RegExp(`\\n  const ${name} = [^\\n]+`))[0];
+  // R110: REORDER_ROWS lives in js/drag-ui.js, dropGroup still in app.js.
+  const constLine = name => appSource().match(new RegExp(`\\n  const ${name} = [^\\n]+`))[0];
   const fns = ['sameReorderList', 'resetTaskSwipe', 'handleTaskSwipeStart', 'handleTaskSwipeMove', 'finishTaskSwipe', 'handleTouchReorderStart', 'startTouchReorder', 'handleTouchReorderMove', 'finishTouchReorder', 'cancelTouchReorder', 'blockTouchScroll'];
   // R91: blockTouchScroll and the long-press menu also know the calendar's touch drag (calendarTouch).
   vm.runInContext(`let taskSwipeState = null; let suppressTaskSwipeClick = false; let touchReorder = null; let calendarTouch = null;\n${constLine('REORDER_ROWS')}\n${constLine('dropGroup')}\n${fns.map(name => functionSource(name).source).join('\n')}\nthis.swiping = () => Boolean(taskSwipeState?.swiping);`, ctx);
@@ -154,7 +155,8 @@ test('the page does not scroll under a sideways swipe, and a long press opens no
   calls.length = 0;
   ctx.blockTouchScroll({ cancelable: false, preventDefault() { calls.push(['no-scroll']); } });
   assert.deepEqual(calls, [], 'a scroll that already started is not cancelled');
-  assert.match(functionSource('attachEvents').source, /document\.addEventListener\('contextmenu', event => \{ if \(touchReorder \|\| taskSwipeState \|\| calendarTouch\) event\.preventDefault\(\); \}\);/);
+  // R110: the listeners moved from attachEvents to js/drag-ui.js's attach(), unchanged and in the same order.
+  assert.match(functionSource('attach').source, /document\.addEventListener\('contextmenu', event => \{ if \(touchReorder \|\| taskSwipeState \|\| calendarTouch\) event\.preventDefault\(\); \}\);/);
 });
 
 test('on a touch screen a task row is swiped sideways by the app and selects no text; neither does the page under a lifted row', () => {

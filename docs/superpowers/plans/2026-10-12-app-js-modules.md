@@ -1,6 +1,6 @@
 # Splitting js/app.js into modules
 
-**Date:** 2026-10-12 · **Status:** the user's request (improvement 8, "moze sve"); the first step shipped as R56 (`2.0.0-alpha.83`). · **Spec:** `docs/superpowers/specs/2026-10-12-r56-app-modules.md`.
+**Date:** 2026-10-12 · **Status:** the user's request (improvement 8, "moze sve"); the first step shipped as R56 (`2.0.0-alpha.83`). On 2026-10-16 the user said "da, kreni sa prvim delom", and part 1 (drag) shipped as R110 (`2.0.0-alpha.139`). · **Spec:** `docs/superpowers/specs/2026-10-12-r56-app-modules.md`.
 
 ## Why
 
@@ -24,12 +24,16 @@ A move never changes behavior, wording, data or storage. If a part needs a behav
 | Step | Part | File | Release |
 | --- | --- | --- | --- |
 | R56 | The desktop sidebar (R47a): markup, project groups, folds, the 60 px strip | `js/sidebar-ui.js` | `2.0.0-alpha.83` |
+| R110 | Drag, swipe and long press: task swipes, touch reorder, the calendar's hold-and-drag, the Navike week swipe, mouse drag and drop, drops on the sidebar and on days | `js/drag-ui.js` | `2.0.0-alpha.139` |
 
 ## Next parts, in order
 
 The order goes from the most self-contained part to the most entangled one.
 
-1. **drag** — `js/drag-ui.js` (about 330 lines, `app.js` lines ~6220–6535 at R56): task swipes, touch reorder, the Navike week swipe, mouse drag and drop (`handleDragStart` … `cleanupDrag`), drops on Danas, Sutra, projects and calendar days (`sidebarDropTarget`, `dropTaskOnSidebar`, `moveTaskToProject`, `dropTaskOnDay`) and long press. These are event handlers, not routes or actions, so the step adds an optional `attach(ctx)` entry to the module contract; `attachEvents` calls it once to wire the listeners.
+1. **drag** — done in R110, `js/drag-ui.js` (about 400 lines): task swipes, touch reorder, the calendar's hold-and-drag (R91), the Navike week swipe, mouse drag and drop (`handleDragStart` … `cleanupDrag`), drops on Danas, Sutra, projects and calendar days (`sidebarDropTarget`, `dropTaskOnSidebar`, `moveTaskToProject`, `dropTaskOnDay`) and long press.
+   - These are event handlers, not routes or actions, so the step added two optional entries to the module contract: `attach(ctx)`, which `attachEvents` calls once on every module that has it to wire its listeners (in the order `attachEvents` used before), and `isDragging`, which `syncWaiting` asks through `callDomainHook('isDragging')` so a pulled sync waits for a drag.
+   - The module takes the app's helpers once in `attach(ctx)` into its own variables, so the handlers read as they did in `app.js` and the tests that run them in `vm` with stubs still work.
+   - `reorderTasks`, `reorderSubtasks` and `dropGroup` stay in `app.js`: the "Pomeri gore / dole" buttons and the subtask editor use them too.
 2. **quick-add** — `js/quick-add-ui.js` (about 350 lines): `openQuickAdd`, `renderQuickModal`, the parse preview, the place and template rows, `syncQuickDraftFromDom`, `parseQuickAddTitle`, `routeQuickAddContext` and dictation (`toggleDictation`, `setDictationState`, `stopDictation`). `renderModal` asks the module for the Quick Add sheet the way it asks the screens for routes.
 3. **account** — `js/account-ui.js` (about 650 lines, `app.js` lines ~4430–5075 at R56): the sync card, `runSync` and `scheduleSync`, realtime (`connectLiveSync`), the welcome screen and sign-in, the account windows (password, e-mail, server check), the first-sync choice and the journal-cipher windows. It is last because the sync timer and the session touch start-up, pause and resume; those calls stay in `app.js` and go through `ctx`.
 

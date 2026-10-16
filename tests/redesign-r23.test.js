@@ -9,9 +9,11 @@ const Release = require('../js/release.js');
 const Platform = require('../js/platform.js');
 const { withI18n } = require('./support/i18n.js');
 
+const { functionSource } = require('./support/source.js');
 const read = file => fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
 const app = read('js/app.js');
-const fn = name => { const start = app.search(new RegExp(`\\n  (async )?function ${name}\\(`)) + 1; assert.ok(start > 0, name); return app.slice(start, app.indexOf('\n  }\n', start) + 4); };
+// R110: the drag code moved to js/drag-ui.js; functionSource finds a function in any file (the same slice as before).
+const fn = name => functionSource(name).source;
 const FUTURE = '2099-01-01T08:00:00.000Z';
 
 function nativePlatform({ haptics = true, kind = 'android' } = {}) {

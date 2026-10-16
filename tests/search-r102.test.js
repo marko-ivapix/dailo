@@ -106,8 +106,9 @@ test('Ctrl/Cmd+K opens the palette; the module is part of the app shell; the sty
   assert.match(functionSource('openPalette').source, /modalState = \{ type: 'palette', query: '', selected: 0 \};/);
   assert.match(functionSource('openSearch').source, /function openSearch\(query = ''\) \{/);
   assert.match(app, /openSearch, openKnowledgeWindow, openPalette,/);
-  assert.match(read('index.html'), /<script src="js\/sidebar-ui\.js"><\/script>\n  <script src="js\/palette-ui\.js"><\/script>\n  <script src="js\/app\.js"><\/script>/);
-  assert.match(read('sw.js'), /'js\/sidebar-ui\.js',\n  'js\/palette-ui\.js',\n  'js\/app\.js',/);
+  // R110: js/drag-ui.js loads between the palette and app.js.
+  assert.match(read('index.html'), /<script src="js\/sidebar-ui\.js"><\/script>\n  <script src="js\/palette-ui\.js"><\/script>\n  <script src="js\/drag-ui\.js"><\/script>\n  <script src="js\/app\.js"><\/script>/);
+  assert.match(read('sw.js'), /'js\/sidebar-ui\.js',\n  'js\/palette-ui\.js',\n  'js\/drag-ui\.js',\n  'js\/app\.js',/);
   const css = read('css/styles.css');
   for (const rule of ['.palette-window {', '.palette-list {', '.palette-row {', '.palette-row.is-active', '.palette-label {', '.palette-kind {', '.palette-hint {']) assert.ok(css.includes(rule), rule);
 });

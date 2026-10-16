@@ -22,7 +22,8 @@ def test_calendar_uses_the_planned_time_block_projection():
 
 def test_only_calendar_tasks_are_draggable_and_drag_updates_planned_fields():
     calendar = read('js/calendar-ui.js')
-    app = read('js/app.js')
+    # R110: the drag and drop code moved from js/app.js to js/drag-ui.js.
+    app = read('js/drag-ui.js')
     # R91: a card there for its deadline adds "is-due" to its class.
     assert '<button class="calendar-card${due ? \' is-due\' : \'\'}" type="button" draggable="true" data-calendar-drag="task"' in calendar
     assert '<button class="calendar-card is-deadline" type="button" data-route=' in calendar

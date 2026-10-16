@@ -3,7 +3,7 @@
    a changed sw.js is how installed apps learn about a new version. */
 'use strict';
 
-const VERSION = '2.0.0-alpha.138';
+const VERSION = '2.0.0-alpha.139';
 const CACHE_PREFIX = 'dailo-shell-';
 const CACHE_NAME = `${CACHE_PREFIX}${VERSION}`;
 // Every runtime file index.html, its stylesheets and the manifest reference (tests keep this complete).
@@ -50,6 +50,7 @@ const SHELL_FILES = [
   'js/journal-ui.js',
   'js/sidebar-ui.js',
   'js/palette-ui.js',
+  'js/drag-ui.js',
   'js/app.js',
   'icons/icon.svg',
   'icons/google.svg',

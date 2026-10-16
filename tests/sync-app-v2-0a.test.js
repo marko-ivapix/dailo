@@ -102,6 +102,8 @@ function syncHarness({ state = baseState(), habitLogs = [], meta = null, fake = 
     syncMeta: null, syncTimer: null, syncRunning: false, applyingSync: false, liveSync: null /* R50: no Realtime here */,
     state: clone(state), recovery: null, globalOperation: null, startupPromise: null, storageError: false, staleDataNotice: null,
     modalState: null, undoState: null, undoHold: null, textSaveTimer: null, dragState: null, modalReturnFocus: null, restoreModalReturnFocus() {},
+    // R110: the drag state lives in js/drag-ui.js; syncWaiting asks it through callDomainHook('isDragging').
+    callDomainHook: hook => (hook === 'isDragging' ? Boolean(context.dragState) : undefined),
     document: { activeElement: null },
     localStorage: { getItem: key => (storage.has(key) ? storage.get(key) : null), setItem: (key, value) => storage.set(key, String(value)), removeItem: key => storage.delete(key) },
     setTimeout: (fn, delay) => { calls.timers.push(delay); return calls.timers.length; }, clearTimeout() {},

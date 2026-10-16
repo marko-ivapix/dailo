@@ -70,15 +70,16 @@ test('a task on its deadline day looks different from a planned one', () => {
 });
 
 test('a phone can hold a calendar task and drop it on a day or an hour', () => {
-  assert.match(app, /const CALENDAR_TOUCH_SOURCES = '\[data-calendar-drag="task"\], \.task-row\[data-list-context="calendar"\]';/);
-  assert.match(app, /const CALENDAR_TOUCH_TARGETS = '\[data-calendar-time\], \[data-calendar-date\]';/);
+  const drag = read('js/drag-ui.js'); // R110: the touch drag moved to js/drag-ui.js.
+  assert.match(drag, /const CALENDAR_TOUCH_SOURCES = '\[data-calendar-drag="task"\], \.task-row\[data-list-context="calendar"\]';/);
+  assert.match(drag, /const CALENDAR_TOUCH_TARGETS = '\[data-calendar-time\], \[data-calendar-date\]';/);
   const start = fn('handleCalendarTouchStart');
   assert.match(start, /if \(event\.pointerType === 'mouse' \|\| !event\.isPrimary \|\| calendarTouch \|\| touchReorder \|\| currentRoute\(\)\.type !== 'calendar'\) return;/);
   assert.match(start, /drag\.timer = setTimeout\(\(\) => startCalendarTouch\(drag\), 400\);/);
   assert.match(fn('startCalendarTouch'), /if \(taskSwipeState\?\.row === drag\.source\) \{ resetTaskSwipe\(taskSwipeState\.row, taskSwipeState\.originalStyle\); taskSwipeState = null; \}/, 'the swipe gives way');
   assert.match(fn('handleCalendarTouchMove'), /const target = document\.elementFromPoint\(event\.clientX, event\.clientY\)\?\.closest\?\.\(CALENDAR_TOUCH_TARGETS\) \|\| null;/);
   assert.match(fn('finishCalendarTouch'), /if \(Core\.parseDateOnly\(date\)\) dropTaskOnDay\(drag\.id, date, Core\.normalizeTime\(target\.dataset\.calendarTime\)\);/);
-  for (const listener of ["document.addEventListener('pointerdown', handleCalendarTouchStart);", "document.addEventListener('pointermove', handleCalendarTouchMove, { passive: false });", "document.addEventListener('pointerup', finishCalendarTouch);", "document.addEventListener('pointercancel', finishCalendarTouch);"]) assert.ok(app.includes(listener), listener);
+  for (const listener of ["document.addEventListener('pointerdown', handleCalendarTouchStart);", "document.addEventListener('pointermove', handleCalendarTouchMove, { passive: false });", "document.addEventListener('pointerup', finishCalendarTouch);", "document.addEventListener('pointercancel', finishCalendarTouch);"]) assert.ok(fn('attach').includes(listener), listener); // R110: wired by js/drag-ui.js
   assert.match(fn('blockTouchScroll'), /calendarTouch\?\.active/);
   assert.match(read('js/calendar-ui.js'), /<button class="calendar-month-cell\$\{classes\}" type="button" data-action="calendar-pick" data-date="\$\{date\}" data-calendar-date="\$\{date\}"/, 'a month day takes a drop');
   for (const rule of ['.calendar-card.is-touch-dragging, .day-grid-block.is-touch-dragging, .day-unscheduled-item.is-touch-dragging {', '.calendar-three-day.is-drop-target, .calendar-month-cell.is-drop-target, .calendar-strip-day.is-drop-target {']) assert.ok(css.includes(rule), rule);

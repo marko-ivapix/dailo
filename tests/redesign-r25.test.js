@@ -7,10 +7,12 @@ const path = require('node:path');
 const vm = require('node:vm');
 const Release = require('../js/release.js');
 
+const { appSource, functionSource } = require('./support/source.js');
 const read = file => fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
 const app = read('js/app.js');
 const css = read('css/styles.css');
-const fn = name => { const start = app.search(new RegExp(`\\n  (async )?function ${name}\\(`)) + 1; assert.ok(start > 0, name); return app.slice(start, app.indexOf('\n  }\n', start) + 4); };
+// R110: the drag code moved to js/drag-ui.js; functionSource finds a function in any file (the same slice as before).
+const fn = name => functionSource(name).source;
 
 function fakeRow(id, context = 'today') {
   const classes = new Set();
@@ -37,7 +39,8 @@ function harness() {
   };
   vm.createContext(ctx);
   // R33: subtasks share the touch reorder, and an Inbox row stays within its capture group.
-  const constLine = name => app.match(new RegExp(`\\n  const ${name} = [^\\n]+`))[0];
+  // R110: REORDER_ROWS lives in js/drag-ui.js, dropGroup still in app.js.
+  const constLine = name => appSource().match(new RegExp(`\\n  const ${name} = [^\\n]+`))[0];
   // R91: blockTouchScroll and the long-press menu also know the calendar's touch drag (calendarTouch).
   vm.runInContext(`let taskSwipeState = null; let suppressTaskSwipeClick = false; let touchReorder = null; let calendarTouch = null;\n${constLine('REORDER_ROWS')}\n${constLine('dropGroup')}\n${['sameReorderList', 'resetTaskSwipe', 'handleTaskSwipeStart', 'handleTaskSwipeMove', 'finishTaskSwipe', 'handleTouchReorderStart', 'startTouchReorder', 'handleTouchReorderMove', 'finishTouchReorder', 'cancelTouchReorder', 'blockTouchScroll'].map(fn).join('\n')}`, ctx);
   const event = (type, row, x, y, extra = {}) => ({ type, pointerType: 'touch', isPrimary: true, button: 0, pointerId: 1, clientX: x, clientY: y, target: { closest: selector => (/button|input/.test(selector) ? null : row) }, preventDefault() { calls.push(['prevent', type]); }, ...extra });
@@ -100,7 +103,8 @@ test('E: moving before the hold ends scrolls or swipes instead; another list is 
 });
 
 test('E: the touch drag is wired to the page, blocks the native drag and long-press menu, and has its look', () => {
-  const start = fn('attachEvents');
+  // R110: the listeners moved from attachEvents to js/drag-ui.js's attach(), unchanged and in the same order.
+  const start = fn('attach');
   assert.match(start, /document\.addEventListener\('pointerdown', handleTouchReorderStart\);/);
   assert.match(start, /document\.addEventListener\('pointermove', handleTouchReorderMove, \{ passive: false \}\);/);
   assert.match(start, /document\.addEventListener\('pointerup', finishTouchReorder\);/);

@@ -156,6 +156,8 @@ function harness({ fake = createFakeSupabase(), meta = null, storage: entries = 
     state: { version: 3, tasks: [], projects: [], tags: [], areas: [], goals: [], habits: [], notes: [], resources: [], templates: [], savedViews: [], settings: {}, ui: {} },
     recovery: null, globalOperation: null, startupPromise: null, storageError: false, staleDataNotice: null,
     modalState: null, undoState: null, undoHold: null, textSaveTimer: null, dragState: null, modalReturnFocus: null,
+    // R110: the drag state lives in js/drag-ui.js; syncWaiting asks it through callDomainHook('isDragging').
+    callDomainHook: hook => (hook === 'isDragging' ? Boolean(context.dragState) : undefined),
     document: { activeElement: null },
     localStorage: { getItem: key => (storage.has(key) ? storage.get(key) : null), setItem: (key, value) => storage.set(key, String(value)), removeItem: key => storage.delete(key) },
     setTimeout: () => 1, clearTimeout() {}, requestAnimationFrame: run => run(),

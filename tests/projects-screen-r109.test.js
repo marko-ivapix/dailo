@@ -83,10 +83,7 @@ test('the guide and Šta je novo say where Projekti are', () => {
   assert.ok(read('novo.html').includes('<li><strong>Projekti su poseban ekran.</strong>'));
 });
 
-test('R109 is released as 2.0.0-alpha.138', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.138');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.138';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.138');
-  const lock = JSON.parse(read('package-lock.json'));
-  assert.deepEqual([lock.version, lock.packages[''].version], ['2.0.0-alpha.138', '2.0.0-alpha.138']);
+test('R109 shipped as 2.0.0-alpha.138 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 138) >= 138);
 });

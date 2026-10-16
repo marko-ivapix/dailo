@@ -7,7 +7,7 @@ const path = require('node:path');
 const root = path.join(__dirname, '..', '..');
 const read = file => fs.readFileSync(path.join(root, file), 'utf8');
 // js/app.js and the modules split out of it, in load order.
-const APP_FILES = ['js/sidebar-ui.js', 'js/app.js'];
+const APP_FILES = ['js/sidebar-ui.js', 'js/drag-ui.js', 'js/app.js'];
 const ALL_FILES = fs.readdirSync(path.join(root, 'js')).filter(name => name.endsWith('.js')).map(name => `js/${name}`);
 
 const appSource = () => APP_FILES.map(read).join('\n');
