@@ -121,17 +121,18 @@ python3 -m http.server 8080
 
 *Update this section on every merge.*
 
-- **`main`:** `970617b` (PR #31: R72–R82 from `ccr-95f6062b-lgg2fr`); CI, Links and GitHub Pages passed on it, so Pages serves `2.0.0-alpha.109`. The work branch `ccr-95f6062b-lgg2fr` was restarted from it.
-  - R72: Još → Planiranje is Ciljevi, Projekti, Redovne obaveze, Oblasti; Nedeljni pregled in Biblioteka in place of Šabloni.
-  - R73: Česta pitanja (`pitanja.html`); R74: the guide follows the app.
-  - From an outside review the user accepted ("Sve se slažem, ali ostavi pod broj 1"; point 1, the Google/Apple buttons, stays while the user turns the providers on):
-    - R75: the encrypted journal stays sealed in ZIP backups (data model); R78: fixes from its review;
-    - R76: the phone's file mirror also keeps habit logs and goal history;
-    - R77: `.ics` events recognized again by UID (`task.icsUid`, data model);
-    - R79: "Sutra" on task notifications; R80: the sync state on the phone;
-    - R81: Šta je novo (`novo.html`); R82: a problem report carries the last errors.
-  - Before: PR #30 (`707f169`, R67–R71): the user's own examples and the rough month, the cleaning schedule, the Bucket list, "Treba da imam", more examples.
-  - Before: PR #29 (`286bb97`, R66), PR #28 (`83d49d1`, R65), PR #27 (`fbcffc7`, R59–R64).
+- **`main`:** `99c1e9e` (PR #32: R83–R106 from `ccr-95f6062b-lgg2fr`); GitHub Pages serves `2.0.0-alpha.135` (see the ledger row for the runs). The work branch `ccr-95f6062b-lgg2fr` was restarted from it.
+  - From the user's list ("sve odradi osim ciljeva"; projects and areas stay as they are, "Ostaje kao sada"; the bulk moves as an AGENTS.md exception; the archive at the end):
+    - R83–R84: Danas — past-due tasks and Zatvori dan, one by one or all to tomorrow;
+    - R85 (data model): habit durations in the day's capacity; R106: a Trajanje row in Detalji navike;
+    - R86–R90: Inbox without type filters, Kad radim / Rok, "Od dana završetka" (R88, data model), Quick Add reads spoken times, repeats and Cyrillic, suggests #/+/@ and takes pasted lists;
+    - R91–R93: Kalendar 3 dana; Navike with 30-day success, a note on the day and limits (R93, data model);
+    - R94–R97: project status and next step (data model), the Redovne obaveze bar, a 10-minute weekly review, note links to projects and goals (data model);
+    - R98–R102: the journal asks about the day, ready-made templates and views (R100, data model), the completed summary, search without diacritics and across scripts, a Ctrl/Cmd+K palette;
+    - R103 (data model): old completed tasks in IndexedDB v2 `archivedTasks`; R103b: fixes from its review.
+  - R104–R105: fixes from read-only code reviews of R83–R102 and a security review of the branch (among them, sync had stopped applying pulls with notes older than R97).
+  - Before: PR #31 (`970617b`, R72–R82): Još → Planiranje, Česta pitanja, the guide, the outside-review fixes R75–R82, Šta je novo.
+  - Before: PR #30 (`707f169`, R67–R71), PR #29 (`286bb97`, R66), PR #28 (`83d49d1`, R65), PR #27 (`fbcffc7`, R59–R64).
 - **Sync:** `js/sync-config.js` holds the user's project `https://qjfpnvjuqbrmdkjxxmsq.supabase.co` and its publishable key (`docs/v2/podesavanje-supabase.md`).
   - **Checked on 2026-10-13 with the publishable key (read-only):**
     - the tables of 0001 exist, and 0005 and 0006 were run;
@@ -152,7 +153,8 @@ python3 -m http.server 8080
   - **Beta checklist:** B6–B42.
   - **iPhone:** the build on the user's Mac, plus the widgets and share extension, which need a paid team (`docs/v2/ios-widgeti.md`).
   - **Android release:** the upload key, the GitHub secrets and Play Console (`docs/v2/android-izdanje.md`).
-  - **Two devices:** real sign-ins and sync, realtime and the encrypted journal.
+  - **Two devices:** real sign-ins and sync, realtime and the encrypted journal; since PR #32 also one device with archived tasks and one with notes made before R97, all on the same version (older versions drop day notes and "Od dana završetka").
+  - **Phone (PR #32):** the IndexedDB v2 upgrade in the WebView and the archived-tasks mirror, dragging in the calendar, pasting into Quick Add, the habit duration row.
   - **Browser and visual checks:** the desktop layer in a wide window, the light theme, `.ics` in real calendar apps, dictation in Chrome and Safari, and the link preview in messengers.
 - **Open review items:**
   - Security finding 1: the shared `github.io` origin waits for a custom domain (`docs/superpowers/specs/2026-10-12-security-review.md`).
