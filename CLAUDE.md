@@ -116,6 +116,9 @@ python3 -m http.server 8080
   `js/sync-config.js` holds only the project URL and the publishable key. `android/app/debug.keystore` (password `android`) is the intentional shared debug key.
 - **Manual checks are never reported as passed** unless the user reports them. This covers phones, iPhone and Mac builds, visual checks, real Supabase sign-ins and the beta checklist. Record the user's words as given.
 - **No model identifiers** go into commits, PR titles or bodies, code or docs.
+  - Commits end with `Co-Authored-By: Claude <noreply@anthropic.com>`, without the model's name, and the `Claude-Session:` line.
+  - The user agreed on 2026-10-16 ("moze").
+  - Earlier commits keep their trailers; history is not rewritten.
 
 ## Current state
 

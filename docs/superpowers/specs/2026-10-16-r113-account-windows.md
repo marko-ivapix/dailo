@@ -66,4 +66,6 @@ Nothing changes for the user. The code moves:
   - `tests/account-windows-r113.test.js` now runs `journalCipherSubmit` in `vm` against a stubbed `Sync`, turning encryption on and then off. It is the one moved function that writes the state and the sync record; before, it was only matched as text. A temporary bare `state` in the module fails this run and the bare-name check.
   - The `attach()` lookups in `phone-feel-r62`, `calendar-r91`, `drag-module-r110`, `redesign-r2`, `redesign-r25` and `redesign-r44` name `js/drag-ui.js`, since `js/quick-add-ui.js` has an `attach()` too.
   - A broken comment in `tests/support/source.js` is mended.
-- **Open:** the commits' co-author trailer names the model, as on every commit of the branch, while CLAUDE.md's rule against model identifiers names commits too. The user was asked on 2026-10-16 and has not answered yet.
+- **Settled afterwards:** the commits' co-author trailer had named the model, while CLAUDE.md's rule against model identifiers names commits too.
+  - Asked on 2026-10-16, the user agreed ("moze") to drop the name from the next commit on.
+  - Earlier commits keep theirs, and CLAUDE.md now gives the exact trailer.
