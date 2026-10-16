@@ -3,17 +3,17 @@
 **Updated:** 2026-10-16\
 **Product:** Dailo local-first productivity prototype\
 **`main`:** `99c1e9e` (PR #32: R83–R106), GitHub Pages serves `2.0.0-alpha.135`\
-**Work branch:** `ccr-95f6062b-lgg2fr` at `2.0.0-alpha.143`, not merged yet:
+**Work branch:** `ccr-95f6062b-lgg2fr` at `2.0.0-alpha.144`, not merged yet:
 - R107: Reset with or without a copy;
 - R108: sheet footers above the system buttons;
 - R109: Projekti as their own screen;
 - the module split of `js/app.js`:
   - R110 `js/drag-ui.js`;
   - R111 and R111b `js/quick-add-ui.js`;
-  - R112–R113 `js/account-ui.js` (the welcome screen and the account windows).
+  - R112–R114 `js/account-ui.js` (the welcome screen, the account windows, signing out, deleting the account and the first-sync choice).
 
 **Manual:** what the user has reported and what is still open is in `CLAUDE.md` → "Current state" (beta checklist B6–B52, phone and iPhone checks, two devices).\
-**Next:** step 3c of `docs/superpowers/plans/2026-10-12-app-js-modules.md` (the sync itself, with signing out, deleting the account, the first-sync choice and the server check) when the user asks; then a pull request into `main` when the user asks.
+**Next:** part 3 of `docs/superpowers/plans/2026-10-12-app-js-modules.md` is done (R114 left the sync itself in `app.js`, see the plan); a pull request into `main` when the user asks.
 
 **From here down** this file is the `2.0.0-alpha.3` handoff of 2026-10-09, kept for its baseline and protocol. Newer steps are in `docs/superpowers/progress-redesign.md`.
 

@@ -2,7 +2,7 @@
 
 This document records the V1.9 implementation inspected on 2026-10-07, the V1.10 Quick Add parser (`c64bd81`), the V1.11 weekly review (`5bbd820`), the V1.12 time-blocking (`d00855b`) and the V2.0-a sync (`65aeabf`, `7a834db`), inspected on 2026-10-08. It describes mechanisms present in source, not proof of functional, visual or native-browser acceptance. Read `AGENTS.md` and the applicable versioned spec before changing behavior.
 
-**Updated 2026-10-16** at `2.0.0-alpha.143`: "Composition and module boundaries" below describes the modules split out of `app.js` (R56, R110–R113), and the IndexedDB line its version 2 (R103). Other sections are still as inspected at the versions above; the source and its tests win.
+**Updated 2026-10-16** at `2.0.0-alpha.144`: "Composition and module boundaries" below describes the modules split out of `app.js` (R56, R110–R114), and the IndexedDB line its version 2 (R103). Other sections are still as inspected at the versions above; the source and its tests win.
 
 ## Composition and module boundaries
 
@@ -12,7 +12,7 @@ UI adapters register `renderRoute`, `handleAction`, `handleInput`, or additional
 
 `domainContext()` supplies live state/modal getters plus shared lookup, rendering, overlay, persistence, attachment and domain-operation helpers. Adapters are therefore coupled to this controller contract rather than independent state stores. Many adapters mutate shared records and then call supplied save/render helpers; not all domain mutations have moved out of `app.js`.
 
-### Modules split out of `app.js` (R56, R110–R113)
+### Modules split out of `app.js` (R56, R110–R114)
 
 `docs/superpowers/plans/2026-10-12-app-js-modules.md` moves the shared machinery out of `app.js` one part per release, without changing behavior.
 
@@ -23,8 +23,9 @@ UI adapters register `renderRoute`, `handleAction`, `handleInput`, or additional
 | Quick Add | `js/quick-add-ui.js` | R111, R111b |
 | The welcome screen and sign-in | `js/account-ui.js` | R112 |
 | The account windows | `js/account-ui.js` | R113 |
+| Signing out, deleting the account and the first-sync choice | `js/account-ui.js` | R114 |
 
-The sync itself is the last step (3c).
+The sync itself stays in `app.js`: it replaces the state and the archive and runs on every save (the plan says why).
 
 - **The contract.** A module registers `{ name, renderRoute, handleAction, handleInput, attach }`; every entry but `name` is optional.
   - `renderRoute` answers its own routes and windows (`{ type: 'modal', modalType }`).
@@ -33,7 +34,7 @@ The sync itself is the last step (3c).
   - `attach(ctx)` wires listeners of its own once. `attachEvents` calls it first, on every module that has it.
   - The drag module also answers `isDragging`, so `syncWaiting` holds a pulled sync during a drag.
 - **Live reads.** A moved part keeps the helpers it takes in its own variables, filled once from the first context (`use(ctx)`), since they never change. It reads the live data and window through the context each time and writes them only through setters, because a sync or a reload replaces them:
-  - read: `app.state`, `app.modalState`, `app.syncMeta`, `app.modalReturnFocus`, `app.syncRunning`, and the start-up flags `app.recovery`, `app.storageError`, `app.staleDataNotice`, `app.globalOperation`;
+  - read: `app.state`, `app.modalState`, `app.syncMeta`, `app.modalReturnFocus`, `app.syncRunning`, `app.syncTimer`, and the start-up flags `app.recovery`, `app.storageError`, `app.staleDataNotice`, `app.globalOperation`;
   - written: `app.setModalState`, `app.setSyncMeta`, `app.setModalReturnFocus`.
 - **Named calls.** `app.js` asks a moved part by name, straight from that module's adapter: `quickAddAction('quick-open', context)` and `accountAction('welcome-start')`, for example. These calls do not go through `callDomainHook`, because the other modules' `handleAction` expects a click (`event.target`).
 - **Load order.** The split modules load after the screen modules and the palette, in the order `sidebar-ui`, `drag-ui`, `quick-add-ui`, `account-ui`, then `app.js`, and `sw.js` precaches them.

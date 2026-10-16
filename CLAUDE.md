@@ -136,15 +136,15 @@ python3 -m http.server 8080
   - R104–R105: fixes from read-only code reviews of R83–R102 and a security review of the branch (among them, sync had stopped applying pulls with notes older than R97).
   - Before: PR #31 (`970617b`, R72–R82): Još → Planiranje, Česta pitanja, the guide, the outside-review fixes R75–R82, Šta je novo.
   - Before: PR #30 (`707f169`, R67–R71), PR #29 (`286bb97`, R66), PR #28 (`83d49d1`, R65), PR #27 (`fbcffc7`, R59–R64).
-- **Work branch `ccr-95f6062b-lgg2fr`** (not merged yet; `2.0.0-alpha.143`):
+- **Work branch `ccr-95f6062b-lgg2fr`** (not merged yet; `2.0.0-alpha.144`):
   - R107: Reset with or without a copy;
   - R108: sheet footers above the system buttons;
   - R109: Projekti as their own screen;
-  - the module split of `js/app.js` (7,801 → 6,661 lines):
+  - the module split of `js/app.js` (7,801 → 6,588 lines):
     - R110: `js/drag-ui.js`;
     - R111 and R111b: `js/quick-add-ui.js`;
-    - R112–R113: `js/account-ui.js`, the welcome screen and the account windows.
-  - Next: step 3c of the module plan (the sync itself) when the user asks.
+    - R112–R114: `js/account-ui.js`, the welcome screen, the account windows, signing out, deleting the account and the first-sync choice.
+  - R114 narrowed step 3c: the sync itself stays in `app.js` (it replaces the state and the archive and runs on every save; the plan says why). The user has been told; moving it anyway would be a step of its own.
 - **Sync:** `js/sync-config.js` holds the user's project `https://qjfpnvjuqbrmdkjxxmsq.supabase.co` and its publishable key (`docs/v2/podesavanje-supabase.md`).
   - **Checked on 2026-10-13 with the publishable key (read-only):**
     - the tables of 0001 exist, and 0005 and 0006 were run;
@@ -171,7 +171,7 @@ python3 -m http.server 8080
     - R107: a reset without a copy also removes the files in Documents/Dailo;
     - R108: the sheet footers on more than one device;
     - R109: Projekti;
-    - after the module split (R110–R113), these should work as in `2.0.0-alpha.138`: swipes and hold-and-drag, Quick Add (including "Kao jedan zadatak"), the welcome screen, "Odjavi se", and the password, e-mail and journal-password windows.
+    - after the module split (R110–R114), these should work as in `2.0.0-alpha.138`: swipes and hold-and-drag, Quick Add (including "Kao jedan zadatak"), the welcome screen, "Odjavi se", "Obriši nalog", the first-sync choice (its three options and "Otkaži i odjavi se"), and the password, e-mail and journal-password windows.
   - **Browser and visual checks:** the desktop layer in a wide window, the light theme, `.ics` in real calendar apps, dictation in Chrome and Safari, and the link preview in messengers.
 - **Open review items:**
   - Security finding 1: the shared `github.io` origin waits for a custom domain (`docs/superpowers/specs/2026-10-12-security-review.md`).

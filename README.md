@@ -38,8 +38,8 @@ The step-by-step Serbian guide for the Mac, iPhone and Android phone is `docs/v2
 ## Current state (2026-10-16)
 
 - **`main` and the web:** `2.0.0-alpha.135` (PR #32), served by GitHub Pages.
-- **The work branch:** `ccr-95f6062b-lgg2fr` is at `2.0.0-alpha.143` (R107–R113, not merged yet).
-- **What changed since `2.0.0-alpha.3`:** the redesign in numbered steps (R1–R113). In short, what each version brought is in `novo.html` (Šta je novo, in Serbian), and every step with its spec, checks and commit is in `docs/superpowers/progress-redesign.md`. The larger additions:
+- **The work branch:** `ccr-95f6062b-lgg2fr` is at `2.0.0-alpha.144` (R107–R114, not merged yet).
+- **What changed since `2.0.0-alpha.3`:** the redesign in numbered steps (R1–R114). In short, what each version brought is in `novo.html` (Šta je novo, in Serbian), and every step with its spec, checks and commit is in `docs/superpowers/progress-redesign.md`. The larger additions:
   - **Sync:** sign-in with e-mail and password, Google or Apple; changes arrive in real time; the journal can be encrypted; attachments sync; the user's Supabase project is configured in `js/sync-config.js`.
   - **Phones:** Android and iPhone widgets and the share extension.
   - **Computer:** a desktop layer from 1024 px wide.

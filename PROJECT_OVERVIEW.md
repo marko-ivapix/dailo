@@ -271,13 +271,13 @@ quick-add komande poput `tomorrow`, skeniranje slike ili offline queue?
 - Metadata je u `localStorage`. U IndexedDB su fajlovi, Habit logs, Goal history i, od R103, stari završeni zadaci (`archivedTasks`).
 - `js/core.js` sadrži pravila i izračunavanja.
 - `js/*-ui.js` moduli prikazuju pojedinačne delove aplikacije: ekrane, prozore, bočni meni i paletu komandi.
-- Od R110 do R113 iz `js/app.js` su izdvojeni:
+- Od R110 do R114 iz `js/app.js` su izdvojeni:
   - prevlačenje i potezi (`js/drag-ui.js`);
   - Brzi unos (`js/quick-add-ui.js`);
-  - nalog, odnosno ekran dobrodošlice i prozori naloga (`js/account-ui.js`).
+  - nalog (`js/account-ui.js`): ekran dobrodošlice, prozori naloga, odjava, brisanje naloga i izbor pri prvoj sinhronizaciji.
 
-  Plan je u `docs/superpowers/plans/2026-10-12-app-js-modules.md`, a poslednji korak je sama sinhronizacija.
-- `js/app.js` povezuje rute, zajedničke prozore, događaje, čuvanje podataka i sinhronizaciju (oko 6.660 redova, ranije 7.800).
+  Plan je u `docs/superpowers/plans/2026-10-12-app-js-modules.md`. Sama sinhronizacija ostaje u `js/app.js`, jer menja podatke aplikacije i pokreće se pri svakom čuvanju.
+- `js/app.js` povezuje rute, zajedničke prozore, događaje, čuvanje podataka i sinhronizaciju (oko 6.590 redova, ranije 7.800).
 - Today, Upcoming, Calendar i Saved Views su izvedeni prikazi nad istim zapisima.
 
 ## Pokretanje
@@ -292,11 +292,11 @@ Zatim otvoriti `http://localhost:8080`. Service worker se registruje samo na `ht
 
 **Stanje 16. oktobra 2026:**
 - `main` je na `2.0.0-alpha.135` (PR #32, R83–R106), i to prikazuje GitHub Pages.
-- Radna grana `ccr-95f6062b-lgg2fr` je na `2.0.0-alpha.143`. Na njoj su:
+- Radna grana `ccr-95f6062b-lgg2fr` je na `2.0.0-alpha.144`. Na njoj su:
   - brisanje sa kopijom ili bez nje (R107);
   - dugmad na dnu prozora iznad sistemskih dugmadi (R108);
   - Projekti kao poseban ekran (R109);
-  - podela `js/app.js` na module (R110–R113).
+  - podela `js/app.js` na module (R110–R114).
 - Šta je korisnik proverio i šta još čeka ručnu proveru vodi se u `CLAUDE.md` → „Current state“ i u `docs/beta/provera-pre-bete.md` (B6–B52).
 
 Tekst ispod je istorija do `2.0.0-alpha.3`.

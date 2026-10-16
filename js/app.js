@@ -713,12 +713,14 @@
       // R111: what js/quick-add-ui.js needs.
       getTag, lowerFirst, newTaskRecord, nextOrder, openTaskDetail, syncTemplateEntityGoalLinks, openProjectPicker,
       // R112: what js/account-ui.js needs; the sync record, the return focus and the start-up flags are read live.
-      syncClient, loadSyncMeta, saveSyncMeta, restoreModalReturnFocus, completeSignIn, runSync,
+      syncClient, loadSyncMeta, saveSyncMeta, restoreModalReturnFocus, runSync,
       get syncMeta() { return syncMeta; }, setSyncMeta(value) { syncMeta = value; },
       get modalReturnFocus() { return modalReturnFocus; }, setModalReturnFocus(value) { modalReturnFocus = value; },
       get recovery() { return recovery; }, get storageError() { return storageError; }, get staleDataNotice() { return staleDataNotice; }, get globalOperation() { return globalOperation; },
       // R113: what the account windows need; whether a sync is running is read live.
       storeJournalKey, forgetJournalKey, scheduleSync, get syncRunning() { return syncRunning; },
+      // R114: what signing out, deleting the account and the first-sync choice need; the sync's timer is read live.
+      liveSync, SYNC_META_KEY, plainWord, get syncTimer() { return syncTimer; },
       colorName,
       journalLock,
       readAutoBackup, readTextSize, applyTextSize, readTheme,
@@ -2065,7 +2067,6 @@
     else if (modalState.type === 'local-snapshots') root.innerHTML = renderLocalSnapshotsModal();
     else if (modalState.type === 'template-picker') root.innerHTML = renderTemplatePicker();
     else if (modalState.type === 'recurrence-scope') root.innerHTML = renderRecurrenceScope();
-    else if (modalState.type === 'sync-choice') root.innerHTML = renderSyncChoice();
     else if (modalState.type === 'inbox-triage') root.innerHTML = renderInboxTriage();
     else if (modalState.type === 'overdue-triage') root.innerHTML = renderOverdueTriage();
     else if (modalState.type === 'close-day') root.innerHTML = renderCloseDayPass();
@@ -4702,7 +4703,7 @@
         setToastMessage(tr('Loading your account data in place of the examples.'));
         return runSync('server');
       }
-      openSyncChoice();
+      accountAction('sync-choice-open');
     }
     refreshSyncCard();
   }
@@ -4792,83 +4793,12 @@
     render();
   }
 
-  // The shadow describes one account; another account on this device starts again with the first-sync choice.
-  function completeSignIn(session) {
-    const previous = loadSyncMeta();
-    syncMeta = previous.userId === session.user.id ? { ...previous, session, lastError: null } : { userId: session.user.id, session };
-    delete syncMeta.pkce;
-    saveSyncMeta();
-  }
-
-  // R112: the welcome screen and sign-in live in js/account-ui.js, and since R113 the account windows too. app.js asks it
-  // by name: at start, after "Odjavi se", when a form is sent, when Google or Apple returns to the app, and to put the
-  // screen away for a shortcut. These go to that module alone, since the other modules' handleAction expects a click.
+  // R112: the welcome screen and sign-in live in js/account-ui.js, and since R113 the account windows too; since R114
+  // also finishing a sign-in, signing out, deleting the account and the first-sync choice. app.js asks it by name: at
+  // start, when a form is sent, when Google or Apple returns to the app, to put the screen away for a shortcut, and
+  // when the first sync finds data on both sides. These go to that module alone, since the other modules'
+  // handleAction expects a click.
   const accountAction = (action, payload = null) => window.TodoDomainModules?.getAdapters().find(adapter => adapter.name === 'account')?.handleAction(action, payload, domainContext());
-
-  async function signOutSync() {
-    const meta = loadSyncMeta();
-    clearTimeout(syncTimer);
-    liveSync?.disconnect();
-    forgetJournalKey();
-    syncMeta = {};
-    try { localStorage.removeItem(SYNC_META_KEY); } catch (error) { console.error(error); }
-    render();
-    if (meta.session && syncClient) await syncClient.signOut(meta.session);
-  }
-
-  // R64: "Odjavi se" returns to the first screen, Danas behind the sign-in screen, to sign in again or go on without
-  // an account. The session ends on this device at once; the server is told meanwhile, so a slow network holds nothing.
-  function signOutToWelcome() {
-    const done = signOutSync();
-    navigate('today');
-    accountAction('welcome-open', { mode: 'sign-in', firstRun: true });
-    return done;
-  }
-
-  function deleteSyncAccount() {
-    const word = 'OBRIŠI';
-    openConfirm({ title: msg('Delete your sync account?'), message: msg('This deletes your account and all synced data on the server. Data on this device stays.'),
-      phrase: word, confirmLabel: msg('Delete account'),
-      onConfirm: async () => {
-        if (plainWord($('#global-confirm-phrase')?.value) !== plainWord(word)) { setToastMessage(tr('Type {word} exactly to continue.', { word })); return; }
-        modalState = null; renderModal();
-        try { await syncClient.deleteAccount(await syncClient.ensureSession(loadSyncMeta().session)); }
-        catch (error) { setToastMessage(tr('The account could not be deleted: {error}', { error: trMessage(error.message) })); return; }
-        clearTimeout(syncTimer);
-        liveSync?.disconnect();
-        forgetJournalKey();
-        syncMeta = {};
-        try { localStorage.removeItem(SYNC_META_KEY); } catch (error) { console.error(error); }
-        render();
-        setToastMessage(tr('The account and its synced data were deleted. Data on this device stays.'));
-      } });
-  }
-
-  // First sync on a device when both the device and the account have data.
-  function openSyncChoice() {
-    if (modalState) return; // The next sync asks again.
-    captureModalReturnFocus(); closePopover();
-    modalState = { type: 'sync-choice', onCancel: async () => { modalState = null; renderModal(); await signOutSync(); } };
-    renderModal();
-  }
-
-  function renderSyncChoice() {
-    const option = (mode, title, copy) => `<button class="sync-choice-option" type="button" data-action="sync-choose" data-mode="${mode}"><strong>${title}</strong><span>${copy}</span></button>`;
-    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">${tr('Data on this device and in your account')}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close dialog')}"><i class="ph ph-x"></i></button></div>
-      <p class="dialog-copy">${tr('This device and your account both have data. Choose what to keep. A local recovery copy is made first.')}</p>
-      ${option('merge', tr('Merge'), tr('Keep everything. When an item was changed in both places, the newer change wins.'))}
-      ${option('server', tr('Keep the account data'), tr('This device gets the data from your account. Items that exist only on this device are removed.'))}
-      ${option('device', tr('Keep this device’s data'), tr('Your account gets the data from this device. Items that exist only in the account are removed.'))}
-      <div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">${tr('Cancel and sign out')}</button></div></div></div>`);
-  }
-
-  async function chooseSyncMode(mode) {
-    if (!['merge', 'server', 'device'].includes(mode) || modalState?.type !== 'sync-choice') return;
-    modalState = null; renderModal();
-    try { await TodoStorage.createAutomaticSnapshot(state, new Date(), { force: true }); }
-    catch (error) { setToastMessage(tr('Sync did not start because the recovery copy failed: {error}', { error: trMessage(error.message) })); return; }
-    await runSync(mode);
-  }
 
   // R51: the encrypted journal (docs/superpowers/specs/2026-10-12-r51-journal-encryption.md). The key counts only for
   // the account's current cipher; without it a device with encryption on is locked and leaves the journal alone.
@@ -5957,9 +5887,6 @@
     else if (action === 'confirm-action') { const fn = modalState.onConfirm; if (typeof fn === 'function') fn(); }
     else if (action === 'sync-now') runSync().catch(console.error);
     else if (action === 'sync-check-server') runServerCheck();
-    else if (action === 'sync-sign-out') signOutToWelcome();
-    else if (action === 'sync-delete-account') deleteSyncAccount();
-    else if (action === 'sync-choose') chooseSyncMode(el.dataset.mode);
     else if (action === 'undo') doUndo();
     else if (action === 'retry-delete-recovery') retryFailedDeleteRecovery();
     else if (action === 'enable-notifications') enableBrowserNotifications();

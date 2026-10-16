@@ -331,7 +331,8 @@ test('the app wires sync into saving, startup, dialogs, actions and the domain c
   assert.match(app, /const syncClient = Sync\?\.isConfigured\(syncConfig\) \? Sync\.createClient\(\{ url: syncConfig\.url, anonKey: syncConfig\.anonKey, emailRedirect: Release\.APP_URL \}\) : null;/);
   assert.match(app, /scheduleAutomaticSnapshot\(\);\n\s+scheduleSync\(\);\n\s+return true;/, 'every successful save schedules a sync');
   assert.match(app, /await startReady\(\);[\s\S]*?startSync\(\);[\s\S]*?registerServiceWorker\(\);/, 'sync starts after the data is ready');
-  assert.match(app, /else if \(modalState\.type === 'sync-choice'\) root\.innerHTML = renderSyncChoice\(\);/);
+  // R114: the account module draws the first-sync choice when renderModal asks the modules first.
+  assert.match(app, /if \(route\?\.type === 'modal' && route\.modalType === 'sync-choice'\) return renderSyncChoice\(\);/);
   for (const action of ['open-welcome', 'welcome-mode', 'welcome-provider', 'sync-now', 'sync-sign-out', 'sync-delete-account', 'sync-choose']) {
     assert.match(app, new RegExp(`action === '${action}'`), `${action} is handled`);
   }

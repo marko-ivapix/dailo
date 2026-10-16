@@ -3,21 +3,22 @@
   const I18n = window.TodoI18n;
   const { tr, trMessage, msg } = I18n;
   const Sync = window.DailoSync || null;
+  const TodoStorage = window.TodoStorage;
 
   // The account, a module since R112 (plan part 3a): the welcome screen and sign-in; since R113 (3b) also the account
-  // windows (the password, the e-mail address and the journal password). Their markup is in js/settings-ui.js; the
-  // journal key, signing out and the sync stay in app.js until the last part. app.js asks this module by name
-  // (accountAction) at start, after "Odjavi se", when a form is sent, when Google or Apple returns to the app and to put
-  // the screen away.
+  // windows (the password, the e-mail address and the journal password), and since R114 (3c) finishing a sign-in,
+  // "Odjavi se", deleting the account and the first-sync choice. Their markup is in js/settings-ui.js; the journal key
+  // and the sync itself stay in app.js. app.js asks this module by name (accountAction) at start, when a form is sent,
+  // when Google or Apple returns to the app, to put the screen away and when the first sync finds data on both sides.
   // The app's helpers come from the first domain context the module receives; the live data, the open window, the
-  // device's sync record, the return focus, the start-up flags and whether a sync is running are read through it each
-  // time (app.*).
+  // device's sync record, the return focus, the start-up flags, whether a sync is running and the sync's timer are read
+  // through it each time (app.*).
   let app = null;
-  let syncClient, loadSyncMeta, saveSyncMeta, completeSignIn, runSync, captureModalReturnFocus, restoreModalReturnFocus, closePopover, renderModal, render, setToastMessage, $, nowIso, storeJournalKey, forgetJournalKey, scheduleSync, journalCipherStatus, saveState;
+  let syncClient, loadSyncMeta, saveSyncMeta, runSync, captureModalReturnFocus, restoreModalReturnFocus, closePopover, renderModal, render, setToastMessage, $, nowIso, storeJournalKey, forgetJournalKey, scheduleSync, journalCipherStatus, saveState, liveSync, SYNC_META_KEY, plainWord, openConfirm, modalFrame, navigate;
   function use(ctx) {
     if (app) return;
     app = ctx;
-    ({ syncClient, loadSyncMeta, saveSyncMeta, completeSignIn, runSync, captureModalReturnFocus, restoreModalReturnFocus, closePopover, renderModal, render, setToastMessage, $, nowIso, storeJournalKey, forgetJournalKey, scheduleSync, journalCipherStatus, saveState } = ctx);
+    ({ syncClient, loadSyncMeta, saveSyncMeta, runSync, captureModalReturnFocus, restoreModalReturnFocus, closePopover, renderModal, render, setToastMessage, $, nowIso, storeJournalKey, forgetJournalKey, scheduleSync, journalCipherStatus, saveState, liveSync, SYNC_META_KEY, plainWord, openConfirm, modalFrame, navigate } = ctx);
   }
 
   // R40: the welcome screen (first launch, and "Prijavi se" / "Napravi nalog" on Nalog). Sign-in is by e-mail and
@@ -419,16 +420,97 @@
     scheduleSync(300);
   }
 
+  // The shadow describes one account; another account on this device starts again with the first-sync choice.
+  function completeSignIn(session) {
+    const previous = loadSyncMeta();
+    app.setSyncMeta(previous.userId === session.user.id ? { ...previous, session, lastError: null } : { userId: session.user.id, session });
+    delete app.syncMeta.pkce;
+    saveSyncMeta();
+  }
+
+  // R114: signing out, deleting the account and the first-sync choice, from app.js.
+  async function signOutSync() {
+    const meta = loadSyncMeta();
+    clearTimeout(app.syncTimer);
+    liveSync?.disconnect();
+    forgetJournalKey();
+    app.setSyncMeta({});
+    try { localStorage.removeItem(SYNC_META_KEY); } catch (error) { console.error(error); }
+    render();
+    if (meta.session && syncClient) await syncClient.signOut(meta.session);
+  }
+
+  // R64: "Odjavi se" returns to the first screen, Danas behind the sign-in screen, to sign in again or go on without
+  // an account. The session ends on this device at once; the server is told meanwhile, so a slow network holds nothing.
+  function signOutToWelcome() {
+    const done = signOutSync();
+    navigate('today');
+    openWelcome('sign-in', { firstRun: true });
+    return done;
+  }
+
+  function deleteSyncAccount() {
+    const word = 'OBRIŠI';
+    openConfirm({ title: msg('Delete your sync account?'), message: msg('This deletes your account and all synced data on the server. Data on this device stays.'),
+      phrase: word, confirmLabel: msg('Delete account'),
+      onConfirm: async () => {
+        if (plainWord($('#global-confirm-phrase')?.value) !== plainWord(word)) { setToastMessage(tr('Type {word} exactly to continue.', { word })); return; }
+        app.setModalState(null); renderModal();
+        try { await syncClient.deleteAccount(await syncClient.ensureSession(loadSyncMeta().session)); }
+        catch (error) { setToastMessage(tr('The account could not be deleted: {error}', { error: trMessage(error.message) })); return; }
+        clearTimeout(app.syncTimer);
+        liveSync?.disconnect();
+        forgetJournalKey();
+        app.setSyncMeta({});
+        try { localStorage.removeItem(SYNC_META_KEY); } catch (error) { console.error(error); }
+        render();
+        setToastMessage(tr('The account and its synced data were deleted. Data on this device stays.'));
+      } });
+  }
+
+  // First sync on a device when both the device and the account have data.
+  function openSyncChoice() {
+    if (app.modalState) return; // The next sync asks again.
+    captureModalReturnFocus(); closePopover();
+    app.setModalState({ type: 'sync-choice', onCancel: async () => { app.setModalState(null); renderModal(); await signOutSync(); } });
+    renderModal();
+  }
+
+  function renderSyncChoice() {
+    const option = (mode, title, copy) => `<button class="sync-choice-option" type="button" data-action="sync-choose" data-mode="${mode}"><strong>${title}</strong><span>${copy}</span></button>`;
+    return modalFrame(`<div class="modal-inner"><div class="modal-header"><h2 class="modal-title">${tr('Data on this device and in your account')}</h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close dialog')}"><i class="ph ph-x"></i></button></div>
+      <p class="dialog-copy">${tr('This device and your account both have data. Choose what to keep. A local recovery copy is made first.')}</p>
+      ${option('merge', tr('Merge'), tr('Keep everything. When an item was changed in both places, the newer change wins.'))}
+      ${option('server', tr('Keep the account data'), tr('This device gets the data from your account. Items that exist only on this device are removed.'))}
+      ${option('device', tr('Keep this device’s data'), tr('Your account gets the data from this device. Items that exist only in the account are removed.'))}
+      <div class="modal-footer"><span></span><div class="modal-footer-actions"><button class="btn btn-ghost" type="button" data-action="close-modal">${tr('Cancel and sign out')}</button></div></div></div>`);
+  }
+
+  async function chooseSyncMode(mode) {
+    if (!['merge', 'server', 'device'].includes(mode) || app.modalState?.type !== 'sync-choice') return;
+    app.setModalState(null); renderModal();
+    try { await TodoStorage.createAutomaticSnapshot(app.state, new Date(), { force: true }); }
+    catch (error) { setToastMessage(tr('Sync did not start because the recovery copy failed: {error}', { error: trMessage(error.message) })); return; }
+    await runSync(mode);
+  }
+
+  function renderRoute(route, ctx) {
+    use(ctx);
+    if (route?.type === 'modal' && route.modalType === 'sync-choice') return renderSyncChoice();
+    return undefined;
+  }
+
   function handleAction(action, event, ctx) {
     use(ctx);
     // What app.js asks for by name.
     if (action === 'welcome-start') { startWelcome(); return true; }
-    if (action === 'welcome-open') { openWelcome(event.mode, { firstRun: event.firstRun }); return true; }
     if (action === 'welcome-submit') { welcomeSubmit(); return true; }
     if (action === 'welcome-provider-return') { finishProviderSignIn(event.params); return true; }
     if (action === 'welcome-dismiss') { dismissWelcome(); return true; }
     if (action === 'account-submit') { accountSubmit(); return true; }
-    // The screens' own buttons, and Nalog's "Prijavi se", "Napravi nalog", the account changes and the journal password.
+    if (action === 'sync-choice-open') { openSyncChoice(); return true; }
+    // The screens' own buttons, and Nalog's "Prijavi se", "Napravi nalog", the account changes and the journal password;
+    // since R114 also "Odjavi se", deleting the account and the first-sync choice.
     const el = event?.target?.closest?.('[data-action]');
     if (action === 'open-welcome') openWelcome(el.dataset.mode);
     else if (action === 'welcome-mode') welcomeMode(el.dataset.mode);
@@ -439,12 +521,16 @@
     else if (action === 'account-change-password') openAccountWindow('password');
     else if (action === 'account-change-email') openAccountWindow('email');
     else if (['journal-cipher-enable', 'journal-cipher-unlock', 'journal-cipher-disable'].includes(action)) openJournalCipherWindow(action.slice('journal-cipher-'.length));
+    else if (action === 'sync-sign-out') signOutToWelcome();
+    else if (action === 'sync-delete-account') deleteSyncAccount();
+    else if (action === 'sync-choose') chooseSyncMode(el.dataset.mode);
     else return undefined;
     return true;
   }
 
   window.TodoDomainModules?.register({
     name: 'account',
+    renderRoute,
     handleAction,
   });
 })();

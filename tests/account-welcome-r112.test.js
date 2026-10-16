@@ -33,29 +33,36 @@ test('the welcome screen and sign-in left app.js for js/account-ui.js; completeS
     assert.doesNotMatch(app, new RegExp(`\\n  (async )?function ${name}\\(`), `${name} left app.js`);
   }
   for (const name of ['const WELCOME_KEY', 'const WELCOME_MODES', 'const AUTH_REDIRECT_APP', 'const AUTH_LANDING_MESSAGES', 'const welcomeCode']) assert.ok(!app.includes(`  ${name} `), `${name} left app.js`);
-  assert.equal(functionSource('completeSignIn').file, 'js/app.js');
+  // R114: completeSignIn joined the module too, with signing out and the first-sync choice (3c).
+  assert.equal(functionSource('completeSignIn').file, 'js/account-ui.js');
   for (const action of ['open-welcome', 'welcome-mode', 'welcome-skip', 'welcome-provider', 'welcome-resend', 'welcome-toggle-password']) assert.ok(!app.includes(`action === '${action}'`), `app.js no longer handles ${action}`);
 });
 
 test('app.js asks the module by name', () => {
   assert.match(app, /\n  const accountAction = \(action, payload = null\) => window\.TodoDomainModules\?\.getAdapters\(\)\.find\(adapter => adapter\.name === 'account'\)\?\.handleAction\(action, payload, domainContext\(\)\);\n/);
   assert.match(fn('init'), /\n    accountAction\('welcome-start'\);\n/);
-  assert.match(fn('signOutToWelcome'), /navigate\('today'\);\n    accountAction\('welcome-open', \{ mode: 'sign-in', firstRun: true \}\);/);
+  // R114: "Odjavi se" is the module's too and opens the sign-in screen itself; app.js no longer asks for 'welcome-open'.
+  assert.match(fn('signOutToWelcome'), /navigate\('today'\);\n    openWelcome\('sign-in', \{ firstRun: true \}\);/);
+  assert.ok(!read('js/app.js').includes("accountAction('welcome-open'"));
   assert.match(fn('attachEvents'), /if \(form\.matches\('\[data-welcome-form\]'\)\) accountAction\('welcome-submit'\);/);
   assert.match(fn('handleIncomingLink'), /if \(target === 'auth'\) \{ if \(!loadSyncMeta\(\)\.pkce\) return false; accountAction\('welcome-provider-return', \{ params: link\.searchParams \}\); return true; \}/);
   assert.match(fn('handleIncomingLink'), /if \(modalState\?\.type === 'welcome'\) accountAction\('welcome-dismiss'\);/);
-  assert.match(app, /\n      \/\/ R112: what js\/account-ui\.js needs[^\n]*\n      syncClient, loadSyncMeta, saveSyncMeta, restoreModalReturnFocus, completeSignIn, runSync,\n      get syncMeta\(\) \{ return syncMeta; \}, setSyncMeta\(value\) \{ syncMeta = value; \},\n      get modalReturnFocus\(\) \{ return modalReturnFocus; \}, setModalReturnFocus\(value\) \{ modalReturnFocus = value; \},\n      get recovery\(\) \{ return recovery; \}, get storageError\(\) \{ return storageError; \}, get staleDataNotice\(\) \{ return staleDataNotice; \}, get globalOperation\(\) \{ return globalOperation; \},\n/);
+  // R114: completeSignIn is the module's own now, so the context no longer gives it.
+  assert.match(app, /\n      \/\/ R112: what js\/account-ui\.js needs[^\n]*\n      syncClient, loadSyncMeta, saveSyncMeta, restoreModalReturnFocus, runSync,\n      get syncMeta\(\) \{ return syncMeta; \}, setSyncMeta\(value\) \{ syncMeta = value; \},\n      get modalReturnFocus\(\) \{ return modalReturnFocus; \}, setModalReturnFocus\(value\) \{ modalReturnFocus = value; \},\n      get recovery\(\) \{ return recovery; \}, get storageError\(\) \{ return storageError; \}, get staleDataNotice\(\) \{ return staleDataNotice; \}, get globalOperation\(\) \{ return globalOperation; \},\n/);
 });
 
 test('the module registers as "account", takes only what the context gives and reads the live state through it', () => {
   const module = read('js/account-ui.js');
-  assert.match(module, /window\.TodoDomainModules\?\.register\(\{\n    name: 'account',\n    handleAction,\n  \}\);/);
+  // R114: the module also draws the first-sync choice (renderRoute).
+  assert.match(module, /window\.TodoDomainModules\?\.register\(\{\n    name: 'account',\n    renderRoute,\n    handleAction,\n  \}\);/);
   // Several modules have a use(); the lookup names this one (the R112 review).
   const taken = functionSource('use', ['js/account-ui.js']).source.match(/\(\{ ([^}]+) \} = ctx\);/)[1].split(', ');
-  assert.ok(taken.includes('completeSignIn'), 'the account module\'s own helpers');
+  // R114: completeSignIn is no longer taken from the context; it is the module's own function.
+  assert.ok(!taken.includes('completeSignIn') && taken.includes('loadSyncMeta'), 'the account module\'s own helpers');
   const keys = contextKeys();
   for (const name of taken) assert.ok(keys.has(name), `domainContext gives ${name}`);
-  const code = module.replace(/\/\/[^\n]*/g, '');
+  // R114: the first-sync choice's English text says "recovery copy", so the translated strings are left out too.
+  const code = module.replace(/\/\/[^\n]*/g, '').replace(/tr\('[^']*'/g, "tr(''");
   assert.doesNotMatch(code, /(?<![\w$'"])(?<![^.]\.)(state|modalState|recovery|storageError|staleDataNotice|globalOperation|syncMeta|modalReturnFocus)\b(?!:)/, 'only through app.');
   assert.doesNotMatch(code, /app\.(modalState|syncMeta|modalReturnFocus) = /, 'replaced only through the setters');
 });
@@ -76,8 +83,9 @@ test('in the module: its buttons, the named calls, and nothing else', () => {
   assert.equal(live.modalState.mode, 'reset');
   assert.equal(adapter.handleAction('welcome-dismiss', null, ctx), true);
   assert.equal(live.modalState, null);
-  assert.equal(adapter.handleAction('welcome-open', { mode: 'sign-in', firstRun: true }, ctx), true);
-  assert.deepEqual([live.modalState.mode, live.modalState.firstRun], ['sign-in', true]);
+  // R114: 'welcome-open' was app.js's call after "Odjavi se", which is the module's now; tests/sign-out-r64.test.js runs
+  // it and sees the sign-in screen open as the first screen.
+  assert.equal(adapter.handleAction('welcome-open', { mode: 'sign-in', firstRun: true }, ctx), undefined);
   assert.equal(adapter.handleAction('journal-closing', null, ctx), undefined, 'another module\'s action');
   assert.equal(click('create-task'), undefined);
 });

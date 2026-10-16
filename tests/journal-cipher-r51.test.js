@@ -166,7 +166,8 @@ test('the app: the device key, the sync options and the status', () => {
   assert.match(after, /if \(!state\?\.settings\?\.journalCipher\) \{ if \(journalCipherStored\(\)\) forgetJournalKey\(\); return; \}/);
   assert.match(after, /const gone = await syncClient\.purgeJournalHistory\(meta\.session\);/);
   assert.match(fn('signOutSync'), /forgetJournalKey\(\);/);
-  assert.match(app, /liveSync\?\.disconnect\(\);\n\s+forgetJournalKey\(\);\n\s+syncMeta = \{\};\n\s+try \{ localStorage\.removeItem\(SYNC_META_KEY\); \} catch \(error\) \{ console\.error\(error\); \}\n\s+render\(\);\n\s+setToastMessage\(tr\('The account and its synced data were deleted/);
+  // R114: deleting the account is the account module's and empties the sync record through the context.
+  assert.match(read('js/account-ui.js'), /liveSync\?\.disconnect\(\);\n\s+forgetJournalKey\(\);\n\s+app\.setSyncMeta\(\{\}\);\n\s+try \{ localStorage\.removeItem\(SYNC_META_KEY\); \} catch \(error\) \{ console\.error\(error\); \}\n\s+render\(\);\n\s+setToastMessage\(tr\('The account and its synced data were deleted/);
 });
 
 test('the app: on, unlock and off through the journal window', () => {

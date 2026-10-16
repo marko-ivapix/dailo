@@ -18,7 +18,9 @@ const read = file => fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
 const fn = name => functionSource(name).source;
 const app = read('js/app.js');
 const MOVED = ['openAccountWindow', 'setAccountWindow', 'accountFields', 'currentSession', 'closeAccountWindow', 'accountSubmit', 'accountPasswordSubmit', 'accountEmailSubmit', 'openJournalCipherWindow', 'setJournalWindow', 'journalCipherSubmit'];
-const STAY = ['completeSignIn', 'journalCipherStored', 'journalCipherStatus', 'deviceJournalKey', 'storeJournalKey', 'forgetJournalKey', 'journalSyncOptions', 'afterJournalSync', 'runServerCheck', 'signOutSync', 'signOutToWelcome', 'deleteSyncAccount', 'openSyncChoice', 'renderSyncChoice', 'chooseSyncMode'];
+// R114 (3c) took completeSignIn, signing out, deleting the account and the first-sync choice into the module as well;
+// tests/account-sync-choice-r114.test.js checks them. The journal key helpers and the server check stay with the sync.
+const STAY = ['journalCipherStored', 'journalCipherStatus', 'deviceJournalKey', 'storeJournalKey', 'forgetJournalKey', 'journalSyncOptions', 'afterJournalSync', 'runServerCheck'];
 
 function loadModule() {
   let adapter;
@@ -119,14 +121,11 @@ test('the plan records 3b and leaves the sync with its sign-out, account deletio
   const plan = read('docs/superpowers/plans/2026-10-12-app-js-modules.md');
   assert.match(plan, /\| R113 \| [^\n]+ \| `js\/account-ui\.js` \| `2\.0\.0-alpha\.143` \|/);
   assert.ok(plan.includes('3b. done in R113'));
-  assert.ok(plan.includes('3c. the sync itself') && !plan.includes('3d.'));
+  // R114: 3c is done, and the plan says why the sync itself stays (tests/account-sync-choice-r114.test.js).
+  assert.ok(plan.includes('3c.') && !plan.includes('3d.'));
 });
 
-test('R113 is released as 2.0.0-alpha.143', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.143');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.143';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.143');
-  const lock = JSON.parse(read('package-lock.json'));
-  assert.deepEqual([lock.version, lock.packages[''].version], ['2.0.0-alpha.143', '2.0.0-alpha.143']);
-  assert.ok(read('novo.html').includes('2.0.0-alpha.143'));
+test('R113 shipped as 2.0.0-alpha.143 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 143) >= 143);
 });

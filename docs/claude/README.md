@@ -1,6 +1,6 @@
 # Claude documentation index
 
-**Updated 2026-10-16** at `2.0.0-alpha.143`. `PROJECT_MAP.md` and `ARCHITECTURE.md` describe the modules split out of `js/app.js` (R56, R110–R113), and `CONTINUATION.md` has a current header. The rest is as synchronized below; for anything newer, `CLAUDE.md` → "Current state" and the ledgers (`docs/superpowers/progress-redesign.md`) are current, and the source and its tests win.
+**Updated 2026-10-16** at `2.0.0-alpha.144`. `PROJECT_MAP.md` and `ARCHITECTURE.md` describe the modules split out of `js/app.js` (R56, R110–R114), and `CONTINUATION.md` has a current header. The rest is as synchronized below; for anything newer, `CLAUDE.md` → "Current state" and the ledgers (`docs/superpowers/progress-redesign.md`) are current, and the source and its tests win.
 
 These files are the current implementation handoff for Claude and other agents. They were synchronized on 2026-10-08 against the V2.0-a source, tests and progress ledgers (V2.0-a Sync in the web app at `65aeabf`, `7a834db` and the release commit, on branch `ccr-95f6062b-lgg2fr`; V1.10 Smart Quick Add at `c64bd81`, V1.11 Weekly review at `5bbd820` and V1.12 Duration and time-blocking at `d00855b`, merged into `main` together through PR #7 (`31fb23d`); V1.9 merged through PR #5 and V1.9.1, which completes its Step 7, through PR #6).
 
