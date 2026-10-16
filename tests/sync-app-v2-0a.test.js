@@ -7,7 +7,7 @@ const { withI18n, runInNewContextWithI18n } = require('./support/i18n.js');
 const { createFakeSupabase } = require('./support/fake-supabase.js');
 const Sync = require('../js/sync.js');
 const Release = require('../js/release.js');
-const { appSource, accountWelcome, withAccount } = require('./support/source.js');
+const { appSource, accountCode, withAccount } = require('./support/source.js');
 
 const read = file => fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
 const clone = value => JSON.parse(JSON.stringify(value));
@@ -135,7 +135,7 @@ function syncHarness({ state = baseState(), habitLogs = [], meta = null, fake = 
   // R22b: the typed word is compared with plainWord, which lives with the other confirm words.
   const plainStart = app.indexOf('\n  function plainWord(') + 1;
   vm.runInContext(app.slice(start, end) + app.slice(plainStart, app.indexOf('\n  }\n', plainStart) + 4), context);
-  vm.runInContext(accountWelcome(), context);
+  vm.runInContext(accountCode(), context);
   return { context, storage, logs, calls, fake, meta: () => JSON.parse(storage.get('dailoSync') || '{}') };
 }
 

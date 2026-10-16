@@ -9,9 +9,11 @@ const { withI18n, runInNewContextWithI18n } = require('./support/i18n.js');
 const { createFakeSupabase } = require('./support/fake-supabase.js');
 const Sync = require('../js/sync.js');
 const Release = require('../js/release.js');
+const { appSource, accountCode, withAccount } = require('./support/source.js');
 
 const read = file => fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
-const app = read('js/app.js');
+// R113: the account windows moved to js/account-ui.js; the app is read across its files.
+const app = appSource();
 const sr = read('js/i18n-sr.js');
 const clone = value => JSON.parse(JSON.stringify(value));
 const esc = value => String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -116,8 +118,9 @@ function harness(fake, meta) {
     setToastMessage(message) { calls.toasts.push(message); },
     inputs: {}, $: selector => { const id = selector.slice(1); return id in context.inputs ? { value: context.inputs[id] } : null; },
   });
-  vm.createContext(context);
+  vm.createContext(withAccount(context));
   vm.runInContext(app.slice(start, end), context);
+  vm.runInContext(accountCode(), context); // R113: the account windows join the sandbox
   return { context, calls, run: code => vm.runInContext(code, context), meta: () => JSON.parse(storage.get('dailoSync')), win: () => context.modalState };
 }
 
@@ -172,9 +175,10 @@ test('app: a new e-mail address in two steps; the same address and a taken one a
 });
 
 test('wiring and Serbian', () => {
+  // R113: the account module's handleAction answers them.
   assert.ok(app.includes("else if (action === 'account-change-password') openAccountWindow('password');"));
   assert.ok(app.includes("else if (action === 'account-change-email') openAccountWindow('email');"));
-  assert.match(app, /document\.addEventListener\('submit', event => \{\n      const form = event\.target\?\.closest\?\.\('\[data-welcome-form\], \[data-account-form\]'\);\n      if \(!form\) return;\n      event\.preventDefault\(\);\n      if \(form\.matches\('\[data-welcome-form\]'\)\) accountAction\('welcome-submit'\);\n      else accountSubmit\(\);\n    \}\);/); // R112: the welcome form is the account module's
+  assert.match(app, /document\.addEventListener\('submit', event => \{\n      const form = event\.target\?\.closest\?\.\('\[data-welcome-form\], \[data-account-form\]'\);\n      if \(!form\) return;\n      event\.preventDefault\(\);\n      if \(form\.matches\('\[data-welcome-form\]'\)\) accountAction\('welcome-submit'\);\n      else accountAction\('account-submit'\);\n    \}\);/); // R112, R113: both forms are the account module's
   for (const [en, value] of [['Change the password', 'Promeni lozinku'], ['Change the e-mail address', 'Promeni e-adresu'], ['Other devices will need to sign in again.', 'Ostali uređaji će morati ponovo da se prijave.'], ['Current password', 'Trenutna lozinka'], ['The current password is not right.', 'Trenutna lozinka nije tačna.'], ['Another account already uses this e-mail address.', 'Drugi nalog već koristi ovu e-adresu.'], ['E-mail address changed: {email}', 'E-adresa je promenjena: {email}'], ['Change', 'Promeni']]) {
     assert.ok(sr.includes(`${JSON.stringify(en)}: ${JSON.stringify(value)}`), en);
   }

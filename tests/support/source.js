@@ -52,8 +52,8 @@ function contextKeys() {
 
 // R111: a moved part reads the live data and window through `app` (its domain context: app.state, app.modalState,
 // app.setModalState). In a vm harness that keeps them on the sandbox, `app` reads and sets those. R112: also the
-// device's sync record, the return focus and the start-up flags.
-const LIVE = ['state', 'modalState', 'syncMeta', 'modalReturnFocus', 'recovery', 'storageError', 'staleDataNotice', 'globalOperation'];
+// device's sync record, the return focus and the start-up flags; R113: whether a sync is running.
+const LIVE = ['state', 'modalState', 'syncMeta', 'modalReturnFocus', 'recovery', 'storageError', 'staleDataNotice', 'globalOperation', 'syncRunning'];
 function withApp(sandbox) {
   const app = {
     setModalState(value) { sandbox.modalState = value; },
@@ -65,11 +65,12 @@ function withApp(sandbox) {
   return sandbox;
 }
 
-// R112: the welcome screen and sign-in live in js/account-ui.js. A harness that runs app.js's sync block loads them
-// into the same sandbox (accountWelcome(): the module's code from the welcome screen to its handleAction), where they
+// R112: the welcome screen and sign-in live in js/account-ui.js (since R113 also the account windows). A harness that
+// runs app.js's sync block loads them into the same sandbox (accountCode(): the module's code from the welcome screen
+// to its handleAction), where they
 // read the live state through `app`; app.js's accountAction reaches that handleAction through window.TodoDomainModules,
 // and use() has nothing to capture, since the helpers are already the sandbox's own.
-const accountWelcome = () => {
+const accountCode = () => {
   const source = read('js/account-ui.js');
   return source.slice(source.indexOf('  // R40: the welcome screen'), source.indexOf('  window.TodoDomainModules?.register('));
 };
@@ -81,4 +82,4 @@ function withAccount(sandbox) {
   return sandbox;
 }
 
-module.exports = { APP_FILES, appSource, functionSource, contextKeys, withApp, accountWelcome, withAccount };
+module.exports = { APP_FILES, appSource, functionSource, contextKeys, withApp, accountCode, withAccount };

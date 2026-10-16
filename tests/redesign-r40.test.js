@@ -9,7 +9,7 @@ const { withI18n, runInNewContextWithI18n } = require('./support/i18n.js');
 const { createFakeSupabase } = require('./support/fake-supabase.js');
 const Sync = require('../js/sync.js');
 const Release = require('../js/release.js');
-const { appSource, functionSource, accountWelcome, withAccount } = require('./support/source.js');
+const { appSource, functionSource, accountCode, withAccount } = require('./support/source.js');
 
 const read = file => fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
 // R112: the welcome screen and sign-in moved to js/account-ui.js; the app is read across its files.
@@ -182,7 +182,7 @@ function harness({ fake = createFakeSupabase(), meta = null, storage: entries = 
   };
   vm.createContext(withAccount(withI18n(context)));
   vm.runInContext(app.slice(start, end), context);
-  vm.runInContext(accountWelcome(), context); // R112: the welcome screen joins the sandbox
+  vm.runInContext(accountCode(), context); // R112: the welcome screen joins the sandbox
   const run = code => vm.runInContext(code, context);
   return { context, storage, calls, fake, run, meta: () => JSON.parse(storage.get('dailoSync') || '{}'), welcome: () => context.modalState };
 }

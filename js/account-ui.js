@@ -4,18 +4,20 @@
   const { tr, trMessage, msg } = I18n;
   const Sync = window.DailoSync || null;
 
-  // The account, a module since R112 (plan part 3a): the welcome screen and sign-in. Its markup is in
-  // js/settings-ui.js (renderRoute for the 'welcome' window); the account windows, signing out and the sync stay in
-  // app.js until their own parts. app.js asks this module by name (accountAction) at start, after "Odjavi se", when
-  // the form is sent, when Google or Apple returns to the app and to put the screen away.
+  // The account, a module since R112 (plan part 3a): the welcome screen and sign-in; since R113 (3b) also the account
+  // windows (the password, the e-mail address and the journal password). Their markup is in js/settings-ui.js; the
+  // journal key, signing out and the sync stay in app.js until the last part. app.js asks this module by name
+  // (accountAction) at start, after "Odjavi se", when a form is sent, when Google or Apple returns to the app and to put
+  // the screen away.
   // The app's helpers come from the first domain context the module receives; the live data, the open window, the
-  // device's sync record, the return focus and the start-up flags are read through it each time (app.*).
+  // device's sync record, the return focus, the start-up flags and whether a sync is running are read through it each
+  // time (app.*).
   let app = null;
-  let syncClient, loadSyncMeta, saveSyncMeta, completeSignIn, runSync, captureModalReturnFocus, restoreModalReturnFocus, closePopover, renderModal, render, setToastMessage, $, nowIso;
+  let syncClient, loadSyncMeta, saveSyncMeta, completeSignIn, runSync, captureModalReturnFocus, restoreModalReturnFocus, closePopover, renderModal, render, setToastMessage, $, nowIso, storeJournalKey, forgetJournalKey, scheduleSync, journalCipherStatus, saveState;
   function use(ctx) {
     if (app) return;
     app = ctx;
-    ({ syncClient, loadSyncMeta, saveSyncMeta, completeSignIn, runSync, captureModalReturnFocus, restoreModalReturnFocus, closePopover, renderModal, render, setToastMessage, $, nowIso } = ctx);
+    ({ syncClient, loadSyncMeta, saveSyncMeta, completeSignIn, runSync, captureModalReturnFocus, restoreModalReturnFocus, closePopover, renderModal, render, setToastMessage, $, nowIso, storeJournalKey, forgetJournalKey, scheduleSync, journalCipherStatus, saveState } = ctx);
   }
 
   // R40: the welcome screen (first launch, and "Prijavi se" / "Napravi nalog" on Nalog). Sign-in is by e-mail and
@@ -249,6 +251,174 @@
     return finishProviderSignIn(params);
   }
 
+  // R43: Nalog → "Promeni lozinku" and "Promeni e-adresu", each a sheet with a form. The password step may turn into
+  // the current password or a code the server e-mails; the new address is confirmed by its code (and, with secure
+  // e-mail change on the server, by one sent to the current address).
+  function openAccountWindow(kind) {
+    const session = loadSyncMeta().session;
+    if (!syncClient || !session?.accessToken || app.modalState) return;
+    captureModalReturnFocus(); closePopover();
+    app.setModalState({ type: kind === 'email' ? 'account-email' : 'account-password', step: kind === 'email' ? 'email' : 'new', currentEmail: session.user?.email || '',
+      password: '', confirm: '', current: '', code: '', email: '', pending: false, busy: false, error: '' });
+    renderModal();
+  }
+
+  function setAccountWindow(changes) {
+    if (!['account-password', 'account-email'].includes(app.modalState?.type)) return;
+    app.setModalState({ ...app.modalState, ...changes });
+    renderModal();
+  }
+
+  function accountFields() {
+    const windowState = app.modalState;
+    for (const [key, id] of [['password', 'account-password'], ['confirm', 'account-password-confirm'], ['current', 'account-current'], ['code', 'account-code'], ['email', 'account-email']]) {
+      const field = $(`#${id}`);
+      if (field) windowState[key] = ['code', 'email'].includes(key) ? String(field.value ?? '').trim() : String(field.value ?? '');
+    }
+    return windowState;
+  }
+
+  // The session for an account change, refreshed and stored when it was about to expire.
+  async function currentSession() {
+    const meta = loadSyncMeta();
+    const session = await syncClient.ensureSession(meta.session);
+    if (session !== meta.session) { app.setSyncMeta({ ...meta, session }); saveSyncMeta(); }
+    return session;
+  }
+
+  function closeAccountWindow(message) {
+    app.setModalState(null);
+    renderModal();
+    const target = app.modalReturnFocus;
+    app.setModalReturnFocus(null);
+    if (target) restoreModalReturnFocus(target);
+    render();
+    setToastMessage(message);
+  }
+
+  async function accountSubmit() {
+    if (app.modalState?.type === 'journal-cipher') return journalCipherSubmit();
+    if (!syncClient || !['account-password', 'account-email'].includes(app.modalState?.type) || app.modalState.busy) return;
+    const windowState = accountFields();
+    return windowState.type === 'account-password' ? accountPasswordSubmit(windowState) : accountEmailSubmit(windowState);
+  }
+
+  async function accountPasswordSubmit(windowState) {
+    const code = windowState.code.replace(/\s+/g, '');
+    const problem = Sync.passwordProblem(windowState.password) || (windowState.confirm !== windowState.password ? msg('The passwords do not match.') : '')
+      || (windowState.step === 'current' && !windowState.current ? msg('Enter your password.') : '')
+      || (windowState.step === 'nonce' && !/^\d{6,10}$/.test(code) ? msg('Enter the code from the e-mail.') : '');
+    if (problem) { setAccountWindow({ error: problem }); return; }
+    setAccountWindow({ busy: true, error: '' });
+    let session;
+    try {
+      session = await currentSession();
+      await syncClient.updatePassword(session, windowState.password, { nonce: windowState.step === 'nonce' ? code : '', currentPassword: windowState.step === 'current' ? windowState.current : '' });
+      closeAccountWindow(tr('Password changed. Other devices will sign in again.'));
+    } catch (error) {
+      if (error?.reason === 'reauthentication_needed') {
+        try { await syncClient.reauthenticate(session); setAccountWindow({ step: 'nonce', code: '', busy: false }); }
+        catch (sent) { setAccountWindow({ busy: false, error: sent?.message || String(sent) }); }
+      } else if (error?.reason === 'current_password_required') setAccountWindow({ step: 'current', busy: false });
+      else setAccountWindow({ busy: false, error: error?.message || String(error) });
+    }
+  }
+
+  async function accountEmailSubmit(windowState) {
+    if (windowState.step === 'email') {
+      const email = windowState.email;
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setAccountWindow({ error: msg('Enter a valid e-mail address.') }); return; }
+      if (email.toLowerCase() === windowState.currentEmail.toLowerCase()) { setAccountWindow({ error: msg('This is already your e-mail address.') }); return; }
+      setAccountWindow({ busy: true, error: '' });
+      try {
+        await syncClient.changeEmail(await currentSession(), email);
+        setAccountWindow({ step: 'code', code: '', pending: false, busy: false });
+      } catch (error) {
+        setAccountWindow({ busy: false, error: error?.reason === 'email_exists' ? msg('Another account already uses this e-mail address.') : error?.message || String(error) });
+      }
+      return;
+    }
+    const code = windowState.code.replace(/\s+/g, '');
+    if (!/^\d{6,10}$/.test(code)) { setAccountWindow({ error: msg('Enter the code from the e-mail.') }); return; }
+    setAccountWindow({ busy: true, error: '' });
+    // The code may come from the new address or, with secure e-mail change, from the current one.
+    let result = null;
+    let failure = null;
+    for (const address of [windowState.email, windowState.currentEmail]) {
+      try { result = await syncClient.verifyEmailChange(address, code); break; }
+      catch (error) { failure = error; if (!(error?.status >= 400 && error?.status < 500) || error.status === 429) break; }
+    }
+    if (!result) {
+      setAccountWindow({ busy: false, error: failure?.status === 429 || !(failure?.status >= 400) ? failure?.message || String(failure) : msg('The code is wrong or has expired.') });
+      return;
+    }
+    if (result.pending) { setAccountWindow({ busy: false, pending: true, code: '' }); return; }
+    completeSignIn(result.session);
+    closeAccountWindow(tr('E-mail address changed: {email}', { email: result.session.user.email }));
+  }
+
+  function openJournalCipherWindow(mode) {
+    const status = journalCipherStatus();
+    const allowed = { enable: 'off', unlock: 'locked', disable: 'on' };
+    if (!syncClient || !loadSyncMeta().session?.accessToken || app.modalState || allowed[mode] !== status) return;
+    captureModalReturnFocus(); closePopover();
+    app.setModalState({ type: 'journal-cipher', mode, password: '', confirm: '', busy: false, error: '' });
+    renderModal();
+  }
+
+  function setJournalWindow(changes) {
+    if (app.modalState?.type !== 'journal-cipher') return;
+    app.setModalState({ ...app.modalState, ...changes });
+    renderModal();
+  }
+
+  async function journalCipherSubmit() {
+    if (app.modalState?.type !== 'journal-cipher' || app.modalState.busy) return;
+    const windowState = app.modalState;
+    windowState.password = String($('#journal-password')?.value ?? windowState.password);
+    windowState.confirm = String($('#journal-password-confirm')?.value ?? windowState.confirm);
+    if (windowState.mode === 'enable') {
+      const problem = Sync.passwordProblem(windowState.password);
+      if (problem) { setJournalWindow({ error: problem }); return; }
+      if (windowState.password !== windowState.confirm) { setJournalWindow({ error: msg('The passwords do not match.') }); return; }
+    }
+    setJournalWindow({ busy: true, error: '' });
+    if (app.syncRunning) { setJournalWindow({ busy: false, error: msg('Sync is running. Try again in a moment.') }); return; }
+    const meta = loadSyncMeta();
+    let message;
+    try {
+      if (windowState.mode === 'enable') {
+        const { cipher, key } = await Sync.createJournalCipher(windowState.password);
+        app.state.settings.journalCipher = cipher;
+        if (!saveState()) { delete app.state.settings.journalCipher; throw new Error(msg('Changes could not be saved locally. Try again.')); }
+        await storeJournalKey(cipher.salt, key);
+        // Every entry goes again, sealed; then the readable versions leave the server history.
+        Sync.forgetJournalShadow(meta);
+        meta.purgeJournalHistory = true;
+        message = tr('The journal is encrypted. The server sees only ciphertext.');
+      } else if (windowState.mode === 'unlock') {
+        const key = await Sync.unlockJournalCipher(app.state.settings.journalCipher, windowState.password);
+        if (!key) { setJournalWindow({ busy: false, error: msg('The journal password is wrong.') }); return; }
+        await storeJournalKey(app.state.settings.journalCipher.salt, key);
+        // The next pull fetches the sealed entries this device left out while it was locked.
+        meta.cursor = null;
+        message = tr('The journal is unlocked on this device.');
+      } else {
+        delete app.state.settings.journalCipher;
+        if (!saveState()) throw new Error(msg('Changes could not be saved locally. Try again.'));
+        forgetJournalKey();
+        // Every entry goes again, readable.
+        Sync.forgetJournalShadow(meta);
+        delete meta.purgeJournalHistory; delete meta.journalPurgeError;
+        message = tr('Journal encryption is off.');
+      }
+    } catch (error) { setJournalWindow({ busy: false, error: error.message }); return; }
+    app.setSyncMeta(meta);
+    saveSyncMeta();
+    closeAccountWindow(message);
+    scheduleSync(300);
+  }
+
   function handleAction(action, event, ctx) {
     use(ctx);
     // What app.js asks for by name.
@@ -257,7 +427,8 @@
     if (action === 'welcome-submit') { welcomeSubmit(); return true; }
     if (action === 'welcome-provider-return') { finishProviderSignIn(event.params); return true; }
     if (action === 'welcome-dismiss') { dismissWelcome(); return true; }
-    // The screen's own buttons, and "Prijavi se" / "Napravi nalog" on Nalog.
+    if (action === 'account-submit') { accountSubmit(); return true; }
+    // The screens' own buttons, and Nalog's "Prijavi se", "Napravi nalog", the account changes and the journal password.
     const el = event?.target?.closest?.('[data-action]');
     if (action === 'open-welcome') openWelcome(el.dataset.mode);
     else if (action === 'welcome-mode') welcomeMode(el.dataset.mode);
@@ -265,6 +436,9 @@
     else if (action === 'welcome-provider') startProviderSignIn(el.dataset.provider);
     else if (action === 'welcome-resend') welcomeResend();
     else if (action === 'welcome-toggle-password') toggleWelcomePassword();
+    else if (action === 'account-change-password') openAccountWindow('password');
+    else if (action === 'account-change-email') openAccountWindow('email');
+    else if (['journal-cipher-enable', 'journal-cipher-unlock', 'journal-cipher-disable'].includes(action)) openJournalCipherWindow(action.slice('journal-cipher-'.length));
     else return undefined;
     return true;
   }

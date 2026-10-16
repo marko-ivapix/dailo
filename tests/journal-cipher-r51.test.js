@@ -151,7 +151,8 @@ test('the server function and the guide', () => {
 });
 
 const app = read('js/app.js');
-const fn = name => { const start = app.search(new RegExp(`\\n  (async )?function ${name}\\(`)) + 1; assert.ok(start > 0, name); return app.slice(start, app.indexOf('\n  }\n', start) + 4); };
+// R113: the journal window moved to js/account-ui.js; functionSource finds a function in any file.
+const fn = name => require('./support/source.js').functionSource(name).source;
 
 test('the app: the device key, the sync options and the status', () => {
   assert.match(app, /const JOURNAL_KEY_KEY = 'dailoJournalKey';/);
@@ -170,15 +171,17 @@ test('the app: the device key, the sync options and the status', () => {
 
 test('the app: on, unlock and off through the journal window', () => {
   const submit = fn('journalCipherSubmit');
-  assert.match(submit, /if \(syncRunning\) \{ setJournalWindow\(\{ busy: false, error: msg\('Sync is running\. Try again in a moment\.'\) \}\); return; \}/);
+  // R113: the window reads the live state through the context.
+  assert.match(submit, /if \(app\.syncRunning\) \{ setJournalWindow\(\{ busy: false, error: msg\('Sync is running\. Try again in a moment\.'\) \}\); return; \}/);
   assert.match(submit, /const \{ cipher, key \} = await Sync\.createJournalCipher\(windowState\.password\);/);
   assert.match(submit, /Sync\.forgetJournalShadow\(meta\);\n\s+meta\.purgeJournalHistory = true;/);
-  assert.match(submit, /const key = await Sync\.unlockJournalCipher\(state\.settings\.journalCipher, windowState\.password\);/);
+  assert.match(submit, /const key = await Sync\.unlockJournalCipher\(app\.state\.settings\.journalCipher, windowState\.password\);/);
   assert.match(submit, /if \(!key\) \{ setJournalWindow\(\{ busy: false, error: msg\('The journal password is wrong\.'\) \}\); return; \}/);
   assert.match(submit, /meta\.cursor = null;/);
-  assert.match(submit, /delete state\.settings\.journalCipher;/);
-  assert.match(fn('accountSubmit'), /if \(modalState\?\.type === 'journal-cipher'\) return journalCipherSubmit\(\);/);
-  for (const action of ['journal-cipher-enable', 'journal-cipher-unlock', 'journal-cipher-disable']) assert.ok(app.includes(`'${action}'`), action);
+  assert.match(submit, /delete app\.state\.settings\.journalCipher;/);
+  assert.match(fn('accountSubmit'), /if \(app\.modalState\?\.type === 'journal-cipher'\) return journalCipherSubmit\(\);/);
+  // R113: the account module opens the window.
+  for (const action of ['journal-cipher-enable', 'journal-cipher-unlock', 'journal-cipher-disable']) assert.ok(read('js/account-ui.js').includes(`'${action}'`), action);
   const ui = read('js/settings-ui.js');
   assert.match(ui, /function renderJournalCipherWindow\(ctx\)/);
   assert.match(ui, /if \(route\.type === 'modal' && route\.modalType === 'journal-cipher'\) return renderJournalCipherWindow\(ctx\);/);
