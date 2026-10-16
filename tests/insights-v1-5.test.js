@@ -138,6 +138,8 @@ test('Habit insight shows the target status, recovery and grace', () => {
     { habitId: 'h', date: '2026-09-17', value: 2, status: 'done' },
     { habitId: 'h', date: '2026-09-18', value: 100, status: 'done' }
   ];
+  // R92: the grace row is under "Više opcija" in the details, so the fold is open here.
+  f.ctx.modalState.moreOpen = true;
   const html = f.adapters.habits.renderRoute({ type: 'modal', modalType: 'habit-details' }, f.ctx);
   assert.match(html, /data-habit-target-status="minimum"/);
   assert.match(html, /Recovered after 1 missed day/);

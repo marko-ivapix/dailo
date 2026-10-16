@@ -26,14 +26,16 @@ test('D: a numeric habit on Danas has one-tap quick values that add at once with
   assert.match(habitsUi, /const quick = numeric && !date \? \(habit\.quickValues \|\| \[\]\)\.slice\(0, 2\)\.map\(value => `<button class="quick-chip habit-quick-value" type="button" data-action="habit-quick-value" data-habit-id="\$\{esc\(habit\.id\)\}" data-value="\$\{esc\(value\)\}" aria-label="\$\{esc\(tr\('Add \{value\} to \{habit\}', \{ value: number\(value\), habit: habit\.name \}\)\)\}">\+\$\{esc\(number\(value\)\)\}<\/button>`\)\.join\(''\) : '';/);
   assert.match(habitsUi, /\$\{main\}\$\{quick\}\$\{check\}/);
   const action = habitsUi.slice(habitsUi.indexOf("if (action === 'habit-quick-value')"));
-  assert.match(action, /^if \(action === 'habit-quick-value'\) \{\n\s+const habit = getHabit\(el\.dataset\.habitId\); if \(!habit \|\| habit\.trackingType !== 'numeric'\) return true;\n\s+const previous = dayLog\(habit\.id\);\n\s+const total = Math\.round\(\(Number\(previous\?\.value \|\| 0\) \+ Number\(el\.dataset\.value \|\| 0\)\) \* 1000\) \/ 1000;\n\s+setHabitLog\(habit\.id, today, 'done', total\)\.then\(\(\) => ctx\.setUndo\(msg\('Value added'\), \(\) => setHabitLog\(habit\.id, today, previous\?\.status === 'skipped' \? 'skipped' : 'done', previous \? previous\.value : 0\)\)\)\.catch\(console\.error\);/);
+  // R104: Poništi empties a day that had no value before (a limit habit would read 0 as kept).
+  assert.match(action, /^if \(action === 'habit-quick-value'\) \{\n\s+const habit = getHabit\(el\.dataset\.habitId\); if \(!habit \|\| habit\.trackingType !== 'numeric'\) return true;\n\s+const previous = dayLog\(habit\.id\);\n\s+const total = Math\.round\(\(Number\(previous\?\.value \|\| 0\) \+ Number\(el\.dataset\.value \|\| 0\)\) \* 1000\) \/ 1000;\n\s+\/\/ R104[^\n]*\n\s+setHabitLog\(habit\.id, today, 'done', total\)\.then\(\(\) => ctx\.setUndo\(msg\('Value added'\), \(\) => \(previous \? setHabitLog\(habit\.id, today, previous\.status === 'skipped' \? 'skipped' : 'done', previous\.value\) : setHabitLog\(habit\.id, today, null\)\)\)\)\.catch\(console\.error\);/);
   has('Value added', 'Vrednost dodata');
   has('Add {value} to {habit}', 'Dodaj {value}: {habit}');
   assert.ok(css.includes('.habit-quick-value'));
 });
 
 test('D: Nedelja shows how far a numeric day got as a partial arc', () => {
-  assert.match(habitsUi, /const fraction = habit\.trackingType === 'numeric' && day\.state !== 'done' && Number\(habit\.targetValue\) > 0 \? Math\.min\(1, Number\(day\.value \|\| 0\) \/ Number\(habit\.targetValue\)\) : 0;/);
+  // R93: a habit with a limit ("Najviše") is kept or not, so it shows no arc.
+  assert.match(habitsUi, /const fraction = habit\.trackingType === 'numeric' && habit\.targetMode !== 'atMost' && day\.state !== 'done' && Number\(habit\.targetValue\) > 0 \? Math\.min\(1, Number\(day\.value \|\| 0\) \/ Number\(habit\.targetValue\)\) : 0;/);
   assert.match(habitsUi, /\$\{fraction > 0 \? ` is-partial" style="--fraction:\$\{Math\.round\(fraction \* 100\) \/ 100\}` : ''\}/);
   assert.match(css, /\.habit-cell\.is-partial \{ background: conic-gradient\(var\(--blue-300\) calc\(var\(--fraction\) \* 1turn\), transparent 0\); \}/);
 });

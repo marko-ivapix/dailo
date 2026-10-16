@@ -64,7 +64,8 @@ test('S14: completing a repeating task says when the next one comes, with Undo',
 
 function controlsContext(tasks, extra = {}) {
   const ctx = appContext(tasks, extra);
-  vm.runInContext(['manageRecurrence', 'recurrencePendingSiblings', 'recurrenceSkipTarget', 'snapshotTasks', 'restoreTasks', 'controlRecurrence'].map(fn).join('\n'), ctx);
+  // R103b: Undo snapshots and the Još count include the archived tasks (historyTasks); none are archived here.
+  vm.runInContext(['manageRecurrence', 'recurrencePendingSiblings', 'recurrenceSkipTarget', 'historyTasks', 'snapshotTasks', 'restoreTasks', 'controlRecurrence'].map(fn).join('\n') + '\nlet archivedTasks = [];', ctx);
   return ctx;
 }
 
@@ -124,7 +125,8 @@ test('S14: the controls under "Ovo ponavljanje", the sentence suffixes and an en
   assert.doesNotMatch(endedHtml, /This repeat|skip-recurrence/);
   assert.match(endedHtml, /data-repeat-summary>On Wednesdays · ended</);
   ended.handleRepeatAction('repeat-apply', { dataset: {} });
-  assert.deepEqual(ended.calls.at(-1), ['set', 'task', 't', { frequency: 'weekly', interval: 1, weekdays: [3], endType: 'never', endDate: null, endAfterOccurrences: null, status: 'active' }], 'Primeni starts an ended repeat again');
+  // R88: the sheet's rule always says whether it counts from completion (false here).
+  assert.deepEqual(ended.calls.at(-1), ['set', 'task', 't', { frequency: 'weekly', interval: 1, afterCompletion: false, weekdays: [3], endType: 'never', endDate: null, endAfterOccurrences: null, status: 'active' }], 'Primeni starts an ended repeat again');
 });
 
 function editContext(task) {
@@ -160,7 +162,8 @@ test('S14: only a date, the reminder or the repeat asks; other fields save at on
 function scopeContext(tasks, changes) {
   const ctx = appContext(tasks, { combineDateTime: Core.combineDateTime, modalFrame: (content, cls) => `<frame ${cls}>${content}</frame>` });
   ctx.modalState = { type: 'recurrence-scope', taskId: tasks[0].id, changes, previous: { type: 'task', taskId: tasks[0].id } };
-  vm.runInContext(['renderRecurrenceScope', 'cancelRecurrenceScope', 'applyRecurrenceScope', 'snapshotTasks', 'restoreTasks'].map(fn).join('\n'), ctx);
+  // R103b: Undo snapshots and the Još count include the archived tasks (historyTasks); none are archived here.
+  vm.runInContext(['renderRecurrenceScope', 'cancelRecurrenceScope', 'applyRecurrenceScope', 'historyTasks', 'snapshotTasks', 'restoreTasks'].map(fn).join('\n') + '\nlet archivedTasks = [];', ctx);
   return ctx;
 }
 

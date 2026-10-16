@@ -82,8 +82,9 @@ test('6: Redovne obaveze and step 3 of Nedeljni pregled put the date under the t
   const tasksUi = read('js/tasks-ui.js');
   assert.doesNotMatch(tasksUi, /task-side|sideHtml/);
   assert.match(tasksUi, /options\.metaText != null \? \[options\.metaLead, esc\(options\.metaText\)\]\.filter\(Boolean\)\.join\(' · '\)/);
-  assert.match(app, /renderChoreRow\(task, options = \{\}\) \{ return taskRow\(task, 'cleaning', \{ today: true, metaText: options\.metaText, metaLead: options\.metaLead \}\); \},/);
-  assert.match(read('js/cleaning-ui.js'), /ctx\.renderChoreRow\(task, \{ metaText, metaLead: task\.isCompleted \? '' : when\(task\) \}\)/);
+  // R95: the row also carries the chore's bar.
+  assert.match(app, /renderChoreRow\(task, options = \{\}\) \{ return taskRow\(task, 'cleaning', \{ today: true, metaText: options\.metaText, metaLead: options\.metaLead, bar: options\.bar \}\); \},/);
+  assert.match(read('js/cleaning-ui.js'), /ctx\.renderChoreRow\(task, \{ metaText, metaLead: task\.isCompleted \? '' : when\(task\), bar: /);
   assert.match(rule('.review-day-row'), /display: grid; justify-items: start; gap: 2px;/);
 });
 
@@ -107,6 +108,7 @@ test('7: "Prijavi se" in the phone app\'s transfer notice opens Nalog', () => {
 test('8: "Iz šablona" is a chip under the window title, only when templates of that type exist', () => {
   const render = fn('renderModal');
   assert.doesNotMatch(render, /insertAdjacentHTML\('afterbegin',`<button class="btn btn-ghost" type="button" data-action="from-template"/);
+  // R99: or when the built-in gallery has one of that type (tests/templates-r99.test.js).
   assert.match(render, /state\.templates\.some\(template => template\.type === modalState\.type\)/);
   assert.match(render, /\$\('\.modal-header', root\)\?\.insertAdjacentHTML\('afterend', `<div class="quick-template-row"><button class="quick-chip" type="button" data-action="from-template"><i class="ph ph-copy" aria-hidden="true"><\/i>\$\{tr\('From template'\)\}<\/button><\/div>`\)/);
 });

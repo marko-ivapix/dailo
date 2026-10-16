@@ -46,14 +46,17 @@ function completedContext(extra = {}) {
     openPopover: (anchor, html, meta) => calls.push(['open', html, meta]),
   };
   vm.createContext(withI18n(ctx));
-  vm.runInContext(['renderCompleted', 'openCompletedProjectSheet'].map(fn).join('\n'), ctx);
+  // R101: the screen opens with the summary card (tests/completed-summary-r101.test.js).
+  // R103: the screen lists the archived tasks too (historyTasks); none are archived here.
+  vm.runInContext(['historyTasks', 'completedSummaryCard', 'renderCompleted', 'openCompletedProjectSheet'].map(fn).join('\n') + '\nlet archivedTasks = [];', ctx);
   return ctx;
 }
 
 test('S9: "Završeni zadaci" has chips, groups by completion day with Today rows, and the clear row at the bottom', () => {
   const ctx = completedContext();
   const html = ctx.renderCompleted();
-  assert.match(html, /^<header title="Completed tasks" subtitle="4 tasks"><\/header><div class="sheet-chips completed-chips"><button class="quick-chip" type="button" data-action="completed-project">All projects <i class="ph ph-caret-down" aria-hidden="true"><\/i><\/button><button class="quick-chip is-selected" type="button" data-action="completed-period" data-value="0" aria-pressed="true">All time<\/button><button class="quick-chip" type="button" data-action="completed-period" data-value="7" aria-pressed="false">7 days<\/button><button class="quick-chip" type="button" data-action="completed-period" data-value="30" aria-pressed="false">30 days<\/button><\/div>/);
+  // R101: the summary card comes between the header and the chips.
+  assert.match(html, /^<header title="Completed tasks" subtitle="4 tasks"><\/header>(<div class="today-card completed-summary">[\s\S]*?<\/div>)?<div class="sheet-chips completed-chips"><button class="quick-chip" type="button" data-action="completed-project">All projects <i class="ph ph-caret-down" aria-hidden="true"><\/i><\/button><button class="quick-chip is-selected" type="button" data-action="completed-period" data-value="0" aria-pressed="true">All time<\/button><button class="quick-chip" type="button" data-action="completed-period" data-value="7" aria-pressed="false">7 days<\/button><button class="quick-chip" type="button" data-action="completed-period" data-value="30" aria-pressed="false">30 days<\/button><\/div>/);
   const groups = [...html.matchAll(/<section class="section completed-group"><div class="section-header"><h2 class="section-label">([^<]+)<\/h2><\/div><div class="task-list today-card">((?:<row [^>]+>)+)<\/div><\/section>/g)].map(match => [match[1], match[2]]);
   assert.deepEqual(groups.map(group => group[0]), [`Today · D:${TODAY} · 2`, `Yesterday · D:${YESTERDAY} · 1`, `L:${Core.addDays(TODAY, -40)} · 1`]);
   assert.equal(groups[0][1], '<row c2 completed today><row c1 completed today>');

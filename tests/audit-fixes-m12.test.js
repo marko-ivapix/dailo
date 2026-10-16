@@ -154,7 +154,9 @@ test('R-3: records that first arrive through sync do not replay past reminders',
   assert.deepEqual(byId, { old: null, past: now, future: null }, 'only records new to this device');
   assert.deepEqual(settled.goals[0].reminderFiredMoments, ['2026-10-09T09:00:00']);
   assert.deepEqual(settled.habits[0].reminderFiredMoments, ['2026-10-10T07:30:00']);
-  assert.match(fn(app, 'applySyncResult'), /Core\.settleArrivedReminders\(previous, Core\.pruneDanglingReferences\(result\.state\), nowIso\(\)\)/);
+  // R103: the pruned state is the merged one less the tasks that stay archived. R104: the archived tasks are pruned and
+  // normalized with it, and the device's archived tasks count as known (they never replay a reminder).
+  assert.match(fn(app, 'applySyncResult'), /Core\.settleArrivedReminders\(withArchive\(previous\), Core\.pruneDanglingReferences\(\{ \.\.\.result\.state, tasks: \[\.\.\.split\.live, \.\.\.arrived\] \}\), nowIso\(\)\)/);
 });
 
 test('R-3: the reminder checker does not bump updatedAt for a firing', () => {

@@ -12,6 +12,7 @@
     const project = getProject(projectId);
     if (!project) return '';
     const archived = Boolean(project.isArchived);
+    const status = ctx.Core.projectStatus(project);
     const area = getArea(project.areaId);
     const openTasks = projectTasks(projectId, false);
     const completed = projectTasks(projectId, true);
@@ -21,10 +22,17 @@
     // the screen the project was opened from.
     let html = ctx.backLink('tasks', tr('Tasks')) + ctx.pageHeader(project.name, summary, { add: false, projectMenu: projectId, color: project.color });
     if (archived) html += `<section class="weekly-review-notice project-archived-notice" role="status"><i class="ph ph-archive weekly-review-notice-icon" aria-hidden="true"></i><div class="backup-reminder-copy"><strong>${tr('Archived project')}</strong><span>${tr('Its tasks stay out of every list until you restore it.')}</span></div><div class="backup-reminder-actions"><button class="btn btn-secondary" type="button" data-action="restore-project" data-project-id="${esc(projectId)}">${tr('Restore')}</button></div></section>`;
+    // R94: Aktivan, Na čekanju or Nekad; a project that is not active keeps its undated tasks out of Kad stignem.
+    if (!archived && !project.isCleaningRoom) {
+      html += `<div class="view-tabs project-status" role="group" aria-label="${tr('Project status')}">${[['active', tr('Ongoing')], ['onHold', tr('On hold')], ['someday', tr('Someday')]].map(([value, label]) => `<button class="btn${status === value ? ' is-selected' : ''}" type="button" data-action="project-status" data-project-id="${esc(projectId)}" data-status="${value}" aria-pressed="${status === value}">${label}</button>`).join('')}</div>`;
+      if (status !== 'active') html += `<p class="tasks-note">${tr('Its tasks without a date stay out of Anytime until it is active again.')}</p>`;
+    }
     if (goal) html += `<button class="project-goal-link" type="button" data-route="goal/${esc(goal.id)}"><i class="ph ph-target" aria-hidden="true"></i>${esc(tr('Goal: {goal}', { goal: goal.title }))} · ${ctx.goalPercent(goal)}%</button>`;
-    if (openTasks.length) html += `<div class="task-list today-card" data-list-context="project:${esc(projectId)}">${openTasks.map(task => renderProjectTaskRow(task, projectId, { draggable: !archived, today: true, hidePlace: true })).join('')}</div>`;
+    if (openTasks.length) html += `<div class="task-list today-card" data-list-context="project:${esc(projectId)}">${openTasks.map((task, index) => renderProjectTaskRow(task, projectId, { draggable: !archived, today: true, hidePlace: true, nextStep: index === 0 && status === 'active' && !archived })).join('')}</div>`;
     else if (!archived) html += `<p class="today-empty">${tr('No open tasks.')}</p>`;
     if (!archived) html += `<button class="inline-add" type="button" data-action="quick-add" data-project-id="${esc(projectId)}"><i class="ph ph-plus"></i> ${tr('Add task')}</button>`;
+    // R97: the notes and resources linked to the project.
+    html += ctx.linkedKnowledgeHtml?.('relatedProjectIds', projectId, 'section') || '';
     html += completedSection(ctx, projectId, completed, task => renderProjectTaskRow(task, projectId, { completed: true, today: true, hidePlace: true }));
     return html;
   }
@@ -95,6 +103,7 @@
     } else if (action === 'edit-project' && element.dataset.popAction) { ctx.closePopover(); ctx.openProjectModal(projectId); }
     else if (action === 'archive-project' && element.dataset.popAction) ctx.archiveProject(projectId);
     else if (action === 'delete-project' && element.dataset.popAction) { ctx.closePopover(); ctx.deleteProject(projectId); }
+    else if (action === 'project-status') ctx.setProjectStatus(projectId, element.dataset.status);
     else return false;
     return true;
   }

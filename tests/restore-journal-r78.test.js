@@ -45,6 +45,7 @@ function restoreApp(current) {
     openConfirm: config => { ctx.confirm = config; ctx.modalState = { type: 'confirm', ...config }; },
     renderModal() {}, render() { ctx.rendered = (ctx.rendered || 0) + 1; }, renderToast() {}, location: { hash: '#settings' },
     setToastMessage: message => { ctx.toasts.push(message); }, setUndo() {}, refreshHabitMetrics: async () => {}, $: selector => inputs[selector] || null,
+    loadArchive: async () => {}, // R103: the archive reloads after a commit or rollback (none here)
     forgetSyncShadow() {}, journalCipherStored: () => null, deviceJournalKey: async () => null,
     storeJournalKey: async (salt, key) => { ctx.storedKey = { salt, key, rendered: ctx.rendered || 0 }; },
   };

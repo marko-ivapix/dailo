@@ -90,6 +90,7 @@
       <ul>
         <li>Sve što uneseš čuva se <strong>na tvom uređaju</strong>. Ako imaš nalog, kopija se čuva i na serveru u Evropskoj uniji (Supabase, Frankfurt), da bi stigla na tvoje druge uređaje. Više u <a href="privatnost.html">Politici privatnosti</a>.</li>
         <li>U pregledaču, u <strong>Podešavanja → Podaci</strong>, red <strong>Trajno čuvanje</strong> treba da piše „Uključeno“. Tada pregledač neće sam brisati podatke aplikacije.</li>
+        <li>Zadaci bez projekta završeni pre više od 180 dana sele se u arhivu na uređaju, da glavni podaci ostanu mali. I dalje ih nalaziš u Pretrazi i u Završenim zadacima, u rezervnoj kopiji su i sinhronizuju se; čim nešto uradiš sa takvim zadatkom, vraća se među ostale.</li>
       </ul>
       <p class="note">Ako obrišeš Dailo sa početnog ekrana ili obrišeš podatke sajta u pregledaču, brišu se i podaci na tom uređaju. Bez naloga pre toga napravi rezervnu kopiju.</p>
     </section>
@@ -101,22 +102,29 @@
         <li>Sačuvaj fajl na sigurno mesto, na primer u Fajlove, iCloud Drive ili Google Drive.</li>
         <li>Za povratak podataka koristi <strong>Uvezi ZIP</strong>. Dailo prvo proveri fajl i sam napravi sigurnosnu kopiju trenutnih podataka, pa traži da upišeš <code>VRATI</code>.</li>
       </ol>
-      <p><strong>Podsetnik za rezervnu kopiju:</strong> kad prođe 7 dana od poslednje kopije, Dailo te podseti na ekranu <strong>Danas</strong>. Broj dana menjaš u istom delu Podešavanja.</p>
+      <p><strong>Podsetnik za rezervnu kopiju:</strong> kad prođe 7 dana od poslednje kopije, Dailo te podseti na vrhu ekrana <strong>Još</strong>, a na dugmetu „Još“ se pojavi žuta tačka. Broj dana menjaš u istom delu Podešavanja.</p>
       <p><strong>Automatska rezervna kopija</strong> (samo u aplikaciji za telefon): jednom nedeljno sačuva ZIP u <strong>Dokumenti/Dailo</strong> na telefonu i čuva poslednje četiri kopije.</p>
     </section>
 
     <section>
       <h2>Brzo dodavanje</h2>
       <p>Dugme <strong>+</strong> dodaje stavku ekrana na kom si: na Danas zadatak, na Navike naviku, na Ciljevi cilj. Drži <strong>+</strong> za meni sa svim vrstama.</p>
+      <p>Zadatak bez datuma i bez projekta ide u <strong>Inbox</strong>, i kad stigne glasom, preko widgeta ili opcije „Podeli u Dailo“. Inbox središ dugmetom <strong>Razvrstaj redom</strong>: za svaku stavku biraš danas, sutra, kad stignem, datum, projekat, završi ili „U beleške“.</p>
+      <p>Zadatak ima dva datuma: <strong>Kad radim</strong> je dan kad planiraš da ga uradiš (tada je na Danas), a <strong>Rok</strong> je dan do kog mora biti gotov. U prozoru zadatka vidiš ta dva datuma i ono što zadatak već ima, a ostalo čeka pod <strong>Više opcija</strong>.</p>
+      <p>Ponavljanje ide <strong>po rasporedu</strong> (na primer svakog ponedeljka) ili <strong>od dana završetka</strong>: tada sledeći dolazi tek kad završiš ovaj, na primer zalivanje cveća 3 dana posle poslednjeg.</p>
       <p>Ceo zadatak može da stane u jedan red. Ispod naslova odmah vidiš šta je Dailo prepoznao.</p>
       <ul>
-        <li>Kada: <code>danas</code>, <code>sutra</code>, <code>prekosutra</code>, <code>u sredu</code>, <code>za 3 dana</code>, <code>15.10.</code>, i vreme <code>u 9:30</code>.</li>
+        <li>Kad radim: <code>danas</code>, <code>sutra</code>, <code>prekosutra</code>, <code>u sredu</code>, <code>za 3 dana</code>, <code>15.10.</code></li>
+        <li>Vreme: <code>u 9:30</code>, <code>u 18h</code>, <code>pola deset</code>, <code>četvrt do osam</code>, <code>u osam i po</code>, <code>u osam uveče</code>.</li>
+        <li>Ponavljanje: <code>utorkom</code>, <code>ponedeljkom i četvrtkom</code>, <code>radnim danima</code>, <code>svaki dan</code>, <code>svakog meseca</code>, <code>svakog drugog utorka</code>, <code>svaka 3 dana</code>.</li>
         <li>Rok: <code>rok petak</code> ili <code>do petka</code>, <code>do sutra</code>, <code>do 15.10.</code></li>
         <li>Trajanje: <code>30min</code>, <code>1h</code>, <code>1,5h</code>, <code>2 sata</code>.</li>
         <li>Projekat <code>+ime</code>, oblast <code>@ime</code>, oznaka <code>#ime</code> (samo postojeći).</li>
         <li>Prioritet: <code>!visok</code>, <code>!srednji</code>, <code>!nizak</code>.</li>
       </ul>
-      <p>Primer: <code>Pošalji ponudu +Klijenti rok petak 45min sutra u 9:30</code>. Datum, rok i trajanje pišu se na kraju naslova; ono što se ne prepozna ostaje u naslovu.</p>
+      <p>Primer: <code>Pošalji ponudu +Klijenti rok petak 45min sutra u 9:30</code>. Datum, rok i trajanje pišu se na kraju naslova; ono što se ne prepozna ostaje u naslovu. Reči za datum, vreme i ponavljanje prepoznaje i kad ih otkucaš ćirilicom.</p>
+      <p>Dodirni prepoznati deo ispod naslova i on ostaje u naslovu (na primer film „Sutra“). Dok kucaš <code>#</code>, <code>+</code> ili <code>@</code>, nude se postojeće oznake, projekti i oblasti. Nalepljena lista postaje više zadataka, posle potvrde. Već upisani <code>+projekat</code>, <code>@oblast</code>, <code>#oznake</code> i <code>!prioritet</code> važe za svaki nalepljeni zadatak.</p>
+      <p>Pretraga ne pravi razliku između velikih i malih slova, slova sa kvačicama i bez njih, ni latinice i ćirilice: „cacak“ nalazi „Čačak“, a reč otkucana ćirilicom nalazi istu reč napisanu latinicom. Na računaru <strong>Ctrl+K</strong> (na Mac-u <strong>Cmd+K</strong>) otvara paletu komandi: upiši ekran ili radnju i pritisni Enter.</p>
     </section>
 
     <section>
@@ -126,18 +134,47 @@
         <li>Prevuci ga <strong>ulevo</strong>: biraš mu datum.</li>
         <li>Drži red pa ga prevuci <strong>gore ili dole</strong>: menjaš redosled.</li>
       </ul>
-      <p>Kod navike dodir na krug menja stanje: urađeno (✓), pa <strong>Nije urađeno</strong> (crveni ✗), pa prazno. Navika sa brojem, na primer čaše vode, otvara unos vrednosti. Navike ostaju na svom mestu kad im promeniš stanje.</p>
+      <p>Sve ovo ima i dugme: krug na kraju reda završava zadatak, datum biraš u prozoru zadatka, a redosled menjaš u meniju <strong>⋯</strong> prozora zadatka (Pomeri gore, Pomeri dole). Podzadatak pomeraš strelicama ↑ i ↓ kad dodirneš njegov naziv.</p>
+      <p>Kod navike dodir na krug menja stanje: urađeno (✓), pa <strong>Nije urađeno</strong> (crveni ✗), pa prazno. Navika sa brojem, na primer čaše vode, otvara unos vrednosti. Navike ostaju na svom mestu kad im promeniš stanje. Pored niza vidiš i <strong>uspešnost za poslednjih 30 dana</strong>: jedan propušten dan je malo spusti, a ne vraća na nulu. Kod navike „X puta nedeljno“ računaju se cele nedelje, a tekuća tek kad ispuniš cilj.</p>
+      <p>Uz upisan dan možeš dodati kratku belešku (meni navike, na primer „prehlada“ ili „na putu“). Brojčana navika može imati i gornju granicu: <strong>Najviše</strong> 2 kafe dnevno. Dan je uspešan dok si u granici, a dan bez ijedne upiši kao 0. Preko granice dan dobija crveni ✗. Beleške vidiš u detaljima navike.</p>
+    </section>
+
+    <section>
+      <h2>Projekti</h2>
+      <p>Projekat može biti <strong>Aktivan</strong>, <strong>Na čekanju</strong> ili za <strong>Nekad</strong> (biraš na vrhu projekta). Zadaci bez datuma iz projekata koji nisu aktivni ne stoje u „Kad stignem“. <strong>Sledeći korak</strong> projekta je njegov prvi otvoren zadatak: pomeri zadatak na vrh i on postaje sledeći.</p>
+      <p>U <strong>Zadaci → Projekti</strong> svaki aktivan projekat pokazuje svoj sledeći korak, a projekti na čekanju i za nekad su skupljeni na dnu. Nedeljni pregled ističe aktivne projekte bez sledećeg koraka.</p>
+      <p>Beleška i resurs mogu da se povežu sa projektom i ciljem (prozor beleške, <strong>Organizacija</strong>), a povezane vidiš na ekranu projekta i u detaljima cilja. Link se prikazuje kao kartica sa imenom sajta.</p>
+      <p>Kad praviš novi projekat ili naviku, <strong>Iz šablona</strong> nudi i gotove šablone: Pakovanje za put, Selidba i Ispit za projekte, Jutarnja rutina za navike. Izabrani šablon samo popuni prozor, a ništa se ne čuva dok ne sačuvaš projekat ili naviku.</p>
+    </section>
+
+    <section>
+      <h2>Redovne obaveze</h2>
+      <p>U <strong>Redovnim obavezama</strong> svaka obaveza ima traku koja se polako puni dok ne dođe vreme. Kad prođe njen dan, piše „Vreme je“, bez crvenog „Kasni“, a kad je uradiš, traka kreće ispočetka.</p>
+      <p>Nova obaveza dobija samo dan kad je planirana, ne i rok. Ako je propustiš, Danas je ponudi među predlozima. Primeri za stan i kuću imaju i sezonske poslove, kao što su zamena garderobe, servis klime i čišćenje oluka.</p>
     </section>
 
     <section>
       <h2>Raspored dana</h2>
       <p>U <strong>Kalendaru</strong> dodirni dan, pa ispod izaberi <strong>Raspored</strong>. Zadaci sa vremenom stoje po satima, a zadacima iz liste <strong>Bez vremena</strong> vreme upisuješ odmah u redu. Trajanje zadatka biraš čipom <strong>Trajanje</strong> ili pišeš <code>45min</code> u naslovu.</p>
-      <p><strong>Dnevni kapacitet</strong> (<strong>Podešavanja → Opšte</strong>, podrazumevano 6 h) pokazuje u rasporedu koliko je planirano i da li je za taj dan planirano više nego što stane.</p>
+      <p>U <strong>Kalendaru</strong> je i prikaz <strong>3 dana</strong>. Zadatak držiš pa ga prevučeš na drugi dan ili, u Rasporedu, na drugi sat. Zadatak koji je tu zbog roka ima peščani sat.</p>
+      <p><strong>Dnevni kapacitet</strong> (<strong>Podešavanja → Opšte</strong>, podrazumevano 6 h) pokazuje u rasporedu koliko je planirano i da li je za taj dan planirano više nego što stane. Računaju se i navike sa upisanim trajanjem koje tog dana još nisu urađene: trajanje nove navike upisuješ pod „Više opcija“. Trajanje postojeće navike menjaš u <strong>Detaljima navike</strong>.</p>
     </section>
 
     <section>
       <h2>Nedeljni pregled</h2>
-      <p>Nalazi se u <strong>Još → Biblioteka</strong>. Kad dođe kraj nedelje, na njegovom polju piše „Vreme je za pregled ove nedelje“. U nekoliko koraka isprazniš Inbox, središ zakasnele zadatke, pogledaš narednih 7 dana, ciljeve, navike i oblasti, pa dodirneš <strong>Završi nedeljni pregled</strong>.</p>
+      <p>Nalazi se u <strong>Još → Biblioteka</strong>. Kad dođe kraj nedelje, na njegovom polju piše „Vreme je za pregled ove nedelje“. U nekoliko koraka isprazniš Inbox, središ zakasnele zadatke, pogledaš narednih 7 dana, projekte bez sledećeg koraka, ciljeve, navike i oblasti, pa dodirneš <strong>Završi nedeljni pregled</strong>.</p>
+      <p>Traje oko 10 minuta i počinje pobedama iz poslednjih 7 dana. Svaki korak možeš da preskočiš. Na kraju biraš do tri prioriteta za sledeću nedelju: stoje na vrhu ekrana Danas, a <strong>Fokusiraj se na njih</strong> ih otvara u Fokusu.</p>
+      <p><strong>Još → Završeni zadaci</strong> počinje pregledom: koliko je zadataka završeno ovog meseca, prošlog meseca i ove godine, najbolji dan u mesecu i koliko dana zaredom nešto završiš.</p>
+    </section>
+
+    <section>
+      <h2>Dnevnik</h2>
+      <p>U unosu dnevnika te čeka jedno pitanje o danu (<strong>Upiši</strong> ga stavlja u tekst, <strong>Drugo pitanje</strong> nudi sledeće) i spisak zadataka završenih tog dana. Na ekranu Dnevnik je i uvid: kakvo je raspoloženje danima kad uradiš neku naviku, a kakvo ostalim danima. U aplikaciji za telefon dnevnik možeš da zaključaš (⋯ na ekranu Dnevnik), pa se otvara otiskom prsta, licem ili PIN-om telefona.</p>
+    </section>
+
+    <section>
+      <h2>Sačuvani prikazi</h2>
+      <p>U <strong>Još → Sačuvani prikazi</strong> su i gotovi prikazi: Do 15 minuta, Visok prioritet ove nedelje, Bez roka i Čekam. Dodir ga doda među tvoje; za Čekam stavi zadatku oznaku <strong>#Čekam</strong> kad čekaš nekog drugog.</p>
     </section>
 
     <section>

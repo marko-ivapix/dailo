@@ -102,7 +102,8 @@ test('10: the project screen and "Bez projekta" use the usual header with the co
   const projects = moduleFor('js/projects-ui.js');
   const project = { id: 'p', name: 'Site', color: '#2fbf71', areaId: null };
   const ctx = {
-    state: { goals: [], ui: {} }, esc, getProject: id => (id === 'p' ? project : null), getArea: () => null,
+    state: { goals: [], ui: {} }, esc, Core, // R94: the screen asks Core for the project's status
+    getProject: id => (id === 'p' ? project : null), getArea: () => null,
     projectTasks: () => [], renderProjectTaskRow: () => '', goalPercent: () => 0, looseTasks: () => [], taskRow: () => '',
     backLink: (route, label) => `<div class="screen-topbar"><button class="screen-back" type="button" data-route="${route}"><i class="ph ph-caret-left" aria-hidden="true"></i>${label}</button></div>`, // R22a: the fallback when opened directly
     pageHeader: (title, subtitle, options) => `<header title="${title}" subtitle="${subtitle}" menu="${options.projectMenu || ''}" color="${options.color || ''}"></header>`,

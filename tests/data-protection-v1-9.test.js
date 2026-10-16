@@ -102,12 +102,13 @@ test('Settings shows persistence status, the reminder interval, and a formatted 
 function reminderApp(state, stored = {}) {
   const values = new Map(Object.entries(stored));
   const ctx = {
-    state, Core, esc: String, nowIso: () => NOW,
+    state, Core, esc: String, nowIso: () => NOW, syncView: () => ({ signedIn: false }) /* R83: the line differs with an account */,
     localStorage: { getItem: key => values.get(key) ?? null, setItem: (key, value) => values.set(key, String(value)), removeItem: key => values.delete(key) },
     navigator: {},
   };
   vm.createContext(withI18n(ctx));
-  vm.runInContext(appRegion('  function backupReminderNotice(', '  async function exportBackupAction('), ctx);
+  // R83: the due check is its own function (backupReminderDue), which also drives the dot on the Još tab.
+  vm.runInContext(appRegion('  function backupReminderDue(', '  async function exportBackupAction('), ctx);
   return { ctx, values };
 }
 
@@ -126,8 +127,9 @@ test('Today shows one backup notice with export and snooze actions only when the
   const fresh = emptyState({ tasks: [{ id: 't', title: 'Keep me', createdAt: daysAgo(20) }], settings: { backupStatus: { lastExport: daysAgo(1) } } });
   assert.equal(reminderApp(fresh).ctx.backupReminderNotice(), '');
 
-  const renderToday = appRegion('  function renderToday()', '  function renderInbox()');
-  assert.match(renderToday, /backupReminderNotice\(\)/);
+  // R83: the notice moved from Danas to the top of Još.
+  assert.match(appRegion('  function renderMoreScreen()', '\n  }\n'), /backupReminderNotice\(\)/);
+  assert.doesNotMatch(appRegion('  function renderToday()', '  function renderInbox()'), /backupReminderNotice\(\)/);
   assert.doesNotMatch(appRegion('  function renderModal(', '\n  function '), /backupReminderNotice/);
 });
 

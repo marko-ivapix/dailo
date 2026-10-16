@@ -42,7 +42,8 @@ test('Još → Nalog shows the line; signed out it still invites to sign in', ()
 
 test('the Još tab gets a red dot while the last sync failed', () => {
   assert.match(read('index.html'), /<button class="mobile-bottom-nav-item" type="button" data-route="more"><i class="ph ph-dots-three-outline" aria-hidden="true"><\/i><span>Još<\/span><b id="mobile-sync-alert" class="mobile-bottom-nav-alert" role="img" aria-label="Sinhronizacija nije uspela" hidden><\/b><\/button>/);
-  assert.match(functionSource('renderMobileBottomNav').source, /const syncAlert = \$\('#mobile-sync-alert'\);\n\s+if \(syncAlert\) syncAlert\.hidden = syncStatus\(\)\.state !== 'error';/);
+  // R83: the same dot also shows (amber) while a backup is due; a failed sync still wins.
+  assert.match(functionSource('renderMobileBottomNav').source, /const syncAlert = \$\('#mobile-sync-alert'\);\n\s+if \(syncAlert\) \{\n\s+const failed = syncStatus\(\)\.state === 'error'/);
   assert.ok(beforeMarker.includes('.mobile-bottom-nav-alert { position: absolute; top: 4px; right: calc(50% - 16px); width: 8px; height: 8px; border-radius: 50%; background: var(--danger); }'));
   assert.ok(beforeMarker.includes('.mobile-bottom-nav-alert[hidden] { display: none; }'));
 });

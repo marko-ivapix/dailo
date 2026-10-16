@@ -29,7 +29,9 @@ test('a sheet redrawn in place keeps its accessible name', () => {
 
 test('chips are no longer nested inside the row\'s button', () => {
   const tasksUi = read('js/tasks-ui.js');
-  assert.match(tasksUi, /<div class="task-main-wrap"><div class="task-main" data-action="open-task" data-task-id="\$\{esc\(task\.id\)\}" role="button" tabindex="0"><div class="task-title">\$\{esc\(task\.title\)\}<\/div>\$\{meta \? `<div class="task-meta">\$\{meta\}<\/div>` : ''\}<\/div>\$\{addToday\}<\/div>/);
+  // R91: a Calendar row there for its deadline puts the hourglass before the title.
+  // R94: a project's next step leads the meta line; R95: a chore's bar follows it.
+  assert.match(tasksUi, /<div class="task-main-wrap"><div class="task-main" data-action="open-task" data-task-id="\$\{esc\(task\.id\)\}" role="button" tabindex="0"><div class="task-title">\$\{options\.dueItem \? '<i class="ph ph-hourglass-medium task-due-icon" aria-hidden="true"><\/i>' : ''\}\$\{esc\(task\.title\)\}<\/div>\$\{next \|\| meta \? `<div class="task-meta">\$\{next\}\$\{meta\}<\/div>` : ''\}\$\{bar\}<\/div>\$\{addToday\}<\/div>/);
   has('.task-row--today > .task-main-wrap { flex: 1 1 auto; min-width: 0; }');
 });
 

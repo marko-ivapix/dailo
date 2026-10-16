@@ -38,7 +38,8 @@ function harness() {
   vm.createContext(ctx);
   // R33: subtasks share the touch reorder, and an Inbox row stays within its capture group.
   const constLine = name => app.match(new RegExp(`\\n  const ${name} = [^\\n]+`))[0];
-  vm.runInContext(`let taskSwipeState = null; let suppressTaskSwipeClick = false; let touchReorder = null;\n${constLine('REORDER_ROWS')}\n${constLine('dropGroup')}\n${['sameReorderList', 'resetTaskSwipe', 'handleTaskSwipeStart', 'handleTaskSwipeMove', 'finishTaskSwipe', 'handleTouchReorderStart', 'startTouchReorder', 'handleTouchReorderMove', 'finishTouchReorder', 'cancelTouchReorder', 'blockTouchScroll'].map(fn).join('\n')}`, ctx);
+  // R91: blockTouchScroll and the long-press menu also know the calendar's touch drag (calendarTouch).
+  vm.runInContext(`let taskSwipeState = null; let suppressTaskSwipeClick = false; let touchReorder = null; let calendarTouch = null;\n${constLine('REORDER_ROWS')}\n${constLine('dropGroup')}\n${['sameReorderList', 'resetTaskSwipe', 'handleTaskSwipeStart', 'handleTaskSwipeMove', 'finishTaskSwipe', 'handleTouchReorderStart', 'startTouchReorder', 'handleTouchReorderMove', 'finishTouchReorder', 'cancelTouchReorder', 'blockTouchScroll'].map(fn).join('\n')}`, ctx);
   const event = (type, row, x, y, extra = {}) => ({ type, pointerType: 'touch', isPrimary: true, button: 0, pointerId: 1, clientX: x, clientY: y, target: { closest: selector => (/button|input/.test(selector) ? null : row) }, preventDefault() { calls.push(['prevent', type]); }, ...extra });
   return { ctx, calls, timers, rows, under, event };
 }
@@ -106,7 +107,7 @@ test('E: the touch drag is wired to the page, blocks the native drag and long-pr
   assert.match(start, /document\.addEventListener\('pointercancel', finishTouchReorder\);/);
   assert.match(start, /document\.addEventListener\('touchmove', blockTouchScroll, \{ passive: false \}\);/);
   // R62: a row being swiped blocks the long-press menu too.
-  assert.match(start, /document\.addEventListener\('contextmenu', event => \{ if \(touchReorder \|\| taskSwipeState\) event\.preventDefault\(\); \}\);/);
+  assert.match(start, /document\.addEventListener\('contextmenu', event => \{ if \(touchReorder \|\| taskSwipeState \|\| calendarTouch\) event\.preventDefault\(\); \}\);/);
   assert.match(fn('handleDragStart'), /if \(touchReorder\) \{ event\.preventDefault\(\); return; \}/);
   assert.match(fn('handleTaskSwipeMove'), /if \(touchReorder\?\.active\) return;/);
   assert.match(css, /\.task-row\.is-touch-dragging \{ position: relative; z-index: 5; pointer-events: none;/);

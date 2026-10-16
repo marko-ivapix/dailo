@@ -15,9 +15,15 @@
       if (has(key) && (key === 'areaId' || view.type === 'tasks') && !(state[collection] || []).some(x=>x.id===f[key])) return [];
     }
     const same = (item,key) => !has(key) || item[key] === f[key];
+    // R100: a tasks view can also ask for this week or today (planned or due then), a duration of at most N minutes and
+    // no due date.
+    const weekStart = f.period === 'thisWeek' ? weekStartFor(today, state.settings?.weekStartsOn) : null;
+    const range = f.period === 'today' ? [today, today] : weekStart ? [weekStart, addDays(weekStart, 6)] : null;
+    const inRange = date => Boolean(date) && date >= range[0] && date <= range[1];
+    const r100 = item => (!range || inRange(item.plannedDate) || inRange(item.dueDate)) && (!has('maxMinutes') || Number.isInteger(item.durationMinutes) && item.durationMinutes <= f.maxMinutes) && (f.noDue !== true || !item.dueDate);
     return (state[view.type] || []).filter(item => {
       if (has('areaId') && (view.type === 'tasks' ? effectiveTaskArea(item,state.projects) : item.areaId) !== f.areaId) return false;
-      if (view.type === 'tasks') return same(item,'projectId') && same(item,'priority') && same(item,'plannedDate') && same(item,'dueDate') && (!has('tagId') || (item.tagIds || []).includes(f.tagId)) && (!has('completion') || f.completion === 'open' && !item.isCompleted || f.completion === 'completed' && !!item.isCompleted);
+      if (view.type === 'tasks') return r100(item) && same(item,'projectId') && same(item,'priority') && same(item,'plannedDate') && same(item,'dueDate') && (!has('tagId') || (item.tagIds || []).includes(f.tagId)) && (!has('completion') || f.completion === 'open' && !item.isCompleted || f.completion === 'completed' && !!item.isCompleted);
       if (view.type === 'goals') return same(item,'status') && same(item,'targetDate');
       return same(item,'status') && same(item,'trackingType') && same(item,'frequencyType');
     });
@@ -81,7 +87,8 @@
     if (type === 'task') {
       data = pick(['title','notes','projectId','areaId','goalIds','tagIds','priority','plannedTime','dueTime','durationMinutes']);
       const rule = normalizeRecurrenceV3(entity.recurrence);
-      data.recurrence = rule ? {frequency:rule.frequency,interval:rule.interval,...Object.fromEntries(RECURRENCE_EXTRA_KEYS.filter(key => rule[key] !== undefined).map(key => [key, templateCopy(rule[key])])),endType:rule.endType,endAfterOccurrences:rule.endAfterOccurrences,endOffsetDays:templateOffset(rule.endDate,contextDate)} : null;
+      // R105: "Od dana završetka" (R88) travels with the template too.
+      data.recurrence = rule ? {frequency:rule.frequency,interval:rule.interval,...(rule.afterCompletion ? {afterCompletion:true} : {}),...Object.fromEntries(RECURRENCE_EXTRA_KEYS.filter(key => rule[key] !== undefined).map(key => [key, templateCopy(rule[key])])),endType:rule.endType,endAfterOccurrences:rule.endAfterOccurrences,endOffsetDays:templateOffset(rule.endDate,contextDate)} : null;
       data.plannedOffsetDays = templateOffset(entity.plannedDate, contextDate);
       data.dueOffsetDays = templateOffset(entity.dueDate, contextDate);
       data.subtasks = (entity.subtasks || []).map((s, order) => ({ title:s.title, order, isCompleted:false, completedAt:null }));
@@ -101,7 +108,8 @@
         return link ? [{goalId,contributionMode:link.contributionMode,selectedTaskIndices:children.map((t,index)=>(link.selectedTaskIds || []).includes(t.id)?index:null).filter(index=>index!==null)}] : [];
       });
     } else if (type === 'habit') {
-      data = pick(['name','areaId','goalIds','trackingType','targetValue','minimumTarget','idealTarget','graceDays','unit','quickValues','frequencyType','weekdays','timesPerWeek','everyNDays','continuation','endType','successfulPeriodsTarget']);
+      // R99: the routine (Jutro, Tokom dana, Veče) travels with the template too. R105: and the duration (R85).
+      data = pick(['name','areaId','goalIds','routine','durationMinutes','trackingType','targetValue','targetMode','minimumTarget','idealTarget','graceDays','unit','quickValues','frequencyType','weekdays','timesPerWeek','everyNDays','continuation','endType','successfulPeriodsTarget']);
       data.endOffsetDays = templateOffset(entity.endDate, contextDate);
       data.reminders = (entity.reminders || []).map(r => ({time:r.time,enabled:r.enabled !== false}));
       data.goalLinkConfigs=(data.goalIds || []).flatMap(goalId=>{
@@ -154,7 +162,7 @@
       const tasks=(d.tasks || []).map(child=>task(child,null,project.id));
       return {project,tasks,goalLinks:configs.map(c=>({goalId:c.goalId,contributionMode:c.contributionMode,selectedTaskIds:[...new Set((c.selectedTaskIndices || []).filter(i=>Number.isInteger(i) && tasks[i]).map(i=>tasks[i].id))]}))};
     }
-    if (template.type === 'habit') return {habit:{...common,id:ids.habitId || makeId('habit'),name:d.name || '',areaId:live('areas',d.areaId),goalIds:links('goals',d.goalIds),status:'active',trackingType:d.trackingType || 'checkbox',targetValue:d.targetValue ?? 1,minimumTarget:habitTargetOrNull(d,d.minimumTarget),idealTarget:habitTargetOrNull(d,d.idealTarget),graceDays:Number.isInteger(d.graceDays) && d.graceDays >= 0 ? d.graceDays : 0,unit:d.unit || '',quickValues:d.quickValues || [],frequencyType:d.frequencyType || 'daily',weekdays:d.weekdays || [1,2,3,4,5],timesPerWeek:d.timesPerWeek || 4,everyNDays:d.everyNDays || 2,startDate:contextDate,continuation:d.continuation || 'automatic',endType:d.endType || 'never',endDate:resolve(d.endOffsetDays),successfulPeriodsTarget:d.successfulPeriodsTarget || null,reminders:(d.reminders || []).map(r=>({id:makeId('habit-reminder'),time:r.time,enabled:r.enabled !== false})),reminderFiredMoments:[],pauseIntervals:[],pauseStartedAt:null},goalLinks:configs.map(c=>({goalId:c.goalId,metric:c.metric,target:c.target}))};
+    if (template.type === 'habit') return {habit:{...common,id:ids.habitId || makeId('habit'),name:d.name || '',areaId:live('areas',d.areaId),goalIds:links('goals',d.goalIds),status:'active',routine:['morning','daily','night'].includes(d.routine) ? d.routine : 'daily',...(habitDurationOrNull(d.durationMinutes) ? {durationMinutes:habitDurationOrNull(d.durationMinutes)} : {}),trackingType:d.trackingType || 'checkbox',targetValue:d.targetValue ?? 1,...(d.targetMode === 'atMost' && d.trackingType === 'numeric' ? {targetMode:'atMost'} : {}),minimumTarget:habitTargetOrNull(d,d.minimumTarget),idealTarget:habitTargetOrNull(d,d.idealTarget),graceDays:Number.isInteger(d.graceDays) && d.graceDays >= 0 ? d.graceDays : 0,unit:d.unit || '',quickValues:d.quickValues || [],frequencyType:d.frequencyType || 'daily',weekdays:d.weekdays || [1,2,3,4,5],timesPerWeek:d.timesPerWeek || 4,everyNDays:d.everyNDays || 2,startDate:contextDate,continuation:d.continuation || 'automatic',endType:d.endType || 'never',endDate:resolve(d.endOffsetDays),successfulPeriodsTarget:d.successfulPeriodsTarget || null,reminders:(d.reminders || []).map(r=>({id:makeId('habit-reminder'),time:r.time,enabled:r.enabled !== false})),reminderFiredMoments:[],pauseIntervals:[],pauseStartedAt:null},goalLinks:configs.map(c=>({goalId:c.goalId,metric:c.metric,target:c.target}))};
     if (template.type === 'goal') return {goal:{...common,id:ids.goalId || makeId('goal'),title:d.title || '',areaId:live('areas',d.areaId),status:'active',progressMode:d.progressMode || 'manual',progressType:d.progressType || 'percentage',currentValue:0,targetValue:d.targetValue ?? 100,unit:d.unit || '',targetDate:resolve(d.targetOffsetDays),projectLinks:[],taskIds:[],habitLinks:[],completedAt:null,reminderFiredMoments:[],reminders:d.reminders || {},milestones:(d.milestones || []).map((m,order)=>({id:makeId('milestone'),title:m.title,date:resolve(m.dateOffsetDays),order,isCompleted:false,completedAt:null}))}};
     throw new Error(msg('Unsupported template type'));
   }
@@ -252,7 +260,9 @@
     return {
       date: today, done: rows.filter(({ day }) => day.state === 'done').length, planned: rows.length,
       items: rows.slice(0, limit).map(({ habit, day }) => ({ id: String(habit.id), name: String(habit.name || ''), done: day.state === 'done', missed: Boolean(day.marked), numeric: numeric(habit),
-        value: numeric(habit) ? Number(day.value || 0) : null, target: numeric(habit) ? Number(habit.targetValue || 0) : null, unit: numeric(habit) ? String(habit.unit || '') : '' })),
+        value: numeric(habit) ? Number(day.value || 0) : null, target: numeric(habit) ? Number(habit.targetValue || 0) : null, unit: numeric(habit) ? String(habit.unit || '') : '',
+        // R93: a limit says so ("1 / najviše 2").
+        ...(habitHasLimit(habit) ? { atMost: true } : {}) })),
       more: Math.max(0, rows.length - limit),
     };
   }
@@ -445,8 +455,16 @@
 
 
 
-  function deriveAnytime(tasks) {
-    return tasks.filter(task => !task.isCompleted && !task.isInbox && !task.plannedDate);
+  // R94: a project is active (no field), on hold ('onHold', "Na čekanju") or for someday ('someday', "Nekad").
+  const PROJECT_STATUSES = ['onHold', 'someday'];
+  function projectStatus(project) {
+    return PROJECT_STATUSES.includes(project?.status) ? project.status : 'active';
+  }
+
+  // R94: the undated tasks of a project on hold or for someday wait there, out of Kad stignem.
+  function deriveAnytime(tasks, projects = []) {
+    const resting = new Set((projects || []).filter(project => projectStatus(project) !== 'active').map(project => project.id));
+    return tasks.filter(task => !task.isCompleted && !task.isInbox && !task.plannedDate && !(task.projectId && resting.has(task.projectId)));
   }
 
   // R11a: weekly on chosen weekdays, monthly by day or nth weekday, and yearly. A field that does
@@ -463,11 +481,14 @@
     if (monthMode === 'weekday' && (weekOfMonth === 'last' || Number.isInteger(weekOfMonth) && weekOfMonth >= 1 && weekOfMonth <= 4) && isWeekday(weekday)) return { monthMode, weekOfMonth, weekday };
     return {};
   }
+  // R88: a rule can count from the day the task is completed (afterCompletion, kept only when true). Such a rule is a
+  // plain interval, so chosen weekdays or a month day are dropped.
   function normalizeRecurrence(recurrence) {
     if (!recurrence || typeof recurrence !== 'object') return null;
     const frequency = ['daily', 'weekly', 'monthly', 'yearly'].includes(recurrence.frequency) ? recurrence.frequency : null;
     if (!frequency) return null;
     const interval = Math.max(1, Math.floor(Number(recurrence.interval) || 1));
+    if (recurrence.afterCompletion === true) return { frequency, interval, afterCompletion: true };
     return { frequency, interval, ...recurrenceExtras(recurrence, frequency) };
   }
 
@@ -630,7 +651,17 @@
     const nowDate = Number.isNaN(now.getTime()) ? dateOnly() : dateOnly(new Date(now.getFullYear(), now.getMonth(), now.getDate()));
     const advance=value=>{let next=nextRecurrenceDate(value,recurrence);if(recurrence.skipNext)next=nextRecurrenceDate(next,recurrence);return next;};
     let plannedDate, dueDate, reminderAt;
-    if (recurrence.weekdays || recurrence.monthMode) {
+    if (recurrence.afterCompletion) {
+      // R88: the next one comes an interval after the day this one was completed (the plan day, else the deadline,
+      // else a plan); the other date and the reminder keep their distance, the reminder on the same wall-clock time.
+      const anchor = source.plannedDate || source.dueDate;
+      const next = advance(nowDate), shift = templateOffset(next, anchor || nowDate);
+      plannedDate = source.plannedDate || !source.dueDate ? next : null;
+      dueDate = source.dueDate ? addDays(source.dueDate, shift) : null;
+      const reminder = source.reminderAt ? new Date(source.reminderAt) : null;
+      if (reminder && !Number.isNaN(reminder.getTime())) reminder.setDate(reminder.getDate() + shift);
+      reminderAt = reminder && !Number.isNaN(reminder.getTime()) ? reminder.toISOString() : null;
+    } else if (recurrence.weekdays || recurrence.monthMode) {
       // R11a: the plan day (or else the due day) moves to the next occurrence; the due day and the
       // reminder keep their distance to it, the reminder on the same local wall-clock time.
       const anchor = source.plannedDate || source.dueDate || nowDate;
@@ -709,13 +740,20 @@
       .sort((a, b) => String(b.completedAt || '').localeCompare(String(a.completedAt || '')));
   }
 
+  // R102: search text without case, diacritics or script — Cyrillic reads as Latin, and "đ", "dj" and "ђ" all read as
+  // "d" — so "cacak" and "Чачак" find "Čačak" and "Djordje" finds "Đorđe". Both the text and the words pass through it.
+  function searchFold(value) {
+    return cyrillicToLatin(String(value ?? '')).toLocaleLowerCase().replace(/đ/g, 'd').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/dj/g, 'd');
+  }
+
+  // R102: the matching folds (searchFold); the ranking and the scope stay as they were.
   function searchItems(tasks, projects, rawQuery) {
-    const query = String(rawQuery || '').trim().toLocaleLowerCase();
+    const query = searchFold(String(rawQuery || '').trim());
     if (!query) return { tasks: [], projects: [] };
     const scored = [];
     for (const task of tasks) {
-      const title = String(task.title || '').toLocaleLowerCase();
-      const notes = String(task.notes || '').toLocaleLowerCase();
+      const title = searchFold(task.title);
+      const notes = searchFold(task.notes);
       let rank = null;
       if (title === query) rank = 0;
       else if (title.includes(query)) rank = 1;
@@ -724,7 +762,7 @@
     }
     scored.sort((a, b) => a.rank - b.rank || String(b.task.updatedAt || '').localeCompare(String(a.task.updatedAt || '')));
     const projectMatches = projects
-      .filter(p => String(p.name || '').toLocaleLowerCase().includes(query))
+      .filter(p => searchFold(p.name).includes(query))
       .sort((a, b) => String(a.name).localeCompare(String(b.name)));
     return { tasks: scored, projects: projectMatches };
   }
@@ -853,6 +891,8 @@
       return { date, planned: open.filter(task => task.plannedDate === date).length, due: open.filter(task => task.dueDate === date).length };
     });
     const now = parseDateOnly(today) || new Date();
+    // R94: the active projects without an open task have no next step; those on hold and for someday get a look too.
+    const projects = (source.projects || []).filter(project => project && !project.isArchived && !project.isCleaningRoom);
     return {
       weekStart: weekStartFor(today, weekStartsOn),
       inbox: open.filter(isInboxActive),
@@ -862,7 +902,38 @@
       goals: (source.goals || []).filter(goal => goal && (!goal.status || goal.status === 'active')).map(goal => ({ goal, health: getGoalHealth(goal, now) })),
       habits: (source.habits || []).filter(habit => habit && habit.status === 'active'),
       areas: (source.areas || []).filter(Boolean).map(area => ({ area, open: areaSummary(area.id, source).openTasks })),
+      projects: {
+        missingNext: projects.filter(project => projectStatus(project) === 'active' && !open.some(task => task.projectId === project.id)),
+        onHold: projects.filter(project => projectStatus(project) === 'onHold'),
+        someday: projects.filter(project => projectStatus(project) === 'someday'),
+      },
     };
+  }
+
+  // R96: the wins of the last 7 days on the weekly review — tasks completed (newest first) and goals reached.
+  function weeklyWins(state, today = dateOnly()) {
+    const first = addDays(today, -6);
+    const inWindow = value => { const date = localDateOf(value); return Boolean(date) && date >= first && date <= today; };
+    return {
+      tasks: (state?.tasks || []).filter(task => task && task.isCompleted && inWindow(task.completedAt)).sort((a, b) => String(b.completedAt).localeCompare(String(a.completedAt))),
+      goals: (state?.goals || []).filter(goal => goal && goal.status === 'completed' && inWindow(goal.completedAt)),
+    };
+  }
+
+  // R96: what could be a priority for the coming week — each active project's next step, then what is planned or due
+  // in the next 7 days, then Kad stignem without a project, then the later steps of projects. Open, out of Inbox, not
+  // repeating, not already chosen; at most `limit`.
+  function priorityCandidates(state, today = dateOnly(), exclude = [], limit = 6) {
+    const skip = new Set(exclude || []);
+    const open = (state?.tasks || []).filter(task => task && !task.isCompleted && !task.isInbox && !task.recurrence && !skip.has(task.id));
+    const order = (a, b) => (Number.isFinite(a.projectOrder) ? a.projectOrder : 999999) - (Number.isFinite(b.projectOrder) ? b.projectOrder : 999999) || String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
+    const active = (state?.projects || []).filter(project => project && !project.isArchived && !project.isCleaningRoom && projectStatus(project) === 'active');
+    const nextSteps = active.map(project => open.filter(task => task.projectId === project.id).sort(order)[0]).filter(Boolean);
+    const week = addDays(today, 7);
+    const dated = task => task.plannedDate || task.dueDate;
+    const soon = open.filter(task => dated(task) && dated(task) <= week).sort((a, b) => String(dated(a)).localeCompare(String(dated(b))));
+    const anytime = deriveAnytime(open, state?.projects);
+    return [...new Set([...nextSteps, ...soon, ...anytime.filter(task => !task.projectId), ...anytime])].slice(0, limit);
   }
 
   // Redesign R13 (S5): "Poslednjih 7 dana" on the weekly review — completed tasks per day for today and the six days
@@ -964,12 +1035,26 @@
     state.habits = state.habits.map(habit => {
       const minimumTarget = habitTargetOrNull(habit, habit.minimumTarget);
       const idealTarget = habitTargetOrNull(habit, habit.idealTarget);
-      return {
+      const next = {
         ...habit,
         minimumTarget,
         idealTarget: idealTarget && minimumTarget ? Math.max(minimumTarget, idealTarget) : idealTarget,
         graceDays: Number.isInteger(Number(habit.graceDays)) && Number(habit.graceDays) >= 0 ? Number(habit.graceDays) : 0,
+        // R85: only a stored bad duration is cleared; older habits keep no field.
+        ...(habit.durationMinutes != null && habitDurationOrNull(habit.durationMinutes) === null ? { durationMinutes: null } : {}),
+        // R98b: the habit window stored an unused end as empty text, which backups refuse; it reads as no end.
+        ...(habit.endDate === '' ? { endDate: null } : {}),
+        ...(habit.successfulPeriodsTarget === '' ? { successfulPeriodsTarget: null } : {}),
       };
+      // R93: only a numeric habit has a limit ("atMost"); anything else is the usual target and keeps no field.
+      if (Object.hasOwn(next, 'targetMode') && !habitHasLimit(next)) delete next.targetMode;
+      return next;
+    });
+    // R94: only "on hold" and "someday" are stored; an active project keeps no field.
+    state.projects = state.projects.map(project => {
+      if (!Object.hasOwn(project, 'status') || PROJECT_STATUSES.includes(project.status)) return project;
+      const { status, ...rest } = project;
+      return rest;
     });
     state.templates = (state.templates || []).map(template => {
       const data = { ...(template.data || {}) };
@@ -981,8 +1066,12 @@
       }
       return { ...template, data };
     });
+    // R97: a note's links to projects and goals keep only what still exists; an older note keeps no field.
+    const liveIds = key => new Set((state[key] || []).map(item => item.id));
+    const noteLinks = { relatedProjectIds: liveIds('projects'), relatedGoalIds: liveIds('goals') };
     state.notes = (state.notes || []).map(note => ({
       ...note, favorite: note.favorite === true, clip: typeof note.clip === 'string' ? note.clip : '',
+      ...Object.fromEntries(Object.entries(noteLinks).filter(([field]) => Array.isArray(note[field])).map(([field, ids]) => [field, note[field].filter(id => ids.has(id))])),
     }));
     state.resources = (state.resources || []).map(resource => ({
       ...resource,
@@ -1032,6 +1121,13 @@
 
   function getHabitTargetStatus(habit, periodStats) {
     const current = Math.max(0, safeNumber(periodStats?.currentPeriodCount ?? periodStats?.progressValue ?? periodStats?.count ?? periodStats));
+    // R93: a limit (a day's value): within it the minimum and the ideal are met, over it neither is. A weekly habit
+    // with a limit still counts its good days against the week's target.
+    if (habitHasLimit(habit) && habit.frequencyType !== 'timesPerWeek') {
+      const limit = safeNumber(habit.targetValue) > 0 ? safeNumber(habit.targetValue) : 1;
+      const within = current <= limit;
+      return { current, minimumTarget: limit, idealTarget: limit, minimumMet: within, idealMet: within, status: within ? 'within' : 'over', atMost: true };
+    }
     const fallback = habit?.frequencyType === 'timesPerWeek'
       ? positiveIntegerOrNull(habit?.timesPerWeek) || 1
       : safeNumber(habit?.targetValue) > 0 ? safeNumber(habit.targetValue) : 1;
@@ -1048,10 +1144,20 @@
     return Number.isInteger(value) && value >= 0 && value <= 1440 ? value : 360;
   }
 
-  function dayLoad(tasks, date) {
+  // R85: a habit's duration, whole minutes from 1 to 1440, or null.
+  function habitDurationOrNull(value) {
+    return Number.isInteger(value) && value >= 1 && value <= 1440 ? value : null;
+  }
+  // R85: the habits planned that day (with days of their own, not "X puta nedeljno") and not done yet add their
+  // duration; habitMinutes says how much of the load is theirs.
+  function dayLoad(tasks, date, habits = [], logs = []) {
     const open = (tasks || []).filter(task => task && !task.isCompleted && task.plannedDate === date);
     const durations = open.map(task => positiveIntegerOrNull(task.durationMinutes));
-    return { minutes: durations.reduce((total, minutes) => total + (minutes || 0), 0), withDuration: durations.filter(Boolean).length, withoutDuration: durations.filter(minutes => !minutes).length };
+    const done = new Set((logs || []).filter(log => log && log.date === date && log.status === 'done').map(log => log.habitId));
+    const habitDurations = (habits || []).filter(habit => habit && habit.frequencyType !== 'timesPerWeek' && !done.has(habit.id) && habitScheduledOn(habit, date))
+      .map(habit => habitDurationOrNull(habit.durationMinutes)).filter(Boolean);
+    const habitMinutes = habitDurations.reduce((total, minutes) => total + minutes, 0);
+    return { minutes: durations.reduce((total, minutes) => total + (minutes || 0), 0) + habitMinutes, withDuration: durations.filter(Boolean).length + habitDurations.length, withoutDuration: durations.filter(minutes => !minutes).length, ...(habitMinutes ? { habitMinutes } : {}) };
   }
 
   // One day as a schedule: timed blocks (a missing duration is estimated), tasks without a time, and the hour range to draw.
@@ -1215,6 +1321,24 @@
     return Math.round((b.getTime() - a.getTime()) / 86400000);
   }
 
+  // R95: about how many days lie between two times of a repeat (a weekly rule on several weekdays splits its week).
+  function recurrenceSpanDays(rule) {
+    const per = { daily: 1, weekly: 7, monthly: 30, yearly: 365 }[rule?.frequency];
+    if (!per) return null;
+    const days = rule.frequency === 'weekly' && Array.isArray(rule.weekdays) && rule.weekdays.length > 1 ? rule.weekdays.length : 1;
+    return Math.max(1, Math.round(per * Math.max(1, Number(rule.interval) || 1) / days));
+  }
+
+  // R95: a chore's bar — 0 right after the last time, full on its day ('due'), and 'late' once half an interval (at
+  // least a day) has passed. The deadline counts first, as on Redovne obaveze. Null without a date or a repeat.
+  function choreProgress(task, rule, today = dateOnly()) {
+    const date = task?.dueDate || task?.plannedDate;
+    const span = recurrenceSpanDays(rule);
+    const left = date && span ? daysBetween(today, date) : null;
+    if (left === null) return null;
+    return { span, left, fill: Math.min(1, Math.max(0, (span - left) / span)), state: left > 0 ? 'calm' : left >= -Math.max(1, Math.floor(span / 2)) ? 'due' : 'late' };
+  }
+
   // Settings stores 'monday'/'sunday'; older data and defaults use 0 (Sunday) or 1 (Monday).
   function weekStartKey(value) {
     return value === 'sunday' || value === 0 ? 'sunday' : 'monday';
@@ -1308,11 +1432,24 @@
     return history.sort((a, b) => a.before.localeCompare(b.before)).slice(-104);
   }
 
+  // R93: a numeric habit with a limit ("najviše 2 kafe") is done while its value stays within it, 0 included.
+  function habitHasLimit(habit) {
+    return habit?.trackingType === 'numeric' && habit?.targetMode === 'atMost';
+  }
+
   function numericHabitState(habit, rawValue) {
     const value = Math.max(0, safeNumber(rawValue));
     const target = Math.max(0, safeNumber(habit?.targetValue));
+    if (habitHasLimit(habit)) { const within = target > 0 && value <= target; return { status: within ? 'done' : 'missed', value, percent: within ? 100 : 0 }; }
     const percent = target > 0 ? clampPercent(value / target * 100) : 0;
     return { status: target > 0 && value >= target ? 'done' : 'missed', value, percent };
+  }
+
+  // R93: a short note on a checked-in day, one line of at most 200 characters (UTF-16 units, as backups count them),
+  // never ending in half an emoji.
+  function habitLogNote(value) {
+    const text = String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, 200);
+    return /[\uD800-\uDBFF]$/.test(text) ? text.slice(0, -1) : text;
   }
 
   function habitStatusForDate(habit, logs, date, today = dateOnly()) {
@@ -1339,6 +1476,8 @@
     if (status.status === 'done') return { state: 'done', planned: true, value: status.value };
     // R61: a yes/no habit marked "not done" is missed even today, and `marked` sets it apart from an untouched day.
     if (habit?.trackingType !== 'numeric' && status.logged && status.status === 'missed') return { state: 'missed', planned: habit?.frequencyType !== 'timesPerWeek', value: null, marked: true };
+    // R93: so is a day over its limit (more can only make it worse).
+    if (habitHasLimit(habit) && status.logged && status.status === 'missed') return { state: 'missed', planned: habit.frequencyType !== 'timesPerWeek', value: status.value, marked: true };
     if (habit?.frequencyType === 'timesPerWeek') {
       const week = habitPeriodKey(habit, date, weekRule);
       const done = new Set((logs || []).filter(log => log && log.date <= today && (!habit.id || log.habitId === habit.id) && habitPeriodKey(habit, log.date, weekRule) === week && habitStatusForDate(habit, logs, log.date, today).status === 'done').map(log => log.date)).size;
@@ -1520,7 +1659,7 @@
         let state = day.state;
         if (state === 'done') done += 1;
         if (!['future', 'unscheduled', 'skipped'].includes(state)) planned.push(date);
-        if (habit?.trackingType === 'numeric' && ['missed', 'open'].includes(state) && Number(day.value) > 0) state = 'partial';
+        if (habit?.trackingType === 'numeric' && !habitHasLimit(habit) && ['missed', 'open'].includes(state) && Number(day.value) > 0) state = 'partial';
         if (date.endsWith('-01')) months.push({ column, month: date.slice(5, 7) });
         days.push({ date, state });
       }
@@ -1529,13 +1668,42 @@
     return { start, weeks, months, done, percent: planned.length ? habitCompletionForDates(habit, logs, planned, today, weekRule) : null };
   }
 
+  // R92: the share of planned days done in the last 30 days (today counts once it is done). A skipped day is left out,
+  // so one missed day lowers it a little instead of resetting it like a streak. Null when nothing was planned.
+  function habitRecentSuccess(habit, logs, today = dateOnly(), weekRule = 'monday', days = 30) {
+    // R105: a weekly target counts whole weeks inside the window (every day of them scheduled), and this week only once
+    // its target is met, so the number does not drop while a week is still open.
+    if (habit?.frequencyType === 'timesPerWeek') {
+      const first = addDays(today, -(days - 1)), current = habitPeriodKey(habit, today, weekRule);
+      let score = 0, weeks = 0;
+      for (let start = habitPeriodKey(habit, first, weekRule); start <= current; start = addDays(start, 7)) {
+        const dates = Array.from({ length: 7 }, (_, index) => addDays(start, index)).filter(date => date <= today);
+        if (start < first || dates.some(date => !habitScheduledOn(habit, date, { historical: true }))) continue;
+        const target = habitTargetFor(habit, start);
+        const done = dates.filter(date => habitStatusForDate(habit, logs || [], date, today).status === 'done').length;
+        if (start === current && done < target) continue;
+        score += Math.min(target, done) / target; weeks += 1;
+      }
+      return weeks ? Math.round((score / weeks) * 100) : null;
+    }
+    const planned = [];
+    for (let offset = days - 1; offset >= 0; offset -= 1) {
+      const date = addDays(today, -offset);
+      const state = habitDayState(habit, logs, date, today, weekRule).state;
+      if (['future', 'unscheduled', 'skipped'].includes(state) || (date === today && state !== 'done')) continue;
+      planned.push(date);
+    }
+    return planned.length ? habitCompletionForDates(habit, logs, planned, today, weekRule) : null;
+  }
+
   // M11: once a day is checked in (or skipped), that day's reminders stay silent; a numeric habit below its
   // target still reminds. Weekly habits are silenced by the week's target instead.
   function habitDayClosed(habit, logs, date) {
     if (habit?.frequencyType === 'timesPerWeek') return false;
     const day = habitStatusForDate(habit, logs || [], date, date);
     // R61: a yes/no habit marked "not done" closes the day too; a numeric one below its target still reminds.
-    return day.status === 'done' || day.status === 'skipped' || (habit?.trackingType !== 'numeric' && day.logged === true && day.status === 'missed');
+    // R93: a day over its limit is closed as well.
+    return day.status === 'done' || day.status === 'skipped' || ((habit?.trackingType !== 'numeric' || habitHasLimit(habit)) && day.logged === true && day.status === 'missed');
   }
 
   function habitReminderActive(habit, logs, now, weekStartsOn = 'monday') {
@@ -1597,7 +1765,8 @@
       if (!task || task.isCompleted || task.isInbox) continue;
       const rule = normalizeRecurrenceV3(task.recurrenceBaseline?.recurrence || task.recurrence);
       const anchor = task.plannedDate || task.dueDate;
-      if (!rule || rule.status !== 'active' || !anchor) continue;
+      // R88: a rule that counts from completion has no known future dates.
+      if (!rule || rule.status !== 'active' || !anchor || rule.afterCompletion) continue;
       const after = addDays(anchor, 1);
       const skipped = rule.skipNext ? upcomingRecurrenceDates(anchor, rule, 1, after)[0] : null;
       for (const date of upcomingRecurrenceDates(anchor, rule, 62, from > after ? from : after)) {
@@ -1762,9 +1931,72 @@
   const QUICK_MINUTE_WORDS = new Set(['min', 'minut', 'minuta']);
   const INVALID = 'invalid';
 
-  // Matches names case-insensitively, ignoring spaces, "_", "-" and diacritics ("đ" as "dj").
+  // Matches names case-insensitively, ignoring spaces, "_", "-" and diacritics ("đ" as "dj"); R89: Cyrillic as Latin.
   function looseName(value) {
-    return String(value || '').toLocaleLowerCase().replace(/đ/g, 'dj').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[\s_-]+/g, '');
+    return cyrillicToLatin(String(value || '')).toLocaleLowerCase().replace(/đ/g, 'dj').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[\s_-]+/g, '');
+  }
+
+  // R89: one word without case and diacritics, Cyrillic read as Latin ("Četvrt" and "четврт" are "cetvrt").
+  const plainWord = word => cyrillicToLatin(String(word || '')).toLocaleLowerCase().replace(/đ/g, 'dj').normalize('NFD').replace(/[̀-ͯ]/g, '');
+  const QUICK_SPOKEN_HOURS = { jedan: 1, jedna: 1, dva: 2, dve: 2, tri: 3, cetiri: 4, pet: 5, sest: 6, sedam: 7, osam: 8, devet: 9, deset: 10, jedanaest: 11, dvanaest: 12 };
+
+  // R89: a spoken time at the end: "pola deset" 9:30, "četvrt do osam" 7:45, "četvrt posle osam" 8:15, and after "u":
+  // "osam i četvrt" 8:15, "osam i po" 8:30, "osam" 8:00. "ujutru" keeps the morning, "uveče" and "popodne" add twelve
+  // hours; "pola jedan" is half past noon. Quantities ("pet i po", "pola jabuke") stay in the title.
+  function quickSpokenTime(plain) {
+    let end = plain.length, part = null;
+    if (['ujutru', 'ujutro'].includes(plain[end - 1])) { part = 'am'; end -= 1; }
+    else if (['uvece', 'popodne'].includes(plain[end - 1])) { part = 'pm'; end -= 1; }
+    const hourAt = index => {
+      const word = plain[index];
+      if (/^\d{1,2}$/.test(word || '')) return Number(word) >= 1 && Number(word) <= 24 ? Number(word) : null;
+      return own(QUICK_SPOKEN_HOURS, word || '') ? QUICK_SPOKEN_HOURS[word] : null;
+    };
+    const at = offset => plain[end - offset], last = hourAt(end - 1);
+    let hour = null, minute = 0, start = null, needsU = false;
+    if (at(2) === 'pola' && last != null) [hour, minute, start] = [last - 1, 30, end - 2];
+    else if (at(3) === 'cetvrt' && at(2) === 'do' && last != null) [hour, minute, start] = [last - 1, 45, end - 3];
+    else if (at(3) === 'cetvrt' && at(2) === 'posle' && last != null) [hour, minute, start] = [last, 15, end - 3];
+    else if (at(2) === 'i' && ['cetvrt', 'po'].includes(at(1)) && hourAt(end - 3) != null) [hour, minute, start, needsU] = [hourAt(end - 3), at(1) === 'po' ? 30 : 15, end - 3, true];
+    else if (last != null && at(2) === 'u' && (part || !/^\d+$/.test(at(1)))) [hour, start, needsU] = [last, end - 1, true];
+    if (hour == null) return null;
+    // R105: "do pola deset" is a deadline, which stays in the title like "do 9:30".
+    if (plain[start - 1] === 'do') return null;
+    const withU = plain[start - 1] === 'u';
+    if (needsU && !withU) return null;
+    if (hour === 0) hour = 12;
+    if (part === 'pm' && hour < 12) hour += 12;
+    else if (part === 'am' && hour === 12) hour = 0;
+    const value = hour <= 23 ? normalizeTime(`${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`) : null;
+    return value ? { slot: 'plannedTime', value, consumed: plain.length - (withU ? start - 1 : start) } : null;
+  }
+
+  // R89: a repeat at the end: "utorkom", "ponedeljkom i četvrtkom", "radnim danima", "vikendom", "svaki dan",
+  // "svakog meseca", "svake nedelje" (every week; "nedeljom" is Sundays), "svakog utorka", "svakog drugog utorka",
+  // "svake druge nedelje", "svaka 3 dana", "svakih 6 meseci", and "every day / monday / other monday / 3 days".
+  const QUICK_WEEKDAYS_SR_ON = { nedeljom: 0, ponedeljkom: 1, utorkom: 2, sredom: 3, cetvrtkom: 4, petkom: 5, subotom: 6 };
+  const QUICK_WEEKDAYS_SR_EVERY = { ponedeljka: 1, utorka: 2, srede: 3, cetvrtka: 4, petka: 5, subote: 6 };
+  const QUICK_ORDINALS = { drugog: 2, druge: 2, drugi: 2, treceg: 3, trece: 3, treci: 3, cetvrtog: 4, cetvrte: 4, cetvrti: 4, other: 2 };
+  const QUICK_REPEAT_UNITS = { dan: 'daily', dana: 'daily', nedelju: 'weekly', nedelje: 'weekly', nedelja: 'weekly', mesec: 'monthly', meseca: 'monthly', meseci: 'monthly', godinu: 'yearly', godine: 'yearly', godina: 'yearly', day: 'daily', days: 'daily', week: 'weekly', weeks: 'weekly', month: 'monthly', months: 'monthly', year: 'yearly', years: 'yearly' };
+  const QUICK_EVERY = new Set(['svaki', 'svakog', 'svake', 'svaku', 'svaka', 'svakih', 'every']);
+  function quickRepeat(plain) {
+    const n = plain.length, last = plain[n - 1], before = plain[n - 2], third = plain[n - 3];
+    const repeat = (consumed, frequency, interval = 1, weekdays = null) => ({ slot: 'recurrence', value: { frequency, interval, ...(weekdays ? { weekdays } : {}) }, consumed });
+    const weekday = word => (own(QUICK_WEEKDAYS_SR_EVERY, word || '') ? QUICK_WEEKDAYS_SR_EVERY[word] : own(QUICK_WEEKDAYS, word || '') ? QUICK_WEEKDAYS[word] : null);
+    if (own(QUICK_WEEKDAYS_SR_ON, last)) {
+      if (before === 'i' && own(QUICK_WEEKDAYS_SR_ON, third || '')) return repeat(3, 'weekly', 1, [...new Set([QUICK_WEEKDAYS_SR_ON[third], QUICK_WEEKDAYS_SR_ON[last]])].sort((a, b) => a - b));
+      return repeat(1, 'weekly', 1, [QUICK_WEEKDAYS_SR_ON[last]]);
+    }
+    if (before === 'radnim' && last === 'danima') return repeat(2, 'weekly', 1, [1, 2, 3, 4, 5]);
+    if (last === 'vikendom') return repeat(1, 'weekly', 1, [0, 6]);
+    if (last === 'svakodnevno') return repeat(1, 'daily');
+    if (QUICK_EVERY.has(before) && weekday(last) != null) return repeat(2, 'weekly', 1, [weekday(last)]);
+    if (QUICK_EVERY.has(before) && own(QUICK_REPEAT_UNITS, last)) return repeat(2, QUICK_REPEAT_UNITS[last]);
+    if (!QUICK_EVERY.has(third)) return null;
+    if (own(QUICK_ORDINALS, before) && weekday(last) != null) return repeat(3, 'weekly', QUICK_ORDINALS[before], [weekday(last)]);
+    if (own(QUICK_ORDINALS, before) && own(QUICK_REPEAT_UNITS, last)) return repeat(3, QUICK_REPEAT_UNITS[last], QUICK_ORDINALS[before]);
+    if (/^\d{1,2}$/.test(before || '') && Number(before) >= 1 && own(QUICK_REPEAT_UNITS, last)) return repeat(3, QUICK_REPEAT_UNITS[last], Number(before));
+    return null;
   }
 
   function nextWeekday(today, weekday) {
@@ -1816,6 +2048,10 @@
   function quickClause(words, today, parsePlan) {
     const n = words.length;
     const lower = words.map(word => word.toLocaleLowerCase());
+    // R89: a repeat and a spoken time are read first.
+    const plain = words.map(plainWord);
+    const spoken = quickRepeat(plain) || quickSpokenTime(plain);
+    if (spoken) return spoken;
     const last = lower[n - 1];
     const before = n > 1 ? lower[n - 2] : '';
     if (before === 'rok' || before === 'due') {
@@ -1859,28 +2095,37 @@
   }
 
   // Parses a Quick Add title into task fields. Pure: `tags`, `projects` and `areas` are the existing records to match.
-  function parseQuickAdd(rawTitle, { today = dateOnly(), tags = [], projects = [], areas = [], parsePlan = true, tokens = true, slots = null } = {}) {
+  // R90: `keep` lists parts the person kept in the title ({ slot, text }); they are not read while their words stay the
+  // same. With `sources`, the result says which words set each part (Latin, lower case; tags as "tag:<id>").
+  function parseQuickAdd(rawTitle, { today = dateOnly(), tags = [], projects = [], areas = [], parsePlan = true, tokens = true, slots = null, keep = [], sources = false } = {}) {
     const original = String(rawTitle || '');
     const result = { title: original, plannedDate: null, plannedTime: null, dueDate: null, durationMinutes: null, priority: null, tagIds: [], projectId: null, areaId: null };
+    const read = {};
+    const kept = (slot, words) => (keep || []).some(item => item && item.slot === slot && item.text === words);
     let text = original;
     if (tokens) {
       const findLoose = (records, name) => (records || []).find(record => record && !record.isArchived && looseName(record.name) === looseName(name));
       text = original.replace(/(^|\s)(#[^\s#]+|![^\s!]+|[+@][^\s+@#!]+)(?=\s|$)/g, (match, prefix, token) => {
         const sigil = token[0];
         const name = token.slice(1);
+        const words = cyrillicToLatin(token).toLocaleLowerCase();
         if (sigil === '#') {
-          const tag = (tags || []).find(item => item && normalizeTagName(item.name).toLocaleLowerCase() === name.toLocaleLowerCase());
-          if (!tag) return match;
+          // R105: as +project and @area, without case, diacritics, spaces or dashes ("#kod-kuće" is "kod kuće").
+          const tag = (tags || []).find(item => item && looseName(normalizeTagName(item.name)) === looseName(name));
+          if (!tag || kept(`tag:${tag.id}`, words)) return match;
           if (!result.tagIds.includes(tag.id)) result.tagIds.push(tag.id);
+          read[`tag:${tag.id}`] = words;
         } else if (sigil === '!') {
-          const priority = QUICK_PRIORITIES[name.toLocaleLowerCase()];
-          if (!priority || result.priority) return match;
+          const priority = QUICK_PRIORITIES[cyrillicToLatin(name).toLocaleLowerCase()];
+          if (!priority || result.priority || kept('priority', words)) return match;
           result.priority = priority;
+          read.priority = words;
         } else {
           const key = sigil === '+' ? 'projectId' : 'areaId';
           const record = findLoose(sigil === '+' ? projects : areas, name);
-          if (!record || result[key]) return match;
+          if (!record || result[key] || kept(key, words)) return match;
           result[key] = record.id;
+          read[key] = words;
         }
         return prefix;
       });
@@ -1888,16 +2133,53 @@
     }
     const tokenFree = text.replace(/\s{2,}/g, ' ').trim();
     const words = tokenFree ? tokenFree.split(' ') : [];
+    // R89: Cyrillic is read as Latin; the title keeps the words as they were typed.
+    const latin = words.map(cyrillicToLatin);
     const found = {};
+    // R90: kept words move to the end of the title and the reading goes on to their left.
+    const tail = [];
     while (words.length) {
-      const clause = quickClause(words, today, parsePlan);
-      if (clause === INVALID) return { ...result, title: tokens ? tokenFree : original };
-      if (clause.stop || own(found, clause.slot) || (slots && !slots.includes(clause.slot)) || clause.consumed >= words.length) break;
+      const clause = quickClause(latin, today, parsePlan);
+      if (clause === INVALID) return withSources({ ...result, title: tokens ? tokenFree : original });
+      if (clause.stop || own(found, clause.slot) || (slots && !slots.includes(clause.slot)) || (clause.consumed >= words.length && !tail.length)) break;
+      const phrase = latin.slice(latin.length - clause.consumed).join(' ').toLocaleLowerCase();
+      const taken = words.splice(words.length - clause.consumed, clause.consumed);
+      latin.splice(latin.length - clause.consumed, clause.consumed);
+      if (kept(clause.slot, phrase)) { tail.unshift(...taken); continue; }
       found[clause.slot] = clause.value;
-      words.splice(words.length - clause.consumed, clause.consumed);
+      read[clause.slot] = phrase;
     }
-    if (!Object.keys(found).length) return { ...result, title: tokens ? tokenFree : original };
-    return { ...result, ...found, title: words.join(' ') };
+    words.push(...tail);
+    // R89: a repeat with no day written is planned for its first day.
+    if (found.recurrence && !found.plannedDate && parsePlan) found.plannedDate = firstRecurrenceDate(today, found.recurrence);
+    if (!Object.keys(found).length) return withSources({ ...result, title: tokens ? words.join(' ') : original });
+    return withSources({ ...result, ...found, title: words.join(' ') });
+    function withSources(value) { return sources ? { ...value, sources: read } : value; }
+  }
+
+  // R90: while a #tag, +project or @area is typed at the end of a title, the existing names that begin with what is
+  // typed (without case and diacritics, Cyrillic as Latin), at most five; null when the last word is no such token.
+  // Spaces in a name become dashes, which the parser reads as the same name.
+  function quickSuggestions(title, { tags = [], projects = [], areas = [] } = {}, limit = 5) {
+    const match = String(title || '').match(/(?:^|\s)([#+@])(\S*)$/);
+    if (!match) return null;
+    const [, sigil, typed] = match;
+    const records = sigil === '#' ? tags : sigil === '+' ? projects : areas;
+    const start = looseName(typed);
+    return (records || []).filter(record => record && record.name && !record.isArchived && record.status !== 'archived')
+      .filter(record => looseName(record.name).startsWith(start) && looseName(record.name) !== start)
+      .slice(0, limit).map(record => ({ insert: `${sigil}${String(record.name).trim().replace(/\s+/g, '-')}`, label: record.name }));
+  }
+
+  // R90: a pasted list as task titles: one per line, without bullets, numbers or check boxes, empty lines left out,
+  // at most 100.
+  // R105: numbers go only when the numbered lines count 1, 2, 3…, so "15. maj platiti račun" keeps its day.
+  function splitPastedList(text) {
+    const lines = String(text || '').split(/\r?\n/);
+    const numbers = lines.map(line => line.match(/^\s*(?:[-*•–]\s+)?(\d{1,3})[.)]\s+/)?.[1]).filter(Boolean).map(Number);
+    const counted = numbers.length > 0 && numbers.every((number, index) => number === index + 1);
+    const lead = counted ? /^\s*(?:[-*•–]\s+)?(?:\d{1,3}[.)]\s+)?(?:\[[ xX]?\]\s*)?/ : /^\s*(?:[-*•–]\s+)?(?:\[[ xX]?\]\s*)?/;
+    return lines.map(line => line.replace(lead, '').trim()).filter(Boolean).slice(0, 100);
   }
 
   // V1.5 API kept for its tests: only the trailing plan date and time.
@@ -2028,6 +2310,118 @@
       .slice(0, limit);
   }
 
+  // R103: completed tasks leave localStorage for IndexedDB (the store archivedTasks) this long after completion.
+  const ARCHIVE_AFTER_DAYS = 180;
+
+  // R103: the ids of the tasks that can be archived: completed at least `days` ago, without a project (project bars and
+  // counts stay the same), files or goals, and named nowhere else in the data (a goal, a resource, a setting…), so
+  // moving them out leaves no dangling reference. R103b: the links inside a repeating series (recurrence.seriesId and
+  // recurrenceSuccessorId) are only compared or checked for presence, never looked up, so they do not count.
+  const ARCHIVE_IGNORED_KEYS = new Set(['seriesId', 'recurrenceSuccessorId']);
+  function countArchiveRefs(value, into) {
+    if (typeof value === 'string') into.set(value, (into.get(value) || 0) + 1);
+    else if (Array.isArray(value)) value.forEach(item => countArchiveRefs(item, into));
+    else if (value && typeof value === 'object') for (const [key, item] of Object.entries(value)) if (!ARCHIVE_IGNORED_KEYS.has(key)) countArchiveRefs(item, into);
+    return into;
+  }
+  function archiveQualifies(task, cutoff) {
+    if (!task?.isCompleted || task.projectId || (task.attachmentIds || []).length || (task.goalIds || []).length) return false;
+    const day = localDateOf(String(task.completedAt || ''));
+    return Boolean(day) && day <= cutoff;
+  }
+  function archivableTaskIds(state, today = dateOnly(), days = ARCHIVE_AFTER_DAYS) {
+    const cutoff = addDays(today, -days);
+    const everywhere = countArchiveRefs(state, new Map());
+    return (state?.tasks || []).filter(task => archiveQualifies(task, cutoff)
+      && (everywhere.get(task.id) || 0) === (countArchiveRefs(task, new Map()).get(task.id) || 0)).map(task => task.id);
+  }
+
+  // R103: after a sync merged the archived tasks in with the rest, which stay archived (still archivable), which come
+  // back (changed so they no longer qualify, or named by a live record) and which were deleted on another device.
+  // R103b: only the records that are not archived count as naming a task, as when it was archived.
+  function splitArchived(tasks, archivedIds, state, today = dateOnly()) {
+    const archivedSet = new Set(archivedIds || []);
+    const cutoff = addDays(today, -ARCHIVE_AFTER_DAYS);
+    const named = countArchiveRefs({ ...state, tasks: (state?.tasks || []).filter(task => !archivedSet.has(task.id)) }, new Map());
+    const live = [], archived = [], unarchived = [];
+    for (const task of tasks || []) {
+      if (!archivedSet.has(task.id)) live.push(task);
+      else if (archiveQualifies(task, cutoff) && !named.get(task.id)) archived.push(task);
+      else { live.push(task); unarchived.push(task.id); }
+    }
+    const present = new Set((tasks || []).map(task => task.id));
+    return { live, archived, unarchived, removed: [...archivedSet].filter(id => !present.has(id)) };
+  }
+
+  // R103b: an archived task keeps only the tags and the area that still exist (they can be deleted on another device
+  // or before this step), so it never brings a dangling reference into a backup or back into the state.
+  // R104: tags that are not a list (a bad row from sync) read as none.
+  function pruneArchivedTask(task, state) {
+    const tags = new Set((state?.tags || []).map(tag => tag.id)), areas = new Set((state?.areas || []).map(area => area.id));
+    const listed = Array.isArray(task.tagIds) ? task.tagIds : [];
+    const tagIds = listed.filter(id => tags.has(id));
+    const areaId = task.areaId && !areas.has(task.areaId) ? null : task.areaId;
+    if (Array.isArray(task.tagIds) && tagIds.length === listed.length && areaId === task.areaId) return task;
+    return { ...task, tagIds, ...(areaId === task.areaId ? {} : { areaId }) };
+  }
+
+  // R101: what was done — the tasks completed this month, last month and this year, the best day this month (the earliest
+  // of equals) and the run of days with something completed, from today or, until something is done today, from yesterday.
+  function completionSummary(tasks, today = dateOnly()) {
+    const counts = new Map();
+    for (const task of tasks || []) {
+      const day = task?.isCompleted ? localDateOf(String(task.completedAt || '')) : null;
+      if (day && day <= today) counts.set(day, (counts.get(day) || 0) + 1);
+    }
+    const [year, month] = today.split('-').map(Number);
+    const thisMonth = today.slice(0, 7), lastMonth = month === 1 ? `${year - 1}-12` : `${year}-${String(month - 1).padStart(2, '0')}`;
+    const summary = { month: 0, lastMonth: 0, year: 0, best: null, streak: 0 };
+    for (const [day, count] of [...counts].sort(([a], [b]) => a.localeCompare(b))) {
+      if (day.startsWith(thisMonth)) { summary.month += count; if (!summary.best || count > summary.best.count) summary.best = { date: day, count }; }
+      if (day.startsWith(lastMonth)) summary.lastMonth += count;
+      if (day.startsWith(String(year))) summary.year += count;
+    }
+    for (let day = counts.has(today) ? today : addDays(today, -1); counts.has(day); day = addDays(day, -1)) summary.streak += 1;
+    return summary;
+  }
+
+  // R98: one question about the day for the journal, the same all day; `offset` gives the next ones in turn.
+  const JOURNAL_QUESTIONS = Object.freeze([
+    msg('What was good today?'), msg('What made you smile today?'), msg('What was hard today, and what helped?'), msg('What is worth remembering from today?'),
+    msg('Who made your day better?'), msg('What gave you energy today, and what took it away?'), msg('What would make tomorrow a good day?'),
+    msg('What are you grateful for today?'), msg('How do you feel at the end of the day?'), msg('What was new for you today?'),
+  ]);
+  function journalQuestion(date, offset = 0) {
+    const day = daysBetween('2026-01-01', date) || 0;
+    const count = JOURNAL_QUESTIONS.length;
+    return JOURNAL_QUESTIONS[(((day + Number(offset || 0)) % count) + count) % count];
+  }
+
+  // R98: the tasks completed on a day, in the order they were done.
+  function completedOn(state, date) {
+    return (state?.tasks || []).filter(task => task && task.isCompleted && localDateOf(task.completedAt) === date).sort((a, b) => String(a.completedAt).localeCompare(String(b.completedAt)));
+  }
+
+  // R98: mood and habits — for each active habit, the average mood (1–5) on the days of the last 90 with a mood when it
+  // was done, against the other days with a mood. Kept when each side has at least three days and the averages differ
+  // by 0.3 or more; the largest differences first, at most `limit`.
+  function moodInsights(state, habitLogs = [], today = dateOnly(), limit = 2) {
+    const first = addDays(today, -89);
+    const moods = (state?.journal || []).filter(item => item && Number.isInteger(item.mood) && item.mood >= 1 && item.mood <= 5 && item.date >= first && item.date <= today);
+    const average = list => list.reduce((sum, item) => sum + item.mood, 0) / list.length;
+    const found = [];
+    for (const habit of (state?.habits || []).filter(item => item && item.status === 'active')) {
+      const logs = (habitLogs || []).filter(log => log && log.habitId === habit.id);
+      const done = moods.filter(item => habitStatusForDate(habit, logs, item.date, today).status === 'done');
+      const rest = moods.filter(item => !done.includes(item));
+      if (done.length < 3 || rest.length < 3) continue;
+      const withMood = average(done), without = average(rest);
+      if (Math.abs(withMood - without) < 0.3) continue;
+      found.push({ habitId: habit.id, name: habit.name, with: Math.round(withMood * 10) / 10, without: Math.round(without * 10) / 10, withDays: done.length, withoutDays: rest.length, gap: Math.abs(withMood - without) });
+    }
+    return found.sort((a, b) => b.gap - a.gap).slice(0, limit).map(({ gap, ...item }) => item);
+  }
+
   // The read-only summary of a day in its journal entry (J2): tasks completed that day, and the habits planned that
   // day (weekly-target habits left out) with how many were done.
   function journalDaySummary(state, habitLogs, date) {
@@ -2084,22 +2478,25 @@
     const state = JSON.parse(JSON.stringify(input));
     const ids = key => new Set((Array.isArray(state[key]) ? state[key] : []).filter(item => item && item.id).map(item => item.id));
     const projects = ids('projects'), areas = ids('areas'), goals = ids('goals'), tasks = ids('tasks'), habits = ids('habits');
-    const keep = (list, valid) => Array.isArray(list) ? list.filter(id => valid.has(id)) : list;
+    // R104: only a list that is there is filtered; a missing field stays missing (an empty key fails the V3 check).
+    const keep = (item, field, valid) => { if (Array.isArray(item[field])) item[field] = item[field].filter(id => valid.has(id)); };
     const area = item => { if (item && item.areaId && !areas.has(item.areaId)) item.areaId = null; };
     for (const task of state.tasks || []) {
       if (!task) continue;
       if (task.projectId && !projects.has(task.projectId)) task.projectId = null;
       area(task);
-      task.goalIds = keep(task.goalIds, goals);
+      keep(task, 'goalIds', goals);
     }
-    for (const project of state.projects || []) { if (!project) continue; area(project); project.goalIds = keep(project.goalIds, goals); }
+    for (const project of state.projects || []) { if (!project) continue; area(project); keep(project, 'goalIds', goals); }
     for (const key of ['notes', 'resources', 'goals', 'habits']) for (const item of state[key] || []) area(item);
+    // R97: a note's links to projects and goals.
+    for (const note of state.notes || []) { if (!note) continue; keep(note, 'relatedProjectIds', projects); keep(note, 'relatedGoalIds', goals); }
     for (const resource of state.resources || []) {
       if (!resource) continue;
-      resource.relatedTaskIds = keep(resource.relatedTaskIds, tasks);
-      resource.relatedProjectIds = keep(resource.relatedProjectIds, projects);
-      resource.relatedGoalIds = keep(resource.relatedGoalIds, goals);
-      resource.relatedHabitIds = keep(resource.relatedHabitIds, habits);
+      keep(resource, 'relatedTaskIds', tasks);
+      keep(resource, 'relatedProjectIds', projects);
+      keep(resource, 'relatedGoalIds', goals);
+      keep(resource, 'relatedHabitIds', habits);
     }
     return state;
   }
@@ -2197,7 +2594,7 @@
         }
         if (Object.hasOwn(item, 'areaId') && !isNullableEntityId(item.areaId)) return `invalid-${key}-area-id`;
         if (Object.hasOwn(item, 'linkUrls') && (!Array.isArray(item.linkUrls) || item.linkUrls.some(url => typeof url !== 'string'))) return `invalid-${key}-links`;
-        for (const field of ['attachmentIds', ...(key === 'resources' ? ['relatedTaskIds', 'relatedProjectIds', 'relatedGoalIds', 'relatedHabitIds'] : [])]) {
+        for (const field of ['attachmentIds', ...(key === 'resources' ? ['relatedTaskIds', 'relatedProjectIds', 'relatedGoalIds', 'relatedHabitIds'] : ['relatedProjectIds', 'relatedGoalIds'])]) {
           if (Object.hasOwn(item, field) && !entityIdArrayIsValid(item[field])) return `invalid-${key}-${field}`;
         }
       }
@@ -2597,6 +2994,20 @@
     deriveTodayV3,
     filterTodayTasks,
     deriveAnytime,
+    projectStatus,
+    recurrenceSpanDays,
+    choreProgress,
+    weeklyWins,
+    priorityCandidates,
+    completionSummary,
+    ARCHIVE_AFTER_DAYS,
+    archivableTaskIds,
+    splitArchived,
+    pruneArchivedTask,
+    JOURNAL_QUESTIONS,
+    journalQuestion,
+    completedOn,
+    moodInsights,
     deriveUpcoming,
     deriveUpcomingV3,
     normalizePlannedMonth,
@@ -2628,7 +3039,10 @@
     plannedReminderDue,
     journalDaySummary,
     weeklyReviewStats,
+    normalizeRecurrence,
     normalizeRecurrenceV3,
+    quickSuggestions,
+    splitPastedList,
     shouldGenerateRecurrence,
     splitRecurrenceForFuture,
     makeUuid,
@@ -2654,6 +3068,7 @@
     laterToday,
     filterCompleted,
     searchItems,
+    searchFold,
     validateState,
     migrateStateV2,
     migrateStateV3,
@@ -2679,6 +3094,7 @@
     weeklyReviewLog,
     dailyCapacityMinutes,
     dayLoad,
+    habitDurationOrNull,
     daySchedule,
     recordWeeklyReview,
     weeklyReviewDue,
@@ -2701,10 +3117,13 @@
     habitScheduledOn,
     habitPeriodKey,
     habitWeekRule,
+    habitRecentSuccess,
     recordWeekStartChange,
     habitTargetFor,
     recordHabitTargetChange,
     numericHabitState,
+    habitHasLimit,
+    habitLogNote,
     habitStatusForDate,
     habitCompletionForDates,
     deriveHabitMetrics,

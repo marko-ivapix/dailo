@@ -44,6 +44,7 @@ test('K1: projects grouped by area with open counts, archived ones left out', ()
     sortedProjects: () => [{ id: 'p1', name: 'Kuhinja', areaId: 'a1' }, { id: 'p2', name: 'Posao', areaId: null }, { id: 'p3', name: 'Bašta', areaId: 'a1' }, { id: 'p4', name: 'Stari', areaId: 'a9' }],
     sortedAreas: () => [{ id: 'a1', name: 'Kuća', status: 'active' }, { id: 'a9', name: 'Gotovo', status: 'archived' }],
     projectTasks: id => ({ p1: [{ isCompleted: false }, { isCompleted: true }], p2: [], p3: [{ isCompleted: false }, { isCompleted: false }], p4: [{ isCompleted: false }] })[id],
+    Core: require('../js/core.js'), // R94: only active projects are listed
   });
   vm.createContext(context);
   vm.runInContext(body, context);

@@ -8,7 +8,6 @@
   const WEEKDAYS = [msg('Sun'), msg('Mon'), msg('Tue'), msg('Wed'), msg('Thu'), msg('Fri'), msg('Sat')];
   let query = '';
 
-  const plainText = value => String(value || '').toLocaleLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd');
   const cap = text => text.charAt(0).toLocaleUpperCase() + text.slice(1);
   const entryFor = (ctx, date) => ctx.Core.journalEntryFor(ctx.state, date);
   const moodOf = item => (item?.mood ? MOODS[item.mood - 1] : null);
@@ -25,8 +24,9 @@
 
   function listHtml(ctx) {
     const { esc, formatDate } = ctx;
-    const q = plainText(query.trim());
-    const items = (ctx.state.journal || []).filter(item => item.text || item.mood).filter(item => !q || plainText(item.text).includes(q)).sort((a, b) => b.date.localeCompare(a.date));
+    // R102: the same fold as every search (Cyrillic, diacritics, "đ"/"dj").
+    const q = ctx.Core.searchFold(query.trim());
+    const items = (ctx.state.journal || []).filter(item => item.text || item.mood).filter(item => !q || ctx.Core.searchFold(item.text).includes(q)).sort((a, b) => b.date.localeCompare(a.date));
     if (!items.length) return q ? `<div class="empty-state"><h3>${tr('No entries with those words')}</h3><p>${tr('The search looks only at the journal text.')}</p></div>` : `<div class="empty-state"><h3>${tr('The journal is empty')}</h3><p>${tr('A tap on a day or “+” opens that day’s entry.')}</p></div>`;
     return `<div class="today-card journal-list">${items.map(item => {
       const mood = moodOf(item);
@@ -119,6 +119,7 @@
       + `<div class="journal-strip" data-month="${month}">${days}</div>`
       + `<label class="sheet-search journal-search"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input id="journal-query" class="input" type="search" autocomplete="off" placeholder="${tr('Search the journal')}" value="${esc(query)}" aria-label="${tr('Search the journal')}"></label>`
       + (month === current && !query.trim() ? onThisDay(ctx, today) : '')
+      + (month === current && !query.trim() ? moodInsight(ctx, today) : '')
       + `<div id="journal-list">${listHtml(ctx)}</div>`;
   }
 
@@ -133,7 +134,12 @@
     const { esc, formatDate, modalFrame, modalState } = ctx;
     const date = modalState.date, item = entryFor(ctx, date);
     const moods = MOODS.map(([face, name], index) => { const on = item?.mood === index + 1; return `<button class="journal-mood${on ? ' is-selected' : ''}" type="button" data-action="journal-mood" data-value="${index + 1}" aria-pressed="${on}"><span aria-hidden="true">${face}</span><small>${tr(name)}</small></button>`; }).join('');
-    return modalFrame(`<div class="modal-inner quick-sheet journal-window"><div class="modal-header task-window-header"><span class="task-window-kind">${tr('Journal')}</span><div class="task-window-actions"><button class="btn-icon" type="button" data-action="journal-menu" aria-label="${tr('Entry actions')}"><i class="ph ph-dots-three"></i></button><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div></div><h2 class="journal-date">${esc(formatDate(date, 'full'))}</h2><p class="journal-summary">${esc(summaryText(ctx, date))}</p><h3 class="sheet-group-title">${tr('Mood')}</h3><div class="journal-moods" role="group" aria-label="${tr('Mood')}">${moods}</div><textarea id="journal-text" class="input journal-text" data-autogrow rows="10" placeholder="${tr('How did the day go? What was good? What tomorrow?')}" aria-label="${tr('Entry')}">${esc(item?.text || '')}</textarea><button class="quick-chip journal-task" type="button" data-action="journal-task-tomorrow">+ ${tr('Task for tomorrow')}</button><p class="sheet-note">${tr('Selected text or a “Tomorrow: …” line becomes the task title. It saves while you type. The journal is not in Search, only in its own search on the Journal screen.')}</p></div>`, 'quick');
+    // R98: what was completed that day, and one question about the day (not a task) to write about.
+    const done = ctx.Core.completedOn(ctx.state, date);
+    const doneHtml = done.length ? `<h3 class="sheet-group-title">${tr('Completed that day')}</h3><ul class="journal-done">${done.slice(0, 8).map(task => `<li>${esc(task.title)}</li>`).join('')}${done.length > 8 ? `<li>+${done.length - 8}</li>` : ''}</ul>` : '';
+    const question = tr(ctx.Core.journalQuestion(date, ctx.modalState.questionOffset || 0));
+    const questionHtml = `<div class="journal-question"><p class="journal-question-text">${esc(question)}</p><div class="journal-question-actions"><button class="quick-chip" type="button" data-action="journal-question-insert">${tr('Write it in')}</button><button class="quick-chip" type="button" data-action="journal-question-next">${tr('Another question')}</button></div></div>`;
+    return modalFrame(`<div class="modal-inner quick-sheet journal-window"><div class="modal-header task-window-header"><span class="task-window-kind">${tr('Journal')}</span><div class="task-window-actions"><button class="btn-icon" type="button" data-action="journal-menu" aria-label="${tr('Entry actions')}"><i class="ph ph-dots-three"></i></button><button class="btn-icon" type="button" data-action="close-modal" aria-label="${tr('Close')}"><i class="ph ph-x"></i></button></div></div><h2 class="journal-date">${esc(formatDate(date, 'full'))}</h2><p class="journal-summary">${esc(summaryText(ctx, date))}</p>${doneHtml}<h3 class="sheet-group-title">${tr('Mood')}</h3><div class="journal-moods" role="group" aria-label="${tr('Mood')}">${moods}</div>${questionHtml}<textarea id="journal-text" class="input journal-text" data-autogrow rows="10" placeholder="${tr('How did the day go? What was good? What tomorrow?')}" aria-label="${tr('Entry')}">${esc(item?.text || '')}</textarea><button class="quick-chip journal-task" type="button" data-action="journal-task-tomorrow">+ ${tr('Task for tomorrow')}</button><p class="sheet-note">${tr('Selected text or a “Tomorrow: …” line becomes the task title. It saves while you type. The journal is not in Search, only in its own search on the Journal screen.')}</p></div>`, 'quick');
   }
 
   async function openEntry(ctx, date) {
@@ -168,6 +174,27 @@
         ctx.saveState(); ctx.render();
       });
     } });
+  }
+
+  // R98: the question goes into the text on its own line, and the answer follows it; it saves like typing.
+  function insertQuestion(ctx) {
+    const field = ctx.$('#journal-text');
+    if (!field) return;
+    const question = tr(ctx.Core.journalQuestion(ctx.modalState.date, ctx.modalState.questionOffset || 0));
+    const before = field.value.replace(/\s+$/, '');
+    field.value = `${before}${before ? '\n\n' : ''}${question}\n`;
+    field.dispatchEvent(new Event('input', { bubbles: true }));
+    field.focus();
+    field.setSelectionRange?.(field.value.length, field.value.length);
+  }
+
+  // R98: how the mood goes with the habits, over the last 90 days (only when the difference says something).
+  function moodInsight(ctx, today) {
+    const found = ctx.Core.moodInsights(ctx.state, Object.values(ctx.state.habitLogCache || {}).flat(), today);
+    if (!found.length) return '';
+    const one = value => value.toLocaleString(window.TodoI18n.locale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+    const rows = found.map(item => `<p class="journal-insight-line">${ctx.esc(tr('Days with “{habit}”: {with} · other days: {without}', { habit: item.name, with: one(item.with), without: one(item.without) }))}</p>`).join('');
+    return `<h2 class="review-card-title">${tr('Mood and habits')}</h2><div class="today-card journal-insight">${rows}<p class="task-meta">${tr('The average mood (1–5) over the last 90 days.')}</p></div>`;
   }
 
   // J9: Quick Add for the day after the entry (never before today), titled from the selection or a "Sutra:" line.
@@ -205,6 +232,8 @@
     },
     handleAction(action, event, ctx) {
       if (action === 'journal-closing') { closing(ctx); return true; }
+      if (action === 'journal-question-next') { ctx.modalState.questionOffset = (ctx.modalState.questionOffset || 0) + 1; ctx.renderModal(); return true; }
+      if (action === 'journal-question-insert') { insertQuestion(ctx); return true; }
       if (action === 'journal-not-today') {
         try { localStorage.setItem(LATER_KEY, ctx.Core.dateOnly()); } catch (_) { /* shown again next time */ }
         ctx.render();

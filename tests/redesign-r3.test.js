@@ -44,23 +44,23 @@ test('D1–D4, E1: the task window has the title, the project link, Planiranje a
   assert.match(html, /<button class="task-window-project" type="button" data-action="task-project-picker" data-task-id="t1"><i class="ph ph-folder-simple" aria-hidden="true"><\/i>Posao<\/button>/);
   const rows = [...html.matchAll(/<button class="task-window-row" type="button" data-action="([a-z-]+)" data-task-id="t1"><i class="ph (ph-[a-z-]+)" aria-hidden="true"><\/i><span class="task-window-row-label">([^<]+)<\/span><span class="task-window-row-value([^"]*)">(.*?)<\/span><i class="ph ph-caret-right task-window-row-caret" aria-hidden="true"><\/i><\/button>/g)];
   // R67: the Okvirno (rough month) row follows Planirano, so the later rows moved down by one.
-  assert.deepEqual(rows.map(row => row[1]), ['task-plan-picker', 'task-month-picker', 'task-due-picker', 'task-reminder-picker', 'task-repeat-picker', 'task-duration-picker', 'task-tags-picker', 'task-priority-picker', 'task-goals-picker'], 'R22b: the project is the link under the title only; R33: goals as a row');
-  assert.deepEqual(rows.map(row => row[3]), ['Planned', 'Rough month', 'Due date', 'Reminder', 'Repeat', 'Duration', 'Tags', 'Priority', 'Goals']);
-  assert.notEqual(rows[0][2], rows[2][2], 'D3: Rok has its own icon');
+  // R87: Kad radim and Rok lead with what the task has; the empty Okvirno and Ciljevi wait in the fold, below.
+  assert.deepEqual(rows.map(row => row[1]), ['task-plan-picker', 'task-due-picker', 'task-reminder-picker', 'task-repeat-picker', 'task-duration-picker', 'task-tags-picker', 'task-priority-picker', 'task-month-picker', 'task-goals-picker'], 'R22b: the project is the link under the title only; R33: goals as a row');
+  assert.deepEqual(rows.map(row => row[3]), ['When I do it', 'Due date', 'Reminder', 'Repeat', 'Duration', 'Tags', 'Priority', 'Rough month', 'Goals']);
+  assert.notEqual(rows[0][2], rows[1][2], 'D3: Rok has its own icon');
   assert.equal(rows[0][5], `R(${TODAY}) · 09:30`);
-  assert.equal(rows[1][5], 'Not set');
-  assert.equal(rows[2][4], ' is-set is-overdue', 'G6 colors on the due value');
-  assert.equal(rows[3][5], 'REM(2026-10-10T08:00:00.000Z)');
-  assert.equal(rows[4][5], 'RULE(weekly)');
-  assert.equal(rows[5][5], '45 min');
-  assert.equal(rows[6][5], 'TAGS(x)');
-  assert.match(rows[7][5], /^<i class="ph ph-flag task-flag task-flag--high" aria-hidden="true"><\/i>High$/);
-  assert.ok(html.indexOf('>Planning<') < html.indexOf('task-plan-picker" data-task-id="t1"><i'), 'Planiranje heads its rows');
-  assert.ok(html.indexOf('>Organization<') < html.indexOf('data-action="task-tags-picker"'));
+  assert.equal(rows[7][5], 'Not set');
+  assert.equal(rows[1][4], ' is-set is-overdue', 'G6 colors on the due value');
+  assert.equal(rows[2][5], 'REM(2026-10-10T08:00:00.000Z)');
+  assert.equal(rows[3][5], 'RULE(weekly)');
+  assert.equal(rows[4][5], '45 min');
+  assert.equal(rows[5][5], 'TAGS(x)');
+  assert.match(rows[6][5], /^<i class="ph ph-flag task-flag task-flag--high" aria-hidden="true"><\/i>High$/);
+  assert.doesNotMatch(html, />Planning<|>Organization</, 'R87: no group headings');
   assert.match(html, /<h3 class="task-window-group">Subtasks · 1\/2<\/h3>/);
   assert.match(html, /<label class="task-window-group" for="detail-notes">Notes<\/label><textarea id="detail-notes"/);
   assert.match(html, /<attachments>/);
-  assert.match(html, /<details class="task-window-more"><summary><span>More options<\/span><span class="task-window-more-meta">Area, goals<\/span>/);
+  assert.match(html, /<details class="task-window-more"><summary data-action="task-window-more"><span>More options<\/span><span class="task-window-more-meta">Notes, approximate month, attachments…<\/span>/, 'R87: the line names the first fields waiting in the fold');
   assert.match(html, /<div class="task-window-row is-static"><i class="ph ph-squares-four" aria-hidden="true"><\/i><span class="task-window-row-label">Area<\/span>/, 'R33: a project task shows its area without a picker');
   assert.match(html, /data-action="task-goals-picker" data-task-id="t1"/);
   assert.doesNotMatch(html, /data-task-flag=/, 'R33: Važno and Hitno are gone from the window');
@@ -76,7 +76,8 @@ test('the window shows "Nije podešeno", the Inbox label, the area for a task wi
   assert.equal((html.match(/<span class="task-window-row-value">Not set<\/span>/g) || []).length, 9, 'R22b: no project row; R33: the goals row; R67: the Okvirno row');
   assert.match(html, /data-action="task-area-picker" data-task-id="t2"><i class="ph ph-squares-four" aria-hidden="true"><\/i><span class="task-window-row-label">Area<\/span><span class="task-window-row-value is-set">Kuća<\/span>/);
   assert.match(html, /<button class="btn btn-secondary task-complete-button" type="button" data-action="toggle-complete" data-task-id="t2">Reopen task<\/button>/);
-  for (const [key, value] of [['Reopen task', 'Vrati kao otvoren'], ['Task in Inbox', 'Zadatak · u Inbox-u'], ['More options', 'Više opcija'], ['Area, goals', 'Oblast, ciljevi']]) assert.match(sr, new RegExp(`"${key}": "${value}"`), key);
+  // R87: the fold's line names what waits in it, so "Oblast, ciljevi" is gone.
+  for (const [key, value] of [['Reopen task', 'Vrati kao otvoren'], ['Task in Inbox', 'Zadatak · u Inbox-u'], ['More options', 'Više opcija']]) assert.match(sr, new RegExp(`"${key}": "${value}"`), key);
 });
 
 function sheetContext(extra = {}) {
@@ -131,7 +132,8 @@ test('E4: the date sheet offers Danas, Sutra and next week, a time and the other
   ctx.openDateSheet({}, { type: 'task', taskId: 't1' }, 'plan');
   const [, html, meta] = ctx.calls.at(-1);
   assert.equal(meta.type, 'date-sheet');
-  assert.match(html, /^<div class="popover-title">Planned<\/div><p class="sheet-subtitle">Report<\/p><div class="sheet-chips">/);
+  // R87: the planned day is called "Kad radim" (When I do it).
+  assert.match(html, /^<div class="popover-title">When I do it<\/div><p class="sheet-subtitle">Report<\/p><div class="sheet-chips">/);
   assert.match(html, new RegExp(`data-pop-action="date-sheet-pick" data-date="${TODAY}" aria-pressed="false">Today<`));
   assert.match(html, new RegExp(`data-date="${day(1)}" aria-pressed="false">Tomorrow<`));
   assert.match(html, new RegExp(`data-date="${ctx.nextMonday(TODAY)}" aria-pressed="false">Start of next week<`));
@@ -146,10 +148,10 @@ test('E4: the date sheet offers Danas, Sutra and next week, a time and the other
   assert.deepEqual(JSON.parse(JSON.stringify(ctx.calls.slice(-2))), [['close'], ['edit', 't1', { plannedDate: day(1), plannedTime: '08:15', isInbox: false }]]);
   ctx.openDateSheet({}, { type: 'task', taskId: 't1' }, 'due');
   assert.match(ctx.calls.at(-1)[1], /<div class="popover-title">Due date<\/div>/);
-  assert.match(ctx.calls.at(-1)[1], /<p class="sheet-note">No planned date is set\.<\/p>/);
+  assert.match(ctx.calls.at(-1)[1], /<p class="sheet-note">“When I do it” is not set\.<\/p>/);
   ctx.applyDateSheet(true);
   assert.deepEqual(JSON.parse(JSON.stringify(ctx.calls.at(-1))), ['edit', 't1', { dueDate: null, dueTime: null }]);
-  for (const [key, value] of [['Remove date', 'Ukloni datum'], ['Start of next week', 'Sledeće nedelje'], ['The due date stays: {date}', 'Rok ostaje isti: {date}'], ['No planned date is set.', 'Planirani datum nije postavljen.']]) assert.match(sr, new RegExp(`"${key.replace(/[.{}]/g, '\\$&')}": "${value.replace(/[.{}]/g, '\\$&')}"`), key);
+  for (const [key, value] of [['Remove date', 'Ukloni datum'], ['Start of next week', 'Sledeće nedelje'], ['The due date stays: {date}', 'Rok ostaje isti: {date}'], ['“When I do it” is not set.', '„Kad radim“ nije postavljeno.']]) assert.match(sr, new RegExp(`"${key.replace(/[.{}]/g, '\\$&')}": "${value.replace(/[.{}]/g, '\\$&')}"`), key);
 });
 
 test('E4: in Quick Add the date sheet fills the draft and marks the plan as explicit', () => {
@@ -191,7 +193,7 @@ test('E6: reminder presets follow the planned time; the sheet has date, time, a 
   assert.match(html, /<input id="reminder-date" class="input" type="date" value="2026-10-20">/);
   assert.match(html, /<input id="reminder-time" class="input" type="time" value="10:30">/);
   assert.match(html, /<p class="sheet-summary" data-reminder-summary>Remind me R\(2026-10-20\) at 10:30<\/p>/);
-  assert.match(html, /<span class="sheet-option-label">Planned<\/span><span class="sheet-option-value">R\(2026-10-20\) · 10:30<\/span>/);
+  assert.match(html, /<span class="sheet-option-label">When I do it<\/span><span class="sheet-option-value">R\(2026-10-20\) · 10:30<\/span>/, 'R87: "Kad radim"');
   assert.match(html, /<span class="sheet-option-label">Due date<\/span><span class="sheet-option-value">R\(2026-10-22\)<\/span>/);
   assert.doesNotMatch(html, /reminder-clear/, 'nothing to remove yet');
   ctx.$ = selector => ({ value: selector === '#reminder-date' ? '2026-10-20' : '10:15' });

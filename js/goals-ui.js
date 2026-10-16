@@ -162,6 +162,8 @@
       }).join('');
       html += `<h3 class="goal-details-label">${tr('Habit contributions')}</h3><div class="today-card habits-bars">${bars || `<p class="today-empty">${tr('No linked Habits yet.')}</p>`}</div>`;
     }
+    // R97: the notes and resources linked to the goal.
+    html += ctx.linkedKnowledgeHtml?.('relatedGoalIds', goal.id, 'label') || '';
     // Planiranje and Organizacija
     const reminder = reminderSummary(goal);
     const linked = linkedSummary(goal);

@@ -14,7 +14,8 @@
   const BACKUP_DIR = 'Dailo'; // R27: Documents/Dailo on the phone
   const MIRROR = 'dailo/state.json';
   // R76: habit logs and goal history (IndexedDB) get mirror files of their own; attachments do not.
-  const RECORD_MIRRORS = { habitLogs: 'dailo/habit-logs.json', goalHistory: 'dailo/goal-history.json' };
+  // R103: the archived tasks are mirrored too, so a cleared WebView storage gets them back with the rest.
+  const RECORD_MIRRORS = { habitLogs: 'dailo/habit-logs.json', goalHistory: 'dailo/goal-history.json', archivedTasks: 'dailo/archived-tasks.json' };
   const CHUNK_BYTES = 3 * 256 * 1024; // a multiple of 3, so every base64 chunk can be appended as is
 
   // FNV-1a over the UTF-16 code units, folded to a positive 31-bit integer (Android and iOS both accept it).

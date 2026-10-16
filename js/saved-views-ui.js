@@ -5,7 +5,8 @@
 
   const TYPES = ['tasks', 'goals', 'habits'];
   const FILTER_KEYS = {
-    tasks: ['areaId', 'projectId', 'tagId', 'priority', 'plannedDate', 'dueDate', 'completion'],
+    // R100: this week or today, a duration of at most N minutes and no due date follow the exact days.
+    tasks: ['areaId', 'projectId', 'tagId', 'priority', 'plannedDate', 'dueDate', 'period', 'maxMinutes', 'noDue', 'completion'],
     goals: ['areaId', 'status', 'targetDate'],
     habits: ['areaId', 'status', 'trackingType', 'frequencyType']
   };
@@ -15,14 +16,14 @@
   const TYPE_LABELS = { tasks: msg('Tasks'), goals: msg('Goals'), habits: msg('Habits') };
   const ALL_LABELS = { tasks: msg('All tasks'), goals: msg('All goals'), habits: msg('All habits') };
   const typeLabel = type => (TYPE_LABELS[type] ? tr(TYPE_LABELS[type]) : label(type));
-  const FILTER_LABELS = { areaId: msg('Area'), projectId: msg('Project'), tagId: msg('Tag'), priority: msg('Priority'), completion: msg('Completion'), plannedDate: msg('Planned'), dueDate: msg('Due'), targetDate: msg('Target date'), status: msg('Status'), trackingType: msg('Tracking'), frequencyType: msg('Frequency') };
-  const VALUE_LABELS = { none: msg('None'), low: msg('Low'), medium: msg('Medium'), high: msg('High'), open: msg('Open'), completed: msg('Completed'), active: msg('Active'), paused: msg('Paused'), archived: msg('Archived'), checkbox: msg('Checkbox'), numeric: msg('Numeric'), daily: msg('Daily'), weekdays: msg('Selected weekdays'), timesPerWeek: msg('X times per week'), everyNDays: msg('Every N days') };
+  const FILTER_LABELS = { areaId: msg('Area'), projectId: msg('Project'), tagId: msg('Tag'), priority: msg('Priority'), completion: msg('Completion'), plannedDate: msg('When I do it'), dueDate: msg('Due'), targetDate: msg('Target date'), status: msg('Status'), trackingType: msg('Tracking'), frequencyType: msg('Frequency'), period: msg('When I do it or due'), maxMinutes: msg('Takes at most'), noDue: msg('Without a due date') };
+  const VALUE_LABELS = { today: msg('Today'), thisWeek: msg('This week'), none: msg('None'), low: msg('Low'), medium: msg('Medium'), high: msg('High'), open: msg('Open'), completed: msg('Completed'), active: msg('Active'), paused: msg('Paused'), archived: msg('Archived'), checkbox: msg('Checkbox'), numeric: msg('Numeric'), daily: msg('Daily'), weekdays: msg('Selected weekdays'), timesPerWeek: msg('X times per week'), everyNDays: msg('Every N days') };
   const valueLabel = value => (VALUE_LABELS[value] ? tr(VALUE_LABELS[value]) : label(String(value)));
 
   // Redesign R10d (S8): one card of views with their counts, a result screen with a menu, and an edit window whose filters
   // open sheets.
-  const FILTER_ICONS = { areaId: 'ph-squares-four', projectId: 'ph-folder', tagId: 'ph-tag', priority: 'ph-flag', plannedDate: 'ph-calendar-blank', dueDate: 'ph-calendar-x', targetDate: 'ph-calendar-check', completion: 'ph-check-circle', status: 'ph-circle-half', trackingType: 'ph-check-square', frequencyType: 'ph-repeat' };
-  const EDIT_LABELS = { areaId: msg('Area'), projectId: msg('Project'), tagId: msg('Tag'), priority: msg('Priority'), completion: msg('Completion'), plannedDate: msg('Planned date (exact day)'), dueDate: msg('Due date (exact day)'), targetDate: msg('Target date (exact day)'), status: msg('Status'), trackingType: msg('Tracking'), frequencyType: msg('Frequency') };
+  const FILTER_ICONS = { areaId: 'ph-squares-four', projectId: 'ph-folder', tagId: 'ph-tag', priority: 'ph-flag', plannedDate: 'ph-calendar-blank', dueDate: 'ph-calendar-x', targetDate: 'ph-calendar-check', completion: 'ph-check-circle', status: 'ph-circle-half', trackingType: 'ph-check-square', frequencyType: 'ph-repeat', period: 'ph-calendar-dots', maxMinutes: 'ph-timer', noDue: 'ph-calendar-slash' };
+  const EDIT_LABELS = { areaId: msg('Area'), projectId: msg('Project'), tagId: msg('Tag'), priority: msg('Priority'), completion: msg('Completion'), plannedDate: msg('When I do it (exact day)'), dueDate: msg('Due date (exact day)'), targetDate: msg('Target date (exact day)'), status: msg('Status'), trackingType: msg('Tracking'), frequencyType: msg('Frequency'), period: msg('When I do it or due'), maxMinutes: msg('Takes at most'), noDue: msg('Without a due date') };
   const DATE_KEYS = ['plannedDate', 'dueDate', 'targetDate'];
 
   function filterText(context, key, value) {
@@ -30,11 +31,13 @@
     const names = { areaId: state.areas, projectId: state.projects, tagId: state.tags };
     if (names[key]) return names[key].find(item => item.id === value)?.name || tr('Missing reference');
     if (DATE_KEYS.includes(key)) return formatDate ? formatDate(value) : value;
+    if (key === 'maxMinutes') return tr('{count} min', { count: value });
+    if (key === 'noDue') return tr('Yes');
     return valueLabel(value);
   }
 
   function summaryText(context, view) {
-    const parts = Object.entries(view.filters || {}).filter(([, value]) => value).map(([key, value]) => `${FILTER_LABELS[key] ? tr(FILTER_LABELS[key]) : label(key)}: ${filterText(context, key, value)}`);
+    const parts = Object.entries(view.filters || {}).filter(([, value]) => value).map(([key, value]) => (key === 'noDue' ? tr(FILTER_LABELS.noDue) : `${FILTER_LABELS[key] ? tr(FILTER_LABELS[key]) : label(key)}: ${filterText(context, key, value)}`));
     return parts.length ? parts.join(' · ') : ALL_LABELS[view.type] ? tr(ALL_LABELS[view.type]) : `All ${label(view.type).toLowerCase()}`;
   }
 
@@ -46,7 +49,27 @@
       const meta = [typeLabel(view.type), view.isPinned ? tr('pinned to “More”') : '', summaryText(context, view)].filter(Boolean).join(' · ');
       return `<button class="view-list-row" type="button" data-route="saved-view/${esc(view.id)}"><i class="ph ph-funnel view-list-icon" aria-hidden="true"></i><span class="view-list-main"><span class="task-title">${esc(view.name)}</span><span class="task-meta">${esc(meta)}</span></span><span class="view-list-count">${results(context, view).length}</span></button>`;
     }).join('');
-    return pageHeader(tr('Saved Views'), tr('Saved filters for one kind of item.'), { add: false }) + `<div class="today-card views-list">${rows || `<p class="today-empty">${tr('No saved views yet. “+” saves the filters you use often.')}</p>`}<button class="inline-add" type="button" data-action="new-saved-view"><i class="ph ph-plus" aria-hidden="true"></i> ${tr('New saved view')}</button></div>`;
+    // R100: the ready-made views not yet among the user's (by key or by name); a tap adds one and opens it.
+    const plainName = value => String(value || '').trim().toLocaleLowerCase();
+    const ready = READY.filter(([key, name]) => !state.savedViews.some(item => item.sampleKey === `${READY_PREFIX}:${key}` || plainName(item.name) === plainName(tr(name))));
+    const readyHtml = ready.length ? `<section class="section views-ready"><div class="section-header"><h2 class="section-label">${tr('Ready-made views')}</h2></div><div class="today-card views-list">${ready.map(([key, name, icon, , note]) => `<button class="view-list-row" type="button" data-action="saved-view-ready" data-ready-key="${key}"><i class="ph ${icon} view-list-icon" aria-hidden="true"></i><span class="view-list-main"><span class="task-title">${esc(tr(name))}</span><span class="task-meta">${esc(tr(note, { tag: tr('Waiting for') }))}</span></span><i class="ph ph-plus view-ready-add" aria-hidden="true"></i></button>`).join('')}</div></section>` : '';
+    return pageHeader(tr('Saved Views'), tr('Saved filters for one kind of item.'), { add: false }) + `<div class="today-card views-list">${rows || `<p class="today-empty">${tr('No saved views yet. “+” saves the filters you use often.')}</p>`}<button class="inline-add" type="button" data-action="new-saved-view"><i class="ph ph-plus" aria-hidden="true"></i> ${tr('New saved view')}</button></div>${readyHtml}`;
+  }
+
+  // R100: the ready-made views. [key, name, icon, filters, note]; "Čekam" also needs its tag, made when missing.
+  const READY_PREFIX = 'view-ready-v1';
+  const READY = [
+    ['quick', msg('Up to 15 minutes'), 'ph-timer', { maxMinutes: 15, completion: 'open' }, msg('Open tasks that take 15 minutes or less (the duration is set in the task).')],
+    ['high-week', msg('High priority this week'), 'ph-flag', { priority: 'high', period: 'thisWeek', completion: 'open' }, msg('High priority, planned or due this week.')],
+    ['no-due', msg('Without a due date'), 'ph-calendar-slash', { noDue: true, completion: 'open' }, msg('Open tasks without a due date.')],
+    ['waiting', msg('Waiting for'), 'ph-hourglass-medium', { completion: 'open' }, msg('Tasks with the “{tag}” tag: what you are waiting on from others.')],
+  ];
+  function addReady(context, key) {
+    const entry = READY.find(item => item[0] === key); if (!entry) return;
+    const [, name, , filters] = entry;
+    const tag = key === 'waiting' ? { tagId: context.ensureTag(tr('Waiting for')) } : {};
+    const timestamp = context.nowIso();
+    context.addSavedView({ id: context.uid('view'), sampleKey: `${READY_PREFIX}:${key}`, name: tr(name), type: 'tasks', filters: { ...tag, ...filters }, isPinned: false, createdAt: timestamp, updatedAt: timestamp });
   }
 
   function renderDetail(context, id) {
@@ -90,6 +113,9 @@
       tagId: state.tags.map(tag => [tag.id, tag.name]),
       priority: ['none', 'low', 'medium', 'high'].map(value => [value, valueLabel(value)]),
       completion: [['open', tr('Open')], ['completed', tr('Completed')]],
+      period: [['today', tr('Today')], ['thisWeek', tr('This week')]],
+      maxMinutes: [15, 30, 60].map(count => [String(count), tr('{count} min', { count })]),
+      noDue: [['true', tr('Yes')]],
       status: (type === 'goals' ? ['active', 'paused', 'completed', 'archived'] : ['active', 'paused', 'archived']).map(value => [value, valueLabel(value)]),
       trackingType: [['checkbox', tr('Checkbox')], ['numeric', tr('Numeric')]],
       frequencyType: [['daily', tr('Daily')], ['weekdays', tr('Selected weekdays')], ['timesPerWeek', tr('X times per week')], ['everyNDays', tr('Every N days')]]
@@ -114,7 +140,7 @@
     const draft = modalState.draft;
     if (!FILTER_KEYS[draft.type].includes(key)) return;
     const title = tr(EDIT_LABELS[key]);
-    const current = draft.filters[key] || '';
+    const current = draft.filters[key] == null ? '' : String(draft.filters[key]);
     if (DATE_KEYS.includes(key)) {
       dateField = key;
       context.openPopover(anchor, `<div class="popover-title">${title}</div><label class="sheet-field"><i class="ph ph-calendar-blank" aria-hidden="true"></i><span>${tr('Date')}</span><input id="saved-view-date" class="input" type="date" value="${esc(current)}"></label><div class="sheet-footer"><button class="btn btn-ghost" type="button" data-pop-action="saved-view-date-clear">${tr('Clear')}</button><button class="btn btn-primary" type="button" data-pop-action="saved-view-date-apply">${tr('Apply')}</button></div>`, { type: 'saved-view-date' });
@@ -128,7 +154,8 @@
   function setFilter(context, key, value) {
     const draft = context.modalState.draft;
     if (!FILTER_KEYS[draft.type].includes(key)) return;
-    if (value) draft.filters[key] = value; else delete draft.filters[key];
+    // R100: the duration stays a number and "Bez roka" a true.
+    if (value) draft.filters[key] = key === 'maxMinutes' ? Number(value) : key === 'noDue' ? true : value; else delete draft.filters[key];
     context.closePopover(); context.renderModal();
   }
 
@@ -164,6 +191,7 @@
       const id = element.dataset.savedViewId;
       const fromMenu = Boolean(element.dataset.popAction);
       if (action === 'new-saved-view') openModal(context);
+      else if (action === 'saved-view-ready') addReady(context, element.dataset.readyKey);
       else if (action === 'saved-view-menu') openMenu(context, element, id);
       else if (action === 'edit-saved-view') openModal(context, id);
       else if (action === 'save-saved-view') save(context);

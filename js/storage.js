@@ -9,8 +9,9 @@
   const msg = text => text;
 
   const DB_NAME = 'todoAppDB';
-  const DB_VERSION = 1;
-  const STORES = ['attachments', 'habitLogs', 'goalHistory', 'recoverySnapshots'];
+  // R103: version 2 adds archivedTasks (old completed tasks kept out of localStorage).
+  const DB_VERSION = 2;
+  const STORES = ['attachments', 'habitLogs', 'goalHistory', 'archivedTasks', 'recoverySnapshots'];
   const AUTOMATIC_SNAPSHOT_MAX_COUNT = 5;
   const AUTOMATIC_SNAPSHOT_MAX_BYTES = 25 * 1024 * 1024;
   const LEGACY_ATTACHMENT_DB_NAME = 'todoAppAttachments';
@@ -72,6 +73,11 @@
       : db.createObjectStore('goalHistory', { keyPath: 'id' });
     ensureIndex(goalHistory, 'goalId', 'goalId', { unique: false });
     ensureIndex(goalHistory, 'createdAt', 'createdAt', { unique: false });
+
+    const archivedTasks = db.objectStoreNames.contains('archivedTasks')
+      ? tx.objectStore('archivedTasks')
+      : db.createObjectStore('archivedTasks', { keyPath: 'id' });
+    ensureIndex(archivedTasks, 'completedAt', 'completedAt', { unique: false });
 
     const recoverySnapshots = db.objectStoreNames.contains('recoverySnapshots')
       ? tx.objectStore('recoverySnapshots')
@@ -409,6 +415,19 @@
     async clearAll() { return clearStore('goalHistory'); }
   };
 
+  // R103: the archived tasks, written together so a move into the archive is all or nothing.
+  const archivedTasks = {
+    async putMany(records) {
+      for (const record of records || []) requireRecord(record, ['id'], 'archived task');
+      if (memoryMode()) { for (const record of records || []) memoryStores.archivedTasks.set(record.id, clone(record)); return (records || []).length; }
+      return withStore('archivedTasks', 'readwrite', store => { for (const record of records || []) store.put(record); return (records || []).length; });
+    },
+    async listAll() { return listRecords('archivedTasks'); },
+    async deleteMany(ids) { return deleteManyRecords('archivedTasks', ids); },
+    async fillEmpty(records) { return fillEmptyStore('archivedTasks', records, ['id'], 'archived task'); },
+    async clearAll() { return clearStore('archivedTasks'); }
+  };
+
   const recoverySnapshots = {
     async put(record) { return putRecord('recoverySnapshots', record, ['id'], 'recovery snapshot'); },
     async get(id) { return getRecord('recoverySnapshots', id); },
@@ -562,7 +581,10 @@
     await recoverySnapshots.deleteMany([snapshotId]);
   }
 
-  const USER_STORES = ['attachments', 'habitLogs', 'goalHistory'];
+  // R103: the archive is user data too. A payload made before it (an older recovery copy) has no archivedTasks and
+  // means an empty archive: its state still holds every task.
+  const USER_STORES = ['attachments', 'habitLogs', 'goalHistory', 'archivedTasks'];
+  const userRecords = (payload, name) => payload?.[name] || [];
   async function captureUserData() {
     if (memoryMode()) return Object.fromEntries(USER_STORES.map(name => [name, [...memoryStores[name].values()].map(clone)]));
     const db = await open(), tx = db.transaction(USER_STORES, 'readonly'), done = transactionDone(tx);
@@ -573,9 +595,9 @@
 
   async function sameUserData(actual, expected) {
     for (const name of USER_STORES) {
-      if (actual[name].length !== expected[name].length) return false;
-      const byId = new Map(actual[name].map(record => [record.id, record]));
-      for (const record of expected[name]) if (!(await sameAttachmentRecord(byId.get(record.id), record))) return false;
+      if (userRecords(actual, name).length !== userRecords(expected, name).length) return false;
+      const byId = new Map(userRecords(actual, name).map(record => [record.id, record]));
+      for (const record of userRecords(expected, name)) if (!(await sameAttachmentRecord(byId.get(record.id), record))) return false;
     }
     return true;
   }
@@ -590,7 +612,7 @@
       validate?.();
       if (!(await sameUserData(await captureUserData(), before))) throw new Error(msg('Stored data changed during preparation.'));
       validate?.();
-      for (const name of USER_STORES) { memoryStores[name].clear(); for (const record of next[name]) memoryStores[name].set(record.id, clone(record)); }
+      for (const name of USER_STORES) { memoryStores[name].clear(); for (const record of userRecords(next, name)) memoryStores[name].set(record.id, clone(record)); }
       return;
     }
     const db = await open(), tx = db.transaction(USER_STORES, 'readwrite'), done = transactionDone(tx);
@@ -612,7 +634,7 @@
               validate?.();
               for (const name of USER_STORES) {
                 const store = tx.objectStore(name); store.clear();
-                for (const record of next[name]) store.put(record);
+                for (const record of userRecords(next, name)) store.put(record);
               }
               resolve();
             } catch (error) { tx.abort(); reject(error); }
@@ -769,7 +791,7 @@
     const validateFn = typeof validate === 'function' ? validate : validate?.validate;
     const onCommit = typeof validate === 'function' ? validate.onCommit : validate?.onCommit;
     try {
-      await replaceUserData({ attachments: next.attachmentRecords, habitLogs: next.habitLogs, goalHistory: next.goalHistory }, expected, validateFn);
+      await replaceUserData({ attachments: next.attachmentRecords, habitLogs: next.habitLogs, goalHistory: next.goalHistory, archivedTasks: next.archivedTasks || [] }, expected, validateFn);
       onCommit?.();
       validateFn?.();
       root.localStorage.setItem('todoAppData', nextRaw);
@@ -781,7 +803,7 @@
       try {
         const currentRaw = root.localStorage.getItem('todoAppData');
         const currentData = await captureUserData();
-        const nextData = { attachments: next.attachmentRecords, habitLogs: next.habitLogs, goalHistory: next.goalHistory };
+        const nextData = { attachments: next.attachmentRecords, habitLogs: next.habitLogs, goalHistory: next.goalHistory, archivedTasks: next.archivedTasks || [] };
         const currentIsOld = currentRaw === oldRaw && await sameUserData(currentData, before);
         const currentIsNext = await sameUserData(currentData, nextData);
         const safeInFlight = currentRaw === oldRaw && currentIsNext;
@@ -839,6 +861,7 @@
     attachments,
     habitLogs,
     goalHistory,
+    archivedTasks,
     recoverySnapshots,
     restoreDeleteRecords,
     sameAttachmentRecord,

@@ -23,7 +23,8 @@ test('22: the task title is a growing text field; Oblast and Ciljevi are rows wi
   assert.match(tasksUi, /row\('task-area-picker', 'ph-squares-four', tr\('Area'\)/);
   assert.match(tasksUi, /row\('task-goals-picker', 'ph-target', tr\('Goals'\)/);
   assert.doesNotMatch(tasksUi, /data-task-flag|data-task-area=|data-task-goal=/);
-  assert.match(tasksUi, /tr\('Area, goals'\)/);
+  // R87: the fold's line names the first fields waiting in it, Oblast and Ciljevi among them.
+  assert.match(tasksUi, /\['area', tr\('Area'\)\], \['goals', tr\('Goals'\)\]/);
 });
 
 function taskSheetCtx() {
@@ -113,14 +114,17 @@ test('29: dragging a sheet\'s header down closes it', () => {
 });
 
 test('32: an hourglass is the due date and a flag the priority everywhere; Bez projekta has its own icon', () => {
-  assert.match(fn('quickParsePreview'), /item\('ph-hourglass-medium', tr\('Due \{date\}'/);
-  assert.match(fn('quickParsePreview'), /item\('ph-flag', priorityLabel\(parsed\.priority\)\)/);
+  // R90: each part of the preview names its slot first, so a tap can keep it in the title.
+  assert.match(fn('quickParsePreview'), /item\('dueDate', 'ph-hourglass-medium', tr\('Due \{date\}'/);
+  assert.match(fn('quickParsePreview'), /item\('priority', 'ph-flag', priorityLabel\(parsed\.priority\)\)/);
   assert.match(app, /data-route="project\/none"><i class="ph ph-circle-dashed project-row-icon"/);
 });
 
 test('33: Fokus → Detalji comes back to Fokus with its timer', () => {
   assert.match(fn('openTaskDetail'), /const focus = modalState\?\.type === 'focus' \? modalState : null;/);
-  assert.match(fn('openTaskDetail'), /const back = focus \|\| \(modalState\?\.type === 'inbox-triage' \? modalState : null\);/, 'R36: Razvrstaj redom too');
+  // R83: the past-due pass gets the task window back too.
+  // R84: and "Zatvori dan".
+  assert.match(fn('openTaskDetail'), /const back = focus \|\| \(\['inbox-triage', 'overdue-triage', 'close-day'\]\.includes\(modalState\?\.type\) \? modalState : null\);/, 'R36: Razvrstaj redom too');
   assert.match(fn('openTaskDetail'), /\.\.\.\(back \? \{ returnTo: back \} : \{\}\)/);
   assert.match(fn('closeModal'), /if \(modalState\?\.type === 'task' && modalState\.returnTo\?\.type === 'focus'\) \{/);
   assert.match(fn('closeModal'), /startFocusTimer\(\);/);
@@ -128,7 +132,8 @@ test('33: Fokus → Detalji comes back to Fokus with its timer', () => {
 
 test('34: the task menu fits where it opens: no repeats of the window\'s rows and no moves for a finished task', () => {
   const calls = [];
-  const ctx = withI18n({ Core: { dateOnly: () => '2026-10-12' }, esc: String, modalState: null, getTask: id => tasks[id], openPopover: (anchor, html) => calls.push(html), menuSheet: (title, body) => body, templateMenuEntry: () => '<template>' });
+  // R87: the menu looks for the task's row on the screen for "Pomeri gore / dole"; there is none here.
+  const ctx = withI18n({ Core: { dateOnly: () => '2026-10-12' }, esc: String, modalState: null, getTask: id => tasks[id], openPopover: (anchor, html) => calls.push(html), menuSheet: (title, body) => body, templateMenuEntry: () => '<template>', document: { querySelectorAll: () => [] }, dropGroup: () => null, reorderNeighbours: () => null });
   const tasks = { open: { id: 'open', title: 'Open', isCompleted: false, plannedDate: null }, done: { id: 'done', title: 'Done', isCompleted: true } };
   vm.createContext(ctx);
   vm.runInContext(fn('openTaskMenu'), ctx);
@@ -144,7 +149,8 @@ test('34: the task menu fits where it opens: no repeats of the window\'s rows an
 
 test('35, 36: small controls reach 44 px, and Kad stignem keeps the order set in the project', () => {
   assert.match(css, /\.inline-add, \.today-more, \.collapsible-trigger \{ min-height: 44px; \}/);
-  assert.match(fn('renderTasksScreen'), /const later = Core\.deriveAnytime\(tasks\)\.sort\(byProjectOrder\);/);
+  // R94: the undated tasks of projects on hold or for someday are left out first.
+  assert.match(fn('renderTasksScreen'), /const later = Core\.deriveAnytime\(tasks, state\.projects\)\.sort\(byProjectOrder\);/);
 });
 
 // A small stand-in for DOM rows: classes, data attributes, a parent and closest() for the selectors the reorder code uses.

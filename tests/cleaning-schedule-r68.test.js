@@ -69,7 +69,8 @@ test('R68: first dates are spread so Today is not flooded; every chore starts to
   const { state, add } = cleaning();
   add('house');
   const today = Core.dateOnly();
-  assert.ok(state.tasks.every(task => task.plannedDate && task.plannedDate === task.dueDate && task.plannedDate >= today));
+  // R95: a chore has no strict deadline, only its planned day.
+  assert.ok(state.tasks.every(task => task.plannedDate && task.dueDate === null && task.plannedDate >= today));
   assert.ok(state.tasks.filter(task => task.plannedDate === today).length <= 3);
   assert.ok(state.tasks.every(task => task.recurrence.seriesId === task.id && task.cleaningSampleKey.startsWith('cleaning:house:')));
 });

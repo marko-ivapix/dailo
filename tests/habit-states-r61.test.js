@@ -63,7 +63,8 @@ test('the row: a red ✗ for "not done", a tick for done, an empty circle otherw
 
 test('a tap cycles empty → done → not done → empty; a skipped day goes to done', () => {
   const ui = read('js/habits-ui.js');
-  assert.match(ui, /else \{ const current = dayLog\(habit\.id\)\?\.status; setHabitLog\(habit\.id, date, current === 'done' \? 'missed' : current === 'missed' \? null : 'done'\); \}/);
+  // R93: the cycle is unchanged; it keeps the previous log so that emptying a day with a note can be undone.
+  assert.match(ui, /const previous = dayLog\(habit\.id\); const current = previous\?\.status;\n\s+const next = current === 'done' \? 'missed' : current === 'missed' \? null : 'done';\n\s+const saving = setHabitLog\(habit\.id, date, next\);/);
   assert.match(ui, /renderHabitTodayRow\(ctx, habit, \{ status: day\.state === 'done' \? 'done' : day\.state === 'skipped' \? 'skipped' : 'pending', value: day\.value, marked: day\.marked \}/);
   assert.match(ui, /renderHabitTodayRow\(ctx, habit, \{ status: today\.state === 'done' \? 'done' : today\.state === 'skipped' \? 'skipped' : 'pending', value: today\.value, marked: today\.marked \}/);
   const set = functionSource('setHabitLog').source;

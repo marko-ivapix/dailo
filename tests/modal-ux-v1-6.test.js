@@ -10,10 +10,11 @@ const css = fs.readFileSync(require.resolve('../css/styles.css'), 'utf8');
 // Redesign R3 (E1): Planiranje and Organizacija rows replace the chips and the three disclosures; only
 // "Više opcija" stays folded.
 test('task editor keeps optional sections collapsed and exposes compact essentials', () => {
-  assert.match(tasksUi, /<h3 class="task-window-group">\$\{tr\('Planning'\)\}<\/h3>/);
-  assert.match(tasksUi, /<h3 class="task-window-group">\$\{tr\('Organization'\)\}<\/h3>/);
-  assert.match(tasksUi, /<details class="task-window-more">/);
-  assert.doesNotMatch(tasksUi, /<details[^>]+task-window-more[^>]+open/);
+  // R87: no Planiranje and Organizacija headings; Kad radim and Rok lead, and every empty field folds under "Više
+  // opcija", which is still closed when the window opens and stays open only after a change made from inside it.
+  assert.doesNotMatch(tasksUi, /tr\('Planning'\)|tr\('Organization'\)/);
+  assert.match(tasksUi, /<details class="task-window-more"\$\{modalState\.moreOpen \? ' open' : ''\}>/);
+  assert.doesNotMatch(tasksUi, /<details[^>]+task-window-more"[^$>]*open/);
   assert.doesNotMatch(tasksUi, /task-quick-properties|task-properties-disclosure|task-schedule-disclosure|task-links-notes-disclosure/);
   assert.match(tasksUi, /id="detail-notes" class="detail-notes"/);
   assert.match(tasksUi, /row\('task-tags-picker', 'ph-tag', tr\('Tags'\)/);

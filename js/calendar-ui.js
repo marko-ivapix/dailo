@@ -6,7 +6,8 @@
   // UI only: Calendar state and operations are supplied by app.js per call.
   // Redesign R7 (C1–C9): Nedelja, Mesec and Predstojeće; a selected day with "Lista / Raspored". No habits (C2),
   // no filter (C7), no Day Detail window; the tasks come through ctx.listTasks(), so archived projects stay out (S10).
-  const VIEWS = ['week', 'month', 'upcoming'];
+  // R91: "3 dana" after Nedelja.
+  const VIEWS = ['week', 'three', 'month', 'upcoming'];
   const UPCOMING_DAYS = 21;
   const WEEKDAYS = [msg('Sun'), msg('Mon'), msg('Tue'), msg('Wed'), msg('Thu'), msg('Fri'), msg('Sat')];
 
@@ -24,13 +25,13 @@
   }
 
   function viewSwitch(view) {
-    const labels = { week: tr('Week'), month: tr('Month'), upcoming: tr('Upcoming') };
+    const labels = { week: tr('Week'), three: tr('3 days'), month: tr('Month'), upcoming: tr('Upcoming') };
     return `<div class="view-tabs calendar-view-switch" role="group" aria-label="${tr('Calendar view')}">${VIEWS.map(mode => `<button class="btn${view === mode ? ' is-selected' : ''}" type="button" data-action="calendar-view" data-view="${mode}" aria-pressed="${view === mode}">${labels[mode]}</button>`).join('')}</div>`;
   }
 
   function periodBar(ctx, label, unit) {
-    const previous = unit === 'month' ? tr('Previous month') : tr('Previous week');
-    const next = unit === 'month' ? tr('Next month') : tr('Next week');
+    const previous = unit === 'month' ? tr('Previous month') : unit === 'three' ? tr('Previous 3 days') : tr('Previous week');
+    const next = unit === 'month' ? tr('Next month') : unit === 'three' ? tr('Next 3 days') : tr('Next week');
     // R47d (K8): a wide screen has "Danas" next to the arrows (CSS); the phone keeps C1 without it.
     return `<div class="calendar-period-bar"><h2 class="calendar-period">${ctx.esc(label)}</h2><span class="calendar-arrows"><button class="btn btn-secondary calendar-today" type="button" data-action="calendar-today">${tr('Today')}</button><button class="btn-icon" type="button" data-action="calendar-prev" aria-label="${previous}"><i class="ph ph-caret-left"></i></button><button class="btn-icon" type="button" data-action="calendar-next" aria-label="${next}"><i class="ph ph-caret-right"></i></button></span></div>`;
   }
@@ -51,27 +52,30 @@
   }
 
   // Wide screens show each week day as a column of cards; a task card drags to another day (C3).
-  function cards(ctx, items) {
-    const task = item => `<button class="calendar-card" type="button" draggable="true" data-calendar-drag="task" data-calendar-item-id="${ctx.esc(item.id)}" data-action="open-task" data-task-id="${ctx.esc(item.id)}">${item.plannedTime && items.timed.includes(item) ? `<b>${ctx.esc(item.plannedTime)}${item.durationMinutes ? ` · ${ctx.esc(ctx.durationLabel(item.durationMinutes))}` : ''}</b>` : ''}${ctx.esc(item.title)}</button>`;
+  // R91: a task here only for its deadline (no planned day) carries the hourglass; the 3-day view adds coming repeats.
+  function cards(ctx, items, repeats = []) {
+    const task = item => { const due = !item.plannedDate; return `<button class="calendar-card${due ? ' is-due' : ''}" type="button" draggable="true" data-calendar-drag="task" data-calendar-item-id="${ctx.esc(item.id)}" data-action="open-task" data-task-id="${ctx.esc(item.id)}">${due ? `<i class="ph ph-hourglass-medium" aria-hidden="true"></i><span class="sr-only">${tr('Due')}: </span>` : ''}${item.plannedTime && items.timed.includes(item) ? `<b>${ctx.esc(item.plannedTime)}${item.durationMinutes ? ` · ${ctx.esc(ctx.durationLabel(item.durationMinutes))}` : ''}</b>` : ''}${ctx.esc(item.title)}</button>`; };
     const deadline = ({ goal, milestone }) => `<button class="calendar-card is-deadline" type="button" data-route="goal/${ctx.esc(goal.id)}"><i class="ph ph-target" aria-hidden="true"></i>${ctx.esc(milestone ? milestone.title : goal.title)}</button>`;
-    return `<div class="calendar-cards">${[...items.timed.map(task), ...items.deadlines.map(deadline), ...items.untimed.map(task)].join('')}</div>`;
+    const repeat = ({ task: item }) => `<button class="calendar-card is-repeat" type="button" data-action="open-task" data-task-id="${ctx.esc(item.id)}"><i class="ph ph-arrows-clockwise" aria-hidden="true"></i><span class="sr-only">${tr('Repeats')}: </span>${ctx.esc(item.title)}</button>`;
+    return `<div class="calendar-cards">${[...items.timed.map(task), ...items.deadlines.map(deadline), ...items.untimed.map(task), ...repeats.map(repeat)].join('')}</div>`;
   }
 
   // R47d (K8): wide screens give each week day a thin bar of its planned time against the daily capacity.
   function dayLoadBar(ctx, date) {
     const capacity = ctx.Core.dailyCapacityMinutes(ctx.state.settings);
-    const load = ctx.Core.dayLoad(ctx.listTasks(), date);
+    const load = ctx.Core.dayLoad(ctx.listTasks(), date, ctx.state.habits, Object.values(ctx.state.habitLogCache || {}).flat());
     if (!capacity || !load.minutes) return '';
     const percent = Math.min(100, Math.round(load.minutes / capacity * 100));
     return `<span class="calendar-load${load.minutes > capacity ? ' is-over' : ''}" title="${ctx.esc(tr('Planned {planned} of {capacity}', { planned: ctx.durationLabel(load.minutes), capacity: ctx.durationLabel(capacity) }))}" aria-hidden="true"><span style="width:${percent}%"></span></span>`;
   }
 
   // R47d (K8): on a wide screen a month day lists up to three titles in the day list's order, then "+N još".
+  // R91: a title that is there for its deadline is marked.
   function monthTitles(ctx, items) {
-    const titles = [...items.timed.map(task => task.title), ...items.deadlines.map(({ goal, milestone }) => (milestone ? milestone.title : goal.title)), ...items.untimed.map(task => task.title)];
+    const titles = [...items.timed.map(task => [task.title, false]), ...items.deadlines.map(({ goal, milestone }) => [milestone ? milestone.title : goal.title, false]), ...items.untimed.map(task => [task.title, !task.plannedDate])];
     if (!titles.length) return '';
     const more = titles.length - 3;
-    return `<small class="calendar-month-titles">${titles.slice(0, 3).map(title => `<span class="calendar-month-title">${ctx.esc(title)}</span>`).join('')}${more > 0 ? `<span class="calendar-month-more">${ctx.esc(tr('+{count} more', { count: more }))}</span>` : ''}</small>`;
+    return `<small class="calendar-month-titles">${titles.slice(0, 3).map(([title, due]) => `<span class="calendar-month-title${due ? ' is-due' : ''}">${ctx.esc(title)}</span>`).join('')}${more > 0 ? `<span class="calendar-month-more">${ctx.esc(tr('+{count} more', { count: more }))}</span>` : ''}</small>`;
   }
 
   function renderWeek(ctx, selected) {
@@ -111,14 +115,41 @@
       const date = Core.addDays(Core.dateOnly(first), index);
       const items = Core.calendarDayItems(source, date);
       const classes = `${date === today ? ' is-today' : ''}${date === selected ? ' is-selected' : ''}`;
-      return `<button class="calendar-month-cell${classes}" type="button" data-action="calendar-pick" data-date="${date}" aria-pressed="${date === selected}" aria-label="${dayLabel(ctx, date, items)}"><span>${index + 1}</span>${dot(items, repeats[date])}${monthTitles(ctx, items)}</button>`;
+      // R91: a month day takes a dropped task too.
+      return `<button class="calendar-month-cell${classes}" type="button" data-action="calendar-pick" data-date="${date}" data-calendar-date="${date}" aria-pressed="${date === selected}" aria-label="${dayLabel(ctx, date, items)}"><span>${index + 1}</span>${dot(items, repeats[date])}${monthTitles(ctx, items)}</button>`;
     }).join('');
     return `${periodBar(ctx, label, 'month')}<div class="calendar-month-grid">${names}${blanks}${cells}</div>`;
   }
 
   // The Today rows (C4): timed tasks by time, then the deadlines with the target icon, then the untimed tasks.
+  // R91: each row knows its day, so a task there for its deadline is marked.
   function dayRows(ctx, items) {
-    return [...items.timed.map(task => ctx.calendarTaskRow(task)), ...items.deadlines.map(item => ctx.deadlineRow(item)), ...items.untimed.map(task => ctx.calendarTaskRow(task))].join('');
+    return [...items.timed.map(task => ctx.calendarTaskRow(task, items.date)), ...items.deadlines.map(item => ctx.deadlineRow(item)), ...items.untimed.map(task => ctx.calendarTaskRow(task, items.date))].join('');
+  }
+
+  // R91: the 3-day view starts on today or a multiple of three days from it, so picking a day keeps the columns.
+  function threeDayStart(Core, selected, today) {
+    const days = Math.round((Date.parse(`${selected}T12:00:00Z`) - Date.parse(`${today}T12:00:00Z`)) / 86400000);
+    return Core.addDays(today, Math.floor(days / 3) * 3);
+  }
+  // R91: "3 dana" — three days side by side, each with its cards and coming repeats, a drop target for a held task.
+  function renderThree(ctx, selected) {
+    const { Core } = ctx;
+    const source = listed(ctx);
+    const today = Core.dateOnly();
+    const start = threeDayStart(Core, selected, today);
+    const days = [0, 1, 2].map(offset => Core.addDays(start, offset));
+    const format = new Intl.DateTimeFormat(I18n.locale(), { day: 'numeric', month: 'short' });
+    const label = typeof format.formatRange === 'function' ? format.formatRange(ctx.parseLocalDate(days[0]), ctx.parseLocalDate(days[2])) : `${ctx.formatDate(days[0])} – ${ctx.formatDate(days[2])}`;
+    const weekday = new Intl.DateTimeFormat(I18n.locale(), { weekday: 'short' });
+    const repeats = Core.calendarRepeats(source.tasks, Core.addDays(today, 1), days[2]);
+    const columns = days.map(date => {
+      const items = Core.calendarDayItems(source, date);
+      const classes = `${date === today ? ' is-today' : ''}${date === selected ? ' is-selected' : ''}`;
+      const add = date >= today ? `<button class="calendar-day-add" type="button" data-action="quick-add" data-date="${date}" aria-label="${ctx.esc(tr('Add a task for {date}', { date: ctx.formatDate(date, 'full') }))}"><i class="ph ph-plus" aria-hidden="true"></i> ${tr('Add')}</button>` : '';
+      return `<section class="calendar-three-day${classes}" data-calendar-date="${date}"><button class="calendar-three-heading" type="button" data-action="calendar-pick" data-date="${date}" aria-pressed="${date === selected}" aria-label="${dayLabel(ctx, date, items)}"><span>${ctx.esc(capitalized(weekday.format(ctx.parseLocalDate(date))))}</span><strong>${ctx.parseLocalDate(date).getDate()}</strong></button>${cards(ctx, items, repeats[date] || [])}${add}</section>`;
+    }).join('');
+    return `${periodBar(ctx, label, 'three')}<div class="calendar-three">${columns}</div>`;
   }
 
   function emptyDay(past = false) {
@@ -178,7 +209,7 @@
     const html = ctx.pageHeader(tr('Calendar'), '', { add: false }) + viewSwitch(view);
     if (view === 'upcoming') return html + renderUpcomingDays(ctx);
     const date = ctx.calendarDate();
-    return html + (view === 'month' ? renderMonth(ctx, date) : renderWeek(ctx, date)) + renderDayPanel(ctx, date);
+    return html + (view === 'month' ? renderMonth(ctx, date) : view === 'three' ? renderThree(ctx, date) : renderWeek(ctx, date)) + renderDayPanel(ctx, date);
   }
 
   // Raspored (C6), the V1.12 day view: capacity, tasks without a time and an hour grid. Rows and the unscheduled
@@ -190,14 +221,15 @@
     // R31 (finding 10): Raspored also lists the day's deadlines that Lista shows (tasks due that day, goals, milestones).
     const items = Core.calendarDayItems(listed(ctx), date);
     const dueTasks = items.untimed.filter(task => !task.plannedDate);
-    const dueRows = [...items.deadlines.map(item => ctx.deadlineRow(item)), ...dueTasks.map(task => ctx.calendarTaskRow(task))];
-    const load = Core.dayLoad(tasks, date);
+    const dueRows = [...items.deadlines.map(item => ctx.deadlineRow(item)), ...dueTasks.map(task => ctx.calendarTaskRow(task, date))];
+    // R85: the habits planned that day count too.
+    const load = Core.dayLoad(tasks, date, state.habits, Object.values(state.habitLogCache || {}).flat());
     const capacity = Core.dailyCapacityMinutes(state.settings);
     let html = '<div class="day-view">';
     if (capacity && load.withDuration) {
       const over = load.minutes > capacity;
       const percent = Math.min(100, Math.round(load.minutes / capacity * 100));
-      html += `<div class="day-capacity${over ? ' is-over' : ''}" data-day-capacity role="status"><span>${esc(tr('Planned {planned} of {capacity}', { planned: ctx.durationLabel(load.minutes), capacity: ctx.durationLabel(capacity) }))}</span><span class="day-capacity-bar" aria-hidden="true"><span style="width:${percent}%"></span></span>${over ? `<strong>${esc(tr('Over capacity by {over}', { over: ctx.durationLabel(load.minutes - capacity) }))}</strong>` : ''}</div>`;
+      html += `<div class="day-capacity${over ? ' is-over' : ''}" data-day-capacity role="status"><span>${esc(load.habitMinutes ? tr('Planned {planned} of {capacity}, habits {habits}', { planned: ctx.durationLabel(load.minutes), capacity: ctx.durationLabel(capacity), habits: ctx.durationLabel(load.habitMinutes) }) : tr('Planned {planned} of {capacity}', { planned: ctx.durationLabel(load.minutes), capacity: ctx.durationLabel(capacity) }))}</span><span class="day-capacity-bar" aria-hidden="true"><span style="width:${percent}%"></span></span>${over ? `<strong>${esc(tr('Over capacity by {over}', { over: ctx.durationLabel(load.minutes - capacity) }))}</strong>` : ''}</div>`;
     }
     if (!schedule.blocks.length && !schedule.unscheduled.length && !dueRows.length) return `${html}${emptyDay(date < Core.dateOnly())}</div>`;
     if (dueRows.length) html += `<section class="section day-deadlines"><div class="section-header"><h2 class="section-label">${tr('Due this day')}</h2><span class="section-count">${dueRows.length}</span></div><div class="task-list today-card" data-list-context="calendar">${dueRows.join('')}</div></section>`;

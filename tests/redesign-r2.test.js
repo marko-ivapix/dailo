@@ -126,7 +126,7 @@ function renderTodayWith(stateExtra = {}, stubs = {}) {
     foldButton, // R22b: the one fold button from app.js
     screenColumns, // R47c: the two-column wrapper from app.js
     pageHeader: (title, subtitle, options) => `<header title="${title}" eyebrow="${options.eyebrow}" add="${options.add}"></header>`,
-    transferNotice: () => '<transfer>', sampleNotice: () => '' /* R30 */, gestureHint: () => '' /* R36 */, yesterdayHabitsNote: () => '' /* R37 */, backupReminderNotice: () => '<backup>', callDomainHook: () => '<journal>', // R12c: the journal notice comes from journal-ui.js; R14: no weekly-review notice
+    transferNotice: () => '<transfer>', sampleNotice: () => '' /* R30 */, closeDayNotice: () => '' /* R84: evening only */, gestureHint: () => '' /* R36 */, yesterdayHabitsNote: () => '' /* R37 */, backupReminderNotice: () => '<backup>', callDomainHook: () => '<journal>', // R12c: the journal notice comes from journal-ui.js; R14: no weekly-review notice
     taskRow: (task, context, options) => `<task ${task.id} ${context}${options.today ? ' today' : ''}${options.draggable ? ' drag' : ''}>`,
     renderHabitTodayRow: (habit, status) => `<habit ${habit.id} ${status.status}>`,
     globalThis: { DailoPlatform: stubs.native ? { isNative: true } : undefined },
@@ -148,7 +148,8 @@ test('T1, T6: the header, the notices and the sections in order with their count
     { id: 'h2', name: 'Walk', status: 'active', frequencyType: 'daily', startDate: day(-10) },
   ];
   const html = renderTodayWith({ tasks, goals, habits }, { native: true, logs: { h1: [{ habitId: 'h1', date: TODAY, status: 'done' }] } });
-  assert.match(html, new RegExp(`^<header title="Today" eyebrow="LONG\\(${TODAY}\\)" add="false"></header><transfer><backup><journal>`));
+  // R83: the backup reminder is no longer on Danas (it sits at the top of Još).
+  assert.match(html, new RegExp(`^<header title="Today" eyebrow="LONG\\(${TODAY}\\)" add="false"></header><transfer><journal>`));
   const order = [...html.matchAll(/data-today-section="([^"]+)"/g)].map(match => match[1]);
   assert.deepEqual(order, ['overdue', 'today', 'habits', 'completed']);
   assert.match(html, /<h2 class="section-label danger">Past due<\/h2><span class="section-count">2<\/span>/);

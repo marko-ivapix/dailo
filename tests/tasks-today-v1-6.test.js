@@ -61,11 +61,12 @@ test('Today counts overdue and planned work; suggestions moved to Zadaci', () =>
   const state = Core.normalizeState({ version: 3, tasks, projects: [], tags: [], areas: [], goals: [], habits: [], notes: [], resources: [], templates: [], savedViews: [], settings: {}, ui: {} });
   const source = fs.readFileSync(require.resolve('../js/app.js'), 'utf8');
   const fn = name => { const start = source.indexOf(`  function ${name}(`); return source.slice(start, source.indexOf('\n  }\n', start) + 4); };
-  const context = { state, Core, esc: String, formatDate: String, formatPageToday: String, pageHeader: () => '', sampleNotice: () => '' /* R30 */, gestureHint: () => '' /* R36 */, backupReminderNotice: () => '', callDomainHook: () => '' /* R12c: journal notice */, renderHabitTodayRow: () => '', taskRow: task => `<t ${task.id}>` };
+  const context = { state, Core, esc: String, formatDate: String, formatPageToday: String, pageHeader: () => '', sampleNotice: () => '' /* R30 */, closeDayNotice: () => '' /* R84: evening only */, gestureHint: () => '' /* R36 */, backupReminderNotice: () => '', callDomainHook: () => '' /* R12c: journal notice */, renderHabitTodayRow: () => '', taskRow: task => `<t ${task.id}>` };
   vm.createContext(withI18n(context));
   vm.runInContext(`const TODAY_LIMITS = { overdue: 3, today: 5, habits: 5 };\n${fn('todayLimited')}${fn('todayDueLabel')}${fn('deadlineRow')}${fn('listTasks')}${fn('renderToday')}${fn('screenColumns')}`, context);
   const html = vm.runInContext('renderToday()', context);
-  assert.match(html, /Past due<\/h2><span class="section-count">1<\/span><\/div><div class="task-list today-card"><t overdue>/);
+  // R83: past-due tasks get "Sredi jedan po jedan" and "Sve na sutra" above their list.
+  assert.match(html, /Past due<\/h2><span class="section-count">1<\/span><\/div><div class="today-overdue-actions">[\s\S]*?<\/div><div class="task-list today-card"><t overdue>/);
   assert.match(html, /Planned today<\/h2><span class="section-count">1<\/span>/);
   assert.doesNotMatch(html, /<t suggested>/);
 });

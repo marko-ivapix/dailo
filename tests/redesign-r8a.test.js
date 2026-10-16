@@ -134,9 +134,10 @@ test('H2, H6: Dan groups by routine, done habits last, with the frequency and st
   const rows = [...html.matchAll(/<article class="today-row habit-today-row[^"]*" data-habit-id="(\w)">/g)].map(match => match[1]);
   // R66: each routine keeps the habits' own order; the done Meditate no longer moves below Water.
   assert.deepEqual(rows, ['m', 'n', 'g', 'r'], 'the habits\' own order; Not today is not listed');
-  assert.match(html, /<span class="task-title">Meditate<\/span><span class="task-meta">Daily · streak 5 days<\/span>/);
+  // R92: the last 30 days follow the streak.
+  assert.match(html, /<span class="task-title">Meditate<\/span><span class="task-meta">Daily · streak 5 days(?: · \d+% in 30 days)?<\/span>/);
   // R14b: the circle now closes the row, so the name button is followed directly by it (no count span in between).
-  assert.match(html, /<span class="task-title">Gym<\/span><span class="task-meta">3 times\/week · 1 \/ 3 this week<\/span><\/button><button class="habit-check"/, 'the weekly count is in the line, not repeated on the right');
+  assert.match(html, /<span class="task-title">Gym<\/span><span class="task-meta">3 times\/week · 1 \/ 3 this week(?: · \d+% in 30 days)?<\/span><\/button><button class="habit-check"/, 'the weekly count is in the line, not repeated on the right');
   assert.match(html, /<span class="task-meta">[^<]* · 1\.5 \/ 2 l<\/span>/); // R17: the value joins the meta line
   assert.doesNotMatch(html, /habits-day-title/, 'today has no date line');
   const yesterday = Core.addDays(TODAY, -1);

@@ -65,6 +65,12 @@
     const sourceText = JSON.stringify(state);
     state = deepClone(state);
     delete state.habitLogCache; delete state.habitMetrics;
+    // R103: the archived tasks travel in data.tasks, so the ZIP keeps its format; a restore puts every task back and
+    // the next start archives the old ones again. A task both live and archived counts once (the live one).
+    const archived = storage.archivedTasks ? await storage.archivedTasks.listAll() : [];
+    const live = new Set(state.tasks.map(task => task.id));
+    // R103b: an archived task keeps only the tags and the area that still exist, so a deleted one never blocks the ZIP.
+    state.tasks = [...state.tasks, ...deepClone(archived).filter(task => !live.has(task.id)).map(task => root.TodoCore.pruneArchivedTask(task, state))];
     const JSZip = requireZip();
     const zip = new JSZip();
     const used = new Set();
@@ -123,6 +129,8 @@
       if (item.monthMode != null && (item.frequency !== 'monthly' || !['day','weekday'].includes(item.monthMode))) fail('recurrence');
       if (item.monthMode === 'day' ? !(item.monthDay === 'last' || Number.isInteger(item.monthDay) && item.monthDay >= 1 && item.monthDay <= 31) : item.monthDay != null) fail('recurrence');
       if (item.monthMode === 'weekday' ? !(item.weekOfMonth === 'last' || Number.isInteger(item.weekOfMonth) && item.weekOfMonth >= 1 && item.weekOfMonth <= 4) || !weekday(item.weekday) : item.weekOfMonth != null || item.weekday != null) fail('recurrence');
+      // R88: counting from completion is a boolean, and only a plain interval can do it.
+      if (item.afterCompletion != null && (typeof item.afterCompletion !== 'boolean' || item.afterCompletion && (item.weekdays != null || item.monthMode != null))) fail('afterCompletion');
     };
     const recurrence = item => {
       if (item == null) return;
@@ -196,6 +204,12 @@
         if (!Array.isArray(item[field]) || item[field].some(id => !name(id))) fail(field);
         refs(item, field, target);
       }
+      // R97: a note's links to projects and goals, once it has any.
+      if (collection === 'notes') for (const [field, target] of Object.entries({ relatedProjectIds: 'projects', relatedGoalIds: 'goals' })) {
+        if (item[field] === undefined) continue;
+        if (!Array.isArray(item[field]) || item[field].some(id => !name(id))) fail(field);
+        refs(item, field, target);
+      }
       if (collection === 'resources') {
         enumField(item, 'type', ['book', 'video', 'article', 'course', 'document', 'other']);
         enumField(item, 'status', ['unread', 'reading', 'completed']);
@@ -210,6 +224,8 @@
     }
     for (const area of state.areas) enumField(area,'status',['active','archived']);
     for (const item of state.projects) for (const field of ['createdAt', 'updatedAt']) if (item[field] != null && item[field] !== '' && !root.TodoCore.isIsoTimestamp(item[field])) fail(`project ${field} timestamp`);
+    // R94: a project's status is stored only when it is on hold or for someday.
+    for (const item of state.projects) if (item.status !== undefined && !['onHold', 'someday'].includes(item.status)) fail('project status');
     for (const goal of state.goals) {
       entityTimestamps(goal, 'Goal');
       enumField(goal,'horizon',['short','mid','long']);
@@ -227,6 +243,10 @@
       enumField(habit,'status',['active','paused','archived']);enumField(habit,'trackingType',['checkbox','numeric']);enumField(habit,'frequencyType',['daily','weekdays','timesPerWeek','everyNDays']);enumField(habit,'continuation',['automatic','askEachPeriod','onePeriod']);enumField(habit,'endType',['never','date','successfulPeriods']);
       for (const key of ['startDate','endDate']) dateField(habit,key);
       for (const key of ['targetValue','timesPerWeek','everyNDays','successfulPeriodsTarget']) positiveField(habit,key);
+      // R85: a habit's duration in whole minutes.
+      if (habit.durationMinutes != null && root.TodoCore.habitDurationOrNull(habit.durationMinutes) === null) fail('durationMinutes');
+      // R93: a limit ("najviše") exists only on a numeric habit.
+      if (habit.targetMode !== undefined && (habit.targetMode !== 'atMost' || habit.trackingType !== 'numeric')) fail('targetMode');
       for (const key of ['minimumTarget','idealTarget']) {
         if (habit.trackingType === 'numeric' && habit.frequencyType !== 'timesPerWeek') positiveField(habit, key);
         else if (habit[key] != null && !positiveInteger(habit[key])) fail(key);
@@ -248,6 +268,7 @@
     const templateData = data => {
       if (!object(data)) fail('Template data');
       if (data.durationMinutes != null && !positiveInteger(data.durationMinutes)) fail('Template durationMinutes');
+      if (data.targetMode !== undefined && (data.targetMode !== 'atMost' || data.trackingType !== 'numeric')) fail('Template targetMode');
       for (const key of ['minimumTarget','idealTarget']) {
         if (data.trackingType === 'numeric' && data.frequencyType !== 'timesPerWeek') positiveField(data,key);
         else if (data[key] != null && !positiveInteger(data[key])) fail('Template ' + key);
@@ -259,6 +280,8 @@
       for (const key of ['plannedOffsetDays','dueOffsetDays','reminderOffsetDays','targetOffsetDays','endOffsetDays','dateOffsetDays']) if (data[key] != null && !Number.isInteger(data[key])) fail(`Template ${key}`);
       for (const key of ['plannedTime','dueTime','reminderTime','time']) if (data[key] != null && root.TodoCore.normalizeTime(data[key]) !== data[key]) fail(`Template ${key}`);
       for (const key of ['targetValue','target','timesPerWeek','everyNDays','successfulPeriodsTarget','interval','endAfterOccurrences']) positiveField(data,key);
+      // R99: a habit template keeps its routine.
+      enumField(data,'routine',['morning','daily','night']);
       enumField(data,'priority',['none','low','medium','high']);enumField(data,'frequencyType',['daily','weekdays','timesPerWeek','everyNDays']);enumField(data,'trackingType',['checkbox','numeric']);enumField(data,'progressMode',['manual','linkedTasks','linkedHabits','milestones']);enumField(data,'progressType',['percentage','numeric']);enumField(data,'frequency',['daily','weekly','monthly','yearly']);
       for (const key of ['tasks','subtasks','milestones','goalLinkConfigs']) if (data[key] != null) { if (!Array.isArray(data[key])) fail(`Template ${key}`);data[key].forEach(templateData); }
       if (data.reminders != null) { if (Array.isArray(data.reminders)) data.reminders.forEach(templateData);else templateData(data.reminders); }
@@ -272,6 +295,10 @@
       enumField(item.filters,'priority',['none','low','medium','high']);
       enumField(item.filters,'status',item.type==='goals'?['active','paused','completed','archived']:['active','paused','archived']);
       for (const key of ['plannedDate','dueDate','targetDate']) dateField(item.filters,key);
+      // R100: this week or today, a duration of at most N whole minutes, and no due date.
+      enumField(item.filters,'period',['today','thisWeek']);
+      if (item.filters.maxMinutes != null && !positiveInteger(item.filters.maxMinutes)) fail('Saved View maxMinutes');
+      if (item.filters.noDue != null && item.filters.noDue !== true) fail('Saved View noDue');
     }
     if (state.settings?.focusTaskIds != null) {
       if (!Array.isArray(state.settings.focusTaskIds) || new Set(state.settings.focusTaskIds).size !== state.settings.focusTaskIds.length) fail('focusTaskIds');
@@ -320,7 +347,9 @@
         || state.settings.weeklyReviews.some(entry => !object(entry) || !date(entry.weekStart) || !root.TodoCore.isIsoTimestamp(entry.completedAt)))) fail('weeklyReviews');
     }
     nested(logs,'Habit logs');nested(history,'Goal history');const days = new Set();
-    for (const log of logs) { ref(log.habitId,'habits');if (!log.habitId || !date(log.date) || days.has(`${log.habitId}:${log.date}`) || !['done','skipped','missed'].includes(log.status)) fail('Habit log');days.add(`${log.habitId}:${log.date}`);numberField(log,'value'); }
+    for (const log of logs) { ref(log.habitId,'habits');if (!log.habitId || !date(log.date) || days.has(`${log.habitId}:${log.date}`) || !['done','skipped','missed'].includes(log.status)) fail('Habit log');days.add(`${log.habitId}:${log.date}`);numberField(log,'value');
+      // R93: a day's note is one short line.
+      if (log.note !== undefined && (typeof log.note !== 'string' || log.note.length > 200)) fail('Habit log note'); }
     for (const event of history) { ref(event.goalId,'goals');if (!event.goalId || !['created','progressChanged','statusChanged','targetDateChanged','projectLinked','projectUnlinked','manualProgress'].includes(event.type) || !object(event.data) || typeof event.createdAt !== 'string' || !event.createdAt || !root.TodoCore.isIsoTimestamp(event.createdAt)) fail('Goal history timestamp'); }
   }
 

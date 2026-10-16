@@ -425,7 +425,6 @@ select:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .empty-state .btn { margin-top: 18px; }
 
 /* Inbox triage surface */
-.inbox-filter-count { min-width: 18px; padding: 1px 5px; border-radius: var(--radius-pill); background: var(--surface-hover); color: var(--text-muted); font-size: var(--text-2xs); text-align: center; font-variant-numeric: tabular-nums; }
 .inbox-group { margin-top: 24px; }
 .inbox-group:first-of-type { margin-top: 0; }
 .inbox-group-label { min-height: 26px; display: flex; align-items: center; gap: 8px; margin-bottom: 5px; color: var(--text-muted); }
@@ -1115,7 +1114,6 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--blue-600); }
 .inline-add:hover, .collapsible-trigger:hover { background: var(--graphite-800); color: var(--ink-1); }
 .collapsible-trigger .left i { color: var(--blue-300); }
 
-.inbox-filter-count { background: var(--graphite-800); color: var(--ink-3); }
 .inbox-group-label { padding-bottom: 4px; border-bottom: 1px solid var(--line-1); }
 .inbox-group-label strong { color: var(--ink-3); }
 .inbox-group-label span { background: var(--graphite-800); color: var(--ink-3); font-variant-numeric: tabular-nums; }
@@ -2253,11 +2251,8 @@ body:has(#toast-root .toast) .mobile-quick-add { transform: translateY(-64px); }
 .tasks-view-switch { display: flex; width: 100%; }
 .tasks-view-switch .btn { flex: 1 1 0; }
 .calendar-day-mode .btn { padding: 4px 14px; font-size: var(--text-base); }
-.inbox-filter-chips { margin-bottom: 12px; }
 /* Project lists use the usual card (they were the darker Još card). */
 .project-list { padding: 2px; }
-.inbox-filter-chips .inbox-filter-count { margin-left: 2px; padding: 0 6px; border-radius: 999px; background: var(--graphite-800); color: var(--ink-3); font-size: var(--text-sm); font-variant-numeric: tabular-nums; }
-.inbox-filter-chips .quick-chip.is-selected .inbox-filter-count { background: var(--on-accent-wash); color: var(--on-accent); }
 /* Folds: the label and count on the left, the caret on the right. */
 .collapsible-trigger { width: 100%; justify-content: space-between; }
 /* Empty states and section labels share one look. */
@@ -2638,6 +2633,138 @@ textarea[data-autogrow] { field-sizing: content; min-height: 0; resize: none; ov
 
 /* R81: a toast's link ("Šta je novo") looks like its buttons. */
 a.toast-action { display: inline-flex; align-items: center; text-decoration: none; }
+
+/* R83: the past-due actions on Danas, and the Još tab's amber dot while a backup is due. */
+.today-overdue-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: 0 0 var(--space-2); }
+.mobile-bottom-nav-alert.is-backup { background: var(--warning); }
+
+/* R84: "Zatvori dan" in the evening. */
+.close-day-notice { border-left-color: var(--info); }
+
+/* R87: a subtask being renamed: the title field takes the room next to ↑ and ↓. */
+.subtask-row > .subtask-title-input { flex: 1; min-width: 0; }
+
+/* R90: Quick Add while typing: the preview's parts are buttons (44 px to touch), suggestions, a pasted list. */
+.quick-parse-item { cursor: pointer; font: inherit; position: relative; }
+.quick-parse-item::after { content: ""; position: absolute; inset: -9px 0; }
+.quick-parse-hint { flex-basis: 100%; color: var(--ink-4); font-size: var(--text-sm); }
+.quick-suggest { display: flex; flex-wrap: wrap; gap: 6px; margin-top: var(--space-2); }
+.quick-suggest-slot:empty { display: none; }
+.quick-paste { margin-top: var(--space-2); padding: var(--space-3); border: 1px solid var(--line-2); border-radius: var(--radius-md); background: var(--graphite-850); }
+.quick-paste-lines { margin: var(--space-2) 0; padding-left: 20px; color: var(--ink-2); }
+.quick-paste-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+
+/* R91: Kalendar — "3 dana" columns (cards on a phone too), the deadline mark, a held task and where it can land. */
+.calendar-three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.calendar-three-day { display: flex; flex-direction: column; gap: 5px; min-width: 0; min-height: 200px; padding: 5px; border: 1px solid var(--line-1); border-radius: var(--radius-md); background: var(--graphite-900); }
+.calendar-three-day.is-today { border-color: var(--line-3); }
+.calendar-three-heading { display: flex; align-items: center; justify-content: space-between; gap: 4px; min-height: 44px; padding: 2px 4px; border: 0; border-radius: var(--radius-sm); background: none; color: var(--ink-3); font: inherit; font-size: var(--text-sm); cursor: pointer; }
+.calendar-three-heading strong { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; color: var(--ink-1); font-weight: 500; font-variant-numeric: tabular-nums; }
+.calendar-three-day.is-today .calendar-three-heading strong { color: var(--blue-300); font-weight: 600; }
+.calendar-three-day.is-selected .calendar-three-heading strong { background: var(--blue-500); color: var(--on-accent); }
+.calendar-three .calendar-cards { display: grid; gap: 5px; }
+.calendar-three .calendar-card { display: block; width: 100%; min-height: 44px; padding: 6px 7px; border: 1px solid var(--line-2); border-radius: var(--radius-sm); background: var(--graphite-850); color: var(--ink-1); font: inherit; font-size: var(--text-meta); line-height: 1.3; text-align: left; overflow-wrap: anywhere; cursor: pointer; }
+.calendar-three .calendar-card b { display: block; color: var(--ink-3); font-size: var(--text-xs); font-weight: 500; }
+.calendar-three .calendar-day-add { display: flex; align-items: center; justify-content: center; gap: 4px; min-height: 44px; margin-top: auto; border: 0; border-radius: var(--radius-sm); background: none; color: var(--ink-3); font: inherit; font-size: var(--text-meta); cursor: pointer; }
+.calendar-card.is-due { border-style: dashed; border-color: var(--warning); }
+.calendar-card.is-due i, .calendar-card.is-repeat i { margin-right: 4px; }
+.calendar-card.is-due i { color: var(--warning); }
+.calendar-card.is-repeat { border-style: dotted; color: var(--ink-3); }
+.calendar-month-title.is-due { box-shadow: inset 2px 0 0 var(--warning); }
+.task-row.is-due-item { box-shadow: inset 3px 0 0 var(--warning); }
+.task-due-icon { margin-right: 5px; color: var(--warning); vertical-align: -1px; }
+.calendar-card.is-touch-dragging, .day-grid-block.is-touch-dragging, .day-unscheduled-item.is-touch-dragging { z-index: 5; pointer-events: none; box-shadow: var(--shadow-popover); transition: none; }
+.calendar-card.is-touch-dragging, .day-unscheduled-item.is-touch-dragging { position: relative; }
+.calendar-three-day.is-drop-target, .calendar-month-cell.is-drop-target, .calendar-strip-day.is-drop-target { outline: 2px dashed var(--blue-300); outline-offset: -2px; }
+
+/* R92: Navike — the line that says what ✓, ✗ and an empty circle mean. */
+.habits-legend { margin: 14px 4px 0; color: var(--ink-3); font-size: var(--text-sm); line-height: 1.45; }
+
+/* R102: the command palette (Ctrl/Cmd+K). */
+.palette-window { display: grid; gap: 10px; }
+.palette-list { display: grid; gap: 2px; max-height: min(calc(var(--viewport-height) * .6), 420px); overflow-y: auto; }
+.palette-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; width: 100%; min-height: 44px; padding: 8px 10px; border: 0; border-radius: var(--radius-sm); background: none; color: var(--ink-1); font: inherit; text-align: left; cursor: pointer; }
+.palette-row > .ph { color: var(--ink-3); }
+.palette-row.is-active,
+.palette-row:hover { background: var(--graphite-800); }
+.palette-row:focus-visible { outline: none; box-shadow: var(--focus-ring-inset); }
+.palette-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.palette-kind { color: var(--ink-3); font-size: var(--text-sm); }
+.palette-hint { margin: 0; }
+
+/* R101: Završeni zadaci opens with what was done. */
+.completed-summary { display: grid; gap: 4px; padding: 12px 14px; margin-bottom: 12px; }
+.completed-summary-label { margin: 0; color: var(--ink-3); font-size: var(--text-sm); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+.completed-summary-main { margin: 0; color: var(--ink-1); font-size: var(--text-lg); font-weight: 600; }
+.completed-summary-line { margin: 0; color: var(--ink-2); font-size: var(--text-sm); }
+
+/* R100: the ready-made saved views, each added with one tap. */
+.views-ready { margin-top: 24px; }
+.view-ready-add { color: var(--accent); }
+
+/* R99: the built-in template gallery and the template editor's two separate parts (the repeat, made once on a day). */
+.templates-gallery { margin-top: 24px; }
+.templates-gallery > .sheet-note { margin: 0 2px 8px; }
+.template-gallery-row { width: 100%; min-height: 44px; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 12px; padding: 10px; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.template-gallery-row > .ph { color: var(--ink-3); }
+.templates-list > .template-gallery-row + .template-gallery-row { border-top: 1px solid var(--line-1); }
+.template-gallery-row:focus-visible { outline: none; box-shadow: var(--focus-ring-inset); }
+.template-section { display: grid; gap: 8px; min-width: 0; margin: 12px 0 0; padding: 10px 12px; border: 1px solid var(--line-2); border-radius: var(--radius-md); }
+.template-section legend { padding-inline: 4px; color: var(--ink-2); font-weight: 600; }
+
+/* R98: the journal's question about the day, what was completed that day and the mood insight. */
+.journal-question { display: grid; gap: 8px; margin: 0 0 10px; padding: 10px 12px; border: 1px solid var(--line-1); border-radius: var(--radius-md); background: var(--graphite-850); }
+.journal-question-text { margin: 0; color: var(--ink-1); font-size: var(--text-base); font-weight: 500; }
+.journal-question-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.journal-done { display: grid; gap: 4px; margin: 0 0 12px; padding-left: 18px; color: var(--ink-2); font-size: var(--text-sm); }
+.journal-insight { display: grid; gap: 6px; padding: 10px 14px; }
+.journal-insight-line { margin: 0; color: var(--ink-1); font-size: var(--text-base); }
+
+/* R97: a link is a card with its site; a project lists the notes and resources linked to it. */
+.knowledge-link-card { display: flex; align-items: center; gap: 10px; flex: 1 1 auto; min-width: 0; min-height: 44px; padding: 6px 4px; color: var(--ink-1); text-decoration: none; }
+.knowledge-link-card > i { flex: none; color: var(--ink-3); }
+.knowledge-link-card-text { display: grid; flex: 1 1 auto; min-width: 0; }
+.knowledge-link-card-text strong { overflow: hidden; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.knowledge-link-card small { overflow: hidden; color: var(--ink-3); font-size: var(--text-sm); text-overflow: ellipsis; white-space: nowrap; }
+.knowledge-linked { margin-top: 12px; }
+.knowledge-linked .knowledge-row, .knowledge-linked-card .knowledge-row { min-height: 56px; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; }
+.knowledge-linked .knowledge-row:has(.knowledge-row-link), .knowledge-linked-card .knowledge-row:has(.knowledge-row-link) { grid-template-columns: auto minmax(0, 1fr) auto auto; }
+
+/* R96: the review's wins, a skipped step, the merged look and the priorities (also at the top of Danas). */
+.review-wins { display: grid; gap: 6px; padding: 10px 14px; }
+.review-win { display: flex; align-items: flex-start; gap: 8px; margin: 0; color: var(--ink-1); font-size: var(--text-base); line-height: 1.4; }
+.review-win i { margin-top: 2px; color: var(--success); }
+.review-skip, .review-unskip { min-height: 44px; margin-top: 6px; color: var(--ink-3); font-size: var(--text-sm); }
+.review-step.is-skipped .weekly-review-number { opacity: .5; }
+.review-subtitle { margin: 12px 2px 6px; color: var(--ink-3); font-size: var(--text-sm); font-weight: 600; }
+.review-priority { display: flex; align-items: center; gap: 8px; padding-right: 8px; }
+.review-priority .review-row { flex: 1 1 auto; min-width: 0; }
+.today-priorities { padding: 4px; }
+.today-priority { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 8px 10px; border: 0; border-radius: var(--radius-sm); background: none; color: var(--ink-1); font: inherit; text-align: left; cursor: pointer; }
+.today-priority i { color: var(--warning); }
+.today-priorities-focus { margin-top: 6px; }
+
+/* R95: a chore's bar fills slowly until it is time; on Redovne obaveze a passed day is due, not late. */
+.chore-bar { display: block; max-width: 180px; height: 4px; margin-top: 6px; border-radius: 2px; background: var(--line-2); overflow: hidden; }
+.chore-bar i { display: block; height: 100%; border-radius: 2px; background: var(--blue-300); }
+.chore-bar.is-due i { background: var(--warning); }
+.chore-bar.is-late i { background: var(--danger); }
+.task-due.is-due-now { color: var(--warning); }
+.cleaning-intro { margin: -4px 2px 12px; }
+
+/* R94: the project's status, its next step and the review's line about the projects that wait. */
+.project-status { display: flex; width: 100%; margin: 2px 0 8px; }
+.project-status .btn { flex: 1 1 0; }
+.project-row-next { overflow: hidden; color: var(--ink-2); font-size: var(--text-sm); text-overflow: ellipsis; white-space: nowrap; }
+.project-row-next.is-missing { color: var(--warning); }
+.task-next-step { margin-right: 6px; color: var(--blue-300); font-weight: 600; }
+.review-projects-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 8px 2px 0; color: var(--ink-3); font-size: var(--text-sm); }
+
+/* R93: the day's note in the habit's menu and the latest notes in its details. */
+.habit-note-field { grid-template-columns: auto auto minmax(0, 1fr); margin: 4px 4px 8px; }
+.habit-note-save { width: 100%; min-height: 44px; }
+.habit-notes { display: grid; gap: 8px; margin: 0; padding: 10px 14px; border: 1px solid var(--line-1); border-radius: var(--radius-md); background: var(--graphite-850); color: var(--ink-1); font-size: var(--text-base); list-style: none; overflow-wrap: anywhere; }
+.habit-note-date { display: block; color: var(--ink-3); font-size: var(--text-sm); }
 
 /* Keep primary compact actions touchable after all density rules. */
 @media (max-width: 700px), (pointer: coarse) {

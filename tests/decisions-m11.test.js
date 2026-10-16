@@ -159,7 +159,8 @@ function searchHarness(taskCount, projectCount = 0) {
   const projects = Array.from({ length: projectCount }, (_, index) => ({ id: `p${index}`, name: `Report project ${String(index).padStart(2, '0')}`, color: '#000000' }));
   const ctx = { state: { tasks, projects }, Core, esc: value => String(value), getProject: () => null, relativeDateLabel: value => value };
   vm.createContext(withI18n(ctx));
-  vm.runInContext(`${app.match(/  const SEARCH_[\s\S]*?\n\n/)[0]}${fn(app, 'searchResultsHtml')}${fn(app, 'searchMoreNote')}${fn(app, 'searchTaskResult')}`, ctx);
+  // R103: Search reads the archived tasks too (historyTasks); none are archived here.
+  vm.runInContext(`let archivedTasks = [];\n${app.match(/  const SEARCH_[\s\S]*?\n\n/)[0]}${fn(app, 'historyTasks')}${fn(app, 'searchResultsHtml')}${fn(app, 'searchMoreNote')}${fn(app, 'searchTaskResult')}`, ctx);
   return ctx;
 }
 

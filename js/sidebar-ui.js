@@ -57,7 +57,8 @@
 
   // The sidebar's projects, grouped by area in the areas' order and then those without one, with open counts.
   function sidebarProjectGroups(ctx) {
-    const projects = ctx.sortedProjects().filter(project => !project.isCleaningRoom);
+    // R94: projects on hold and for someday are in Zadaci → Projekti, not here.
+    const projects = ctx.sortedProjects().filter(project => !project.isCleaningRoom && ctx.Core.projectStatus(project) === 'active');
     const entry = project => ({ id: project.id, name: project.name, color: project.color, open: ctx.projectTasks(project.id).filter(task => !task.isCompleted).length });
     const areas = ctx.sortedAreas();
     const groups = areas.map(area => ({ title: area.name, projects: projects.filter(project => project.areaId === area.id).map(entry) })).filter(group => group.projects.length);

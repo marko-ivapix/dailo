@@ -114,7 +114,8 @@ test('S8: the view list shows the type, the pin, the filters and how many items 
   assert.match(html, /<button class="view-list-row" type="button" data-route="saved-view\/v1"><i class="ph ph-funnel view-list-icon" aria-hidden="true"><\/i><span class="view-list-main"><span class="task-title">High · Work<\/span><span class="task-meta">Tasks · pinned to “More” · Area: Work · Priority: High<\/span><\/span><span class="view-list-count">1<\/span><\/button>/);
   assert.match(html, /data-route="saved-view\/v2">[\s\S]*?<span class="task-meta">Habits · Tracking: Numeric<\/span><\/span><span class="view-list-count">1<\/span>/);
   assert.match(html, /data-route="saved-view\/v3">[\s\S]*?<span class="task-meta">Goals · All goals<\/span>/);
-  assert.match(html, /<button class="inline-add" type="button" data-action="new-saved-view"><i class="ph ph-plus" aria-hidden="true"><\/i> New saved view<\/button><\/div>$/);
+  // R100: the ready-made views follow the user's (tests/saved-views-r100.test.js).
+  assert.match(html, /<button class="inline-add" type="button" data-action="new-saved-view"><i class="ph ph-plus" aria-hidden="true"><\/i> New saved view<\/button><\/div>(<section class="section views-ready">[\s\S]*<\/section>)?$/);
   assert.doesNotMatch(html, /btn-icon|edit-saved-view/);
 });
 
@@ -134,6 +135,7 @@ test('S8: a view shows its items with the summary and count, and its menu', () =
 });
 
 test('S8: the edit window has the name, the type segment, filter rows with sheets, the pin and the results now', () => {
+  // R87: the planned day is called "Kad radim" (When I do it).
   const ctx = fixture();
   const module = moduleFor(viewsUi);
   act(module, ctx, 'new-saved-view');
@@ -141,7 +143,8 @@ test('S8: the edit window has the name, the type segment, filter rows with sheet
   assert.match(html, /^<frame quick><div class="modal-inner quick-sheet view-window"><div class="modal-header"><h2 class="modal-title">New saved view<\/h2><button class="btn-icon" type="button" data-action="close-modal" aria-label="Close"><i class="ph ph-x"><\/i><\/button><\/div><input id="saved-view-name" class="quick-title-input" type="text" maxlength="80" autocomplete="off" placeholder="View name" value="" aria-label="View name"><h3 class="goal-details-label">Object type<\/h3><div class="view-tabs habit-window-seg" role="group" aria-label="Object type">/);
   assert.deepEqual([...html.matchAll(/data-action="saved-view-type" data-value="(\w+)" aria-pressed="(true|false)">(\w+)</g)].map(match => match.slice(1)), [['tasks', 'true', 'Tasks'], ['goals', 'false', 'Goals'], ['habits', 'false', 'Habits']]);
   const rows = html => [...html.matchAll(/data-action="saved-view-filter" data-field="(\w+)"><i class="ph [\w-]+" aria-hidden="true"><\/i><span class="task-window-row-label">([^<]+)<\/span><span class="task-window-row-value(?: is-set)?">([^<]*)</g)].map(match => match.slice(1));
-  assert.deepEqual(rows(html), [['areaId', 'Area', 'Any'], ['projectId', 'Project', 'Any'], ['tagId', 'Tag', 'Any'], ['priority', 'Priority', 'Any'], ['plannedDate', 'Planned date (exact day)', 'Any'], ['dueDate', 'Due date (exact day)', 'Any'], ['completion', 'Completion', 'Any']]);
+  // R100: "Kad radim ili rok", "Traje najviše" and "Bez roka" follow the exact days.
+  assert.deepEqual(rows(html), [['areaId', 'Area', 'Any'], ['projectId', 'Project', 'Any'], ['tagId', 'Tag', 'Any'], ['priority', 'Priority', 'Any'], ['plannedDate', 'When I do it (exact day)', 'Any'], ['dueDate', 'Due date (exact day)', 'Any'], ['period', 'When I do it or due', 'Any'], ['maxMinutes', 'Takes at most', 'Any'], ['noDue', 'Without a due date', 'Any'], ['completion', 'Completion', 'Any']]);
   assert.match(html, /<button class="view-pin-toggle" type="button" data-action="saved-view-draft-pin" aria-pressed="false"><span class="sheet-check" aria-hidden="true"><\/span>Pin to “More”<\/button><p class="sheet-note">Results now: 2<\/p><div class="quick-sheet-footer"><span><\/span><button class="btn btn-primary habit-window-save" type="button" data-action="save-saved-view">Save view<\/button><\/div><\/div><\/frame>$/);
   // A choice sheet and a date sheet
   act(module, ctx, 'saved-view-filter', { field: 'priority' });

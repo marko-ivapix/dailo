@@ -112,7 +112,8 @@ test('an over-full day warns, an empty day points to "+", and capacity can be of
 // Redesign R7 (C6): a stored "day" view opens the week with its Raspored; the arrows move by week.
 test('a stored day view becomes the week on Raspored; the arrows move by week', () => {
   const app = read('js/app.js');
-  assert.match(app, /if \(next\.ui\.calendarView === 'day'\) next\.ui\.calendarDayMode = 'schedule';\n {4}next\.ui\.calendarView = \['week', 'month', 'upcoming'\]\.includes\(next\.ui\.calendarView\) \? next\.ui\.calendarView : 'week';/);
+  // R91: "three" (3 dana) is a stored view too.
+  assert.match(app, /if \(next\.ui\.calendarView === 'day'\) next\.ui\.calendarDayMode = 'schedule';\n {4}next\.ui\.calendarView = \['week', 'three', 'month', 'upcoming'\]\.includes\(next\.ui\.calendarView\) \? next\.ui\.calendarView : 'week';/);
   const start = app.indexOf('  function navigateCalendar(');
   const navigate = app.slice(start, app.indexOf('\n  function ', start + 1));
   const context = { Core, state: { ui: { calendarView: 'week', calendarDate: DAY } }, calendarDate: () => context.state.ui.calendarDate, parseLocalDate: value => new Date(`${value}T00:00:00`), saveAndRender() {} };
@@ -137,7 +138,8 @@ test('capacity is shown only in the Calendar day view; durations format as befor
   assert.equal(vm.runInContext('durationLabel(120)', context), '2 h');
   assert.equal(vm.runInContext('durationLabel(390)', context), '6 h 30 min');
   assert.doesNotMatch(app, /todayCapacityItem|data-today-capacity/);
-  assert.match(read('js/calendar-ui.js'), /const load = Core\.dayLoad\(tasks, date\);/);
+  // R85: the day's load also gets the habits and their logs.
+  assert.match(read('js/calendar-ui.js'), /const load = Core\.dayLoad\(tasks, date, state\.habits, Object\.values\(state\.habitLogCache \|\| \{\}\)\.flat\(\)\);/);
 });
 
 test('Settings offers the daily capacity and the app stores a valid choice', () => {
