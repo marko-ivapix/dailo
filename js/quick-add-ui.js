@@ -346,7 +346,7 @@
     if (app.modalState?.type !== 'quick' || !app.modalState.pasteLines?.length) return;
     syncQuickDraftFromDom();
     const d = app.modalState.draft;
-    d.title = [d.title.trim(), ...modalState.pasteLines].filter(Boolean).join(' ').slice(0, 500);
+    d.title = [d.title.trim(), ...app.modalState.pasteLines].filter(Boolean).join(' ').slice(0, 500);
     app.modalState.pasteLines = null;
     renderModal();
     focusQuickTitleEnd();

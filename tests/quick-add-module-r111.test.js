@@ -85,7 +85,8 @@ test('the module registers as "quick-add" and takes only what the context gives'
   const keys = contextKeys();
   for (const name of taken) assert.ok(keys.has(name), `domainContext gives ${name}`);
   // The live state and window are read through the context, never kept.
-  assert.doesNotMatch(module.replace(/\/\/[^\n]*/g, ''), /(?<![.\w$'"])(state|modalState)\b(?!:)/, 'only app.state and app.modalState');
+  // R111b: only a single dot is a property access; a spread (`...modalState`) is a bare name too.
+  assert.doesNotMatch(module.replace(/\/\/[^\n]*/g, ''), /(?<![\w$'"])(?<![^.]\.)(state|modalState)\b(?!:)/, 'only app.state and app.modalState');
 });
 
 test('in the module: open, draw, type, Enter and paste work as before', () => {
@@ -128,11 +129,7 @@ test('the module loads after js/drag-ui.js, is precached, the tests read it as p
   assert.ok(plan.includes("or in a module's optional `attach(ctx)`"));
 });
 
-test('R111 is released as 2.0.0-alpha.140', () => {
-  assert.equal(Release.APP_VERSION, '2.0.0-alpha.140');
-  assert.match(read('sw.js'), /const VERSION = '2\.0\.0-alpha\.140';/);
-  assert.equal(JSON.parse(read('package.json')).version, '2.0.0-alpha.140');
-  const lock = JSON.parse(read('package-lock.json'));
-  assert.deepEqual([lock.version, lock.packages[''].version], ['2.0.0-alpha.140', '2.0.0-alpha.140']);
-  assert.ok(read('novo.html').includes('2.0.0-alpha.140'), 'Šta je novo names the version');
+test('R111 shipped as 2.0.0-alpha.140 or later (the newest release test pins the exact version)', () => {
+  assert.match(Release.APP_VERSION, /^2\.0\.0-alpha\.\d{2,}$|^2\.\d+\.\d+/);
+  assert.ok(Number(Release.APP_VERSION.split('alpha.')[1] ?? 140) >= 140);
 });

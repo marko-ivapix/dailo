@@ -68,3 +68,24 @@ Nothing changes for the user. The code moves:
     - Enter and Shift+Enter;
     - "Više opcija".
   - Dictation in Chrome or Safari.
+
+## R111b — fixes from the review of R111
+
+**Release:** `2.0.0-alpha.141` · No data-model change. · A read-only review of R111 (`df06979`) found one bug and one wrong sentence.
+
+- **"Kao jedan zadatak" threw.**
+  - In `joinPastedLines`, the spread `...modalState.pasteLines` was not read through the context. The module is strict and `modalState` lives only in `app.js`, so after a pasted list "Kao jedan zadatak" threw a `ReferenceError`: the title stayed, the panel stayed open. "Napravi N zadataka" was not affected.
+  - Now `...app.modalState.pasteLines`.
+  - R111's check for bare names took the spread's dots for a property access; it now treats only a single dot as one (`(?<![^.]\.)`), and nothing else in the module matches.
+- **The plan** said that `app.js` calls a moved part through `callDomainHook('handleAction', …)`, and that `openQuickAdd` does so. Both sentences now say that it asks the module's adapter by name (`quickAddAction`), because the other modules' `handleAction` expects a click. The spec and the ledger already said so.
+- **Not changed:** the review's optional note that `tests/phone-feel-r62.test.js` got a comment fix in R111 (labelled R110); it is recorded here.
+
+### Checks
+
+- **Node:** `tests/quick-add-paste-r111b.test.js`, written first; it failed 4/4. It covers:
+  - "Kao jedan zadatak" run in the module in `vm`, without a global `modalState`;
+  - the stricter check for bare names;
+  - the plan;
+  - the version.
+- **Updated:** `tests/quick-add-module-r111.test.js` has the stricter check, and its pin is now "or later".
+- **Manual-pending:** on a phone, paste a list into Quick Add and tap "Kao jedan zadatak".
