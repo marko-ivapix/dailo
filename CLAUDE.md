@@ -148,7 +148,7 @@ python3 -m http.server 8080
   - notifications arrive (alpha.41);
   - on 2026-10-13, on the web: R59 "da"; R61 "imaju 3 stanja" (the jumping order fixed in R66); R62 and R63 "mislim da je okej"; R65 "okej"; account and e-mail (Serbian e-mails with the code, links, password length, region, SMTP) "Nalog i eposta sve je okej".
 
-  The `2.0.0-alpha.83` debug APK was also sent on 2026-10-12; no separate report came for it. The `2.0.0-alpha.98` debug APK was sent on 2026-10-13, built from `claude/sleepy-gauss-7u6n19` at `af8ba56`; on 2026-10-14 the user reported "Radi", and about R66 "Navike stoje na mestu, sve je okej". The `2.0.0-alpha.135` debug APK was sent on 2026-10-16, built from `ccr-95f6062b-lgg2fr` at `0029e97` (`main` `99c1e9e` plus the beta checklist update); on 2026-10-16 the user reported "instalirao sam, sve radi" (no beta items named).
+  The `2.0.0-alpha.83` debug APK was also sent on 2026-10-12; no separate report came for it. The `2.0.0-alpha.98` debug APK was sent on 2026-10-13, built from `claude/sleepy-gauss-7u6n19` at `af8ba56`; on 2026-10-14 the user reported "Radi", and about R66 "Navike stoje na mestu, sve je okej". The `2.0.0-alpha.135` debug APK was sent on 2026-10-16, built from `ccr-95f6062b-lgg2fr` at `0029e97` (`main` `99c1e9e` plus the beta checklist update); on 2026-10-16 the user reported "instalirao sam, sve radi" (no beta items named). The `2.0.0-alpha.137` debug APK (R107 optional reset copy, R108 sheet footers above the system buttons) was sent on 2026-10-16, built from `ccr-95f6062b-lgg2fr` at `b0a9503`; no report yet.
 - **Manual-pending:**
   - **Beta checklist:** B6–B42.
   - **iPhone:** the build on the user's Mac, plus the widgets and share extension, which need a paid team (`docs/v2/ios-widgeti.md`).
