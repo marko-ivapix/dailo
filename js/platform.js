@@ -137,6 +137,16 @@
       } catch (_) { /* pruning is best effort; the new copy is written */ }
       return { folder: `Documents/${BACKUP_DIR}`, name };
     }
+    // R107: a reset without a copy removes the automatic backups too (only the files with the prefix); the web has none.
+    async function deleteBackupCopies({ prefix = 'dailo-auto-' } = {}) {
+      const fs = isNative ? plugin('Filesystem') : null;
+      if (!fs) return 0;
+      let names = [];
+      try { names = ((await fs.readdir({ path: BACKUP_DIR, directory: 'DOCUMENTS' })).files || []).map(file => (typeof file === 'string' ? file : file?.name || '')); } catch (_) { return 0; }
+      const own = names.filter(item => item.startsWith(prefix) && item.endsWith('.zip')).sort();
+      for (const name of own) await fs.deleteFile({ path: `${BACKUP_DIR}/${name}`, directory: 'DOCUMENTS' });
+      return own.length;
+    }
     // Native only: opens a file in another app through the share sheet. The web keeps its own logic.
     async function openFile(blob, fileName) {
       return shareBlob(blob, fileName, fileName);
@@ -373,7 +383,7 @@
       plugin,
       lifecycle: Object.freeze({ onPause, onResume }),
       backButton: Object.freeze({ setHandler: setBackHandler }),
-      files: Object.freeze({ saveFile, openFile, cleanupSharedFiles, saveBackupCopy }),
+      files: Object.freeze({ saveFile, openFile, cleanupSharedFiles, saveBackupCopy, deleteBackupCopies }),
       links: Object.freeze({ openExternal, closeExternal, interceptExternalLinks, onAppLink }),
       storage: Object.freeze({ status: storageStatus }),
       durable: Object.freeze({ write: writeMirror, read: readMirror, writeRecords, readRecords }),

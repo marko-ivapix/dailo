@@ -730,6 +730,8 @@
       looseTasks(completed) { return listTasks().filter(task => !task.projectId && !task.isInbox && Boolean(task.isCompleted) === completed); },
       goalPercent(goal) { return Math.round(Core.computeGoalProgress(goal, state, state.habitMetrics || {}).percent); },
       syncView,
+      // R107: the reset's copy choice for Podešavanja.
+      resetKeepCopy: () => resetKeepCopy,
       syncStatus,
       reviewTaskRow(task, context, options = {}) {
         return taskRow(task, context, options);
@@ -5897,8 +5899,10 @@
     requestDeleteEntity('clear-completed', null);
   }
 
+  // R107: "Sačuvaj kopiju pre brisanja" in Podešavanja → Podaci, on by default and again after each reset.
+  let resetKeepCopy = true;
   function resetApp() {
-    return beginGlobalOperation('reset');
+    return beginGlobalOperation('reset', null, null, { keepCopy: resetKeepCopy });
   }
 
   async function openLocalSnapshots() {
@@ -5975,6 +5979,14 @@
 
   async function cleanupGlobalSnapshot(op) {
     if (op.snapshotId) await TodoStorage.recoverySnapshots.deleteMany([op.snapshotId]);
+  }
+  // R107: after a verified reset without a copy, no old data stays on the device: the local snapshots and the phone's
+  // automatic backup files go too.
+  async function eraseDeviceCopies() {
+    const left = await TodoStorage.recoverySnapshots.listAll();
+    if (left.length) await TodoStorage.recoverySnapshots.deleteMany(left.map(item => item.id));
+    const files = globalThis.DailoPlatform?.files;
+    if (files?.deleteBackupCopies) { await files.deleteBackupCopies({ prefix: 'dailo-auto-' }); writeAutoBackup({ lastAt: null, lastFile: null, error: null }); }
   }
 
   async function markGlobalSnapshot(op, phase, details = {}) {
@@ -6098,26 +6110,29 @@
     finally { op.unlocking = false; op.busy = false; }
   }
 
-  async function beginGlobalOperation(reason, file = null, selection = null) {
+  async function beginGlobalOperation(reason, file = null, selection = null, options = {}) {
     if (globalOperation) return;
     await (startupPromise || Promise.resolve());
     if (!state || recovery) { globalNotice(tr('Safety backup cannot represent this unreadable saved data. Nothing was changed. Use Retry after repairing or recovering the original local data.'), () => startReady()); return; }
     flushTextSave();
-    const op = { reason, source: state, busy: false, selective: selection };
+    // R107: only a reset may go without the safety ZIP, when the user turned the copy off.
+    const op = { reason, source: state, busy: false, selective: selection, keepCopy: reason !== 'reset' || options.keepCopy !== false };
     globalOperation = op;
     try {
       op.token = await deleteLifecycle.hold();
       op.raw = canonicalRaw; op.stateText = compactState(state);
       assertGlobalSource(op);
       op.payload = await TodoStorage.captureUserData(); assertGlobalSource(op);
-      const frozenStorage = { attachments: { getMany: async ids => op.payload.attachments.filter(record => ids.includes(record.id)) },
-        habitLogs: { listAll: async () => op.payload.habitLogs }, goalHistory: { listAll: async () => op.payload.goalHistory },
-        archivedTasks: { listAll: async () => op.payload.archivedTasks || [] } };
-      const blob = await Backup.exportBackupV3(JSON.parse(op.stateText), frozenStorage, nowIso(), await journalBackupOptions());
-      assertGlobalSource(op);
-      if (!(await TodoStorage.sameUserData(await TodoStorage.captureUserData(), op.payload))) throw new Error(msg('Stored data changed during export. Retry.'));
-      assertGlobalSource(op);
-      if (await downloadBackup(blob) === 'cancelled') throw new Error(msg('The safety ZIP was not saved.'));
+      if (op.keepCopy) {
+        const frozenStorage = { attachments: { getMany: async ids => op.payload.attachments.filter(record => ids.includes(record.id)) },
+          habitLogs: { listAll: async () => op.payload.habitLogs }, goalHistory: { listAll: async () => op.payload.goalHistory },
+          archivedTasks: { listAll: async () => op.payload.archivedTasks || [] } };
+        const blob = await Backup.exportBackupV3(JSON.parse(op.stateText), frozenStorage, nowIso(), await journalBackupOptions());
+        assertGlobalSource(op);
+        if (!(await TodoStorage.sameUserData(await TodoStorage.captureUserData(), op.payload))) throw new Error(msg('Stored data changed during export. Retry.'));
+        assertGlobalSource(op);
+        if (await downloadBackup(blob) === 'cancelled') throw new Error(msg('The safety ZIP was not saved.'));
+      }
       op.snapshotId = await TodoStorage.createRecoverySnapshot(reason, state, TodoStorage);
       const snapshot = await TodoStorage.recoverySnapshots.get(op.snapshotId);
       assertGlobalSource(op);
@@ -6144,7 +6159,10 @@
         : reason === 'restore' ? tr('{tasks} tasks, {projects} projects, {goals} Goals, {habits} Habits, {notes} Notes, {resources} Resources, {files} files, {logs} logs and {events} history events will be restored.', { tasks: op.validated.state.tasks.length, projects: op.validated.state.projects.length, goals: op.validated.state.goals.length, habits: op.validated.state.habits.length, notes: op.validated.state.notes.length, resources: op.validated.state.resources.length, files: op.validated.attachmentRecords.length, logs: op.validated.habitLogs.length, events: op.validated.goalHistory.length }) : '';
       const journalNote = op.journalKey ? tr('The encrypted journal ({count} entries) opens with the key on this device.', { count: op.journalOpened })
         : op.sealedJournal.length ? tr('The journal in this backup is encrypted ({count} entries). Enter the journal password to restore it too; without it everything else is restored.', { count: op.sealedJournal.length }) : '';
-      openConfirm({ title: reason === 'reset' ? msg('Reset all app data?') : selection ? msg('Restore selected entity?') : msg('Restore backup?'), message: [tr('A safety ZIP was downloaded and an internal recovery copy was created.'), summary, journalNote].filter(Boolean).join(' '),
+      // R107: without a copy the window says so; with an account signed in, it says where the account's data stays.
+      const copyNote = op.keepCopy ? tr('A safety ZIP was downloaded and an internal recovery copy was created.') : tr('No copy is kept: afterwards the data cannot be brought back. The local snapshots and the phone\'s automatic backups are deleted too.');
+      const accountNote = reason === 'reset' && syncView().signedIn ? tr('An account is signed in on this device: this deletes only the data on the device, and the account\'s data comes back with the next sync. To delete everything, first delete the account (More → Account → Delete account), then reset.') : '';
+      openConfirm({ title: reason === 'reset' ? msg('Reset all app data?') : selection ? msg('Restore selected entity?') : msg('Restore backup?'), message: [copyNote, summary, journalNote, accountNote].filter(Boolean).join(' '),
         phrase: CONFIRM_WORDS[reason], journalPassword: op.sealedJournal.length > 0, confirmLabel: reason === 'reset' ? msg('Reset app') : msg('Restore backup'),
         onConfirm: () => commitGlobalOperation(op), onCancel: () => abandonGlobalOperation(op) });
     } catch (error) { await abandonGlobalOperation(op, tr('Safety preparation failed: {error}. Nothing was replaced. Retry the operation.', { error: trMessage(error.message) }), { snapshotAvailable: false, validationResult: `${msg('Recovery preparation failed')}: ${error.message}` }); }
@@ -6250,6 +6268,7 @@
           setUndo(msg('Selected entity restored'), () => undoSelectiveRestore(op), () => op.keepRecovery ? true : cleanupGlobalSnapshot(op));
         } else {
           await cleanupGlobalSnapshot(op);
+          if (!op.keepCopy) { await eraseDeviceCopies(); resetKeepCopy = true; }
           updateBackupStatus({ lastImport: op.reason === 'restore' ? nowIso() : state.settings.backupStatus?.lastImport || null, snapshotAvailable: false, validationResult: op.reason === 'restore' ? msg('Import restored and verified') : msg('Reset verified') }, committedSource);
           setToastMessage(op.reason === 'reset' ? tr('App data reset and verified.') : op.journalSkipped ? tr('Backup restored without the encrypted journal.') : tr('Backup restored and verified.'));
         }
@@ -6842,6 +6861,7 @@
     if (event.target.id === 'journal-reminder-time') { const value = event.target.value; if (value === 'off' || Core.normalizeTime(value) === value) { state.settings.journalReminderTime = value === 'off' ? null : value; saveAndRender(); } return; }
     // R18: the reminder settings apply at once (the phone plan is rebuilt on save).
     if (event.target.id === 'default-reminder-time') { const value = Core.normalizeTime(event.target.value); if (value) { state.settings.defaultReminderTime = value; saveAndRender(); } return; }
+    if (event.target.id === 'reset-keep-copy') { resetKeepCopy = event.target.checked; return; }
     if (event.target.id === 'auto-backup') { writeAutoBackup({ enabled: event.target.checked }); if (event.target.checked) runAutoBackup({ announce: true }); render(); return; }
     if (event.target.id === 'planned-time-reminders') { state.settings.plannedTimeReminders = event.target.checked; saveAndRender(); return; }
     if (event.target.id === 'journal-notifications') { state.settings.journalNotifications = event.target.checked; saveAndRender(); return; }

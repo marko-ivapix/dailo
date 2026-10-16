@@ -98,7 +98,7 @@ python3 -m http.server 8080
   - no bulk-selection UI;
   - global Search ranking and scope unchanged;
   - deletion is confirmation → delete → Undo;
-  - Reset and Restore need a safety ZIP, a recovery snapshot and the typed words RESETUJ / VRATI.
+  - Reset and Restore need a recovery snapshot and the typed words RESETUJ / VRATI. Restore always makes a safety ZIP; Reset makes one unless the user turns off "Sačuvaj kopiju pre brisanja" (R107, on by default), and then also deletes the local snapshots and the phone's automatic backups.
 - **CSS:**
   - Colors and sizes are `:root` tokens.
   - New rules go before `/* Keep primary compact actions touchable after all density rules. */`.
