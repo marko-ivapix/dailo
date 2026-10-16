@@ -73,6 +73,48 @@ test('in the module: the buttons open their windows, the sent form goes to its w
   assert.equal(click('sync-now'), undefined, 'the sync is not the module\'s yet');
 });
 
+// The R113 review: journalCipherSubmit is the one moved function that writes the state and the sync record, so it runs
+// here (encryption on, then off) against a stubbed Sync, not only matched as text.
+test('in the module: the journal password window turns encryption on and off through the live state', async () => {
+  const calls = [];
+  const fakeSync = {
+    passwordProblem: () => '',
+    createJournalCipher: async password => ({ cipher: { salt: `salt-${password.length}` }, key: 'key' }),
+    forgetJournalShadow: meta => { meta.journalShadowGone = true; },
+  };
+  let adapter;
+  const sandbox = withI18n({ window: { TodoDomainModules: { register: value => { adapter = value; } }, DailoSync: fakeSync }, localStorage: { getItem: () => null, setItem() {} } });
+  vm.runInNewContext(read('js/account-ui.js'), sandbox);
+  const live = { state: { settings: {} }, modalState: { type: 'journal-cipher', mode: 'enable', password: '', confirm: '', busy: false, error: '' }, syncMeta: null };
+  const fields = { '#journal-password': 'dnevnik-123', '#journal-password-confirm': 'dnevnik-123' };
+  const ctx = {
+    get state() { return live.state; }, get modalState() { return live.modalState; }, setModalState(value) { live.modalState = value; },
+    get syncMeta() { return live.syncMeta; }, setSyncMeta(value) { live.syncMeta = value; }, get modalReturnFocus() { return null; }, setModalReturnFocus() {}, get syncRunning() { return false; },
+    syncClient: {}, loadSyncMeta: () => ({ session: { accessToken: 'a' } }), saveSyncMeta: () => calls.push(['save meta', JSON.parse(JSON.stringify(live.syncMeta))]),
+    $: selector => (selector in fields ? { value: fields[selector] } : null), renderModal() {}, render() {}, restoreModalReturnFocus() {}, closePopover() {}, captureModalReturnFocus() {},
+    saveState: () => { calls.push(['save state', JSON.parse(JSON.stringify(live.state.settings))]); return true; },
+    storeJournalKey: async (salt, key) => calls.push(['store key', salt, key]), forgetJournalKey: () => calls.push(['forget key']),
+    setToastMessage: message => calls.push(['toast', message]), scheduleSync: delay => calls.push(['schedule', delay]), journalCipherStatus: () => 'off',
+  };
+  const settle = async () => { for (let i = 0; i < 50 && !calls.some(call => call[0] === 'schedule'); i += 1) await new Promise(resolve => setImmediate(resolve)); };
+  assert.equal(adapter.handleAction('account-submit', null, ctx), true);
+  await settle();
+  assert.deepEqual(calls, [
+    ['save state', { journalCipher: { salt: 'salt-11' } }], ['store key', 'salt-11', 'key'],
+    ['save meta', { session: { accessToken: 'a' }, journalShadowGone: true, purgeJournalHistory: true }],
+    ['toast', 'The journal is encrypted. The server sees only ciphertext.'], ['schedule', 300],
+  ]);
+  assert.deepEqual(live.state.settings, { journalCipher: { salt: 'salt-11' } }, 'the live settings changed');
+  assert.equal(live.modalState, null, 'the window closed');
+  calls.length = 0;
+  live.modalState = { type: 'journal-cipher', mode: 'disable', password: '', confirm: '', busy: false, error: '' };
+  adapter.handleAction('account-submit', null, ctx);
+  await settle();
+  assert.deepEqual(calls.map(call => call[0]), ['save state', 'forget key', 'save meta', 'toast', 'schedule']);
+  assert.deepEqual(live.state.settings, {}, 'encryption is off');
+  assert.equal(live.syncMeta.purgeJournalHistory, undefined);
+});
+
 test('the plan records 3b and leaves the sync with its sign-out, account deletion, first-sync choice and server check', () => {
   const plan = read('docs/superpowers/plans/2026-10-12-app-js-modules.md');
   assert.match(plan, /\| R113 \| [^\n]+ \| `js\/account-ui\.js` \| `2\.0\.0-alpha\.143` \|/);

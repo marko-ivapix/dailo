@@ -135,6 +135,7 @@ function syncHarness({ state = baseState(), habitLogs = [], meta = null, fake = 
   // R22b: the typed word is compared with plainWord, which lives with the other confirm words.
   const plainStart = app.indexOf('\n  function plainWord(') + 1;
   vm.runInContext(app.slice(start, end) + app.slice(plainStart, app.indexOf('\n  }\n', plainStart) + 4), context);
+  // R112: the welcome screen joins the sandbox; R113: accountCode() (once accountWelcome()) also loads the account windows.
   vm.runInContext(accountCode(), context);
   return { context, storage, logs, calls, fake, meta: () => JSON.parse(storage.get('dailoSync') || '{}') };
 }

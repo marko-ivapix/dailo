@@ -13,7 +13,7 @@ Nothing changes for the user. The code moves:
   - the journal password window (R51: turn encryption on, unlock, turn it off): `openJournalCipherWindow`, `setJournalWindow`, `journalCipherSubmit`.
 
   Their markup stays in `js/settings-ui.js`, as before.
-- **The live state.** As in R112, the text stays except that the live variables are read through the context (`app.state`, `app.modalState`, `app.syncMeta`, `app.modalReturnFocus`) and written through its setters. Whether a sync is running is also read live (`app.syncRunning`), because the journal window waits for it.
+- **The live state.** As in R112, the text stays except that the live variables go through the context. The window and the return focus are read (`app.state`, `app.modalState`, `app.modalReturnFocus`) and written through their setters; the sync record is only written (`app.setSyncMeta`). Whether a sync is running is read live too (`app.syncRunning`), because the journal window refuses while one runs ("Sync is running. Try again in a moment.").
 - **Its entries:**
   - the buttons `account-change-password`, `account-change-email` and `journal-cipher-enable` / `-unlock` / `-disable` go to the module's `handleAction`;
   - `app.js`'s submit listener asks for `account-submit` by name, beside `welcome-submit`.
@@ -57,3 +57,13 @@ Nothing changes for the user. The code moves:
 - **Manual-pending:**
   - with an account signed in: "Promeni lozinku" (with the code or the current password when the server asks) and "Promeni e-adresu";
   - the journal password: on, unlock on a second device, off.
+
+## Review
+
+- **Result:** a read-only review of `20a25cc` found no behavior difference, no missed live name and no misdirected test lookup.
+- **Records:** the ledger and this spec said that `redesign-r40`, `sync-app-v2-0a` and `account-welcome-r112` had R113 comments. They did not, so a follow-up test commit adds them where `accountCode()` loads the module.
+- **The follow-up test commit (no new version):**
+  - `tests/account-windows-r113.test.js` now runs `journalCipherSubmit` in `vm` against a stubbed `Sync`, turning encryption on and then off. It is the one moved function that writes the state and the sync record; before, it was only matched as text. A temporary bare `state` in the module fails this run and the bare-name check.
+  - The `attach()` lookups in `phone-feel-r62`, `calendar-r91`, `drag-module-r110`, `redesign-r2`, `redesign-r25` and `redesign-r44` name `js/drag-ui.js`, since `js/quick-add-ui.js` has an `attach()` too.
+  - A broken comment in `tests/support/source.js` is mended.
+- **Open:** the commits' co-author trailer names the model, as on every commit of the branch, while CLAUDE.md's rule against model identifiers names commits too. The user was asked on 2026-10-16 and has not answered yet.

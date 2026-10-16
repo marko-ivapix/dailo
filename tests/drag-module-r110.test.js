@@ -89,7 +89,8 @@ test('the drag code left app.js for js/drag-ui.js; the shared reorder helpers st
 test('the module registers as "drag", wires the same listeners in the same order, and says when a drag is on', () => {
   const module = read('js/drag-ui.js');
   assert.match(module, /window\.TodoDomainModules\?\.register\(\{\n    name: 'drag',\n    attach,\n    isDragging: \(\) => Boolean\(dragState\),\n  \}\);/);
-  const attach = fn('attach');
+  // R113 review: the file is named, since js/quick-add-ui.js has an attach() too.
+  const attach = functionSource('attach', ['js/drag-ui.js']).source;
   assert.ok(attach.includes(LISTENERS.map(line => `    ${line}`).join('\n')), 'the listeners, unchanged and in order');
   // Everything the module takes from the context is there.
   const taken = attach.match(/\(\{ ([^}]+) \} = ctx\);/)[1].split(', ');

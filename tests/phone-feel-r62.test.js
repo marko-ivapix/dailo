@@ -156,7 +156,8 @@ test('the page does not scroll under a sideways swipe, and a long press opens no
   ctx.blockTouchScroll({ cancelable: false, preventDefault() { calls.push(['no-scroll']); } });
   assert.deepEqual(calls, [], 'a scroll that already started is not cancelled');
   // R110: the listeners moved from attachEvents to js/drag-ui.js's attach(), unchanged and in the same order.
-  assert.match(functionSource('attach').source, /document\.addEventListener\('contextmenu', event => \{ if \(touchReorder \|\| taskSwipeState \|\| calendarTouch\) event\.preventDefault\(\); \}\);/);
+  // R113 review: the file is named, since another module may get an attach() too.
+  assert.match(functionSource('attach', ['js/drag-ui.js']).source, /document\.addEventListener\('contextmenu', event => \{ if \(touchReorder \|\| taskSwipeState \|\| calendarTouch\) event\.preventDefault\(\); \}\);/);
 });
 
 test('on a touch screen a task row is swiped sideways by the app and selects no text; neither does the page under a lifted row', () => {

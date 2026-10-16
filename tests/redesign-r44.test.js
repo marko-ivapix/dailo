@@ -66,7 +66,8 @@ test('the click that ends a swipe does not open the ring under the finger; the a
 
 test('wiring: the listeners, the swipe area and touch-action', () => {
   // R110: the listeners moved from attachEvents to js/drag-ui.js's attach(), unchanged and in the same order.
-  const events = fn('attach');
+  // R113 review: the file is named, since js/quick-add-ui.js has an attach() too.
+  const events = functionSource('attach', ['js/drag-ui.js']).source;
   assert.match(events, /document\.addEventListener\('pointerdown', handleWeekSwipeStart\);\n    document\.addEventListener\('pointerup', finishWeekSwipe\);\n    document\.addEventListener\('pointercancel', \(\) => \{ weekSwipe = null; \}\);\n    document\.addEventListener\('click', handleWeekSwipeClick, true\);/);
   assert.match(fn('handleWeekSwipeStart'), /event\.target\?\.closest\?\.\('\.habit-rings, \.habits-week-nav'\)/);
   assert.match(css, /\.habit-rings, \.habits-week-nav \{ touch-action: pan-y; \}/);

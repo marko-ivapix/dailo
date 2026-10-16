@@ -182,7 +182,8 @@ function harness({ fake = createFakeSupabase(), meta = null, storage: entries = 
   };
   vm.createContext(withAccount(withI18n(context)));
   vm.runInContext(app.slice(start, end), context);
-  vm.runInContext(accountCode(), context); // R112: the welcome screen joins the sandbox
+  // R112: the welcome screen joins the sandbox; R113: accountCode() (once accountWelcome()) also loads the account windows.
+  vm.runInContext(accountCode(), context);
   const run = code => vm.runInContext(code, context);
   return { context, storage, calls, fake, run, meta: () => JSON.parse(storage.get('dailoSync') || '{}'), welcome: () => context.modalState };
 }

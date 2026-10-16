@@ -104,7 +104,8 @@ test('E: moving before the hold ends scrolls or swipes instead; another list is 
 
 test('E: the touch drag is wired to the page, blocks the native drag and long-press menu, and has its look', () => {
   // R110: the listeners moved from attachEvents to js/drag-ui.js's attach(), unchanged and in the same order.
-  const start = fn('attach');
+  // R113 review: the file is named, since js/quick-add-ui.js has an attach() too.
+  const start = functionSource('attach', ['js/drag-ui.js']).source;
   assert.match(start, /document\.addEventListener\('pointerdown', handleTouchReorderStart\);/);
   assert.match(start, /document\.addEventListener\('pointermove', handleTouchReorderMove, \{ passive: false \}\);/);
   assert.match(start, /document\.addEventListener\('pointerup', finishTouchReorder\);/);

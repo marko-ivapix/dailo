@@ -67,9 +67,8 @@ function withApp(sandbox) {
 
 // R112: the welcome screen and sign-in live in js/account-ui.js (since R113 also the account windows). A harness that
 // runs app.js's sync block loads them into the same sandbox (accountCode(): the module's code from the welcome screen
-// to its handleAction), where they
-// read the live state through `app`; app.js's accountAction reaches that handleAction through window.TodoDomainModules,
-// and use() has nothing to capture, since the helpers are already the sandbox's own.
+// to its handleAction), where they read the live state through `app`; app.js's accountAction reaches that handleAction
+// through window.TodoDomainModules, and use() has nothing to capture, since the helpers are already the sandbox's own.
 const accountCode = () => {
   const source = read('js/account-ui.js');
   return source.slice(source.indexOf('  // R40: the welcome screen'), source.indexOf('  window.TodoDomainModules?.register('));

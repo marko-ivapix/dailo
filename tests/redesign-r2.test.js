@@ -300,7 +300,8 @@ test('a long press runs the element\'s long-press action once and swallows the c
   ctx.handleLongPressClick({ preventDefault() {}, stopPropagation() { stopped = true; } });
   assert.equal(stopped, false, 'only the one click');
   // R110: the listeners moved from attachEvents to js/drag-ui.js's attach(), unchanged and in the same order.
-  const attach = fn('attach');
+  // R113 review: the file is named, since js/quick-add-ui.js has an attach() too.
+  const attach = functionSource('attach', ['js/drag-ui.js']).source;
   for (const line of ["document.addEventListener('pointerdown', handleLongPressStart);", "document.addEventListener('pointerup', cancelLongPress);", "document.addEventListener('pointercancel', cancelLongPress);", "document.addEventListener('click', handleLongPressClick, true);"]) assert.ok(attach.includes(line), line);
   assert.match(attach, /document\.addEventListener\('contextmenu', event => \{ if \(event\.target\.closest\?\.\('\[data-long-press\]'\)\) event\.preventDefault\(\); \}\);/);
 });
