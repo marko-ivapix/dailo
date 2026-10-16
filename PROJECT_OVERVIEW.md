@@ -291,8 +291,7 @@ Zatim otvoriti `http://localhost:8080`. Service worker se registruje samo na `ht
 ## Trenutni status
 
 **Stanje 16. oktobra 2026:**
-- `main` je na `2.0.0-alpha.135` (PR #32, R83–R106), i to prikazuje GitHub Pages.
-- Radna grana `ccr-95f6062b-lgg2fr` je na `2.0.0-alpha.144`. Na njoj su:
+- `main` je na `2.0.0-alpha.144` (PR #33, R107–R114), i to prikazuje GitHub Pages. Radna grana `ccr-95f6062b-lgg2fr` je ponovo pokrenuta od njega. U PR #33 su:
   - brisanje sa kopijom ili bez nje (R107);
   - dugmad na dnu prozora iznad sistemskih dugmadi (R108);
   - Projekti kao poseban ekran (R109);

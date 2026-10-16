@@ -124,19 +124,7 @@ python3 -m http.server 8080
 
 *Update this section on every merge.*
 
-- **`main`:** `99c1e9e` (PR #32: R83–R106 from `ccr-95f6062b-lgg2fr`); GitHub Pages serves `2.0.0-alpha.135` (see the ledger row for the runs). The work branch `ccr-95f6062b-lgg2fr` was restarted from it.
-  - From the user's list ("sve odradi osim ciljeva"; projects and areas stay as they are, "Ostaje kao sada"; the bulk moves as an AGENTS.md exception; the archive at the end):
-    - R83–R84: Danas — past-due tasks and Zatvori dan, one by one or all to tomorrow;
-    - R85 (data model): habit durations in the day's capacity; R106: a Trajanje row in Detalji navike;
-    - R86–R90: Inbox without type filters, Kad radim / Rok, "Od dana završetka" (R88, data model), Quick Add reads spoken times, repeats and Cyrillic, suggests #/+/@ and takes pasted lists;
-    - R91–R93: Kalendar 3 dana; Navike with 30-day success, a note on the day and limits (R93, data model);
-    - R94–R97: project status and next step (data model), the Redovne obaveze bar, a 10-minute weekly review, note links to projects and goals (data model);
-    - R98–R102: the journal asks about the day, ready-made templates and views (R100, data model), the completed summary, search without diacritics and across scripts, a Ctrl/Cmd+K palette;
-    - R103 (data model): old completed tasks in IndexedDB v2 `archivedTasks`; R103b: fixes from its review.
-  - R104–R105: fixes from read-only code reviews of R83–R102 and a security review of the branch (among them, sync had stopped applying pulls with notes older than R97).
-  - Before: PR #31 (`970617b`, R72–R82): Još → Planiranje, Česta pitanja, the guide, the outside-review fixes R75–R82, Šta je novo.
-  - Before: PR #30 (`707f169`, R67–R71), PR #29 (`286bb97`, R66), PR #28 (`83d49d1`, R65), PR #27 (`fbcffc7`, R59–R64).
-- **Work branch `ccr-95f6062b-lgg2fr`** (not merged yet; `2.0.0-alpha.144`):
+- **`main`:** `1438492` (PR #33: R107–R114 from `ccr-95f6062b-lgg2fr`); GitHub Pages serves `2.0.0-alpha.144` (see the ledger row for the runs). The work branch `ccr-95f6062b-lgg2fr` was restarted from it and has nothing new yet.
   - R107: Reset with or without a copy;
   - R108: sheet footers above the system buttons;
   - R109: Projekti as their own screen;
@@ -145,7 +133,17 @@ python3 -m http.server 8080
     - R111 and R111b: `js/quick-add-ui.js`;
     - R112–R114: `js/account-ui.js`, the welcome screen, the account windows, signing out, deleting the account and the first-sync choice.
   - R114 narrowed step 3c: the sync itself stays in `app.js` (it replaces the state and the archive and runs on every save; the plan says why). The user had asked for "kreni sa 3c", where the plan's 3c was the sync itself; told of the narrowing, the user agreed on 2026-10-16 ("slažem se, ostavi sinhronizaciju u app.js").
-  - Next: a pull request into `main` when the user asks.
+  - Before: PR #32 (`99c1e9e`, R83–R106), from the user's list ("sve odradi osim ciljeva"; projects and areas stay as they are, "Ostaje kao sada"; the bulk moves as an AGENTS.md exception; the archive at the end):
+    - R83–R84: Danas — past-due tasks and Zatvori dan, one by one or all to tomorrow;
+    - R85 (data model): habit durations in the day's capacity; R106: a Trajanje row in Detalji navike;
+    - R86–R90: Inbox without type filters, Kad radim / Rok, "Od dana završetka" (R88, data model), Quick Add reads spoken times, repeats and Cyrillic, suggests #/+/@ and takes pasted lists;
+    - R91–R93: Kalendar 3 dana; Navike with 30-day success, a note on the day and limits (R93, data model);
+    - R94–R97: project status and next step (data model), the Redovne obaveze bar, a 10-minute weekly review, note links to projects and goals (data model);
+    - R98–R102: the journal asks about the day, ready-made templates and views (R100, data model), the completed summary, search without diacritics and across scripts, a Ctrl/Cmd+K palette;
+    - R103 (data model): old completed tasks in IndexedDB v2 `archivedTasks`; R103b: fixes from its review.
+    - R104–R105: fixes from read-only code reviews of R83–R102 and a security review of the branch (among them, sync had stopped applying pulls with notes older than R97).
+  - Before: PR #31 (`970617b`, R72–R82): Još → Planiranje, Česta pitanja, the guide, the outside-review fixes R75–R82, Šta je novo.
+  - Before: PR #30 (`707f169`, R67–R71), PR #29 (`286bb97`, R66), PR #28 (`83d49d1`, R65), PR #27 (`fbcffc7`, R59–R64).
 - **Sync:** `js/sync-config.js` holds the user's project `https://qjfpnvjuqbrmdkjxxmsq.supabase.co` and its publishable key (`docs/v2/podesavanje-supabase.md`).
   - **Checked on 2026-10-13 with the publishable key (read-only):**
     - the tables of 0001 exist, and 0005 and 0006 were run;
@@ -168,7 +166,7 @@ python3 -m http.server 8080
   - **Android release:** the upload key, the GitHub secrets and Play Console (`docs/v2/android-izdanje.md`).
   - **Two devices:** real sign-ins and sync, realtime and the encrypted journal; since PR #32 also one device with archived tasks and one with notes made before R97, all on the same version (older versions drop day notes and "Od dana završetka").
   - **Phone (PR #32):** the IndexedDB v2 upgrade in the WebView and the archived-tasks mirror, dragging in the calendar, pasting into Quick Add, the habit duration row.
-  - **Phone (work branch):**
+  - **Phone (PR #33):**
     - R107: a reset without a copy also removes the files in Documents/Dailo;
     - R108: the sheet footers on more than one device;
     - R109: Projekti;
