@@ -2,6 +2,8 @@
 
 This document records the V1.9 implementation inspected on 2026-10-07, the V1.10 Quick Add parser (`c64bd81`), the V1.11 weekly review (`5bbd820`), the V1.12 time-blocking (`d00855b`) and the V2.0-a sync (`65aeabf`, `7a834db`), inspected on 2026-10-08. It describes mechanisms present in source, not proof of functional, visual or native-browser acceptance. Read `AGENTS.md` and the applicable versioned spec before changing behavior.
 
+**Updated 2026-10-16** at `2.0.0-alpha.143`: "Composition and module boundaries" below describes the modules split out of `app.js` (R56, R110–R113), and the IndexedDB line its version 2 (R103). Other sections are still as inspected at the versions above; the source and its tests win.
+
 ## Composition and module boundaries
 
 The app is a static HTML/CSS/vanilla JavaScript browser application using classic scripts, not ES modules or a framework. `index.html` loads JSZip, Release (`js/release.js`), I18n (`js/i18n.js`), the Serbian catalog (`js/i18n-sr.js`), Core, Storage, Attachments, Backup, since V2.0-a the sync config (`js/sync-config.js`) and Sync (`js/sync.js`), the domain registry, UI adapters, and finally `app.js`, in that order. Shared APIs live on `window`/`globalThis`; Release, I18n, Core, Storage, Attachments, Backup and Sync also expose CommonJS exports for tests.
@@ -9,6 +11,35 @@ The app is a static HTML/CSS/vanilla JavaScript browser application using classi
 UI adapters register `renderRoute`, `handleAction`, `handleInput`, or additional hooks with `TodoDomainModules`. `app.js` calls adapters in registration order and accepts the first result that is neither `undefined` nor `false`. A handler returns `true` when it has consumed an event; renderers return HTML. Task rows additionally use the `renderTaskRow` hook.
 
 `domainContext()` supplies live state/modal getters plus shared lookup, rendering, overlay, persistence, attachment and domain-operation helpers. Adapters are therefore coupled to this controller contract rather than independent state stores. Many adapters mutate shared records and then call supplied save/render helpers; not all domain mutations have moved out of `app.js`.
+
+### Modules split out of `app.js` (R56, R110–R113)
+
+`docs/superpowers/plans/2026-10-12-app-js-modules.md` moves the shared machinery out of `app.js` one part per release, without changing behavior.
+
+| Part | Module | Step |
+| --- | --- | --- |
+| The desktop sidebar | `js/sidebar-ui.js` | R56 |
+| Drag, swipe and long press | `js/drag-ui.js` | R110 |
+| Quick Add | `js/quick-add-ui.js` | R111, R111b |
+| The welcome screen and sign-in | `js/account-ui.js` | R112 |
+| The account windows | `js/account-ui.js` | R113 |
+
+The sync itself is the last step (3c).
+
+- **The contract.** A module registers `{ name, renderRoute, handleAction, handleInput, attach }`; every entry but `name` is optional.
+  - `renderRoute` answers its own routes and windows (`{ type: 'modal', modalType }`).
+  - `handleAction` answers its own `data-action` and `data-pop-action` values.
+  - `handleInput` answers the typing, changes and keys of its own fields. `app.js` passes input, change and keydown events here.
+  - `attach(ctx)` wires listeners of its own once. `attachEvents` calls it first, on every module that has it.
+  - The drag module also answers `isDragging`, so `syncWaiting` holds a pulled sync during a drag.
+- **Live reads.** A moved part keeps the helpers it takes in its own variables, filled once from the first context (`use(ctx)`), since they never change. It reads the live data and window through the context each time and writes them only through setters, because a sync or a reload replaces them:
+  - read: `app.state`, `app.modalState`, `app.syncMeta`, `app.modalReturnFocus`, `app.syncRunning`, and the start-up flags `app.recovery`, `app.storageError`, `app.staleDataNotice`, `app.globalOperation`;
+  - written: `app.setModalState`, `app.setSyncMeta`, `app.setModalReturnFocus`.
+- **Named calls.** `app.js` asks a moved part by name, straight from that module's adapter: `quickAddAction('quick-open', context)` and `accountAction('welcome-start')`, for example. These calls do not go through `callDomainHook`, because the other modules' `handleAction` expects a click (`event.target`).
+- **Load order.** The split modules load after the screen modules and the palette, in the order `sidebar-ui`, `drag-ui`, `quick-add-ui`, `account-ui`, then `app.js`, and `sw.js` precaches them.
+- **Tests.** Tests find a function in any file through `tests/support/source.js` (`functionSource`, `appSource`). Two more helpers there serve moved parts:
+  - `contextKeys()` lists `domainContext()`'s keys, so a module's test can check every helper it takes;
+  - `withApp()`, `accountCode()` and `withAccount()` let a vm harness run moved code against its own sandbox state.
 
 ## Boot and ready flow
 
@@ -27,7 +58,7 @@ Metadata schema version is `3`. The main object contains Tasks, Projects, Tags, 
 
 `saveState()` normalizes metadata, updates the Focus selection, omits transient `habitLogCache` and `habitMetrics`, and writes compact JSON to `todoAppData`. It reports failures and schedules a snapshot after successful saves. `saveAndRender()` attempts saving and then renders; a rendered edit is not evidence that its storage write succeeded. Text edits also use a short debounce and flush paths.
 
-IndexedDB database `todoAppDB`, database version `1`, has `attachments`, `habitLogs`, `goalHistory` and `recoverySnapshots` stores. Database version, metadata schema version and ZIP format version are different contracts. In the inspected `backup.js`, `BACKUP_VERSION` is `2`, export writes `backupVersion: 2` and the historical manifest field `appVersion: '1.3'`, and inspection accepts backup versions `1` and `2`. The function name `exportBackupV3` refers to the V3 state payload; it does not mean ZIP format 3. Storage also handles the legacy `todoAppAttachments` database. Files are Blobs in IndexedDB and metadata retains attachment IDs. Attachments supports Tasks, Notes and Resources through shared owner checks.
+IndexedDB database `todoAppDB`, database version `2` since R103 (version `1` before), has `attachments`, `habitLogs`, `goalHistory` and `recoverySnapshots` stores, plus `archivedTasks` (R103: old completed tasks, which still travel in a ZIP's `data.tasks`). Database version, metadata schema version and ZIP format version are different contracts. In the inspected `backup.js`, `BACKUP_VERSION` is `2`, export writes `backupVersion: 2` and the historical manifest field `appVersion: '1.3'`, and inspection accepts backup versions `1` and `2`. The function name `exportBackupV3` refers to the V3 state payload; it does not mean ZIP format 3. Storage also handles the legacy `todoAppAttachments` database. Files are Blobs in IndexedDB and metadata retains attachment IDs. Attachments supports Tasks, Notes and Resources through shared owner checks.
 
 Automatic captures are scheduled after one idle second, rate limited to five minutes and retain five automatic snapshots; operation-recovery copies are separate. They include normalized metadata and associated stored records and consume the same browser quota as application data. An exported ZIP is a separate portable artifact.
 

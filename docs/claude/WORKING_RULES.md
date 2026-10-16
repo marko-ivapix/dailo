@@ -29,9 +29,10 @@
 - Put screen-specific markup/actions in the relevant `js/*-ui.js` module; use `js/app.js` for orchestration, routing, global events and cross-cutting overlays.
 - Do not rename persisted keys or IDs without an explicit migration and tests.
 - Prefer small additive changes over broad rewrites of `js/app.js`.
+- Move code out of `js/app.js` only as `docs/superpowers/plans/2026-10-12-app-js-modules.md` describes: one part per release, no behavior change, the live state read through `domainContext()`, and `app.js` calling the part by name.
 - Add every new runtime file (script, stylesheet, font, icon) to `SHELL_FILES` in `sw.js`; `tests/offline-v1-9.test.js` fails otherwise.
 - Bump `APP_VERSION` in `js/release.js` and `VERSION` in `sw.js` together for a release.
-- Pin the exact version only in the newest release test (since V2.0-a: `tests/sync-app-v2-0a.test.js`). When releasing, move the pin into the new release's test and relax the previous one to "this version or later"; older release tests keep checking that `sw.js` follows `APP_VERSION`.
+- Pin the exact version only in the newest release test (the newest step's test; at alpha.143 `tests/account-windows-r113.test.js`). When releasing, move the pin into the new release's test and relax the previous one to "this version or later"; older release tests keep checking that `sw.js` follows `APP_VERSION`.
 - `REPORT_EMAIL` in `js/release.js` holds only an address the user supplied; never guess or change it on your own.
 - `uputstvo.html` is a standalone page outside the precache (online only). It may reference local files only; `tests/beta-v1-9-1.test.js` checks that.
 - New CSS goes into the newest version layer (V2.0-a sync card at the time of writing) or a new later layer, before the phone touch-target guard, which stays the final rule.

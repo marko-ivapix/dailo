@@ -105,8 +105,8 @@ python3 -m http.server 8080
   - Every class the markup uses must be styled (`tests/design-v1-8.test.js`), and dead selectors are not allowed (`tests/redesign-r34.test.js`).
 - **Code shape:**
   - Screens are domain modules (`window.TodoDomainModules.register`, `domainContext()`).
-  - Code leaving `js/app.js` follows `docs/superpowers/plans/2026-10-12-app-js-modules.md`.
-  - Tests find moved functions through `tests/support/source.js`.
+  - Code leaving `js/app.js` follows `docs/superpowers/plans/2026-10-12-app-js-modules.md`. A moved part reads the live state through `domainContext()` (`app.state`, `app.modalState`, …) and writes it only through its setters; `app.js` calls it by name (`quickAddAction`, `accountAction`).
+  - Tests find moved functions through `tests/support/source.js`. `functionSource` searches in file-name order, so name the file for `use` and `handleAction`, which several modules have.
 - **`REPORT_EMAIL`** in `js/release.js` is the address the user supplied. Never change it to one the user has not given.
 - **Secrets never enter the repository:**
   - the Supabase service-role key;
@@ -133,6 +133,15 @@ python3 -m http.server 8080
   - R104–R105: fixes from read-only code reviews of R83–R102 and a security review of the branch (among them, sync had stopped applying pulls with notes older than R97).
   - Before: PR #31 (`970617b`, R72–R82): Još → Planiranje, Česta pitanja, the guide, the outside-review fixes R75–R82, Šta je novo.
   - Before: PR #30 (`707f169`, R67–R71), PR #29 (`286bb97`, R66), PR #28 (`83d49d1`, R65), PR #27 (`fbcffc7`, R59–R64).
+- **Work branch `ccr-95f6062b-lgg2fr`** (not merged yet; `2.0.0-alpha.143`):
+  - R107: Reset with or without a copy;
+  - R108: sheet footers above the system buttons;
+  - R109: Projekti as their own screen;
+  - the module split of `js/app.js` (7,801 → 6,661 lines):
+    - R110: `js/drag-ui.js`;
+    - R111 and R111b: `js/quick-add-ui.js`;
+    - R112–R113: `js/account-ui.js`, the welcome screen and the account windows.
+  - Next: step 3c of the module plan (the sync itself) when the user asks.
 - **Sync:** `js/sync-config.js` holds the user's project `https://qjfpnvjuqbrmdkjxxmsq.supabase.co` and its publishable key (`docs/v2/podesavanje-supabase.md`).
   - **Checked on 2026-10-13 with the publishable key (read-only):**
     - the tables of 0001 exist, and 0005 and 0006 were run;
@@ -150,11 +159,16 @@ python3 -m http.server 8080
 
   The `2.0.0-alpha.83` debug APK was also sent on 2026-10-12; no separate report came for it. The `2.0.0-alpha.98` debug APK was sent on 2026-10-13, built from `claude/sleepy-gauss-7u6n19` at `af8ba56`; on 2026-10-14 the user reported "Radi", and about R66 "Navike stoje na mestu, sve je okej". The `2.0.0-alpha.135` debug APK was sent on 2026-10-16, built from `ccr-95f6062b-lgg2fr` at `0029e97` (`main` `99c1e9e` plus the beta checklist update); on 2026-10-16 the user reported "instalirao sam, sve radi" (no beta items named). The `2.0.0-alpha.137` debug APK (R107 optional reset copy, R108 sheet footers above the system buttons) was sent on 2026-10-16, built from `ccr-95f6062b-lgg2fr` at `b0a9503`; no report yet.
 - **Manual-pending:**
-  - **Beta checklist:** B6–B42.
+  - **Beta checklist:** B6–B52.
   - **iPhone:** the build on the user's Mac, plus the widgets and share extension, which need a paid team (`docs/v2/ios-widgeti.md`).
   - **Android release:** the upload key, the GitHub secrets and Play Console (`docs/v2/android-izdanje.md`).
   - **Two devices:** real sign-ins and sync, realtime and the encrypted journal; since PR #32 also one device with archived tasks and one with notes made before R97, all on the same version (older versions drop day notes and "Od dana završetka").
   - **Phone (PR #32):** the IndexedDB v2 upgrade in the WebView and the archived-tasks mirror, dragging in the calendar, pasting into Quick Add, the habit duration row.
+  - **Phone (work branch):**
+    - R107: a reset without a copy also removes the files in Documents/Dailo;
+    - R108: the sheet footers on more than one device;
+    - R109: Projekti;
+    - after the module split (R110–R113), these should work as in `2.0.0-alpha.138`: swipes and hold-and-drag, Quick Add (including "Kao jedan zadatak"), the welcome screen, "Odjavi se", and the password, e-mail and journal-password windows.
   - **Browser and visual checks:** the desktop layer in a wide window, the light theme, `.ics` in real calendar apps, dictation in Chrome and Safari, and the link preview in messengers.
 - **Open review items:**
   - Security finding 1: the shared `github.io` origin waits for a custom domain (`docs/superpowers/specs/2026-10-12-security-review.md`).
