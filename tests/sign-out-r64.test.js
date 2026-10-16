@@ -22,7 +22,8 @@ function harness() {
     clearTimeout: () => {}, liveSync: { disconnect: () => calls.push('disconnect') }, forgetJournalKey: () => calls.push('forget key'),
     localStorage: { removeItem: key => { storage.delete(key); calls.push(`remove ${key}`); } },
     render: () => calls.push('render'), navigate: route => calls.push(`navigate ${route}`),
-    openWelcome: (mode, options) => calls.push(`welcome ${mode} ${JSON.stringify(options)}`),
+    // R112: the welcome screen is the account module's, asked by name.
+    accountAction: (action, payload) => calls.push(action === 'welcome-open' ? `welcome ${payload.mode} ${JSON.stringify({ firstRun: payload.firstRun })}` : action),
     syncClient: { signOut: async () => { await null; calls.push('server sign-out'); } },
   };
   vm.createContext(context);

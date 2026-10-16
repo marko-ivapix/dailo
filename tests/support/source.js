@@ -7,7 +7,7 @@ const path = require('node:path');
 const root = path.join(__dirname, '..', '..');
 const read = file => fs.readFileSync(path.join(root, file), 'utf8');
 // js/app.js and the modules split out of it, in load order.
-const APP_FILES = ['js/sidebar-ui.js', 'js/drag-ui.js', 'js/quick-add-ui.js', 'js/app.js'];
+const APP_FILES = ['js/sidebar-ui.js', 'js/drag-ui.js', 'js/quick-add-ui.js', 'js/account-ui.js', 'js/app.js'];
 const ALL_FILES = fs.readdirSync(path.join(root, 'js')).filter(name => name.endsWith('.js')).map(name => `js/${name}`);
 
 const appSource = () => APP_FILES.map(read).join('\n');
@@ -51,14 +51,34 @@ function contextKeys() {
 }
 
 // R111: a moved part reads the live data and window through `app` (its domain context: app.state, app.modalState,
-// app.setModalState). In a vm harness that keeps `state` and `modalState` on the sandbox, `app` reads and sets those.
+// app.setModalState). In a vm harness that keeps them on the sandbox, `app` reads and sets those. R112: also the
+// device's sync record, the return focus and the start-up flags.
+const LIVE = ['state', 'modalState', 'syncMeta', 'modalReturnFocus', 'recovery', 'storageError', 'staleDataNotice', 'globalOperation'];
 function withApp(sandbox) {
-  sandbox.app = {
-    get state() { return sandbox.state; },
-    get modalState() { return sandbox.modalState; },
+  const app = {
     setModalState(value) { sandbox.modalState = value; },
+    setSyncMeta(value) { sandbox.syncMeta = value; },
+    setModalReturnFocus(value) { sandbox.modalReturnFocus = value; },
   };
+  for (const name of LIVE) Object.defineProperty(app, name, { get: () => sandbox[name], enumerable: true });
+  sandbox.app = app;
   return sandbox;
 }
 
-module.exports = { APP_FILES, appSource, functionSource, contextKeys, withApp };
+// R112: the welcome screen and sign-in live in js/account-ui.js. A harness that runs app.js's sync block loads them
+// into the same sandbox (accountWelcome(): the module's code from the welcome screen to its handleAction), where they
+// read the live state through `app`; app.js's accountAction reaches that handleAction through window.TodoDomainModules,
+// and use() has nothing to capture, since the helpers are already the sandbox's own.
+const accountWelcome = () => {
+  const source = read('js/account-ui.js');
+  return source.slice(source.indexOf('  // R40: the welcome screen'), source.indexOf('  window.TodoDomainModules?.register('));
+};
+function withAccount(sandbox) {
+  withApp(sandbox);
+  sandbox.use = () => {};
+  if (!sandbox.domainContext) sandbox.domainContext = () => null;
+  sandbox.window = { ...(sandbox.window || {}), TodoDomainModules: { getAdapters: () => [{ name: 'account', handleAction: (...args) => sandbox.handleAction(...args) }] } };
+  return sandbox;
+}
+
+module.exports = { APP_FILES, appSource, functionSource, contextKeys, withApp, accountWelcome, withAccount };

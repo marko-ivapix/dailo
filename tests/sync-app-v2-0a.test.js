@@ -7,6 +7,7 @@ const { withI18n, runInNewContextWithI18n } = require('./support/i18n.js');
 const { createFakeSupabase } = require('./support/fake-supabase.js');
 const Sync = require('../js/sync.js');
 const Release = require('../js/release.js');
+const { appSource, accountWelcome, withAccount } = require('./support/source.js');
 
 const read = file => fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
 const clone = value => JSON.parse(JSON.stringify(value));
@@ -130,10 +131,11 @@ function syncHarness({ state = baseState(), habitLogs = [], meta = null, fake = 
     inputs: {}, $: selector => (selector.startsWith('#') && selector.slice(1) in context.inputs ? { value: context.inputs[selector.slice(1)] } : null),
     modalFrame: content => content, esc,
   };
-  vm.createContext(withI18n(context));
+  vm.createContext(withAccount(withI18n(context))); // R112: with the welcome screen of js/account-ui.js
   // R22b: the typed word is compared with plainWord, which lives with the other confirm words.
   const plainStart = app.indexOf('\n  function plainWord(') + 1;
   vm.runInContext(app.slice(start, end) + app.slice(plainStart, app.indexOf('\n  }\n', plainStart) + 4), context);
+  vm.runInContext(accountWelcome(), context);
   return { context, storage, logs, calls, fake, meta: () => JSON.parse(storage.get('dailoSync') || '{}') };
 }
 
@@ -322,7 +324,7 @@ test('sign-out keeps local data, and account deletion needs the typed word', asy
 });
 
 test('the app wires sync into saving, startup, dialogs, actions and the domain context', () => {
-  const app = read('js/app.js');
+  const app = appSource(); // R112: the welcome screen's actions are in js/account-ui.js
   assert.match(app, /const Sync = window\.DailoSync \|\| null;/);
   // R60: the client also says where the links in the account e-mails go (tests/emails-r60.test.js).
   assert.match(app, /const syncClient = Sync\?\.isConfigured\(syncConfig\) \? Sync\.createClient\(\{ url: syncConfig\.url, anonKey: syncConfig\.anonKey, emailRedirect: Release\.APP_URL \}\) : null;/);

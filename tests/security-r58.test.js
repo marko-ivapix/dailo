@@ -206,7 +206,7 @@ test('finding 5: ?shortcut= opens only the three shortcuts; dailo://auth counts 
   };
   for (const search of ['?shortcut=new-task', '?shortcut=today', '?shortcut=journal', '?shortcut=auth%3Ferror%3DLa%C5%BEna', '?shortcut=habit-done%3Fid%3Dx', '?shortcut=share%3Ftext%3Dx']) run(search);
   assert.deepEqual(calls, ['dailo://new-task', 'dailo://today', 'dailo://journal']);
-  assert.match(functionSource('handleIncomingLink').source, /if \(target === 'auth'\) \{ if \(!loadSyncMeta\(\)\.pkce\) return false; finishProviderSignIn\(link\.searchParams\); return true; \}/);
+  assert.match(functionSource('handleIncomingLink').source, /if \(target === 'auth'\) \{ if \(!loadSyncMeta\(\)\.pkce\) return false; accountAction\('welcome-provider-return', \{ params: link\.searchParams \}\); return true; \}/); // R112: asked by name
 });
 
 test('finding 6: Android leaves the app data out of backups', () => {

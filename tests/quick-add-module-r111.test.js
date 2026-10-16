@@ -119,9 +119,12 @@ test('in the module: open, draw, type, Enter and paste work as before', () => {
 });
 
 test('the module loads after js/drag-ui.js, is precached, the tests read it as part of the app, and the plan says so', () => {
-  assert.match(read('index.html'), /<script src="js\/drag-ui\.js"><\/script>\n  <script src="js\/quick-add-ui\.js"><\/script>\n  <script src="js\/app\.js"><\/script>/);
-  assert.match(read('sw.js'), /'js\/drag-ui\.js',\n  'js\/quick-add-ui\.js',\n  'js\/app\.js',/);
-  assert.deepEqual(APP_FILES, ['js/sidebar-ui.js', 'js/drag-ui.js', 'js/quick-add-ui.js', 'js/app.js']);
+  // R112: js/account-ui.js comes next, still before app.js.
+  const html = read('index.html');
+  assert.match(html, /<script src="js\/drag-ui\.js"><\/script>\n  <script src="js\/quick-add-ui\.js"><\/script>\n/);
+  assert.ok(html.indexOf('src="js/quick-add-ui.js"') < html.indexOf('src="js/app.js"'));
+  assert.match(read('sw.js'), /'js\/drag-ui\.js',\n  'js\/quick-add-ui\.js',\n/);
+  assert.ok(APP_FILES.indexOf('js/quick-add-ui.js') === 2 && APP_FILES.at(-1) === 'js/app.js', APP_FILES.join());
   const plan = read('docs/superpowers/plans/2026-10-12-app-js-modules.md');
   assert.match(plan, /\| R111 \| [^\n]+ \| `js\/quick-add-ui\.js` \| `2\.0\.0-alpha\.140` \|/);
   // The R110 review: the general recipe names the optional entries too.

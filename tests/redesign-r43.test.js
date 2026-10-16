@@ -174,7 +174,7 @@ test('app: a new e-mail address in two steps; the same address and a taken one a
 test('wiring and Serbian', () => {
   assert.ok(app.includes("else if (action === 'account-change-password') openAccountWindow('password');"));
   assert.ok(app.includes("else if (action === 'account-change-email') openAccountWindow('email');"));
-  assert.match(app, /document\.addEventListener\('submit', event => \{\n      const form = event\.target\?\.closest\?\.\('\[data-welcome-form\], \[data-account-form\]'\);\n      if \(!form\) return;\n      event\.preventDefault\(\);\n      if \(form\.matches\('\[data-welcome-form\]'\)\) welcomeSubmit\(\);\n      else accountSubmit\(\);\n    \}\);/);
+  assert.match(app, /document\.addEventListener\('submit', event => \{\n      const form = event\.target\?\.closest\?\.\('\[data-welcome-form\], \[data-account-form\]'\);\n      if \(!form\) return;\n      event\.preventDefault\(\);\n      if \(form\.matches\('\[data-welcome-form\]'\)\) accountAction\('welcome-submit'\);\n      else accountSubmit\(\);\n    \}\);/); // R112: the welcome form is the account module's
   for (const [en, value] of [['Change the password', 'Promeni lozinku'], ['Change the e-mail address', 'Promeni e-adresu'], ['Other devices will need to sign in again.', 'Ostali uređaji će morati ponovo da se prijave.'], ['Current password', 'Trenutna lozinka'], ['The current password is not right.', 'Trenutna lozinka nije tačna.'], ['Another account already uses this e-mail address.', 'Drugi nalog već koristi ovu e-adresu.'], ['E-mail address changed: {email}', 'E-adresa je promenjena: {email}'], ['Change', 'Promeni']]) {
     assert.ok(sr.includes(`${JSON.stringify(en)}: ${JSON.stringify(value)}`), en);
   }
