@@ -2,7 +2,7 @@
 
 Kratka ručna provera pre nego što Dailo pošalješ testerima. Radi je na **telefonu (instalirana aplikacija, iPhone ili Android)** i na **računaru (Safari ili Chrome)**. Kad nešto ne radi, zapiši broj stavke, uređaj i šta se desilo, i javi; svaka popravka ide kao novi korak, sa testom.
 
-Lista odgovara verziji **2.0.0-alpha.135**. Stavke označene sa ✅ su potvrđene na iPhone-u 2026-10-08. Rezultati se upisuju u `CLAUDE.md` (Current state) i u `docs/superpowers/progress-redesign.md`.
+Lista odgovara verziji **2.0.0-alpha.144**. Stavke označene sa ✅ su potvrđene na iPhone-u 2026-10-08. Rezultati se upisuju u `CLAUDE.md` (Current state) i u `docs/superpowers/progress-redesign.md`.
 
 ## Instalacija, podaci, rad bez interneta
 
@@ -64,6 +64,12 @@ Lista odgovara verziji **2.0.0-alpha.135**. Stavke označene sa ✅ su potvrđen
 - [ ] **B51.** **Pretraga**: `cacak` nalazi zadatak „Čačak“, a reč otkucana ćirilicom nalazi istu reč latinicom.
 - [ ] **B52.** Telefon: instaliraj novu verziju preko stare. Zadaci, navike, prilozi i **Završeni zadaci** (i stari završeni) su tu.
 
+## Novo u verzijama 2.0.0-alpha.136–144
+
+- [ ] **B53.** Telefon, posle izvoza (ili sa podacima koji ti ne trebaju): **Podešavanja → Podaci**, isključi **Sačuvaj kopiju pre brisanja**, pa **Resetuj podatke aplikacije** i upiši `RESETUJ`. Prozor upozorava da podaci ne mogu da se vrate. Posle toga su podaci obrisani, a u folderu **Documents/Dailo** nema više automatskih kopija `dailo-auto-…zip`. Posle ponovnog pokretanja **Sačuvaj kopiju pre brisanja** je opet uključeno.
+- [ ] **B54.** Android sa dugmadima na dnu ekrana (ne pokretima): u prozoru zadatka, u Brzom dodavanju i u prozorima koji se otvaraju odozdo, dugme na dnu prozora (na primer **Sačuvaj**) je iznad sistemskih dugmadi i može da se dodirne, i dok se prozor pomera. Ako možeš, proveri na još jednom telefonu.
+- [ ] **B55.** **Još → Planiranje → Projekti** otvara poseban ekran: broj projekata, „Bez projekta“, aktivni projekti po oblastima, a „Na čekanju“ i „Nekad“ su skupljeni. Dugme **+** na tom ekranu pravi novi projekat. Projekat otvoren odavde ima **‹ Projekti**, a **Zadaci** više nemaju prekidač za projekte.
+
 ## Sinhronizacija (V2.0-a, tek kad se podesi Supabase)
 
 Dok Supabase nije podešen (`docs/v2/podesavanje-supabase.md`), kartica **Sinhronizacija** se ne vidi i ove stavke se preskaču. Na svim uređajima neka bude ista verzija: starije verzije brišu beleške uz dan navike i „Od dana završetka“.
@@ -85,4 +91,4 @@ Dok Supabase nije podešen (`docs/v2/podesavanje-supabase.md`), kartica **Sinhro
 
 - [ ] **B24.** **Resetuj podatke aplikacije** (samo na računaru, ili posle izvoza): traži da upišeš `RESETUJ`, pravi sigurnosnu kopiju i briše podatke. Posle toga **Uvezi rezervnu kopiju** (uz reč `VRATI`) vraća sve.
 
-Kad su B6–B30 i B43–B52 prošli (i B31–B42, kad je sinhronizacija uključena), ili su greške popravljene, Dailo je spreman za prve testere: pošalji im link na uputstvo `https://marko-ivapix.github.io/dailo/uputstvo.html`.
+Kad su B6–B30 i B43–B55 prošli (i B31–B42, kad je sinhronizacija uključena), ili su greške popravljene, Dailo je spreman za prve testere: pošalji im link na uputstvo `https://marko-ivapix.github.io/dailo/uputstvo.html`.

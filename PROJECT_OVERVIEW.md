@@ -296,7 +296,7 @@ Zatim otvoriti `http://localhost:8080`. Service worker se registruje samo na `ht
   - dugmad na dnu prozora iznad sistemskih dugmadi (R108);
   - Projekti kao poseban ekran (R109);
   - podela `js/app.js` na module (R110–R114).
-- Šta je korisnik proverio i šta još čeka ručnu proveru vodi se u `CLAUDE.md` → „Current state“ i u `docs/beta/provera-pre-bete.md` (B6–B52).
+- Šta je korisnik proverio i šta još čeka ručnu proveru vodi se u `CLAUDE.md` → „Current state“ i u `docs/beta/provera-pre-bete.md` (B6–B55).
 
 Tekst ispod je istorija do `2.0.0-alpha.3`.
 

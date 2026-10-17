@@ -54,7 +54,7 @@ Dailo is a local-first personal productivity app. It covers tasks, projects, Inb
    - `progress-v1-*.md`: the earlier versions.
 4. **Specs and plans:** `docs/superpowers/specs/` has one spec per step. Data-model specs are marked as such. Plans are in `docs/superpowers/plans/`.
 5. **For the user (Serbian):**
-   - `docs/beta/provera-pre-bete.md`: the beta checklist B1–B42;
+   - `docs/beta/provera-pre-bete.md`: the beta checklist B1–B55;
    - the guides `docs/v2/podesavanje-supabase.md`, `capacitor-mac.md`, `android-izdanje.md` and `ios-widgeti.md`.
 
 ## Source-of-truth rule
@@ -161,7 +161,7 @@ python3 -m http.server 8080
 
   The `2.0.0-alpha.83` debug APK was also sent on 2026-10-12; no separate report came for it. The `2.0.0-alpha.98` debug APK was sent on 2026-10-13, built from `claude/sleepy-gauss-7u6n19` at `af8ba56`; on 2026-10-14 the user reported "Radi", and about R66 "Navike stoje na mestu, sve je okej". The `2.0.0-alpha.135` debug APK was sent on 2026-10-16, built from `ccr-95f6062b-lgg2fr` at `0029e97` (`main` `99c1e9e` plus the beta checklist update); on 2026-10-16 the user reported "instalirao sam, sve radi" (no beta items named). The `2.0.0-alpha.137` debug APK (R107 optional reset copy, R108 sheet footers above the system buttons) was sent on 2026-10-16, built from `ccr-95f6062b-lgg2fr` at `b0a9503`; no report yet.
 - **Manual-pending:**
-  - **Beta checklist:** B6–B52.
+  - **Beta checklist:** B6–B55 (B53–B55 for PR #33, added on 2026-10-17).
   - **iPhone:** the build on the user's Mac, plus the widgets and share extension, which need a paid team (`docs/v2/ios-widgeti.md`).
   - **Android release:** the upload key, the GitHub secrets and Play Console (`docs/v2/android-izdanje.md`).
   - **Two devices:** real sign-ins and sync, realtime and the encrypted journal; since PR #32 also one device with archived tasks and one with notes made before R97, all on the same version (older versions drop day notes and "Od dana završetka").
